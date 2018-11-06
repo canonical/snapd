@@ -4905,3 +4905,128 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(number, Equals, int64(1))
 	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
 }
+
+func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+
+	// sanity check
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		},
+		"otherslot": map[string]interface{}{
+			"name":        "otherslot",
+			"interface":   "test",
+			"hotplug-key": "5678",
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-remove-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is removed from the repository and from the state
+	c.Assert(repo.Slot("core", "hotplugslot"), IsNil)
+	slot, err := repo.SlotForHotplugKey("test", "1234")
+	c.Assert(err, IsNil)
+	c.Assert(slot, IsNil)
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+		"otherslot": map[string]interface{}{
+			"name":        "otherslot",
+			"interface":   "test",
+			"hotplug-key": "5678",
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+
+	// sanity check
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-remove-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is removed from the repository but not from the state, because of existing connection
+	c.Assert(repo.Slot("core", "hotplugslot"), IsNil)
+	slot, err := repo.SlotForHotplugKey("test", "1234")
+	c.Assert(err, IsNil)
+	c.Assert(slot, IsNil)
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+}
