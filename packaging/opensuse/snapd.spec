@@ -209,8 +209,8 @@ popd
 GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snap
 GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snapctl
 GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie %{import_path}/cmd/snap-seccomp
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default --ldflags '-extldflags "-static"' %{import_path}/cmd/snap-update-ns
-GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default --ldflags '-extldflags "-static"' %{import_path}/cmd/snap-exec
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-update-ns
+GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-exec
 %if 0%{?with_test_keys}
 GOPATH=$GOPATH:%{indigo_gopath} go build -buildmode=pie -tags withtestkeys %{import_path}/cmd/snapd
 %else
