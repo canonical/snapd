@@ -1181,3 +1181,57 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	task.SetStatus(state.DoneStatus)
 	return nil
 }
+
+// doHotplugUpdateSlot updates static attributes of a hotplug slot for given device.
+func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+	var attrs map[string]interface{}
+	if err := task.Get("slot-attrs", &attrs); err != nil {
+		return fmt.Errorf("internal error: cannot get slot-attrs attribute for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
+	}
+
+	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot determine slot for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+	if slot == nil {
+		return nil
+	}
+
+	conns, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot determine connections for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+
+	// hotplug-update-slot is meant to be run as part of a change that first disconnects all slots, then updates the slot and finally
+	// reconnects all connections, so that disconnect- and connect- hooks are run with old and new attributes, respectively. In theory
+	// we should never hit this condition as it should be prevented by conflict logic.
+	if len(conns) > 0 {
+		return fmt.Errorf("internal error: cannot update slot %s while connected", slot.Name)
+	}
+
+	if slotSpec, ok := stateSlots[slot.Name]; ok {
+		slotSpec.StaticAttrs = attrs
+		stateSlots[slot.Name] = slotSpec
+		setHotplugSlots(st, stateSlots)
+
+		// XXX: this is ugly and relies on the slot infos being kept as pointers in the repository
+		slot.Attrs = attrs
+	} else {
+		return fmt.Errorf("internal error: cannot find slot %s for device %s", slot.Name, hotplugKey)
+	}
+
+	return nil
+}
