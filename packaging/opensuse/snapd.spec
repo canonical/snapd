@@ -14,16 +14,27 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
+# Test keys: used for internal testing in snapd.
 %bcond_with testkeys
+%if %{with testkeys}
+%global with_test_keys 1
+%endif
 
 # Enable AppArmor on openSUSE Tumbleweed (post 15.0) or higher
 # N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
 # did not support what we needed to be able to turn on basic integration.
 %if 0%{?suse_version} >= 1550
-%bcond_without apparmor
-%else
-%bcond_with apparmor
+%global with_apparmor 1
 %endif
+
+# The list of systemd services we are expected to ship. Note that this does
+# not include services that are only required on core systems.
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service}
+
+# Alternate snap mount directory: not used by openSUSE.
+# If this spec file is integrated into Fedora then consider
+# adding global with_alt_snap_mount_dir 1 then.
+%global snap_mount_dir /snap
 
 # Compat macros
 %{!?make_build: %global make_build %{__make} %{?_smp_mflags}}
@@ -35,12 +46,6 @@
 %{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 %{?!_systemd_user_env_generator_dir: %global _systemd_user_env_generator_dir %{_prefix}/lib/systemd/user-environment-generators}
 
-# This is fixed in SUSE Linux 15
-# Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
-%if 0%{?suse_version} < 1500
-%global _sharedstatedir %{_localstatedir}/lib
-%endif
-
 %global provider        github
 %global provider_tld    com
 %global project         snapcore
@@ -51,29 +56,18 @@
 # Additional entry of $GOPATH during the build process.
 # This is designed to be a sub-directory of {_builddir}/{name}-{version}
 # because that directory is automatically cleaned-up by the build process.
-%global         indigo_gopath   %{_builddir}/%{name}-%{version}/gopath
+%global indigo_gopath   %{_builddir}/%{name}-%{version}/gopath
 
 # Directory where "name-version" directory from upstream taball is unpacked to.
 # This directory is arranged so that it is already contained inside the future
 # GOPATH so that nothing needs to be moved or copied for "go build" to work.
-%global         indigo_srcdir   %{indigo_gopath}/src/%{import_path}
-
-%global with_test_keys  0
-
-%if %{with testkeys}
-%global with_test_keys 1
-%else
-%global with_test_keys 0
-%endif
+%global indigo_srcdir   %{indigo_gopath}/src/%{import_path}
 
 # Set if multilib is enabled for supported arches
 %ifarch x86_64 aarch64 %{power64} s390x
 %global with_multilib 1
 %endif
 
-%global systemd_services_list snapd.socket snapd.service snapd.seeded.service %{?with_apparmor:snapd.apparmor.service}
-
-%global snap_mount_dir /snap
 
 Name:           snapd
 Version:        2.36.2
@@ -94,7 +88,6 @@ BuildRequires:  glibc-devel-static
 BuildRequires:  go
 BuildRequires:  gpg2
 BuildRequires:  indent
-BuildRequires:  libapparmor-devel
 BuildRequires:  libcap-devel
 BuildRequires:  libseccomp-devel
 BuildRequires:  libtool
@@ -120,15 +113,18 @@ BuildRequires:  glibc-devel-static-32bit
 BuildRequires:  gcc-32bit
 %endif
 
-%if %{with apparmor}
+%if 0%{?with_apparmor:1}
+BuildRequires:  libapparmor-devel
 BuildRequires:  apparmor-rpm-macros
 %endif
 
 PreReq:         permissions
 
 Requires(post): permissions
+%if 0%{?with_apparmor:1}
 Requires:       apparmor-parser
 Requires:       apparmor-profiles
+%endif
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
@@ -203,40 +199,42 @@ export LDFLAGS
 # Generate autotools build system files.
 pushd %{indigo_srcdir}/cmd
 autoreconf -i -f
+
 %configure \
     %{!?with_apparmor:--disable-apparmor} \
+    %{?with_apparmor:--enable-apparmor} \
     --libexecdir=%{_libexecdir}/snapd \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{snap_mount_dir} \
     --enable-merged-usr
+
 popd
 
 %build
-# Build golang executables, with the following exceptions everything is built the same way:
-# - snap-exec and snap-update-ns is built statically.
-# - snapd has a variant that uses test keys instead of production keys.
+%make_build -C %{indigo_srcdir}/cmd
+# Use the common packaging helper for building.
 #
 # NOTE: indigo_gopath takes priority over GOPATH. This ensures that we
 # build the code that we intended in case GOPATH points to another copy.
-GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snap
-GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snapctl
-GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snap-seccomp
-GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-update-ns
-GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=default -ldflags '-extldflags "-static"' %{import_path}/cmd/snap-exec
-%if 0%{?with_test_keys}
-GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie -tags withtestkeys %{import_path}/cmd/snapd
-%else
-GOPATH=%{indigo_gopath}:$GOPATH go build -buildmode=pie %{import_path}/cmd/snapd
-%endif
-
-# Build C executables
-%make_build -C %{indigo_srcdir}/cmd
+%make_build -f %{indigo_srcdir}/packaging/snapd.mk \
+	with_core_bits=0 \
+	with_alt_snap_mount_dir=%{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1} \
+	with_apparmor=%{!?with_apparmor:0}%{?with_apparmor:1} \
+	with_test_keys=%{!?with_test_keys:0}%{?with_test_keys:1} \
+	GOPATH=%{indigo_gopath}:$GOPATH \
+	all
 
 %check
-# Run tests with fixed locale that is expected by unicode/color code.
-LC_ALL=C.UTF-8 GOPATH=%{indigo_gopath}:$GOPATH go test %{import_path}/...
 %make_build -C %{indigo_srcdir}/cmd check
+# Use the common packaging helper for testing.
+%make_build -f %{indigo_srcdir}/packaging/snapd.mk \
+	with_core_bits=0 \
+	with_alt_snap_mount_dir=%{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1} \
+	with_apparmor=%{!?with_apparmor:0}%{?with_apparmor:1} \
+	with_test_keys=%{!?with_test_keys:0}%{?with_test_keys:1} \
+	GOPATH=%{indigo_gopath}:$GOPATH \
+	check
 
 %install
 # Install all systemd and dbus units, and env files.
@@ -247,72 +245,46 @@ LC_ALL=C.UTF-8 GOPATH=%{indigo_gopath}:$GOPATH go test %{import_path}/...
 		SNAP_MOUNT_DIR=%{snap_mount_dir}
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
-# Install all the Go executables.
-install -d -m 755 %{buildroot}%{_bindir}
-install -m 755 snap %{buildroot}%{_bindir}
-# Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
-install -m 755 snapctl %{buildroot}%{_libexecdir}/snapd
-ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
-install -d -m 755 %{buildroot}%{_libexecdir}/snapd
-install -m 755 snapd %{buildroot}%{_libexecdir}/snapd/
-install -m 755 snap-exec %{buildroot}%{_libexecdir}/snapd/
-install -m 755 snap-update-ns %{buildroot}%{_libexecdir}/snapd/
-install -m 755 snap-seccomp %{buildroot}%{_libexecdir}/snapd/
-# Generate and install man page for snap command
-install -d -m 755 %{buildroot}%{_mandir}/man8
-./snap help --man > %{buildroot}%{_mandir}/man8/snap.8
-# Undo special permissions of the void directory
-chmod 755 %{buildroot}%{_sharedstatedir}/snapd/void
-# Remove traces of ubuntu-core-launcher. It is a phased-out executable that is
-# still partially present in the tree but should be removed in the subsequent
-# release.
-rm -f %{buildroot}%{_bindir}/ubuntu-core-launcher
-# NOTE: we don't want to ship system-shutdown helper, it is just a helper on
-# ubuntu-core systems that exclusively use snaps. It is used during the
-# shutdown process and thus can be left out of the distribution package.
-rm -f %{buildroot}%{_libexecdir}/snapd/system-shutdown
-# Install the directories that snapd creates by itself so that they can be a part of the package
-install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+# Use the common packaging helper for bulk of installation.
+%make_install -f %{indigo_srcdir}/packaging/snapd.mk \
+	with_core_bits=0 \
+	with_alt_snap_mount_dir=%{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1} \
+	with_apparmor=%{!?with_apparmor:0}%{?with_apparmor:1} \
+	with_test_keys=%{!?with_test_keys:0}%{?with_test_keys:1} \
+	install
 
-install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/vulkan}
-install -d %{buildroot}%{_localstatedir}/cache/snapd
-install -d %{buildroot}%{_datadir}/polkit-1/actions
-install -d %{buildroot}%{snap_mount_dir}/bin
+# Undo special permissions of the void directory. We handle that in RPM files
+# section below.
+chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
+
 # Install local permissions policy for snap-confine. This should be removed
 # once snap-confine is added to the permissions package. This is done following
 # the recommendations on
 # https://en.opensuse.org/openSUSE:Package_security_guidelines
 install -m 644 -D %{indigo_srcdir}/packaging/opensuse/permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
 install -m 644 -D %{indigo_srcdir}/packaging/opensuse/permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
-# Remove unwanted systemd units
-for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service; do
-    rm -f %{buildroot}%{_unitdir}/$s
-done
-# Remove snappy core specific scripts
-rm -f %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
-
-# Install Polkit configuration
-install -m 644 -D %{indigo_srcdir}/data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}%{_sbindir}
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.seeded
-%if %{with apparmor}
+%if 0%{?with_apparmor:1}
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
 %endif
+
+# Install Polkit configuration.
+# TODO: This should be handled by data makefile.
+install -m 644 -D %{indigo_srcdir}/data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
+
 # Install the "info" data file with snapd version
+# TODO: This should be handled by data makefile.
 install -m 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/info
+
 # Install bash completion for "snap"
+# TODO: This should be handled by data makefile.
 install -m 644 -D %{indigo_srcdir}/data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D %{indigo_srcdir}/data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D %{indigo_srcdir}/data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
-
-# Don't ship apparmor helper service when AppArmor is not enabled
-%if ! %{with apparmor}
-rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
-rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
-%endif
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -322,7 +294,7 @@ rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
-%if %{with apparmor}
+%if 0%{?with_apparmor:1}
 %apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %service_add_post %{systemd_services_list}
@@ -345,34 +317,40 @@ fi
 %service_del_postun %{systemd_services_list}
 
 %files
-%if %{with apparmor}
-%config %{_sysconfdir}/apparmor.d
-%endif
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
-%dir %attr(0000,root,root) %{_sharedstatedir}/snapd/void
+%ghost %{_localstatedir}/lib/snapd/state.json
+%ghost %{_localstatedir}/lib/snapd/system-key
+%dir %attr(0000,root,root) %{_localstatedir}/lib/snapd/void
 %dir %{snap_mount_dir}
 %dir %{snap_mount_dir}/bin
+%ghost %{snap_mount_dir}/README
 %dir %{_libexecdir}/snapd
-%dir %{_sharedstatedir}/snapd
-%dir %{_sharedstatedir}/snapd/apparmor
-%dir %{_sharedstatedir}/snapd/apparmor/profiles
-%dir %{_sharedstatedir}/snapd/apparmor/snap-confine
-%dir %{_sharedstatedir}/snapd/assertions
-%dir %{_sharedstatedir}/snapd/desktop
-%dir %{_sharedstatedir}/snapd/desktop/applications
-%dir %{_sharedstatedir}/snapd/device
-%dir %{_sharedstatedir}/snapd/hostfs
-%dir %{_sharedstatedir}/snapd/mount
-%dir %{_sharedstatedir}/snapd/seccomp
-%dir %{_sharedstatedir}/snapd/seccomp/bpf
-%dir %{_sharedstatedir}/snapd/snaps
-%dir %{_sharedstatedir}/snapd/lib
-%dir %{_sharedstatedir}/snapd/lib/gl
-%dir %{_sharedstatedir}/snapd/lib/gl32
-%dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_localstatedir}/cache/snapd
+%ghost %{_localstatedir}/cache/snapd/commands
+%ghost %{_localstatedir}/cache/snapd/names
+%ghost %{_localstatedir}/cache/snapd/sections
+%dir %{_localstatedir}/lib/snapd
+%dir %{_localstatedir}/lib/snapd/apparmor
+%dir %{_localstatedir}/lib/snapd/apparmor/profiles
+%dir %{_localstatedir}/lib/snapd/apparmor/snap-confine
+%dir %{_localstatedir}/lib/snapd/assertions
+%dir %{_localstatedir}/lib/snapd/cache
+%dir %{_localstatedir}/lib/snapd/cookie
+%dir %{_localstatedir}/lib/snapd/desktop
+%dir %{_localstatedir}/lib/snapd/desktop/applications
+%dir %{_localstatedir}/lib/snapd/device
+%dir %{_localstatedir}/lib/snapd/hostfs
+%dir %{_localstatedir}/lib/snapd/lib
+%dir %{_localstatedir}/lib/snapd/lib/gl
+%dir %{_localstatedir}/lib/snapd/lib/gl32
+%dir %{_localstatedir}/lib/snapd/lib/vulkan
+%dir %{_localstatedir}/lib/snapd/mount
+%dir %{_localstatedir}/lib/snapd/seccomp
+%dir %{_localstatedir}/lib/snapd/seccomp/bpf
+%dir %{_localstatedir}/lib/snapd/sequence
+%dir %{_localstatedir}/lib/snapd/snaps
 %dir %{_environmentdir}
 %dir %{_systemd_system_env_generator_dir}
 %dir %{_systemdgeneratordir}
@@ -388,16 +366,10 @@ fi
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.failure.service
-%if %{with apparmor}
-%{_unitdir}/snapd.apparmor.service
-%endif
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_sbindir}/rcsnapd
 %{_sbindir}/rcsnapd.seeded
-%if %{with apparmor}
-%{_sbindir}/rcsnapd.apparmor
-%endif
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-update-ns
@@ -405,9 +377,6 @@ fi
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snapctl
-%if %{with apparmor}
-%{_libexecdir}/snapd/snapd-apparmor
-%endif
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-device-helper
@@ -422,11 +391,16 @@ fi
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %{_libexecdir}/snapd/snapd.run-from-snap
-%if %{with apparmor}
-%{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
-%endif
 %{_environmentdir}/990-snapd.conf
 %{_systemd_system_env_generator_dir}/snapd-env-generator
+
+%if 0%{?with_apparmor:1}
+%config %{_sysconfdir}/apparmor.d
+%{_libexecdir}/snapd/snapd-apparmor
+%{_sbindir}/rcsnapd.apparmor
+%{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
+%{_unitdir}/snapd.apparmor.service
+%endif
 
 %changelog
 
