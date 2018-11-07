@@ -15,11 +15,6 @@
 %endif
 
 # rpmbuild with "--with apparmor" to enable apparmor
-%if 0%{?with_apparmor}
-%bcond_without apparmor
-%else
-%bcond_with apparmor
-%endif
 
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
@@ -145,11 +140,6 @@ Requires:       bash-completion
 Requires:       %{name}-selinux = %{version}-%{release}
 %endif
 
-%if %{with apparmor}
-BuildRequires:  libapparmor-devel
-Requires:       apparmor-parser
-%endif
-
 # snapd-login-service is no more
 # Note: Remove when F27 is EOL
 Obsoletes:      %{name}-login-service < 1.33
@@ -217,7 +207,7 @@ BuildRequires:  %{_bindir}/rst2man
 BuildRequires:  %{_bindir}/shellcheck
 %endif
 %if %{with apparmor}
-BuildRequires:  libapparmor-devel
+BuildRequires:  pkgconfig(libapparmor)
 Requires:       apparmor-parser
 %endif
 
@@ -442,12 +432,6 @@ rm -rf vendor/*
 # Extract each tarball properly
 %setup -q -D -b 1
 %endif
-%if %{with apparmor}
-APPARMOR_CFLAGS=-I/usr/include
-APPARMOR_LIBS=-lapparmor
-export APPARMOR_CFLAGS
-export APPARMOR_LIBS
-%endif
 
 %build
 # Generate version files
@@ -517,8 +501,7 @@ autoreconf --force --install --verbose
 # selinux support is not yet available, for now just disable apparmor
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
 %configure \
-    %{with apparmor}:--enable-apparmor} \
-    %{without apparmor}:--disable-apparmor} \
+    %{?with_apparmor:--enable-apparmor}%{!?with_apparmor:--disable-apparmor} \
     --libexecdir=%{_libexecdir}/snapd/ \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
@@ -626,7 +609,7 @@ popd
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
-%if %{without apparmor}
+%if ! %{with apparmor}
 # Remove snapd apparmor service
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
@@ -755,9 +738,9 @@ popd
 /snap
 %endif
 %if %{with apparmor}
-%dir /var/lib/snapd/apparmor
-%dir /var/lib/snapd/apparmor/profiles
-%dir /var/lib/snapd/apparmor/snap-confine
+%dir %{_sharedstatedir}/snapd/apparmor
+%dir %{_sharedstatedir}/snapd/apparmor/profiles
+%dir %{_sharedstatedir}/snapd/apparmor/snap-confine
 %{_unitdir}/snapd.apparmor.service
 %{_libexecdir}/snapd/snapd-apparmor
 %endif
@@ -779,6 +762,9 @@ popd
 %{_mandir}/man8/snap-discard-ns.8*
 %{_systemdgeneratordir}/snapd-generator
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
+%if %{with apparmor}
+%config %{_sysconfdir}/apparmor.d/usr.libexec.snapd.snap-confine
+%endif
 
 %if 0%{?with_selinux}
 %files selinux
@@ -786,10 +772,6 @@ popd
 %doc data/selinux/README.md
 %{_datadir}/selinux/packages/snappy.pp.bz2
 %{_datadir}/selinux/devel/include/contrib/snappy.if
-%endif
-
-%if %{with apparmor}
-%config %{_sysconfdir}/apparmor.d/usr.libexec.snapd.snap-confine
 %endif
 
 %if 0%{?with_devel}
