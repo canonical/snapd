@@ -20,7 +20,7 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s{,-*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
@@ -35,6 +35,13 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libm-[0-9]*.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdw-[0-9]*.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libattr.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libelf{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libbz2.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}liblzma.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libz.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -411,7 +418,7 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s{,-*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
@@ -426,6 +433,8 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libm-[0-9]*.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdw-[0-9]*.so* mr,
 
         @LIBEXECDIR@/snap-confine mr,
 
