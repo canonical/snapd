@@ -260,7 +260,7 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread google:ubuntu-core-18-64:tests/main/degraded{,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}
+    spread google:ubuntu-core-18-64:tests/main/degraded google:ubuntu-core-18-64:tests/main/degraded1 google:ubuntu-core-18-64:tests/main/degraded2 google:ubuntu-core-18-64:tests/main/degraded3 google:ubuntu-core-18-64:tests/main/degraded4 google:ubuntu-core-18-64:tests/main/degraded5 google:ubuntu-core-18-64:tests/main/degraded6 google:ubuntu-core-18-64:tests/main/degraded7 google:ubuntu-core-18-64:tests/main/degraded8 google:ubuntu-core-18-64:tests/main/degraded9 google:ubuntu-core-18-64:tests/main/degraded10 google:ubuntu-core-18-64:tests/main/degraded11 google:ubuntu-core-18-64:tests/main/degraded12 google:ubuntu-core-18-64:tests/main/degraded13 google:ubuntu-core-18-64:tests/main/degraded14 google:ubuntu-core-18-64:tests/main/degraded15 google:ubuntu-core-18-64:tests/main/degraded16 google:ubuntu-core-18-64:tests/main/degraded17 google:ubuntu-core-18-64:tests/main/degraded18 google:ubuntu-core-18-64:tests/main/degraded19 google:ubuntu-core-18-64:tests/main/degraded20
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
