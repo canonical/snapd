@@ -6,6 +6,7 @@ prepare: |
     create_nested_classic_vm
 
     # configure hosts file
+    # shellcheck disable=SC2086
     execute_remote 'echo "127.0.1.1 $HOSTNAME" | sudo tee /etc/hosts'
 
     # install snapd and snaps on nested vm
@@ -44,7 +45,7 @@ execute: |
 
     # when the core is refreshed the snap snapshot can be restored"
     execute_remote "sudo snap refresh core --${CORE_REFRESH_CHANNEL}"
-    execute_remote "sudo snap restore "$SET_ID" test-snapd-rsync"
+    execute_remote "sudo snap restore $SET_ID test-snapd-rsync"
     test "$( execute_remote "sudo cat /root/snap/test-snapd-rsync/current/canary.txt" )" = "hello versioned test-snapd-rsync"
     test "$( execute_remote "sudo cat /root/snap/test-snapd-rsync/common/canary.txt" )" = "hello common test-snapd-rsync"
     execute_remote "sudo test ! -f /root/snap/test-snapd-tools/common/canary.txt"
@@ -52,7 +53,7 @@ execute: |
 
     # when the core is reverted the snap snapshot can be restored"
     execute_remote "sudo snap revert core"
-    execute_remote "sudo snap restore "$SET_ID" test-snapd-tools"
+    execute_remote "sudo snap restore $SET_ID test-snapd-tools"
     test "$( execute_remote "sudo cat /root/snap/test-snapd-tools/current/canary.txt" )" = "hello versioned test-snapd-tools"
     test "$( execute_remote "sudo cat /root/snap/test-snapd-tools/common/canary.txt" )" = "hello common test-snapd-tools"
 
