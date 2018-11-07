@@ -28,15 +28,10 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -277,81 +272,6 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	return appInfos, nil
 }
 
-func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
-	// TODO: pass in an actual notifier here instead of null
-	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
-
-	out := make([]client.AppInfo, 0, len(apps))
-	for _, app := range apps {
-		appInfo := client.AppInfo{
-			Snap:     app.Snap.InstanceName(),
-			Name:     app.Name,
-			CommonID: app.CommonID,
-		}
-		if fn := app.DesktopFile(); osutil.FileExists(fn) {
-			appInfo.DesktopFile = fn
-		}
-
-		appInfo.Daemon = app.Daemon
-		if !app.IsService() || !app.Snap.IsActive() {
-			out = append(out, appInfo)
-			continue
-		}
-
-		// collect all services for a single call to systemctl
-		serviceNames := make([]string, 0, 1+len(app.Sockets)+1)
-		serviceNames = append(serviceNames, app.ServiceName())
-
-		sockSvcFileToName := make(map[string]string, len(app.Sockets))
-		for _, sock := range app.Sockets {
-			sockUnit := filepath.Base(sock.File())
-			sockSvcFileToName[sockUnit] = sock.Name
-			serviceNames = append(serviceNames, sockUnit)
-		}
-		if app.Timer != nil {
-			timerUnit := filepath.Base(app.Timer.File())
-			serviceNames = append(serviceNames, timerUnit)
-		}
-
-		// sysd.Status() makes sure that we get only the units we asked
-		// for and raises an error otherwise
-		sts, err := sysd.Status(serviceNames...)
-		if err != nil {
-			logger.Noticef("cannot get status of services of app %q: %v", app.Name, err)
-			continue
-		}
-		if len(sts) != len(serviceNames) {
-			logger.Noticef("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
-			continue
-		}
-		for _, st := range sts {
-			switch filepath.Ext(st.UnitName) {
-			case ".service":
-				appInfo.Enabled = st.Enabled
-				appInfo.Active = st.Active
-			case ".timer":
-				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-					Name:    app.Name,
-					Enabled: st.Enabled,
-					Active:  st.Active,
-					Type:    "timer",
-				})
-			case ".socket":
-				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-					Name:    sockSvcFileToName[st.UnitName],
-					Enabled: st.Enabled,
-					Active:  st.Active,
-					Type:    "socket",
-				})
-			}
-		}
-		out = append(out, appInfo)
-	}
-
-	return out
-}
-
 func mapLocal(about aboutSnap) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
 	status := "installed"
@@ -365,7 +285,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 	}
 	sort.Sort(bySnapApp(snapapps))
 
-	apps := clientAppInfosFromSnapAppInfos(snapapps)
+	apps := client.AppInfosFromSnapAppInfos(snapapps)
 
 	// TODO: expose aliases information and state?
 

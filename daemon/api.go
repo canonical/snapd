@@ -2807,7 +2807,7 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+	return SyncResponse(client.AppInfosFromSnapAppInfos(appInfos), nil)
 }
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {

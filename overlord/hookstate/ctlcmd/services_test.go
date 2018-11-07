@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -141,10 +142,10 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
 	// mock installed snaps
-	info1 := snaptest.MockSnap(c, string(testSnapYaml), &snap.SideInfo{
+	info1 := snaptest.MockSnapCurrent(c, string(testSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
-	info2 := snaptest.MockSnap(c, string(otherSnapYaml), &snap.SideInfo{
+	info2 := snaptest.MockSnapCurrent(c, string(otherSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
 	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
@@ -432,4 +433,24 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	c.Check(laneTasks[13].Summary(), Equals, "stop of [test-snap.test-service]")
 	c.Check(laneTasks[14].Summary(), Equals, "start of [test-snap.test-service]")
 	c.Check(laneTasks[15].Summary(), Equals, "restart of [test-snap.test-service]")
+}
+
+func (s *servicectlSuite) TestServices(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		return []byte(`Id=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+`), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.test-service  enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
 }
