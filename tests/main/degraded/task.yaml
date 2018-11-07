@@ -8,8 +8,10 @@ backends: [-autopkgtest]
 priority: 500
 
 debug: |
-    systemctl status snapd || true
-    journalctl -u snapd || true
+    systemctl status snapd.service || true
+    journalctl -u snapd.service || true
+    systemctl status snapd.socket || true
+    journalctl -u snapd.socket || true
     systemctl status snapd.seeded.service || true
     journalctl -u snapd.seeded.service || true
 
