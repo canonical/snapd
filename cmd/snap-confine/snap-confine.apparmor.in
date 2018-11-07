@@ -408,6 +408,9 @@
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
 
+    # Allow setting the display LSM
+    @{PROC}/[0-9]*/attr/display_lsm w,
+
     ^mount-namespace-capture-helper (attach_disconnected) {
         # We run privileged, so be fanatical about what we include and don't use
         # any abstractions

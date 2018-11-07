@@ -23,6 +23,7 @@
 
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 #ifdef HAVE_APPARMOR
 #include <sys/apparmor.h>
 #endif				// ifdef HAVE_APPARMOR
@@ -36,6 +37,7 @@
 #define SC_AA_COMPLAIN_STR "complain"
 #define SC_AA_MIXED_STR "mixed"
 #define SC_AA_UNCONFINED_STR "unconfined"
+#define SC_AA_DISPLAY_LSM_STR "/proc/self/attr/display_lsm"
 
 void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 {
@@ -113,6 +115,11 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 	if (apparmor->mode == SC_AA_NOT_APPLICABLE) {
 		return;
 	}
+	if (access(SC_AA_DISPLAY_LSM_STR, F_OK) == 0) {
+		debug("setting %s to 'apparmor'", SC_AA_DISPLAY_LSM_STR);
+		write_string_to_file(SC_AA_DISPLAY_LSM_STR, "apparmor");
+	}
+
 	debug("requesting changing of apparmor profile on next exec to %s",
 	      profile);
 	if (aa_change_onexec(profile) < 0) {
