@@ -2515,7 +2515,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	n := 1
 	c.Assert(installQueue, check.HasLen, n)
-	c.Check(installQueue[n-1], check.Matches, "local::.*/"+regexp.QuoteMeta(dirs.SideloadedBlobTempPrefix)+".*")
+	c.Check(installQueue[n-1], check.Matches, "local::.*/"+regexp.QuoteMeta(dirs.LocalInstallBlobTempPrefix)+".*")
 
 	st := d.overlord.State()
 	st.Lock()

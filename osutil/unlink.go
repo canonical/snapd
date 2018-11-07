@@ -65,8 +65,8 @@ func unlinkMany(dirfd int, filenames []string) error {
 	return nil
 }
 
-// FUnlinkMany is like UnlinkMany but takes an open directory *os.File
+// UnlinkManyAt is like UnlinkMany but takes an open directory *os.File
 // instead of a dirname.
-func FUnlinkMany(dir *os.File, filenames []string) error {
+func UnlinkManyAt(dir *os.File, filenames []string) error {
 	return unlinkMany(int(dir.Fd()), filenames)
 }

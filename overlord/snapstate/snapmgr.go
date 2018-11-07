@@ -578,17 +578,29 @@ func (m *SnapManager) atSeed() error {
 	return nil
 }
 
-var sideloadCleanupWait = time.Duration(24 * time.Hour)
+var (
+	localInstallCleanupWait = time.Duration(24 * time.Hour)
+	localInstallLastCleanup time.Time
+)
 
 // cleanOldTemps removes files that might've been left behind by an
-// old aborted sideload
+// old aborted local install
 //
 // They're usually cleaned up, but if they're created and then snapd
 // stops before writing the change to disk (killed, light cut, etc)
 // it'll be left behind.
-func (m *SnapManager) cleanOldTemps() error {
+//
+// The code that creates the files is in daemon/api.go's postSnaps
+func (m *SnapManager) localInstallCleanup() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	now := time.Now()
+	cutoff := now.Add(-localInstallCleanupWait)
+	if localInstallLastCleanup.After(cutoff) {
+		return nil
+	}
+	localInstallLastCleanup = now
 
 	d, err := os.Open(dirs.SnapBlobDir)
 	if err != nil {
@@ -601,14 +613,13 @@ func (m *SnapManager) cleanOldTemps() error {
 
 	var filenames []string
 	var fis []os.FileInfo
-	cutoff := time.Now().Add(-sideloadCleanupWait)
 	for err == nil {
 		// TODO: if we had fstatat we could avoid a bunch of stats
 		fis, err = d.Readdir(100)
 		// fis is nil if err isn't
 		for _, fi := range fis {
 			name := fi.Name()
-			if !strings.HasPrefix(name, dirs.SideloadedBlobTempPrefix) {
+			if !strings.HasPrefix(name, dirs.LocalInstallBlobTempPrefix) {
 				continue
 			}
 			if fi.ModTime().After(cutoff) {
@@ -620,7 +631,7 @@ func (m *SnapManager) cleanOldTemps() error {
 	if err != io.EOF {
 		return err
 	}
-	return osutil.FUnlinkMany(d, filenames)
+	return osutil.UnlinkManyAt(d, filenames)
 }
 
 // Ensure implements StateManager.Ensure.
@@ -636,7 +647,7 @@ func (m *SnapManager) Ensure() error {
 		m.autoRefresh.Ensure(),
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
-		m.cleanOldTemps(),
+		m.localInstallCleanup(),
 	}
 
 	//FIXME: use firstErr helper

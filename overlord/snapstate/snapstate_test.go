@@ -8210,14 +8210,14 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 		return filenames
 	}
 
-	defer snapstate.MockSideloadCleanupWait(200 * time.Millisecond)()
+	defer snapstate.MockLocalInstallCleanupWait(200 * time.Millisecond)()
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0700), IsNil)
 	// sanity check; note * in go glob matches .foo
 	c.Assert(filenames(), HasLen, 0)
 
 	s0 := filepath.Join(dirs.SnapBlobDir, "some.snap")
-	s1 := filepath.Join(dirs.SnapBlobDir, dirs.SideloadedBlobTempPrefix+"-12345")
-	s2 := filepath.Join(dirs.SnapBlobDir, dirs.SideloadedBlobTempPrefix+"-67890")
+	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345")
+	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890")
 
 	c.Assert(ioutil.WriteFile(s0, nil, 0600), IsNil)
 	c.Assert(ioutil.WriteFile(s1, nil, 0600), IsNil)
@@ -8232,6 +8232,15 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 
 	// all there
 	c.Assert(filenames(), DeepEquals, []string{s1, s2, s0})
+
+	// set last cleanup in the future
+	defer snapstate.MockLocalInstallLastCleanup(t1.Add(time.Minute))()
+	s.snapmgr.Ensure()
+	// all there ( -> cleanup not done)
+	c.Assert(filenames(), DeepEquals, []string{s1, s2, s0})
+
+	// set last cleanup to epoch
+	snapstate.MockLocalInstallLastCleanup(time.Time{})
 
 	s.snapmgr.Ensure()
 	// oldest sideload gone
