@@ -394,3 +394,47 @@ func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
 		}
 	}
 }
+
+func (*clientSuite) TestAppStatusNotes(c *check.C) {
+	ai := client.AppInfo{}
+	c.Check(ai.Notes(), check.Equals, "-")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+	}
+	c.Check(ai.Notes(), check.Equals, "-")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "timer"},
+		},
+	}
+	c.Check(ai.Notes(), check.Equals, "timer-activated")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "socket"},
+		},
+	}
+	c.Check(ai.Notes(), check.Equals, "socket-activated")
+
+	// check that the output is stable regardless of the order of activators
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "timer"},
+			{Type: "socket"},
+		},
+	}
+	c.Check(ai.Notes(), check.Equals, "timer-activated,socket-activated")
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "socket"},
+			{Type: "timer"},
+		},
+	}
+	c.Check(ai.Notes(), check.Equals, "timer-activated,socket-activated")
+}

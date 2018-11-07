@@ -26,9 +26,17 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // AppActivator is a thing that activates the app that is a service in the
@@ -260,4 +268,106 @@ func (client *Client) Restart(names []string, opts RestartOptions) (changeID str
 		return "", err
 	}
 	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
+}
+
+func (app *AppInfo) Notes() string {
+	if !app.IsService() {
+		return "-"
+	}
+
+	var notes = make([]string, 0, 2)
+	var seenTimer, seenSocket bool
+	for _, act := range app.Activators {
+		switch act.Type {
+		case "timer":
+			seenTimer = true
+		case "socket":
+			seenSocket = true
+		}
+	}
+	if seenTimer {
+		notes = append(notes, "timer-activated")
+	}
+	if seenSocket {
+		notes = append(notes, "socket-activated")
+	}
+	if len(notes) == 0 {
+		return "-"
+	}
+	return strings.Join(notes, ",")
+}
+
+func AppInfosFromSnapAppInfos(apps []*snap.AppInfo) []AppInfo {
+	// TODO: pass in an actual notifier here instead of null
+	//       (Status doesn't _need_ it, but benefits from it)
+	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
+
+	out := make([]AppInfo, 0, len(apps))
+	for _, app := range apps {
+		appInfo := AppInfo{
+			Snap:     app.Snap.InstanceName(),
+			Name:     app.Name,
+			CommonID: app.CommonID,
+		}
+		if fn := app.DesktopFile(); osutil.FileExists(fn) {
+			appInfo.DesktopFile = fn
+		}
+
+		appInfo.Daemon = app.Daemon
+		if !app.IsService() || !app.Snap.IsActive() {
+			out = append(out, appInfo)
+			continue
+		}
+
+		// collect all services for a single call to systemctl
+		serviceNames := make([]string, 0, 1+len(app.Sockets)+1)
+		serviceNames = append(serviceNames, app.ServiceName())
+
+		sockSvcFileToName := make(map[string]string, len(app.Sockets))
+		for _, sock := range app.Sockets {
+			sockUnit := filepath.Base(sock.File())
+			sockSvcFileToName[sockUnit] = sock.Name
+			serviceNames = append(serviceNames, sockUnit)
+		}
+		if app.Timer != nil {
+			timerUnit := filepath.Base(app.Timer.File())
+			serviceNames = append(serviceNames, timerUnit)
+		}
+
+		// sysd.Status() makes sure that we get only the units we asked
+		// for and raises an error otherwise
+		sts, err := sysd.Status(serviceNames...)
+		if err != nil {
+			logger.Noticef("cannot get status of services of app %q: %v", app.Name, err)
+			continue
+		}
+		if len(sts) != len(serviceNames) {
+			logger.Noticef("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
+			continue
+		}
+		for _, st := range sts {
+			switch filepath.Ext(st.UnitName) {
+			case ".service":
+				appInfo.Enabled = st.Enabled
+				appInfo.Active = st.Active
+			case ".timer":
+				appInfo.Activators = append(appInfo.Activators, AppActivator{
+					Name:    app.Name,
+					Enabled: st.Enabled,
+					Active:  st.Active,
+					Type:    "timer",
+				})
+			case ".socket":
+				appInfo.Activators = append(appInfo.Activators, AppActivator{
+					Name:    sockSvcFileToName[st.UnitName],
+					Enabled: st.Enabled,
+					Active:  st.Active,
+					Type:    "socket",
+				})
+			}
+		}
+		out = append(out, appInfo)
+	}
+
+	return out
 }
