@@ -14,6 +14,13 @@
 %bcond_with snap_symlink
 %endif
 
+# rpmbuild with "--with apparmor" to enable apparmor
+%if 0%{?with_apparmor}
+%bcond_without apparmor
+%else
+%bcond_with apparmor
+%endif
+
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
@@ -138,6 +145,11 @@ Requires:       bash-completion
 Requires:       %{name}-selinux = %{version}-%{release}
 %endif
 
+%if %{with apparmor}
+BuildRequires:  libapparmor-devel
+Requires:       apparmor-parser
+%endif
+
 # snapd-login-service is no more
 # Note: Remove when F27 is EOL
 Obsoletes:      %{name}-login-service < 1.33
@@ -203,6 +215,10 @@ BuildRequires:  %{_bindir}/rst2man
 %if 0%{?fedora} >= 25
 # ShellCheck in F24 and older doesn't work
 BuildRequires:  %{_bindir}/shellcheck
+%endif
+%if %{with apparmor}
+BuildRequires:  libapparmor-devel
+Requires:       apparmor-parser
 %endif
 
 # Ensures older version from split packaging is replaced
@@ -426,6 +442,12 @@ rm -rf vendor/*
 # Extract each tarball properly
 %setup -q -D -b 1
 %endif
+%if %{with apparmor}
+APPARMOR_CFLAGS=-I/usr/include
+APPARMOR_LIBS=-lapparmor
+export APPARMOR_CFLAGS
+export APPARMOR_LIBS
+%endif
 
 %build
 # Generate version files
@@ -495,7 +517,8 @@ autoreconf --force --install --verbose
 # selinux support is not yet available, for now just disable apparmor
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
 %configure \
-    --disable-apparmor \
+    %{with apparmor}:--enable-apparmor} \
+    %{without apparmor}:--disable-apparmor} \
     --libexecdir=%{_libexecdir}/snapd/ \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
@@ -541,6 +564,9 @@ install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -d -p %{buildroot}%{_datadir}/selinux/packages
 %endif
+%if %{with apparmor}
+install -d %{buildroot}%{_sharedstatedir}/snapd/apparmor/profiles
+%endif
 
 # Install snap and snapd
 install -p -m 0755 bin/snap %{buildroot}%{_bindir}
@@ -580,6 +606,9 @@ rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
 # ubuntu-core-launcher is dead
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
 popd
+%if %{with apparmor}
+install -m 644 -D cmd/snap-confine/snap-confine.apparmor %{buildroot}%{_sysconfdir}/apparmor.d/usr.libexec.snapd.snap-confine
+%endif
 
 # Install all systemd and dbus units, and env files
 pushd ./data
@@ -597,9 +626,11 @@ popd
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
+%if %{without apparmor}
 # Remove snapd apparmor service
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
+%endif
 
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
@@ -723,6 +754,13 @@ popd
 %if %{with snap_symlink}
 /snap
 %endif
+%if %{with apparmor}
+%dir /var/lib/snapd/apparmor
+%dir /var/lib/snapd/apparmor/profiles
+%dir /var/lib/snapd/apparmor/snap-confine
+%{_unitdir}/snapd.apparmor.service
+%{_libexecdir}/snapd/snapd-apparmor
+%endif
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -750,6 +788,10 @@ popd
 %{_datadir}/selinux/devel/include/contrib/snappy.if
 %endif
 
+%if %{with apparmor}
+%config %{_sysconfdir}/apparmor.d/usr.libexec.snapd.snap-confine
+%endif
+
 %if 0%{?with_devel}
 %files devel -f devel.file-list
 %license COPYING
@@ -774,6 +816,11 @@ if [ $1 -eq 1 ] ; then
       systemctl start snapd.socket > /dev/null 2>&1 || :
    fi
 fi
+%if %{with apparmor}
+if [ $1 -eq 1 ] ; then
+    /sbin/apparmor_parser -r /etc/apparmor.d/*snap-confine* > /dev/null 2>&1 || :
+fi
+%endif
 
 %preun
 %systemd_preun %{snappy_svcs}
