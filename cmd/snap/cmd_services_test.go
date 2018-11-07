@@ -174,52 +174,69 @@ func (s *appOpSuite) TestAppOps(c *check.C) {
 func (s *appOpSuite) TestAppStatus(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
-			c.Check(r.URL.Path, check.Equals, "/v2/apps")
-			c.Check(r.URL.Query(), check.HasLen, 1)
-			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
-			c.Check(r.Method, check.Equals, "GET")
-			w.WriteHeader(200)
-			enc := json.NewEncoder(w)
-			enc.Encode(map[string]interface{}{
-				"type": "sync",
-				"result": []map[string]interface{}{
-					{"snap": "foo", "name": "bar", "daemon": "oneshot",
-						"active": false, "enabled": true,
-						"activators": []map[string]interface{}{
-							{"name": "bar", "type": "timer", "active": true, "enabled": true},
-						},
-					}, {"snap": "foo", "name": "baz", "daemon": "oneshot",
-						"active": false, "enabled": true,
-						"activators": []map[string]interface{}{
-							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
-							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
-						},
-					}, {"snap": "foo", "name": "zed",
-						"active": true, "enabled": true,
+		c.Check(r.URL.Path, check.Equals, "/v2/apps")
+		c.Check(r.URL.Query(), check.HasLen, 1)
+		c.Check(r.URL.Query().Get("select"), check.Equals, "service")
+		c.Check(r.Method, check.Equals, "GET")
+		w.WriteHeader(200)
+		enc := json.NewEncoder(w)
+		enc.Encode(map[string]interface{}{
+			"type": "sync",
+			"result": []map[string]interface{}{
+				{"snap": "foo", "name": "bar", "daemon": "oneshot",
+					"active": false, "enabled": true,
+					"activators": []map[string]interface{}{
+						{"name": "bar", "type": "timer", "active": true, "enabled": true},
 					},
+				}, {"snap": "foo", "name": "baz", "daemon": "oneshot",
+					"active": false, "enabled": true,
+					"activators": []map[string]interface{}{
+						{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
+						{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
+					},
+				}, {"snap": "foo", "name": "zed",
+					"active": true, "enabled": true,
 				},
-				"status":      "OK",
-				"status-code": 200,
-			})
-		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
-		}
+			},
+			"status":      "OK",
+			"status-code": 200,
+		})
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.HasLen, 0)
-	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
+
+	type T struct {
+		args []string
+		out  string
+	}
+	for i, t := range []T{
+		{
+			args: []string{"services"},
+			out: `Service  Startup  Current   Notes
 foo.bar  enabled  inactive  timer-activated
 foo.baz  enabled  inactive  socket-activated
 foo.zed  enabled  active    -
-`)
-	// ensure that the fake server api was actually hit
-	c.Check(n, check.Equals, 1)
+`},
+		{
+			args: []string{"services", "--startup"},
+			out:  "enabled\nenabled\nenabled\n",
+		},
+		{
+			args: []string{"services", "--current"},
+			out:  "inactive\ninactive\nactive\n",
+		},
+	} {
+		rest, err := snap.Parser(snap.Client()).ParseArgs(t.args)
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.HasLen, 0)
+		c.Check(s.Stderr(), check.Equals, "")
+		c.Check(s.Stdout(), check.Equals, t.out)
+		// ensure that the fake server api was actually hit
+		c.Check(n, check.Equals, i+1)
+
+		s.stdout.Reset()
+		s.stderr.Reset()
+	}
 }
 
 func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {

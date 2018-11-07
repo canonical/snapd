@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"text/tabwriter"
 
 	"github.com/snapcore/snapd/client"
@@ -41,14 +42,23 @@ func init() {
 
 type servicesCommand struct {
 	baseCommand
+	Startup    bool `long:"startup" description:"Show only the Startup column"`
+	Current    bool `long:"current" description:"Show only the Current column"`
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>"`
 	} `positional-args:"yes"`
 }
 
-var errNoContextForServices = errors.New(i18n.G("cannot query services without a context"))
+var (
+	errNoContextForServices              = errors.New(i18n.G("cannot query services without a context"))
+	errConflictingServiceColumnSelectors = errors.New(i18n.G("--current and --startup cannot be both set"))
+)
 
 func (c *servicesCommand) Execute([]string) error {
+	if c.Current && c.Startup {
+		return errConflictingServiceColumnSelectors
+	}
+
 	context := c.context()
 	if context == nil {
 		return errNoContextForServices
@@ -65,10 +75,15 @@ func (c *servicesCommand) Execute([]string) error {
 		return nil
 	}
 
-	w := tabwriter.NewWriter(c.stdout, 5, 3, 2, ' ', 0)
-	defer w.Flush()
-
-	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
+	var w io.Writer
+	if !c.Current && !c.Startup {
+		tw := tabwriter.NewWriter(c.stdout, 5, 3, 2, ' ', 0)
+		defer tw.Flush()
+		w = tw
+		fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
+	} else {
+		w = c.stdout
+	}
 
 	for _, svc := range services {
 		startup := i18n.G("disabled")
@@ -79,7 +94,14 @@ func (c *servicesCommand) Execute([]string) error {
 		if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, svc.Notes())
+		switch {
+		case c.Current:
+			fmt.Fprintln(w, current)
+		case c.Startup:
+			fmt.Fprintln(w, startup)
+		default:
+			fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, svc.Notes())
+		}
 	}
 
 	return nil

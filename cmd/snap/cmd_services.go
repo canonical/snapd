@@ -20,7 +20,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/jessevdk/go-flags"
@@ -31,6 +33,8 @@ import (
 
 type svcStatus struct {
 	clientMixin
+	Startup    bool `long:"startup"`
+	Current    bool `long:"current"`
 	Positional struct {
 		ServiceNames []serviceName
 	} `positional-args:"yes"`
@@ -80,7 +84,10 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("A service specification, which can be just a snap name (for all services in the snap), or <snap>.<app> for a single service."),
 	}}
-	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, nil, argdescs)
+	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, map[string]string{
+		"startup": i18n.G("Show only the Startup column"),
+		"current": i18n.G("Show only the Current column"),
+	}, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -114,9 +121,15 @@ func svcNames(s []serviceName) []string {
 	return svcNames
 }
 
+var errConflictingServiceColumnSelectors = errors.New(i18n.G("--current and --startup cannot be both set"))
+
 func (s *svcStatus) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if s.Current && s.Startup {
+		return errConflictingServiceColumnSelectors
 	}
 
 	services, err := s.client.Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{Service: true})
@@ -129,10 +142,16 @@ func (s *svcStatus) Execute(args []string) error {
 		return nil
 	}
 
-	w := tabWriter()
-	defer w.Flush()
+	var w io.Writer
+	if !s.Current && !s.Startup {
+		tw := tabWriter()
+		defer tw.Flush()
+		w = tw
 
-	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
+		fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
+	} else {
+		w = Stdout
+	}
 
 	for _, svc := range services {
 		startup := i18n.G("disabled")
@@ -143,7 +162,14 @@ func (s *svcStatus) Execute(args []string) error {
 		if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, svc.Notes())
+		switch {
+		case s.Current:
+			fmt.Fprintln(w, current)
+		case s.Startup:
+			fmt.Fprintln(w, startup)
+		default:
+			fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, svc.Notes())
+		}
 	}
 
 	return nil

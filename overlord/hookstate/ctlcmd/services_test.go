@@ -454,3 +454,37 @@ test-snap.test-service  enabled  active   -
 `[1:])
 	c.Check(string(stderr), Equals, "")
 }
+
+func (s *servicectlSuite) TestServicesCurrent(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		return []byte(`Id=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+`), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "--current"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "active\n")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesStartup(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		return []byte(`Id=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+`), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "--startup"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "enabled\n")
+	c.Check(string(stderr), Equals, "")
+}
