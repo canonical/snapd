@@ -145,6 +145,29 @@ package main
 //		return htobe64(val);
 //}
 //
+// /* Define missing ptrace constants. They are available on some architectures
+//    only but the missing values are not reused on architectures that lack them.
+//    As such we can simply define the missing pair and have a simpler cross-arch
+//    code to support. */
+//
+// #ifndef PTRACE_GETREGS
+// #define PTRACE_GETREGS 12
+// #endif
+// #ifndef PTRACE_SETREGS
+// #define PTRACE_SETREGS 13
+// #endif
+// #ifndef PTRACE_GETFPREGS
+// #define PTRACE_GETFPREGS 14
+// #endif
+// #ifndef PTRACE_SETFPREGS
+// #define PTRACE_SETFPREGS 15
+// #endif
+// #ifndef PTRACE_GETFPXREGS
+// #define PTRACE_GETFPXREGS 18
+// #endif
+// #ifndef PTRACE_SETFPXREGS
+// #define PTRACE_SETFPXREGS 19
+// #endif
 import "C"
 
 import (
