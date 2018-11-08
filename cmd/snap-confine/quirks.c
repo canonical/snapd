@@ -34,6 +34,32 @@
 #include "user-support.h"
 
 /**
+ * Get the path to the mounted core snap in the execution environment.
+ *
+ * The core snap may be named just "core" (preferred) or "ubuntu-core"
+ * (legacy).  The mount point does not depend on build-time configuration and
+ * does not differ from distribution to distribution.
+ **/
+static const char *sc_get_inner_core_mount_point(void)
+{
+	const char *core_path = "/snap/core/current/";
+	const char *ubuntu_core_path = "/snap/ubuntu-core/current/";
+	static const char *result = NULL;
+	if (result == NULL) {
+		if (access(core_path, F_OK) == 0) {
+			// Use the "core" snap if available.
+			result = core_path;
+		} else if (access(ubuntu_core_path, F_OK) == 0) {
+			// If not try to fall back to the "ubuntu-core" snap.
+			result = ubuntu_core_path;
+		} else {
+			die("cannot locate the core snap");
+		}
+	}
+	return result;
+}
+
+/**
  * Mount a tmpfs at a given directory.
  *
  * The empty tmpfs is used as a substrate to create additional directories and
@@ -162,7 +188,7 @@ static void sc_setup_lxd_quirk(void)
 	}
 }
 
-void sc_setup_quirks(const char *base)
+void sc_setup_quirks(void)
 {
 	// because /var/lib/snapd is essential let's move it to /tmp/snapd for a sec
 	char snapd_tmp[] = "/tmp/snapd.quirks_XXXXXX";
@@ -178,7 +204,8 @@ void sc_setup_quirks(const char *base)
 	}
 	// now let's make /var/lib the vanilla /var/lib from the core snap
 	char buf[PATH_MAX] = { 0 };
-	sc_must_snprintf(buf, sizeof buf, "/snap/%s/current/var/lib", base);
+	sc_must_snprintf(buf, sizeof buf, "%s/var/lib",
+			 sc_get_inner_core_mount_point());
 	sc_quirk_create_writable_mimic("/var/lib", buf,
 				       MS_RDONLY | MS_REC | MS_SLAVE | MS_NODEV
 				       | MS_NOSUID);
