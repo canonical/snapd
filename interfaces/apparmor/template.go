@@ -488,6 +488,11 @@ var defaultTemplate = `
   # Allow read-access to / for navigating to other parts of the filesystem.
   / r,
 
+  # Snap-specific run directory. Bind mount *not* used here
+  # (see 'parallel installs', above)
+  /run/snap.@{SNAP_INSTANCE_NAME}/ rw,
+  /run/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
 ###SNIPPETS###
 }
 `
