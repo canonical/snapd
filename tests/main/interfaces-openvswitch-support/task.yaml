@@ -6,7 +6,8 @@ details: |
 # ubuntu-core, ubuntu-14, fedora, amazon are skipped as /run/uuidd/request file does not
 # exist. On those systems different files are being used instead.
 # arch: uses /run/run/uuidd/request, filed a bug report https://bugs.archlinux.org/task/58122
-systems: [-ubuntu-14.04-*,-ubuntu-core-*,-fedora-*, -arch-*, -amazon-*]
+# opensuse: same bug as in arch, filed a bug report https://bugzilla.opensuse.org/show_bug.cgi?id=1115168
+systems: [-ubuntu-14.04-*, -ubuntu-core-*,-fedora-*, -arch-*, -amazon-*, -opensuse-*]
 
 prepare: |
     snap install test-snapd-openvswitch-support
