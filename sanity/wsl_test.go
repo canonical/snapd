@@ -17,31 +17,35 @@
  *
  */
 
-package sanity
+package sanity_test
 
-var (
-	CheckSquashfsMount  = checkSquashfsMount
-	CheckKernelVersion  = checkKernelVersion
-	CheckApparmorUsable = checkApparmorUsable
-	CheckWSL            = checkWSL
+import (
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sanity"
 )
 
-func Checks() []func() error {
-	return checks
-}
+type wslSuite struct{}
 
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
+var _ = Suite(&wslSuite{})
+
+func mockOnWSL(on bool) (restore func()) {
+	old := release.OnWSL
+	release.OnWSL = on
 	return func() {
-		checks = oldChecks
+		release.OnWSL = old
 	}
 }
 
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
-	return func() {
-		apparmorProfilesPath = old
-	}
+func (s *wslSuite) TestNonWSL(c *C) {
+	defer mockOnWSL(false)()
+
+	c.Check(sanity.CheckWSL(), IsNil)
+}
+
+func (s *wslSuite) TestWSL(c *C) {
+	defer mockOnWSL(true)()
+
+	c.Check(sanity.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
 }
