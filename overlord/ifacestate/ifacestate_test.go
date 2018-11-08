@@ -4905,3 +4905,83 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(number, Equals, int64(1))
 	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
 }
+
+func (s *interfaceManagerSuite) TestHotplugDisconnect(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// mock the consumer
+	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
+	testSnap := snaptest.MockSnapInstance(c, "", consumerYaml, si)
+	c.Assert(testSnap.Plugs["plug"], NotNil)
+	c.Assert(repo.AddPlug(testSnap.Plugs["plug"]), IsNil)
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	_, err = repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"}},
+		nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-disconnect", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Assert(chg.Err(), IsNil)
+
+	var byHotplug bool
+	for _, t := range s.state.Tasks() {
+		// the 'disconnect' task created by hotplug-disconnect should have by-hotplug flag set
+		if t.Kind() == "disconnect" {
+			c.Assert(t.Get("by-hotplug", &byHotplug), IsNil)
+		}
+	}
+	c.Assert(byHotplug, Equals, true)
+
+	// hotplug-gone flag on the connection is set
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+}

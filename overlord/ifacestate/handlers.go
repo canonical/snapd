@@ -1181,3 +1181,64 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	task.SetStatus(state.DoneStatus)
 	return nil
 }
+
+// doHotplugDisconnect creates task(s) to disconnect connections and remove slots in response to hotplug "remove" event.
+func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	core, err := snapstate.CoreInfo(st)
+	if err != nil {
+		return err
+	}
+	coreSnapName := core.InstanceName()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	connections, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return err
+	}
+	if len(connections) == 0 {
+		return nil
+	}
+
+	// check for conflicts on all connections first before creating disconnect hooks
+	for _, connRef := range connections {
+		if err := checkDisconnectConflicts(st, coreSnapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", coreSnapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				task.Logf("Waiting for conflicting change in progress...")
+				return err // will retry
+			}
+			return fmt.Errorf("cannot check conflicts when disconnecting interfaces: %s", err)
+		}
+	}
+
+	dts := state.NewTaskSet()
+	for _, connRef := range connections {
+		conn, err := m.repo.Connection(connRef)
+		if err != nil {
+			// this should never happen since we get all connections from the repo
+			return fmt.Errorf("internal error: cannot get connection %q: %s", connRef, err)
+		}
+		// "by-hotplug" flag indicates it's a disconnect triggered as part of hotplug removal.
+		ts, err := disconnectTasks(st, conn, disconnectOpts{ByHotplug: true})
+		if err != nil {
+			return fmt.Errorf("internal error: cannot create disconnect tasks: %s", err)
+		}
+		dts.AddAll(ts)
+	}
+
+	snapstate.InjectTasks(task, dts)
+	st.EnsureBefore(0)
+
+	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
+	task.SetStatus(state.DoneStatus)
+
+	return nil
+}
