@@ -704,7 +704,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 
 	// setup quirks for specific snaps
 	if (distro == SC_DISTRO_CLASSIC) {
-		sc_setup_quirks();
+		sc_setup_quirks(base_snap_name);
 	}
 	// setup the security backend bind mounts
 	sc_setup_mount_profiles(apparmor, snap_update_ns_fd, snap_name);

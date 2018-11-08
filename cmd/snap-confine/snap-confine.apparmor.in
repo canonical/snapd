@@ -349,7 +349,7 @@
     /tmp/snapd.quirks_*/ rw,
     mount options=(move) /var/lib/snapd/ -> /tmp/snapd.quirks_*/,
     mount fstype=tmpfs options=(rw nodev nosuid) none -> /var/lib/,
-    mount options=(ro rbind) /snap/{,ubuntu-}core/*/var/lib/** -> /var/lib/**,
+    mount options=(ro rbind) /snap/*/*/var/lib/** -> /var/lib/**,
     umount /var/lib/snapd/,
     mount options=(move) /tmp/snapd.quirks_*/ -> /var/lib/snapd/,
     # On classic systems with a setuid root snap-confine when run by non-root
