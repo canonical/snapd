@@ -4,7 +4,8 @@ git:
 jobs:
   include:
     - stage: quick
-      name: go 1.6/trusty static and unit test suites
+      name: go 1.6/xenial static and unit test suites
+      dist: xenial
       go: 1.6
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
