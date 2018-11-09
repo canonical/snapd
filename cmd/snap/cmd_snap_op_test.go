@@ -1325,6 +1325,25 @@ func (s *SnapOpSuite) TestTryMissingOpt(c *check.C) {
 	}
 }
 
+func (s *SnapOpSuite) TestInstallConfinedAsClassic(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "value": "some-snap",
+    "kind": "snap-not-classic"
+  },
+  "status-code": 400
+}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "some-snap"})
+	c.Assert(err, check.ErrorMatches, `snap "some-snap" is not a classic confined snap`)
+}
+
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")

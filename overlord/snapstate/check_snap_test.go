@@ -558,7 +558,7 @@ confinement: strict
 
 	err = snapstate.CheckSnap(s.st, "snap-path", "hello", nil, nil, snapstate.Flags{Classic: true})
 
-	c.Assert(err, ErrorMatches, "classic confinement requested for a non classic confined snap")
+	c.Assert(err, ErrorMatches, `snap "hello" is not a classic confined snap`)
 }
 
 func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {
