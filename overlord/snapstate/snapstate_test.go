@@ -513,7 +513,8 @@ func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
 
 	// if a snap is *not* classic, you cannot install it with --classic
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-strict", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
-	c.Assert(err, ErrorMatches, "classic confinement requested for a non classic confined snap")
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not a classic confined snap`)
+	c.Check(err, FitsTypeOf, &snapstate.SnapNotClassicError{})
 }
 
 func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C) {

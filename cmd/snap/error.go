@@ -191,6 +191,8 @@ usually confined to, which may put your system at risk.
 
 If you understand and want to proceed repeat the command including --classic.
 `)
+	case client.ErrorKindSnapNotClassic:
+		msg = i18n.G(`snap %q is not a classic confined snap`)
 	case client.ErrorKindLoginRequired:
 		usesSnapName = false
 		u, _ := user.Current()
