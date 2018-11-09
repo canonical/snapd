@@ -83,12 +83,12 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
-  dotfiles-files:
+  system-files:
     command: bin/run
-    plugs: [ dotfiles-files ]
-  dotfiles-dirs:
+    plugs: [ system-files ]
+  personal-files:
     command: bin/run
-    plugs: [ dotfiles-dirs ]
+    plugs: [ personal-files ]
   dvb:
     command: bin/run
     plugs: [ dvb ]
@@ -367,11 +367,13 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
-  dotfiles-files:
-    interface: dotfiles
-    files: [.file1]
-  dotfiles-dirs:
-    interface: dotfiles
-    dirs: [.dir1]
+  system-files:
+    interface: system-files
+    files: [file1]
+    dirs: [dir1]
+  personal-dirs:
+    interface: personal-files
+    files: [file1]
+    dirs: [dir1]
   dummy:
     interface: dummy

@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type sensitiveFilesInterfaceSuite struct {
+type systemFilesInterfaceSuite struct {
 	iface    interfaces.Interface
 	slot     *interfaces.ConnectedSlot
 	slotInfo *snap.SlotInfo
@@ -40,44 +40,44 @@ type sensitiveFilesInterfaceSuite struct {
 	plugInfo *snap.PlugInfo
 }
 
-var _ = Suite(&sensitiveFilesInterfaceSuite{
-	iface: builtin.MustInterface("sensitive-files"),
+var _ = Suite(&systemFilesInterfaceSuite{
+	iface: builtin.MustInterface("system-files"),
 })
 
-func (s *sensitiveFilesInterfaceSuite) SetUpTest(c *C) {
+func (s *systemFilesInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
 version: 1.0
 plugs:
- sensitive-files:
+ system-files:
   read: [$HOME/.read-dir1, /etc/read-dir2, $HOME/.read-file2, /etc/read-file2]
   write:  [$HOME/.write-dir1, /etc/write-dir2, $HOME/.write-file2, /etc/write-file2]
 apps:
  app:
   command: foo
-  plugs: [sensitive-files]
+  plugs: [system-files]
 `
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "sensitive-files",
-		Interface: "sensitive-files",
+		Name:      "system-files",
+		Interface: "system-files",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["sensitive-files"]
+	s.plugInfo = plugSnap.Plugs["system-files"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "sensitive-files")
+func (s *systemFilesInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "system-files")
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
+func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
-# Description: Can access specific files or directories.
+# Description: Can access specific system files or directories.
 # This is restricted because it gives file access to arbitrary locations.
 owner "@{HOME}/.read-dir1{,/,/**}" rk,
 "/etc/read-dir2{,/,/**}" rk,
@@ -90,42 +90,42 @@ owner "@{HOME}/.write-file2{,/,/**}" rwkl,
 `)
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *systemFilesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "sensitive-files",
-		Interface: "sensitive-files",
+		Name:      "system-files",
+		Interface: "system-files",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"sensitive-files slots are reserved for the core snap")
+		"system-files slots are reserved for the core snap")
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *systemFilesInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
-	const mockSnapYaml = `name: sensitive-files-plug-snap
+func (s *systemFilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
+	const mockSnapYaml = `name: system-files-plug-snap
 version: 1.0
 plugs:
- sensitive-files:
+ system-files:
   read: ["$HOME/.file1"]
   write: ["$HOME/.dir1"]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["sensitive-files"]
+	plug := info.Plugs["system-files"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	const mockSnapYaml = `name: sensitive-files-plug-snap
+func (s *systemFilesInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
+	const mockSnapYaml = `name: system-files-plug-snap
 version: 1.0
 plugs:
- sensitive-files:
+ system-files:
   $t
 `
-	errPrefix := `cannot add sensitive-files plug: `
+	errPrefix := `cannot add system-files plug: `
 	var testCases = []struct {
 		inp    string
 		errStr string
@@ -148,38 +148,38 @@ plugs:
 	for _, t := range testCases {
 		yml := strings.Replace(mockSnapYaml, "$t", t.inp, -1)
 		info := snaptest.MockInfo(c, yml, nil)
-		plug := info.Plugs["sensitive-files"]
+		plug := info.Plugs["system-files"]
 
 		c.Check(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, errPrefix+t.errStr, Commentf("unexpected error for %q", t.inp))
 	}
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestConnectedPlugAppArmorInternalError(c *C) {
+func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmorInternalError(c *C) {
 	const mockPlugSnapInfo = `name: other
 version: 1.0
 plugs:
- sensitive-files:
+ system-files:
   read: [ 123 , 345 ]
 apps:
  app:
   command: foo
-  plugs: [sensitive-files]
+  plugs: [system-files]
 `
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "sensitive-files",
-		Interface: "sensitive-files",
+		Name:      "system-files",
+		Interface: "system-files",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["sensitive-files"]
+	s.plugInfo = plugSnap.Plugs["system-files"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, ErrorMatches, `cannot connect plug sensitive-files: 123 \(int64\) is not a string`)
+	c.Assert(err, ErrorMatches, `cannot connect plug system-files: 123 \(int64\) is not a string`)
 }
 
-func (s *sensitiveFilesInterfaceSuite) TestInterfaces(c *C) {
+func (s *systemFilesInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
