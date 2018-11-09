@@ -275,7 +275,6 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 	// transition we will end up with not connected interface
 	// connections in the "core" snap. But the transition will
 	// kick in automatically quickly so an extra flag is overkill.
-	// TODO parallel-install: use instance name
 	if snapInfo.InstanceName() == "core" && core.InstanceName() == "ubuntu-core" {
 		return nil
 	}

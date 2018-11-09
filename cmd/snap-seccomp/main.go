@@ -41,6 +41,7 @@ package main
 //#include <sys/stat.h>
 //#include <sys/types.h>
 //#include <sys/utsname.h>
+//#include <sys/ptrace.h>
 //#include <termios.h>
 //#include <unistd.h>
 // //The XFS interface requires a 64 bit file system interface
@@ -144,6 +145,29 @@ package main
 //		return htobe64(val);
 //}
 //
+// /* Define missing ptrace constants. They are available on some architectures
+//    only but the missing values are not reused on architectures that lack them.
+//    As such we can simply define the missing pair and have a simpler cross-arch
+//    code to support. */
+//
+// #ifndef PTRACE_GETREGS
+// #define PTRACE_GETREGS 12
+// #endif
+// #ifndef PTRACE_SETREGS
+// #define PTRACE_SETREGS 13
+// #endif
+// #ifndef PTRACE_GETFPREGS
+// #define PTRACE_GETFPREGS 14
+// #endif
+// #ifndef PTRACE_SETFPREGS
+// #define PTRACE_SETFPREGS 15
+// #endif
+// #ifndef PTRACE_GETFPXREGS
+// #define PTRACE_GETFPXREGS 18
+// #endif
+// #ifndef PTRACE_SETFPXREGS
+// #define PTRACE_SETFPXREGS 19
+// #endif
 import "C"
 
 import (
@@ -388,6 +412,19 @@ var seccompResolver = map[string]uint64{
 	"NETLINK_RDMA":           C.NETLINK_RDMA,
 	"NETLINK_CRYPTO":         C.NETLINK_CRYPTO,
 	"NETLINK_INET_DIAG":      C.NETLINK_INET_DIAG, // synonymous with NETLINK_SOCK_DIAG
+
+	// man 2 ptrace
+	"PTRACE_ATTACH":     C.PTRACE_ATTACH,
+	"PTRACE_DETACH":     C.PTRACE_DETACH,
+	"PTRACE_GETREGS":    C.PTRACE_GETREGS,
+	"PTRACE_GETFPREGS":  C.PTRACE_GETFPREGS,
+	"PTRACE_GETFPXREGS": C.PTRACE_GETFPXREGS,
+	"PTRACE_GETREGSET":  C.PTRACE_GETREGSET,
+	"PTRACE_PEEKDATA":   C.PTRACE_PEEKDATA,
+	// <linux/ptrace.h> and <sys/ptrace.h> have different spellings for PEEKUS{,E}R
+	"PTRACE_PEEKUSR":  C.PTRACE_PEEKUSER,
+	"PTRACE_PEEKUSER": C.PTRACE_PEEKUSER,
+	"PTRACE_CONT":     C.PTRACE_CONT,
 }
 
 // UbuntuArchToScmpArch takes a dpkg architecture and converts it to
@@ -433,7 +470,6 @@ func readNumber(token string) (uint64, error) {
 	if value, ok := seccompResolver[token]; ok {
 		return value, nil
 	}
-
 	// Negative numbers are not supported yet, but when they are,
 	// adjust this accordingly
 	return strconv.ParseUint(token, 10, 64)

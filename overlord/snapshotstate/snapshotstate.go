@@ -158,16 +158,16 @@ var List = backend.List
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
-func Save(st *state.State, snapNames []string, users []string) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
-	if len(snapNames) == 0 {
-		snapNames, err = allActiveSnapNames(st)
+func Save(st *state.State, instanceNames []string, users []string) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
+	if len(instanceNames) == 0 {
+		instanceNames, err = allActiveSnapNames(st)
 		if err != nil {
 			return 0, nil, nil, err
 		}
 	}
 
 	// Make sure we do not snapshot if anything like install/remove/refresh is in progress
-	if err := snapstateCheckChangeConflictMany(st, snapNames, ""); err != nil {
+	if err := snapstateCheckChangeConflictMany(st, instanceNames, ""); err != nil {
 		return 0, nil, nil, err
 	}
 
@@ -178,7 +178,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 
 	ts = state.NewTaskSet()
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		desc := fmt.Sprintf("Save data of snap %q in snapshot set #%d", name, setID)
 		task := st.NewTask("save-snapshot", desc)
 		snapshot := snapshotSetup{
@@ -201,7 +201,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 		ts.AddTask(task)
 	}
 
-	return setID, snapNames, ts, nil
+	return setID, instanceNames, ts, nil
 }
 
 // Restore creates a taskset for restoring a snapshot's data.

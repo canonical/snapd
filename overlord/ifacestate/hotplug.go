@@ -104,7 +104,6 @@ func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	if prefix != proposedName {
 		suffixNumValue, _ = strconv.Atoi(proposedName[len(prefix):])
 	}
-	prefix = strings.TrimRight(prefix, "-")
 
 	// increase suffix value until we have a unique name
 	for {
