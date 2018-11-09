@@ -88,5 +88,5 @@ execute: |
             echo "snap install ––classic test-snapd-busybox-static should have failed but did not"
             exit 1
         fi
-        str_to_one_line "$(cat stderr.out)" | MATCH 'classic confinement requested for a non classic confined snap'
+        MATCH 'error: snap "test-snapd-busybox-static" is not a classic confined snap' < stderr.out
     fi
