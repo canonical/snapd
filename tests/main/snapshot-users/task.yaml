@@ -1,0 +1,122 @@
+summary: Check that the basic snapshots functionality works for different users
+
+prepare: |
+    snap install test-snapd-tools
+
+execute: |
+    # use the snaps, so they create the dirs
+    test-snapd-tools.echo
+    su -p -c "/snap/bin/test-snapd-tools.echo" test
+
+    # drop in canaries for both users
+    echo "hello versioned test-snapd-tools"  > /root/snap/test-snapd-tools/current/canary.txt
+    echo "hello common test-snapd-tools" > /root/snap/test-snapd-tools/common/canary.txt
+    echo "hello versioned test-snapd-tools"  > /home/test/snap/test-snapd-tools/current/canary.txt
+    echo "hello common test-snapd-tools" > /home/test/snap/test-snapd-tools/common/canary.txt
+
+    # create different snapshots for each user
+    SET_ID_ROOT=$( snap save --users=root test-snapd-tools | cut -d\  -f1 | tail -n1 )
+    SET_ID_TEST=$( snap save --users=test test-snapd-tools | cut -d\  -f1 | tail -n1 )
+
+    # Update content on canary files
+    echo "content updated"  > /root/snap/test-snapd-tools/current/canary.txt
+    echo "content updated" > /root/snap/test-snapd-tools/common/canary.txt
+    echo "content updated"  > /home/test/snap/test-snapd-tools/current/canary.txt
+    echo "content updated" > /home/test/snap/test-snapd-tools/common/canary.txt
+
+    # create snapshots for both users
+    SET_ID_BOTH=$( snap save --users=root,test test-snapd-tools | cut -d\  -f1 | tail -n1 )
+
+    # Add more files and dirs for the test user and save snapshot for both users
+    mkdir -p /home/test/snap/test-snapd-tools/current/canary/
+    echo "content updated"  > /home/test/snap/test-snapd-tools/current/canary/canary.txt
+    SET_ID_NONE=$( snap save test-snapd-tools | cut -d\  -f1 | tail -n1 )
+
+    # check all the snapshots include the correct snap
+    snap saved --id="$SET_ID_ROOT" | MATCH test-snapd-tools
+    snap saved --id="$SET_ID_TEST" | MATCH test-snapd-tools
+    snap saved --id="$SET_ID_BOTH" | MATCH test-snapd-tools
+    snap saved --id="$SET_ID_NONE" | MATCH test-snapd-tools
+
+    # check the snapshots
+    snap check-snapshot "$SET_ID_ROOT"
+    snap check-snapshot "$SET_ID_TEST"
+    snap check-snapshot "$SET_ID_BOTH"
+    snap check-snapshot "$SET_ID_NONE"
+
+    # remove the canaries for both users
+    rm -f /root/snap/test-snapd-tools/{current,common}/canary.txt
+    rm -f /home/test/snap/test-snapd-tools/{current,common}/canary.txt
+
+    # restore the snapshot for the root user and check the files
+    snap restore "$SET_ID_ROOT" test-snapd-tools
+    test -e /root/snap/test-snapd-tools/current/canary.txt
+    test -e /root/snap/test-snapd-tools/common/canary.txt
+    test ! -e /home/test/snap/test-snapd-tools/current/canary.txt
+    test ! -e /home/test/snap/test-snapd-tools/common/canary.txt
+    test -e /home/test/snap/test-snapd-tools/current/canary/canary.txt
+
+    # restore the snapshot for the test user and check the files
+    snap restore "$SET_ID_TEST" test-snapd-tools
+    test -e /home/test/snap/test-snapd-tools/current/canary.txt
+    test -e /home/test/snap/test-snapd-tools/common/canary.txt
+    test ! -d /home/test/snap/test-snapd-tools/current/canary
+
+    # remove the canaries for both users
+    rm -f /root/snap/test-snapd-tools/{current,common}/canary.txt
+    rm -f /home/test/snap/test-snapd-tools/{current,common}/canary.txt
+
+    # restore the snapshot for both users and check the files
+    snap restore "$SET_ID_BOTH" test-snapd-tools
+    test -e /root/snap/test-snapd-tools/current/canary.txt
+    test -e /root/snap/test-snapd-tools/common/canary.txt
+    test -e /home/test/snap/test-snapd-tools/current/canary.txt
+    test -e /home/test/snap/test-snapd-tools/common/canary.txt
+    test ! -d /home/test/snap/test-snapd-tools/current/canary
+
+    # remove the canaries for both users
+    rm -f /root/snap/test-snapd-tools/{current,common}/canary.txt
+    rm -f /home/test/snap/test-snapd-tools/{current,common}/canary.txt
+
+    # restore the snapshot for root user and check the files
+    snap restore "$SET_ID_BOTH" --users=root
+    test -e /root/snap/test-snapd-tools/current/canary.txt
+    test -e /root/snap/test-snapd-tools/common/canary.txt
+    test ! -e /home/test/snap/test-snapd-tools/current/canary.txt
+    test ! -e /home/test/snap/test-snapd-tools/common/canary.txt
+    test ! -d /home/test/snap/test-snapd-tools/current/canary
+
+    # remove the canaries for both users
+    rm -f /root/snap/test-snapd-tools/{current,common}/canary.txt
+    rm -f /home/test/snap/test-snapd-tools/{current,common}/canary.txt
+
+    # restore the snapshot for test user and check the files
+    snap restore "$SET_ID_NONE" --users=test
+    test ! -e /root/snap/test-snapd-tools/current/canary.txt
+    test ! -e /root/snap/test-snapd-tools/common/canary.txt
+    test -e /home/test/snap/test-snapd-tools/current/canary.txt
+    test -e /home/test/snap/test-snapd-tools/common/canary.txt
+    test -e /home/test/snap/test-snapd-tools/current/canary/canary.txt
+
+    # remove the canaries for both users
+    rm -f /root/snap/test-snapd-tools/{current,common}/canary.txt
+    rm -rf /home/test/snap/test-snapd-tools/{current,common,current/canary}/canary.txt
+
+    # restore the snapshot for both user and check the files
+    snap restore "$SET_ID_NONE" --users=test,root
+    test -e /root/snap/test-snapd-tools/current/canary.txt
+    test -e /root/snap/test-snapd-tools/common/canary.txt
+    test -e /home/test/snap/test-snapd-tools/current/canary.txt
+    test -e /home/test/snap/test-snapd-tools/common/canary.txt
+    test -e /home/test/snap/test-snapd-tools/current/canary/canary.txt
+
+    # check files content
+    cat /home/test/snap/test-snapd-tools/current/canary/canary.txt | MATCH "content updated"
+    cat /home/test/snap/test-snapd-tools/current/canary.txt | MATCH "content updated"
+
+    # check removal works
+    snap forget "$SET_ID_NONE"
+    snap saved --id="$SET_ID_NONE" | grep "No snapshots found"
+    snap forget "$SET_ID_ROOT"
+    snap forget "$SET_ID_TEST"
+    snap forget "$SET_ID_BOTH"
