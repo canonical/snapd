@@ -6,7 +6,7 @@ prepare: |
 execute: |
     # use the snaps, so they create the dirs
     test-snapd-tools.echo
-    su -p -c "/snap/bin/test-snapd-tools.echo" test
+    su -p -c "$SNAP_MOUNT_DIR/bin/test-snapd-tools.echo" test
 
     # drop in canaries for both users
     echo "hello versioned test-snapd-tools"  > /root/snap/test-snapd-tools/current/canary.txt
@@ -111,8 +111,8 @@ execute: |
     test -e /home/test/snap/test-snapd-tools/current/canary/canary.txt
 
     # check files content
-    cat /home/test/snap/test-snapd-tools/current/canary/canary.txt | MATCH "content updated"
-    cat /home/test/snap/test-snapd-tools/current/canary.txt | MATCH "content updated"
+    MATCH "content updated" < /home/test/snap/test-snapd-tools/current/canary/canary.txt
+    MATCH "content updated" < /home/test/snap/test-snapd-tools/current/canary.txt
 
     # check removal works
     snap forget "$SET_ID_NONE"
