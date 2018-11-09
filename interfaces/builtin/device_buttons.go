@@ -67,6 +67,7 @@ const deviceButtonsConnectedPlugAppArmor = `
 // gpio keys present so that we don't give away all input to the snap.
 var deviceButtonsConnectedPlugUDev = []string{
 	`KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_INPUT_KEY}=="1", ENV{ID_INPUT_KEYBOARD}!="1"`,
+	`KERNEL=="full", SUBSYSTEM=="mem"`,
 }
 
 type deviceButtonsInterface struct {
