@@ -15,8 +15,8 @@
  *
  */
 
-#include "experimental.h"
-#include "experimental.c"
+#include "feature.h"
+#include "feature.c"
 
 #include <limits.h>
 
@@ -48,23 +48,23 @@ static void sc_mock_feature_flag_dir(const char *d)
 	set_feature_flag_dir(d);
 }
 
-static void test_experimental_flag_active__missing_dir(void)
+static void test_feature_enabled__missing_dir(void)
 {
 	const char *d = sc_testdir();
 	char subd[PATH_MAX];
 	sc_must_snprintf(subd, sizeof subd, "%s/absent", d);
 	sc_mock_feature_flag_dir(subd);
-	g_assert(!sc_experimental_flag_active(SC_PER_USER_MOUNT_NAMESPACE));
+	g_assert(!sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE));
 }
 
-static void test_experimental_flag_active__missing_file(void)
+static void test_feature_enabled__missing_file(void)
 {
 	const char *d = sc_testdir();
 	sc_mock_feature_flag_dir(d);
-	g_assert(!sc_experimental_flag_active(SC_PER_USER_MOUNT_NAMESPACE));
+	g_assert(!sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE));
 }
 
-static void test_experimental_flag_active__present_file(void)
+static void test_feature_enabled__present_file(void)
 {
 	const char *d = sc_testdir();
 	sc_mock_feature_flag_dir(d);
@@ -72,15 +72,15 @@ static void test_experimental_flag_active__present_file(void)
 	sc_must_snprintf(pname, sizeof pname, "%s/per-user-mount-namespace", d);
 	g_file_set_contents(pname, "", -1, NULL);
 
-	g_assert(sc_experimental_flag_active(SC_PER_USER_MOUNT_NAMESPACE));
+	g_assert(sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE));
 }
 
 static void __attribute__ ((constructor)) init(void)
 {
-	g_test_add_func("/experimental/missing_dir",
-			test_experimental_flag_active__missing_dir);
-	g_test_add_func("/experimental/missing_file",
-			test_experimental_flag_active__missing_file);
-	g_test_add_func("/experimental/present_file",
-			test_experimental_flag_active__present_file);
+	g_test_add_func("/feature/missing_dir",
+			test_feature_enabled__missing_dir);
+	g_test_add_func("/feature/missing_file",
+			test_feature_enabled__missing_file);
+	g_test_add_func("/feature/present_file",
+			test_feature_enabled__present_file);
 }
