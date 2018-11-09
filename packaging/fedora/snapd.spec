@@ -831,8 +831,8 @@ if [ $1 -eq 0 ]; then
 fi
 %endif
 
-%post -n snap-confine
 %if %{with apparmor}
+%post -n snap-confine
 if [ $1 -eq 1 ] ; then
     /sbin/apparmor_parser -r /etc/apparmor.d/*snap-confine* > /dev/null 2>&1 || :
 fi
