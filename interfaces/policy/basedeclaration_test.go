@@ -695,6 +695,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":                       true,
 		"network-status":            true,
 		"online-accounts-service":   true,
+		"dotfiles":                  true,
 		"storage-framework-service": true,
 		"thumbnailer-service":       true,
 		"ubuntu-download-manager":   true,
