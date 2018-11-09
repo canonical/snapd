@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm64 s390x
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -18,8 +17,35 @@
  *
  */
 
-package main
+package sanity_test
 
-func fpSeccompResolver(token string) (uint64, bool) {
-	return 0, false
+import (
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sanity"
+)
+
+type wslSuite struct{}
+
+var _ = Suite(&wslSuite{})
+
+func mockOnWSL(on bool) (restore func()) {
+	old := release.OnWSL
+	release.OnWSL = on
+	return func() {
+		release.OnWSL = old
+	}
+}
+
+func (s *wslSuite) TestNonWSL(c *C) {
+	defer mockOnWSL(false)()
+
+	c.Check(sanity.CheckWSL(), IsNil)
+}
+
+func (s *wslSuite) TestWSL(c *C) {
+	defer mockOnWSL(true)()
+
+	c.Check(sanity.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
 }
