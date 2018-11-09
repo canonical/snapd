@@ -17,7 +17,7 @@
 
 #define _GNU_SOURCE
 
-#include "experimental.h"
+#include "feature.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -28,9 +28,9 @@
 #include "cleanup-funcs.h"
 #include "utils.h"
 
-static const char *feature_flag_dir = "/var/lib/snapd/experimental";
+static const char *feature_flag_dir = "/var/lib/snapd/features";
 
-bool sc_experimental_flag_active(sc_feature_flag flag)
+bool sc_feature_enabled(sc_feature_flag flag)
 {
 	const char *file_name;
 	switch (flag) {
@@ -38,13 +38,11 @@ bool sc_experimental_flag_active(sc_feature_flag flag)
 		file_name = "per-user-mount-namespace";
 		break;
 	default:
-		die("unknown experimental feature flag code %d", flag);
+		die("unknown feature flag code %d", flag);
 	}
 
 	int dirfd SC_CLEANUP(sc_cleanup_close) = -1;
-	dirfd =
-	    open(feature_flag_dir,
-		 O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
+	dirfd = open(feature_flag_dir, O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
 	if (dirfd < 0 && errno == ENOENT) {
 		return false;
 	}

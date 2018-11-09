@@ -15,8 +15,8 @@
  *
  */
 
-#ifndef SNAP_CONFINE_EXPERIMENTAL_H
-#define SNAP_CONFINE_EXPERIMENTAL_H
+#ifndef SNAP_CONFINE_FEATURE_H
+#define SNAP_CONFINE_FEATURE_H
 
 #include <stdbool.h>
 
@@ -25,11 +25,11 @@ typedef enum sc_feature_flag {
 } sc_feature_flag;
 
 /**
- * sc_experimental_flag_active returns true if a given experimental flag
- * has been activated by the user via "snap set core experimental.xxx=true".
- * This is determined by testing the presence of a file in /var/lib/snapd/features/
- * that is named after the flag name.
+ * sc_feature_enabled returns true if a given feature flag has been activated
+ * by the user via "snap set core experimental.xxx=true". This is determined by
+ * testing the presence of a file in /var/lib/snapd/features/ that is named
+ * after the flag name.
 **/
-bool sc_experimental_flag_active(sc_feature_flag flag);
+bool sc_feature_enabled(sc_feature_flag flag);
 
 #endif
