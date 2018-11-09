@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm ppc64le
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -18,10 +17,22 @@
  *
  */
 
-package main
+package sanity
 
-import "syscall"
+import (
+	"errors"
 
-func fpSeccompResolver(token string) (uint64, bool) {
-	return syscall.PTRACE_GETFPREGS, token == "PTRACE_GETFPREGS"
+	"github.com/snapcore/snapd/release"
+)
+
+func init() {
+	checks = append(checks, checkWSL)
+}
+
+func checkWSL() error {
+	if release.OnWSL {
+		return errors.New("snapd does not work inside WSL")
+	}
+
+	return nil
 }
