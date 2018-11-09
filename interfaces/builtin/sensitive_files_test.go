@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type dotfilesInterfaceSuite struct {
+type sensitiveFilesInterfaceSuite struct {
 	iface    interfaces.Interface
 	slot     *interfaces.ConnectedSlot
 	slotInfo *snap.SlotInfo
@@ -40,38 +40,38 @@ type dotfilesInterfaceSuite struct {
 	plugInfo *snap.PlugInfo
 }
 
-var _ = Suite(&dotfilesInterfaceSuite{
-	iface: builtin.MustInterface("dotfiles"),
+var _ = Suite(&sensitiveFilesInterfaceSuite{
+	iface: builtin.MustInterface("sensitive-files"),
 })
 
-func (s *dotfilesInterfaceSuite) SetUpTest(c *C) {
+func (s *sensitiveFilesInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
 version: 1.0
 plugs:
- dotfiles:
+ sensitive-files:
   read: [$HOME/.read-dir1, /etc/read-dir2, $HOME/.read-file2, /etc/read-file2]
   write:  [$HOME/.write-dir1, /etc/write-dir2, $HOME/.write-file2, /etc/write-file2]
 apps:
  app:
   command: foo
-  plugs: [dotfiles]
+  plugs: [sensitive-files]
 `
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "dotfiles",
-		Interface: "dotfiles",
+		Name:      "sensitive-files",
+		Interface: "sensitive-files",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["dotfiles"]
+	s.plugInfo = plugSnap.Plugs["sensitive-files"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
-func (s *dotfilesInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "dotfiles")
+func (s *sensitiveFilesInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "sensitive-files")
 }
 
-func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
+func (s *sensitiveFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -90,42 +90,42 @@ owner "@{HOME}/.write-file2{,/,/**}" rwkl,
 `)
 }
 
-func (s *dotfilesInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *sensitiveFilesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "dotfiles",
-		Interface: "dotfiles",
+		Name:      "sensitive-files",
+		Interface: "sensitive-files",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"dotfiles slots are reserved for the core snap")
+		"sensitive-files slots are reserved for the core snap")
 }
 
-func (s *dotfilesInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *sensitiveFilesInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *dotfilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
+func (s *sensitiveFilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
+	const mockSnapYaml = `name: sensitive-files-plug-snap
 version: 1.0
 plugs:
- dotfiles:
+ sensitive-files:
   read: ["$HOME/.file1"]
   write: ["$HOME/.dir1"]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["dotfiles"]
+	plug := info.Plugs["sensitive-files"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
-func (s *dotfilesInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
-	const mockSnapYaml = `name: dotfiles-plug-snap
+func (s *sensitiveFilesInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
+	const mockSnapYaml = `name: sensitive-files-plug-snap
 version: 1.0
 plugs:
- dotfiles:
+ sensitive-files:
   $t
 `
-	errPrefix := `cannot add dotfiles plug: `
+	errPrefix := `cannot add sensitive-files plug: `
 	var testCases = []struct {
 		inp    string
 		errStr string
@@ -148,38 +148,38 @@ plugs:
 	for _, t := range testCases {
 		yml := strings.Replace(mockSnapYaml, "$t", t.inp, -1)
 		info := snaptest.MockInfo(c, yml, nil)
-		plug := info.Plugs["dotfiles"]
+		plug := info.Plugs["sensitive-files"]
 
 		c.Check(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, errPrefix+t.errStr, Commentf("unexpected error for %q", t.inp))
 	}
 }
 
-func (s *dotfilesInterfaceSuite) TestConnectedPlugAppArmorInternalError(c *C) {
+func (s *sensitiveFilesInterfaceSuite) TestConnectedPlugAppArmorInternalError(c *C) {
 	const mockPlugSnapInfo = `name: other
 version: 1.0
 plugs:
- dotfiles:
+ sensitive-files:
   read: [ 123 , 345 ]
 apps:
  app:
   command: foo
-  plugs: [dotfiles]
+  plugs: [sensitive-files]
 `
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "dotfiles",
-		Interface: "dotfiles",
+		Name:      "sensitive-files",
+		Interface: "sensitive-files",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["dotfiles"]
+	s.plugInfo = plugSnap.Plugs["sensitive-files"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, ErrorMatches, `cannot connect plug dotfiles: 123 \(int64\) is not a string`)
+	c.Assert(err, ErrorMatches, `cannot connect plug sensitive-files: 123 \(int64\) is not a string`)
 }
 
-func (s *dotfilesInterfaceSuite) TestInterfaces(c *C) {
+func (s *sensitiveFilesInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -30,10 +30,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const dotfilesSummary = `allows access to files or directories`
+const sensitiveFilesSummary = `allows access to sensitive files or directories`
 
-const dotfilesBaseDeclarationSlots = `
-  dotfiles:
+const sensitiveFilesBaseDeclarationSlots = `
+  sensitive-files:
     allow-installation:
       slot-snap-type:
         - core
@@ -41,12 +41,12 @@ const dotfilesBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const dotfilesConnectedPlugAppArmor = `
+const sensitiveFilesConnectedPlugAppArmor = `
 # Description: Can access specific files or directories.
 # This is restricted because it gives file access to arbitrary locations.
 `
 
-type dotfilesInterface struct {
+type sensitiveFilesInterface struct {
 	commonInterface
 }
 
@@ -82,7 +82,7 @@ func validatePaths(attrName string, paths []interface{}) error {
 	return nil
 }
 
-func (iface *dotfilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+func (iface *sensitiveFilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	hasValidAttr := false
 	for _, att := range []string{"read", "write"} {
 		if _, ok := plug.Attrs[att]; !ok {
@@ -90,15 +90,15 @@ func (iface *dotfilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		}
 		il, ok := plug.Attrs[att].([]interface{})
 		if !ok {
-			return fmt.Errorf("cannot add dotfiles plug: %q must be a list of strings", att)
+			return fmt.Errorf("cannot add sensitive-files plug: %q must be a list of strings", att)
 		}
 		if err := validatePaths(att, il); err != nil {
-			return fmt.Errorf("cannot add dotfiles plug: %s", err)
+			return fmt.Errorf("cannot add sensitive-files plug: %s", err)
 		}
 		hasValidAttr = true
 	}
 	if !hasValidAttr {
-		return fmt.Errorf(`cannot add dotfiles plug: needs valid "read" or "write" attribute`)
+		return fmt.Errorf(`cannot add sensitive-files plug: needs valid "read" or "write" attribute`)
 	}
 
 	return nil
@@ -130,13 +130,13 @@ func allowPathAccess(buf *bytes.Buffer, perm string, paths []interface{}) error 
 	return nil
 }
 
-func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *sensitiveFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var reads, writes []interface{}
 	_ = plug.Attr("read", &reads)
 	_ = plug.Attr("write", &writes)
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
-	buf := bytes.NewBufferString(dotfilesConnectedPlugAppArmor)
+	buf := bytes.NewBufferString(sensitiveFilesConnectedPlugAppArmor)
 	if err := allowPathAccess(buf, "rk,", reads); err != nil {
 		return fmt.Errorf("%s%v", errPrefix, err)
 	}
@@ -149,12 +149,12 @@ func (iface *dotfilesInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 }
 
 func init() {
-	registerIface(&dotfilesInterface{commonInterface{
-		name:                 "dotfiles",
-		summary:              dotfilesSummary,
+	registerIface(&sensitiveFilesInterface{commonInterface{
+		name:                 "sensitive-files",
+		summary:              sensitiveFilesSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationSlots: dotfilesBaseDeclarationSlots,
+		baseDeclarationSlots: sensitiveFilesBaseDeclarationSlots,
 		reservedForOS:        true,
 	}})
 }
