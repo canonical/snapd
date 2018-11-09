@@ -15,6 +15,7 @@
 %endif
 
 # rpmbuild with "--with apparmor" to enable apparmor
+%bcond_with apparmor
 
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
@@ -584,14 +585,15 @@ pushd ./cmd
 %make_install
 # Undo the 0000 permissions, they are restored in the files section
 chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
+%if %{with apparmor}
+install -m 644 -D snap-confine/snap-confine.apparmor %{buildroot}%{_sysconfdir}/apparmor.d/usr.libexec.snapd.snap-confine
+%else
 # We don't use AppArmor
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
+%endif
 # ubuntu-core-launcher is dead
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
 popd
-%if %{with apparmor}
-install -m 644 -D cmd/snap-confine/snap-confine.apparmor %{buildroot}%{_sysconfdir}/apparmor.d/usr.libexec.snapd.snap-confine
-%endif
 
 # Install all systemd and dbus units, and env files
 pushd ./data
@@ -798,11 +800,6 @@ if [ $1 -eq 1 ] ; then
       systemctl start snapd.socket > /dev/null 2>&1 || :
    fi
 fi
-%if %{with apparmor}
-if [ $1 -eq 1 ] ; then
-    /sbin/apparmor_parser -r /etc/apparmor.d/*snap-confine* > /dev/null 2>&1 || :
-fi
-%endif
 
 %preun
 %systemd_preun %{snappy_svcs}
@@ -831,6 +828,13 @@ fi
 %selinux_modules_uninstall snappy
 if [ $1 -eq 0 ]; then
     %selinux_relabel_post
+fi
+%endif
+
+%post -n snap-confine
+%if %{with apparmor}
+if [ $1 -eq 1 ] ; then
+    /sbin/apparmor_parser -r /etc/apparmor.d/*snap-confine* > /dev/null 2>&1 || :
 fi
 %endif
 
