@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -246,6 +247,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
 
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
@@ -2513,7 +2515,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	n := 1
 	c.Assert(installQueue, check.HasLen, n)
-	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
+	c.Check(installQueue[n-1], check.Matches, "local::.*/"+regexp.QuoteMeta(dirs.LocalInstallBlobTempPrefix)+".*")
 
 	st := d.overlord.State()
 	st.Lock()
@@ -5567,7 +5569,7 @@ func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
 			Username:         "karl",
@@ -5592,7 +5594,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	expectedEmail := "popper@lse.ac.uk"
 	expectedUsername := "karl"
 
-	storeUserInfo = func(user string) (*store.User, error) {
+	storeUserInfo = func(cl *http.Client, user string) (*store.User, error) {
 		c.Check(user, check.Equals, expectedEmail)
 		return &store.User{
 			Username:         expectedUsername,
@@ -6678,14 +6680,6 @@ func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
 	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
 	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
-}
-
-func (s *apiSuite) TestSplitQS(c *check.C) {
-	c.Check(splitQS("foo,bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo , bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
-	c.Check(splitQS(""), check.HasLen, 0)
-	c.Check(splitQS(","), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {

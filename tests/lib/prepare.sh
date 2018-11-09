@@ -81,9 +81,12 @@ $START_LIMIT_INTERVAL
 EOF
 
     # We change the service configuration so reload and restart
-    # the snapd socket unit to get them applied
+    # the units to get them applied
     systemctl daemon-reload
-    systemctl restart snapd.socket
+    # stop the socket (it pulls down the service)
+    systemctl stop snapd.socket
+    # start the service (it pulls up the socket)
+    systemctl start snapd.service
 }
 
 update_core_snap_for_classic_reexec() {

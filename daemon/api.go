@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -55,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -416,7 +418,9 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	macaroon, discharge, err := store.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
+	overlord := c.d.overlord
+	st := overlord.State()
+	macaroon, discharge, err := store.LoginUser(makeHttpClient(st), loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -463,20 +467,18 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// continue
 	}
-	overlord := c.d.overlord
-	state := overlord.State()
-	state.Lock()
+	st.Lock()
 	if user != nil {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
 		user.StoreDischarges = []string{discharge}
 		// user's email address authenticated by the store
 		user.Email = loginData.Email
-		err = auth.UpdateUser(state, user)
+		err = auth.UpdateUser(st, user)
 	} else {
-		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(st, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
-	state.Unlock()
+	st.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
@@ -523,7 +525,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 	var macaroon string
 	var discharges []string
-	for _, field := range splitQS(authorizationData[1]) {
+	for _, field := range strutil.CommaSeparatedList(authorizationData[1]) {
 		if strings.HasPrefix(field, `root="`) {
 			macaroon = strings.TrimSuffix(field[6:], `"`)
 		}
@@ -823,7 +825,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	var wanted map[string]bool
 	if ns := query.Get("snaps"); len(ns) > 0 {
-		nsl := splitQS(ns)
+		nsl := strutil.CommaSeparatedList(ns)
 		wanted = make(map[string]bool, len(nsl))
 		for _, name := range nsl {
 			wanted[name] = true
@@ -1487,7 +1489,8 @@ out:
 	// we are in charge of the tempfile life cycle until we hand it off to the change
 	changeTriggered := false
 	// if you change this prefix, look for it in the tests
-	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
+	// also see localInstallCleanup in snapstate/snapmgr.go
+	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
@@ -1625,24 +1628,11 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	return iconGet(c.d.overlord.State(), name)
 }
 
-func splitQS(qs string) []string {
-	qsl := strings.Split(qs, ",")
-	split := make([]string, 0, len(qsl))
-	for _, elem := range qsl {
-		elem = strings.TrimSpace(elem)
-		if len(elem) > 0 {
-			split = append(split, elem)
-		}
-	}
-
-	return split
-}
-
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
-	keys := splitQS(r.URL.Query().Get("keys"))
+	keys := strutil.CommaSeparatedList(r.URL.Query().Get("keys"))
 
 	s := c.d.overlord.State()
 	s.Lock()
@@ -2198,8 +2188,17 @@ var (
 	osutilAddUser             = osutil.AddUser
 )
 
-func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
-	v, err := storeUserInfo(email)
+func makeHttpClient(st *state.State) *http.Client {
+	proxyConf := proxyconf.New(st)
+	return httputil.NewHTTPClient(&httputil.ClientOptions{
+		Timeout:    10 * time.Second,
+		MayLogBody: true,
+		Proxy:      proxyConf.Conf,
+	})
+}
+
+func getUserDetailsFromStore(client *http.Client, email string) (string, *osutil.AddUserOptions, error) {
+	v, err := storeUserInfo(client, email)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
 	}
@@ -2422,7 +2421,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if createData.Known {
 		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(createData.Email)
+		username, opts, err = getUserDetailsFromStore(makeHttpClient(st), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
@@ -2804,7 +2803,7 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid select parameter: %q", sel)
 	}
 
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
 	}
@@ -2833,7 +2832,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// only services have logs for now
 	opts := appInfoOptions{service: true}
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
 	}

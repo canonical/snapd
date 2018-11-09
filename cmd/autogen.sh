@@ -42,7 +42,7 @@ case "$ID" in
 		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
 		;;
 	opensuse)
-		extra_opts="--libexecdir=/usr/lib/snapd"
+		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-biarch --with-32bit-libdir=/usr/lib --enable-merged-usr"
 		;;
 	solus)
 		extra_opts="--enable-nvidia-biarch"

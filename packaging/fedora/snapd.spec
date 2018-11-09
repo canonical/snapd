@@ -6,10 +6,6 @@
 %bcond_without vendorized
 %endif
 
-# Compat macros
-%{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
-%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
-
 # With Amazon Linux 2+, we're going to provide the /snap symlink by default,
 # since classic snaps currently require it... :(
 %if 0%{?amzn} >= 2
@@ -21,9 +17,6 @@
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
-
-# Enforce hardened build, even on EL7
-%global _hardened_build 1
 
 %global with_devel 1
 %global with_debug 1
@@ -88,6 +81,7 @@
 # Compat path macros
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
+%{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 
 # SELinux policy does not build on Amazon Linux 2 at the moment, fails with
 # checkmodule complaining about missing 'map' permission for 'file' class
@@ -350,6 +344,7 @@ Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/config) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/configcore) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/configstate/proxyconf) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/settings) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
@@ -357,11 +352,14 @@ Provides:      golang(%{import_path}/overlord/hookstate/ctlcmd) = %{version}-%{r
 Provides:      golang(%{import_path}/overlord/hookstate/hooktest) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/ifacestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/ifacestate/ifacerepo) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/ifacestate/udevmonitor) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/patch) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/servicestate) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/snapshotstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapshotstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate/backend) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/standby) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/state) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition/androidbootenv) = %{version}-%{release}
@@ -371,7 +369,7 @@ Provides:      golang(%{import_path}/polkit) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress/progresstest) = %{version}-%{release}
 Provides:      golang(%{import_path}/release) = %{version}-%{release}
-Provides:      golang(%{import_path}/selftest) = %{version}-%{release}
+Provides:      golang(%{import_path}/sanity) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/pack) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapdir) = %{version}-%{release}
@@ -808,6 +806,9 @@ fi
 %endif
 
 %changelog
+* Sun Nov 04 2018 Neal Gompa <ngompa13@gmail.com> - 2.36-1
+- Release 2.36 to Fedora
+
 * Wed Oct 24 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.36
  - overlord/snapstate, snap, wrappers: start services in the right

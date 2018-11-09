@@ -76,14 +76,12 @@ backends:
                 workers: 6
                 manual: true
 
-            - fedora-26-64:
-                workers: 4
-                manual: true
             - fedora-27-64:
                 workers: 4
                 manual: true
             - fedora-28-64:
                 workers: 4
+                manual: true
 
             - opensuse-42.3-64:
                 workers: 4
@@ -98,6 +96,7 @@ backends:
         type: google
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
+        halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
                 workers: 4
@@ -107,6 +106,20 @@ backends:
                 workers: 4
             - ubuntu-18.04-64:
                 workers: 4
+
+    google-nested:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        plan: n1-standard-2
+        halt-timeout: 2h
+        systems:
+            - ubuntu-16.04-64:
+                image: ubuntu-1604-64-virt-enabled
+                workers: 1
+            - ubuntu-18.04-64:
+                image: ubuntu-1804-64-virt-enabled
+                workers: 1
 
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
@@ -162,6 +175,24 @@ backends:
             - ubuntu-18.10-32:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-19.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-32:
+                username: ubuntu
+                password: ubuntu
             - debian-sid-64:
                 username: debian
                 password: debian
@@ -171,10 +202,10 @@ backends:
             - debian-sid-64:
                 username: debian
                 password: debian
-            - fedora-26-64:
+            - fedora-27-64:
                 username: fedora
                 password: fedora
-            - fedora-27-64:
+            - fedora-28-64:
                 username: fedora
                 password: fedora
     autopkgtest:
@@ -267,6 +298,64 @@ backends:
             - ubuntu-18.10-arm64:
                 username: ubuntu
                 password: ubuntu
+            # Disco
+            - ubuntu-19.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Eccentric Eel (not final name!)
+            - ubuntu-19.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Flaming Falcon (not final name!)
+            - ubuntu-20.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-arm64:
+                username: ubuntu
+                password: ubuntu
+
     external:
         type: adhoc
         environment:
@@ -612,33 +701,20 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -amazon-*, -arch-*]
+        backends: [google-nested]
         environment:
-            NESTED_TYPE: "$(HOST: echo ${SPREAD_NESTED_TYPE:-core})"
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
-        halt-timeout: 2h
-        kill-timeout: 2h
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass
-            if [ "$NESTED_TYPE" = "core" ]; then
-                snap install --classic --beta ubuntu-image
-            else
-                distro_install_package qemu-kvm cloud-image-utils
-            fi
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass
-            if [ "$NESTED_TYPE" = "core" ]; then
-                snap remove ubuntu-image
-            else
-                distro_purge_package qemu-kvm cloud-image-utils
-            fi
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
 # vim:ts=4:sw=4:et
