@@ -232,6 +232,9 @@
     # Allow reading the os-release file (possibly a symlink to /usr/lib).
     /{etc/,usr/lib/}os-release r,
 
+    # Allow creating /var/lib/snapd/hostfs, if missing
+    /var/lib/snapd/hostfs/ rw,
+
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ w,
