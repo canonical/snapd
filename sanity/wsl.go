@@ -19,29 +19,20 @@
 
 package sanity
 
-var (
-	CheckSquashfsMount  = checkSquashfsMount
-	CheckKernelVersion  = checkKernelVersion
-	CheckApparmorUsable = checkApparmorUsable
-	CheckWSL            = checkWSL
+import (
+	"errors"
+
+	"github.com/snapcore/snapd/release"
 )
 
-func Checks() []func() error {
-	return checks
+func init() {
+	checks = append(checks, checkWSL)
 }
 
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
-	return func() {
-		checks = oldChecks
+func checkWSL() error {
+	if release.OnWSL {
+		return errors.New("snapd does not work inside WSL")
 	}
-}
 
-func MockAppArmorProfilesPath(path string) (restorer func()) {
-	old := apparmorProfilesPath
-	apparmorProfilesPath = path
-	return func() {
-		apparmorProfilesPath = old
-	}
+	return nil
 }
