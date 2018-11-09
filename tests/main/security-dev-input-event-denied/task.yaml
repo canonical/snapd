@@ -74,6 +74,12 @@ execute: |
     # the device cgroup.
     MATCH "Operation not permitted" < call.error
 
+    # joystick AppArmor profile allows access to devices which are also included
+    # in device buttons, make sure we start in clean state and disconnect the
+    # joystick interface
+    snap disconnect test-snapd-event:joystick
+    udevadm settle
+
     # 2. Device Buttons
 
     echo "Then the snap is not able to access an evdev keyboard"
@@ -82,7 +88,7 @@ execute: |
         exit 1
     fi
     # AppArmor is 'Permission denied' which is expected with default policy
-    MATCH "Operation not permitted" < call.error
+    MATCH "Permission denied" < call.error
 
     echo "When the device-buttons plug is connected"
     snap connect test-snapd-event:device-buttons
