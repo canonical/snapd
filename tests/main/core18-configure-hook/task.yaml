@@ -6,14 +6,15 @@ prepare: |
     echo "Ensure empty state"
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
     echo "Ensure all snaps are gone"
-    /usr/lib/snapd/snap-mgmt --purge
+    $LIBEXECDIR/snapd/snap-mgmt --purge
 
     systemd_stop_units snapd.service
     rm -f /var/lib/snapd/state.json
     systemctl start snapd
     snap wait system seed.loaded
-
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
