@@ -32,18 +32,29 @@ import (
 )
 
 type aliasesSuite struct {
-	be backend.Backend
+	be   backend.Backend
+	base string
 }
 
-var _ = Suite(&aliasesSuite{})
+// silly wrappers to get better failure messages
+type noBaseAliasesSuite struct{ aliasesSuite }
+type withBaseAliasesSuite struct{ aliasesSuite }
+type withSnapdAliasesSuite struct{ aliasesSuite }
+
+var _ = Suite(&noBaseAliasesSuite{})
+var _ = Suite(&withBaseAliasesSuite{aliasesSuite{base: "core99"}})
+var _ = Suite(&withSnapdAliasesSuite{aliasesSuite{base: "core-with-snapd"}})
 
 func (s *aliasesSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	if s.base == "core-with-snapd" {
+		c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
+	}
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(dirs.CompletersDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteSh), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteSh, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 }
 
 func (s *aliasesSuite) TearDownTest(c *C) {
@@ -131,14 +142,14 @@ func (s *aliasesSuite) TestUpdateAliasesAdd(c *C) {
 	c.Check(matchingCs, HasLen, 0)
 }
 
-func mkCompleters(c *C, apps ...string) {
+func mkCompleters(c *C, base string, apps ...string) {
 	for _, app := range apps {
-		c.Assert(os.Symlink(dirs.CompleteSh, filepath.Join(dirs.CompletersDir, app)), IsNil)
+		c.Assert(os.Symlink(dirs.CompleteShPath(base), filepath.Join(dirs.CompletersDir, app)), IsNil)
 	}
 }
 
 func (s *aliasesSuite) TestUpdateAliasesAddWithCompleter(c *C) {
-	mkCompleters(c, "x.bar", "x.foo")
+	mkCompleters(c, s.base, "x.bar", "x.foo")
 	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
 
 	err := s.be.UpdateAliases(aliases, nil)
@@ -166,7 +177,7 @@ func (s *aliasesSuite) TestUpdateAliasesAddIdempot(c *C) {
 }
 
 func (s *aliasesSuite) TestUpdateAliasesAddWithCompleterIdempot(c *C) {
-	mkCompleters(c, "x.foo", "x.bar")
+	mkCompleters(c, s.base, "x.foo", "x.bar")
 	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
 
 	err := s.be.UpdateAliases(aliases, nil)
@@ -207,7 +218,7 @@ func (s *aliasesSuite) TestUpdateAliasesRemove(c *C) {
 }
 
 func (s *aliasesSuite) TestUpdateAliasesWithCompleterRemove(c *C) {
-	mkCompleters(c, "x.foo", "x.bar")
+	mkCompleters(c, s.base, "x.foo", "x.bar")
 	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
 
 	err := s.be.UpdateAliases(aliases, nil)
@@ -256,7 +267,7 @@ func (s *aliasesSuite) TestUpdateAliasesRemoveIdempot(c *C) {
 }
 
 func (s *aliasesSuite) TestUpdateAliasesWithCompleterRemoveIdempot(c *C) {
-	mkCompleters(c, "x.foo", "x.bar")
+	mkCompleters(c, s.base, "x.foo", "x.bar")
 	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
 
 	err := s.be.UpdateAliases(aliases, nil)
@@ -300,7 +311,7 @@ func (s *aliasesSuite) TestUpdateAliasesAddRemoveOverlap(c *C) {
 }
 
 func (s *aliasesSuite) TestUpdateAliasesWithCompleterAddRemoveOverlap(c *C) {
-	mkCompleters(c, "x.baz", "x.bar")
+	mkCompleters(c, s.base, "x.baz", "x.bar")
 	before := []*backend.Alias{{"bar", "x.bar"}}
 	after := []*backend.Alias{{"bar", "x.baz"}}
 
@@ -337,7 +348,7 @@ func (s *aliasesSuite) TestRemoveSnapAliases(c *C) {
 }
 
 func (s *aliasesSuite) TestRemoveSnapAliasesWithCompleter(c *C) {
-	mkCompleters(c, "x", "x.bar", "y", "y.baz")
+	mkCompleters(c, s.base, "x", "x.bar", "y", "y.baz")
 	aliases := []*backend.Alias{{"xx", "x"}, {"bar", "x.bar"}, {"baz", "y.baz"}, {"yy", "y"}}
 
 	err := s.be.UpdateAliases(aliases, nil)
