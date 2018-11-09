@@ -30,10 +30,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const sensitiveFilesSummary = `allows access to sensitive files or directories`
+const systemFilesSummary = `allows access to system files or directories`
 
-const sensitiveFilesBaseDeclarationSlots = `
-  sensitive-files:
+const systemFilesBaseDeclarationSlots = `
+  system-files:
     allow-installation:
       slot-snap-type:
         - core
@@ -41,12 +41,12 @@ const sensitiveFilesBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const sensitiveFilesConnectedPlugAppArmor = `
-# Description: Can access specific files or directories.
+const systemFilesConnectedPlugAppArmor = `
+# Description: Can access specific system files or directories.
 # This is restricted because it gives file access to arbitrary locations.
 `
 
-type sensitiveFilesInterface struct {
+type systemFilesInterface struct {
 	commonInterface
 }
 
@@ -82,28 +82,6 @@ func validatePaths(attrName string, paths []interface{}) error {
 	return nil
 }
 
-func (iface *sensitiveFilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	hasValidAttr := false
-	for _, att := range []string{"read", "write"} {
-		if _, ok := plug.Attrs[att]; !ok {
-			continue
-		}
-		il, ok := plug.Attrs[att].([]interface{})
-		if !ok {
-			return fmt.Errorf("cannot add sensitive-files plug: %q must be a list of strings", att)
-		}
-		if err := validatePaths(att, il); err != nil {
-			return fmt.Errorf("cannot add sensitive-files plug: %s", err)
-		}
-		hasValidAttr = true
-	}
-	if !hasValidAttr {
-		return fmt.Errorf(`cannot add sensitive-files plug: needs valid "read" or "write" attribute`)
-	}
-
-	return nil
-}
-
 func formatPath(ip interface{}) (string, error) {
 	p, ok := ip.(string)
 	if !ok {
@@ -130,13 +108,35 @@ func allowPathAccess(buf *bytes.Buffer, perm string, paths []interface{}) error 
 	return nil
 }
 
-func (iface *sensitiveFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *systemFilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	hasValidAttr := false
+	for _, att := range []string{"read", "write"} {
+		if _, ok := plug.Attrs[att]; !ok {
+			continue
+		}
+		il, ok := plug.Attrs[att].([]interface{})
+		if !ok {
+			return fmt.Errorf("cannot add %s plug: %q must be a list of strings", iface.name, att)
+		}
+		if err := validatePaths(att, il); err != nil {
+			return fmt.Errorf("cannot add %s plug: %s", iface.name, err)
+		}
+		hasValidAttr = true
+	}
+	if !hasValidAttr {
+		return fmt.Errorf(`cannot add %s plug: needs valid "read" or "write" attribute`, iface.name)
+	}
+
+	return nil
+}
+
+func (iface *systemFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var reads, writes []interface{}
 	_ = plug.Attr("read", &reads)
 	_ = plug.Attr("write", &writes)
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
-	buf := bytes.NewBufferString(sensitiveFilesConnectedPlugAppArmor)
+	buf := bytes.NewBufferString(systemFilesConnectedPlugAppArmor)
 	if err := allowPathAccess(buf, "rk,", reads); err != nil {
 		return fmt.Errorf("%s%v", errPrefix, err)
 	}
@@ -149,12 +149,12 @@ func (iface *sensitiveFilesInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 }
 
 func init() {
-	registerIface(&sensitiveFilesInterface{commonInterface{
-		name:                 "sensitive-files",
-		summary:              sensitiveFilesSummary,
+	registerIface(&systemFilesInterface{commonInterface{
+		name:                 "system-files",
+		summary:              systemFilesSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationSlots: sensitiveFilesBaseDeclarationSlots,
+		baseDeclarationSlots: systemFilesBaseDeclarationSlots,
 		reservedForOS:        true,
 	}})
 }
