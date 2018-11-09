@@ -83,12 +83,16 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) (strin
 	return fmt.Sprintf("%x%x", keyVersion, key.Sum(nil)), nil
 }
 
-// HotplugDeviceAdded gets called when a device is added to the system.
-func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
+// hotplugDeviceAdded gets called when a device is added to the system.
+func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
 }
 
-// HotplugDeviceRemoved gets called when a device is removed from the system.
-func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
+// hotplugDeviceRemoved gets called when a device is removed from the system.
+func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
+}
+
+// hotplugEnumerationDone gets called when initial enumeration on startup is finished.
+func (m *InterfaceManager) hotplugEnumerationDone() {
 }
 
 // ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.

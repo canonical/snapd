@@ -168,7 +168,7 @@ var (
 )
 
 func (m *InterfaceManager) initUDevMonitor() error {
-	mon := createUDevMonitor(m.HotplugDeviceAdded, m.HotplugDeviceRemoved)
+	mon := createUDevMonitor(m.hotplugDeviceAdded, m.hotplugDeviceRemoved, m.hotplugEnumerationDone)
 	if err := mon.Connect(); err != nil {
 		return err
 	}
