@@ -64,7 +64,7 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 		// must be an absolute path or an abstract socket path
 		return fmt.Errorf("cannot use %q as notify socket path: not absolute", notifySocket)
 	}
-	if err := apparmor.ValidateFreeFromAARE(notifySocket); err != nil {
+	if err := apparmor.ValidateNoAppArmorRegexp(notifySocket); err != nil {
 		return fmt.Errorf("cannot use %q as notify socket path: %s", notifySocket, err)
 	}
 

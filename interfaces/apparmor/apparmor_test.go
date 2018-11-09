@@ -224,7 +224,7 @@ func (s *appArmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
 	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
 
 	for _, s := range testCases {
-		c.Check(apparmor.ValidateFreeFromAARE(s), ErrorMatches, ".* contains a reserved apparmor char from .*", Commentf("%q is not raising an error", s))
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), ErrorMatches, ".* contains a reserved apparmor char from .*", Commentf("%q is not raising an error", s))
 	}
 }
 
@@ -232,6 +232,6 @@ func (s *appArmorSuite) TestValidateFreeFromAAREhappy(c *C) {
 	var testCases = []string{"foo", "BaR", "b-z", "foo+bar", "b00m!", "be/ep", "a%b", "a&b", "a(b", "a)b", "a=b", "a#b", "a~b", "a'b", "a_b", "a,b", "a;b", "a>b", "a<b", "a|b"}
 
 	for _, s := range testCases {
-		c.Check(apparmor.ValidateFreeFromAARE(s), IsNil, Commentf("%q raised an error but shouldn't", s))
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), IsNil, Commentf("%q raised an error but shouldn't", s))
 	}
 }

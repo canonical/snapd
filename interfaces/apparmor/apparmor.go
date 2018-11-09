@@ -37,7 +37,7 @@ import (
 
 // ValidateFreeFromAARE will check that the given string does not
 // contain AppArmor regular expressions (AARE) or double quotes
-func ValidateFreeFromAARE(s string) error {
+func ValidateNoAppArmorRegexp(s string) error {
 	const AARE = `?*[]{}^"` + "\x00"
 
 	if strings.ContainsAny(s, AARE) {
