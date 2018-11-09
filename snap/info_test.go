@@ -334,13 +334,16 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Check(info, IsNil)
 }
 
-func (s *infoSuite) TestReadInfoExceptSizeUnfindable(c *C) {
+func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
-	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
+	mpi := snap.MinimalPlaceInfo("sample", si.Revision)
+	p := filepath.Join(mpi.MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(p, []byte(`name: test`), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0755), IsNil)
+	c.Assert(os.Symlink("/dangling", mpi.MountFile()), IsNil)
 
-	info, err := snap.ReadInfoExceptSize("sample", si)
+	info, err := snap.ReadInfo("sample", si)
 	c.Check(err, IsNil)
 	c.Check(info.SnapName(), Equals, "test")
 	c.Check(info.Revision, Equals, snap.R(42))
