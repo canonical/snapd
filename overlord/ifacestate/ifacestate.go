@@ -139,13 +139,18 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		return nil, err
 	}
 
-	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"), plugSnap, plugName, slotSnap, slotName)
-	connectInterface := st.NewTask("connect", summary)
-
+	connectInterface := st.NewTask("connect", fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"), plugSnap, plugName, slotSnap, slotName))
 	initialContext := make(map[string]interface{})
 	initialContext["attrs-task"] = connectInterface.ID()
 
-	var preparePlugConnection, prepareSlotConnection, connectSlotConnection, connectPlugConnection *state.Task
+	tasks := state.NewTaskSet()
+	var prev *state.Task
+	addTask := func(t *state.Task) {
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		tasks.AddTask(t)
+	}
 
 	preparePlugHookName := fmt.Sprintf("prepare-plug-%s", plugName)
 	if plugSnapInfo.Hooks[preparePlugHookName] != nil {
@@ -154,14 +159,16 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 			Hook:     preparePlugHookName,
 			Optional: true,
 		}
-		summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
+		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
 		undoPrepPlugHookSetup := &hookstate.HookSetup{
 			Snap:        plugSnap,
 			Hook:        "unprepare-plug-" + plugName,
 			Optional:    true,
 			IgnoreError: true,
 		}
-		preparePlugConnection = hookstate.HookTaskWithUndo(st, summary, plugHookSetup, undoPrepPlugHookSetup, initialContext)
+		preparePlugConnection := hookstate.HookTaskWithUndo(st, summary, plugHookSetup, undoPrepPlugHookSetup, initialContext)
+		addTask(preparePlugConnection)
+		prev = preparePlugConnection
 	}
 
 	prepareSlotHookName := fmt.Sprintf("prepare-slot-%s", slotName)
@@ -178,11 +185,10 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 			IgnoreError: true,
 		}
 
-		summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), slotHookSetup.Hook, slotHookSetup.Snap)
-		prepareSlotConnection = hookstate.HookTaskWithUndo(st, summary, slotHookSetup, undoPrepSlotHookSetup, initialContext)
-		if preparePlugConnection != nil {
-			prepareSlotConnection.WaitFor(preparePlugConnection)
-		}
+		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), slotHookSetup.Hook, slotHookSetup.Snap)
+		prepareSlotConnection := hookstate.HookTaskWithUndo(st, summary, slotHookSetup, undoPrepSlotHookSetup, initialContext)
+		addTask(prepareSlotConnection)
+		prev = prepareSlotConnection
 	}
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
@@ -205,13 +211,8 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// The main 'connect' task should wait on prepare-slot- hook or on prepare-plug- hook (whichever is present),
 	// but not on both. While there would be no harm in waiting for both, it's not needed as prepare-slot- will
 	// wait for prepare-plug- anyway, and a simple one-to-one wait dependency makes testing easier.
-	if prepareSlotConnection != nil {
-		connectInterface.WaitFor(prepareSlotConnection)
-	} else {
-		if preparePlugConnection != nil {
-			connectInterface.WaitFor(preparePlugConnection)
-		}
-	}
+	addTask(connectInterface)
+	prev = connectInterface
 
 	connectSlotHookName := fmt.Sprintf("connect-slot-%s", slotName)
 	if slotSnapInfo.Hooks[connectSlotHookName] != nil {
@@ -227,9 +228,10 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 			IgnoreError: true,
 		}
 
-		summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectSlotHookSetup.Hook, connectSlotHookSetup.Snap)
-		connectSlotConnection = hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
-		connectSlotConnection.WaitFor(connectInterface)
+		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectSlotHookSetup.Hook, connectSlotHookSetup.Snap)
+		connectSlotConnection := hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
+		addTask(connectSlotConnection)
+		prev = connectSlotConnection
 	}
 
 	connectPlugHookName := fmt.Sprintf("connect-plug-%s", plugName)
@@ -246,22 +248,12 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 			IgnoreError: true,
 		}
 
-		summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
-		connectPlugConnection = hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
-		if connectSlotConnection != nil {
-			connectPlugConnection.WaitFor(connectSlotConnection)
-		} else {
-			connectPlugConnection.WaitFor(connectInterface)
-		}
+		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
+		connectPlugConnection := hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
+		addTask(connectPlugConnection)
+		prev = connectPlugConnection
 	}
-
-	ts := &state.TaskSet{}
-	for _, t := range []*state.Task{preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection} {
-		if t != nil {
-			ts.AddTask(t)
-		}
-	}
-	return ts, nil
+	return tasks, nil
 }
 
 func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap string, plugName string, slotSnapInfo *snap.Info, slotSnap string, slotName string) (plugStatic, slotStatic map[string]interface{}, err error) {
@@ -307,6 +299,7 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 
 type disconnectOpts struct {
 	AutoDisconnect bool
+	ByHotplug      bool
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -338,60 +331,77 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	if flags.AutoDisconnect {
 		disconnectTask.Set("auto-disconnect", true)
 	}
+	if flags.ByHotplug {
+		disconnectTask.Set("by-hotplug", true)
+	}
 
 	ts := state.NewTaskSet()
+	var prev *state.Task
+	addTask := func(t *state.Task) {
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		ts.AddTask(t)
+		prev = t
+	}
 
 	initialContext := make(map[string]interface{})
 	initialContext["attrs-task"] = disconnectTask.ID()
 
-	var disconnectSlot *state.Task
+	plugSnapInfo, err := plugSnapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+	slotSnapInfo, err := slotSnapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
 
 	// only run slot hooks if slotSnap is active
 	if slotSnapst.Active {
-		disconnectSlotHookSetup := &hookstate.HookSetup{
-			Snap:     slotSnap,
-			Hook:     "disconnect-slot-" + slotName,
-			Optional: true,
-		}
-		undoDisconnectSlotHookSetup := &hookstate.HookSetup{
-			Snap:     slotSnap,
-			Hook:     "connect-slot-" + slotName,
-			Optional: true,
-		}
+		hookName := fmt.Sprintf("disconnect-slot-%s", slotName)
+		if slotSnapInfo.Hooks[hookName] != nil {
+			disconnectSlotHookSetup := &hookstate.HookSetup{
+				Snap:     slotSnap,
+				Hook:     hookName,
+				Optional: true,
+			}
+			undoDisconnectSlotHookSetup := &hookstate.HookSetup{
+				Snap:     slotSnap,
+				Hook:     "connect-slot-" + slotName,
+				Optional: true,
+			}
 
-		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
-		disconnectSlot = hookstate.HookTaskWithUndo(st, summary, disconnectSlotHookSetup, undoDisconnectSlotHookSetup, initialContext)
+			summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
+			disconnectSlot := hookstate.HookTaskWithUndo(st, summary, disconnectSlotHookSetup, undoDisconnectSlotHookSetup, initialContext)
 
-		ts.AddTask(disconnectSlot)
-		disconnectTask.WaitFor(disconnectSlot)
+			addTask(disconnectSlot)
+		}
 	}
 
 	// only run plug hooks if plugSnap is active
 	if plugSnapst.Active {
-		disconnectPlugHookSetup := &hookstate.HookSetup{
-			Snap:     plugSnap,
-			Hook:     "disconnect-plug-" + plugName,
-			Optional: true,
-		}
-		undoDisconnectPlugHookSetup := &hookstate.HookSetup{
-			Snap:     plugSnap,
-			Hook:     "connect-plug-" + plugName,
-			Optional: true,
-		}
+		hookName := fmt.Sprintf("disconnect-plug-%s", plugName)
+		if plugSnapInfo.Hooks[hookName] != nil {
+			disconnectPlugHookSetup := &hookstate.HookSetup{
+				Snap:     plugSnap,
+				Hook:     hookName,
+				Optional: true,
+			}
+			undoDisconnectPlugHookSetup := &hookstate.HookSetup{
+				Snap:     plugSnap,
+				Hook:     "connect-plug-" + plugName,
+				Optional: true,
+			}
 
-		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
-		disconnectPlug := hookstate.HookTaskWithUndo(st, summary, disconnectPlugHookSetup, undoDisconnectPlugHookSetup, initialContext)
-		disconnectPlug.WaitAll(ts)
+			summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
+			disconnectPlug := hookstate.HookTaskWithUndo(st, summary, disconnectPlugHookSetup, undoDisconnectPlugHookSetup, initialContext)
 
-		if disconnectSlot != nil {
-			disconnectPlug.WaitFor(disconnectSlot)
+			addTask(disconnectPlug)
 		}
-
-		ts.AddTask(disconnectPlug)
-		disconnectTask.WaitFor(disconnectPlug)
 	}
 
-	ts.AddTask(disconnectTask)
+	addTask(disconnectTask)
 	return ts, nil
 }
 

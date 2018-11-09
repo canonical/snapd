@@ -571,6 +571,19 @@ var overlayRootSnippet = `
   "###UPPERDIR###/{,**/}" r,
 `
 
+var ptraceTraceDenySnippet = `
+# While commands like 'ps', 'ip netns identify <pid>', 'ip netns pids foo', etc
+# trigger a 'ptrace (trace)' denial, they aren't actually tracing other
+# processes. Unfortunately, the kernel overloads trace such that the LSMs are
+# unable to distinguish between tracing other processes and other accesses.
+# ptrace (trace) can be used to break out of the seccomp sandbox unless the
+# kernel has 93e35efb8de45393cf61ed07f7b407629bf698ea (in 4.8+). Until snapd
+# has full ptrace support conditional on kernel support, explicitly deny to
+# silence noisy denials/avoid confusion and accidentally giving away this
+# dangerous access frivolously.
+deny ptrace (trace),
+`
+
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.
 //
 // The per-snap snap-update-ns profiles are composed via a template and

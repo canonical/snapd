@@ -324,10 +324,48 @@ int validate_instance_name(const char *instance_name)
 	return 0;
 }
 
+// parse the -u argument, returns -1 on failure or 0 on success.
+static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long *uid_out)
+{
+	if (*optind + 1 == argc || argv[*optind + 1] == NULL) {
+		bootstrap_msg = "-u requires an argument";
+		bootstrap_errno = 0;
+		return -1;
+	}
+	const char *uid_text = argv[*optind + 1];
+	errno = 0;
+	char *uid_text_end = NULL;
+	unsigned long parsed_uid = strtoul(uid_text, &uid_text_end, 10);
+	if (
+			/* Reject overflow in parsed representation */
+			(parsed_uid == ULONG_MAX && errno != 0)
+			/* Reject leading whitespace allowed by strtoul. */
+			|| (isspace(*uid_text))
+			/* Reject empty string. */
+			|| (*uid_text == '\0')
+			/* Reject partially parsed strings. */
+			|| (*uid_text != '\0' && uid_text_end != NULL
+				&& *uid_text_end != '\0')) {
+		bootstrap_msg = "cannot parse user id";
+		bootstrap_errno = errno;
+		return -1;
+	}
+	if ((long)parsed_uid < 0) {
+		bootstrap_msg = "user id cannot be negative";
+		bootstrap_errno = 0;
+		return -1;
+	}
+	if (uid_out != NULL) {
+		*uid_out = parsed_uid;
+	}
+	*optind += 1; // Account for the argument to -u.
+	return 0;
+}
+
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
 void process_arguments(int argc, char *const *argv, const char **snap_name_out,
-		       bool * should_setns_out, bool * process_user_fstab)
+		       bool * should_setns_out, bool * process_user_fstab, unsigned long * uid_out)
 {
 	// Find the name of the called program. If it is ending with ".test" then do nothing.
 	// NOTE: This lets us use cgo/go to write tests without running the bulk
@@ -368,6 +406,17 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out,
 				// Processing the user-fstab file implies we're being
 				// called from snap-confine.
 				should_setns = false;
+			} else if (!strcmp(arg, "-u")) {
+				if (parse_arg_u(argc, argv, &i, uid_out)) {
+					return;
+				}
+				// Providing an user identifier implies we are performing an
+				// update of a specific user mount namespace and that we are
+				// invoked from snapd and we should setns ourselves. When
+				// invoked from snap-confine we are only called with
+				// --from-snap-confine and with --user-mounts.
+				should_setns = true;
+				user_fstab = true;
 			} else {
 				bootstrap_errno = 0;
 				bootstrap_msg = "unsupported option";
@@ -433,8 +482,9 @@ void bootstrap(int argc, char **argv, char **envp)
 	const char *snap_name = NULL;
 	bool should_setns = false;
 	bool process_user_fstab = false;
+	unsigned long uid = 0;
 	process_arguments(argc, argv, &snap_name, &should_setns,
-			  &process_user_fstab);
+			  &process_user_fstab, &uid);
 	if (process_user_fstab) {
 		switch_to_privileged_user();
 		// switch_to_privileged_user sets bootstrap_{errno,msg}

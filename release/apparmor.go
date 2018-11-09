@@ -20,8 +20,8 @@
 package release
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -162,26 +162,16 @@ func lookupParser() (string, error) {
 			return path, nil
 		}
 	}
+
 	return "", fmt.Errorf("apparmor_parser not found in '%s'", parserSearchPath)
 }
 
 // tryParser will run the parser on the rule to determine if the feature is
 // supported.
-func tryParser(parser string, rule string) bool {
+func tryParser(parser, rule string) bool {
 	cmd := exec.Command(parser, "--preprocess")
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return false
-	}
-
-	go func() {
-		defer stdin.Close()
-		r := fmt.Sprintf("profile snap-test {\n %s\n}", rule)
-		io.WriteString(stdin, r)
-	}()
-
-	_, err = cmd.CombinedOutput()
-	if err != nil {
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
+	if err := cmd.Run(); err != nil {
 		return false
 	}
 	return true

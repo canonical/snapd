@@ -230,6 +230,7 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 			"slot3-6":  true,
 			"11":       true,
 			"12foo":    true,
+			"slot-99":  true,
 		}
 		return !reserved[n]
 	}
@@ -239,11 +240,12 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 		{"slot", "slot2"},
 		{"slot1", "slot2"},
 		{"slot1234", "slot1235"},
-		{"slot-1", "slot2"},
-		{"slot3-5", "slot36"},
+		{"slot-1", "slot-3"},
+		{"slot3-5", "slot3-7"},
 		{"slot3-1", "slot3-1"},
 		{"11", "12"},
 		{"12foo", "12foo1"},
+		{"slot-99", "slot-100"},
 	}
 
 	for _, name := range names {

@@ -66,6 +66,10 @@ type Config struct {
 
 	// Socket is the path to the unix socket to use
 	Socket string
+
+	// DisableKeepAlive indicates whether the connections should not be kept
+	// alive for later reuse
+	DisableKeepAlive bool
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -90,14 +94,13 @@ func New(config *Config) *Client {
 
 	// By default talk over an UNIX socket.
 	if config.BaseURL == "" {
+		transport := &http.Transport{Dial: unixDialer(config.Socket), DisableKeepAlives: config.DisableKeepAlive}
 		return &Client{
 			baseURL: url.URL{
 				Scheme: "http",
 				Host:   "localhost",
 			},
-			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer(config.Socket)},
-			},
+			doer:        &http.Client{Transport: transport},
 			disableAuth: config.DisableAuth,
 			interactive: config.Interactive,
 		}
@@ -109,7 +112,7 @@ func New(config *Config) *Client {
 	}
 	return &Client{
 		baseURL:     *baseURL,
-		doer:        &http.Client{},
+		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 	}
@@ -444,6 +447,16 @@ const (
 	ErrorKindSystemRestart = "system-restart"
 	ErrorKindDaemonRestart = "daemon-restart"
 )
+
+// IsRetryable returns true if the given error is an error
+// that can be retried later.
+func IsRetryable(err error) bool {
+	switch e := err.(type) {
+	case *Error:
+		return e.Kind == ErrorKindChangeConflict
+	}
+	return false
+}
 
 // IsTwoFactorError returns whether the given error is due to problems
 // in two-factor authentication.
