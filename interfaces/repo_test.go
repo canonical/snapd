@@ -225,6 +225,16 @@ func (s *RepositorySuite) TestBackends(c *C) {
 	c.Assert(s.emptyRepo.Backends(), DeepEquals, []SecurityBackend{b2, b1})
 }
 
+func (s *RepositorySuite) TestBackend(c *C) {
+	b1 := &ifacetest.TestSecurityBackend{BackendName: "b1"}
+	b2 := &ifacetest.TestSecurityBackend{BackendName: "b2"}
+	c.Assert(s.emptyRepo.AddBackend(b2), IsNil)
+	c.Assert(s.emptyRepo.AddBackend(b1), IsNil)
+	c.Assert(s.emptyRepo.Backend("b1"), Equals, b1)
+	c.Assert(s.emptyRepo.Backend("b2"), Equals, b2)
+	c.Assert(s.emptyRepo.Backend("b3"), IsNil)
+}
+
 // Tests for Repository.Interface()
 
 func (s *RepositorySuite) TestInterface(c *C) {
