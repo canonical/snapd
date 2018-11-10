@@ -310,6 +310,51 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
+func (m *InterfaceManager) setupPhasedSecurity(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
+	st := task.State()
+
+	// Setup the systemd security backend for all the snaps first.
+	// See LP: #1802581 for rationale.
+
+	// NOTE: Unlike the loop in the next paragraph, the order is per backend
+	// and per snap. This order is deliberate. It minimizes change in behavior
+	// of how the security setup is performed.
+	//
+	// Once fully dependency aware security setup is implemented, with
+	// topological sorting and dependencies between interface endpoints, this
+	// code can be unified with the code below.
+	priorityBackend := interfaces.SecuritySystemd
+	if backend := m.repo.Backend(priorityBackend); backend != nil {
+		for i, snapInfo := range snaps {
+			st.Unlock()
+			err := backend.Setup(snapInfo, opts[i], m.repo)
+			st.Lock()
+			if err != nil {
+				task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapInfo.InstanceName(), err)
+				return err
+			}
+		}
+	}
+
+	// Setup the remaining backends using per snap and per backend ordering.
+	for i, snapInfo := range snaps {
+		for _, backend := range m.repo.Backends() {
+			if backend.Name() == priorityBackend {
+				continue
+			}
+			st.Unlock()
+			err := backend.Setup(snapInfo, opts[i], m.repo)
+			st.Lock()
+			if err != nil {
+				task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapInfo.InstanceName(), err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
 	instanceName := snapInfo.InstanceName()
