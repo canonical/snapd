@@ -597,6 +597,7 @@ suites:
           # _/twisted: _
           _/func: _
           _/funkyfunc: _
+          _/funcarg: _
 
     tests/regression/:
         summary: Regression tests for snapd
