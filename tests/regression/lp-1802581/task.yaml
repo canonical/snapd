@@ -1,0 +1,38 @@
+summary: Regression test for  1802581
+
+systems: [ubuntu-core-16-64]
+
+environment:
+    GPIO_MOCK_DIR: /home/test/gpio-mock
+
+prepare: |
+    echo "Mock gpio"
+    mkdir -p "$GPIO_MOCK_DIR"
+    systemd-run --unit mock-gpio -- "$(pwd)/mock-gpio.py" "$GPIO_MOCK_DIR"
+    # shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    wait_for_service mock-gpio
+    mount --bind "$GPIO_MOCK_DIR" /sys/class/gpio
+
+restore: |
+    systemctl stop mock-gpio || true
+    umount /sys/class/gpio || true
+    rm -rf "$GPIO_MOCK_DIR"
+
+execute: |
+    echo "Install a snap that uses the gpio consumer"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local gpio-consumer
+
+    echo "And connect the gpio pin"
+    snap connect gpio-consumer:gpio :gpio-pin
+    snap interfaces | MATCH ":gpio-pin.*gpio-consumer:gpio"
+
+    # LP-1802581
+    echo "Now disable and enable the snap to ensure lp: #1802581 is fixed"
+    snap disable gpio-consumer
+    snap enable gpio-consumer
+
+    echo "Check that the connection is still here after enable"
+    snap interfaces | MATCH ":gpio-pin.*gpio-consumer:gpio"
