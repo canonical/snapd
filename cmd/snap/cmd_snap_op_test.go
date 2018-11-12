@@ -1341,7 +1341,7 @@ func (s *SnapOpSuite) TestInstallConfinedAsClassic(c *check.C) {
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "some-snap"})
-	c.Assert(err, check.ErrorMatches, `snap "some-snap" is not a classic confined snap`)
+	c.Assert(err, check.ErrorMatches, `snap "some-snap" is not compatible with --classic`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
