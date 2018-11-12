@@ -182,7 +182,12 @@ func (e *Epoch) simplify() interface{} {
 }
 
 func (e *Epoch) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.simplify())
+	// note the nil case doesn't happen unless called explicitly
+	if e == nil || (e.Read == nil && e.Write == nil) {
+		// lazy special case
+		return []byte(`{"read":[0],"write":[0]}`), nil
+	}
+	return json.Marshal(&structuredEpoch{Read: e.Read, Write: e.Write})
 }
 
 func (Epoch) MarshalYAML() (interface{}, error) {
