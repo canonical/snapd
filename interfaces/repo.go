@@ -888,19 +888,6 @@ func (r *Repository) Backends() []SecurityBackend {
 	return result
 }
 
-// Backend returns the backend with the given security system name, if any.
-func (r *Repository) Backend(securitySystem SecuritySystem) SecurityBackend {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	for _, backend := range r.backends {
-		if backend.Name() == securitySystem {
-			return backend
-		}
-	}
-	return nil
-}
-
 // Interfaces returns object holding a lists of all the plugs and slots and their connections.
 func (r *Repository) Interfaces() *Interfaces {
 	r.m.Lock()
