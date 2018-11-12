@@ -199,16 +199,23 @@ func (s *epochSuite) TestEpochMarshal(c *check.C) {
 		e *snap.Epoch
 		s string
 	}{
-		//		{e: nil, s: `"0"`},
-		{e: &snap.Epoch{}, s: `"0"`},
-		{e: &snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}, s: `"0"`},
-		{e: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, s: `"1*"`},
-		{e: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, s: `"1"`},
-		{e: &snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}, s: `"400*"`},
+		{e: nil, s: `{"read":[0],"write":[0]}`},
+		{e: &snap.Epoch{}, s: `{"read":[0],"write":[0]}`},
+		{e: &snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}, s: `{"read":[0],"write":[0]}`},
+		{e: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, s: `{"read":[0,1],"write":[1]}`},
+		{e: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, s: `{"read":[1],"write":[1]}`},
+		{e: &snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}, s: `{"read":[399,400],"write":[400]}`},
 		{e: &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{1, 2, 3}}, s: `{"read":[1,2,3],"write":[1,2,3]}`},
 	}
 	for _, test := range tests {
-		bs, err := json.Marshal(test.e)
+		bs, err := test.e.MarshalJSON()
+		c.Assert(err, check.IsNil)
+		c.Check(string(bs), check.Equals, test.s, check.Commentf(test.s))
+		if test.e == nil {
+			// json.Marshal((*foo)(nil)) is "null" no matter how hard you try
+			continue
+		}
+		bs, err = json.Marshal(test.e)
 		c.Assert(err, check.IsNil)
 		c.Check(string(bs), check.Equals, test.s, check.Commentf(test.s))
 	}
