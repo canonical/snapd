@@ -1272,45 +1272,6 @@ type RefreshCandidate struct {
 	Amend bool
 }
 
-// the exact bits that we need to send to the store
-type currentSnapJSON struct {
-	SnapID           string     `json:"snap_id"`
-	Channel          string     `json:"channel"`
-	Revision         int        `json:"revision,omitempty"`
-	Epoch            snap.Epoch `json:"epoch"`
-	Confinement      string     `json:"confinement"`
-	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
-}
-
-func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
-	// the store gets confused if we send snaps without a snapid
-	// (like local ones)
-	if cs.SnapID == "" {
-		if cs.Revision.Store() {
-			logger.Noticef("store.currentSnap got given a RefreshCandidate with an empty SnapID but a store revision!")
-		}
-		return nil
-	}
-	if !cs.Revision.Store() && !cs.Amend {
-		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
-		return nil
-	}
-
-	channel := cs.Channel
-	if channel == "" {
-		channel = "stable"
-	}
-
-	return &currentSnapJSON{
-		SnapID:           cs.SnapID,
-		Channel:          channel,
-		Epoch:            cs.Epoch,
-		Revision:         cs.Revision.N,
-		IgnoreValidation: cs.IgnoreValidation,
-		// confinement purposely left empty
-	}
-}
-
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	for _, r := range haystack {
 		if needle == r {
