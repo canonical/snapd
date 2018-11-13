@@ -1260,7 +1260,6 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
-	Epoch    snap.Epoch
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1967,7 +1966,6 @@ type SnapAction struct {
 	Channel      string
 	Revision     snap.Revision
 	Flags        SnapActionFlags
-	Epoch        *snap.Epoch
 }
 
 func isValidAction(action string) bool {
@@ -1980,14 +1978,13 @@ func isValidAction(action string) bool {
 }
 
 type snapActionJSON struct {
-	Action           string      `json:"action"`
-	InstanceKey      string      `json:"instance-key"`
-	Name             string      `json:"name,omitempty"`
-	SnapID           string      `json:"snap-id,omitempty"`
-	Channel          string      `json:"channel,omitempty"`
-	Revision         int         `json:"revision,omitempty"`
-	Epoch            *snap.Epoch `json:"epoch,omitempty"`
-	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
+	Action           string `json:"action"`
+	InstanceKey      string `json:"instance-key"`
+	Name             string `json:"name,omitempty"`
+	SnapID           string `json:"snap-id,omitempty"`
+	Channel          string `json:"channel,omitempty"`
+	Revision         int    `json:"revision,omitempty"`
+	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
 }
 
 type snapRelease struct {
@@ -2167,7 +2164,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
-			Epoch:            a.Epoch,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
