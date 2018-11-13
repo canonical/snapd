@@ -65,12 +65,12 @@ type Epoch struct {
 
 // E returns the epoch represented by the expression s. It's meant for use in
 // testing, as it panics at the first sign of trouble.
-func E(s string) *Epoch {
+func E(s string) Epoch {
 	var e Epoch
 	if err := e.fromString(s); err != nil {
 		panic(fmt.Errorf("%q: %v", s, err))
 	}
-	return &e
+	return e
 }
 
 func (e *Epoch) fromString(s string) error {
@@ -181,9 +181,8 @@ func (e *Epoch) simplify() interface{} {
 	return &structuredEpoch{Read: e.Read, Write: e.Write}
 }
 
-func (e *Epoch) MarshalJSON() ([]byte, error) {
-	// note the nil case doesn't happen unless called explicitly
-	if e == nil || (e.Read == nil && e.Write == nil) {
+func (e Epoch) MarshalJSON() ([]byte, error) {
+	if e.Read == nil && e.Write == nil {
 		// lazy special case
 		return []byte(`{"read":[0],"write":[0]}`), nil
 	}
@@ -194,7 +193,7 @@ func (Epoch) MarshalYAML() (interface{}, error) {
 	panic("unexpected attempt to marshal an Epoch to YAML")
 }
 
-func (e *Epoch) String() string {
+func (e Epoch) String() string {
 	i := e.simplify()
 	if s, ok := i.(string); ok {
 		return s
@@ -211,7 +210,7 @@ func (e *Epoch) String() string {
 
 // CanRead checks whether this epoch can read the data written by the
 // other one.
-func (e *Epoch) CanRead(other *Epoch) bool {
+func (e *Epoch) CanRead(other Epoch) bool {
 	// the intersection between e.Read and other.Write needs to be non-empty
 
 	// normalize (empty epoch should be treated like "0" here)
@@ -219,9 +218,7 @@ func (e *Epoch) CanRead(other *Epoch) bool {
 	if e != nil {
 		rs = e.Read
 	}
-	if other != nil {
-		ws = other.Write
-	}
+	ws = other.Write
 	if len(rs) == 0 {
 		rs = []uint32{0}
 	}

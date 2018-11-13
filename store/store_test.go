@@ -2024,7 +2024,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "stable",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 		"latest/candidate": {
 			Revision:    snap.R(27),
@@ -2032,7 +2032,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "candidate",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 		"latest/beta": {
 			Revision:    snap.R(27),
@@ -2040,7 +2040,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "beta",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 		"latest/edge": {
 			Revision:    snap.R(28),
@@ -2048,7 +2048,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "edge",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 	}
 	for k, v := range result.Channels {
