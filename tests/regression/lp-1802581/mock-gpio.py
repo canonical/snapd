@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+"""Mock the /sys/class/gpio subsystem"""
 
 import atexit
 import logging
@@ -9,18 +10,25 @@ import subprocess
 import sys
 import tempfile
 
+from typing import Type
 
-def read_gpio_pin(fd):
-    data = os.read(fd, 128)
+
+def read_gpio_pin(read_fd: int) -> str:
+    """
+    read_gpio_pin reads from the given fd and return a string with the
+    numeric pin or "" if an invalid pin was specified.
+    """
+    data = os.read(read_fd, 128)
     pin = data.decode().strip()
     if not pin.isnumeric():
-        logging.warning("invalid gpio pin {}".format(pin))
+        logging.warning("invalid gpio pin %s", pin)
         return ""
     return "gpio{}".format(pin)
 
 
-def export_ready(fd, mask):
-    pin = read_gpio_pin(fd)
+def export_ready(read_fd: int, _) -> bool:
+    """export_ready is run when the "export" file is ready for reading"""
+    pin = read_gpio_pin(read_fd)
     # allow quit
     if pin == 'quit':
         return False
@@ -28,18 +36,22 @@ def export_ready(fd, mask):
         with open(pin, "w"):
             pass
     return True
-    
 
-def unexport_ready(fd, mask):
-    pin = read_gpio_pin(fd)
+
+def unexport_ready(read_fd: int, _) -> bool:
+    """export_ready is run when the "unexport" file is ready for reading"""
+    pin = read_gpio_pin(read_fd)
     try:
         os.remove(pin)
-    except Exception as e:
-        logging.warning("got exception {}".format(e))
+    except OSError as err:
+        logging.warning("got exception %s", err)
     return True
 
 
 def dispatch(sel):
+    """
+    dispatch dispatches the events from the "sel" source
+    """
     for key, mask in sel.select():
         callback = key.data
         if not callback(key.fileobj, mask):
@@ -47,7 +59,8 @@ def dispatch(sel):
     return True
 
 
-if __name__ == "__main__":
+def main():
+    """the main method"""
     if os.getuid() != 0:
         print("must run as root")
         sys.exit(1)
@@ -59,7 +72,7 @@ if __name__ == "__main__":
     subprocess.check_call(
         ["mount", "--bind", mock_gpio_dir, "/sys/class/gpio"])
     atexit.register(lambda: subprocess.call(["umount", "/sys/class/gpio"]))
-    
+
     # fake gpio export/unexport files
     os.mkfifo("export")
     os.mkfifo("unexport")
@@ -77,3 +90,7 @@ if __name__ == "__main__":
     # cleanup when we get a quit call
     os.close(efd)
     os.close(ufd)
+
+
+if __name__ == "__main__":
+    main()
