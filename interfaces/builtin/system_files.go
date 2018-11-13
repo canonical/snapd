@@ -20,14 +20,8 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
-	"path/filepath"
 	"strings"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/snap"
 )
 
 const systemFilesSummary = `allows access to system files or directories`
@@ -47,114 +41,33 @@ const systemFilesConnectedPlugAppArmor = `
 `
 
 type systemFilesInterface struct {
-	commonInterface
+	commonFilesInterface
 }
 
-func validatePaths(attrName string, paths []interface{}) error {
-	for _, npp := range paths {
-		np, ok := npp.(string)
-		if !ok {
-			return fmt.Errorf("%q must be a list of strings", attrName)
-		}
-		if strings.HasSuffix(np, "/") {
-			return fmt.Errorf(`%q cannot end with "/"`, np)
-		}
-		if !strings.HasPrefix(np, "/") && !strings.HasPrefix(np, "$HOME/") {
-			return fmt.Errorf(`%q must start with "/" or "$HOME"`, np)
-		}
-		if !strings.HasPrefix(np, "$HOME/") && strings.Contains(np, "$HOME") {
-			return fmt.Errorf(`$HOME must only be used at the start of the path of %q`, np)
-		}
-		if strings.Contains(np, "@{") {
-			return fmt.Errorf(`%q should not use "@{"`, np)
-		}
-		p := filepath.Clean(np)
-		if p != np {
-			return fmt.Errorf("%q must be clean", np)
-		}
-		if strings.Contains(p, "~") {
-			return fmt.Errorf(`%q contains invalid "~"`, p)
-		}
-		if err := apparmor.ValidateNoAppArmorRegexp(p); err != nil {
-			return err
-		}
+func validateSinglePathSystem(np string) error {
+	if !strings.HasPrefix(np, "/") {
+		return fmt.Errorf(`%q must start with "/"`, np)
 	}
-	return nil
-}
-
-func formatPath(ip interface{}) (string, error) {
-	p, ok := ip.(string)
-	if !ok {
-		return "", fmt.Errorf("%[1]v (%[1]T) is not a string", ip)
+	if strings.Contains(np, "$HOME") {
+		return fmt.Errorf(`$HOME cannot be used in %q`, np)
 	}
-	prefix := ""
-	if strings.Count(p, "$HOME") > 0 {
-		p = strings.Replace(p, "$HOME", "@{HOME}", 1)
-		prefix = "owner "
-	}
-	p += "{,/,/**}"
-
-	return fmt.Sprintf("%s%q", prefix, filepath.Clean(p)), nil
-}
-
-func allowPathAccess(buf *bytes.Buffer, perm string, paths []interface{}) error {
-	for _, rawPath := range paths {
-		p, err := formatPath(rawPath)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(buf, "%s %s\n", p, perm)
-	}
-	return nil
-}
-
-func (iface *systemFilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	hasValidAttr := false
-	for _, att := range []string{"read", "write"} {
-		if _, ok := plug.Attrs[att]; !ok {
-			continue
-		}
-		il, ok := plug.Attrs[att].([]interface{})
-		if !ok {
-			return fmt.Errorf("cannot add %s plug: %q must be a list of strings", iface.name, att)
-		}
-		if err := validatePaths(att, il); err != nil {
-			return fmt.Errorf("cannot add %s plug: %s", iface.name, err)
-		}
-		hasValidAttr = true
-	}
-	if !hasValidAttr {
-		return fmt.Errorf(`cannot add %s plug: needs valid "read" or "write" attribute`, iface.name)
-	}
-
-	return nil
-}
-
-func (iface *systemFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var reads, writes []interface{}
-	_ = plug.Attr("read", &reads)
-	_ = plug.Attr("write", &writes)
-
-	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
-	buf := bytes.NewBufferString(systemFilesConnectedPlugAppArmor)
-	if err := allowPathAccess(buf, "rk,", reads); err != nil {
-		return fmt.Errorf("%s%v", errPrefix, err)
-	}
-	if err := allowPathAccess(buf, "rwkl,", writes); err != nil {
-		return fmt.Errorf("%s%v", errPrefix, err)
-	}
-	spec.AddSnippet(buf.String())
 
 	return nil
 }
 
 func init() {
-	registerIface(&systemFilesInterface{commonInterface{
-		name:                 "system-files",
-		summary:              systemFilesSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: systemFilesBaseDeclarationSlots,
-		reservedForOS:        true,
-	}})
+	registerIface(&systemFilesInterface{
+		commonFilesInterface{
+			commonInterface: commonInterface{
+				name:                 "system-files",
+				summary:              systemFilesSummary,
+				implicitOnCore:       true,
+				implicitOnClassic:    true,
+				baseDeclarationSlots: systemFilesBaseDeclarationSlots,
+				reservedForOS:        true,
+			},
+			apparmorHeader:    systemFilesConnectedPlugAppArmor,
+			extraPathValidate: validateSinglePathSystem,
+		},
+	})
 }

@@ -49,8 +49,8 @@ func (s *systemFilesInterfaceSuite) SetUpTest(c *C) {
 version: 1.0
 plugs:
  system-files:
-  read: [$HOME/.read-dir1, /etc/read-dir2, $HOME/.read-file2, /etc/read-file2]
-  write:  [$HOME/.write-dir1, /etc/write-dir2, $HOME/.write-file2, /etc/write-file2]
+  read: [/etc/read-dir2, /etc/read-file2]
+  write:  [/etc/write-dir2, /etc/write-file2]
 apps:
  app:
   command: foo
@@ -79,13 +79,9 @@ func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
 # Description: Can access specific system files or directories.
 # This is restricted because it gives file access to arbitrary locations.
-owner "@{HOME}/.read-dir1{,/,/**}" rk,
 "/etc/read-dir2{,/,/**}" rk,
-owner "@{HOME}/.read-file2{,/,/**}" rk,
 "/etc/read-file2{,/,/**}" rk,
-owner "@{HOME}/.write-dir1{,/,/**}" rwkl,
 "/etc/write-dir2{,/,/**}" rwkl,
-owner "@{HOME}/.write-file2{,/,/**}" rwkl,
 "/etc/write-file2{,/,/**}" rwkl,
 `)
 }
@@ -110,8 +106,8 @@ func (s *systemFilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
 version: 1.0
 plugs:
  system-files:
-  read: ["$HOME/.file1"]
-  write: ["$HOME/.dir1"]
+  read: ["/etc/file1"]
+  write: ["/etc/dir1"]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["system-files"]
@@ -133,14 +129,14 @@ plugs:
 		{`read: ""`, `"read" must be a list of strings`},
 		{`read: [ 123 ]`, `"read" must be a list of strings`},
 		{`read: [ "/foo/./bar" ]`, `"/foo/./bar" must be clean`},
-		{`read: [ "../foo" ]`, `"../foo" must start with "/" or "\$HOME"`},
+		{`read: [ "../foo" ]`, `"../foo" must start with "/"`},
 		{`read: [ "/foo[" ]`, `"/foo\[" contains a reserved apparmor char from .*`},
 		{`write: ""`, `"write" must be a list of strings`},
 		{`write: bar`, `"write" must be a list of strings`},
-		{`read: [ "~/foo" ]`, `"~/foo" must start with "/" or "\$HOME"`},
+		{`read: [ "~/foo" ]`, `"~/foo" contains invalid "~"`},
 		{`read: [ "/foo/~/foo" ]`, `"/foo/~/foo" contains invalid "~"`},
 		{`read: [ "/foo/../foo" ]`, `"/foo/../foo" must be clean`},
-		{`read: [ "/home/$HOME/foo" ]`, `\$HOME must only be used at the start of the path of "/home/\$HOME/foo"`},
+		{`read: [ "/home/$HOME/foo" ]`, `\$HOME cannot be used in "/home/\$HOME/foo"`},
 		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" should not use "@{"`},
 		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" should not use "@{"`},
 	}
