@@ -132,8 +132,7 @@ func (s epochSuite) TestGoodEpochs(c *check.C) {
 }
 
 func (s *epochSuite) TestEpochValidate(c *check.C) {
-	validEpochs := []*snap.Epoch{
-		nil,
+	validEpochs := []snap.Epoch{
 		{},
 		{Read: []uint32{0}, Write: []uint32{0}},
 		{Read: []uint32{0, 1}, Write: []uint32{1}},
@@ -146,26 +145,26 @@ func (s *epochSuite) TestEpochValidate(c *check.C) {
 		c.Check(err, check.IsNil, check.Commentf("%s", epoch))
 	}
 	invalidEpochs := []struct {
-		epoch *snap.Epoch
+		epoch snap.Epoch
 		err   string
 	}{
-		{epoch: &snap.Epoch{Read: []uint32{}}, err: emptyEpochList},
-		{epoch: &snap.Epoch{Write: []uint32{}}, err: emptyEpochList},
-		{epoch: &snap.Epoch{Read: []uint32{}, Write: []uint32{}}, err: emptyEpochList},
-		{epoch: &snap.Epoch{Read: []uint32{1}, Write: []uint32{2}}, err: noEpochIntersection},
-		{epoch: &snap.Epoch{Read: []uint32{1, 3, 5}, Write: []uint32{2, 4, 6}}, err: noEpochIntersection},
-		{epoch: &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{3, 2, 1}}, err: epochListNotSorted},
-		{epoch: &snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{1, 2, 3}}, err: epochListNotSorted},
-		{epoch: &snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{3, 2, 1}}, err: epochListNotSorted},
-		{epoch: &snap.Epoch{
+		{epoch: snap.Epoch{Read: []uint32{}}, err: emptyEpochList},
+		{epoch: snap.Epoch{Write: []uint32{}}, err: emptyEpochList},
+		{epoch: snap.Epoch{Read: []uint32{}, Write: []uint32{}}, err: emptyEpochList},
+		{epoch: snap.Epoch{Read: []uint32{1}, Write: []uint32{2}}, err: noEpochIntersection},
+		{epoch: snap.Epoch{Read: []uint32{1, 3, 5}, Write: []uint32{2, 4, 6}}, err: noEpochIntersection},
+		{epoch: snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{3, 2, 1}}, err: epochListNotSorted},
+		{epoch: snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{1, 2, 3}}, err: epochListNotSorted},
+		{epoch: snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{3, 2, 1}}, err: epochListNotSorted},
+		{epoch: snap.Epoch{
 			Read:  []uint32{0},
 			Write: []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 		}, err: epochListJustRidiculouslyLong},
-		{epoch: &snap.Epoch{
+		{epoch: snap.Epoch{
 			Read:  []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 			Write: []uint32{0},
 		}, err: epochListJustRidiculouslyLong},
-		{epoch: &snap.Epoch{
+		{epoch: snap.Epoch{
 			Read:  []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 			Write: []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 		}, err: epochListJustRidiculouslyLong},
@@ -178,16 +177,15 @@ func (s *epochSuite) TestEpochValidate(c *check.C) {
 
 func (s *epochSuite) TestEpochString(c *check.C) {
 	tests := []struct {
-		e *snap.Epoch
+		e snap.Epoch
 		s string
 	}{
-		{e: nil, s: "0"},
-		{e: &snap.Epoch{}, s: "0"},
-		{e: &snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}, s: "0"},
-		{e: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, s: "1*"},
-		{e: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, s: "1"},
-		{e: &snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}, s: "400*"},
-		{e: &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{1, 2, 3}}, s: `{"read":[1,2,3],"write":[1,2,3]}`},
+		{e: snap.Epoch{}, s: "0"},
+		{e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}, s: "0"},
+		{e: snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, s: "1*"},
+		{e: snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, s: "1"},
+		{e: snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}, s: "400*"},
+		{e: snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{1, 2, 3}}, s: `{"read":[1,2,3],"write":[1,2,3]}`},
 	}
 	for _, test := range tests {
 		c.Check(test.e.String(), check.Equals, test.s, check.Commentf(test.s))
@@ -196,25 +194,20 @@ func (s *epochSuite) TestEpochString(c *check.C) {
 
 func (s *epochSuite) TestEpochMarshal(c *check.C) {
 	tests := []struct {
-		e *snap.Epoch
+		e snap.Epoch
 		s string
 	}{
-		{e: nil, s: `{"read":[0],"write":[0]}`},
-		{e: &snap.Epoch{}, s: `{"read":[0],"write":[0]}`},
-		{e: &snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}, s: `{"read":[0],"write":[0]}`},
-		{e: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, s: `{"read":[0,1],"write":[1]}`},
-		{e: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, s: `{"read":[1],"write":[1]}`},
-		{e: &snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}, s: `{"read":[399,400],"write":[400]}`},
-		{e: &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{1, 2, 3}}, s: `{"read":[1,2,3],"write":[1,2,3]}`},
+		{e: snap.Epoch{}, s: `{"read":[0],"write":[0]}`},
+		{e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}, s: `{"read":[0],"write":[0]}`},
+		{e: snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, s: `{"read":[0,1],"write":[1]}`},
+		{e: snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, s: `{"read":[1],"write":[1]}`},
+		{e: snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}, s: `{"read":[399,400],"write":[400]}`},
+		{e: snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{1, 2, 3}}, s: `{"read":[1,2,3],"write":[1,2,3]}`},
 	}
 	for _, test := range tests {
 		bs, err := test.e.MarshalJSON()
 		c.Assert(err, check.IsNil)
 		c.Check(string(bs), check.Equals, test.s, check.Commentf(test.s))
-		if test.e == nil {
-			// json.Marshal((*foo)(nil)) is "null" no matter how hard you try
-			continue
-		}
 		bs, err = json.Marshal(test.e)
 		c.Assert(err, check.IsNil)
 		c.Check(string(bs), check.Equals, test.s, check.Commentf(test.s))
@@ -223,13 +216,13 @@ func (s *epochSuite) TestEpochMarshal(c *check.C) {
 
 func (s *epochSuite) TestE(c *check.C) {
 	tests := []struct {
-		e *snap.Epoch
+		e snap.Epoch
 		s string
 	}{
-		{s: "0", e: &snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
-		{s: "1", e: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}},
-		{s: "1*", e: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}},
-		{s: "400*", e: &snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}},
+		{s: "0", e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
+		{s: "1", e: snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}},
+		{s: "1*", e: snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}},
+		{s: "400*", e: snap.Epoch{Read: []uint32{399, 400}, Write: []uint32{400}}},
 	}
 	for _, test := range tests {
 		c.Check(snap.E(test.s), check.DeepEquals, test.e, check.Commentf(test.s))
@@ -239,25 +232,24 @@ func (s *epochSuite) TestE(c *check.C) {
 
 func (s *epochSuite) TestCanRead(c *check.C) {
 	tests := []struct {
-		a, b   *snap.Epoch
+		a, b   snap.Epoch
 		ab, ba bool
 	}{
-		{ab: true, ba: true},                                     // nil should work (for tests!)
-		{a: &snap.Epoch{}, b: &snap.Epoch{}, ab: true, ba: true}, // test for empty epoch
-		{a: snap.E("0"), ab: true, ba: true},                     // hybrid empty / zero
+		{ab: true, ba: true},                 // test for empty epoch
+		{a: snap.E("0"), ab: true, ba: true}, // hybrid empty / zero
 		{a: snap.E("0"), b: snap.E("1"), ab: false, ba: false},
 		{a: snap.E("0"), b: snap.E("1*"), ab: false, ba: true},
 		{a: snap.E("0"), b: snap.E("2*"), ab: false, ba: false},
 
 		{
-			a:  &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{2}},
-			b:  &snap.Epoch{Read: []uint32{1, 3, 4}, Write: []uint32{4}},
+			a:  snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{2}},
+			b:  snap.Epoch{Read: []uint32{1, 3, 4}, Write: []uint32{4}},
 			ab: false,
 			ba: false,
 		},
 		{
-			a:  &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{3}},
-			b:  &snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{2}},
+			a:  snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{3}},
+			b:  snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{2}},
 			ab: true,
 			ba: true,
 		},
