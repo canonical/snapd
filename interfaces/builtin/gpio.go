@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -100,7 +101,7 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	// We also need to check if the gpio symlink is present, if
 	// not it needs exporting. Attempting to export a gpio again
 	// will cause an error on the Write() call.
-	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, number)); os.IsNotExist(err) {
+	if !osutil.FileExists(path) {
 		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
 		if err != nil {
 
@@ -109,7 +110,12 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 		defer fileExport.Close()
 		numBytes := []byte(strconv.FormatInt(number, 10))
 		if _, err = fileExport.Write(numBytes); err != nil {
-			return err
+			// Something else might have written to gpioSysfsExport
+			// in which case we get a EBUSY - do double check and
+			// only report and error if the path is really not there
+			if !osutil.FileExists(path) {
+				return err
+			}
 		}
 	}
 
