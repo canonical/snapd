@@ -111,7 +111,7 @@ func (m *InterfaceManager) Ensure() error {
 
 	// don't initialize udev monitor until we have a system snap so that we
 	// can attach hotplug interfaces to it.
-	if err := checkSystemSnapIsPresent(m.state); err != nil {
+	if !checkSystemSnapIsPresent(m.state) {
 		return nil
 	}
 
