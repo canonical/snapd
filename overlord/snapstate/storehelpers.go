@@ -315,6 +315,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			Revision:         snapInfo.Revision,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
+			Epoch:            snapInfo.Epoch,
 		}
 		curSnaps = append(curSnaps, installed)
 
