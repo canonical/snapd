@@ -49,12 +49,6 @@ get_qemu_for_nested_vm(){
     esac
 }
 
-get_kvm_for_nested_vm(){
-    if [ -c /dev/kvm ]; then
-        echo "-machine accel=kvm"
-    fi
-}
-
 get_image_url_for_nested_vm(){
     case "$NESTED_SYSTEM" in
     xenial|trusty)
@@ -99,15 +93,12 @@ create_nested_core_vm(){
 start_nested_core_vm(){
     local QEMU
     QEMU=$(get_qemu_for_nested_vm)
-    local KVM
-    KVM=$(get_kvm_for_nested_vm)
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$WORK_DIR/ubuntu-core.img,if=virtio,cache=none,format=raw \
         -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        -snapshot
-        ${KVM}"
+        -machine accel=kvm"
     if ! wait_for_ssh; then
         systemctl restart nested-vm
     fi
@@ -148,16 +139,13 @@ start_nested_classic_vm(){
     local IMAGE=$1
     local QEMU
     QEMU=$(get_qemu_for_nested_vm)
-    local KVM
-    KVM=$(get_kvm_for_nested_vm)
 
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        -snapshot
-        ${KVM}"
+        -machine accel=kvm"
     wait_for_ssh
 }
 
