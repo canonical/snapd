@@ -4,6 +4,9 @@ prepare: |
     snap install test-snapd-tools
 
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
     # use the snaps, so they create the dirs
     test-snapd-tools.echo
     su -p -c "$SNAP_MOUNT_DIR/bin/test-snapd-tools.echo" test
