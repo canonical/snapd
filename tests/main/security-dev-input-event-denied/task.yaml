@@ -95,7 +95,7 @@ execute: |
     udevadm settle
 
     # Note, '-event-kbd' devices aren't device buttons (those are
-    # -gpio-keys-even (evdev event*) and therefore shouldn't be added to
+    # -gpio-keys-event (evdev event*) and therefore shouldn't be added to
     # the device cgroup when the device-buttons interface is plugged.
     echo "Then the snap is still not able to access an evdev keyboard"
     if test-snapd-event "-event-kbd" 2>"${PWD}"/call.error; then
