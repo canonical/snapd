@@ -44,6 +44,7 @@ var (
 	GetHotplugSlots              = getHotplugSlots
 	SetHotplugSlots              = setHotplugSlots
 	FindConnsForHotplugKey       = findConnsForHotplugKey
+	CheckSystemSnapIsPresent     = checkSystemSnapIsPresent
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
