@@ -21,6 +21,8 @@ package builtin
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -39,7 +41,10 @@ const gpioBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
+var (
+	gpioSysfsGpioBase = "/sys/class/gpio/gpio"
+	gpioSysfsExport   = "/sys/class/gpio/export"
+)
 
 // gpioInterface type
 type gpioInterface struct{}
@@ -88,6 +93,26 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 		return err
 	}
 	path := fmt.Sprint(gpioSysfsGpioBase, number)
+
+	// Export gpio pin here to avoid having a dependency
+	// between the systemd backend and the apparmor backend.
+	//
+	// We also need to check if the gpio symlink is present, if
+	// not it needs exporting. Attempting to export a gpio again
+	// will cause an error on the Write() call.
+	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, number)); os.IsNotExist(err) {
+		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
+		if err != nil {
+
+			return err
+		}
+		defer fileExport.Close()
+		numBytes := []byte(strconv.FormatInt(number, 10))
+		if _, err = fileExport.Write(numBytes); err != nil {
+			return err
+		}
+	}
+
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
 	// requires symlinks to be dereferenced, evaluate the GPIO
