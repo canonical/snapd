@@ -19,8 +19,11 @@ prepare: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
 
-    echo "Given two snaps are installed"
-    for snap in test-snapd-tools test-snapd-python-webserver; do
+    # needed for test-snapd-tools_instance
+    snap set system experimental.parallel-instances=true
+
+    echo "Given snaps installed"
+    for snap in test-snapd-tools test-snapd-tools_instance test-snapd-python-webserver; do
         snap install $snap
     done
 
@@ -37,6 +40,8 @@ restore: |
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
+
+    snap set system experimental.parallel-instances=null
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -61,6 +66,6 @@ execute: |
     snap refresh
 
     echo "Then the new versions are installed"
-    for snap in test-snapd-tools test-snapd-python-webserver; do
-        snap list | MATCH "$snap.*fake1"
+    for snap in test-snapd-tools test-snapd-tools_instance test-snapd-python-webserver; do
+        snap list | MATCH "$snap .*fake1"
     done
