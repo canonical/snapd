@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -43,8 +44,74 @@ var _ = Suite(&personalFilesInterfaceSuite{
 	iface: builtin.MustInterface("personal-files"),
 })
 
+func (s *personalFilesInterfaceSuite) SetUpTest(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file]
+  write:  [$HOME/.write-dir, $HOME/.write-file]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "personal-files",
+		Interface: "personal-files",
+	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plugInfo = plugSnap.Plugs["personal-files"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+}
+
 func (s *personalFilesInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "personal-files")
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
+# Description: Can access specific personal files or directories.
+# This is restricted because it gives file access to arbitrary locations.
+owner "@{HOME}/.read-dir{,/,/**}" rk,
+owner "@{HOME}/.read-file{,/,/**}" rk,
+owner "@{HOME}/.write-dir{,/,/**}" rwkl,
+owner "@{HOME}/.write-file{,/,/**}" rwkl,
+`)
+}
+
+func (s *personalFilesInterfaceSuite) TestSanitizeSlot(c *C) {
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "personal-files",
+		Interface: "personal-files",
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		"personal-files slots are reserved for the core snap")
+}
+
+func (s *personalFilesInterfaceSuite) TestSanitizePlug(c *C) {
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *personalFilesInterfaceSuite) TestSanitizePlugHappy(c *C) {
+	const mockSnapYaml = `name: personal-files-plug-snap
+version: 1.0
+plugs:
+ personal-files:
+  read: ["$HOME/file1", "$HOME/.hidden1"]
+  write: ["$HOME/dir1", "$HOME/.hidden2"]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["personal-files"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *personalFilesInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
@@ -61,15 +128,15 @@ plugs:
 	}{
 		{`read: ""`, `"read" must be a list of strings`},
 		{`read: [ 123 ]`, `"read" must be a list of strings`},
-		{`read: [ "/foo/./bar" ]`, `"/foo/./bar" must be clean`},
-		{`read: [ "../foo" ]`, `"../foo" must start with "/" or "\$HOME"`},
+		{`read: [ "$HOME/foo/./bar" ]`, `"\$HOME/foo/./bar" must be clean`},
+		{`read: [ "../foo" ]`, `"../foo" must start with "\$HOME"`},
 		{`read: [ "/foo[" ]`, `"/foo\[" contains a reserved apparmor char from .*`},
 		{`write: ""`, `"write" must be a list of strings`},
 		{`write: bar`, `"write" must be a list of strings`},
-		{`read: [ "~/foo" ]`, `"~/foo" must start with "/" or "\$HOME"`},
-		{`read: [ "/foo/~/foo" ]`, `"/foo/~/foo" contains invalid "~"`},
-		{`read: [ "/foo/../foo" ]`, `"/foo/../foo" must be clean`},
-		{`read: [ "/home/$HOME/foo" ]`, `\$HOME must only be used at the start of the path of "/home/\$HOME/foo"`},
+		{`read: [ "~/foo" ]`, `"~/foo" contains invalid "~"`},
+		{`read: [ "$HOME/foo/~/foo" ]`, `"\$HOME/foo/~/foo" contains invalid "~"`},
+		{`read: [ "$HOME/foo/../foo" ]`, `"\$HOME/foo/../foo" must be clean`},
+		{`read: [ "$HOME/home/$HOME/foo" ]`, `\$HOME must only be used at the start of the path of "\$HOME/home/\$HOME/foo"`},
 		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" should not use "@{"`},
 		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" should not use "@{"`},
 	}

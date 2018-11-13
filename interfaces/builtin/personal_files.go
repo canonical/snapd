@@ -19,6 +19,11 @@
 
 package builtin
 
+import (
+	"fmt"
+	"strings"
+)
+
 const personalFilesSummary = `allows access to personal files or directories`
 
 const personalFilesBaseDeclarationSlots = `
@@ -36,16 +41,32 @@ const personalFilesConnectedPlugAppArmor = `
 `
 
 type personalFilesInterface struct {
-	systemFilesInterface
+	commonFilesInterface
+}
+
+func validateSinglePathHome(np string) error {
+	if !strings.HasPrefix(np, "$HOME/") {
+		return fmt.Errorf(`%q must start with "$HOME"`, np)
+	}
+	if strings.Count(np, "$HOME") > 1 {
+		return fmt.Errorf(`$HOME must only be used at the start of the path of %q`, np)
+	}
+	return nil
 }
 
 func init() {
-	registerIface(&personalFilesInterface{systemFilesInterface{commonInterface{
-		name:                 "personal-files",
-		summary:              personalFilesSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: personalFilesBaseDeclarationSlots,
-		reservedForOS:        true,
-	}}})
+	registerIface(&personalFilesInterface{
+		commonFilesInterface{
+			commonInterface: commonInterface{
+				name:                 "personal-files",
+				summary:              personalFilesSummary,
+				implicitOnCore:       true,
+				implicitOnClassic:    true,
+				baseDeclarationSlots: personalFilesBaseDeclarationSlots,
+				reservedForOS:        true,
+			},
+			apparmorHeader:    personalFilesConnectedPlugAppArmor,
+			extraPathValidate: validateSinglePathHome,
+		},
+	})
 }
