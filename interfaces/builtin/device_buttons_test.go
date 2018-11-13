@@ -97,7 +97,7 @@ KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_INPUT_KEY}=="1", ENV{ID_INPUT_
 	c.Assert(spec.Snippets(), testutil.Contains, `# device-buttons
 KERNEL=="full", SUBSYSTEM=="mem", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
-	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"key"})
+	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input/key"})
 }
 
 func (s *DeviceButtonsInterfaceSuite) TestStaticInfo(c *C) {
