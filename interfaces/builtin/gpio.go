@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -116,6 +117,16 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 			if !osutil.FileExists(path) {
 				return err
 			}
+		}
+		// give the kernel/mock a bit of time to export the device
+		for i := 0; i < 100; i++ {
+			if osutil.FileExists(path) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if !osutil.FileExists(path) {
+			return fmt.Errorf("%q was not created", path)
 		}
 	}
 
