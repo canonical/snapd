@@ -2,22 +2,20 @@ summary: Regression test for  1802581
 
 systems: [ubuntu-core-16-64]
 
-environment:
-    GPIO_MOCK_DIR: /home/test/gpio-mock
-
 prepare: |
-    echo "Mock gpio"
-    mkdir -p "$GPIO_MOCK_DIR"
-    systemd-run --unit mock-gpio -- "$(pwd)/mock-gpio.py" "$GPIO_MOCK_DIR"
+    echo "Run mock gpio daemon"
+    systemd-run --unit mock-gpio -- "$(pwd)/mock-gpio.py"
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     wait_for_service mock-gpio
-    mount --bind "$GPIO_MOCK_DIR" /sys/class/gpio
 
 restore: |
     systemctl stop mock-gpio || true
+    # for good measure, mock-gpio.py does this umount already on exit
     umount /sys/class/gpio || true
-    rm -rf "$GPIO_MOCK_DIR"
+
+debug: |
+    journalctl -u mock-gpio.service
 
 execute: |
     echo "Install a snap that uses the gpio consumer"
@@ -36,3 +34,6 @@ execute: |
 
     echo "Check that the connection is still here after enable"
     snap interfaces | MATCH ":gpio-pin.*gpio-consumer:gpio"
+
+    echo "Ensure that our mock service is full functional"
+    systemctl status mock-gpio.service | MATCH "Active: active"

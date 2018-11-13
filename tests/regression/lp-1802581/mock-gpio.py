@@ -1,26 +1,41 @@
 #!/usr/bin/python3
 
+import atexit
+import logging
 import os
 import selectors
+import shutil
+import subprocess
 import sys
+import tempfile
 
 
-def data_to_gpio(data):
-    return "gpio"+data.decode().strip()
+def read_gpio_pin(fd):
+    data = os.read(fd, 128)
+    pin = data.decode().strip()
+    if not pin.isnumeric():
+        logging.warning("invalid gpio pin {}".format(pin))
+        return ""
+    return "gpio{}".format(pin)
 
 
 def export_ready(fd, mask):
-    data = os.read(fd, 128)
+    pin = read_gpio_pin(fd)
     # allow quit
-    if data == b'quit\n':
+    if pin == 'quit':
         return False
-    with open(data_to_gpio(data), "w"):
-        pass
+    if pin:
+        with open(pin, "w"):
+            pass
     return True
     
 
 def unexport_ready(fd, mask):
-    os.remove(data_to_gpio(os.read(fd, 128)))
+    pin = read_gpio_pin(fd)
+    try:
+        os.remove(pin)
+    except Exception as e:
+        logging.warning("got exception {}".format(e))
     return True
 
 
@@ -33,13 +48,23 @@ def dispatch(sel):
 
 
 if __name__ == "__main__":
-    os.chdir(sys.argv[1])
+    if os.getuid() != 0:
+        print("must run as root")
+        sys.exit(1)
+
+    # setup mock env
+    mock_gpio_dir = tempfile.mkdtemp("mock-gpio")
+    atexit.register(shutil.rmtree, mock_gpio_dir)
+    os.chdir(mock_gpio_dir)
+    subprocess.check_call(
+        ["mount", "--bind", mock_gpio_dir, "/sys/class/gpio"])
+    atexit.register(lambda: subprocess.call(["umount", "/sys/class/gpio"]))
     
     # fake gpio export/unexport files
     os.mkfifo("export")
     os.mkfifo("unexport")
 
-    # ensure that we create the right 
+    # react to the export/unexport calls
     sel = selectors.DefaultSelector()
     efd = os.open("export", os.O_RDWR | os.O_NONBLOCK)
     ufd = os.open("unexport", os.O_RDWR | os.O_NONBLOCK)
@@ -49,6 +74,6 @@ if __name__ == "__main__":
         if not dispatch(sel):
             break
 
-    # cleanup
+    # cleanup when we get a quit call
     os.close(efd)
     os.close(ufd)
