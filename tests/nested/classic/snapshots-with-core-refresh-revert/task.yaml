@@ -6,7 +6,7 @@ prepare: |
     create_nested_classic_vm
 
     # configure hosts file
-    # shellcheck disable=SC2086
+    # shellcheck disable=SC2016
     execute_remote 'echo "127.0.1.1 $HOSTNAME" | sudo tee /etc/hosts'
 
     # install snapd and snaps on nested vm
