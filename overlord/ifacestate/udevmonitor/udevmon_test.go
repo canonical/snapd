@@ -38,7 +38,7 @@ type udevMonitorSuite struct{}
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	mon := udevmonitor.New(nil, nil)
+	mon := udevmonitor.New(nil, nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
 	c.Assert(mon.Run(), IsNil)
@@ -48,6 +48,7 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	var addInfos []*hotplug.HotplugDeviceInfo
 	var remInfo *hotplug.HotplugDeviceInfo
+	var enumerationDone bool
 
 	callbackChannel := make(chan struct{})
 	defer close(callbackChannel)
@@ -58,6 +59,15 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	}
 	removed := func(inf *hotplug.HotplugDeviceInfo) {
 		remInfo = inf
+		callbackChannel <- struct{}{}
+	}
+	enumerationFinished := func() {
+		// enumerationDone is signalled after udevadm parsing ends and before other devices are reported
+		c.Assert(addInfos, HasLen, 2)
+		c.Check(addInfos[0].DevicePath(), Equals, "/sys/a/path")
+		c.Check(addInfos[1].DevicePath(), Equals, "/sys/def")
+
+		enumerationDone = true
 		callbackChannel <- struct{}{}
 	}
 
@@ -81,7 +91,7 @@ E: DEVTYPE=bzz
 `)
 	defer cmd.Restore()
 
-	udevmon := udevmonitor.New(added, removed).(*udevmonitor.Monitor)
+	udevmon := udevmonitor.New(added, removed, enumerationFinished).(*udevmonitor.Monitor)
 	events := udevmon.EventsChannel()
 
 	c.Assert(udevmon.Run(), IsNil)
@@ -129,7 +139,7 @@ Loop:
 	for {
 		select {
 		case <-callbackChannel:
-			if len(addInfos) == numExpectedDevices && remInfo != nil {
+			if len(addInfos) == numExpectedDevices && remInfo != nil && enumerationDone {
 				break Loop
 			}
 		case <-time.After(3 * time.Second):
@@ -141,6 +151,7 @@ Loop:
 
 	c.Assert(remInfo, NotNil)
 	c.Assert(addInfos, HasLen, numExpectedDevices)
+	c.Assert(enumerationDone, Equals, true)
 
 	c.Assert(udevmon.Stop(), IsNil)
 
