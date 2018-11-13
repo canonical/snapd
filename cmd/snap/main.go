@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -335,11 +336,15 @@ var ClientConfig = client.Config{
 // commands should (in general) not use this, and instead use clientMixin.
 func mkClient() *client.Client {
 	cli := client.New(&ClientConfig)
-	if runtime.GOOS != "linux" {
+	goos := runtime.GOOS
+	if release.OnWSL {
+		goos = "Windows Subsystem for Linux"
+	}
+	if goos != "linux" {
 		cli.Hijack(func(*http.Request) (*http.Response, error) {
 			fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
 This command has been left available for documentation purposes only.
-`), runtime.GOOS)
+`), goos)
 			os.Exit(1)
 			panic("execution continued past call to exit")
 		})

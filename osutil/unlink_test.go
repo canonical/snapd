@@ -71,6 +71,14 @@ func (s *unlinkSuite) TestUnlinkMany(c *check.C) {
 	s.checkDirnames(c, []string{"foo", "quux", "dir"})
 }
 
+func (s *unlinkSuite) TestUnlinkManyAt(c *check.C) {
+	d, err := os.Open(s.d)
+	c.Assert(err, check.IsNil)
+	c.Assert(osutil.UnlinkManyAt(d, []string{"bar", "does-not-exist", "baz"}), check.IsNil)
+
+	s.checkDirnames(c, []string{"foo", "quux", "dir"})
+}
+
 func (s *unlinkSuite) TestUnlinkManyFails(c *check.C) {
 	type T struct {
 		dirname   string
