@@ -75,7 +75,7 @@ type deviceButtonsInterface struct {
 }
 
 func (iface *deviceButtonsInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.TriggerSubsystem("key")
+	spec.TriggerSubsystem("input/key")
 	return iface.commonInterface.UDevConnectedPlug(spec, plug, slot)
 }
 
