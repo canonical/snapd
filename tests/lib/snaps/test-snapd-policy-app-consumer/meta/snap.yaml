@@ -369,11 +369,11 @@ plugs:
     name: test.system
   system-files:
     interface: system-files
-    files: [file1]
-    dirs: [dir1]
-  personal-dirs:
+    read: [/file1]
+    write: [/dir1]
+  personal-files:
     interface: personal-files
-    files: [file1]
-    dirs: [dir1]
+    read: [$HOME/file1]
+    write: [$HOME/dir1]
   dummy:
     interface: dummy
