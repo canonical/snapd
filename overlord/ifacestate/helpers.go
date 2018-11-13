@@ -778,6 +778,7 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 }
 
 func checkSystemSnapIsPresent(st *state.State) error {
+	// "system" gets remapped to either snapd or a core snap.
 	systemSnap := mapper.RemapSnapFromRequest("system")
 	st.Lock()
 	defer st.Unlock()
