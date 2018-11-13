@@ -7605,6 +7605,7 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 	nie := &snap.NotInstalledError{Snap: "foo"}
 	cce := &snapstate.ChangeConflictError{Snap: "foo"}
 	ndme := &snapstate.SnapNeedsDevModeError{Snap: "foo"}
+	nc := &snapstate.SnapNotClassicError{Snap: "foo"}
 	nce := &snapstate.SnapNeedsClassicError{Snap: "foo"}
 	ncse := &snapstate.SnapNeedsClassicSystemError{Snap: "foo"}
 	netoe := fakeNetError{message: "other"}
@@ -7631,6 +7632,7 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		{aie, makeErrorRsp(errorKindSnapAlreadyInstalled, aie, "foo")},
 		{nie, makeErrorRsp(errorKindSnapNotInstalled, nie, "foo")},
 		{ndme, makeErrorRsp(errorKindSnapNeedsDevMode, ndme, "foo")},
+		{nc, makeErrorRsp(errorKindSnapNotClassic, nc, "foo")},
 		{nce, makeErrorRsp(errorKindSnapNeedsClassic, nce, "foo")},
 		{ncse, makeErrorRsp(errorKindSnapNeedsClassicSystem, ncse, "foo")},
 		{cce, SnapChangeConflict(cce)},
