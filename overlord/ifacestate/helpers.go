@@ -777,13 +777,13 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	return []string{plugRef.Snap, slotRef.Snap}, nil
 }
 
-func checkSystemSnapIsPresent(st *state.State) error {
+func checkSystemSnapIsPresent(st *state.State) bool {
 	// "system" gets remapped to either snapd or a core snap.
 	systemSnap := mapper.RemapSnapFromRequest("system")
 	st.Lock()
 	defer st.Unlock()
 	_, err := snapstate.CurrentInfo(st, systemSnap)
-	return err
+	return err == nil
 }
 
 func setHotplugAttrs(task *state.Task, ifaceName, hotplugKey string) {
