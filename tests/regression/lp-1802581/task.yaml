@@ -1,4 +1,21 @@
-summary: Regression test for  1802581
+summary: Regression test for LP 1802581
+
+description: |
+    When using the snapd GPIO interface the slot side needs to export the GPIO
+    pint so that a file appears under /sys/class/gpio/gpioNNN. That file is a
+    symbolic link to a special, platform specific device path. The symbolic
+    link needs to be evaluated so that apparmor rules for the plug side can be
+    constructed.
+
+    A customer has reported that when a snap is disabled and then re-enabled
+    the GPIO pin is not exported and apparmor backend cannot setup security
+    of the snap being enabled.
+
+    A similar issue has occurred once in the past where the order in which
+    security backends operated was not deterministic. We fixed the issue by
+    applying a fixed order so that the systemd backend, responsible for
+    exporting the pin, would always run before the apparmor backend, which
+    could now rely on the pin being exposed to userspace.
 
 systems: [ubuntu-core-16-64]
 
