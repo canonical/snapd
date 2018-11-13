@@ -777,10 +777,11 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	return []string{plugRef.Snap, slotRef.Snap}, nil
 }
 
-func ensureSystemSnapIsPresent(st *state.State) error {
+func checkSystemSnapIsPresent(st *state.State) error {
+	systemSnap := mapper.RemapSnapFromRequest("system")
 	st.Lock()
 	defer st.Unlock()
-	_, err := snapstate.CoreInfo(st)
+	_, err := snapstate.CurrentInfo(st, systemSnap)
 	return err
 }
 
