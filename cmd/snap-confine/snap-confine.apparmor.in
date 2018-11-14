@@ -451,26 +451,26 @@
     # Allow switching to snap-update-ns with a per-snap profile.
     change_profile -> snap-update-ns.*,
 
-    # Allow executing snap-update-ns when...
+    # Allow executing snap-update-ns and snap-discard-ns when...
 
     # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
     # from the distribution package. This is also the location used when using
     # the core/base snap on all-snap systems. The variants here represent
     # various locations of libexecdir across distributions.
-    /usr/lib{,exec,64}/snapd/snap-update-ns r,
+    /usr/lib{,exec,64}/snapd/snap-{update,discard}-ns rix,
 
     # ...snap-confine is not, conceptually, re-executing and uses
     # snap-update-ns from the distribution package but we are already inside
     # the constructed mount namespace so we must traverse "hostfs". The
     # variants here represent various locations of libexecdir across
     # distributions.
-    /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns r,
+    /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-{update,discard}-ns rix,
 
     # ..snap-confine is, conceptually, re-executing and uses snap-update-ns
     # from the core snap. Note that the location of the core snap varies from
     # distribution to distribution. The variants here represent different
     # locations of snap mount directory across distributions.
-    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-{update,discard}-ns rix,
 
     # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
     # from the core snap but we are already inside the constructed mount
@@ -479,5 +479,5 @@
     # "natural" /snap mount entry but we have no control over that.  This is
     # reported as (LP: #1716339). The variants here represent different
     # locations of snap mount directory across distributions.
-    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-{update,discard}-ns rix,
 }
