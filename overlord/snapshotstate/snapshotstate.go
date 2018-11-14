@@ -237,7 +237,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 				// how?
 				return nil, nil, fmt.Errorf("unexpected error while reading snap info: %v", err)
 			}
-			if !info.Epoch.CanRead(&summary.epoch) {
+			if !info.Epoch.CanRead(summary.epoch) {
 				const tpl = "cannot restore snapshot for %q: current snap (epoch %s) cannot read snapshot data (epoch %s)"
 				return nil, nil, fmt.Errorf(tpl, summary.snap, &info.Epoch, &summary.epoch)
 			}

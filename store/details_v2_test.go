@@ -163,7 +163,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			Private:           false,
 			Paid:              false,
 		},
-		Epoch:       *snap.E("0"),
+		Epoch:       snap.E("0"),
 		Type:        snap.TypeOS,
 		Version:     "16-2.30",
 		Confinement: snap.StrictConfinement,
@@ -353,7 +353,7 @@ func fillStruct(a interface{}, c *C) {
 				Sha3_384: "foo",
 			}
 		case snap.Epoch:
-			x = *snap.E("1")
+			x = snap.E("1")
 		case map[string]string:
 			x = map[string]string{"foo": "bar"}
 		case bool:

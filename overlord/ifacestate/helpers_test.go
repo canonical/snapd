@@ -24,8 +24,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type helpersSuite struct {
@@ -36,6 +40,11 @@ var _ = Suite(&helpersSuite{})
 
 func (s *helpersSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *helpersSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
 }
 
 func (s *helpersSuite) TestIdentityMapper(c *C) {
@@ -251,4 +260,60 @@ func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
 
 	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "unknown", "key1")
 	c.Assert(hotplugConns, HasLen, 0)
+}
+
+func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
+	// no core snap yet
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, false)
+
+	s.st.Lock()
+
+	// add "core" snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnapInstance(c, "", coreSnapYaml, sideInfo)
+	sideInfo.RealName = snapInfo.SnapName()
+
+	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
+	})
+	s.st.Unlock()
+
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)
+}
+
+var snapdYaml = `name: snapd
+version: 1.0
+`
+
+func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{})
+	defer restore()
+
+	// no snapd snap yet
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, false)
+
+	s.st.Lock()
+
+	// "snapd" snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnapInstance(c, "", snapdYaml, sideInfo)
+	sideInfo.RealName = snapInfo.SnapName()
+
+	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
+	})
+	s.st.Unlock()
+
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)
 }

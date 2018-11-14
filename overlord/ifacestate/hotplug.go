@@ -32,7 +32,7 @@ import (
 // List of attributes that determine the computation of default device key.
 // Attributes are grouped by similarity, the first non-empty attribute within the group goes into the key.
 // The final key is composed of 4 attributes (some of which may be empty), separated by "/".
-// Warning, any future changes to these definitions requrie a new key version.
+// Warning, any future changes to these definitions require a new key version.
 var attrGroups = [][][]string{
 	// key version 0
 	{
