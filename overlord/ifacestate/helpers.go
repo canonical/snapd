@@ -679,11 +679,6 @@ func (m *IdentityMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
-// SystemSnapName returns actual name of the system snap - needs to be reimplemented by concrete mapper.
-func (m *IdentityMapper) SystemSnapName() string {
-	return "unknown"
-}
-
 // CoreCoreSystemMapper implements SnapMapper and makes implicit slots
 // appear to be on "core" in the state and in memory but as "system" in the API.
 //
