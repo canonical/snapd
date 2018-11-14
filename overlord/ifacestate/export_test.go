@@ -116,3 +116,8 @@ func GetConnStateAttrs(conns map[string]*connState, connID string) (plugStatic, 
 	}
 	return conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, true
 }
+
+// SystemSnapName returns actual name of the system snap - reimplemented by concrete mapper.
+func (m *IdentityMapper) SystemSnapName() string {
+	return "unknown"
+}
