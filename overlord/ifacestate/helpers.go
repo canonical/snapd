@@ -310,7 +310,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
-func (m *InterfaceManager) setupPhasedSecurity(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
 	st := task.State()
 
 	// Setup all affected snaps, start with the most important security

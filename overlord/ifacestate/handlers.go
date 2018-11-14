@@ -193,7 +193,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		affectedSnaps = append(affectedSnaps, snapInfo)
 		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
 	}
-	return m.setupPhasedSecurity(task, affectedSnaps, confinementOpts)
+	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
