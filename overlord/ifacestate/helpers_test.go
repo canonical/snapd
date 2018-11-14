@@ -324,6 +324,11 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 		SnapType:    string(snapInfo.Type),
 		InstanceKey: snapInfo.InstanceKey,
 	})
+
+	inf, err := ifacestate.SystemSnapInfo(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(inf.InstanceName(), Equals, "snapd")
+
 	s.st.Unlock()
 
 	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)

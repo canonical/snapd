@@ -699,7 +699,7 @@ func (m *IdentityMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
-// Returns actual name of the system snap - needs to be reimplemented by concrete mapper.
+// SystemSnapName returns actual name of the system snap - needs to be reimplemented by concrete mapper.
 func (m *IdentityMapper) SystemSnapName() string {
 	return "unknown"
 }
@@ -726,7 +726,7 @@ func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
-// Returns actual name of the system snap.
+// SystemSnapName returns actual name of the system snap.
 func (m *CoreCoreSystemMapper) SystemSnapName() string {
 	return "core"
 }
@@ -776,7 +776,7 @@ func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
-// Returns actual name of the system snap.
+// SystemSnapName returns actual name of the system snap.
 func (m *CoreSnapdSystemMapper) SystemSnapName() string {
 	return "snapd"
 }
@@ -806,9 +806,14 @@ func RemapSnapFromRequest(snapName string) string {
 	return mapper.RemapSnapFromRequest(snapName)
 }
 
-// Returns actual name of the system snap.
+// SystemSnapName returns actual name of the system snap.
 func SystemSnapName() string {
 	return mapper.SystemSnapName()
+}
+
+// systemSnapInfo returns current info for system snap.
+func systemSnapInfo(st *state.State) (*snap.Info, error) {
+	return snapstate.CurrentInfo(st, SystemSnapName())
 }
 
 func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
@@ -822,7 +827,7 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 func checkSystemSnapIsPresent(st *state.State) bool {
 	st.Lock()
 	defer st.Unlock()
-	_, err := snapstate.CurrentInfo(st, mapper.SystemSnapName())
+	_, err := systemSnapInfo(st)
 	return err == nil
 }
 
