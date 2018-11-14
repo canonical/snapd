@@ -657,6 +657,8 @@ type SnapMapper interface {
 	// There is no corresponding mapping function for API responses anymore.
 	// The API responses always reflect the real system state.
 	RemapSnapFromRequest(snapName string) string
+	// Returns actual name of the system snap.
+	SystemSnapName() string
 }
 
 // IdentityMapper implements SnapMapper and performs no transformations at all.
@@ -675,6 +677,11 @@ func (m *IdentityMapper) RemapSnapToState(snapName string) string {
 // RemapSnapFromRequest  doesn't change the snap name in any way.
 func (m *IdentityMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
+}
+
+// Returns actual name of the system snap - needs to be reimplemented by concrete mapper.
+func (m *IdentityMapper) SystemSnapName() string {
+	return "unknown"
 }
 
 // CoreCoreSystemMapper implements SnapMapper and makes implicit slots
@@ -697,6 +704,11 @@ func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
 		return "core"
 	}
 	return snapName
+}
+
+// Returns actual name of the system snap.
+func (m *CoreCoreSystemMapper) SystemSnapName() string {
+	return "core"
 }
 
 // CoreSnapdSystemMapper implements SnapMapper and makes implicit slots
@@ -744,6 +756,11 @@ func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
 	return snapName
 }
 
+// Returns actual name of the system snap.
+func (m *CoreSnapdSystemMapper) SystemSnapName() string {
+	return "snapd"
+}
+
 // mapper contains the currently active snap mapper.
 var mapper SnapMapper = &CoreCoreSystemMapper{}
 
@@ -769,6 +786,11 @@ func RemapSnapFromRequest(snapName string) string {
 	return mapper.RemapSnapFromRequest(snapName)
 }
 
+// Returns actual name of the system snap.
+func SystemSnapName() string {
+	return mapper.SystemSnapName()
+}
+
 func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	plugRef, slotRef, err := getPlugAndSlotRefs(t)
 	if err != nil {
@@ -778,11 +800,9 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 }
 
 func checkSystemSnapIsPresent(st *state.State) bool {
-	// "system" gets remapped to either snapd or a core snap.
-	systemSnap := mapper.RemapSnapFromRequest("system")
 	st.Lock()
 	defer st.Unlock()
-	_, err := snapstate.CurrentInfo(st, systemSnap)
+	_, err := snapstate.CurrentInfo(st, mapper.SystemSnapName())
 	return err == nil
 }
 
