@@ -13,7 +13,7 @@ execute: |
        exit 0
     fi
 
-    systemd-run --unit tinyproxy -- python3 "$(pwd)/tinyproxy.py"
+    systemd-run --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     wait_for_service tinyproxy
