@@ -93,7 +93,7 @@ func ValidateInstanceName(instanceName string) error {
 func ValidateName(name string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_snap_name_validate and validate_snap_name .
-	if len(name) > 40 || !isValidName(name) {
+	if len(name) < 2 || len(name) > 40 || !isValidName(name) {
 		return fmt.Errorf("invalid snap name: %q", name)
 	}
 	return nil
