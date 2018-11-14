@@ -299,6 +299,7 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 
 type disconnectOpts struct {
 	AutoDisconnect bool
+	ByHotplug      bool
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -329,6 +330,9 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 
 	if flags.AutoDisconnect {
 		disconnectTask.Set("auto-disconnect", true)
+	}
+	if flags.ByHotplug {
+		disconnectTask.Set("by-hotplug", true)
 	}
 
 	ts := state.NewTaskSet()

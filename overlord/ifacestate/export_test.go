@@ -31,6 +31,7 @@ var (
 	CheckAutoconnectConflicts    = checkAutoconnectConflicts
 	FindSymmetricAutoconnectTask = findSymmetricAutoconnectTask
 	ConnectPriv                  = connect
+	DisconnectPriv               = disconnectTasks
 	GetConns                     = getConns
 	SetConns                     = setConns
 	DefaultDeviceKey             = defaultDeviceKey
@@ -49,6 +50,10 @@ func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
 }
 
+func NewDisconnectOptsWithByHotplugSet() disconnectOpts {
+	return disconnectOpts{ByHotplug: true}
+}
+
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
 	old := removeStaleConnections
 	removeStaleConnections = f
@@ -61,7 +66,7 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	return func() { contentLinkRetryTimeout = old }
 }
 
-func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface) (restore func()) {
+func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface) (restore func()) {
 	old := createUDevMonitor
 	createUDevMonitor = new
 	return func() {

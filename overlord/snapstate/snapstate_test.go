@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -510,9 +511,10 @@ func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 
-	// if a snap is *not* classic, you can still install it with --classic
+	// if a snap is *not* classic, you cannot install it with --classic
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-strict", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not a classic confined snap`)
+	c.Check(err, FitsTypeOf, &snapstate.SnapNotClassicError{})
 }
 
 func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C) {
@@ -1832,21 +1834,20 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapstate.Set(s.state, "some-snap-now-classic", &snapstate.SnapState{
 		Active:   true,
-		Channel:  "channel-for-classic",
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap-now-classic", SnapID: "some-snap-now-classic-id", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 		SnapType: "app",
 	})
 
 	// updated snap is classic, refresh without --classic, do nothing
 	// TODO: better error message here
-	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	_, err := snapstate.Update(s.state, "some-snap-now-classic", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `.* requires classic confinement`)
 
 	// updated snap is classic, refresh with --classic
-	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	ts, err := snapstate.Update(s.state, "some-snap-now-classic", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("refresh", "refresh snap")
@@ -1857,9 +1858,12 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
 	// verify snap is in classic
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	err = snapstate.Get(s.state, "some-snap-now-classic", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Classic, Equals, true)
 }
@@ -1942,21 +1946,21 @@ func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapstate.Set(s.state, "some-snap-was-classic", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "channel",
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap-was-classic", SnapID: "some-snap-was-classic-id", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 		SnapType: "app",
 		Flags:    snapstate.Flags{Classic: true},
 	})
 
 	// snap installed with --classic, update does not need classic, refresh works without --classic
-	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	_, err := snapstate.Update(s.state, "some-snap-was-classic", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	// snap installed with --classic, update does not need classic, refresh works with --classic
-	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	_, err = snapstate.Update(s.state, "some-snap-was-classic", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 }
 
@@ -8204,6 +8208,56 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
+	filenames := func() []string {
+		filenames, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+		return filenames
+	}
+
+	defer snapstate.MockLocalInstallCleanupWait(200 * time.Millisecond)()
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0700), IsNil)
+	// sanity check; note * in go glob matches .foo
+	c.Assert(filenames(), HasLen, 0)
+
+	s0 := filepath.Join(dirs.SnapBlobDir, "some.snap")
+	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345")
+	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890")
+
+	c.Assert(ioutil.WriteFile(s0, nil, 0600), IsNil)
+	c.Assert(ioutil.WriteFile(s1, nil, 0600), IsNil)
+	c.Assert(ioutil.WriteFile(s2, nil, 0600), IsNil)
+
+	t1 := time.Now()
+	t0 := t1.Add(-time.Hour)
+
+	c.Assert(os.Chtimes(s0, t0, t0), IsNil)
+	c.Assert(os.Chtimes(s1, t0, t0), IsNil)
+	c.Assert(os.Chtimes(s2, t1, t1), IsNil)
+
+	// all there
+	c.Assert(filenames(), DeepEquals, []string{s1, s2, s0})
+
+	// set last cleanup in the future
+	defer snapstate.MockLocalInstallLastCleanup(t1.Add(time.Minute))()
+	s.snapmgr.Ensure()
+	// all there ( -> cleanup not done)
+	c.Assert(filenames(), DeepEquals, []string{s1, s2, s0})
+
+	// set last cleanup to epoch
+	snapstate.MockLocalInstallLastCleanup(time.Time{})
+
+	s.snapmgr.Ensure()
+	// oldest sideload gone
+	c.Assert(filenames(), DeepEquals, []string{s2, s0})
+
+	time.Sleep(200 * time.Millisecond)
+
+	s.snapmgr.Ensure()
+	// all sideloads gone
+	c.Assert(filenames(), DeepEquals, []string{s0})
+
+}
+
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 	var lastRefresh time.Time
 
@@ -9127,10 +9181,10 @@ func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
 	restore := maybeMockClassicSupport(c)
 	defer restore()
 
-	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
+	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c, "confinement: classic\n")
 }
 
-func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
+func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extraYaml ...string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -9140,7 +9194,14 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	tryYaml := filepath.Join(d, "meta", "snap.yaml")
 	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(tryYaml, []byte("name: foo\nversion: 1.0"), 0644)
+	buf := bytes.Buffer{}
+	buf.WriteString("name: foo\nversion: 1.0\n")
+	if len(extraYaml) > 0 {
+		for _, extra := range extraYaml {
+			buf.WriteString(extra)
+		}
+	}
+	err = ioutil.WriteFile(tryYaml, buf.Bytes(), 0644)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")
@@ -9197,7 +9258,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
 	restore := maybeMockClassicSupport(c)
 	defer restore()
-	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
+	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c, "confinement: classic\n")
 }
 
 func (s *snapmgrTestSuite) testTryUndoRemovesTryFlag(flags snapstate.Flags, c *C) {

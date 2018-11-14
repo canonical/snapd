@@ -122,6 +122,11 @@ const (
 
 	// Directory with snap data inside user's home
 	UserHomeSnapDir = "snap"
+
+	// LocalInstallBlobTempPrefix is used by local install code:
+	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
+	// * in snapstate to auto-cleans them up using the same prefix
+	LocalInstallBlobTempPrefix = ".local-install-"
 )
 
 var (

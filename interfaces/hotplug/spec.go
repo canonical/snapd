@@ -27,17 +27,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// Definer can be implemented by interfaces that need to create slots in response to hotplug events
+// Definer can be implemented by interfaces that need to create slots in response to hotplug events.
 type Definer interface {
 	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
 }
 
-// HotplugKeyHandler can be implemented by interfaces that need to provide a non-standard key for hotplug devices
+// HotplugKeyHandler can be implemented by interfaces that need to provide a non-standard key for hotplug devices.
 type HotplugKeyHandler interface {
 	HotplugKey(di *HotplugDeviceInfo) (string, error)
 }
 
-// RequestedSlotSpec is a definition of the slot to create in response to hotplug event.
+// RequestedSlotSpec is a definition of the slot to create in response to a hotplug event.
 type RequestedSlotSpec struct {
 	// Name is how the interface wants to name the slot. When left empty,
 	// one will be generated on demand. The hotplug machinery appends a
@@ -47,7 +47,7 @@ type RequestedSlotSpec struct {
 	Attrs map[string]interface{}
 }
 
-// Specification contains a slot definition to create in response to hotplug event
+// Specification contains a slot definition to create in response to a hotplug event.
 type Specification struct {
 	slot *RequestedSlotSpec
 }
@@ -57,7 +57,7 @@ func NewSpecification() *Specification {
 	return &Specification{}
 }
 
-// SetSlot adds a specification of a slot.
+// SetSlot sets the slot specification.
 func (h *Specification) SetSlot(slotSpec *RequestedSlotSpec) error {
 	if h.slot != nil {
 		return fmt.Errorf("slot specification already created")
@@ -83,7 +83,7 @@ func (h *Specification) SetSlot(slotSpec *RequestedSlotSpec) error {
 	return nil
 }
 
-// Slot returns specification of the slot requested by given interface.
+// Slot returns the specification of the requested slot.
 func (h *Specification) Slot() *RequestedSlotSpec {
 	return h.slot
 }
