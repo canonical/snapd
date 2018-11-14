@@ -3918,6 +3918,10 @@ func (m *inverseCaseMapper) RemapSnapToResponse(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
+func (m *inverseCaseMapper) SystemSnapName() string {
+	return "core"
+}
+
 // Tests for GET /v2/interfaces
 
 func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
