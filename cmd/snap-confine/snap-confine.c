@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,7 @@
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/feature.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
@@ -232,20 +233,21 @@ int main(int argc, char **argv)
 			      snap_instance);
 			struct sc_mount_ns *group = NULL;
 			group = sc_open_mount_ns(snap_instance);
+
+			/* Stale mount namespace discarded or no mount namespace to
+			   join. We need to construct a new mount namespace ourselves.
+			   To capture it we will need a helper process so make one. */
+			sc_fork_helper(group, &apparmor);
 			int retval = sc_join_preserved_ns(group, &apparmor,
 							  base_snap_name,
 							  snap_instance);
 			if (retval == ESRCH) {
-				/* Stale mount namespace discarded or no mount namespace to
-				   join. We need to construct a new mount namespace ourselves.
-				   To capture it we will need a helper process so make one. */
-				sc_fork_helper(group, &apparmor);
-
-				/* Create and Populate the mount namespace. This performs all
+				/* Create and populate the mount namespace. This performs all
 				   of the bootstrapping mounts, pivots into the new root
 				   filesystem and applies the per-snap mount profile using
 				   snap-update-ns. */
-				debug("unsharing the mount namespace");
+				debug
+				    ("unsharing the mount namespace (per-snap)");
 				if (unshare(CLONE_NEWNS) < 0) {
 					die("cannot unshare the mount namespace");
 				}
@@ -283,10 +285,41 @@ int main(int argc, char **argv)
 				}
 			}
 
+			/* User mount profiles do not apply to non-root users. */
+			if (real_uid != 0) {
+				debug
+				    ("joining preserved per-user mount namespace");
+				retval =
+				    sc_join_preserved_per_user_ns(group,
+								  snap_instance);
+				if (retval == ESRCH) {
+					debug
+					    ("unsharing the mount namespace (per-user)");
+					if (unshare(CLONE_NEWNS) < 0) {
+						die("cannot unshare the mount namespace");
+					}
+					sc_setup_user_mounts(&apparmor,
+							     snap_update_ns_fd,
+							     snap_instance);
+					/* Preserve the mount per-user namespace. But only if the
+					 * experimental feature is enabled. This way if the feature is
+					 * disabled user mount namespaces will still exist but will be
+					 * entirely ephemeral. In addition the call
+					 * sc_join_preserved_user_ns() will never find a preserved
+					 * mount namespace and will always enter this code branch. */
+					if (sc_feature_enabled
+					    (SC_PER_USER_MOUNT_NAMESPACE)) {
+						sc_preserve_populated_per_user_mount_ns
+						    (group);
+					} else {
+						debug
+						    ("NOT preserving per-user mount namespace");
+					}
+				}
+			}
+
 			sc_unlock(snap_lock_fd);
 
-			sc_setup_user_mounts(&apparmor, snap_update_ns_fd,
-					     snap_instance);
 			sc_close_mount_ns(group);
 
 			// Reset path as we cannot rely on the path from the host OS to
