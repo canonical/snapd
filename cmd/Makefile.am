@@ -360,7 +360,7 @@ snap-mgmt/$(am__dirstamp):
 	touch $@
 
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
-	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' -e 's,[@]libexecdir[@],$(libexecdir),' <$< >$@
 
 
 ##
