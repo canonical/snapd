@@ -41,12 +41,21 @@
 #endif
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        printf("Usage: snap-discard-ns <SNAP-INSTANCE-NAME>\n");
+    if (argc != 2 && argc != 3) {
+        printf("Usage: snap-discard-ns [--from-snap-confine] <SNAP-INSTANCE-NAME>\n");
         return 0;
     }
+    const char* snap_instance_name;
+    bool from_snap_confine;
 
-    const char* snap_instance_name = argv[1];
+    if (argc == 3 && sc_streq(argv[1], "--from-snap-confine")) {
+        from_snap_confine = true;
+        snap_instance_name = argv[2];
+    } else {
+        from_snap_confine = false;
+        snap_instance_name = argv[1];
+    }
+
     struct sc_error* err = NULL;
     sc_instance_name_validate(snap_instance_name, &err);
     sc_die_on_error(err);
@@ -56,7 +65,12 @@ int main(int argc, char** argv) {
      * during normal operation but it is not preserved across the life-cycle of
      * the process anyway so no attempt is made to unlock it ahead of any call
      * to die() */
-    int snap_lock_fd = sc_lock_snap(snap_instance_name);
+    int snap_lock_fd = -1;
+    if (from_snap_confine) {
+        sc_verify_snap_lock(snap_instance_name);
+    } else {
+        snap_lock_fd = sc_lock_snap(snap_instance_name);
+    }
     debug("discarding mount namespaces of snap %s", snap_instance_name);
 
     const char* ns_dir_path = "/run/snapd/ns";
