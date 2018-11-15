@@ -1,0 +1,15 @@
+summary: Run spread task on remote system
+
+execute: |
+    cd "$SNAPD_PATH" || exit 1
+    CMD="$SPREAD_PATH"
+    if [ -n "$SPREAD_RUN_ENV" ]; then
+        CMD="$SPREAD_RUN_ENV $CMD"
+    fi
+    if [ -n "$SPREAD_RUN_PARAMS" ]; then
+        CMD="$CMD $SPREAD_RUN_PARAMS"
+    fi
+
+    echo "running spread command: $CMD $SPREAD_RUN_TESTS"
+    # shellcheck disable=SC2086
+    $CMD $SPREAD_RUN_TESTS

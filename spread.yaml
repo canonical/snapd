@@ -718,4 +718,28 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
+    tests/remote/:
+        summary: Run the snapd test suite from a remote google instance to a google instance
+        backends: [google]
+        environment:
+            SUITE_PATH: $GOHOME/remote
+            SPREAD_PATH: $SUITE_PATH/spread
+            SNAPD_PATH: $SUITE_PATH/snapd
+            SPREAD_RUN_PARAMS: "$(HOST: echo ${SPREAD_RUN_PARAMS:-})"
+            SPREAD_RUN_ENV: "$(HOST: echo ${SPREAD_RUN_ENV:-})"
+            SPREAD_RUN_TESTS: "$(HOST: echo ${SPREAD_RUN_TESTS:-google:ubuntu-16.04-64:tests/main/abort})"
+        manual: true
+        prepare: |
+            # Prepare spread and snapd to run the tests
+            rm -rf "$SUITE_PATH" && mkdir -p "$SUITE_PATH"
+            curl -s https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar xzv && mv spread "$SUITE_PATH"
+            cp -rf "$PROJECT_PATH" "$SUITE_PATH"
+
+            # autenticate by using the sa.json when there is a service account file
+            if [ -e "$PROJECT_PATH/sa.json" ]; then
+                gcloud auth activate-service-account --key-file="$PROJECT_PATH/sa.json"
+            fi
+        restore: |
+            rm -rf "$SUITE_PATH"
+
 # vim:ts=4:sw=4:et
