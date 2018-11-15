@@ -19,7 +19,7 @@ systemd_create_and_start_persistent_unit() {
     printf '[Unit]\nDescription=For testing purposes\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "$2" > "/etc/systemd/system/$1.service"
     if [ -n "${3:-}" ]; then
         mkdir -p "/etc/systemd/system/$1.service.d"
-        printf "$3" >> "/etc/systemd/system/$1.service.d/override.conf"
+        printf "%s" "$3" >> "/etc/systemd/system/$1.service.d/override.conf"
     fi
     systemctl daemon-reload
     systemctl enable "$1"
