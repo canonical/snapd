@@ -310,6 +310,26 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
+	st := task.State()
+
+	// Setup all affected snaps, start with the most important security
+	// backend and run it for all snaps. See LP: 1802581
+	for _, backend := range m.repo.Backends() {
+		for i, snapInfo := range snaps {
+			st.Unlock()
+			err := backend.Setup(snapInfo, opts[i], m.repo)
+			st.Lock()
+			if err != nil {
+				task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapInfo.InstanceName(), err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
 	instanceName := snapInfo.InstanceName()
