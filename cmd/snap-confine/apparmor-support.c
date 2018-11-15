@@ -102,6 +102,11 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	} else {
 		apparmor->mode = SC_AA_INVALID;
 	}
+
+	if (apparmor->is_confined && access(SC_AA_DISPLAY_LSM_STR, F_OK) == 0) {
+		debug("setting %s to 'apparmor'", SC_AA_DISPLAY_LSM_STR);
+		write_string_to_file(SC_AA_DISPLAY_LSM_STR, "apparmor");
+	}
 #else
 	apparmor->mode = SC_AA_NOT_APPLICABLE;
 	apparmor->is_confined = false;
@@ -115,11 +120,6 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 	if (apparmor->mode == SC_AA_NOT_APPLICABLE) {
 		return;
 	}
-	if (access(SC_AA_DISPLAY_LSM_STR, F_OK) == 0) {
-		debug("setting %s to 'apparmor'", SC_AA_DISPLAY_LSM_STR);
-		write_string_to_file(SC_AA_DISPLAY_LSM_STR, "apparmor");
-	}
-
 	debug("requesting changing of apparmor profile on next exec to %s",
 	      profile);
 	if (aa_change_onexec(profile) < 0) {
