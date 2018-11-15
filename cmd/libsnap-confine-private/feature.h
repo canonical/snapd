@@ -1,6 +1,3 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm64 s390x
-
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -18,8 +15,21 @@
  *
  */
 
-package main
+#ifndef SNAP_CONFINE_FEATURE_H
+#define SNAP_CONFINE_FEATURE_H
 
-func fpSeccompResolver(token string) (uint64, bool) {
-	return 0, false
-}
+#include <stdbool.h>
+
+typedef enum sc_feature_flag {
+	SC_PER_USER_MOUNT_NAMESPACE,
+} sc_feature_flag;
+
+/**
+ * sc_feature_enabled returns true if a given feature flag has been activated
+ * by the user via "snap set core experimental.xxx=true". This is determined by
+ * testing the presence of a file in /var/lib/snapd/features/ that is named
+ * after the flag name.
+**/
+bool sc_feature_enabled(sc_feature_flag flag);
+
+#endif

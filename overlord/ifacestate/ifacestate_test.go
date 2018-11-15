@@ -640,6 +640,14 @@ func (s *interfaceManagerSuite) TestConnectAlreadyConnected(c *C) {
 	ts, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	c.Assert(ts, NotNil)
+
+	conns = map[string]interface{}{"consumer:plug producer:slot": map[string]interface{}{"hotplug-gone": true}}
+	s.state.Set("conns", conns)
+
+	// ErrAlreadyConnected is not reported if connection was removed by hotplug
+	ts, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
 }
 
 func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string, otherTaskKind string, expectedErr string) {
@@ -2823,6 +2831,52 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
+func (s *interfaceManagerSuite) TestConnectSetsHotplugKeyFromTheSlot(c *C) {
+	s.MockModel(c, nil)
+
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumer2Yaml)
+	s.mockSnap(c, coreSnapYaml)
+
+	s.state.Lock()
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"slot": map[string]interface{}{
+			"name":         "slot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"attr2": "value2"}}})
+	s.state.Unlock()
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	ts, err := ifacestate.Connect(s.state, "consumer2", "plug", "core", "slot")
+	c.Assert(err, IsNil)
+
+	change := s.state.NewChange("connect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer2:plug core:slot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+			"slot-static": map[string]interface{}{"attr2": "value2"},
+		},
+	})
+}
+
 func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
@@ -2951,6 +3005,56 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	})
 }
 
+func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreSnapYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:slot":  map[string]interface{}{"interface": "test"},
+		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"slot": map[string]interface{}{
+			"name":        "slot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	s.state.Unlock()
+
+	s.manager(c)
+
+	s.state.Lock()
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(consumerInfo.Plugs["plug"], nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "core"}, Name: "slot"}, nil, nil),
+	}
+
+	ts, err := ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithByHotplugSet())
+	c.Assert(err, IsNil)
+
+	change := s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:slot":  map[string]interface{}{"interface": "test", "hotplug-gone": true},
+		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+	})
+}
+
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
@@ -3011,6 +3115,57 @@ func (s *interfaceManagerSuite) TestManagerDoesntReloadUndesiredAutoconnections(
 
 	mgr := s.manager(c)
 	c.Assert(mgr.Repository().Interfaces().Connections, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) setupHotplugSlot(c *C) {
+	s.mockIfaces(c, &ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "test"}})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreSnapYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"slot": map[string]interface{}{
+			"name":        "slot",
+			"interface":   "test",
+			"hotplug-key": "abcd",
+		}})
+}
+
+func (s *interfaceManagerSuite) TestManagerDoesntReloadHotlugGoneConnection(c *C) {
+	s.setupHotplugSlot(c)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": true,
+		}})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	c.Assert(mgr.Repository().Interfaces().Connections, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) TestManagerReloadsHotlugConnection(c *C) {
+	s.setupHotplugSlot(c)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": false,
+		}})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+	c.Assert(repo.Interfaces().Connections, HasLen, 1)
+	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}}
+	conn, err := repo.Connection(cref)
+	c.Assert(err, IsNil)
+	c.Assert(conn, NotNil)
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
@@ -4658,7 +4813,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
 
-	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface {
 		return &u
 	})
 	defer restoreCreate()
@@ -4696,7 +4851,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
 
-	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface {
 		return &u
 	})
 	defer restoreCreate()
@@ -4730,7 +4885,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	defer restoreTimeout()
 
 	var udevMonitorCreated bool
-	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc) udevmonitor.Interface {
+	restoreCreate := ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface {
 		udevMonitorCreated = true
 		return &udevMonitorMock{}
 	})
