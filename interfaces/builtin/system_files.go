@@ -28,9 +28,7 @@ const systemFilesSummary = `allows access to system files or directories`
 
 const systemFilesBaseDeclarationSlots = `
   system-files:
-    allow-installation:
-      slot-snap-type:
-        - core
+    allow-installation: false
     deny-connection: true
     deny-auto-connection: true
 `
