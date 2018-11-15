@@ -146,9 +146,14 @@ func (e *Epoch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return e.fromStructured(structured)
 }
 
+// Unset checks if a snap is not set
+func (e *Epoch) Unset() bool {
+	return e == nil || (e.Read == nil && e.Write == nil)
+}
+
 // Validate checks that the epoch makes sense.
 func (e *Epoch) Validate() error {
-	if e == nil || (e.Read == nil && e.Write == nil) {
+	if e.Unset() {
 		// (*Epoch)(nil) and &Epoch{} are valid epochs, equivalent to "0"
 		return nil
 	}
@@ -169,7 +174,7 @@ func (e *Epoch) Validate() error {
 }
 
 func (e *Epoch) simplify() interface{} {
-	if e == nil || (e.Read == nil && e.Write == nil) {
+	if e.Unset() {
 		return "0"
 	}
 	if len(e.Write) == 1 && len(e.Read) == 1 && e.Read[0] == e.Write[0] {
