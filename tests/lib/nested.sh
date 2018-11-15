@@ -66,16 +66,17 @@ get_image_url_for_nested_vm(){
 }
 
 create_nested_core_vm(){
-    # determine arch related vars
-    QEMU=$(get_qemu_for_nested_vm)
+    local UBUNTU_IMAGE
+    UBUNTU_IMAGE=$(command -v ubuntu-image)
 
     # create ubuntu-core image
-    EXTRA_SNAPS=""
+    local EXTRA_SNAPS=""
     if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
         EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
     fi
     mkdir -p "$WORK_DIR"
-    /snap/bin/ubuntu-image --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
+
+    "$UBUNTU_IMAGE" --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
         --channel "$CORE_CHANNEL" \
         --output "$WORK_DIR/ubuntu-core.img" "$EXTRA_SNAPS"
 
@@ -90,11 +91,14 @@ create_nested_core_vm(){
 }
 
 start_nested_core_vm(){
+    local QEMU
+    QEMU=$(get_qemu_for_nested_vm)
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$WORK_DIR/ubuntu-core.img,if=virtio,cache=none,format=raw \
         -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        -machine accel=kvm"
     if ! wait_for_ssh; then
         systemctl restart nested-vm
     fi
@@ -104,8 +108,11 @@ create_nested_classic_vm(){
     mkdir -p "$WORK_DIR"
 
     # Get the cloud image
+    local IMAGE_URL
     IMAGE_URL=$(get_image_url_for_nested_vm)
     wget -P "$WORK_DIR" "$IMAGE_URL"
+    # Check the image
+    local IMAGE
     IMAGE=$(ls $WORK_DIR/*.img)
     test "$(echo "$IMAGE" | wc -l)" = "1"
 
@@ -129,14 +136,16 @@ EOF
 }
 
 start_nested_classic_vm(){
-    IMAGE=$1
+    local IMAGE=$1
+    local QEMU
     QEMU=$(get_qemu_for_nested_vm)
 
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        -machine accel=kvm"
     wait_for_ssh
 }
 
@@ -154,27 +163,27 @@ copy_remote(){
 }
 
 add_tty_chardev(){
-    CHARDEV_ID=$1
-    CHARDEV_PATH=$2
+    local CHARDEV_ID=$1
+    local CHARDEV_PATH=$2
     echo "chardev-add tty,path=$CHARDEV_PATH,id=$CHARDEV_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "chardev added"
 }
 
 remove_chardev(){
-    CHARDEV_ID=$1
+    local CHARDEV_ID=$1
     echo "chardev-remove $CHARDEV_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "chardev added"
 }
 
 add_usb_serial_device(){
-    DEVICE_ID=$1
-    CHARDEV_ID=$2
+    local DEVICE_ID=$1
+    local CHARDEV_ID=$2
     echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "device added"
 }
 
 del_device(){
-    DEVICE_ID=$1
+    local DEVICE_ID=$1
     echo "device_del $DEVICE_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "device deleted"
 }

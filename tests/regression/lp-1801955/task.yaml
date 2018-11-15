@@ -1,0 +1,13 @@
+summary: Check that snapshot works with unknown users in /home/*/snap
+
+prepare: |
+    snap install test-snapd-tools
+    ! grep :9999: /etc/passwd
+    mkdir -pv /home/potato/snap/
+    chown -vR 9999:9999 /home/potato
+
+restore: |
+    rm -rv /home/potato
+
+execute: |
+    snap save test-snapd-tools

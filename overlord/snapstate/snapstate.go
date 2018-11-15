@@ -731,6 +731,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
+		updateFlags := snapst.Flags
+		if !update.NeedsClassic() && updateFlags.Classic {
+			// allow updating from classic to strict
+			updateFlags.Classic = false
+		}
 		return snapst.Channel, snapst.Flags, snapst
 
 	}
@@ -1118,7 +1123,12 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
-		return channel, flags, &snapst
+		updateFlags := flags
+		if !update.NeedsClassic() && updateFlags.Classic {
+			// allow updating from classic to strict
+			updateFlags.Classic = false
+		}
+		return channel, updateFlags, &snapst
 	}
 
 	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags)
@@ -1190,9 +1200,6 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		}
 		info, err := updateInfo(st, snapst, opts, userID)
 		if err != nil {
-			return nil, err
-		}
-		if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {

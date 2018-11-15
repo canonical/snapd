@@ -105,8 +105,9 @@ type TestInterface struct {
 	SystemdPermanentSlotCallback func(spec *systemd.Specification, slot *snap.SlotInfo) error
 }
 
-// TestHotplugInterface is a interface for various kind of tests needing hotplug-aware interface.
-// It is public so that it can be consumed from other packages.
+// TestHotplugInterface is an interface for various kinds of tests
+// needing a hotplug-aware interface.  It is public so that it can be
+// consumed from other packages.
 type TestHotplugInterface struct {
 	TestInterface
 
