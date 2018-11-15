@@ -658,11 +658,11 @@ func (s *SnapSuite) TestAntialiasHappy(c *check.C) {
 	app, outArgs = snaprun.Antialias("alias", inArgs)
 	c.Check(app, check.Equals, "an-app")
 	c.Check(outArgs, check.DeepEquals, []string{
-		"99", // COMP_TYPE (no change)
-		"99", // COMP_KEY (no change)
-		"11", // COMP_POINT (+1 because "an-app" is one longer than "alias")
-		"2",  // COMP_CWORD (no change)
-		" ",  // COMP_WORDBREAKS (no change)
+		"99",                    // COMP_TYPE (no change)
+		"99",                    // COMP_KEY (no change)
+		"11",                    // COMP_POINT (+1 because "an-app" is one longer than "alias")
+		"2",                     // COMP_CWORD (no change)
+		" ",                     // COMP_WORDBREAKS (no change)
 		"an-app alias bo-alias", // COMP_LINE (argv[0] changed)
 		"an-app",                // argv (arv[0] changed)
 		"alias",
@@ -683,12 +683,12 @@ func (s *SnapSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
 	weird2[5] = "alias "
 
 	for desc, inArgs := range map[string][]string{
-		"nil args":                                               nil,
-		"too-short args":                                         {"alias"},
-		"COMP_POINT not a number":                                mkCompArgs("hello", "alias"),
-		"COMP_POINT is inside argv[0]":                           mkCompArgs("2", "alias", ""),
-		"COMP_POINT is outside argv":                             mkCompArgs("99", "alias", ""),
-		"COMP_WORDS[0] is not argv[0]":                           mkCompArgs("10", "not-alias", ""),
+		"nil args":                     nil,
+		"too-short args":               {"alias"},
+		"COMP_POINT not a number":      mkCompArgs("hello", "alias"),
+		"COMP_POINT is inside argv[0]": mkCompArgs("2", "alias", ""),
+		"COMP_POINT is outside argv":   mkCompArgs("99", "alias", ""),
+		"COMP_WORDS[0] is not argv[0]": mkCompArgs("10", "not-alias", ""),
 		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #1": weird1,
 		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #2": weird2,
 	} {
@@ -738,7 +738,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -761,7 +761,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -808,7 +808,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			"-tt",
 			"-o",
 			"file with spaces",
