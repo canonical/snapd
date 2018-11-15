@@ -1981,24 +1981,22 @@ func isValidAction(action string) bool {
 }
 
 type snapActionJSON struct {
-	Action           string      `json:"action"`
-	InstanceKey      string      `json:"instance-key"`
-	Name             string      `json:"name,omitempty"`
-	SnapID           string      `json:"snap-id,omitempty"`
-	Channel          string      `json:"channel,omitempty"`
-	Revision         int         `json:"revision,omitempty"`
-	Epoch            interface{} `json:"epoch,omitempty"` // see note
-	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
-}
+	Action           string `json:"action"`
+	InstanceKey      string `json:"instance-key"`
+	Name             string `json:"name,omitempty"`
+	SnapID           string `json:"snap-id,omitempty"`
+	Channel          string `json:"channel,omitempty"`
+	Revision         int    `json:"revision,omitempty"`
+	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
 
-// NOTE about epoch in snapActionJSON: the store needs an epoch (even if null)
-// for the "install" and "download" actions, to know the client handles epochs
-// at all. "refresh" actions should send nothing, not even null -- the snap in
-// the context should have the epoch already.  We achieve this by making Epoch
-// be an `interface{}` with omitempty, and then setting it to a (possibly nil)
-// epoch for install and download. As a nil epoch is not an empty interface{},
-// you'll get the null in the json.
-// Play with it: https://play.jsgo.io/b20765a68e5ace2c0befdcde94c872ef78cd5e8f
+	// NOTE the store needs an epoch (even if null) for the "install" and "download"
+	// actions, to know the client handles epochs at all.  "refresh" actions should
+	// send nothing, not even null -- the snap in the context should have the epoch
+	// already.  We achieve this by making Epoch be an `interface{}` with omitempty,
+	// and then setting it to a (possibly nil) epoch for install and download. As a
+	// nil epoch is not an empty interface{}, you'll get the null in the json.
+	Epoch interface{} `json:"epoch,omitempty"`
+}
 
 type snapRelease struct {
 	Architecture string `json:"architecture"`
@@ -2203,8 +2201,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
 			if a.Epoch.Unset() {
+				// Let the store know we can handle epochs, by sending the `epoch`
+				// field in the request.  A nil epoch is not an empty interface{},
+				// you'll get the null in the json. See comment in snapActionJSON.
 				aJSON.Epoch = (*snap.Epoch)(nil)
 			} else {
+				// this is the amend case
 				aJSON.Epoch = &a.Epoch
 			}
 		}
