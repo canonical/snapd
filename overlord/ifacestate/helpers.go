@@ -657,6 +657,8 @@ type SnapMapper interface {
 	// There is no corresponding mapping function for API responses anymore.
 	// The API responses always reflect the real system state.
 	RemapSnapFromRequest(snapName string) string
+	// Returns actual name of the system snap.
+	SystemSnapName() string
 }
 
 // IdentityMapper implements SnapMapper and performs no transformations at all.
@@ -694,9 +696,14 @@ type CoreCoreSystemMapper struct {
 // explicitly refer to "core" or using the "system" nickname.
 func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" {
-		return "core"
+		return m.SystemSnapName()
 	}
 	return snapName
+}
+
+// SystemSnapName returns actual name of the system snap.
+func (m *CoreCoreSystemMapper) SystemSnapName() string {
+	return "core"
 }
 
 // CoreSnapdSystemMapper implements SnapMapper and makes implicit slots
@@ -713,7 +720,7 @@ type CoreSnapdSystemMapper struct {
 // using "snapd" snap for hosting those slots and this lets us stay compatible.
 func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
 	if snapName == "core" {
-		return "snapd"
+		return m.SystemSnapName()
 	}
 	return snapName
 }
@@ -724,7 +731,7 @@ func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
 // seem to refer to the "core" snap, as in pre core{16,18} days where there was
 // only one core snap.
 func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
-	if snapName == "snapd" {
+	if snapName == m.SystemSnapName() {
 		return "core"
 	}
 	return snapName
@@ -739,9 +746,14 @@ func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
 // even if the request used "core".
 func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" || snapName == "core" {
-		return "snapd"
+		return m.SystemSnapName()
 	}
 	return snapName
+}
+
+// SystemSnapName returns actual name of the system snap.
+func (m *CoreSnapdSystemMapper) SystemSnapName() string {
+	return "snapd"
 }
 
 // mapper contains the currently active snap mapper.
@@ -769,6 +781,16 @@ func RemapSnapFromRequest(snapName string) string {
 	return mapper.RemapSnapFromRequest(snapName)
 }
 
+// SystemSnapName returns actual name of the system snap.
+func SystemSnapName() string {
+	return mapper.SystemSnapName()
+}
+
+// systemSnapInfo returns current info for system snap.
+func systemSnapInfo(st *state.State) (*snap.Info, error) {
+	return snapstate.CurrentInfo(st, SystemSnapName())
+}
+
 func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	plugRef, slotRef, err := getPlugAndSlotRefs(t)
 	if err != nil {
@@ -778,11 +800,9 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 }
 
 func checkSystemSnapIsPresent(st *state.State) bool {
-	// "system" gets remapped to either snapd or a core snap.
-	systemSnap := mapper.RemapSnapFromRequest("system")
 	st.Lock()
 	defer st.Unlock()
-	_, err := snapstate.CurrentInfo(st, systemSnap)
+	_, err := systemSnapInfo(st)
 	return err == nil
 }
 
