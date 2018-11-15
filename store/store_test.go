@@ -5090,7 +5090,6 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 			"name":         "hello-world",
 			"channel":      "beta",
 			"epoch":        map[string]interface{}{"read": []interface{}{0., 1.}, "write": []interface{}{1.}},
-			"snap-id":      helloWorldSnapID,
 		})
 
 		fmt.Fprint(w, `{
@@ -5131,7 +5130,6 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 				Action:       "install",
 				InstanceName: "hello-world",
 				Channel:      "beta",
-				SnapID:       helloWorldSnapID,
 				Epoch:        snap.E("1*"),
 			},
 		}, nil, nil)
