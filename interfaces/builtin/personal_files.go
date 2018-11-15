@@ -28,9 +28,7 @@ const personalFilesSummary = `allows access to personal files or directories`
 
 const personalFilesBaseDeclarationSlots = `
   personal-files:
-    allow-installation:
-      slot-snap-type:
-        - core
+    allow-installation: false
     deny-connection: true
     deny-auto-connection: true
 `
