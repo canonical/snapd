@@ -1224,11 +1224,10 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	core, err := snapstate.CoreInfo(st)
+	syssnap, err := systemSnapInfo(st)
 	if err != nil {
 		return err
 	}
-	coreSnapName := core.InstanceName()
 
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
 	if err != nil {
@@ -1245,9 +1244,9 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		if err := checkDisconnectConflicts(st, coreSnapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkDisconnectConflicts(st, syssnap.InstanceName(), connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
 			if _, retry := err.(*state.Retry); retry {
-				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", coreSnapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", syssnap.InstanceName(), connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 				task.Logf("Waiting for conflicting change in progress...")
 				return err // will retry
 			}
