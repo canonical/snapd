@@ -54,6 +54,8 @@ func (s *helpersSuite) TestIdentityMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("example"), Equals, "example")
 	c.Assert(m.RemapSnapToState("example"), Equals, "example")
 	c.Assert(m.RemapSnapFromRequest("example"), Equals, "example")
+
+	c.Assert(m.SystemSnapName(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
@@ -71,6 +73,8 @@ func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+
+	c.Assert(m.SystemSnapName(), Equals, "core")
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
@@ -93,6 +97,8 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+
+	c.Assert(m.SystemSnapName(), Equals, "snapd")
 }
 
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
@@ -110,6 +116,10 @@ func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
+func (m *caseMapper) SystemSnapName() string {
+	return "unknown"
+}
+
 func (s *helpersSuite) TestMappingFunctions(c *C) {
 	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
@@ -117,6 +127,7 @@ func (s *helpersSuite) TestMappingFunctions(c *C) {
 	c.Assert(ifacestate.RemapSnapFromState("example"), Equals, "EXAMPLE")
 	c.Assert(ifacestate.RemapSnapToState("EXAMPLE"), Equals, "example")
 	c.Assert(ifacestate.RemapSnapFromRequest("example"), Equals, "EXAMPLE")
+	c.Assert(ifacestate.SystemSnapName(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestGetConns(c *C) {
@@ -313,6 +324,11 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 		SnapType:    string(snapInfo.Type),
 		InstanceKey: snapInfo.InstanceKey,
 	})
+
+	inf, err := ifacestate.SystemSnapInfo(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(inf.InstanceName(), Equals, "snapd")
+
 	s.st.Unlock()
 
 	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)

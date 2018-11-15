@@ -40,12 +40,12 @@ type User struct {
 	OpenIDIdentifier string
 }
 
-func UserInfo(httpClient *http.Client, email string) (userinfo *User, err error) {
+func (s *Store) UserInfo(email string) (userinfo *User, err error) {
 	var v keysReply
 	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
 
 	resp, err := httputil.RetryRequest(ssourl, func() (*http.Response, error) {
-		return httpClient.Get(ssourl)
+		return s.client.Get(ssourl)
 	}, func(resp *http.Response) error {
 		if resp.StatusCode != 200 {
 			// we recheck the status
