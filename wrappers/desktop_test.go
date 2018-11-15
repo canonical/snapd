@@ -73,7 +73,7 @@ Icon=${SNAP}/foo.png`)
 var desktopContents = ""
 
 func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
-	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo__foobar.desktop")
+	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
@@ -95,7 +95,7 @@ func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 }
 
 func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
-	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo__foobar.desktop")
+	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
@@ -113,8 +113,8 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 }
 
 func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
-	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo__foobar.desktop")
-	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance__foobar.desktop")
+	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
+	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
@@ -131,7 +131,7 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
-	// foo_instance file is still there
+	// foo+instance file is still there
 	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
 
 	// restore the non-instance file
@@ -152,17 +152,17 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 }
 
 func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
-	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo__foobar1.desktop")
+	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
 
-	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance__foobar.desktop")
+	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance_foobar.desktop")
 	err = ioutil.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo__foobar2.desktop", "potato"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
 	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
