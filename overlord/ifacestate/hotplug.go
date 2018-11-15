@@ -33,7 +33,7 @@ import (
 // List of attributes that determine the computation of default device key.
 // Attributes are grouped by similarity, the first non-empty attribute within the group goes into the key.
 // The final key is composed of 4 attributes (some of which may be empty), separated by "/".
-// Warning, any future changes to these definitions requrie a new key version.
+// Warning, any future changes to these definitions require a new key version.
 var attrGroups = [][][]string{
 	// key version 0
 	{
@@ -84,12 +84,16 @@ func defaultDeviceKey(devinfo *hotplug.HotplugDeviceInfo, keyVersion int) (strin
 	return fmt.Sprintf("%x%x", keyVersion, key.Sum(nil)), nil
 }
 
-// HotplugDeviceAdded gets called when a device is added to the system.
-func (m *InterfaceManager) HotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
+// hotplugDeviceAdded gets called when a device is added to the system.
+func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo) {
 }
 
-// HotplugDeviceRemoved gets called when a device is removed from the system.
-func (m *InterfaceManager) HotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
+// hotplugDeviceRemoved gets called when a device is removed from the system.
+func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceInfo) {
+}
+
+// hotplugEnumerationDone gets called when initial enumeration on startup is finished.
+func (m *InterfaceManager) hotplugEnumerationDone() {
 }
 
 // ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.
@@ -105,7 +109,6 @@ func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	if prefix != proposedName {
 		suffixNumValue, _ = strconv.Atoi(proposedName[len(prefix):])
 	}
-	prefix = strings.TrimRight(prefix, "-")
 
 	// increase suffix value until we have a unique name
 	for {
@@ -175,7 +178,7 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 	return shortestName
 }
 
-// create tasks to disconnect slots of given device, update the slot in the repository, then connect it back.
+// updateDevice creates tasks to disconnect slots of given device, update the slot in the repository, then connect it back.
 func updateDevice(st *state.State, ifaceName, hotplugKey string, newAttrs map[string]interface{}) *state.TaskSet {
 	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of device %q", hotplugKey))
 	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
@@ -190,4 +193,18 @@ func updateDevice(st *state.State, ifaceName, hotplugKey string, newAttrs map[st
 	hotplugConnect.WaitFor(updateSlot)
 
 	return state.NewTaskSet(hotplugDisconnect, updateSlot, hotplugConnect)
+}
+
+// removeDevice creates tasks to disconnect slots of given device and remove affected slots.
+func removeDevice(st *state.State, ifaceName, hotplugKey string) *state.TaskSet {
+	// hotplug-disconnect task will create hooks and disconnect the slot
+	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections for interface %s, hotplug key %q", ifaceName, hotplugKey))
+	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
+
+	// hotplug-remove-slot will remove this device's slot from the repository.
+	removeSlot := st.NewTask("hotplug-remove-slot", fmt.Sprintf("Remove slot for interface %s, hotplug key %q", ifaceName, hotplugKey))
+	setHotplugAttrs(removeSlot, ifaceName, hotplugKey)
+	removeSlot.WaitFor(hotplugDisconnect)
+
+	return state.NewTaskSet(hotplugDisconnect, removeSlot)
 }
