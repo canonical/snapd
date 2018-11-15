@@ -2758,6 +2758,126 @@ func (s *snapmgrTestSuite) TestInstalling(c *C) {
 	c.Check(snapstate.Installing(s.state), Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, &si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+		Channel:  "stable",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{Amend: true})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.StoreMacaroon,
+		name:     "some-snap",
+		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
+	}})
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, []string{
+		"storesvc-snap-action",
+		"storesvc-snap-action:action",
+		"storesvc-download",
+		"validate-snap:Doing",
+		"current",
+		"open-snap-file",
+		"setup-snap",
+		"remove-snap-aliases",
+		"unlink-snap",
+		"copy-data",
+		"setup-profiles:Doing",
+		"candidate",
+		"link-snap",
+		"auto-connect:Doing",
+		"update-aliases",
+		"cleanup-trash",
+	})
+	// just check the interesting op
+	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "install", // we asked for an Update, but an amend is actually an Install
+			InstanceName: "some-snap",
+			Channel:      "some-channel",
+			Epoch:        snap.E("1*"), // in amend, epoch in the action is not nil!
+			Flags:        store.SnapActionEnforceValidation,
+		},
+		revno:  snap.R(11),
+		userID: 1,
+	})
+
+	task := ts.Tasks()[1]
+	// verify snapSetup info
+	var snapsup snapstate.SnapSetup
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+		Channel: "some-channel",
+		UserID:  s.user.ID,
+
+		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
+		Flags:     snapstate.Flags{Amend: true},
+	})
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+		SnapID:   "some-snap-id",
+	})
+
+	// verify services stop reason
+	verifyStopReason(c, ts, "refresh")
+
+	// check post-refresh hook
+	task = ts.Tasks()[14]
+	c.Assert(task.Kind(), Equals, "run-hook")
+	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "some-snap" snap if present`)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
+	})
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "some-channel",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(11),
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
