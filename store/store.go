@@ -2202,10 +2202,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
-			if a.SnapID != "" {
-				aJSON.Epoch = &a.Epoch
-			} else {
+			if a.Epoch.Unset() {
 				aJSON.Epoch = (*snap.Epoch)(nil)
+			} else {
+				aJSON.Epoch = &a.Epoch
 			}
 		}
 
