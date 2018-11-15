@@ -178,7 +178,7 @@ func (rs *Restrictions) Check(dirFd int, dirName string) error {
 		// kind of base snap.
 		return fmt.Errorf("cannot recover from trespassing over /")
 	}
-	return &TrespassingError{ViolatedPath: dirName, DesiredPath: rs.desiredPath}
+	return &TrespassingError{ViolatedPath: filepath.Clean(dirName), DesiredPath: rs.desiredPath}
 }
 
 // Lift lifts write restrictions for the desired path.
