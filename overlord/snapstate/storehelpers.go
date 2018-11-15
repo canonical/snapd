@@ -167,6 +167,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	if curInfo.SnapID == "" { // amend
 		action.Action = "install"
+		action.Epoch = curInfo.Epoch
 	}
 
 	theStore := Store(st)
