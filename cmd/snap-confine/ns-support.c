@@ -78,34 +78,6 @@ enum {
 	HELPER_CMD_CAPTURE_NS,
 };
 
-/**
- * Read /proc/self/mountinfo and check if /run/snapd/ns is a private bind mount.
- *
- * We do this because /run/snapd/ns cannot be shared with any other peers as per:
- * https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
- **/
-static bool sc_is_mount_ns_dir_private(void)
-{
-	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
-	info = sc_parse_mountinfo(NULL);
-	if (info == NULL) {
-		die("cannot parse /proc/self/mountinfo");
-	}
-	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(info);
-	while (entry != NULL) {
-		const char *mount_dir = entry->mount_dir;
-		const char *optional_fields = entry->optional_fields;
-		if (strcmp(mount_dir, sc_ns_dir) == 0
-		    && strcmp(optional_fields, "") == 0) {
-			// If /run/snapd/ns has no optional fields, we know it is mounted
-			// private and there is nothing else to do.
-			return true;
-		}
-		entry = sc_next_mountinfo_entry(entry);
-	}
-	return false;
-}
-
 void sc_reassociate_with_pid1_mount_ns(void)
 {
 	int init_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -158,18 +130,46 @@ void sc_reassociate_with_pid1_mount_ns(void)
 
 void sc_initialize_mount_ns(void)
 {
+	/* Ensure that /run/snapd/ns is a directory. */
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
 		die("cannot create directory %s", sc_ns_dir);
 	}
-	if (sc_is_mount_ns_dir_private()) {
-		return;
+
+	/* Read and analyze the mount table. We need to see if /run/snapd/ns
+	 * is a mount point with private event propagation. */
+	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	info = sc_parse_mountinfo(NULL);
+	if (info == NULL) {
+		die("cannot parse /proc/self/mountinfo");
 	}
-	if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) < 0) {
-		die("cannot self-bind mount %s", sc_ns_dir);
+
+	bool is_mnt = false;
+	bool is_private = false;
+	for (struct sc_mountinfo_entry * entry = sc_first_mountinfo_entry(info);
+	     entry != NULL; entry = sc_next_mountinfo_entry(entry)) {
+		/* Find /run/snapd/ns */
+		if (!sc_streq(entry->mount_dir, sc_ns_dir)) {
+			continue;
+		}
+		is_mnt = true;
+		if (strstr(entry->optional_fields, "shared:") == NULL) {
+			/* Mount event propagation is not set to shared, good. */
+			is_private = true;
+		}
+		break;
 	}
-	if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
-		die("cannot change propagation type to MS_PRIVATE in %s",
-		    sc_ns_dir);
+
+	if (!is_mnt) {
+		if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) <
+		    0) {
+			die("cannot self-bind mount %s", sc_ns_dir);
+		}
+	}
+
+	if (!is_private) {
+		if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
+			die("cannot change propagation type to MS_PRIVATE in %s", sc_ns_dir);
+		}
 	}
 }
 
