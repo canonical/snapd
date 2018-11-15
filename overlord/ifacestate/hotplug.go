@@ -178,7 +178,7 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 	return shortestName
 }
 
-// create tasks to disconnect slots of given device and remove affected slots.
+// removeDevice creates tasks to disconnect slots of given device and remove affected slots.
 func removeDevice(st *state.State, ifaceName, hotplugKey string) *state.TaskSet {
 	// hotplug-disconnect task will create hooks and disconnect the slot
 	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections for interface %s, hotplug key %q", ifaceName, hotplugKey))
