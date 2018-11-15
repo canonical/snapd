@@ -220,7 +220,7 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 			return err
 		}
 
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.InstanceName(), filepath.Base(df)))
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s__%s", s.InstanceName(), filepath.Base(df)))
 		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
@@ -238,20 +238,24 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
-	activeDesktopFiles := make([]string, 0, len(s.Apps))
-	for _, app := range s.Apps {
-		df := app.DesktopFile()
+	removedDesktopFiles := make([]string, 0, len(s.Apps))
+
+	desktopFiles, err := filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s__*.desktop", s.InstanceName())))
+	if err != nil {
+		return nil
+	}
+	for _, df := range desktopFiles {
 		if err := os.Remove(df); err != nil {
 			if !os.IsNotExist(err) {
 				return err
 			}
 		} else {
-			activeDesktopFiles = append(activeDesktopFiles, df)
+			removedDesktopFiles = append(removedDesktopFiles, df)
 		}
 	}
 
 	// updates mime info etc
-	if err := updateDesktopDatabase(activeDesktopFiles); err != nil {
+	if err := updateDesktopDatabase(removedDesktopFiles); err != nil {
 		return err
 	}
 
