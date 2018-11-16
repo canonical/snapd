@@ -12,15 +12,16 @@ prepare: |
     . "$TESTSLIB/files.sh"
 
     # Fist layer of dirs and files
-    ensure_file_exists_backup_real /tmp/.testfile1
-    ensure_file_exists_backup_real /tmp/testfile1
-    ensure_dir_exists_backup_real /tmp/.testdir1
-    ensure_dir_exists_backup_real /tmp/testdir1
+    ensure_dir_exists_backup_real /testdir
+    ensure_file_exists_backup_real /testdir/.testfile1
+    ensure_file_exists_backup_real /testdir/testfile1
+    ensure_dir_exists_backup_real /testdir/.testdir1
+    ensure_dir_exists_backup_real /testdir/testdir1
 
     # Second layer of dirs and files
-    ensure_file_exists_backup_real /tmp/.testdir1/.testfilé2
-    ensure_file_exists_backup_real "/tmp/.testdir1/test file2"
-    ensure_dir_exists_backup_real /tmp/root
+    ensure_file_exists_backup_real /testdir/.testdir1/.testfilé2
+    ensure_file_exists_backup_real "/testdir/.testdir1/test file2"
+    ensure_dir_exists_backup_real /testdir/root
 
     # Not accessible dirs and files
     ensure_dir_exists_backup_real /root/.testdir1
@@ -32,10 +33,7 @@ restore: |
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
 
-    clean_file /tmp/.testfile1
-    clean_file /tmp/testfile1
-    clean_dir /tmp/.testdir1
-    clean_dir /tmp/testdir1
+    clean_dir /testdir
     clean_dir /root/.testdir1
     clean_dir /root/.testfile1
 
@@ -49,19 +47,19 @@ execute: |
     echo "And not other interfaces are connected"
     snap disconnect test-snapd-sh:home
 
-    echo "Then the snap is able to access all the files and dirs in /tmp"
-    test-snapd-sh.with-system-files-plug -c "cat /tmp/.testfile1"
-    test-snapd-sh.with-system-files-plug -c "cat /tmp/testfile1"
-    test-snapd-sh.with-system-files-plug -c "ls /tmp/.testdir1"
-    test-snapd-sh.with-system-files-plug -c "ls /tmp/testdir1"
-    test-snapd-sh.with-system-files-plug -c "cat /tmp/.testdir1/.testfilé2"
-    test-snapd-sh.with-system-files-plug -c "cat '/tmp/.testdir1/test file2'"
-    test-snapd-sh.with-system-files-plug -c "ls /tmp/root/"
+    echo "Then the snap is able to access all the files and dirs in /testdir"
+    test-snapd-sh.with-system-files-plug -c "cat /testdir/.testfile1"
+    test-snapd-sh.with-system-files-plug -c "cat /testdir/testfile1"
+    test-snapd-sh.with-system-files-plug -c "ls /testdir/.testdir1"
+    test-snapd-sh.with-system-files-plug -c "ls /testdir/testdir1"
+    test-snapd-sh.with-system-files-plug -c "cat /testdir/.testdir1/.testfilé2"
+    test-snapd-sh.with-system-files-plug -c "cat '/testdir/.testdir1/test file2'"
+    test-snapd-sh.with-system-files-plug -c "ls /testdir/root/"
 
-    echo "Then the snap is able to write just /tmp/.testdir1 and /tmp/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "echo test >> /tmp/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "touch /tmp/.testfile1/testfilé2"
-    if test-snapd-sh.with-personal-files-plug -c "echo test >> /tmp/testfile1" 2> call.error; then
+    echo "Then the snap is able to write just /testdir/.testdir1 and /testdir/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "echo test >> /testdir/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "touch /testdir/.testfile1/testfilé2"
+    if test-snapd-sh.with-personal-files-plug -c "echo test >> /testdir/testfile1" 2> call.error; then
         echo "Expected permission error writing the system file"
         exit 1
     fi
@@ -79,12 +77,12 @@ execute: |
     snap disconnect test-snapd-sh:system-files
 
     echo "Then the snap is not able to read files and dirs in $HOME"
-    if test-snapd-sh.with-system-files-plug -c "ls /tmp/.testdir1" 2> call.error; then
+    if test-snapd-sh.with-system-files-plug -c "ls /testdir/.testdir1" 2> call.error; then
         echo "Expected permission error accessing the system dir"
         exit 1
     fi
     MATCH "Permission denied" < call.error
-    if test-snapd-sh.with-system-files-plug -c "cat /tmp/.testfile1" 2> call.error; then
+    if test-snapd-sh.with-system-files-plug -c "cat /testdir/.testfile1" 2> call.error; then
         echo "Expected permission error accessing the system file"
         exit 1
     fi

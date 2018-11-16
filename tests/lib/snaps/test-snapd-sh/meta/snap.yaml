@@ -7,8 +7,8 @@ plugs:
         read: [$HOME/.testdir1, $HOME/.testfile1, $HOME/testfile1, $HOME/testdir1]
         write: [$HOME/.testdir1, $HOME/.testfile1]
     system-files:
-        read: [/tmp, /tmp/.testdir1]
-        write: [/tmp/.testdir1, /tmp/.testfile1]
+        read: [/testdir]
+        write: [/testdir/.testdir1, /testdir/.testfile1]
 
 apps:
     test-snapd-sh:
