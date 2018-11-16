@@ -346,18 +346,6 @@ setup_reflash_magic() {
         # ensure any new timer units are available
         cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACK_DIR/etc/systemd/system/timers.target.wants"
 
-        # add gpio and iio slots
-        cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
-slots:
-    gpio-pin:
-        interface: gpio
-        number: 100
-        direction: out
-    iio0:
-        interface: iio
-        path: /dev/iio:device0
-EOF
-
         # build new core snap for the image
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"
 
@@ -382,6 +370,27 @@ EOF
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
+    # add gpio and iio slots to gadget
+    UNPACK_GADGET_DIR="/tmp/pc-snap"
+    GADGET_CHANNEL=edge
+    if is_core18_system; then
+        GADGET_CHANNEL=18/edge
+    fi
+    snap download --channel=$GADGET_CHANNEL pc
+    unsquashfs -no-progress -d "$UNPACK_GADGET_DIR" pc_*.snap
+    cat >> "$UNPACK_GADGET_DIR/meta/snap.yaml" <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
+EOF
+    snap pack "$UNPACK_GADGET_DIR" "$IMAGE_HOME"
+
+
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
     # maybe we should fix one or both of those, but for now this'll do
     chmod 0600 "$IMAGE_HOME"/*.snap
@@ -403,6 +412,7 @@ EOF
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
+                           --extra-snaps "$IMAGE_HOME/pc_*.snap" \
                            --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
