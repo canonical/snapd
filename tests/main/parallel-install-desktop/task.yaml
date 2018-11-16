@@ -34,11 +34,11 @@ execute: |
 
     echo "Removing one instance does not remove other instances' data"
     snap remove basic-desktop_foo
-    test -f /var/lib/snapd/desktop/applications/basic-desktop_longname_echo.desktop
+    test -f /var/lib/snapd/desktop/applications/basic-desktop+longname_echo.desktop
     test -f /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop
 
     snap remove basic-desktop
-    test -f /var/lib/snapd/desktop/applications/basic-desktop_longname_echo.desktop
+    test -f /var/lib/snapd/desktop/applications/basic-desktop+longname_echo.desktop
 
 restore:
     snap set system experimental.parallel-instances=null
