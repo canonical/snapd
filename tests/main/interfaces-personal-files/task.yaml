@@ -60,9 +60,15 @@ execute: |
     test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'"
     test-snapd-sh.with-personal-files-plug -c "ls  /root/.testdir1/.testdir2/"
 
-    echo "Then the snap is able to write just /root/.testdir1 and /root/.testfile1"
+    echo "Then the snap is able to write on /root/.testdir1 and /root/.testfile1"
     test-snapd-sh.with-personal-files-plug -c "echo test >> /root/.testfile1"
     test-snapd-sh.with-personal-files-plug -c "touch /root/.testdir1/testfilé2"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "Then the snap is no able to write outside /root/.testdir1 and /root/.testfile1"
     if test-snapd-sh.with-personal-files-plug -c "echo test >> /root/testfile1" 2> call.error; then
         echo "Expected permission error writing the personal file"
         exit 1
@@ -75,10 +81,6 @@ execute: |
     test-snapd-sh.with-personal-files-plug -c "ls /tmp/root/" && exit 1
     test-snapd-sh.with-personal-files-plug -c "cat /tmp/root/testfile2" && exit 1
     test-snapd-sh.with-personal-files-plug -c "cat /tmp/root/.testfile2" && exit 1
-
-    if [ "$(snap debug confinement)" = partial ] ; then
-        exit 0
-    fi
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:personal-files
