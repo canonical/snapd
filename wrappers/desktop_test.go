@@ -69,12 +69,21 @@ apps:
 var mockDesktopFile = []byte(`
 [Desktop Entry]
 Name=foo
+Exec=foo.foobar
 Icon=${SNAP}/foo.png`)
+
+var mockDesktopFile2 = []byte(`
+[Desktop Entry]
+Name=foo
+Exec=foo.foobar --with-some-options
+Icon=${SNAP}/foo.png`)
+
 var desktopContents = ""
 
 func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
-	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
-	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+	expectedDesktopFileBase := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar")
+	c.Assert(osutil.FileExists(expectedDesktopFileBase+"_0.desktop"), Equals, false)
+	c.Assert(osutil.FileExists(expectedDesktopFileBase+"_1.desktop"), Equals, false)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
@@ -85,10 +94,17 @@ func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 
 	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar-with-options.desktop"), mockDesktopFile, 0644)
+	c.Assert(err, IsNil)
 
 	err = wrappers.AddSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+	c.Assert(osutil.FileExists(expectedDesktopFileBase+"_0.desktop"), Equals, true)
+	c.Assert(osutil.FileExists(expectedDesktopFileBase+"_1.desktop"), Equals, true)
+
+	desktopFiles, err := filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Assert(desktopFiles, HasLen, 2)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
@@ -151,38 +167,31 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, true)
 }
 
+// TestAddPackageDesktopFilesCleanup tests if the AddSnapDesktop call cleans
+// up after itself when it fails.
 func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
-	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
-	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	// update-desktop-database runs at the very end
+	mockUpdateDesktopDatabase := testutil.MockCommand(c, "update-desktop-database", "false")
+	defer mockUpdateDesktopDatabase.Restore()
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
-
-	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance_foobar.desktop")
-	err = ioutil.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
-
-	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
-	c.Assert(err, IsNil)
-
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
-
-	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
 	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644)
+	// generate two desktop files that will be written
+	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
+	// try to add desktop files
 	err = wrappers.AddSnapDesktopFiles(info)
-	c.Check(err, NotNil)
-	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
-	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
-	// foo_instance file was not removed by cleanup
-	c.Check(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
+	c.Check(err, ErrorMatches, "cannot update-desktop-database.*")
+	// and ensure we have no leftover files
+	desktopFiles, err := filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Assert(desktopFiles, HasLen, 0)
 }
 
 // sanitize
@@ -423,7 +432,7 @@ Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app %%U
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
-	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
+	_, _, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
@@ -437,8 +446,9 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	snapApp, newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
+	c.Assert(snapApp, Equals, "app")
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
@@ -478,11 +488,11 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 		expectedDesktopFileName string
 	}{
 		// normal cases
-		{"", "upstream.desktop", "foo_upstream.desktop"},
-		{"instance", "upstream.desktop", "foo+instance_upstream.desktop"},
+		{"", "upstream.desktop", "foo_foobar_0.desktop"},
+		{"instance", "upstream.desktop", "foo+instance_foobar_0.desktop"},
 		// pathological cases are handled
-		{"", "instance.desktop", "foo_instance.desktop"},
-		{"instance", "instance.desktop", "foo+instance_instance.desktop"},
+		{"", "instance.desktop", "foo_foobar_0.desktop"},
+		{"instance", "instance.desktop", "foo+instance_foobar_0.desktop"},
 	}
 
 	for _, t := range tests {

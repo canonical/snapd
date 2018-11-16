@@ -247,11 +247,11 @@ apps:
 
 	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
 	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
+	c.Assert(ioutil.WriteFile(filepath.Join(guiDir, "foo.desktop"), []byte(`
 [Desktop Entry]
 Name=bin
 Icon=${SNAP}/bin.png
-Exec=bin
+Exec=foo
 `), 0644), IsNil)
 
 	r := systemd.MockSystemctl(func(...string) ([]byte, error) {

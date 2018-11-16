@@ -103,7 +103,7 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 }, "|")).Match
 
 // rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
-func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
+func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, string, error) {
 	env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
 
 	cmd := strings.SplitN(line, "=", 2)[1]
@@ -120,9 +120,9 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
 		if cmd == validCmd {
-			return "Exec=" + env + wrapper, nil
+			return app.Name, "Exec=" + env + wrapper, nil
 		} else if strings.HasPrefix(cmd, validCmd+" ") {
-			return fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
+			return app.Name, fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
 		}
 	}
 
@@ -136,10 +136,10 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	if ok {
 		newExec := fmt.Sprintf("Exec=%s%s", env, app.WrapperPath())
 		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
-		return newExec, nil
+		return app.Name, newExec, nil
 	}
 
-	return "", fmt.Errorf("invalid exec command: %q", cmd)
+	return "", "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
 func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
@@ -157,7 +157,7 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		// rewrite exec lines to an absolute path for the binary
 		if bytes.HasPrefix(bline, []byte("Exec=")) {
 			var err error
-			line, err := rewriteExecLine(s, desktopFile, string(bline))
+			_, line, err := rewriteExecLine(s, desktopFile, string(bline))
 			if err != nil {
 				// something went wrong, ignore the line
 				continue
@@ -205,6 +205,32 @@ func desktopPrefix(s *snap.Info) string {
 	return fmt.Sprintf("%s+%s", s.SnapName(), s.InstanceKey)
 }
 
+func installedDesktopFileName(s *snap.Info, rawcontent []byte, df string) (string, error) {
+	var snapApp string
+	var err error
+
+	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
+	for i := 0; scanner.Scan(); i++ {
+		bline := scanner.Bytes()
+		if bytes.HasPrefix(bline, []byte("Exec=")) {
+			snapApp, _, err = rewriteExecLine(s, df, string(bline))
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+
+	for i := 0; i < 1000; i++ {
+		dfBaseName := fmt.Sprintf("%s_%s_%v.desktop", desktopPrefix(s), snapApp, i)
+		path := filepath.Join(dirs.SnapDesktopFilesDir, dfBaseName)
+		if !osutil.FileExists(path) {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("cannot create uniq filename for %q", df)
+}
+
 // AddSnapDesktopFiles puts in place the desktop files for the applications from the snap.
 func AddSnapDesktopFiles(s *snap.Info) (err error) {
 	var created []string
@@ -235,16 +261,17 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 			return err
 		}
 
-		// FIXME: don't blindly use the snap desktop filename, mangle it
-		// but we can't just use the app name because a desktop file
-		// may call the same app with multiple parameters, e.g.
-		// --create-new, --open-existing etc
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", desktopPrefix(s), filepath.Base(df)))
-		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
-		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
+		path, err := installedDesktopFileName(s, content, df)
+		if err != nil {
+			logger.Noticef("cannot use %q: %v", df, err)
+			// something went wrong, ignore the desktop file
+			continue
+		}
+		content = sanitizeDesktopFile(s, path, content)
+		if err := osutil.AtomicWriteFile(path, content, 0755, 0); err != nil {
 			return err
 		}
-		created = append(created, installedDesktopFileName)
+		created = append(created, path)
 	}
 
 	// updates mime info etc
