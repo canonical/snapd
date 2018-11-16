@@ -79,6 +79,9 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /{dev,run}/shm/cuda.* rw,
 
+# OpenCL ICD files
+/etc/OpenCL/vendors/ r,
+/etc/OpenCL/vendors/** r,
 
 # Parallels guest tools 3D acceleration (video toolgate)
 @{PROC}/driver/prl_vtg rw,
