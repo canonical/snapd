@@ -111,7 +111,7 @@ missing_interface_spread_test() {
                 # skip gadget provided interfaces for now
                 continue
                 ;;
-            dbus|content|dotfiles)
+            dbus|content)
                 search="interface: $iface"
                 ;;
             autopilot)
