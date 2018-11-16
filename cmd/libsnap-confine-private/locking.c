@@ -166,7 +166,8 @@ void sc_verify_snap_lock(const char *snap_name)
 	int lock_fd, retval;
 
 	lock_fd = open_lock(snap_name, 0);
-	debug("trying to acquire exclusive lock over snap %s", snap_name);
+	debug("trying to verify whether exclusive lock over snap %s is held",
+	      snap_name);
 	retval = flock(lock_fd, LOCK_EX | LOCK_NB);
 	if (retval == 0) {
 		/* We managed to grab the lock, the lock was not held! */
