@@ -271,22 +271,50 @@ plugs:
 	c.Check(err, NotNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
-	cand := s.connectCand(c, "snapd-control", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"snapd-control\"")
+func (s *baseDeclSuite) TestNoAutoConnectionPlugRule(c *C) {
+	denyAutoConnectPlugRule := []string{
+		"classic-support",
+		"docker-support",
+		"greengrass-support",
+		"kernel-module-control",
+		"kubernetes-support",
+		"lxd-support",
+		"personal-files",
+		"snapd-control",
+		"system-files",
+	}
 
-	plugsSlots := `
+	for _, iface := range denyAutoConnectPlugRule {
+		// by default, don't auto-connect
+		cand := s.connectCand(c, iface, "", "")
+		err := cand.CheckAutoConnect()
+		c.Check(err, NotNil)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("auto-connection denied by plug rule of interface %q", iface))
+
+		// this can be overriden and the connection works
+		happyDeclPlugsSlots := fmt.Sprintf(`
 plugs:
-  snapd-control:
+  %s:
     allow-auto-connection: true
-`
+`, iface)
 
-	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = lxdDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
+		happyDecl := s.mockSnapDecl(c, "some-snap", "some-snap-id", "canonical", happyDeclPlugsSlots)
+		cand.PlugSnapDeclaration = happyDecl
+		err = cand.CheckAutoConnect()
+		c.Check(err, IsNil)
+
+		// when the override is revoked things no longer auto-connect
+		unhappyDeclPlugsSlots := fmt.Sprintf(`
+plugs:
+  %s:
+    allow-auto-connection: false
+`, iface)
+
+		unhappyDecl := s.mockSnapDecl(c, "some-snap", "some-snap-id", "canonical", unhappyDeclPlugsSlots)
+		cand.PlugSnapDeclaration = unhappyDecl
+		err = cand.CheckAutoConnect()
+		c.Check(err, ErrorMatches, fmt.Sprintf("auto-connection not allowed by plug rule of interface %q for \"some-snap\" snap", iface))
+	}
 }
 
 func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
@@ -346,129 +374,6 @@ plugs:
 	cand.PlugSnapDeclaration = plugDecl1
 	err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
-}
-
-func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverride(c *C) {
-	// by default, don't auto-connect
-	cand := s.connectCand(c, "lxd-support", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-
-	plugsSlots := `
-plugs:
-  lxd-support:
-    allow-auto-connection: true
-`
-
-	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = lxdDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
-}
-
-func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverrideRevoke(c *C) {
-	cand := s.connectCand(c, "lxd-support", "", "")
-	plugsSlots := `
-plugs:
-  lxd-support:
-    allow-auto-connection: false
-`
-
-	lxdDecl := s.mockSnapDecl(c, "notlxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = lxdDecl
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"notlxd\" snap")
-}
-
-func (s *baseDeclSuite) TestAutoConnectionKernelModuleControlOverride(c *C) {
-	cand := s.connectCand(c, "kernel-module-control", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kernel-module-control\"")
-
-	plugsSlots := `
-plugs:
-  kernel-module-control:
-    allow-auto-connection: true
-`
-
-	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = snapDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
-}
-
-func (s *baseDeclSuite) TestAutoConnectionDockerSupportOverride(c *C) {
-	cand := s.connectCand(c, "docker-support", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"docker-support\"")
-
-	plugsSlots := `
-plugs:
-  docker-support:
-    allow-auto-connection: true
-`
-
-	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = snapDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
-}
-
-func (s *baseDeclSuite) TestAutoConnectionClassicSupportOverride(c *C) {
-	cand := s.connectCand(c, "classic-support", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"classic-support\"")
-
-	plugsSlots := `
-plugs:
-  classic-support:
-    allow-auto-connection: true
-`
-
-	snapDecl := s.mockSnapDecl(c, "classic", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = snapDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
-}
-
-func (s *baseDeclSuite) TestAutoConnectionKubernetesSupportOverride(c *C) {
-	cand := s.connectCand(c, "kubernetes-support", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kubernetes-support\"")
-
-	plugsSlots := `
-plugs:
-  kubernetes-support:
-    allow-auto-connection: true
-`
-
-	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = snapDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
-}
-
-func (s *baseDeclSuite) TestAutoConnectionGreengrassSupportOverride(c *C) {
-	cand := s.connectCand(c, "greengrass-support", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"greengrass-support\"")
-
-	plugsSlots := `
-plugs:
-  greengrass-support:
-    allow-auto-connection: true
-`
-
-	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = snapDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
