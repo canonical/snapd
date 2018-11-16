@@ -1436,7 +1436,7 @@ func (s *storeTestSuite) TestLoginUser(c *C) {
 	defer mockSSOServer.Close()
 	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := store.LoginUser(&http.Client{}, "username", "password", "otp")
+	userMacaroon, userDischarge, err := s.store.LoginUser("username", "password", "otp")
 
 	c.Assert(err, IsNil)
 	c.Check(userMacaroon, Equals, serializedMacaroon)
@@ -1452,7 +1452,7 @@ func (s *storeTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	defer mockServer.Close()
 	store.MacaroonACLAPI = mockServer.URL + "/acl/"
 
-	userMacaroon, userDischarge, err := store.LoginUser(&http.Client{}, "username", "password", "otp")
+	userMacaroon, userDischarge, err := s.store.LoginUser("username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: .*")
 	c.Check(userMacaroon, Equals, "")
@@ -1481,7 +1481,7 @@ func (s *storeTestSuite) TestLoginUserSSOError(c *C) {
 	defer mockSSOServer.Close()
 	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := store.LoginUser(&http.Client{}, "username", "password", "otp")
+	userMacaroon, userDischarge, err := s.store.LoginUser("username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: .*")
 	c.Check(userMacaroon, Equals, "")
@@ -2024,7 +2024,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "stable",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 		"latest/candidate": {
 			Revision:    snap.R(27),
@@ -2032,7 +2032,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "candidate",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 		"latest/beta": {
 			Revision:    snap.R(27),
@@ -2040,7 +2040,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "beta",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 		"latest/edge": {
 			Revision:    snap.R(28),
@@ -2048,7 +2048,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Confinement: snap.StrictConfinement,
 			Channel:     "edge",
 			Size:        20480,
-			Epoch:       *snap.E("0"),
+			Epoch:       snap.E("0"),
 		},
 	}
 	for k, v := range result.Channels {
@@ -2958,99 +2958,6 @@ func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
-}
-
-func (s *storeTestSuite) TestCurrentSnap(c *C) {
-	cand := &store.RefreshCandidate{
-		SnapID:   helloWorldSnapID,
-		Channel:  "stable",
-		Revision: snap.R(1),
-		Epoch:    *snap.E("1"),
-	}
-	cs := store.GetCurrentSnap(cand)
-	c.Assert(cs, NotNil)
-	c.Check(cs.SnapID, Equals, cand.SnapID)
-	c.Check(cs.Channel, Equals, cand.Channel)
-	c.Check(cs.Epoch, DeepEquals, cand.Epoch)
-	c.Check(cs.Revision, Equals, cand.Revision.N)
-	c.Check(cs.IgnoreValidation, Equals, cand.IgnoreValidation)
-	c.Check(s.logbuf.String(), Equals, "")
-}
-
-func (s *storeTestSuite) TestCurrentSnapIgnoreValidation(c *C) {
-	cand := &store.RefreshCandidate{
-		SnapID:           helloWorldSnapID,
-		Channel:          "stable",
-		Revision:         snap.R(1),
-		Epoch:            *snap.E("1"),
-		IgnoreValidation: true,
-	}
-	cs := store.GetCurrentSnap(cand)
-	c.Assert(cs, NotNil)
-	c.Check(cs.SnapID, Equals, cand.SnapID)
-	c.Check(cs.Channel, Equals, cand.Channel)
-	c.Check(cs.Epoch, DeepEquals, cand.Epoch)
-	c.Check(cs.Revision, Equals, cand.Revision.N)
-	c.Check(cs.IgnoreValidation, Equals, cand.IgnoreValidation)
-	c.Check(s.logbuf.String(), Equals, "")
-}
-
-func (s *storeTestSuite) TestCurrentSnapNoChannel(c *C) {
-	cand := &store.RefreshCandidate{
-		SnapID:   helloWorldSnapID,
-		Revision: snap.R(1),
-		Epoch:    *snap.E("1"),
-	}
-	cs := store.GetCurrentSnap(cand)
-	c.Assert(cs, NotNil)
-	c.Check(cs.SnapID, Equals, cand.SnapID)
-	c.Check(cs.Channel, Equals, "stable")
-	c.Check(cs.Epoch, DeepEquals, cand.Epoch)
-	c.Check(cs.Revision, Equals, cand.Revision.N)
-	c.Check(s.logbuf.String(), Equals, "")
-}
-
-func (s *storeTestSuite) TestCurrentSnapNilNoID(c *C) {
-	cand := &store.RefreshCandidate{
-		SnapID:   "",
-		Revision: snap.R(1),
-	}
-	cs := store.GetCurrentSnap(cand)
-	c.Assert(cs, IsNil)
-	c.Check(s.logbuf.String(), Matches, "(?m).* an empty SnapID but a store revision!")
-}
-
-func (s *storeTestSuite) TestCurrentSnapNilLocalRevision(c *C) {
-	cand := &store.RefreshCandidate{
-		SnapID:   helloWorldSnapID,
-		Revision: snap.R("x1"),
-	}
-	cs := store.GetCurrentSnap(cand)
-	c.Assert(cs, IsNil)
-	c.Check(s.logbuf.String(), Matches, "(?m).* a non-empty SnapID but a non-store revision!")
-}
-
-func (s *storeTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
-	cand := &store.RefreshCandidate{
-		SnapID:   "",
-		Revision: snap.R("x1"),
-	}
-	cs := store.GetCurrentSnap(cand)
-	c.Assert(cs, IsNil)
-	c.Check(s.logbuf.String(), Equals, "")
-}
-
-func (s *storeTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
-	cand := &store.RefreshCandidate{
-		SnapID:   helloWorldSnapID,
-		Revision: snap.R("x1"),
-		Amend:    true,
-	}
-	cs := store.GetCurrentSnap(cand)
-	c.Assert(cs, NotNil)
-	c.Check(cs.SnapID, Equals, cand.SnapID)
-	c.Check(cs.Revision, Equals, cand.Revision.N)
-	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
