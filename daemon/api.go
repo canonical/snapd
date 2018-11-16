@@ -420,7 +420,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	overlord := c.d.overlord
 	st := overlord.State()
-	macaroon, discharge, err := store.LoginUser(makeHttpClient(st), loginData.Email, loginData.Password, loginData.Otp)
+	theStore := getStore(c)
+	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -2184,7 +2185,6 @@ var (
 	postCreateUserUcrednetGet = ucrednetGet
 	runSnapctlUcrednetGet     = ucrednetGet
 	ctlcmdRun                 = ctlcmd.Run
-	storeUserInfo             = store.UserInfo
 	osutilAddUser             = osutil.AddUser
 )
 
@@ -2197,8 +2197,8 @@ func makeHttpClient(st *state.State) *http.Client {
 	})
 }
 
-func getUserDetailsFromStore(client *http.Client, email string) (string, *osutil.AddUserOptions, error) {
-	v, err := storeUserInfo(client, email)
+func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
+	v, err := theStore.UserInfo(email)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
 	}
@@ -2421,7 +2421,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if createData.Known {
 		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(makeHttpClient(st), createData.Email)
+		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
