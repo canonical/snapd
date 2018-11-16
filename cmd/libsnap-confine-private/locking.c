@@ -176,14 +176,11 @@ void sc_verify_snap_lock(const char *snap_name)
 		errno = 0;
 		die("unexpectedly managed to acquire exclusive lock over snap %s", snap_name);
 	}
-	if (retval < 0) {
-		if (errno == EWOULDBLOCK) {
-			/* We tried but failed to grab the lock because the file is already
-			 * locked. Good, this is what we expected. */
-			return;
-		}
-		die("cannot acquire exclusive lock over snap %s", snap_name);
+	if (retval < 0 && errno != EWOULDBLOCK) {
+		die("cannot verify exclusive lock over snap %s", snap_name);
 	}
+	/* We tried but failed to grab the lock because the file is already locked.
+	 * Good, this is what we expected. */
 }
 
 int sc_lock_snap_user(const char *snap_name, uid_t uid)
