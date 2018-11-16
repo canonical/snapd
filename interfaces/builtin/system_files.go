@@ -26,9 +26,17 @@ import (
 
 const systemFilesSummary = `allows access to system files or directories`
 
-const systemFilesBaseDeclarationSlots = `
+const systemFilesBaseDeclarationPlugs = `
   system-files:
     allow-installation: false
+    deny-auto-connection: true
+`
+
+const systemFilesBaseDeclarationSlots = `
+  system-files:
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-connection: true
     deny-auto-connection: true
 `
@@ -61,6 +69,7 @@ func init() {
 				summary:              systemFilesSummary,
 				implicitOnCore:       true,
 				implicitOnClassic:    true,
+				baseDeclarationPlugs: systemFilesBaseDeclarationPlugs,
 				baseDeclarationSlots: systemFilesBaseDeclarationSlots,
 				reservedForOS:        true,
 			},

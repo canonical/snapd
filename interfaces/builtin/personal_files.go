@@ -26,9 +26,17 @@ import (
 
 const personalFilesSummary = `allows access to personal files or directories`
 
-const personalFilesBaseDeclarationSlots = `
+const personalFilesBaseDeclarationPlugs = `
   personal-files:
     allow-installation: false
+    deny-auto-connection: true
+`
+
+const personalFilesBaseDeclarationSlots = `
+  personal-files:
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-connection: true
     deny-auto-connection: true
 `
@@ -60,6 +68,7 @@ func init() {
 				summary:              personalFilesSummary,
 				implicitOnCore:       true,
 				implicitOnClassic:    true,
+				baseDeclarationPlugs: personalFilesBaseDeclarationPlugs,
 				baseDeclarationSlots: personalFilesBaseDeclarationSlots,
 				reservedForOS:        true,
 			},
