@@ -1,0 +1,91 @@
+summary: Ensure that the system-files interface works.
+
+details: |
+    The system-files interface allows access specific system files or directories.
+
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-sh
+
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    # Fist layer of dirs and files
+    ensure_file_exists_backup_real /tmp/.testfile1
+    ensure_file_exists_backup_real /tmp/testfile1
+    ensure_dir_exists_backup_real /tmp/.testdir1
+    ensure_dir_exists_backup_real /tmp/testdir1
+
+    # Second layer of dirs and files
+    ensure_file_exists_backup_real /tmp/.testdir1/.testfilé2
+    ensure_file_exists_backup_real "/tmp/.testdir1/test file2"
+    ensure_dir_exists_backup_real /tmp/root
+
+    # Not accessible dirs and files
+    ensure_dir_exists_backup_real /root/.testdir1
+    ensure_file_exists_backup_real /root/.testfile1
+
+restore: |
+    rm -f call.error
+
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    clean_file /tmp/.testfile1
+    clean_file /tmp/testfile1
+    clean_dir /tmp/.testdir1
+    clean_dir /tmp/testdir1
+    clean_dir /root/.testdir1
+    clean_dir /root/.testfile1
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i system-files | MATCH "\\- +test-snapd-sh:system-files"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-sh:system-files
+
+    echo "And not other interfaces are connected"
+    snap disconnect test-snapd-sh:home
+
+    echo "Then the snap is able to access all the files and dirs in /tmp"
+    test-snapd-sh.with-system-files-plug -c "cat /tmp/.testfile1"
+    test-snapd-sh.with-system-files-plug -c "cat /tmp/testfile1"
+    test-snapd-sh.with-system-files-plug -c "ls /tmp/.testdir1"
+    test-snapd-sh.with-system-files-plug -c "ls /tmp/testdir1"
+    test-snapd-sh.with-system-files-plug -c "cat /tmp/.testdir1/.testfilé2"
+    test-snapd-sh.with-system-files-plug -c "cat '/tmp/.testdir1/test file2'"
+    test-snapd-sh.with-system-files-plug -c "ls /tmp/root/"
+
+    echo "Then the snap is able to write just /tmp/.testdir1 and /tmp/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "echo test >> /tmp/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "touch /tmp/.testfile1/testfilé2"
+    if test-snapd-sh.with-personal-files-plug -c "echo test >> /tmp/testfile1" 2> call.error; then
+        echo "Expected permission error writing the system file"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+
+    echo "Then the snap is not able to to access files and dirs in $HOME"
+    test-snapd-sh.with-system-files-plug -c "ls /root/.testdir1" && exit 1
+    test-snapd-sh.with-system-files-plug -c "cat /root/.testfile1" && exit 1
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:system-files
+
+    echo "Then the snap is not able to read files and dirs in $HOME"
+    if test-snapd-sh.with-system-files-plug -c "ls /tmp/.testdir1" 2> call.error; then
+        echo "Expected permission error accessing the system dir"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+    if test-snapd-sh.with-system-files-plug -c "cat /tmp/.testfile1" 2> call.error; then
+        echo "Expected permission error accessing the system file"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
