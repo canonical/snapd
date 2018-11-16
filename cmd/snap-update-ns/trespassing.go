@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // Assumptions track the assumptions about the state of the filesystem.
@@ -178,6 +180,11 @@ func (rs *Restrictions) Check(dirFd int, dirName string) error {
 		// kind of base snap.
 		return fmt.Errorf("cannot recover from trespassing over /")
 	}
+	logger.Debugf("trespassing violated %q while striving to %q", dirName, rs.desiredPath)
+	logger.Debugf("restricted mode: %#v", rs.restricted)
+	logger.Debugf("unrestricted paths: %q", rs.assumptions.unrestrictedPaths)
+	logger.Debugf("verified devices: %v", rs.assumptions.verifiedDevices)
+	logger.Debugf("past changes: %v", rs.assumptions.pastChanges)
 	return &TrespassingError{ViolatedPath: filepath.Clean(dirName), DesiredPath: rs.desiredPath}
 }
 
