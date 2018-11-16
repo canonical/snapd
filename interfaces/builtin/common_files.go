@@ -43,7 +43,7 @@ func formatPath(ip interface{}) (string, error) {
 		return "", fmt.Errorf("%[1]v (%[1]T) is not a string", ip)
 	}
 	prefix := ""
-	if strings.Count(p, "$HOME") > 0 {
+	if strings.HasPrefix(p, "$HOME") && strings.Count(p, "$HOME") == 1 {
 		p = strings.Replace(p, "$HOME", "@{HOME}", 1)
 		prefix = "owner "
 	}
@@ -94,6 +94,12 @@ func (iface *commonFilesInterface) validateSinglePath(np string) error {
 		return err
 	}
 
+	// extraPathValidation is implemented must be implemented by
+	// the interface that build on top of the abstract
+	// commonFilesInterface
+	if iface.extraPathValidate == nil {
+		panic("extraPathValidate must be set when using the commonFilesInterface")
+	}
 	if err := iface.extraPathValidate(np); err != nil {
 		return err
 	}
