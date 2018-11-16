@@ -16,7 +16,7 @@ prepare: |
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     echo "Create/enable fake gpio"
-    systemd_create_and_start_persistent_unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\nBefore=snap.core.interface.gpio-100.service\n[Service]\nType=notify"
+    systemd_create_and_start_persistent_unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.core.interface.gpio-100.service\\n[Service]\\nType=notify"
 
     echo "Given a snap declaring a plug on gpio is installed"
     #shellcheck source=tests/lib/snaps.sh
@@ -38,7 +38,10 @@ execute: |
 
     echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
     expected="Unit snap.core.interface.gpio-100.service has finished starting up"
-    get_journalctl_log -xe --no-pager | MATCH "$expected"
+    for i in $(seq 120); do
+        get_journalctl_log -xe --no-pager | MATCH "$expected"
+        sleep 0.5
+    done
 
     if [ "$SPREAD_REBOOT" = "0" ]; then
         REBOOT
