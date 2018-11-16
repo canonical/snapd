@@ -469,3 +469,44 @@ func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 		c.Assert(wrappers.IsValidDesktopFileLine([]byte(t.line)), Equals, t.isValid)
 	}
 }
+
+func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
+	var tests = []struct {
+		instance                string
+		upstreamDesktopFileName string
+
+		expectedDesktopFileName string
+	}{
+		// normal cases
+		{"", "upstream.desktop", "foo_upstream.desktop"},
+		{"instance", "upstream.desktop", "foo+instance_upstream.desktop"},
+		// pathological cases are handled
+		{"", "instance.desktop", "foo_instance.desktop"},
+		{"instance", "instance.desktop", "foo+instance_instance.desktop"},
+	}
+
+	for _, t := range tests {
+		expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, t.expectedDesktopFileName)
+		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+
+		info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
+		info.InstanceKey = t.instance
+
+		// generate .desktop file in the package baseDir
+		baseDir := info.MountDir()
+		err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
+		c.Assert(err, IsNil)
+
+		err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644)
+		c.Assert(err, IsNil)
+
+		err = wrappers.AddSnapDesktopFiles(info)
+		c.Assert(err, IsNil)
+		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+
+		// remove it again
+		err = wrappers.RemoveSnapDesktopFiles(info)
+		c.Assert(err, IsNil)
+		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+	}
+}
