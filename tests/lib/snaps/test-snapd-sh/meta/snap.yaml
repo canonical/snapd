@@ -1,6 +1,15 @@
 name: test-snapd-sh
 summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
+
+plugs:
+    personal-files:
+        read: $HOME
+        write: [$HOME/.testdir1, $HOME/.testfile1]
+    system-files:
+        read: /tmp
+        write: [/tmp/.testdir1, /tmp/.testfile1]
+
 apps:
     test-snapd-sh:
         command: bin/sh
@@ -37,6 +46,12 @@ apps:
     with-network-setup-observe-plug:
         command: bin/sh
         plugs: [network-setup-observe]
+    with-personal-files-plug:
+        command: bin/sh
+        plugs: [personal-files]
+    with-raw-usb-plug:
+        command: bin/sh
+        plugs: [raw-usb]
     with-removable-media-plug:
         command: bin/sh
         plugs: [removable-media]
@@ -46,6 +61,6 @@ apps:
     with-ssh-public-keys-plug:
         command: bin/sh
         plugs: [ssh-public-keys]
-    with-raw-usb-plug:
+    with-system-files-plug:
         command: bin/sh
-        plugs: [raw-usb]
+        plugs: [system-files]
