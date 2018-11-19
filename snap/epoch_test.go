@@ -300,7 +300,7 @@ func (s *epochSuite) TestE(c *check.C) {
 	}
 }
 
-func (s *epochSuite) TestUnset(c *check.C) {
+func (s *epochSuite) TestIsZero(c *check.C) {
 	for _, e := range []*snap.Epoch{
 		nil,
 		{},
@@ -310,13 +310,13 @@ func (s *epochSuite) TestUnset(c *check.C) {
 		{Read: []uint32{}, Write: []uint32{0}},
 		{Read: []uint32{0}, Write: []uint32{0}},
 	} {
-		c.Check(e.Unset(), check.Equals, true, check.Commentf("%#v", e))
+		c.Check(e.IsZero(), check.Equals, true, check.Commentf("%#v", e))
 	}
 	for _, e := range []*snap.Epoch{
 		{Read: []uint32{0, 1}, Write: []uint32{0}},
 		{Read: []uint32{1}, Write: []uint32{1, 2}},
 	} {
-		c.Check(e.Unset(), check.Equals, false, check.Commentf("%#v", e))
+		c.Check(e.IsZero(), check.Equals, false, check.Commentf("%#v", e))
 	}
 }
 

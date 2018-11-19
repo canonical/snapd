@@ -146,30 +146,29 @@ func (e *Epoch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return e.fromStructured(structured)
 }
 
-// Unset checks whether a snap's epoch is not set (or is set to the default
-// value of "0").  Also Unset are some epochs that would be normalized to "0",
+// IsZero checks whether a snap's epoch is not set (or is set to the default
+// value of "0").  Also zero are some epochs that would be normalized to "0",
 // such as {"read": 0}, as well as some invalid ones like {"read": []}.
-func (e *Epoch) Unset() bool {
+func (e *Epoch) IsZero() bool {
 	if e == nil {
 		return true
 	}
 
-	rUnset := len(e.Read) == 0 || (len(e.Read) == 1 && e.Read[0] == 0)
-	wUnset := len(e.Write) == 0 || (len(e.Write) == 1 && e.Write[0] == 0)
+	rZero := len(e.Read) == 0 || (len(e.Read) == 1 && e.Read[0] == 0)
+	wZero := len(e.Write) == 0 || (len(e.Write) == 1 && e.Write[0] == 0)
 
-	return rUnset && wUnset
+	return rZero && wZero
 }
 
 // Validate checks that the epoch makes sense.
 func (e *Epoch) Validate() error {
 	if (e.Read != nil && len(e.Read) == 0) || (e.Write != nil && len(e.Write) == 0) {
-		// these are invalid, but if both are true it's Unset
-		// in practice this check is redundant because it's caught in deserialise
-		// belts-and-suspenders all the way down
+		// these are invalid, but if both are true then IsZero will be true.
+		// In practice this check is redundant because it's caught in deserialise.
+		// Belts-and-suspenders all the way down.
 		return &EpochError{Message: emptyEpochList}
 	}
-	if e.Unset() {
-		// (*Epoch)(nil) and &Epoch{} are valid epochs, equivalent to "0"
+	if e.IsZero() {
 		return nil
 	}
 	if len(e.Read) > 10 || len(e.Write) > 10 {
@@ -186,7 +185,7 @@ func (e *Epoch) Validate() error {
 }
 
 func (e *Epoch) simplify() interface{} {
-	if e.Unset() {
+	if e.IsZero() {
 		return "0"
 	}
 	if len(e.Write) == 1 && len(e.Read) == 1 && e.Read[0] == e.Write[0] {
