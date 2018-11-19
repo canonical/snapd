@@ -99,9 +99,6 @@ func (iface *commonFilesInterface) validateSinglePath(np string) error {
 	if strings.HasSuffix(np, "/") {
 		return fmt.Errorf(`%q cannot end with "/"`, np)
 	}
-	if strings.Contains(np, "@{") {
-		return fmt.Errorf(`%q should not use "@{"`, np)
-	}
 	p := filepath.Clean(np)
 	if p != np {
 		return fmt.Errorf("%q must be clean", np)

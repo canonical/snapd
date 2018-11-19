@@ -137,8 +137,8 @@ plugs:
 		{`read: [ "$HOME/foo/~/foo" ]`, `"\$HOME/foo/~/foo" contains invalid "~"`},
 		{`read: [ "$HOME/foo/../foo" ]`, `"\$HOME/foo/../foo" must be clean`},
 		{`read: [ "$HOME/home/$HOME/foo" ]`, `\$HOME must only be used at the start of the path of "\$HOME/home/\$HOME/foo"`},
-		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" should not use "@{"`},
-		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" should not use "@{"`},
+		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" contains a reserved apparmor char from .*`},
+		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" contains a reserved apparmor char from .*`},
 	}
 
 	for _, t := range testCases {
