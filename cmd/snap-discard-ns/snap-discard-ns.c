@@ -60,15 +60,15 @@ int main(int argc, char** argv) {
     sc_instance_name_validate(snap_instance_name, &err);
     sc_die_on_error(err);
 
-    /* Grab the lock holding the snap instance. This prevents races from
-     * concurrently executing snap-confine. The lock is explicitly released
-     * during normal operation but it is not preserved across the life-cycle of
-     * the process anyway so no attempt is made to unlock it ahead of any call
-     * to die() */
     int snap_lock_fd = -1;
     if (from_snap_confine) {
         sc_verify_snap_lock(snap_instance_name);
     } else {
+        /* Grab the lock holding the snap instance. This prevents races from
+         * concurrently executing snap-confine. The lock is explicitly released
+         * during normal operation but it is not preserved across the life-cycle of
+         * the process anyway so no attempt is made to unlock it ahead of any call
+         * to die() */
         snap_lock_fd = sc_lock_snap(snap_instance_name);
     }
     debug("discarding mount namespaces of snap %s", snap_instance_name);
