@@ -2200,7 +2200,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
-			if a.Epoch.Unset() {
+			if a.Epoch.IsZero() {
 				// Let the store know we can handle epochs, by sending the `epoch`
 				// field in the request.  A nil epoch is not an empty interface{},
 				// you'll get the null in the json. See comment in snapActionJSON.
