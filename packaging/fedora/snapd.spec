@@ -592,12 +592,18 @@ pushd ./data
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+popd
+
+%if 0%{?rhel} == 7
+# Install kernel tweaks
+# See: https://access.redhat.com/articles/3128691
+install -m 644 -D data/sysctl/99-snap.conf %{buildroot}%{_sysconfdir}/sysctl.d/99-snap.conf
+%endif
 
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
-popd
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
@@ -728,6 +734,9 @@ popd
 %if %{with snap_symlink}
 /snap
 %endif
+%if 0%{?rhel} == 7
+%{_sysconfdir}/sysctl.d/99-snap.conf
+%endif
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -769,6 +778,9 @@ popd
 %endif
 
 %post
+%if 0%{?rhel} == 7
+%sysctl_apply 99-snap.conf
+%endif
 %systemd_post %{snappy_svcs}
 # If install, test if snapd socket and timer are enabled.
 # If enabled, then attempt to start them. This will silently fail
