@@ -23,11 +23,11 @@ prepare: |
     ensure_dir_exists_backup_real /root/.testdir1/.testdir2
 
     # Not accessible dirs and files
-    ensure_dir_exists_backup_real /tmp/.testdir1
-    ensure_file_exists_backup_real /tmp/.testfile1
-    ensure_dir_exists_backup_real /tmp/root/
-    ensure_file_exists_backup_real /tmp/root/testfile2
-    ensure_file_exists_backup_real /tmp/root/.testfile2
+    ensure_dir_exists_backup_real /var/tmp/.testdir1
+    ensure_file_exists_backup_real /var/tmp/.testfile1
+    ensure_dir_exists_backup_real /var/tmp/root/
+    ensure_file_exists_backup_real /var/tmp/root/testfile2
+    ensure_file_exists_backup_real /var/tmp/root/.testfile2
 
 restore: |
     rm -f call.error
@@ -39,7 +39,7 @@ restore: |
     clean_file /root/testfile1
     clean_dir /root/.testdir1
     clean_dir /root/testdir1
-    clean_dir /tmp/root   
+    clean_dir /var/tmp/root
 
 execute: |
     echo "The interface is not connected by default"
@@ -52,12 +52,12 @@ execute: |
     snap disconnect test-snapd-sh:home
 
     echo "Then the snap is able to access all the files and dirs in $HOME"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "content for /root/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "content for /root/testfile1"
     test-snapd-sh.with-personal-files-plug -c "ls /root/.testdir1"
     test-snapd-sh.with-personal-files-plug -c "ls /root/testdir1"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2"
-    test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2" | MATCH "content for /root/.testdir1/.testfilé2"
+    test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'" | MATCH "content for /root/.testdir1/test file2"
     test-snapd-sh.with-personal-files-plug -c "ls  /root/.testdir1/.testdir2/"
 
     echo "Then the snap is able to write on /root/.testdir1 and /root/.testfile1"
@@ -76,11 +76,11 @@ execute: |
     MATCH "Permission denied" < call.error
 
     echo "Then the snap is not able to to access files and dirs outside $HOME"
-    test-snapd-sh.with-personal-files-plug -c "ls /tmp/.testdir1" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "cat /tmp/.testfile1" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "ls /tmp/root/" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "cat /tmp/root/testfile2" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "cat /tmp/root/.testfile2" && exit 1
+    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/.testdir1" && exit 1
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/.testfile1" && exit 1
+    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/root/" && exit 1
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/testfile2" && exit 1
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/.testfile2" && exit 1
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:personal-files

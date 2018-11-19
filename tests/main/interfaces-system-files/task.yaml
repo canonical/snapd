@@ -3,6 +3,10 @@ summary: Ensure that the system-files interface works.
 details: |
     The system-files interface allows access specific system files or directories.
 
+environment:
+    # keep in sync with tests/lib/snaps/test-snapd-sh/meta/snap.yaml
+    TESTDIR: /mnt/testdir
+
 prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
@@ -12,16 +16,16 @@ prepare: |
     . "$TESTSLIB/files.sh"
 
     # Fist layer of dirs and files
-    ensure_dir_exists_backup_real /testdir
-    ensure_file_exists_backup_real /testdir/.testfile1
-    ensure_file_exists_backup_real /testdir/testfile1
-    ensure_dir_exists_backup_real /testdir/.testdir1
-    ensure_dir_exists_backup_real /testdir/testdir1
+    ensure_dir_exists_backup_real "$TESTDIR"
+    ensure_file_exists_backup_real "$TESTDIR"/.testfile1
+    ensure_file_exists_backup_real "$TESTDIR"/testfile1
+    ensure_dir_exists_backup_real "$TESTDIR"/.testdir1
+    ensure_dir_exists_backup_real "$TESTDIR"/testdir1
 
     # Second layer of dirs and files
-    ensure_file_exists_backup_real /testdir/.testdir1/.testfilé2
-    ensure_file_exists_backup_real "/testdir/.testdir1/test file2"
-    ensure_dir_exists_backup_real /testdir/root
+    ensure_file_exists_backup_real "$TESTDIR"/.testdir1/.testfilé2
+    ensure_file_exists_backup_real "$TESTDIR/.testdir1/test file2"
+    ensure_dir_exists_backup_real "$TESTDIR"/root
 
     # Not accessible dirs and files
     ensure_dir_exists_backup_real /root/.testdir1
@@ -33,8 +37,8 @@ restore: |
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
 
-    clean_dir /testdir
-    clean_dir /root/.testdir1
+    clean_dir "$TESTDIR"
+    clean_dir /root/.testdira1
     clean_dir /root/.testfile1
 
 execute: |
@@ -48,18 +52,18 @@ execute: |
     snap disconnect test-snapd-sh:home
 
     echo "Then the snap is able to access all the files and dirs in /testdir"
-    test-snapd-sh.with-system-files-plug -c "cat /testdir/.testfile1"
-    test-snapd-sh.with-system-files-plug -c "cat /testdir/testfile1"
-    test-snapd-sh.with-system-files-plug -c "ls /testdir/.testdir1"
-    test-snapd-sh.with-system-files-plug -c "ls /testdir/testdir1"
-    test-snapd-sh.with-system-files-plug -c "cat /testdir/.testdir1/.testfilé2"
-    test-snapd-sh.with-system-files-plug -c "cat '/testdir/.testdir1/test file2'"
-    test-snapd-sh.with-system-files-plug -c "ls /testdir/root/"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" | MATCH "content for $TESTDIR/.testfile1"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/testfile1" MATCH "content for $TESTDIR/testfile1"
+    test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1"
+    test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/testdir1"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfilé2" | MATCH "content for $TESTDIR/.testdir1/.testfilé2"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR'/.testdir1/test file2'" | MATCH "content for $TESTDIR/.testdir1/test file2"
+    test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/root/"
 
-    echo "Then the snap is able to write just /testdir/.testdir1 and /testdir/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "echo test >> /testdir/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "touch /testdir/.testfile1/testfilé2"
-    if test-snapd-sh.with-personal-files-plug -c "echo test >> /testdir/testfile1" 2> call.error; then
+    echo "Then the snap is able to write just $TESTDIR/.testdir1 and $TESTDIR/.testfile1"
+    test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/.testfile1"
+    test-snapd-sh.with-system-files-plug -c "touch $TESTDIR/.testdir1/testfilé2"
+    if test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/testfile1" 2> call.error; then
         echo "Expected permission error writing the system file"
         exit 1
     fi
@@ -77,12 +81,12 @@ execute: |
     snap disconnect test-snapd-sh:system-files
 
     echo "Then the snap is not able to read files and dirs in $HOME"
-    if test-snapd-sh.with-system-files-plug -c "ls /testdir/.testdir1" 2> call.error; then
+    if test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1" 2> call.error; then
         echo "Expected permission error accessing the system dir"
         exit 1
     fi
     MATCH "Permission denied" < call.error
-    if test-snapd-sh.with-system-files-plug -c "cat /testdir/.testfile1" 2> call.error; then
+    if test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" 2> call.error; then
         echo "Expected permission error accessing the system file"
         exit 1
     fi
