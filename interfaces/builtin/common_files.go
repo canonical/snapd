@@ -37,6 +37,25 @@ type commonFilesInterface struct {
 	extraPathValidate func(string) error
 }
 
+// filesAAPerm can either be files{Read,Write} and converted to a string
+// expands into the right apparmor permissions for the files interface.
+type filesAAPerm int
+
+const (
+	filesRead filesAAPerm = iota
+	filesWrite
+)
+
+func (a filesAAPerm) String() string {
+	switch a {
+	case filesRead:
+		return "rk,"
+	case filesWrite:
+		return "rwkl,"
+	}
+	panic(fmt.Sprintf("invalid perm: %d", a))
+}
+
 func formatPath(ip interface{}) (string, error) {
 	p, ok := ip.(string)
 	if !ok {
@@ -52,7 +71,7 @@ func formatPath(ip interface{}) (string, error) {
 	return fmt.Sprintf("%s%q", prefix, filepath.Clean(p)), nil
 }
 
-func allowPathAccess(buf *bytes.Buffer, perm string, paths []interface{}) error {
+func allowPathAccess(buf *bytes.Buffer, perm filesAAPerm, paths []interface{}) error {
 	for _, rawPath := range paths {
 		p, err := formatPath(rawPath)
 		if err != nil {
@@ -135,10 +154,10 @@ func (iface *commonFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 
 	errPrefix := fmt.Sprintf(`cannot connect plug %s: `, plug.Name())
 	buf := bytes.NewBufferString(iface.apparmorHeader)
-	if err := allowPathAccess(buf, "rk,", reads); err != nil {
+	if err := allowPathAccess(buf, filesRead, reads); err != nil {
 		return fmt.Errorf("%s%v", errPrefix, err)
 	}
-	if err := allowPathAccess(buf, "rwkl,", writes); err != nil {
+	if err := allowPathAccess(buf, filesWrite, writes); err != nil {
 		return fmt.Errorf("%s%v", errPrefix, err)
 	}
 	spec.AddSnippet(buf.String())
