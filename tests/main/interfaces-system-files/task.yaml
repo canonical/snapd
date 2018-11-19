@@ -63,6 +63,11 @@ execute: |
     echo "Then the snap is able to write just $TESTDIR/.testdir1 and $TESTDIR/.testfile1"
     test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/.testfile1"
     test-snapd-sh.with-system-files-plug -c "touch $TESTDIR/.testdir1/testfilé2"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     if test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/testfile1" 2> call.error; then
         echo "Expected permission error writing the system file"
         exit 1
@@ -72,10 +77,6 @@ execute: |
     echo "Then the snap is not able to to access files and dirs in $HOME"
     test-snapd-sh.with-system-files-plug -c "ls /root/.testdir1" && exit 1
     test-snapd-sh.with-system-files-plug -c "cat /root/.testfile1" && exit 1
-
-    if [ "$(snap debug confinement)" = partial ] ; then
-        exit 0
-    fi
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:system-files
