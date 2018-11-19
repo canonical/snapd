@@ -110,9 +110,8 @@ func (iface *commonFilesInterface) validateSinglePath(np string) error {
 		return err
 	}
 
-	// extraPathValidation is implemented must be implemented by
-	// the interface that build on top of the abstract
-	// commonFilesInterface
+	// extraPathValidation must be implemented by the interface
+	// that build on top of the abstract commonFilesInterface
 	if iface.extraPathValidate == nil {
 		panic("extraPathValidate must be set when using the commonFilesInterface")
 	}

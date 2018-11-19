@@ -41,7 +41,8 @@ const personalFilesBaseDeclarationSlots = `
 `
 
 const personalFilesConnectedPlugAppArmor = `
-# Description: Can access specific personal files or directories.
+# Description: Can access specific personal files or directories in the 
+# users's home directory.
 # This is restricted because it gives file access to arbitrary locations.
 `
 
