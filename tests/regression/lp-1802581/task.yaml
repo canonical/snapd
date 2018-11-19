@@ -20,19 +20,20 @@ description: |
 systems: [ubuntu-core-16-64]
 
 prepare: |
-    echo "Run mock gpio daemon"
-    systemd-run --unit mock-gpio -- "$(pwd)/mock-gpio.py"
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
-    wait_for_service mock-gpio
+    echo "Create/enable fake gpio"
+    systemd_create_and_start_persistent_unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py"  "[Unit]\nBefore=snap.core.interface.gpio-100.service\n[Service]\nType=notify"
 
 restore: |
-    systemctl stop mock-gpio || true
-    # for good measure, mock-gpio.py does this umount already on exit
+    # shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    system_stop_and_remove_persistent_unit fake-gpio
+    # for good measure, fake-gpio.py does this umount already on exit
     umount /sys/class/gpio || true
 
 debug: |
-    journalctl -u mock-gpio.service
+    journalctl -u fake-gpio.service
 
 execute: |
     echo "Install a snap that uses the gpio consumer"
@@ -53,4 +54,4 @@ execute: |
     snap interfaces | MATCH ":gpio-pin.*gpio-consumer:gpio"
 
     echo "Ensure that our mock service is full functional"
-    systemctl status mock-gpio.service | MATCH "Active: active"
+    systemctl status fake-gpio.service | MATCH "Active: active"
