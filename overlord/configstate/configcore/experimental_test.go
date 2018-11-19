@@ -32,63 +32,43 @@ import (
 
 type experimentalSuite struct {
 	configcoreSuite
+	features []string
 }
 
-var _ = Suite(&experimentalSuite{})
+var _ = Suite(&experimentalSuite{
+	features: []string{
+		"experimental.layouts",
+		"experimental.parallel-instances",
+		"experimental.hotplug",
+		"experimental.snapd-snap",
+	},
+})
 
 func (s *experimentalSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
-	for setting, value := range map[string]interface{}{
-		"experimental.layouts":            "foo",
-		"experimental.parallel-instances": "foo",
-		"experimental.hotplug":            "foo",
-		"experimental.snapd-snap":         "foo",
-	} {
+	for _, feature := range s.features {
 		conf := &mockConf{
-			state: s.state,
-			changes: map[string]interface{}{
-				setting: value,
-			},
+			state:   s.state,
+			changes: map[string]interface{}{feature: "foo"},
 		}
-
 		err := configcore.Run(conf)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, setting))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, feature))
 	}
 }
 
 func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
-	for _, setting := range []string{"experimental.layouts", "experimental.parallel-instances", "experimental.hotplug"} {
+	for _, feature := range s.features {
 		for _, t := range []string{"true", "false"} {
 			conf := &mockConf{
 				state: s.state,
-				conf: map[string]interface{}{
-					setting: t,
-				},
+				conf:  map[string]interface{}{feature: t},
 			}
-
 			err := configcore.Run(conf)
 			c.Check(err, IsNil)
 		}
 	}
 }
 
-func (s *experimentalSuite) TestConfigureKnownOption(c *C) {
-	for setting, value := range map[string]interface{}{
-		"experimental.layouts":            true,
-		"experimental.parallel-instances": false,
-	} {
-		conf := &mockConf{
-			state: s.state,
-			changes: map[string]interface{}{
-				setting: value,
-			},
-		}
-
-		err := configcore.Run(conf)
-		c.Check(err, IsNil)
-	}
-}
-
-func (s *experimentalSuite) TestExportedState(c *C) {
+func (s *experimentalSuite) TestExportedFeatures(c *C) {
 	conf := &mockConf{
 		state:   s.state,
 		conf:    map[string]interface{}{"experimental.hotplug": true},
