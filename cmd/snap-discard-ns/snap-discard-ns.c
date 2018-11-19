@@ -48,7 +48,10 @@ int main(int argc, char** argv) {
     const char* snap_instance_name;
     bool from_snap_confine;
 
-    if (argc == 3 && sc_streq(argv[1], "--from-snap-confine")) {
+    if (argc == 3) {
+        if (!sc_streq(argv[1], "--from-snap-confine")) {
+            die("unexpected argument %s", argv[1]);
+        }
         from_snap_confine = true;
         snap_instance_name = argv[2];
     } else {
