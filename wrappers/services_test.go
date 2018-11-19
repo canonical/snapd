@@ -454,11 +454,9 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) >= 2 && cmd[0] == "start" {
 			name := cmd[len(cmd)-1]
-			if name == svc1Name {
-				// the services are being iterated in the "wrong" order
-				svc1Name, svc2Name = svc2Name, svc1Name
+			if name == svc2Name {
+				return nil, fmt.Errorf("failed")
 			}
-			return nil, fmt.Errorf("failed")
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -470,13 +468,19 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
   daemon: simple
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.StartServices(info.Services(), nil)
+	svcs := info.Services()
+	c.Assert(svcs, HasLen, 2)
+	if svcs[0].Name == "svc2" {
+		svcs[0], svcs[1] = svcs[1], svcs[0]
+	}
+	err := wrappers.StartServices(svcs, nil)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 7, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", s.tempdir, "is-enabled", svc1Name},
 		{"--root", s.tempdir, "is-enabled", svc2Name},
-		{"start", svc1Name, svc2Name}, // one of the services fails
+		{"start", svc1Name},
+		{"start", svc2Name}, // one of the services fails
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
@@ -545,6 +549,66 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 		{"--root", s.tempdir, "disable", svc2SocketName},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
+	}, Commentf("calls: %v", sysdLog))
+}
+
+func (s *servicesTestSuite) TestStartSnapServicesKeepsOrder(c *C) {
+	var sysdLog [][]string
+	svc1Name := "snap.services-snap.svc1.service"
+	svc2Name := "snap.services-snap.svc2.service"
+	svc3Name := "snap.services-snap.svc3.service"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, `name: services-snap
+apps:
+  svc1:
+    daemon: simple
+    before: [svc3]
+  svc2:
+    daemon: simple
+    after: [svc1]
+  svc3:
+    daemon: simple
+    before: [svc2]
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	svcs := info.Services()
+	c.Assert(svcs, HasLen, 3)
+
+	sorted, err := snap.SortServices(svcs)
+	c.Assert(err, IsNil)
+
+	err = wrappers.StartServices(sorted, nil)
+	c.Assert(err, IsNil)
+	c.Assert(sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--root", s.tempdir, "is-enabled", svc1Name},
+		{"--root", s.tempdir, "is-enabled", svc3Name},
+		{"--root", s.tempdir, "is-enabled", svc2Name},
+		{"start", svc1Name},
+		{"start", svc3Name},
+		{"start", svc2Name},
+	}, Commentf("calls: %v", sysdLog))
+
+	// change the order
+	sorted[1], sorted[0] = sorted[0], sorted[1]
+
+	// we should observe the calls done in the same order as services
+	err = wrappers.StartServices(sorted, nil)
+	c.Assert(err, IsNil)
+	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog[6:], DeepEquals, [][]string{
+		{"--root", s.tempdir, "is-enabled", svc3Name},
+		{"--root", s.tempdir, "is-enabled", svc1Name},
+		{"--root", s.tempdir, "is-enabled", svc2Name},
+		{"start", svc3Name},
+		{"start", svc1Name},
+		{"start", svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 

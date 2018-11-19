@@ -116,9 +116,11 @@ type unsquashfsStderrWriter struct {
 	strutil.MatchCounter
 }
 
+var unsquashfsStderrRegexp = regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`)
+
 func newUnsquashfsStderrWriter() *unsquashfsStderrWriter {
 	return &unsquashfsStderrWriter{strutil.MatchCounter{
-		Regexp: regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`),
+		Regexp: unsquashfsStderrRegexp,
 		N:      4, // note Err below uses this value
 	}}
 }

@@ -61,28 +61,18 @@ void sc_initialize_mount_ns(void);
  */
 struct sc_mount_ns;
 
-enum {
-	SC_NS_FAIL_GRACEFULLY = 1
-};
-
 /**
  * Open a namespace group.
  *
  * This will open and keep file descriptors for /run/snapd/ns/.
  *
- * If the flags argument is SC_NS_FAIL_GRACEFULLY then the function returns
- * NULL if the /run/snapd/ns directory doesn't exist. In all other cases it
- * calls die() and exits the process.
- *
  * The following methods should be called only while holding a lock protecting
  * that specific snap namespace:
  * - sc_create_or_join_mount_ns()
- * - sc_should_populate_mount_ns()
  * - sc_preserve_populated_mount_ns()
  * - sc_discard_preserved_mount_ns()
  */
-struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
-				     const unsigned flags);
+struct sc_mount_ns *sc_open_mount_ns(const char *group_name);
 
 /**
  * Close namespace group.
@@ -92,50 +82,55 @@ struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
 void sc_close_mount_ns(struct sc_mount_ns *group);
 
 /**
- * Join the mount namespace associated with this group if one exists.
+ * Join a preserved mount namespace if one exists.
  *
  * Technically the function opens /run/snapd/ns/${group_name}.mnt and tries to
- * use setns() with the obtained file descriptor. If the call succeeds then the
- * function returns and subsequent call to sc_should_populate_mount_ns() will
- * return false.
+ * use setns() with the obtained file descriptor.
  *
- * If the call fails then an eventfd is constructed and a support process is
- * forked. The child process waits until data is written to the eventfd (this
- * can be done by calling sc_preserve_populated_mount_ns()). In the meantime
- * the parent process unshares the mount namespace and sets a flag so that
- * sc_should_populate_mount_ns() returns true.
- *
- * @returns 0 on success and EAGAIN if the namespace was stale and needs
- * to be re-made.
+ * If the preserved mount namespace does not exist or exists but is stale and
+ * was discarded and returns ESRCH. If the mount namespace was joined the
+ * function returns zero.
  **/
-int sc_create_or_join_mount_ns(struct sc_mount_ns *group,
-			       struct sc_apparmor *apparmor,
-			       const char *base_snap_name,
-			       const char *snap_name);
+int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
+			 *apparmor, const char *base_snap_name,
+			 const char *snap_name);
 
 /**
- * Check if the namespace needs to be populated.
+ * Fork off a helper process for mount namespace capture.
  *
- * If the return value is true then at this stage the namespace is already
- * unshared. The caller should perform any mount operations that are desired
- * and then proceed to call sc_preserve_populated_mount_ns().
+ * This function forks the helper process. It needs to be paired with
+ * sc_wait_for_helper which instructs the helper to shut down and waits for
+ * that to happen.
+ *
+ * For rationale for forking and using a helper process please see
+ * https://lists.linuxfoundation.org/pipermail/containers/2013-August/033386.html
  **/
-bool sc_should_populate_mount_ns(struct sc_mount_ns *group);
+void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor);
 
 /**
  * Preserve prepared namespace group.
  *
  * This function signals the child support process for namespace capture to
- * perform the capture and shut down. It must be called after the call to
- * sc_create_or_join_mount_ns() and only when sc_should_populate_mount_ns()
- * returns true.
+ * perform the capture.
  *
- * Technically this function writes to an eventfd that causes the child process
- * to wake up, bind mount /proc/$ppid/ns/mnt to /run/snapd/ns/${group_name}.mnt
- * and then exit. The parent process (the caller) then collects the child
- * process and returns.
+ * Technically this function writes to pipe that causes the child process to
+ * wake up and bind mount /proc/$ppid/ns/mnt to
+ * /run/snapd/ns/${group_name}.mnt.
+ *
+ * The helper process will wait for subsequent commands. Please call
+ * sc_wait_for_helper() to terminate it.
  **/
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group);
+
+/**
+ * Ask the helper process to terminate and wait for it to finish.
+ *
+ * This function asks the helper process to exit by writing an appropriate
+ * command to the pipe used for the inter process communication between the
+ * main snap-confine process and the helper and then waits for the process to
+ * terminate cleanly.
+ **/
+void sc_wait_for_helper(struct sc_mount_ns *group);
 
 /**
  * Discard the preserved namespace group.

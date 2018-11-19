@@ -166,3 +166,19 @@ func ParseByteSize(inp string) (int64, error) {
 
 	return val * mul, nil
 }
+
+// CommaSeparatedList takes a comman-separated series of identifiers,
+// and returns a slice of the space-trimmed identifiers, without empty
+// entries.
+// So " foo ,, bar,baz" -> {"foo", "bar", "baz"}
+func CommaSeparatedList(str string) []string {
+	fields := strings.FieldsFunc(str, func(r rune) bool { return r == ',' })
+	filtered := fields[:0]
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field != "" {
+			filtered = append(filtered, field)
+		}
+	}
+	return filtered
+}
