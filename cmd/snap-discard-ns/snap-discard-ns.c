@@ -24,7 +24,6 @@
 #include <limits.h>
 #include <linux/magic.h>
 #include <stdio.h>
-#include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -42,49 +41,24 @@
 #endif
 
 int main(int argc, char** argv) {
-    bool from_snap_confine = false;
-    const char* snap_instance_name = NULL;
-    int optind;
-
-    for (optind = 1; optind < argc; ++optind) {
-        const char* opt = argv[optind];
-        if (sc_streq(opt, "--from-snap-confine")) {
-            from_snap_confine = true;
-            continue;
-        }
-        if (sc_streq(opt, "--")) {
-            /* Start parsing positional arguments. */
-            optind++;
-            break;
-        }
-        if (strlen(opt) > 0 && opt[0] == '-') {
-            errno = 0;
-            die("unsupported option: %s", opt);
-        }
-        break;
+    if (argc != 2 && argc != 3) {
+        printf("Usage: snap-discard-ns [--from-snap-confine] <SNAP-INSTANCE-NAME>\n");
+        return 0;
     }
-    for (/* continue */; optind < argc; ++optind) {
-        const char* opt = argv[optind];
-        if (strlen(opt) > 0 && opt[0] == '-') {
-            errno = 0;
-            die("cannot use options after the first positional argument");
-        }
-        if (snap_instance_name == NULL) {
-            struct sc_error* err = NULL;
-            sc_instance_name_validate(opt, &err);
-            sc_die_on_error(err);
-            snap_instance_name = opt;
-        } else {
-            errno = 0;
-            die("too many positional arguments");
-        }
+    const char* snap_instance_name;
+    bool from_snap_confine;
+
+    if (argc == 3 && sc_streq(argv[1], "--from-snap-confine")) {
+        from_snap_confine = true;
+        snap_instance_name = argv[2];
+    } else {
+        from_snap_confine = false;
+        snap_instance_name = argv[1];
     }
 
-    if (snap_instance_name == NULL) {
-        errno = 0;
-        die("Usage: snap-discard-ns "
-            "[--from-snap-confine] <SNAP-INSTANCE-NAME>");
-    }
+    struct sc_error* err = NULL;
+    sc_instance_name_validate(snap_instance_name, &err);
+    sc_die_on_error(err);
 
     int snap_lock_fd = -1;
     if (from_snap_confine) {
