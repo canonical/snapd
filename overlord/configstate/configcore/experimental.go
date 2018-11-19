@@ -33,7 +33,7 @@ func init() {
 	}
 }
 
-var experimentalFlags = []string{"hotplug", "layouts", "parallel-instances", "snapd-snap"}
+var experimentalFlags = []string{"hotplug", "layouts", "parallel-instances", "snapd-snap", "per-user-mount-namespace"}
 
 func validateExperimentalSettings(tr Conf) error {
 	for k := range supportedConfigurations {
