@@ -28,7 +28,7 @@ import (
 var shortRefreshCatalogsHelp = i18n.G("Refresh the catalog from the store")
 var longRefreshCatalogsHelp = i18n.G(`
 The refresh-catalogs command fetches section names and other data from the store
-ands stores it locally on the system.
+and stores it locally on the system.
 `)
 
 type cmdRefreshCatalogs struct {
