@@ -14,7 +14,6 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     echo "Installing of a snap with a desktop file creates the desktop file"
-    echo "Given a snap declaring the home plug is installed"
     install_local basic-desktop 
     test -e /var/lib/snapd/desktop/applications/basic-desktop_io.snapcraft.echoecho.desktop
     echo "Removing a snap with a desktop file removes the desktop file again"
