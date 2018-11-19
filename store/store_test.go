@@ -64,8 +64,18 @@ type configTestSuite struct{}
 
 var _ = Suite(&configTestSuite{})
 
-// this is what snap.E("0") looks like when decoded into an interface{} (the /^i/ is for "interface")
-var iZeroEpoch = map[string]interface{}{"read": []interface{}{0.}, "write": []interface{}{0.}}
+var (
+	// this is what snap.E("0") looks like when decoded into an interface{} (the /^i/ is for "interface")
+	iZeroEpoch = map[string]interface{}{
+		"read":  []interface{}{0.},
+		"write": []interface{}{0.},
+	}
+	// ...and this is snap.E("5*")
+	iFiveStarEpoch = map[string]interface{}{
+		"read":  []interface{}{4., 5.},
+		"write": []interface{}{5.},
+	}
+)
 
 func (suite *configTestSuite) TestSetBaseURL(c *C) {
 	// Sanity check to prove at least one URI changes.
@@ -4091,6 +4101,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
        "name": "hello-world",
        "revision": 26,
        "version": "6.1",
+       "epoch": {"read": [0], "write": [0]},
        "publisher": {
           "id": "canonical",
           "username": "canonical",
@@ -4134,6 +4145,118 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
 	c.Assert(results[0].Deltas, HasLen, 0)
+	c.Assert(results[0].Epoch, DeepEquals, snap.E("0"))
+}
+
+func (s *storeTestSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	numReqs := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		numReqs++
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+
+		// no store ID by default
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Fields  []string                 `json:"fields"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Check(req.Fields, DeepEquals, store.SnapActionFields)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "beta",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iFiveStarEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "epoch": {"read": [5, 6], "write": [6]},
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := store.New(&cfg, authContext)
+
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+			Epoch:           snap.E("5*"),
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	c.Assert(results[0].Epoch, DeepEquals, snap.E("6*"))
+
+	c.Assert(numReqs, Equals, 1) // should be >1 soon :-)
 }
 
 func (s *storeTestSuite) TestSnapActionNoResults(c *C) {
