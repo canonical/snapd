@@ -79,6 +79,10 @@ func (r *catalogRefresh) Ensure() error {
 	return err
 }
 
+func RefreshCatalogs(st *state.State) error {
+	return refreshCatalogs(st, Store(st))
+}
+
 var newCmdDB = advisor.Create
 
 func refreshCatalogs(st *state.State, theStore StoreService) error {

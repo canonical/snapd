@@ -923,6 +923,7 @@ var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
+	snapstateRefreshCatalogs   = snapstate.RefreshCatalogs
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
 	snapstateUpdateMany        = snapstate.UpdateMany
@@ -2549,8 +2550,12 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 			}
 		}
 		sort.Strings(status.Unreachable)
-
 		return SyncResponse(status, nil)
+	case "refresh-catalogs":
+		if err := snapstateRefreshCatalogs(st); err != nil {
+			return InternalError("cannot refresh catalogs: %s", err)
+		}
+		return SyncResponse(true, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

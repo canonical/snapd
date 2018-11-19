@@ -13,9 +13,8 @@ debug: |
     
 execute: |
     echo "Ensure we have a snap catalog in our cache"
-    while ! test -s /var/cache/snapd/commands.db; do
-        sleep 1
-    done
+    snap debug refresh-catalogs
+    test -s /var/cache/snapd/commands.db
 
     echo "Creating expected file"
     cat > expected <<EOF
