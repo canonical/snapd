@@ -212,6 +212,8 @@ int main(int argc, char** argv) {
     if (closedir(ns_dir) < 0) {
         die("cannot close directory");
     }
-    sc_unlock(snap_lock_fd);
+    if (snap_lock_fd != -1) {
+        sc_unlock(snap_lock_fd);
+    }
     return 0;
 }
