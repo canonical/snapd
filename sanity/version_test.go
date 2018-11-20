@@ -97,7 +97,7 @@ func (s *sanitySuite) TestRHEL7x(c *C) {
 
 	// pretend the kernel knob is not there
 	err := sanity.CheckKernelVersion()
-	c.Assert(err, ErrorMatches, "cannot read fs.may_detach_mounts state: .*")
+	c.Assert(err, ErrorMatches, "cannot read the value of fs.may_detach_mounts kernel parameter: .*")
 
 	p := filepath.Join(dir, "/proc/sys/fs/may_detach_mounts")
 	err = os.MkdirAll(filepath.Dir(p), 0755)
@@ -108,7 +108,7 @@ func (s *sanitySuite) TestRHEL7x(c *C) {
 	c.Assert(err, IsNil)
 
 	err = sanity.CheckKernelVersion()
-	c.Assert(err, ErrorMatches, "fs.may_detach_mounts is present but disabled")
+	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
 
 	// actually enabled
 	err = ioutil.WriteFile(p, []byte("1\n"), 0644)
@@ -156,7 +156,7 @@ func (s *sanitySuite) TestCentOS7x(c *C) {
 	c.Assert(err, IsNil)
 
 	err = sanity.CheckKernelVersion()
-	c.Assert(err, ErrorMatches, "fs.may_detach_mounts is present but disabled")
+	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
 
 	// actually enabled
 	err = ioutil.WriteFile(p, []byte("1\n"), 0644)
