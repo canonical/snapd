@@ -43,10 +43,10 @@ func supportsMayDetachMounts(kver string) error {
 	p := filepath.Join(dirs.GlobalRootDir, "/proc/sys/fs/may_detach_mounts")
 	value, err := ioutil.ReadFile(p)
 	if err != nil {
-		return fmt.Errorf("cannot read fs.may_detach_mounts state: %v", err)
+		return fmt.Errorf("cannot read the value of fs.may_detach_mounts kernel parameter: %v", err)
 	}
 	if !bytes.Equal(value, []byte("1\n")) {
-		return fmt.Errorf("fs.may_detach_mounts is present but disabled")
+		return fmt.Errorf("fs.may_detach_mounts kernel parameter is supported but disabled")
 	}
 	return nil
 }
