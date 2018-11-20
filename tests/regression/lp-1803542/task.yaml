@@ -1,9 +1,9 @@
 summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1803542
 environment:
-    VARIANT/gone: gone
-    VARIANT/present: present 
+    VARIANT/absent: absent
+    VARIANT/present: present
     VARIANT/shared: shared
-    VARIANT/private: private 
+    VARIANT/private: private
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
@@ -39,6 +39,11 @@ execute: |
             mount --make-private /run/snapd/ns
             # Ensure the mount point is private
             test "$(grep '/snapd/ns /run/snapd/ns' < /proc/self/mountinfo | awk '{print $7}')" = -
+            ;;
+        *)
+            echo "unknown variant: $VARIANT"
+            exit 1
+            ;;
     esac
     # We can run snap-confine and it will do the right thing.
     test-snapd-sh -c /bin/true
