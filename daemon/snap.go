@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -285,7 +286,10 @@ func mapLocal(about aboutSnap) *client.Snap {
 	}
 	sort.Sort(bySnapApp(snapapps))
 
-	apps := client.AppInfosFromSnapAppInfos(snapapps)
+	apps, err := client.AppInfosFromSnapAppInfos(snapapps)
+	if err != nil {
+		logger.Noticef("cannot get full app info: %v", err)
+	}
 
 	// TODO: expose aliases information and state?
 

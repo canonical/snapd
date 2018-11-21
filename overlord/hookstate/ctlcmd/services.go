@@ -71,9 +71,9 @@ func (c *servicesCommand) Execute([]string) error {
 	}
 	sort.Sort(byApp(svcInfos))
 
-	services := client.AppInfosFromSnapAppInfos(svcInfos)
-	if len(services) == 0 {
-		return nil
+	services, err := client.AppInfosFromSnapAppInfos(svcInfos)
+	if err != nil || len(services) == 0 {
+		return err
 	}
 
 	w := tabwriter.NewWriter(c.stdout, 5, 3, 2, ' ', 0)

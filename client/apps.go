@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -297,7 +296,7 @@ func (app *AppInfo) Notes() string {
 	return strings.Join(notes, ",")
 }
 
-func AppInfosFromSnapAppInfos(apps []*snap.AppInfo) []AppInfo {
+func AppInfosFromSnapAppInfos(apps []*snap.AppInfo) ([]AppInfo, error) {
 	// TODO: pass in an actual notifier here instead of null
 	//       (Status doesn't _need_ it, but benefits from it)
 	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
@@ -338,12 +337,10 @@ func AppInfosFromSnapAppInfos(apps []*snap.AppInfo) []AppInfo {
 		// for and raises an error otherwise
 		sts, err := sysd.Status(serviceNames...)
 		if err != nil {
-			logger.Noticef("cannot get status of services of app %q: %v", app.Name, err)
-			continue
+			return nil, fmt.Errorf("cannot get status of services of app %q: %v", app.Name, err)
 		}
 		if len(sts) != len(serviceNames) {
-			logger.Noticef("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
-			continue
+			return nil, fmt.Errorf("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
 		}
 		for _, st := range sts {
 			switch filepath.Ext(st.UnitName) {
@@ -369,5 +366,5 @@ func AppInfosFromSnapAppInfos(apps []*snap.AppInfo) []AppInfo {
 		out = append(out, appInfo)
 	}
 
-	return out
+	return out, nil
 }
