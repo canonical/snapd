@@ -802,6 +802,7 @@ type HookInfo struct {
 
 	Environment  strutil.OrderedMap
 	CommandChain []string
+	Explicit     bool
 }
 
 // File returns the path to the *.socket file
