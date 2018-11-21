@@ -367,7 +367,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	expected = append(expected,
-		"save-extra-info",
+		"cache-store-info",
 		"run-hook[configure]",
 	)
 
@@ -409,7 +409,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"setup-aliases",
 		"run-hook[post-refresh]",
 		"start-snap-services",
-		"save-extra-info",
+		"cache-store-info",
 	)
 
 	c.Assert(ts.Tasks()[len(expected)-3].Summary(), Matches, `Run post-refresh hook of .*`)
@@ -443,7 +443,7 @@ func verifyRemoveTasks(c *C, opts int, ts *state.TaskSet) {
 		"discard-snap",
 	}
 	if opts&hadSnapID != 0 {
-		expected = append(expected, "delete-extra-info")
+		expected = append(expected, "delete-store-info-cache")
 	}
 
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, expected)
@@ -2182,7 +2182,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "some-snap",
 		},
 		{
@@ -2352,7 +2352,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "some-snap_instance",
 		},
 		{
@@ -2526,11 +2526,11 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "some-snap",
 		},
 		{
-			op:   "delete-extra-info",
+			op:   "delete-store-info-cache",
 			name: "some-snap",
 		},
 		{
@@ -2670,7 +2670,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "some-snap",
 		},
 		{
@@ -2914,7 +2914,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "services-snap",
 		},
 		{
@@ -3135,7 +3135,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "services-snap_instance",
 		},
 		{
@@ -4057,12 +4057,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "some-snap",
 		},
 		// undoing everything from here down...
 		{
-			op:   "delete-extra-info",
+			op:   "delete-store-info-cache",
 			name: "some-snap",
 		},
 		{
@@ -6304,7 +6304,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
 		{
-			op:   "delete-extra-info",
+			op:   "delete-store-info-cache",
 			name: "some-snap",
 		},
 	}
@@ -6885,7 +6885,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "some-snap",
 		},
 		{
@@ -8131,7 +8131,7 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
-save-extra-info: Hold
+cache-store-info: Hold
 cleanup: Hold
 run-hook: Hold`)
 	c.Check(errSig, Matches, `(?sm)snap-install:
@@ -8148,7 +8148,7 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
-save-extra-info: Hold
+cache-store-info: Hold
 cleanup: Hold
 run-hook: Hold`)
 
@@ -10110,7 +10110,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
-			"delete-extra-info",
+			"delete-store-info-cache",
 		})
 		verifyStopReason(c, ts, "remove")
 		// check that tasksets are in separate lanes
@@ -10591,7 +10591,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "core",
 		},
 		{
@@ -10644,7 +10644,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
 		},
 		{
-			op:   "delete-extra-info",
+			op:   "delete-store-info-cache",
 			name: "ubuntu-core",
 		},
 		{
@@ -10744,7 +10744,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
 		},
 		{
-			op:   "delete-extra-info",
+			op:   "delete-store-info-cache",
 			name: "ubuntu-core",
 		},
 	}
@@ -11277,7 +11277,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "core",
 		},
 		// after core is in place continue with the snap
@@ -11340,7 +11340,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "save-extra-info",
+			op:   "cache-store-info",
 			name: "some-snap",
 		},
 		// cleanups order is random
@@ -11871,10 +11871,10 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	}, {
 		op: "update-aliases",
 	}, {
-		op:   "save-extra-info",
+		op:   "cache-store-info",
 		name: "snap-content-plug",
 	}, {
-		op:   "save-extra-info",
+		op:   "cache-store-info",
 		name: "snap-content-slot",
 	}, {
 		op:    "cleanup-trash",

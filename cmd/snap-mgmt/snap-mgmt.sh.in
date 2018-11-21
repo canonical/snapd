@@ -154,7 +154,7 @@ purge() {
     rm -f /var/lib/snapd/system-key
 
     echo "Removing snapd catalog cache"
-    rm -rf /var/cache/snapd/extra/
+    rm -rf /var/cache/snapd/store/
     rm -f /var/cache/snapd/*
 
     if test -d /etc/apparmor.d; then

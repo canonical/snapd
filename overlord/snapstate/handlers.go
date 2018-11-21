@@ -1185,7 +1185,7 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doSaveExtraInfo(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doCacheStoreInfo(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1195,11 +1195,11 @@ func (m *SnapManager) doSaveExtraInfo(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	extra := backend.ExtraInfo{
+	store := backend.StoreInfo{
 		Media: snapsup.Media,
 	}
 
-	return m.backend.SaveExtraInfo(snapsup.InstanceName(), &extra)
+	return m.backend.CacheStoreInfo(snapsup.InstanceName(), &store)
 }
 
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
@@ -1408,7 +1408,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doDeleteExtraInfo(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doDeleteStoreInfoCache(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1418,11 +1418,7 @@ func (m *SnapManager) doDeleteExtraInfo(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = m.backend.DeleteExtraInfo(snapsup.InstanceName())
-	if err != nil && err != backend.ErrNoExtraInfo {
-		return err
-	}
-	return nil
+	return m.backend.DeleteStoreInfoCache(snapsup.InstanceName())
 }
 
 /* aliases v2

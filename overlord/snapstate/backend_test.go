@@ -954,16 +954,16 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) DeleteExtraInfo(snapName string) error {
+func (f *fakeSnappyBackend) DeleteStoreInfoCache(snapName string) error {
 	f.appendOp(&fakeOp{
-		op:   "delete-extra-info",
+		op:   "delete-store-info-cache",
 		name: snapName,
 	})
 	return nil
 }
-func (f *fakeSnappyBackend) SaveExtraInfo(snapName string, extra *backend.ExtraInfo) error {
+func (f *fakeSnappyBackend) CacheStoreInfo(snapName string, _ *backend.StoreInfo) error {
 	f.appendOp(&fakeOp{
-		op:   "save-extra-info",
+		op:   "cache-store-info",
 		name: snapName,
 	})
 	return nil

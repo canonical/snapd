@@ -232,7 +232,7 @@ var ErrNoCurrent = errors.New("snap has no current revision")
 
 const (
 	errorOnBroken = 1 << iota
-	loadExtra
+	loadStore
 )
 
 var snapReadInfo = snap.ReadInfo
@@ -258,10 +258,9 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		}
 		err = nil
 	}
-	if err == nil && flags&loadExtra != 0 {
-		e := backend.LoadExtraInfo(info)
-		if e != nil && e != backend.ErrNoExtraInfo {
-			logger.Debugf("cannot read extra snap info for %q: %v", name, e)
+	if err == nil && flags&loadStore != 0 {
+		if e := backend.AttachStoreInfo(info); e != nil {
+			logger.Debugf("cannot read cached snap store info for %q: %v", name, e)
 		}
 	}
 	return info, err
@@ -286,7 +285,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	}
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
-	return readInfo(name, cur, loadExtra)
+	return readInfo(name, cur, loadStore)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -362,7 +361,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
-	runner.AddHandler("save-extra-info", m.doSaveExtraInfo, m.doDeleteExtraInfo)
+	runner.AddHandler("cache-store-info", m.doCacheStoreInfo, m.doDeleteStoreInfoCache)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -373,7 +372,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
-	runner.AddHandler("delete-extra-info", m.doDeleteExtraInfo, nil) // once it's gone, it's gone
+	runner.AddHandler("delete-store-info-cache", m.doDeleteStoreInfoCache, nil) // once it's gone, it's gone
 
 	// alias related
 	// FIXME: drop the task entirely after a while

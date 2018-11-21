@@ -22,4 +22,6 @@ package backend
 var (
 	AddMountUnit    = addMountUnit
 	RemoveMountUnit = removeMountUnit
+
+	SnapStoreInfoCacheFilename = snapStoreInfoCacheFilename
 )
