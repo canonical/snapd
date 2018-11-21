@@ -782,6 +782,10 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		},
 	}
 
+	// make InstallDate work
+	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
+
 	info.Apps = map[string]*snap.AppInfo{
 		"foo": {Snap: info, Name: "foo", Command: "foo"},
 		"bar": {Snap: info, Name: "bar", Command: "bar"},
@@ -820,7 +824,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		Revision:         snap.R(7),
 		Channel:          "bleeding/edge",
 		TrackingChannel:  "flaky/beta",
-		InstallDate:      time.Time{},
+		InstallDate:      info.InstallDate(),
 		InstalledSize:    42,
 		Status:           "active",
 		Confinement:      "very strict",
