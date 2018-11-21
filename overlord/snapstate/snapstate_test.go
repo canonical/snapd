@@ -2838,6 +2838,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"link-snap",
 		"auto-connect:Doing",
 		"update-aliases",
+		"cache-store-info",
 		"cleanup-trash",
 	})
 	// just check the interesting op
