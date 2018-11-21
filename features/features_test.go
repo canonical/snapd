@@ -46,6 +46,13 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
+func (*featureSuite) TestKnownFeatures(c *C) {
+	// Check that known features have names.
+	for _, f := range features.KnownFeatures() {
+		c.Check(f.String(), Not(Equals), "", Commentf("feature code: %d", int(f)))
+	}
+}
+
 func (*featureSuite) TestIsEnabled(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")

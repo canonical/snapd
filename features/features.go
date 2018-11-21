@@ -45,6 +45,12 @@ const (
 	PerformanceMeasurements
 )
 
+// KnownFeatures returns the list of all known features.
+func KnownFeatures() []SnapdFeature {
+	return []SnapdFeature{Layouts, ParallelInstances, Hotplug, SnapdSnap,
+		PerUserMountNamespace, PerformanceMeasurements}
+}
+
 // String returns the name of a snapd feature.
 func (f SnapdFeature) String() string {
 	// The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
