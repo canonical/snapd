@@ -21,7 +21,7 @@ prepare: |
 execute: |
     case "$VARIANT" in
        absent)
-            rmdir /run/snapd/ns
+            test -d /run/snapd/ns && rmdir /run/snapd/ns
             ;;
        present)
             mkdir -p /run/snapd/ns
