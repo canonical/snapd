@@ -22,10 +22,12 @@ package ctlcmd
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"text/tabwriter"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -48,6 +50,14 @@ type servicesCommand struct {
 
 var errNoContextForServices = errors.New(i18n.G("cannot query services without a context"))
 
+type byApp []*snap.AppInfo
+
+func (a byApp) Len() int      { return len(a) }
+func (a byApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byApp) Less(i, j int) bool {
+	return a[i].Name < a[j].Name
+}
+
 func (c *servicesCommand) Execute([]string) error {
 	context := c.context()
 	if context == nil {
@@ -59,6 +69,7 @@ func (c *servicesCommand) Execute([]string) error {
 	if err != nil {
 		return err
 	}
+	sort.Sort(byApp(svcInfos))
 
 	services := client.AppInfosFromSnapAppInfos(svcInfos)
 	if len(services) == 0 {
