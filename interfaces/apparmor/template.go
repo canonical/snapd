@@ -625,6 +625,8 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # Allow reading file descriptor paths
   @{PROC}/@{pid}/fd/* r,
+  # Allow reading /proc/version. For release.go WSL detection.
+  @{PROC}/version r,
 
   # Allow reading the os-release file (possibly a symlink to /usr/lib).
   /{etc/,usr/lib/}os-release r,
