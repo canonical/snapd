@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -1431,6 +1432,11 @@ apps:
 			c.Check(err, ErrorMatches, tc.err)
 		}
 	}
+}
+
+func (s *validateSuite) TestValidateDescription(c *C) {
+	c.Check(ValidateDescription(strings.Repeat("x", 5000)), ErrorMatches, `description can have up to 4000 bytes, got 5000`)
+	c.Check(ValidateDescription(strings.Repeat("x", 4000)), IsNil)
 }
 
 func (s *validateSuite) TestValidatePlugSlotName(c *C) {
