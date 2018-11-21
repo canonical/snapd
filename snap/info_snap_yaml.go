@@ -146,17 +146,11 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 
 	// At this point snap.Plugs and snap.Slots only contain globally-declared
-	// plugs and slots. We're about to change that, but we need to remember the
-	// global ones for later, so save their names.
-	globalPlugNames := make([]string, 0, len(snap.Plugs))
-	for plugName, plug := range snap.Plugs {
-		globalPlugNames = append(globalPlugNames, plugName)
+	// plugs and slots, so flag them as such for later.
+	for _, plug := range snap.Plugs {
 		plug.SnapGlobal = true
 	}
-
-	globalSlotNames := make([]string, 0, len(snap.Slots))
-	for slotName, slot := range snap.Slots {
-		globalSlotNames = append(globalSlotNames, slotName)
+	for _, slot := range snap.Slots {
 		slot.SnapGlobal = true
 	}
 
@@ -167,10 +161,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	setHooksFromSnapYaml(y, snap)
 
 	// Bind unbound plugs to all apps and hooks
-	bindUnboundPlugs(globalPlugNames, snap)
+	bindUnboundPlugs(snap)
 
 	// Bind unbound slots to all apps and hooks
-	bindUnboundSlots(globalSlotNames, snap)
+	bindUnboundSlots(snap)
 
 	// Collect layout elements.
 	if y.Layout != nil {
@@ -423,6 +417,7 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 			Name:         hookName,
 			Environment:  yHook.Environment,
 			CommandChain: yHook.CommandChain,
+			Explicit:     true,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)
@@ -470,13 +465,8 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 	}
 }
 
-func bindUnboundPlugs(plugNames []string, snap *Info) error {
-	for _, plugName := range plugNames {
-		plug, ok := snap.Plugs[plugName]
-		if !ok {
-			return fmt.Errorf("no plug named %q", plugName)
-		}
-
+func bindUnboundPlugs(snap *Info) {
+	for plugName, plug := range snap.Plugs {
 		// A plug is considered unbound if it isn't being used by any apps
 		// or hooks. In which case we bind them to all apps and hooks.
 		if len(plug.Apps) == 0 && len(plug.Hooks) == 0 {
@@ -491,16 +481,10 @@ func bindUnboundPlugs(plugNames []string, snap *Info) error {
 			}
 		}
 	}
-
-	return nil
 }
 
-func bindUnboundSlots(slotNames []string, snap *Info) error {
-	for _, slotName := range slotNames {
-		slot, ok := snap.Slots[slotName]
-		if !ok {
-			return fmt.Errorf("no slot named %q", slotName)
-		}
+func bindUnboundSlots(snap *Info) {
+	for slotName, slot := range snap.Slots {
 		// A slot is considered unbound if it isn't being used by any apps
 		// or hooks. In which case we bind them to all apps and hooks.
 		if len(slot.Apps) == 0 && len(slot.Hooks) == 0 {
@@ -520,7 +504,6 @@ func bindUnboundSlots(slotNames []string, snap *Info) error {
 			}
 		}
 	}
-	return nil
 }
 
 // bindImplicitHooks binds all global plugs and slots to implicit hooks
@@ -530,6 +513,9 @@ func bindImplicitHooks(snap *Info) {
 			continue
 		}
 		for hookName, hook := range snap.Hooks {
+			if hook.Explicit {
+				continue
+			}
 			if hook.Plugs == nil {
 				hook.Plugs = make(map[string]*PlugInfo)
 			}
@@ -546,6 +532,9 @@ func bindImplicitHooks(snap *Info) {
 			continue
 		}
 		for hookName, hook := range snap.Hooks {
+			if hook.Explicit {
+				continue
+			}
 			if hook.Slots == nil {
 				hook.Slots = make(map[string]*SlotInfo)
 			}
