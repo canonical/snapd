@@ -350,24 +350,24 @@ func (s *RepositorySuite) TestPlug(c *C) {
 
 func (s *RepositorySuite) TestPlugSearch(c *C) {
 	addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
-		{Name: "x", Yaml: `
-name: x
+		{Name: "xx", Yaml: `
+name: xx
 version: 0
 plugs:
     a: interface
     b: interface
     c: interface
 `},
-		{Name: "y", Yaml: `
-name: y
+		{Name: "yy", Yaml: `
+name: yy
 version: 0
 plugs:
     a: interface
     b: interface
     c: interface
 `},
-		{Name: "z_instance", Yaml: `
-name: z
+		{Name: "zz_instance", Yaml: `
+name: zz
 version: 0
 plugs:
     a: interface
@@ -376,15 +376,15 @@ plugs:
 `},
 	})
 	// Plug() correctly finds plugs
-	c.Assert(s.testRepo.Plug("x", "a"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("x", "b"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("x", "c"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("y", "a"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("y", "b"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("y", "c"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("z_instance", "a"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("z_instance", "b"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("z_instance", "c"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("xx", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("xx", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("xx", "c"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("yy", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("yy", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("yy", "c"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("zz_instance", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("zz_instance", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("zz_instance", "c"), Not(IsNil))
 }
 
 // Tests for Repository.RemovePlug()

@@ -12,7 +12,7 @@ summary: |
 
 # Execution skipped on debian, arch and amazon due to device /dev/hwrng not
 # created by default
-systems: [-debian-*, -arch-*, -amazon-*]
+systems: [-debian-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

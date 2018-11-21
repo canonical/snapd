@@ -23,6 +23,7 @@ var (
 	CheckSquashfsMount  = checkSquashfsMount
 	CheckKernelVersion  = checkKernelVersion
 	CheckApparmorUsable = checkApparmorUsable
+	CheckWSL            = checkWSL
 )
 
 func Checks() []func() error {
