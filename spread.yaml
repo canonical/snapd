@@ -92,6 +92,10 @@ backends:
                 workers: 4
                 storage: preserve-size
 
+            - centos-7-64:
+                workers: 4
+                image: centos-7-64
+
     google-sru:
         type: google
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
@@ -173,6 +177,24 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.10-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-32:
                 username: ubuntu
                 password: ubuntu
             - debian-sid-64:
@@ -280,6 +302,64 @@ backends:
             - ubuntu-18.10-arm64:
                 username: ubuntu
                 password: ubuntu
+            # Disco
+            - ubuntu-19.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Eccentric Eel (not final name!)
+            - ubuntu-19.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Flaming Falcon (not final name!)
+            - ubuntu-20.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-arm64:
+                username: ubuntu
+                password: ubuntu
+
     external:
         type: adhoc
         environment:
@@ -434,7 +514,7 @@ prepare: |
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
-            amazon-*)
+            amazon-*|centos-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
@@ -521,6 +601,7 @@ suites:
           # _/twisted: _
           _/func: _
           _/funkyfunc: _
+          _/funcarg: _
 
     tests/regression/:
         summary: Regression tests for snapd
@@ -565,7 +646,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -610,7 +691,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

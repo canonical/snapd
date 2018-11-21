@@ -12,7 +12,7 @@ execute: |
     # This issue happens with any package, not just with snap related ones
     # The command "man snap" works well in this case (man 2.6.6)
     case "$SPREAD_SYSTEM" in
-        opensuse-*|arch-*|amazon-*)
+        opensuse-*|arch-*|amazon-*|centos-*)
             for manpage in snap snap-confine snap-discard-ns; do
                 if ! LC_ALL=C man -u --where $manpage; then
                     echo "Expected to see manual page path for $manpage"
