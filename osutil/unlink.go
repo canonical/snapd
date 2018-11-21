@@ -48,6 +48,11 @@ func UnlinkMany(dirname string, filenames []string) error {
 	}
 	defer syscall.Close(dirfd)
 
+	return unlinkMany(dirfd, filenames)
+}
+
+func unlinkMany(dirfd int, filenames []string) error {
+	var err error
 	for _, filename := range filenames {
 		if err = sysUnlinkat(dirfd, filename); err != nil && err != syscall.ENOENT {
 			return &os.PathError{
@@ -58,4 +63,10 @@ func UnlinkMany(dirname string, filenames []string) error {
 		}
 	}
 	return nil
+}
+
+// UnlinkManyAt is like UnlinkMany but takes an open directory *os.File
+// instead of a dirname.
+func UnlinkManyAt(dir *os.File, filenames []string) error {
+	return unlinkMany(int(dir.Fd()), filenames)
 }

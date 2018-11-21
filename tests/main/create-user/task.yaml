@@ -2,7 +2,7 @@ summary: Ensure create-user functionality
 
 # Disabled for Fedora, openSUSE, Arch, AMZN2 as none have all options for add user
 # the `snap create-user` command requires. Needs code rework.
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
