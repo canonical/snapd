@@ -152,6 +152,9 @@ func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(i18n.G("need the application to run as argument"))
 	}
+	if osutil.GetenvBool("SNAP_DEBUG_START_TIME") {
+		os.Setenv("SNAP_RUN_TIME_START", fmt.Sprintf("%d", time.Now().UnixNano()))
+	}
 	snapApp := args[0]
 	args = args[1:]
 

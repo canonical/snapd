@@ -23,8 +23,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -213,6 +215,13 @@ func execApp(snapApp, revision, command string, args []string) error {
 	fullCmd = append(fullCmd, args...)
 
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
+
+	if osutil.GetenvBool("SNAP_DEBUG_START_TIME") {
+		if runTimeStart, err := strconv.ParseInt(os.Getenv("SNAP_RUN_TIME_START"), 10, 64); err == nil {
+			d := time.Now().Sub(time.Unix(0, runTimeStart))
+			fmt.Fprintf(os.Stderr, "Seconds until exec %q: %v\n", fullCmd, d.Seconds())
+		}
+	}
 
 	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)

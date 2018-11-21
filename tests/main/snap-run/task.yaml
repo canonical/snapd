@@ -62,3 +62,6 @@ execute: |
        MATCH hello < stdout
     fi
 
+    echo "Ensure debug of startup time works"
+    SNAP_DEBUG_START_TIME=1 snap run test-snapd-tools.echo foo 2> stderr.log
+    MATCH "Seconds until exec: " < stderr.log
