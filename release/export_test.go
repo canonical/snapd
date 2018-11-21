@@ -50,7 +50,16 @@ func MockAppArmorParserSearchPath(new string) (restore func()) {
 	}
 }
 
+func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
+	old := ioutilReadFile
+	ioutilReadFile = newReadfile
+	return func() {
+		ioutilReadFile = old
+	}
+}
+
 var (
 	ProbeAppArmor            = probeAppArmor
 	RequiredAppArmorFeatures = requiredAppArmorFeatures
+	IsWSL                    = isWSL
 )

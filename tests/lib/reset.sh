@@ -37,7 +37,7 @@ reset_classic() {
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
-        fedora-*|opensuse-*|arch-*|amazon-*)
+        fedora-*|opensuse-*|arch-*|amazon-*|centos-*)
             # We don't know if snap-mgmt was built, so call the *.in file
             # directly and pass arguments that will override the placeholders
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
@@ -48,6 +48,7 @@ reset_classic() {
             rm -rf /var/lib/snapd
             ;;
         *)
+            echo "don't know how to reset $SPREAD_SYSTEM"
             exit 1
             ;;
     esac
@@ -87,9 +88,11 @@ reset_classic() {
 
         # wait for snapd listening
         EXTRA_NC_ARGS="-q 1"
-        if [[ "$SPREAD_SYSTEM" = fedora-* || "$SPREAD_SYSTEM" = amazon-* ]]; then
-            EXTRA_NC_ARGS=""
-        fi
+        case "$SPREAD_SYSTEM" in
+            fedora-*|amazon-*|centos-*)
+                EXTRA_NC_ARGS=""
+                ;;
+        esac
         while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
     fi
 }

@@ -83,14 +83,19 @@
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 
-# SELinux policy does not build on Amazon Linux 2 at the moment, fails with
-# checkmodule complaining about missing 'map' permission for 'file' class
+# Fedora selinux-policy includes 'map' permission on a 'file' class. However,
+# neither Amazon Linux 2 nor CentOS 7 have had the policy updated. According to
+# https://bugzilla.redhat.com/show_bug.cgi?id=1574383 RHEL 7.6 should have the
+# necessary updates. For now disable SELinux on the affected distros.
 %if 0%{?amzn2} == 1
+%global with_selinux 0
+%endif
+%if 0%{?centos} == 7
 %global with_selinux 0
 %endif
 
 Name:           snapd
-Version:        2.36
+Version:        2.36.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -587,12 +592,18 @@ pushd ./data
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+popd
+
+%if 0%{?rhel} == 7
+# Install kernel tweaks
+# See: https://access.redhat.com/articles/3128691
+install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysconfdir}/sysctl.d/99-snap.conf
+%endif
 
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
-popd
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
@@ -723,6 +734,9 @@ popd
 %if %{with snap_symlink}
 /snap
 %endif
+%if 0%{?rhel} == 7
+%{_sysconfdir}/sysctl.d/99-snap.conf
+%endif
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -764,6 +778,9 @@ popd
 %endif
 
 %post
+%if 0%{?rhel} == 7
+%sysctl_apply 99-snap.conf
+%endif
 %systemd_post %{snappy_svcs}
 # If install, test if snapd socket and timer are enabled.
 # If enabled, then attempt to start them. This will silently fail
@@ -806,6 +823,31 @@ fi
 %endif
 
 %changelog
+* Wed Nov 09 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.36.1
+ - tests,snap-confine: add core18 only hooks test and fix running
+   core18 only hooks on classic
+ - interfaces/apparmor: allow access to
+   /run/snap.$SNAP_INSTANCE_NAME
+ - spread.yaml: add more systems to the autopkgtest and qemu backends
+ - daemon: spool sideloaded snap into blob dir
+ - wrappers: fix generating of service units with multiple `before`
+   dependencies
+ - data: run snapd.autoimport.service only after seeding
+ - tests,store,daemon: ensure proxy settings are honored in
+   auth/userinfo too
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+ - tests/lib: adjust to changed systemctl behaviour on debian-9
+ - tests/main/interfces-accounts-service: switch to busctl, more
+   debugging
+ - store: also make snaps downloaded via deltas 0600
+ - cmd/snap-exec: don't fail on some try mode snaps
+ - cmd/snap, userd, testutil: tweak DBus tests to use private session
+   bus connection
+ - tests/main: fixes for the new shellcheck
+ - cmd/snap-confine: remove stale mount profile along stale namespace
+ - data/apt: close stderr when calling snap in the apt install hook
+
 * Sun Nov 04 2018 Neal Gompa <ngompa13@gmail.com> - 2.36-1
 - Release 2.36 to Fedora
 
