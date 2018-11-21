@@ -102,6 +102,10 @@ apps:
   command: bin/service
   daemon: simple
   reload-command: bin/reload
+ another-service:
+  command: bin/service
+  daemon: simple
+  reload-command: bin/reload
 `
 
 const otherSnapYaml = `name: other-snap
@@ -435,9 +439,32 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	c.Check(laneTasks[15].Summary(), Equals, "restart of [test-snap.test-service]")
 }
 
+func (s *servicectlSuite) TestTwoServices(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
+		return []byte(fmt.Sprintf(`Id=%s
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+`, args[2])), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                    Startup  Current  Notes
+test-snap.another-service  enabled  active   -
+test-snap.test-service     enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
 func (s *servicectlSuite) TestServices(c *C) {
 	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
 		return []byte(`Id=snap.test-snap.test-service.service
 Type=simple
 ActiveState=active
@@ -446,7 +473,7 @@ UnitFileState=enabled
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "test-snap.test-service"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, `
 Service                 Startup  Current  Notes
