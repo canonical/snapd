@@ -140,8 +140,9 @@ func (s epochSuite) TestGoodEpochsInSnapYAML(c *check.C) {
 	}
 
 	tests := []Tt{
-		{s: `epoch: 0`, e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
 		{s: ``, e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
+		{s: `epoch: null`, e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
+		{s: `epoch: 0`, e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
 		{s: `epoch: "0"`, e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
 		{s: `epoch: {}`, e: snap.Epoch{Read: []uint32{0}, Write: []uint32{0}}},
 		{s: `epoch: "2*"`, e: snap.Epoch{Read: []uint32{1, 2}, Write: []uint32{2}}},
