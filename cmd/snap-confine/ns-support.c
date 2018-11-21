@@ -135,7 +135,7 @@ void sc_initialize_mount_ns(void)
 		die("cannot create directory %s", sc_ns_dir);
 	}
 
-	/* Read and analyze the mount table. We need to see if /run/snapd/ns
+	/* Read and analyze the mount table. We need to see whether /run/snapd/ns
 	 * is a mount point with private event propagation. */
 	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	info = sc_parse_mountinfo(NULL);
