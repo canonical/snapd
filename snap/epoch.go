@@ -146,19 +146,30 @@ func (e *Epoch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return e.fromStructured(structured)
 }
 
-// Unset checks if a snap is not set
-func (e *Epoch) Unset() bool {
-	return e == nil || (e.Read == nil && e.Write == nil)
+// IsZero checks whether a snap's epoch is not set (or is set to the default
+// value of "0").  Also zero are some epochs that would be normalized to "0",
+// such as {"read": 0}, as well as some invalid ones like {"read": []}.
+func (e *Epoch) IsZero() bool {
+	if e == nil {
+		return true
+	}
+
+	rZero := len(e.Read) == 0 || (len(e.Read) == 1 && e.Read[0] == 0)
+	wZero := len(e.Write) == 0 || (len(e.Write) == 1 && e.Write[0] == 0)
+
+	return rZero && wZero
 }
 
 // Validate checks that the epoch makes sense.
 func (e *Epoch) Validate() error {
-	if e.Unset() {
-		// (*Epoch)(nil) and &Epoch{} are valid epochs, equivalent to "0"
-		return nil
-	}
-	if len(e.Read) == 0 || len(e.Write) == 0 {
+	if (e.Read != nil && len(e.Read) == 0) || (e.Write != nil && len(e.Write) == 0) {
+		// these are invalid, but if both are true then IsZero will be true.
+		// In practice this check is redundant because it's caught in deserialise.
+		// Belts-and-suspenders all the way down.
 		return &EpochError{Message: emptyEpochList}
+	}
+	if e.IsZero() {
+		return nil
 	}
 	if len(e.Read) > 10 || len(e.Write) > 10 {
 		return &EpochError{Message: epochListJustRidiculouslyLong}
@@ -174,7 +185,7 @@ func (e *Epoch) Validate() error {
 }
 
 func (e *Epoch) simplify() interface{} {
-	if e.Unset() {
+	if e.IsZero() {
 		return "0"
 	}
 	if len(e.Write) == 1 && len(e.Read) == 1 && e.Read[0] == e.Write[0] {
@@ -187,11 +198,14 @@ func (e *Epoch) simplify() interface{} {
 }
 
 func (e Epoch) MarshalJSON() ([]byte, error) {
-	if e.Read == nil && e.Write == nil {
-		// lazy special case
-		return []byte(`{"read":[0],"write":[0]}`), nil
+	se := &structuredEpoch{Read: e.Read, Write: e.Write}
+	if len(se.Read) == 0 {
+		se.Read = uint32slice{0}
 	}
-	return json.Marshal(&structuredEpoch{Read: e.Read, Write: e.Write})
+	if len(se.Write) == 0 {
+		se.Write = uint32slice{0}
+	}
+	return json.Marshal(se)
 }
 
 func (Epoch) MarshalYAML() (interface{}, error) {
