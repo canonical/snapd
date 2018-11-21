@@ -63,6 +63,7 @@ func trimLeadingZeroes(a string) string {
 	return ""
 }
 
+// a and b both match /[0-9]+/
 func cmpNumeric(a, b string) int {
 	a = trimLeadingZeroes(a)
 	b = trimLeadingZeroes(b)
@@ -91,7 +92,7 @@ func matchEpoch(a string) bool {
 	if a[0] < '0' || a[0] > '9' {
 		return false
 	}
-	i := 0
+	var i int
 	for i = 1; i < len(a) && a[i] >= '0' && a[i] <= '9'; i++ {
 	}
 	return i < len(a) && a[i] == ':'
@@ -132,7 +133,6 @@ func nextFrag(s string) (frag, rest string, numeric bool) {
 		numeric = true
 	} else {
 		// not digit
-		numeric = false
 		for i = 1; i < len(s) && (s[i] < '0' || s[i] > '9'); i++ {
 		}
 	}

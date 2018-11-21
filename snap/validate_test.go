@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -70,7 +71,7 @@ func (s *ValidateSuite) TearDownTest(c *C) {
 
 func (s *ValidateSuite) TestValidateName(c *C) {
 	validNames := []string{
-		"a", "aa", "aaa", "aaaa",
+		"aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2",
@@ -84,6 +85,8 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	invalidNames := []string{
 		// name cannot be empty
 		"",
+		// too short (min 2 chars)
+		"a",
 		// names cannot be too long
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
@@ -114,7 +117,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 	validNames := []string{
 		// plain names are also valid instance names
-		"a", "aa", "aaa", "aaaa",
+		"aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		// snap instance
 		"foo_bar",
@@ -130,6 +133,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		// invalid names are also invalid instance names, just a few
 		// samples
 		"",
+		"a",
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
 		"a--a",
@@ -1428,6 +1432,11 @@ apps:
 			c.Check(err, ErrorMatches, tc.err)
 		}
 	}
+}
+
+func (s *validateSuite) TestValidateDescription(c *C) {
+	c.Check(ValidateDescription(strings.Repeat("x", 5000)), ErrorMatches, `description can have up to 4000 bytes, got 5000`)
+	c.Check(ValidateDescription(strings.Repeat("x", 4000)), IsNil)
 }
 
 func (s *validateSuite) TestValidatePlugSlotName(c *C) {
