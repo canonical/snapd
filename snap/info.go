@@ -541,12 +541,13 @@ var _ PlaceInfo = (*Info)(nil)
 type PlugInfo struct {
 	Snap *Info
 
-	Name      string
-	Interface string
-	Attrs     map[string]interface{}
-	Label     string
-	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
+	Name       string
+	Interface  string
+	Attrs      map[string]interface{}
+	Label      string
+	Apps       map[string]*AppInfo
+	Hooks      map[string]*HookInfo
+	SnapGlobal bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -646,12 +647,13 @@ func (slot *SlotInfo) String() string {
 type SlotInfo struct {
 	Snap *Info
 
-	Name      string
-	Interface string
-	Attrs     map[string]interface{}
-	Label     string
-	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
+	Name       string
+	Interface  string
+	Attrs      map[string]interface{}
+	Label      string
+	Apps       map[string]*AppInfo
+	Hooks      map[string]*HookInfo
+	SnapGlobal bool
 
 	// HotplugKey is a unique key built by the slot's interface
 	// using properties of a hotplugged device so that the same
@@ -1007,6 +1009,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	bindImplicitHooks(info)
+
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
@@ -1070,6 +1074,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	bindImplicitHooks(info)
 
 	err = Validate(info)
 	if err != nil {

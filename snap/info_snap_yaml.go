@@ -149,13 +149,15 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// plugs and slots. We're about to change that, but we need to remember the
 	// global ones for later, so save their names.
 	globalPlugNames := make([]string, 0, len(snap.Plugs))
-	for plugName := range snap.Plugs {
+	for plugName, plug := range snap.Plugs {
 		globalPlugNames = append(globalPlugNames, plugName)
+		plug.SnapGlobal = true
 	}
 
 	globalSlotNames := make([]string, 0, len(snap.Slots))
-	for slotName := range snap.Slots {
+	for slotName, slot := range snap.Slots {
 		globalSlotNames = append(globalSlotNames, slotName)
+		slot.SnapGlobal = true
 	}
 
 	// Collect all apps, their aliases and hooks
@@ -499,7 +501,6 @@ func bindUnboundSlots(slotNames []string, snap *Info) error {
 		if !ok {
 			return fmt.Errorf("no slot named %q", slotName)
 		}
-
 		// A slot is considered unbound if it isn't being used by any apps
 		// or hooks. In which case we bind them to all apps and hooks.
 		if len(slot.Apps) == 0 && len(slot.Hooks) == 0 {
@@ -508,13 +509,53 @@ func bindUnboundSlots(slotNames []string, snap *Info) error {
 				slot.Apps[appName] = app
 			}
 			for hookName, hook := range snap.Hooks {
+				if hook.Slots == nil {
+					hook.Slots = make(map[string]*SlotInfo)
+				}
 				hook.Slots[slotName] = slot
+				if slot.Hooks == nil {
+					slot.Hooks = make(map[string]*HookInfo)
+				}
 				slot.Hooks[hookName] = hook
 			}
 		}
 	}
-
 	return nil
+}
+
+// bindImplicitHooks binds all global plugs and slots to implicit hooks
+func bindImplicitHooks(snap *Info) {
+	for plugName, plug := range snap.Plugs {
+		if !plug.SnapGlobal {
+			continue
+		}
+		for hookName, hook := range snap.Hooks {
+			if hook.Plugs == nil {
+				hook.Plugs = make(map[string]*PlugInfo)
+			}
+			hook.Plugs[plugName] = plug
+			if plug.Hooks == nil {
+				plug.Hooks = make(map[string]*HookInfo)
+			}
+			plug.Hooks[hookName] = hook
+		}
+	}
+
+	for slotName, slot := range snap.Slots {
+		if !slot.SnapGlobal {
+			continue
+		}
+		for hookName, hook := range snap.Hooks {
+			if hook.Slots == nil {
+				hook.Slots = make(map[string]*SlotInfo)
+			}
+			hook.Slots[slotName] = slot
+			if slot.Hooks == nil {
+				slot.Hooks = make(map[string]*HookInfo)
+			}
+			slot.Hooks[hookName] = hook
+		}
+	}
 }
 
 func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, label string, attrs map[string]interface{}, err error) {

@@ -757,14 +757,30 @@ hooks:
 	})
 }
 
-func (s *infoSuite) TestReadInfoImplicitHookWithTopLevelPlugSlot(c *C) {
+func (s *infoSuite) TestReadInfoImplicitHookWithTopLevelPlugSlots(c *C) {
 	yaml := `name: foo
 version: 1.0
 plugs:
-  test-plug:`
+  test-plug:
+hooks:
+  explicit:
+    plugs: [test-plug]
+`
 	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
-		c.Check(info.Hooks, HasLen, 1)
-		verifyImplicitHook(c, info, "implicit", []string{"test-plug"})
+		c.Check(info.Hooks, HasLen, 2)
+		implicitHook := info.Hooks["implicit"]
+		c.Assert(implicitHook, NotNil)
+		c.Assert(implicitHook.Plugs, HasLen, 1)
+		plug := info.Plugs["test-plug"]
+		c.Assert(plug, NotNil)
+		c.Assert(implicitHook.Plugs["test-plug"], DeepEquals, plug)
+
+		explicitHook := info.Hooks["explicit"]
+		c.Assert(explicitHook, NotNil)
+		c.Assert(explicitHook.Plugs, HasLen, 1)
+		plug = info.Plugs["test-plug"]
+		c.Assert(plug, NotNil)
+		c.Assert(explicitHook.Plugs["test-plug"], DeepEquals, plug)
 	})
 }
 
