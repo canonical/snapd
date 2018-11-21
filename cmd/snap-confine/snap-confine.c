@@ -39,7 +39,6 @@
 #include "apparmor-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
-#include "quirks.h"
 #include "udev-support.h"
 #include "user-support.h"
 #include "cookie-support.h"
@@ -231,7 +230,7 @@ int main(int argc, char **argv)
 			debug("initializing mount namespace: %s",
 			      snap_instance);
 			struct sc_mount_ns *group = NULL;
-			group = sc_open_mount_ns(snap_instance, 0);
+			group = sc_open_mount_ns(snap_instance);
 			int retval = sc_join_preserved_ns(group, &apparmor,
 							  base_snap_name,
 							  snap_instance);

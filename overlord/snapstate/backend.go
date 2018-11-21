@@ -50,6 +50,9 @@ type StoreService interface {
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
 	ConnectivityCheck() (map[string]bool, error)
+
+	LoginUser(username, password, otp string) (string, string, error)
+	UserInfo(email string) (userinfo *store.User, err error)
 }
 
 type managerBackend interface {

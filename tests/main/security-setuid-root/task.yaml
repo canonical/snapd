@@ -7,7 +7,7 @@ details: |
     it should detect and refuse to run if invoked from the core snap.
 
 # No confinement (AppArmor, Seccomp) available on these systems
-systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

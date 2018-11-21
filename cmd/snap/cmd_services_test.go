@@ -171,6 +171,57 @@ func (s *appOpSuite) TestAppOps(c *check.C) {
 	}
 }
 
+func (s *appOpSuite) TestAppStatus(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/apps")
+			c.Check(r.URL.Query(), check.HasLen, 1)
+			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
+			c.Check(r.Method, check.Equals, "GET")
+			w.WriteHeader(200)
+			enc := json.NewEncoder(w)
+			enc.Encode(map[string]interface{}{
+				"type": "sync",
+				"result": []map[string]interface{}{
+					{"snap": "foo", "name": "bar", "daemon": "oneshot",
+						"active": false, "enabled": true,
+						"activators": []map[string]interface{}{
+							{"name": "bar", "type": "timer", "active": true, "enabled": true},
+						},
+					}, {"snap": "foo", "name": "baz", "daemon": "oneshot",
+						"active": false, "enabled": true,
+						"activators": []map[string]interface{}{
+							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
+							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
+						},
+					}, {"snap": "foo", "name": "zed",
+						"active": true, "enabled": true,
+					},
+				},
+				"status":      "OK",
+				"status-code": 200,
+			})
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
+foo.bar  enabled  inactive  timer-activated
+foo.baz  enabled  inactive  socket-activated
+foo.zed  enabled  active    -
+`)
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
 func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -200,4 +251,48 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "There are no services provided by installed snaps.\n")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
+}
+
+func (s *appOpSuite) TestAppStatusNotes(c *check.C) {
+	ai := client.AppInfo{}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "-")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "-")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "timer"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "timer-activated")
+
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "socket"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "socket-activated")
+
+	// check that the output is stable regardless of the order of activators
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "timer"},
+			{Type: "socket"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "timer-activated,socket-activated")
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "socket"},
+			{Type: "timer"},
+		},
+	}
+	c.Check(snap.NotesForSvc(&ai), check.Equals, "timer-activated,socket-activated")
 }
