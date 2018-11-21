@@ -762,25 +762,47 @@ func (s *infoSuite) TestReadInfoImplicitHookWithTopLevelPlugSlots(c *C) {
 version: 1.0
 plugs:
   test-plug:
+slots:
+  test-slot:
 hooks:
   explicit:
-    plugs: [test-plug]
+    plugs: [test-plug,other-plug]
+    slots: [test-slot,other-slot]
 `
 	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 2)
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)
+		c.Assert(implicitHook.Explicit, Equals, false)
 		c.Assert(implicitHook.Plugs, HasLen, 1)
+		c.Assert(implicitHook.Slots, HasLen, 1)
+
+		c.Check(info.Plugs, HasLen, 2)
+		c.Check(info.Slots, HasLen, 2)
+
 		plug := info.Plugs["test-plug"]
 		c.Assert(plug, NotNil)
+		c.Assert(plug.SnapGlobal, Equals, true)
 		c.Assert(implicitHook.Plugs["test-plug"], DeepEquals, plug)
+
+		slot := info.Slots["test-slot"]
+		c.Assert(slot, NotNil)
+		c.Assert(slot.SnapGlobal, Equals, true)
+		c.Assert(implicitHook.Slots["test-slot"], DeepEquals, slot)
 
 		explicitHook := info.Hooks["explicit"]
 		c.Assert(explicitHook, NotNil)
-		c.Assert(explicitHook.Plugs, HasLen, 1)
+		c.Assert(explicitHook.Explicit, Equals, true)
+		c.Assert(explicitHook.Plugs, HasLen, 2)
+		c.Assert(explicitHook.Slots, HasLen, 2)
+
 		plug = info.Plugs["test-plug"]
 		c.Assert(plug, NotNil)
 		c.Assert(explicitHook.Plugs["test-plug"], DeepEquals, plug)
+
+		slot = info.Slots["test-slot"]
+		c.Assert(slot, NotNil)
+		c.Assert(explicitHook.Slots["test-slot"], DeepEquals, slot)
 	})
 }
 
