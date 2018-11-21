@@ -64,6 +64,15 @@ func ReloadRules(subsystemTriggers []string) error {
 				return fmt.Errorf("cannot run udev triggers for joysticks: %s\nudev output:\n%s", err, string(output))
 			}
 			inputJoystickTriggered = true
+		} else if subsystem == "input/key" {
+			// If one of the interfaces said it uses the input
+			// subsystem for input keys, then trigger the keys
+			// events in a way that is specific to input keys
+			// to not block other inputs.
+			output, err = exec.Command("udevadm", "trigger", "--property-match=ID_INPUT_KEY=1", "--property-match=ID_INPUT_KEYBOARD!=1").CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("cannot run udev triggers for keys: %s\nudev output:\n%s", err, string(output))
+			}
 		} else if subsystem != "" {
 			// If one of the interfaces said it uses a subsystem,
 			// then do it too.

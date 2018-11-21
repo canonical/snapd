@@ -428,8 +428,8 @@ func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
-func LoginUser(httpClient *http.Client, username, password, otp string) (string, string, error) {
-	macaroon, err := requestStoreMacaroon(httpClient)
+func (s *Store) LoginUser(username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon(s.client)
 	if err != nil {
 		return "", "", err
 	}
@@ -444,7 +444,7 @@ func LoginUser(httpClient *http.Client, username, password, otp string) (string,
 		return "", "", err
 	}
 
-	discharge, err := dischargeAuthCaveat(httpClient, loginCaveat, username, password, otp)
+	discharge, err := dischargeAuthCaveat(s.client, loginCaveat, username, password, otp)
 	if err != nil {
 		return "", "", err
 	}
@@ -1260,7 +1260,6 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
-	Epoch    snap.Epoch
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1942,6 +1941,7 @@ type CurrentSnap struct {
 	RefreshedDate    time.Time
 	IgnoreValidation bool
 	Block            []snap.Revision
+	Epoch            snap.Epoch
 }
 
 type currentSnapV2JSON struct {
@@ -1949,6 +1949,7 @@ type currentSnapV2JSON struct {
 	InstanceKey      string     `json:"instance-key"`
 	Revision         int        `json:"revision"`
 	TrackingChannel  string     `json:"tracking-channel"`
+	Epoch            snap.Epoch `json:"epoch"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 }
@@ -1967,7 +1968,7 @@ type SnapAction struct {
 	Channel      string
 	Revision     snap.Revision
 	Flags        SnapActionFlags
-	Epoch        *snap.Epoch
+	Epoch        snap.Epoch
 }
 
 func isValidAction(action string) bool {
@@ -1980,14 +1981,21 @@ func isValidAction(action string) bool {
 }
 
 type snapActionJSON struct {
-	Action           string      `json:"action"`
-	InstanceKey      string      `json:"instance-key"`
-	Name             string      `json:"name,omitempty"`
-	SnapID           string      `json:"snap-id,omitempty"`
-	Channel          string      `json:"channel,omitempty"`
-	Revision         int         `json:"revision,omitempty"`
-	Epoch            *snap.Epoch `json:"epoch,omitempty"`
-	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
+	Action           string `json:"action"`
+	InstanceKey      string `json:"instance-key"`
+	Name             string `json:"name,omitempty"`
+	SnapID           string `json:"snap-id,omitempty"`
+	Channel          string `json:"channel,omitempty"`
+	Revision         int    `json:"revision,omitempty"`
+	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
+
+	// NOTE the store needs an epoch (even if null) for the "install" and "download"
+	// actions, to know the client handles epochs at all.  "refresh" actions should
+	// send nothing, not even null -- the snap in the context should have the epoch
+	// already.  We achieve this by making Epoch be an `interface{}` with omitempty,
+	// and then setting it to a (possibly nil) epoch for install and download. As a
+	// nil epoch is not an empty interface{}, you'll get the null in the json.
+	Epoch interface{} `json:"epoch,omitempty"`
 }
 
 type snapRelease struct {
@@ -2136,6 +2144,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			TrackingChannel:  channel,
 			IgnoreValidation: curSnap.IgnoreValidation,
 			RefreshedDate:    refreshedDate,
+			Epoch:            curSnap.Epoch,
 		}
 	}
 
@@ -2167,12 +2176,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
-			Epoch:            a.Epoch,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
 			a.Channel = ""
 		}
+
 		if a.Action == "install" {
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
@@ -2191,6 +2200,15 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
+			if a.Epoch.IsZero() {
+				// Let the store know we can handle epochs, by sending the `epoch`
+				// field in the request.  A nil epoch is not an empty interface{},
+				// you'll get the null in the json. See comment in snapActionJSON.
+				aJSON.Epoch = (*snap.Epoch)(nil)
+			} else {
+				// this is the amend case
+				aJSON.Epoch = &a.Epoch
+			}
 		}
 
 		aJSON.InstanceKey = instanceKey
