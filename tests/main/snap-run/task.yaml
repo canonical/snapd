@@ -62,3 +62,7 @@ execute: |
        MATCH hello < stdout
     fi
 
+    snap run --perf test-snapd-tools.echo hello 2> stderr
+    MATCH "Slowest 2 exec calls during snap run" < stderr
+    MATCH "[0-9.]+: .*/snap-exec" < stderr
+    MATCH "[0-9.]+: .*/snap-confine" < stderr

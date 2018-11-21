@@ -72,6 +72,9 @@ var (
 	HelpCategories          = helpCategories
 
 	NotesForSvc = notesForSvc
+
+	StraceExtractExecRuntime  = straceExtractExecRuntime
+	DisplaySortedExecRuntimes = displaySortedExecRuntimes
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

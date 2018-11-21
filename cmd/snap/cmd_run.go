@@ -29,6 +29,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -69,6 +70,7 @@ type cmdRun struct {
 	// "default" and "optional-value" to distinguish this.
 	Strace string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
 	Gdb    bool   `long:"gdb"`
+	Perf   bool   `long:"perf"`
 
 	// not a real option, used to check if cmdRun is initialized by
 	// the parser
@@ -99,7 +101,9 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdb": i18n.G("Run the command with gdb"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"timer":      i18n.G("Run as a timer service with given schedule"),
+			"timer": i18n.G("Run as a timer service with given schedule"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"perf":       i18n.G("Display performance data"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -702,6 +706,135 @@ func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	return gcmd.Run()
 }
 
+type perfStart struct {
+	Start  float64
+	Execve string
+}
+
+type execRuntime struct {
+	Execve   string
+	TotalSec float64
+}
+
+type byRuntime []execRuntime
+
+func (a byRuntime) Len() int           { return len(a) }
+func (a byRuntime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byRuntime) Less(i, j int) bool { return a[i].TotalSec < a[j].TotalSec }
+
+// lines look like:
+// PID   TIME              SYSCALL
+// 17363 1542815326.700248 execve("/snap/brave/44/usr/bin/update-mime-database", ["update-mime-database", "/home/egon/snap/brave/44/.local/"...], 0x1566008 /* 69 vars */) = 0
+var newExecveRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execve\(\"([^"]+)\"`)
+
+// lines look like:
+// PID   TIME                  SIGNAL
+// 17559 1542815330.242750 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=17643, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*si_pid=([0-9]+),`)
+
+func straceExtractExecRuntime(straceLog string) ([]execRuntime, error) {
+	slog, err := os.Open(straceLog)
+	if err != nil {
+		return nil, err
+	}
+	defer slog.Close()
+
+	execRuntimes := make([]execRuntime, 0, 10)
+	pidToPerf := make(map[string]perfStart)
+
+	r := bufio.NewScanner(slog)
+	for r.Scan() {
+		line := r.Text()
+
+		// look for new Execs
+		match := newExecveRE.FindStringSubmatch(line)
+		if len(match) > 0 {
+			pid := match[1]
+			execStart, err := strconv.ParseFloat(match[2], 64)
+			if err != nil {
+				return nil, err
+			}
+			execve := match[3]
+			// deal with subsequent execve()
+			if perf, ok := pidToPerf[pid]; ok {
+				execRuntimes = append(execRuntimes, execRuntime{
+					Execve:   perf.Execve,
+					TotalSec: execStart - perf.Start,
+				})
+			}
+			pidToPerf[pid] = perfStart{
+				Start:  execStart,
+				Execve: execve,
+			}
+		}
+		match = sigChldTermRE.FindStringSubmatch(line)
+		if len(match) > 0 {
+			sigTime, err := strconv.ParseFloat(match[1], 64)
+			if err != nil {
+				return nil, err
+			}
+			sigPid := match[2]
+			if perf, ok := pidToPerf[sigPid]; ok {
+				execRuntimes = append(execRuntimes, execRuntime{
+					Execve:   perf.Execve,
+					TotalSec: sigTime - perf.Start,
+				})
+				delete(pidToPerf, sigPid)
+			}
+		}
+
+	}
+	if r.Err() != nil {
+		return nil, r.Err()
+	}
+	sort.Sort(byRuntime(execRuntimes))
+
+	return execRuntimes, nil
+}
+
+func displaySortedExecRuntimes(execRuntimes []execRuntime, n int) {
+	if n > len(execRuntimes) {
+		n = len(execRuntimes)
+	}
+
+	fmt.Fprintf(Stderr, "Slowest %d exec calls during snap run:\n", n)
+	for _, rt := range execRuntimes[len(execRuntimes)-n:] {
+		fmt.Fprintf(Stderr, "%2.3f: %s\n", rt.TotalSec, rt.Execve)
+	}
+}
+
+func (x *cmdRun) runCmdWithPerfMonitoring(origCmd, env []string) error {
+	// prepend strace magic
+	cmd, err := straceCmd()
+	if err != nil {
+		return err
+	}
+
+	// FIXME: use e.g. (named?) pipe here and analyze async
+	//straceLog := fmt.Sprintf("/run/snapd/strace-%d.log", os.Getpid())
+	//defer os.Remove(straceLog)
+	straceLog := "/run/snapd/strace.log"
+
+	straceOpts := []string{"-ttt", "-e", "trace=execve", "-o", fmt.Sprintf("%s", straceLog)}
+	cmd = append(cmd, straceOpts...)
+	cmd = append(cmd, origCmd...)
+	// run
+	gcmd := exec.Command(cmd[0], cmd[1:]...)
+	gcmd.Env = env
+	gcmd.Stdin = Stdin
+	gcmd.Stdout = Stdout
+	gcmd.Stderr = Stderr
+	err = gcmd.Run()
+
+	execRuntimes, err := straceExtractExecRuntime(straceLog)
+	if err != nil {
+		logger.Noticef("cannot extract runtime data: %v", err)
+	}
+	displaySortedExecRuntimes(execRuntimes, 10)
+
+	return err
+}
+
 func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	// prepend strace magic
 	cmd, err := straceCmd()
@@ -883,7 +1016,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	if x.Gdb {
+	if x.Perf {
+		return x.runCmdWithPerfMonitoring(cmd, env)
+	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, env)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, env)
