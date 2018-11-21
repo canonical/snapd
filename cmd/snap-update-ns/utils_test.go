@@ -741,8 +741,8 @@ func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
 	rs := s.as.RestrictionsFor("/etc/some/other/stuff/symlink")
 	err := update.MksymlinkAll("/etc/some/other/stuff/symlink", 0755, 0, 0, "/oldname", rs)
-	c.Assert(err, ErrorMatches, `cannot write to "/etc/some/other/stuff/symlink" because it would affect the host in "/etc/"`)
-	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc/")
+	c.Assert(err, ErrorMatches, `cannot write to "/etc/some/other/stuff/symlink" because it would affect the host in "/etc"`)
+	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc")
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},

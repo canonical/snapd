@@ -684,7 +684,7 @@ func straceCmd() ([]string, error) {
 		"-f",
 		// these syscalls are excluded because they make strace hang
 		// on all or some architectures (gettimeofday on arm64)
-		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 	}, nil
 }
 

@@ -225,6 +225,12 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		typ = TypeSnapd
 	}
 
+	if len(y.Epoch.Read) == 0 {
+		// normalize
+		y.Epoch.Read = []uint32{0}
+		y.Epoch.Write = []uint32{0}
+	}
+
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement

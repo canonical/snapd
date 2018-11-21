@@ -110,8 +110,8 @@ func (m *InterfaceManager) Ensure() error {
 	}
 
 	// don't initialize udev monitor until we have a system snap so that we
-	// can attach the hotplug interfaces to the core/snapd snap.
-	if err := ensureSystemSnapIsPresent(m.state); err != nil {
+	// can attach hotplug interfaces to it.
+	if !checkSystemSnapIsPresent(m.state) {
 		return nil
 	}
 
@@ -168,7 +168,7 @@ var (
 )
 
 func (m *InterfaceManager) initUDevMonitor() error {
-	mon := createUDevMonitor(m.HotplugDeviceAdded, m.HotplugDeviceRemoved)
+	mon := createUDevMonitor(m.hotplugDeviceAdded, m.hotplugDeviceRemoved, m.hotplugEnumerationDone)
 	if err := mon.Connect(); err != nil {
 		return err
 	}

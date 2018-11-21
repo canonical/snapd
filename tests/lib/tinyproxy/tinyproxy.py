@@ -5,6 +5,7 @@
 # Ported to py3 and modified to remove the bits we don't need
 # and modernized.
 
+import os
 import http.server
 import select
 import socket
@@ -111,9 +112,22 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
     do_PUT  = do_GET
     do_DELETE=do_GET
 
+
+def maybe_sd_notify(s: str) -> None:
+    addr = os.getenv('NOTIFY_SOCKET')
+    if not addr:
+        return
+    soc = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    soc.connect(addr)
+    soc.sendall(s.encode())
+
+
 class ThreadingHTTPServer (socketserver.ThreadingMixIn,
                            http.server.HTTPServer):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        maybe_sd_notify("READY=1")
+
 
 if __name__ == '__main__':
     port=3128
