@@ -28,6 +28,7 @@ package testutil
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
@@ -327,6 +328,26 @@ func (s *CheckersS) TestFileMatches(c *check.C) {
 	testCheck(c, FileMatches, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileMatches, false, "Filename must be a string", 42, ".*")
 	testCheck(c, FileMatches, false, "Regex must be a string", filename, 1)
+}
+
+func (s *CheckersS) TestFilePresent(c *check.C) {
+	d := c.MkDir()
+	filename := filepath.Join(d, "foo")
+	testInfo(c, FilePresent, "FilePresent", []string{"filename"})
+	testCheck(c, FilePresent, false, `filename must be a string`, 42)
+	testCheck(c, FilePresent, false, fmt.Sprintf(`file %q is absent but should exist`, filename), filename)
+	c.Assert(ioutil.WriteFile(filename, nil, 0644), check.IsNil)
+	testCheck(c, FilePresent, true, "", filename)
+}
+
+func (s *CheckersS) TestFileAbsent(c *check.C) {
+	d := c.MkDir()
+	filename := filepath.Join(d, "foo")
+	testInfo(c, FileAbsent, "FileAbsent", []string{"filename"})
+	testCheck(c, FileAbsent, false, `filename must be a string`, 42)
+	testCheck(c, FileAbsent, true, "", filename)
+	c.Assert(ioutil.WriteFile(filename, nil, 0644), check.IsNil)
+	testCheck(c, FileAbsent, false, fmt.Sprintf(`file %q is present but should not exist`, filename), filename)
 }
 
 func (s *CheckersS) TestSystemCallSequenceEqual(c *check.C) {
