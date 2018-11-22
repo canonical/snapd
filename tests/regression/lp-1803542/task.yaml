@@ -18,6 +18,8 @@ prepare: |
         umount /run/snapd/ns
     fi
     ! findmnt --noheadings /run/snapd/ns
+debug: |
+    cat /proc/self/mountinfo
 execute: |
     case "$VARIANT" in
        absent)
