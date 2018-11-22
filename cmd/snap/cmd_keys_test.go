@@ -109,7 +109,7 @@ func (s *SnapKeysSuite) TestKeysEmptyNoHeader(c *C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, "No keys registered, see `snapcraft create-key`")
+	c.Check(s.Stdout(), Equals, "No keys registered, see `snapcraft create-key`\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 
