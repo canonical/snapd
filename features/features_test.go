@@ -42,7 +42,6 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.Hotplug.String(), Equals, "hotplug")
 	c.Check(features.SnapdSnap.String(), Equals, "snapd-snap")
 	c.Check(features.PerUserMountNamespace.String(), Equals, "per-user-mount-namespace")
-	c.Check(features.PerformanceMeasurements.String(), Equals, "performance-measurements")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 

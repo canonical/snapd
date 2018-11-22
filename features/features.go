@@ -41,14 +41,11 @@ const (
 	SnapdSnap
 	// PerUserMountNamespace controls the persistence of per-user mount namespaces.
 	PerUserMountNamespace
-	// PerformanceMeasurements controls the collection of performance data.
-	PerformanceMeasurements
 )
 
 // KnownFeatures returns the list of all known features.
 func KnownFeatures() []SnapdFeature {
-	return []SnapdFeature{Layouts, ParallelInstances, Hotplug, SnapdSnap,
-		PerUserMountNamespace, PerformanceMeasurements}
+	return []SnapdFeature{Layouts, ParallelInstances, Hotplug, SnapdSnap, PerUserMountNamespace}
 }
 
 // String returns the name of a snapd feature.
@@ -65,8 +62,6 @@ func (f SnapdFeature) String() string {
 		return "snapd-snap"
 	case PerUserMountNamespace:
 		return "per-user-mount-namespace"
-	case PerformanceMeasurements:
-		return "performance-measurements"
 	}
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
 }
