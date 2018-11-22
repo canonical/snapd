@@ -859,7 +859,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 
 	// FIXME: use e.g. (named?) pipe here and analyze async
 	straceLog := fmt.Sprintf("/run/snapd/strace-%d.log", os.Getpid())
-	//defer os.Remove(straceLog)
+	defer os.Remove(straceLog)
 
 	straceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLog)}
 	cmd = append(cmd, straceOpts...)
