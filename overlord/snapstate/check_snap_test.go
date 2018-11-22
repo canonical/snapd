@@ -788,3 +788,19 @@ version: 1.0`
 
 	c.Check(checkCbCalled, Equals, true)
 }
+
+func (s *checkSnapSuite) TestCheckSnapCheckEpoch(c *C) {
+	si := &snap.SideInfo{
+		SnapID: "snap-id",
+	}
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		info := snaptest.MockInfo(c, "{name: foo, version: 1.0, epoch: 13}", si)
+		return info, emptyContainer(c), nil
+	}
+	r1 := snapstate.MockOpenSnapFile(openSnapFile)
+	defer r1()
+
+	err := snapstate.CheckSnap(s.st, "snap-path", "foo", si, &snap.Info{}, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot refresh snap "foo" as new epoch \(13\) can't read old epoch \(0\)`)
+}
