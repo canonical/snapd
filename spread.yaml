@@ -76,9 +76,6 @@ backends:
                 workers: 6
                 manual: true
 
-            - fedora-27-64:
-                workers: 4
-                manual: true
             - fedora-28-64:
                 workers: 4
                 manual: true
