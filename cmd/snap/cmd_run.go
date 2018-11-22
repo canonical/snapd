@@ -715,6 +715,13 @@ func (st *SnapTrace) ExecRuntimes() []ExecRuntime {
 	return st.execRuntimes
 }
 
+func (st *SnapTrace) AddExecRuntime(execve string, totalSec float64) {
+	st.execRuntimes = append(st.execRuntimes, ExecRuntime{
+		Execve:   execve,
+		TotalSec: totalSec,
+	})
+}
+
 type perfStart struct {
 	Start  float64
 	Execve string
@@ -725,11 +732,11 @@ type ExecRuntime struct {
 	TotalSec float64
 }
 
-type byRuntimeAsc []ExecRuntime
+type byRuntimeDes []ExecRuntime
 
-func (a byRuntimeAsc) Len() int           { return len(a) }
-func (a byRuntimeAsc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byRuntimeAsc) Less(i, j int) bool { return a[i].TotalSec < a[j].TotalSec }
+func (a byRuntimeDes) Len() int           { return len(a) }
+func (a byRuntimeDes) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byRuntimeDes) Less(i, j int) bool { return a[i].TotalSec > a[j].TotalSec }
 
 // lines look like:
 // PID   TIME              SYSCALL
@@ -782,10 +789,7 @@ func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 			execve := match[3]
 			// deal with subsequent execve()
 			if perf, ok := pidToPerf[pid]; ok {
-				snapTrace.execRuntimes = append(snapTrace.execRuntimes, ExecRuntime{
-					Execve:   perf.Execve,
-					TotalSec: execStart - perf.Start,
-				})
+				snapTrace.AddExecRuntime(perf.Execve, execStart-perf.Start)
 			}
 			pidToPerf[pid] = perfStart{
 				Start:  execStart,
@@ -809,10 +813,7 @@ func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 			}
 			sigPid := match[3]
 			if perf, ok := pidToPerf[sigPid]; ok {
-				snapTrace.execRuntimes = append(snapTrace.execRuntimes, ExecRuntime{
-					Execve:   perf.Execve,
-					TotalSec: sigTime - perf.Start,
-				})
+				snapTrace.AddExecRuntime(perf.Execve, sigTime-perf.Start)
 				delete(pidToPerf, sigPid)
 			}
 		}
@@ -842,7 +843,7 @@ func displaySortedExecRuntimes(snapTrace *SnapTrace, n int) {
 		n = len(snapTrace.execRuntimes)
 	}
 
-	sort.Sort(byRuntimeAsc(snapTrace.execRuntimes))
+	sort.Sort(byRuntimeDes(snapTrace.execRuntimes))
 	fmt.Fprintf(Stderr, "Slowest %d exec calls during snap run:\n", n)
 	for _, rt := range snapTrace.execRuntimes[len(snapTrace.execRuntimes)-n:] {
 		fmt.Fprintf(Stderr, "  %2.3fs %s\n", rt.TotalSec, rt.Execve)
