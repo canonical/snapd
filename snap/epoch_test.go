@@ -38,7 +38,7 @@ var (
 	badEpochNumber                = `epoch numbers must be base 10 with no zero padding, but got .*`
 	badEpochList                  = "epoch read/write attributes must be lists of epoch numbers"
 	emptyEpochList                = "epoch list cannot be explicitly empty"
-	epochListNotSorted            = "epoch list must be in ascending order"
+	epochListNotIncreasing        = "epoch list must be a strictly increasing sequence"
 	epochListJustRidiculouslyLong = "epoch list must not have more than 10 entries"
 	noEpochIntersection           = "epoch read and write lists must have a non-empty intersection"
 )
@@ -75,8 +75,9 @@ func (s epochSuite) TestBadEpochs(c *check.C) {
 		{s: `"42**"`, e: badEpochNumber},                           // N** is dead
 		{s: `{"read": []}`, e: emptyEpochList},                     // explicitly empty is bad
 		{s: `{"write": []}`, e: emptyEpochList},                    //
-		{s: `{"read": [1,2,4,3]}`, e: epochListNotSorted},          // must be ordered
-		{s: `{"write": [4,3,2,1]}`, e: epochListNotSorted},         // ...in ascending order
+		{s: `{"read": [1,2,4,3]}`, e: epochListNotIncreasing},      // must be ordered
+		{s: `{"read": [1,2,2,3]}`, e: epochListNotIncreasing},      // must be strictly increasing
+		{s: `{"write": [4,3,2,1]}`, e: epochListNotIncreasing},     // ...*increasing*
 		{s: `{"read": [0], "write": [1]}`, e: noEpochIntersection}, // must have at least one in common
 		{s: `{"read": [0,1,2,3,4,5,6,7,8,9,10],
  "write": [0,1,2,3,4,5,6,7,8,9,10]}`, e: epochListJustRidiculouslyLong}, // must have <10 elements
@@ -215,9 +216,12 @@ func (s *epochSuite) TestEpochValidate(c *check.C) {
 		{epoch: snap.Epoch{Read: []uint32{}, Write: []uint32{}}, err: emptyEpochList},
 		{epoch: snap.Epoch{Read: []uint32{1}, Write: []uint32{2}}, err: noEpochIntersection},
 		{epoch: snap.Epoch{Read: []uint32{1, 3, 5}, Write: []uint32{2, 4, 6}}, err: noEpochIntersection},
-		{epoch: snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{3, 2, 1}}, err: epochListNotSorted},
-		{epoch: snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{1, 2, 3}}, err: epochListNotSorted},
-		{epoch: snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{3, 2, 1}}, err: epochListNotSorted},
+		{epoch: snap.Epoch{Read: []uint32{1, 2, 3}, Write: []uint32{3, 2, 1}}, err: epochListNotIncreasing},
+		{epoch: snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{1, 2, 3}}, err: epochListNotIncreasing},
+		{epoch: snap.Epoch{Read: []uint32{3, 2, 1}, Write: []uint32{3, 2, 1}}, err: epochListNotIncreasing},
+		{epoch: snap.Epoch{Read: []uint32{0, 0, 0}, Write: []uint32{0}}, err: epochListNotIncreasing},
+		{epoch: snap.Epoch{Read: []uint32{0}, Write: []uint32{0, 0, 0}}, err: epochListNotIncreasing},
+		{epoch: snap.Epoch{Read: []uint32{0, 0, 0}, Write: []uint32{0, 0, 0}}, err: epochListNotIncreasing},
 		{epoch: snap.Epoch{
 			Read:  []uint32{0},
 			Write: []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
