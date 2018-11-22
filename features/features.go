@@ -66,7 +66,15 @@ func (f SnapdFeature) String() string {
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
 }
 
+// ControlFile returns the path of the file controlling the feature.
+//
+// Snapd considers the feature enabled if the file is present.
+// The contents of the file are not important.
+func (f SnapdFeature) ControlFile() string {
+	return filepath.Join(dirs.FeaturesDir, f.String())
+}
+
 // IsEnabled checks if a given snapd feature is enabled.
 func (f SnapdFeature) IsEnabled() bool {
-	return osutil.FileExists(filepath.Join(dirs.FeaturesDir, f.String()))
+	return osutil.FileExists(f.ControlFile())
 }
