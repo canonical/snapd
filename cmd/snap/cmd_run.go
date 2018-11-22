@@ -29,7 +29,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -741,15 +740,8 @@ func (stt *SnapTrace) prune() {
 }
 
 func (stt *SnapTrace) Display(w io.Writer) {
-	n := stt.nSlowestSamples
-	if n > len(stt.execRuntimes) {
-		n = len(stt.execRuntimes)
-	}
-	sortedExecRuntimes := make([]ExecRuntime, len(stt.execRuntimes))
-	copy(sortedExecRuntimes, stt.execRuntimes)
-	sort.Sort(byRuntimeDes(sortedExecRuntimes))
-	fmt.Fprintf(w, "Slowest %d exec calls during snap run:\n", n)
-	for _, rt := range sortedExecRuntimes[len(sortedExecRuntimes)-n:] {
+	fmt.Fprintf(w, "Slowest %d exec calls during snap run:\n", len(stt.execRuntimes))
+	for _, rt := range stt.execRuntimes {
 		fmt.Fprintf(w, "  %2.3fs %s\n", rt.TotalSec, rt.Execve)
 	}
 	fmt.Fprintf(w, "Total time: %2.3fs\n", stt.TotalTime)
@@ -764,12 +756,6 @@ type ExecRuntime struct {
 	Execve   string
 	TotalSec float64
 }
-
-type byRuntimeDes []ExecRuntime
-
-func (a byRuntimeDes) Len() int           { return len(a) }
-func (a byRuntimeDes) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byRuntimeDes) Less(i, j int) bool { return a[i].TotalSec > a[j].TotalSec }
 
 // lines look like:
 // PID   TIME              SYSCALL

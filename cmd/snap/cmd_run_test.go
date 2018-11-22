@@ -965,27 +965,24 @@ func (s *SnapSuite) TestStraceExtractExecRuntime(c *check.C) {
 	})
 }
 
-func (s *SnapSuite) TestDisplaySortedExecRuntimes(c *check.C) {
-	mockRuntimes := []snaprun.ExecRuntime{
-		{Execve: "slow", TotalSec: 1.0001},
-		{Execve: "fast", TotalSec: 0.1002},
-		{Execve: "medium", TotalSec: 0.5003},
-	}
+func (s *SnapSuite) TestDisplayExecRuntimes(c *check.C) {
+	// setup mock traces
 	stt := &snaprun.SnapTrace{TotalTime: 2.71828}
-	stt.SetRuntimes(mockRuntimes)
-	stt.SetNrSamples(10)
+	stt.SetNrSamples(3)
+	stt.AddExecRuntime("slow", 1.0001)
+	stt.AddExecRuntime("fast", 0.1002)
+	stt.AddExecRuntime("really-fast", 0.0301)
+	stt.AddExecRuntime("medium", 0.5003)
 
-	// display works
+	// display works and shows the slowest 3 calls in order
 	stt.Display(snaprun.Stderr)
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, `Slowest 3 exec calls during snap run:
   1.000s slow
-  0.500s medium
   0.100s fast
+  0.500s medium
 Total time: 2.718s
 `)
-	// and the original snaprun.ExecRuntime is not mutated
-	c.Check(stt.ExecRuntimes(), check.DeepEquals, mockRuntimes)
 }
 
 func (s *SnapSuite) TestExecRuntimePrune(c *check.C) {

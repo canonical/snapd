@@ -216,10 +216,6 @@ func CmdAdviseSnap() *cmdAdviseSnap {
 	return &cmdAdviseSnap{}
 }
 
-func (st *SnapTrace) SetRuntimes(rtl []ExecRuntime) {
-	st.execRuntimes = rtl
-}
-
 func (st *SnapTrace) SetNrSamples(n int) {
 	st.nSlowestSamples = n
 }
