@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -333,6 +334,13 @@ func validateDescription(descr string) error {
 	return nil
 }
 
+func validateTitle(title string) error {
+	if count := utf8.RuneCountInString(title); count > 40 {
+		return fmt.Errorf("title can have up to 40 codepoints, got %d", count)
+	}
+	return nil
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
@@ -344,6 +352,10 @@ func Validate(info *Info) error {
 		return err
 	}
 	if err := ValidateInstanceName(name); err != nil {
+		return err
+	}
+
+	if err := validateTitle(info.Title()); err != nil {
 		return err
 	}
 
