@@ -414,8 +414,15 @@ debug-each: |
 
         echo '# journal messages for snapd'
         get_journalctl_log -u snapd
-        echo '# apparmor denials '
-        dmesg --ctime | grep DENIED || true
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*|amazon-*)
+                ausearch -m AVC
+                ;;
+            *)
+               echo '# apparmor denials '
+               dmesg --ctime | grep DENIED || true
+               ;;
+        esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
         echo '# snap interfaces'
