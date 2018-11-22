@@ -24,16 +24,15 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 )
 
 func init() {
-	for _, flag := range experimentalFlags {
-		supportedConfigurations["core.experimental."+flag] = true
+	for _, feature := range features.KnownFeatures() {
+		supportedConfigurations["core.experimental."+feature.String()] = true
 	}
 }
-
-var experimentalFlags = []string{"hotplug", "layouts", "parallel-instances", "snapd-snap", "per-user-mount-namespace"}
 
 func validateExperimentalSettings(tr Conf) error {
 	for k := range supportedConfigurations {
@@ -52,14 +51,15 @@ func handleExperimentalFlags(tr Conf) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	content := make(map[string]*osutil.FileState, len(experimentalFlags))
-	for _, flag := range experimentalFlags {
-		value, err := coreCfg(tr, "experimental."+flag)
+	features := features.KnownFeatures()
+	content := make(map[string]*osutil.FileState, len(features))
+	for _, feature := range features {
+		value, err := coreCfg(tr, "experimental."+feature.String())
 		if err != nil {
 			return err
 		}
 		if value == "true" {
-			content[flag] = &osutil.FileState{Mode: 0644}
+			content[feature.String()] = &osutil.FileState{Mode: 0644}
 		}
 	}
 	_, _, err := osutil.EnsureDirState(dir, "*", content)
