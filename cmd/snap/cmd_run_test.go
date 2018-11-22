@@ -964,3 +964,23 @@ func (s *SnapSuite) TestStraceExtractExecRuntime(c *check.C) {
 		{Execve: "/usr/lib/snapd/snap-exec", TotalSec: 0.006349086761474609},
 	})
 }
+
+func (s *SnapSuite) TestDisplaySortedExecRuntimes(c *check.C) {
+	mockRuntimes := []snaprun.ExecRuntime{
+		{Execve: "slow", TotalSec: 1.0001},
+		{Execve: "fast", TotalSec: 0.1002},
+		{Execve: "medium", TotalSec: 0.5003},
+	}
+	stt := &snaprun.SnapTrace{TotalTime: 2.71828}
+	stt.SetRuntimes(mockRuntimes)
+	snaprun.DisplaySortedExecRuntimes(stt, 10)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, `Slowest 3 exec calls during snap run:
+  1.000s slow
+  0.500s medium
+  0.100s fast
+Total time: 2.718s
+`)
+	// and the original snaprun.ExecRuntime is not mutated
+	c.Check(stt.ExecRuntimes(), check.DeepEquals, mockRuntimes)
+}

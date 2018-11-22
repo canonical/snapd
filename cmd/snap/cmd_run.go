@@ -842,10 +842,11 @@ func displaySortedExecRuntimes(snapTrace *SnapTrace, n int) {
 	if n > len(snapTrace.execRuntimes) {
 		n = len(snapTrace.execRuntimes)
 	}
-
-	sort.Sort(byRuntimeDes(snapTrace.execRuntimes))
+	sortedExecRuntimes := make([]ExecRuntime, len(snapTrace.execRuntimes))
+	copy(sortedExecRuntimes, snapTrace.execRuntimes)
+	sort.Sort(byRuntimeDes(sortedExecRuntimes))
 	fmt.Fprintf(Stderr, "Slowest %d exec calls during snap run:\n", n)
-	for _, rt := range snapTrace.execRuntimes[len(snapTrace.execRuntimes)-n:] {
+	for _, rt := range sortedExecRuntimes[len(sortedExecRuntimes)-n:] {
 		fmt.Fprintf(Stderr, "  %2.3fs %s\n", rt.TotalSec, rt.Execve)
 	}
 	fmt.Fprintf(Stderr, "Total time: %2.3fs\n", snapTrace.TotalTime)

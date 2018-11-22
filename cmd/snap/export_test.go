@@ -216,3 +216,7 @@ func ColorMixin(cmode, umode string) colorMixin {
 func CmdAdviseSnap() *cmdAdviseSnap {
 	return &cmdAdviseSnap{}
 }
+
+func (st *SnapTrace) SetRuntimes(rtl []ExecRuntime) {
+	st.execRuntimes = rtl
+}
