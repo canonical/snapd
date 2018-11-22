@@ -49,10 +49,8 @@ func validateExperimentalSettings(tr Conf) error {
 
 func handleExperimentalFlags(tr Conf) error {
 	dir := dirs.FeaturesDir
-	if !osutil.IsDirectory(dir) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
-		}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
 	}
 	content := make(map[string]*osutil.FileState, len(experimentalFlags))
 	for _, flag := range experimentalFlags {
