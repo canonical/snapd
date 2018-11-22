@@ -711,12 +711,12 @@ type perfStart struct {
 	Execve string
 }
 
-type execRuntime struct {
+type ExecRuntime struct {
 	Execve   string
 	TotalSec float64
 }
 
-type byRuntime []execRuntime
+type byRuntime []ExecRuntime
 
 func (a byRuntime) Len() int           { return len(a) }
 func (a byRuntime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -732,14 +732,14 @@ var newExecveRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execve\(\"([^"]+)\"`)
 // 17559 1542815330.242750 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=17643, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
 var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*si_pid=([0-9]+),`)
 
-func straceExtractExecRuntime(straceLog string) ([]execRuntime, error) {
+func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 	slog, err := os.Open(straceLog)
 	if err != nil {
 		return nil, err
 	}
 	defer slog.Close()
 
-	execRuntimes := make([]execRuntime, 0, 10)
+	execRuntimes := make([]ExecRuntime, 0, 10)
 	pidToPerf := make(map[string]perfStart)
 
 	r := bufio.NewScanner(slog)
@@ -757,7 +757,7 @@ func straceExtractExecRuntime(straceLog string) ([]execRuntime, error) {
 			execve := match[3]
 			// deal with subsequent execve()
 			if perf, ok := pidToPerf[pid]; ok {
-				execRuntimes = append(execRuntimes, execRuntime{
+				execRuntimes = append(execRuntimes, ExecRuntime{
 					Execve:   perf.Execve,
 					TotalSec: execStart - perf.Start,
 				})
@@ -775,7 +775,7 @@ func straceExtractExecRuntime(straceLog string) ([]execRuntime, error) {
 			}
 			sigPid := match[2]
 			if perf, ok := pidToPerf[sigPid]; ok {
-				execRuntimes = append(execRuntimes, execRuntime{
+				execRuntimes = append(execRuntimes, ExecRuntime{
 					Execve:   perf.Execve,
 					TotalSec: sigTime - perf.Start,
 				})
@@ -792,7 +792,7 @@ func straceExtractExecRuntime(straceLog string) ([]execRuntime, error) {
 	return execRuntimes, nil
 }
 
-func displaySortedExecRuntimes(execRuntimes []execRuntime, n int) {
+func displaySortedExecRuntimes(execRuntimes []ExecRuntime, n int) {
 	if n > len(execRuntimes) {
 		n = len(execRuntimes)
 	}
@@ -812,7 +812,7 @@ func (x *cmdRun) runCmdWithPerfMonitoring(origCmd, env []string) error {
 
 	// FIXME: use e.g. (named?) pipe here and analyze async
 	straceLog := fmt.Sprintf("/run/snapd/strace-%d.log", os.Getpid())
-	defer os.Remove(straceLog)
+	//defer os.Remove(straceLog)
 
 	straceOpts := []string{"-ttt", "-e", "trace=execve", "-o", fmt.Sprintf("%s", straceLog)}
 	cmd = append(cmd, straceOpts...)

@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -906,4 +907,43 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
+}
+
+var sampleStraceSimple = []byte(`
+8542  1542874295.070638 execve("/usr/lib/snapd/snap-confine", ["/usr/lib/snapd/snap-confine", "snap.test-snapd-tools.echo", "/usr/lib/snapd/snap-exec", "test-snapd-tools.echo", "foo"], 0x7fffa474e300 /* 89 vars */) = 0
+8551  1542874295.236771 +++ exited with 0 +++
+8549  1542874295.236784 +++ exited with 0 +++
+8548  1542874295.236789 +++ exited with 0 +++
+8547  1542874295.236792 +++ exited with 0 +++
+8550  1542874295.236990 +++ exited with 0 +++
+8546  1542874295.236995 +++ exited with 0 +++
+8542  1542874295.237027 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=8546, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+8543  1542874295.248192 +++ exited with 0 +++
+8542  1542874295.248222 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=8543, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+8542  1542874295.254006 execve("/usr/lib/snapd/snap-exec", ["/usr/lib/snapd/snap-exec", "test-snapd-tools.echo", "foo"], 0x56051f2b0e70 /* 93 vars */) = 0
+8542  1542874295.259719 execve("/snap/test-snapd-tools/6/bin/echo", ["/snap/test-snapd-tools/6/bin/ech"..., "foo"], 0xc420110600 /* 95 vars */ <unfinished ...>
+8553  1542874295.260443 +++ exited with 0 +++
+8555  1542874295.260472 +++ exited with 0 +++
+8556  1542874295.261163 +++ exited with 0 +++
+8554  1542874295.261335 +++ exited with 0 +++
+8552  1542874295.261341 +++ exited with 0 +++
+8542  1542874295.261580 <... execve resumed> ) = 0
+8542  1542874295.262541 +++ exited with 0 +++
+`)
+
+func (s *SnapSuite) TestStraceExtractExecRuntime(c *check.C) {
+	f, err := ioutil.TempFile("", "strace-extract-test-")
+	c.Assert(err, check.IsNil)
+	defer os.Remove(f.Name())
+	_, err = f.Write(sampleStraceSimple)
+	c.Assert(err, check.IsNil)
+	f.Sync()
+
+	rtl, err := snaprun.StraceExtractExecRuntime(f.Name())
+	c.Assert(err, check.IsNil)
+	c.Assert(rtl, check.HasLen, 2)
+	c.Assert(rtl, check.DeepEquals, []snaprun.ExecRuntime{
+		{Execve: "/usr/lib/snapd/snap-exec", TotalSec: 0.005712985992431641},
+		{Execve: "/usr/lib/snapd/snap-confine", TotalSec: 0.18336796760559082},
+	})
 }
