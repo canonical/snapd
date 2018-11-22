@@ -21,10 +21,10 @@ package features
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // SnapdFeature is a named feature that may be on or off.
@@ -68,9 +68,5 @@ func (f SnapdFeature) String() string {
 
 // IsEnabled checks if a given snapd feature is enabled.
 func (f SnapdFeature) IsEnabled() bool {
-	fi, err := os.Stat(filepath.Join(dirs.FeaturesDir, f.String()))
-	if err != nil {
-		return false
-	}
-	return fi.Mode().IsRegular()
+	return osutil.FileExists(filepath.Join(dirs.FeaturesDir, f.String()))
 }
