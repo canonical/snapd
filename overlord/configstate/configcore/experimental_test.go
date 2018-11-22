@@ -21,46 +21,41 @@ package configcore_test
 
 import (
 	"fmt"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type experimentalSuite struct {
 	configcoreSuite
-	features []string
 }
 
-var _ = Suite(&experimentalSuite{
-	features: []string{
-		"experimental.layouts",
-		"experimental.parallel-instances",
-		"experimental.hotplug",
-		"experimental.snapd-snap",
-	},
-})
+var _ = Suite(&experimentalSuite{})
+
+func featureConf(feature features.SnapdFeature) string {
+	return "experimental." + feature.String()
+}
 
 func (s *experimentalSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
-	for _, feature := range s.features {
+	for _, feature := range features.KnownFeatures() {
 		conf := &mockConf{
 			state:   s.state,
-			changes: map[string]interface{}{feature: "foo"},
+			changes: map[string]interface{}{featureConf(feature): "foo"},
 		}
 		err := configcore.Run(conf)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, feature))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, featureConf(feature)))
 	}
 }
 
 func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
-	for _, feature := range s.features {
+	for _, feature := range features.KnownFeatures() {
 		for _, t := range []string{"true", "false"} {
 			conf := &mockConf{
 				state: s.state,
-				conf:  map[string]interface{}{feature: t},
+				conf:  map[string]interface{}{featureConf(feature): t},
 			}
 			err := configcore.Run(conf)
 			c.Check(err, IsNil)
@@ -71,20 +66,20 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 func (s *experimentalSuite) TestExportedFeatures(c *C) {
 	conf := &mockConf{
 		state:   s.state,
-		conf:    map[string]interface{}{"experimental.hotplug": true},
-		changes: map[string]interface{}{"experimental.layouts": true},
+		conf:    map[string]interface{}{featureConf(features.Hotplug): true},
+		changes: map[string]interface{}{featureConf(features.Layouts): true},
 	}
 
 	err := configcore.Run(conf)
 	c.Assert(err, IsNil)
 
-	c.Assert(filepath.Join(dirs.FeaturesDir, "hotplug"), testutil.FilePresent)
-	c.Assert(filepath.Join(dirs.FeaturesDir, "layouts"), testutil.FilePresent)
+	c.Assert(features.Hotplug.ControlFile(), testutil.FilePresent)
+	c.Assert(features.Layouts.ControlFile(), testutil.FilePresent)
 
 	delete(conf.changes, "experimental.layouts")
 	err = configcore.Run(conf)
 	c.Assert(err, IsNil)
 
-	c.Assert(filepath.Join(dirs.FeaturesDir, "hotplug"), testutil.FilePresent)
-	c.Assert(filepath.Join(dirs.FeaturesDir, "layouts"), testutil.FileAbsent)
+	c.Assert(features.Hotplug.ControlFile(), testutil.FilePresent)
+	c.Assert(features.Layouts.ControlFile(), testutil.FileAbsent)
 }
