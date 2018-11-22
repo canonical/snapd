@@ -103,7 +103,7 @@ func Run(tr Conf) error {
 		return err
 	}
 
-	// Export experimental.* flags to a place easily accessible from C.
+	// Export experimental.* flags to a place easily accessible from snapd helpers.
 	if err := handleExperimentalFlags(tr); err != nil {
 		return err
 	}
