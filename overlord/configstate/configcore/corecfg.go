@@ -22,7 +22,6 @@ package configcore
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -41,6 +40,7 @@ type Conf interface {
 	State() *state.State
 }
 
+// coreCfg returns the configuration value for the core snap.
 func coreCfg(tr Conf, key string) (result string, err error) {
 	var v interface{} = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
@@ -52,14 +52,9 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
-// supportedConfigurations will be filled in by the files (like proxy.go)
-// that handle this configuration.
-var supportedConfigurations = map[string]bool{
-	"core.experimental.layouts":            true,
-	"core.experimental.parallel-instances": true,
-	"core.experimental.hotplug":            true,
-	"core.experimental.snapd-snap":         true,
-}
+// supportedConfigurations contains a set of handled configuration keys.
+// The actual values are populated by `init()` functions in each module.
+var supportedConfigurations = make(map[string]bool, 32)
 
 func validateBoolFlag(tr Conf, flag string) error {
 	value, err := coreCfg(tr, flag)
@@ -71,18 +66,6 @@ func validateBoolFlag(tr Conf, flag string) error {
 		// noop
 	default:
 		return fmt.Errorf("%s can only be set to 'true' or 'false'", flag)
-	}
-	return nil
-}
-
-func validateExperimentalSettings(tr Conf) error {
-	for k := range supportedConfigurations {
-		if !strings.HasPrefix(k, "core.experimental.") {
-			continue
-		}
-		if err := validateBoolFlag(tr, strings.TrimPrefix(k, "core.")); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -117,6 +100,11 @@ func Run(tr Conf) error {
 
 	// capture cloud information
 	if err := setCloudInfoWhenSeeding(tr); err != nil {
+		return err
+	}
+
+	// Export experimental.* flags to a place easily accessible from snapd helpers.
+	if err := handleExperimentalFlags(tr); err != nil {
 		return err
 	}
 
