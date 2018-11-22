@@ -716,11 +716,11 @@ type ExecRuntime struct {
 	TotalSec float64
 }
 
-type byRuntime []ExecRuntime
+type byRuntimeAsc []ExecRuntime
 
-func (a byRuntime) Len() int           { return len(a) }
-func (a byRuntime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byRuntime) Less(i, j int) bool { return a[i].TotalSec < a[j].TotalSec }
+func (a byRuntimeAsc) Len() int           { return len(a) }
+func (a byRuntimeAsc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byRuntimeAsc) Less(i, j int) bool { return a[i].TotalSec < a[j].TotalSec }
 
 // lines look like:
 // PID   TIME              SYSCALL
@@ -728,9 +728,14 @@ func (a byRuntime) Less(i, j int) bool { return a[i].TotalSec < a[j].TotalSec }
 var newExecveRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execve\(\"([^"]+)\"`)
 
 // lines look like:
+// PID   TIME              SYSCALL
+// 14157 1542875582.816782 execveat(3, "", ["snap-update-ns", "--from-snap-confine", "test-snapd-tools"], 0x7ffce7dd6160 /* 0 vars */, AT_EMPTY_PATH) = 0
+var newExecveatRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execveat\(.*\["([^"]+)"`)
+
+// lines look like (both SIGTERM and SIGCHLD need to be handled):
 // PID   TIME                  SIGNAL
 // 17559 1542815330.242750 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=17643, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*si_pid=([0-9]+),`)
+var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*SIG(CHLD|TERM)\ {.*si_pid=([0-9]+),`)
 
 func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 	slog, err := os.Open(straceLog)
@@ -747,12 +752,14 @@ func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 		line := r.Text()
 
 		// look for new Execs
-		match := newExecveRE.FindStringSubmatch(line)
-		if len(match) > 0 {
+		handleExecMatch := func(match []string) error {
+			if len(match) == 0 {
+				return nil
+			}
 			pid := match[1]
 			execStart, err := strconv.ParseFloat(match[2], 64)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			execve := match[3]
 			// deal with subsequent execve()
@@ -766,6 +773,15 @@ func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 				Start:  execStart,
 				Execve: execve,
 			}
+			return nil
+		}
+		match := newExecveRE.FindStringSubmatch(line)
+		if err := handleExecMatch(match); err != nil {
+			return nil, err
+		}
+		match = newExecveatRE.FindStringSubmatch(line)
+		if err := handleExecMatch(match); err != nil {
+			return nil, err
 		}
 		match = sigChldTermRE.FindStringSubmatch(line)
 		if len(match) > 0 {
@@ -773,7 +789,7 @@ func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 			if err != nil {
 				return nil, err
 			}
-			sigPid := match[2]
+			sigPid := match[3]
 			if perf, ok := pidToPerf[sigPid]; ok {
 				execRuntimes = append(execRuntimes, ExecRuntime{
 					Execve:   perf.Execve,
@@ -787,7 +803,6 @@ func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 	if r.Err() != nil {
 		return nil, r.Err()
 	}
-	sort.Sort(byRuntime(execRuntimes))
 
 	return execRuntimes, nil
 }
@@ -797,9 +812,10 @@ func displaySortedExecRuntimes(execRuntimes []ExecRuntime, n int) {
 		n = len(execRuntimes)
 	}
 
+	sort.Sort(byRuntimeAsc(execRuntimes))
 	fmt.Fprintf(Stderr, "Slowest %d exec calls during snap run:\n", n)
 	for _, rt := range execRuntimes[len(execRuntimes)-n:] {
-		fmt.Fprintf(Stderr, "%2.3f: %s\n", rt.TotalSec, rt.Execve)
+		fmt.Fprintf(Stderr, "  %2.3f %s\n", rt.TotalSec, rt.Execve)
 	}
 }
 
@@ -814,7 +830,7 @@ func (x *cmdRun) runCmdWithPerfMonitoring(origCmd, env []string) error {
 	straceLog := fmt.Sprintf("/run/snapd/strace-%d.log", os.Getpid())
 	//defer os.Remove(straceLog)
 
-	straceOpts := []string{"-ttt", "-e", "trace=execve", "-o", fmt.Sprintf("%s", straceLog)}
+	straceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLog)}
 	cmd = append(cmd, straceOpts...)
 	cmd = append(cmd, origCmd...)
 	// run
