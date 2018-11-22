@@ -709,17 +709,50 @@ func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 type SnapTrace struct {
 	TotalTime    float64
 	execRuntimes []ExecRuntime
+
+	nSlowestSamples int
 }
 
-func (st *SnapTrace) ExecRuntimes() []ExecRuntime {
-	return st.execRuntimes
+func (stt *SnapTrace) ExecRuntimes() []ExecRuntime {
+	return stt.execRuntimes
 }
 
-func (st *SnapTrace) AddExecRuntime(execve string, totalSec float64) {
-	st.execRuntimes = append(st.execRuntimes, ExecRuntime{
+func (stt *SnapTrace) AddExecRuntime(execve string, totalSec float64) {
+	stt.execRuntimes = append(stt.execRuntimes, ExecRuntime{
 		Execve:   execve,
 		TotalSec: totalSec,
 	})
+	stt.prune()
+}
+
+// prune() ensures the number of execRuntimes stays with the nSlowestSamples
+// limit
+func (stt *SnapTrace) prune() {
+	for len(stt.execRuntimes) > stt.nSlowestSamples {
+		fidx := 0
+		for idx, rt := range stt.execRuntimes {
+			if rt.TotalSec < stt.execRuntimes[fidx].TotalSec {
+				fidx = idx
+			}
+		}
+		// delete fastest element
+		stt.execRuntimes = append(stt.execRuntimes[:fidx], stt.execRuntimes[fidx+1:]...)
+	}
+}
+
+func (stt *SnapTrace) Display(w io.Writer) {
+	n := stt.nSlowestSamples
+	if n > len(stt.execRuntimes) {
+		n = len(stt.execRuntimes)
+	}
+	sortedExecRuntimes := make([]ExecRuntime, len(stt.execRuntimes))
+	copy(sortedExecRuntimes, stt.execRuntimes)
+	sort.Sort(byRuntimeDes(sortedExecRuntimes))
+	fmt.Fprintf(w, "Slowest %d exec calls during snap run:\n", n)
+	for _, rt := range sortedExecRuntimes[len(sortedExecRuntimes)-n:] {
+		fmt.Fprintf(w, "  %2.3fs %s\n", rt.TotalSec, rt.Execve)
+	}
+	fmt.Fprintf(w, "Total time: %2.3fs\n", stt.TotalTime)
 }
 
 type perfStart struct {
@@ -765,7 +798,7 @@ func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 	}
 	defer slog.Close()
 
-	snapTrace := &SnapTrace{}
+	snapTrace := &SnapTrace{nSlowestSamples: 10}
 	pidToPerf := make(map[string]perfStart)
 
 	var start, line string
@@ -838,20 +871,6 @@ func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 	return snapTrace, nil
 }
 
-func displaySortedExecRuntimes(snapTrace *SnapTrace, n int) {
-	if n > len(snapTrace.execRuntimes) {
-		n = len(snapTrace.execRuntimes)
-	}
-	sortedExecRuntimes := make([]ExecRuntime, len(snapTrace.execRuntimes))
-	copy(sortedExecRuntimes, snapTrace.execRuntimes)
-	sort.Sort(byRuntimeDes(sortedExecRuntimes))
-	fmt.Fprintf(Stderr, "Slowest %d exec calls during snap run:\n", n)
-	for _, rt := range sortedExecRuntimes[len(sortedExecRuntimes)-n:] {
-		fmt.Fprintf(Stderr, "  %2.3fs %s\n", rt.TotalSec, rt.Execve)
-	}
-	fmt.Fprintf(Stderr, "Total time: %2.3fs\n", snapTrace.TotalTime)
-}
-
 func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	// prepend strace magic
 	cmd, err := straceCmd()
@@ -875,7 +894,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	err = gcmd.Run()
 
 	if st, err := straceExtractExecRuntime(straceLog); err == nil {
-		displaySortedExecRuntimes(st, 10)
+		st.Display(Stderr)
 	} else {
 		logger.Noticef("cannot extract runtime data: %v", err)
 	}

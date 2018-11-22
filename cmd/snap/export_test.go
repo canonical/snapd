@@ -73,8 +73,7 @@ var (
 
 	NotesForSvc = notesForSvc
 
-	StraceExtractExecRuntime  = straceExtractExecRuntime
-	DisplaySortedExecRuntimes = displaySortedExecRuntimes
+	StraceExtractExecRuntime = straceExtractExecRuntime
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -219,4 +218,8 @@ func CmdAdviseSnap() *cmdAdviseSnap {
 
 func (st *SnapTrace) SetRuntimes(rtl []ExecRuntime) {
 	st.execRuntimes = rtl
+}
+
+func (st *SnapTrace) SetNrSamples(n int) {
+	st.nSlowestSamples = n
 }
