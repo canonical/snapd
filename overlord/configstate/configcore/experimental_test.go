@@ -76,8 +76,15 @@ func (s *experimentalSuite) TestExportedFeatures(c *C) {
 	}
 
 	err := configcore.Run(conf)
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 
-	c.Assert(filepath.Join(dirs.FeaturesDir, "hotplug"), testutil.FileEquals, "")
-	c.Assert(filepath.Join(dirs.FeaturesDir, "layouts"), testutil.FileEquals, "")
+	c.Assert(filepath.Join(dirs.FeaturesDir, "hotplug"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.FeaturesDir, "layouts"), testutil.FilePresent)
+
+	delete(conf.changes, "experimental.layouts")
+	err = configcore.Run(conf)
+	c.Assert(err, IsNil)
+
+	c.Assert(filepath.Join(dirs.FeaturesDir, "hotplug"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.FeaturesDir, "layouts"), testutil.FileAbsent)
 }
