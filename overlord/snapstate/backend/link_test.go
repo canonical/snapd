@@ -311,5 +311,17 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
 	}
+}
 
+func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCaches(c *C) {
+	var updateFontconfigCaches int
+	restore := backend.MockUpdateFontconfigCaches(func() error {
+		updateFontconfigCaches += 1
+		return nil
+	})
+	defer restore()
+
+	err := s.be.LinkSnap(s.info, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updateFontconfigCaches, Equals, 1)
 }
