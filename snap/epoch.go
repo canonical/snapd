@@ -65,12 +65,12 @@ type Epoch struct {
 
 // E returns the epoch represented by the expression s. It's meant for use in
 // testing, as it panics at the first sign of trouble.
-func E(s string) *Epoch {
+func E(s string) Epoch {
 	var e Epoch
 	if err := e.fromString(s); err != nil {
 		panic(fmt.Errorf("%q: %v", s, err))
 	}
-	return &e
+	return e
 }
 
 func (e *Epoch) fromString(s string) error {
@@ -146,14 +146,30 @@ func (e *Epoch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return e.fromStructured(structured)
 }
 
+// IsZero checks whether a snap's epoch is not set (or is set to the default
+// value of "0").  Also zero are some epochs that would be normalized to "0",
+// such as {"read": 0}, as well as some invalid ones like {"read": []}.
+func (e *Epoch) IsZero() bool {
+	if e == nil {
+		return true
+	}
+
+	rZero := len(e.Read) == 0 || (len(e.Read) == 1 && e.Read[0] == 0)
+	wZero := len(e.Write) == 0 || (len(e.Write) == 1 && e.Write[0] == 0)
+
+	return rZero && wZero
+}
+
 // Validate checks that the epoch makes sense.
 func (e *Epoch) Validate() error {
-	if e == nil || (e.Read == nil && e.Write == nil) {
-		// (*Epoch)(nil) and &Epoch{} are valid epochs, equivalent to "0"
-		return nil
-	}
-	if len(e.Read) == 0 || len(e.Write) == 0 {
+	if (e.Read != nil && len(e.Read) == 0) || (e.Write != nil && len(e.Write) == 0) {
+		// these are invalid, but if both are true then IsZero will be true.
+		// In practice this check is redundant because it's caught in deserialise.
+		// Belts-and-suspenders all the way down.
 		return &EpochError{Message: emptyEpochList}
+	}
+	if e.IsZero() {
+		return nil
 	}
 	if len(e.Read) > 10 || len(e.Write) > 10 {
 		return &EpochError{Message: epochListJustRidiculouslyLong}
@@ -169,7 +185,7 @@ func (e *Epoch) Validate() error {
 }
 
 func (e *Epoch) simplify() interface{} {
-	if e == nil || (e.Read == nil && e.Write == nil) {
+	if e.IsZero() {
 		return "0"
 	}
 	if len(e.Write) == 1 && len(e.Read) == 1 && e.Read[0] == e.Write[0] {
@@ -181,15 +197,22 @@ func (e *Epoch) simplify() interface{} {
 	return &structuredEpoch{Read: e.Read, Write: e.Write}
 }
 
-func (e *Epoch) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.simplify())
+func (e Epoch) MarshalJSON() ([]byte, error) {
+	se := &structuredEpoch{Read: e.Read, Write: e.Write}
+	if len(se.Read) == 0 {
+		se.Read = uint32slice{0}
+	}
+	if len(se.Write) == 0 {
+		se.Write = uint32slice{0}
+	}
+	return json.Marshal(se)
 }
 
 func (Epoch) MarshalYAML() (interface{}, error) {
 	panic("unexpected attempt to marshal an Epoch to YAML")
 }
 
-func (e *Epoch) String() string {
+func (e Epoch) String() string {
 	i := e.simplify()
 	if s, ok := i.(string); ok {
 		return s
@@ -206,7 +229,7 @@ func (e *Epoch) String() string {
 
 // CanRead checks whether this epoch can read the data written by the
 // other one.
-func (e *Epoch) CanRead(other *Epoch) bool {
+func (e *Epoch) CanRead(other Epoch) bool {
 	// the intersection between e.Read and other.Write needs to be non-empty
 
 	// normalize (empty epoch should be treated like "0" here)
@@ -214,9 +237,7 @@ func (e *Epoch) CanRead(other *Epoch) bool {
 	if e != nil {
 		rs = e.Read
 	}
-	if other != nil {
-		ws = other.Write
-	}
+	ws = other.Write
 	if len(rs) == 0 {
 		rs = []uint32{0}
 	}

@@ -6,7 +6,7 @@ wait_for_file() {
     sleep_time="$3"
 
     for _ in $(seq "$iters"); do
-        if [ -f "$the_file" ]; then
+        if [ -e "$the_file" ]; then
             return 0
         fi
         sleep "$sleep_time"
@@ -44,7 +44,7 @@ clean_dir() {
 
 ensure_file_exists() {
     file="$1"
-    if ! [ -f "$file" ]; then
+    if ! [ -e "$file" ]; then
         touch "$file"
         touch "$file.fake"
     fi
@@ -52,7 +52,7 @@ ensure_file_exists() {
 
 ensure_file_exists_backup_real() {
     file="$1"
-    if [ -f "$file" ]; then
+    if [ -e "$file" ]; then
         mv "$file" "$file.back"
     fi
     # ensure the parent dir is available
@@ -65,11 +65,11 @@ ensure_file_exists_backup_real() {
 
 clean_file() {
     file="$1"
-    if [ -f "$file.fake" ]; then
+    if [ -e "$file.fake" ]; then
         rm -f "$file"
         rm -f "$file.fake"
     fi
-    if [ -f "$file.back" ]; then
+    if [ -e "$file.back" ]; then
         mv "$file.back" "$file"
     fi
 }
