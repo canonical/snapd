@@ -67,3 +67,7 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(f.IsEnabled(), Equals, true)
 }
+
+func (*featureSuite) TestControlFile(c *C) {
+	c.Check(features.Layouts.ControlFile(), Equals, "/var/lib/snapd/features/layouts")
+}
