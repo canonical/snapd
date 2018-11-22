@@ -797,6 +797,44 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 	return nil
 }
 
+func checkHotplugDisconnectConflicts(st *state.State, plugSnap, slotSnap string) error {
+	for _, task := range st.Tasks() {
+		if task.Status().Ready() {
+			continue
+		}
+
+		k := task.Kind()
+		if k == "connect" || k == "disconnect" {
+			plugRef, slotRef, err := getPlugAndSlotRefs(task)
+			if err != nil {
+				return err
+			}
+			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
+				return &state.Retry{After: connectRetryTimeout}
+			}
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		// e.g. hook tasks don't have task snap setup
+		if err != nil {
+			continue
+		}
+		otherSnapName := snapsup.InstanceName()
+
+		// different snaps - no conflict
+		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+			continue
+		}
+
+		if k == "link-snap" || k == "setup-profiles" || k == "unlink-snap" {
+			// other snap is getting installed/refreshed/removed - temporary conflict
+			return &state.Retry{After: connectRetryTimeout}
+		}
+	}
+	return nil
+}
+
 // inSameChangeWaitChains returns true if there is a wait chain so
 // that `startT` is run before `searchT` in the same state.Change.
 func inSameChangeWaitChain(startT, searchT *state.Task) bool {
@@ -1244,7 +1282,7 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		if err := checkDisconnectConflicts(st, syssnap.InstanceName(), connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkHotplugDisconnectConflicts(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", syssnap.InstanceName(), connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 				task.Logf("Waiting for conflicting change in progress...")
