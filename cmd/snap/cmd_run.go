@@ -811,9 +811,8 @@ func (x *cmdRun) runCmdWithPerfMonitoring(origCmd, env []string) error {
 	}
 
 	// FIXME: use e.g. (named?) pipe here and analyze async
-	//straceLog := fmt.Sprintf("/run/snapd/strace-%d.log", os.Getpid())
-	//defer os.Remove(straceLog)
-	straceLog := "/run/snapd/strace.log"
+	straceLog := fmt.Sprintf("/run/snapd/strace-%d.log", os.Getpid())
+	defer os.Remove(straceLog)
 
 	straceOpts := []string{"-ttt", "-e", "trace=execve", "-o", fmt.Sprintf("%s", straceLog)}
 	cmd = append(cmd, straceOpts...)
@@ -826,11 +825,11 @@ func (x *cmdRun) runCmdWithPerfMonitoring(origCmd, env []string) error {
 	gcmd.Stderr = Stderr
 	err = gcmd.Run()
 
-	execRuntimes, err := straceExtractExecRuntime(straceLog)
-	if err != nil {
+	if execRuntimes, err := straceExtractExecRuntime(straceLog); err == nil {
+		displaySortedExecRuntimes(execRuntimes, 10)
+	} else {
 		logger.Noticef("cannot extract runtime data: %v", err)
 	}
-	displaySortedExecRuntimes(execRuntimes, 10)
 
 	return err
 }
