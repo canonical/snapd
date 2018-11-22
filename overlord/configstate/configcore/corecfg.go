@@ -52,8 +52,8 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
-// supportedConfigurations will be filled in by the files (like proxy.go)
-// that handle this configuration.
+// supportedConfigurations contains a set of handled configuration keys.
+// The actual values are populated by `init()` functions in each module.
 var supportedConfigurations = make(map[string]bool, 32)
 
 func validateBoolFlag(tr Conf, flag string) error {
