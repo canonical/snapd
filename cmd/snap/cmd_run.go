@@ -706,6 +706,15 @@ func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	return gcmd.Run()
 }
 
+type SnapTrace struct {
+	TotalTime    float64
+	execRuntimes []ExecRuntime
+}
+
+func (st *SnapTrace) ExecRuntimes() []ExecRuntime {
+	return st.execRuntimes
+}
+
 type perfStart struct {
 	Start  float64
 	Execve string
@@ -737,19 +746,28 @@ var newExecveatRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execveat\(.*\["([^"
 // 17559 1542815330.242750 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=17643, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
 var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*SIG(CHLD|TERM)\ {.*si_pid=([0-9]+),`)
 
-func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
+// all lines start with this:
+// PID   TIME
+// 21616 1542882400.198907 ....
+var timeRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*`)
+
+func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 	slog, err := os.Open(straceLog)
 	if err != nil {
 		return nil, err
 	}
 	defer slog.Close()
 
-	execRuntimes := make([]ExecRuntime, 0, 10)
+	snapTrace := &SnapTrace{}
 	pidToPerf := make(map[string]perfStart)
 
+	var start, line string
 	r := bufio.NewScanner(slog)
 	for r.Scan() {
-		line := r.Text()
+		line = r.Text()
+		if m := timeRE.FindStringSubmatch(line); len(m) > 0 && start == "" {
+			start = m[1]
+		}
 
 		// look for new Execs
 		handleExecMatch := func(match []string) error {
@@ -764,7 +782,7 @@ func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 			execve := match[3]
 			// deal with subsequent execve()
 			if perf, ok := pidToPerf[pid]; ok {
-				execRuntimes = append(execRuntimes, ExecRuntime{
+				snapTrace.execRuntimes = append(snapTrace.execRuntimes, ExecRuntime{
 					Execve:   perf.Execve,
 					TotalSec: execStart - perf.Start,
 				})
@@ -791,7 +809,7 @@ func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 			}
 			sigPid := match[3]
 			if perf, ok := pidToPerf[sigPid]; ok {
-				execRuntimes = append(execRuntimes, ExecRuntime{
+				snapTrace.execRuntimes = append(snapTrace.execRuntimes, ExecRuntime{
 					Execve:   perf.Execve,
 					TotalSec: sigTime - perf.Start,
 				})
@@ -800,23 +818,36 @@ func straceExtractExecRuntime(straceLog string) ([]ExecRuntime, error) {
 		}
 
 	}
+	if m := timeRE.FindStringSubmatch(line); len(m) > 0 {
+		tStart, err := strconv.ParseFloat(start, 64)
+		if err != nil {
+			return nil, err
+		}
+		tEnd, err := strconv.ParseFloat(m[1], 64)
+		if err != nil {
+			return nil, err
+		}
+		snapTrace.TotalTime = tEnd - tStart
+	}
+
 	if r.Err() != nil {
 		return nil, r.Err()
 	}
 
-	return execRuntimes, nil
+	return snapTrace, nil
 }
 
-func displaySortedExecRuntimes(execRuntimes []ExecRuntime, n int) {
-	if n > len(execRuntimes) {
-		n = len(execRuntimes)
+func displaySortedExecRuntimes(snapTrace *SnapTrace, n int) {
+	if n > len(snapTrace.execRuntimes) {
+		n = len(snapTrace.execRuntimes)
 	}
 
-	sort.Sort(byRuntimeAsc(execRuntimes))
-	fmt.Fprintf(Stderr, "Slowest %d exec calls during snap run:\n", n)
-	for _, rt := range execRuntimes[len(execRuntimes)-n:] {
+	sort.Sort(byRuntimeAsc(snapTrace.execRuntimes))
+	fmt.Fprintf(Stderr, "Slowest %d exec calls during snap run (in sec):\n", n)
+	for _, rt := range snapTrace.execRuntimes[len(snapTrace.execRuntimes)-n:] {
 		fmt.Fprintf(Stderr, "  %2.3f %s\n", rt.TotalSec, rt.Execve)
 	}
+	fmt.Fprintf(Stderr, "Total time in sec: %2.3f\n", snapTrace.TotalTime)
 }
 
 func (x *cmdRun) runCmdWithPerfMonitoring(origCmd, env []string) error {
@@ -841,8 +872,8 @@ func (x *cmdRun) runCmdWithPerfMonitoring(origCmd, env []string) error {
 	gcmd.Stderr = Stderr
 	err = gcmd.Run()
 
-	if execRuntimes, err := straceExtractExecRuntime(straceLog); err == nil {
-		displaySortedExecRuntimes(execRuntimes, 10)
+	if st, err := straceExtractExecRuntime(straceLog); err == nil {
+		displaySortedExecRuntimes(st, 10)
 	} else {
 		logger.Noticef("cannot extract runtime data: %v", err)
 	}

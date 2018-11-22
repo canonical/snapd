@@ -954,10 +954,9 @@ func (s *SnapSuite) TestStraceExtractExecRuntime(c *check.C) {
 	c.Assert(err, check.IsNil)
 	f.Sync()
 
-	rtl, err := snaprun.StraceExtractExecRuntime(f.Name())
+	st, err := snaprun.StraceExtractExecRuntime(f.Name())
 	c.Assert(err, check.IsNil)
-	c.Assert(rtl, check.HasLen, 5)
-	c.Assert(rtl, check.DeepEquals, []snaprun.ExecRuntime{
+	c.Assert(st.ExecRuntimes(), check.DeepEquals, []snaprun.ExecRuntime{
 		{Execve: "/snap/bin/test-snapd-tools.echo", TotalSec: 0.005803108215332031},
 		{Execve: "/snap/core/current/usr/bin/snap", TotalSec: 0.016134977340698242},
 		{Execve: "snap-update-ns", TotalSec: 0.0042438507080078125},
