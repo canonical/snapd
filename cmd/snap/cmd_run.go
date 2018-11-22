@@ -864,9 +864,25 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 		return err
 	}
 
-	// FIXME: use e.g. (named?) pipe here and analyze async
-	straceLog := fmt.Sprintf("/run/snapd/strace-%d.log", os.Getpid())
-	defer os.Remove(straceLog)
+	// setup private tmp dir with strace fifo
+	straceTmp, err := ioutil.TempDir("", "exec-trace")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(straceTmp)
+	straceLog := filepath.Join(straceTmp, "strace.fifo")
+	if err := syscall.Mkfifo(straceLog, 0640); err != nil {
+		return err
+	}
+
+	// read strace data from fifo async
+	var slg *SnapTrace
+	var straceErr error
+	doneCh := make(chan bool, 1)
+	go func() {
+		slg, straceErr = straceExtractExecRuntime(straceLog)
+		close(doneCh)
+	}()
 
 	straceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLog)}
 	cmd = append(cmd, straceOpts...)
@@ -879,12 +895,13 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	gcmd.Stderr = Stderr
 	err = gcmd.Run()
 
-	if st, err := straceExtractExecRuntime(straceLog); err == nil {
-		st.Display(Stderr)
+	// wait for strace reader
+	<-doneCh
+	if straceErr == nil {
+		slg.Display(Stderr)
 	} else {
-		logger.Noticef("cannot extract runtime data: %v", err)
+		logger.Noticef("cannot extract runtime data: %v", straceErr)
 	}
-
 	return err
 }
 
