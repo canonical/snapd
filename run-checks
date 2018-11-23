@@ -34,13 +34,11 @@ short=
 STATIC=
 UNIT=
 SPREAD=
-DEPRECATED=
 
 case "${1:-all}" in
     all)
         STATIC=1
         UNIT=1
-        DEPRECATED=1
         ;;
     --static)
         STATIC=1
@@ -264,11 +262,6 @@ if [ "$SPREAD" = 1 ]; then
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
-fi
-
-if [ "$DEPRECATED" = 1 ]; then
-    ./get-deps.sh
-
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true
