@@ -328,8 +328,8 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 }
 
 func validateDescription(descr string) error {
-	if count := utf8.RuneCountInString(descr); count > 1000 {
-		return fmt.Errorf("description can have up to 1000 codepoints, got %d", count)
+	if count := utf8.RuneCountInString(descr); count > 4096 {
+		return fmt.Errorf("description can have up to 4096 codepoints, got %d", count)
 	}
 	return nil
 }

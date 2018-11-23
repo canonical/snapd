@@ -1440,8 +1440,9 @@ func (s *validateSuite) TestValidateDescription(c *C) {
 		"🐧🐧", // len("🐧🐧") == 8
 		"á", // á (combining)
 	} {
-		c.Check(ValidateDescription(strings.Repeat(s, 600)), ErrorMatches, `description can have up to 1000 codepoints, got 1200`)
-		c.Check(ValidateDescription(strings.Repeat(s, 500)), IsNil)
+		c.Check(ValidateDescription(s), IsNil)
+		c.Check(ValidateDescription(strings.Repeat(s, 2049)), ErrorMatches, `description can have up to 4096 codepoints, got 4098`)
+		c.Check(ValidateDescription(strings.Repeat(s, 2048)), IsNil)
 	}
 }
 
