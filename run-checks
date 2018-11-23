@@ -218,7 +218,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
 
-    if command -v staticcheck >/dev/null || [[ "$(go version)" =~ go1\.(9|1[0-9])\.[0-9] ]]; then
+    if command -v staticcheck >/dev/null || ( go version | grep -E 'go1\.(9|1[0-9])\.[0-9]' ); then
         # either you already have staticcheck on your path, or you're on a new enough go
         echo Running staticcheck
         if ! command -v staticcheck >/dev/null; then
