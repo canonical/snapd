@@ -415,7 +415,7 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
-    # save the job which is going to be exeuted in the system
+    # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
