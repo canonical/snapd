@@ -55,6 +55,8 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    # Remove the test snap, this also removes the leftover mount namespace.
+    snap remove test-snapd-with-configure
     echo "Undo the rsyslog disable"
     systemctl unmask rsyslog.service || true
     systemctl enable rsyslog.service || true
