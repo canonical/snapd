@@ -217,6 +217,12 @@ if [ "$STATIC" = 1 ]; then
 
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
+
+    echo Running staticcheck
+    if ! command -v staticcheck >/dev/null; then
+        go get -u honnef.co/go/tools/cmd/staticcheck
+    fi
+    go list ./... | grep -v '/vendor/' | xargs staticcheck -tests=false
 fi
 
 if [ "$UNIT" = 1 ]; then
