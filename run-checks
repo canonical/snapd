@@ -59,12 +59,15 @@ esac
 
 CURRENTTRAP="true"
 EXIT_CODE=99
+
 store_exit_code() {
     EXIT_CODE=$?
 }
+
 exit_with_exit_code() {
     exit $EXIT_CODE
 }
+
 addtrap() {
     CURRENTTRAP="$CURRENTTRAP ; $1"
     # shellcheck disable=SC2064
