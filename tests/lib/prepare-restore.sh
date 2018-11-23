@@ -488,6 +488,9 @@ restore_project_each() {
         dmesg
         exit 1
     fi
+
+    # Domething is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {
