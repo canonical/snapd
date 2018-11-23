@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ "$TRAVIS_BUILD_NUMBER" ]; then
+if [ -n "${TRAVIS_BUILD_NUMBER:-}" ]; then
     echo travis_fold:start:env
     printenv | sort
     echo travis_fold:end:env
