@@ -152,9 +152,7 @@ if [ -d /run/snapd/ns ]; then
         umount -l "$mnt" || true
         rm -f "$mnt"
     done
-    for fstab in /run/snapd/ns/*.fstab; do
-        rm -f "$fstab"
-    done
+    rm -f /run/snapd/ns/*.fstab
 fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
