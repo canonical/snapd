@@ -74,23 +74,6 @@ addtrap() {
     trap "store_exit_code; $CURRENTTRAP ; exit_with_exit_code" EXIT
 }
 
-endmsg() {
-    if [ $EXIT_CODE -eq 0 ]; then
-        p="success.txt"
-        m="All good, what could possibly go wrong."
-    else
-        p="failure.txt"
-        m="Crushing failure and despair."
-    fi
-    echo
-    if [ -t 1 ] && [ -z "$STATIC" ]; then
-        cat "data/$p"
-    else
-        echo "$m"
-    fi
-}
-addtrap endmsg
-
 # Append the coverage profile of a package to the project coverage.
 append_coverage() (
     profile="$1"
