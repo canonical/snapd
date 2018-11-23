@@ -417,8 +417,6 @@ prepare_suite() {
 prepare_suite_each() {
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --reuse-core
     # Reset systemd journal cursor.
     start_new_journalctl_log
     # shellcheck source=tests/lib/prepare.sh
@@ -431,7 +429,8 @@ prepare_suite_each() {
 }
 
 restore_suite_each() {
-    true
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
 }
 
 restore_suite() {
