@@ -144,6 +144,19 @@ else
     reset_classic "$@"
 fi
 
+# Discard all mount namespaces and active mount profiles.
+# This is duplicating logic in snap-discard-ns but it doesn't
+# support --all switch yet so we cannot use it.
+if [ -d /run/snapd/ns ]; then
+    for mnt in /run/snapd/ns/*.mnt; do
+        umount -l "$mnt" || true
+        rm -f "$mnt"
+    done
+    for fstab in /run/snapd/ns/*.fstab; do
+        rm -f "$fstab"
+    done
+fi
+
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
     # shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
