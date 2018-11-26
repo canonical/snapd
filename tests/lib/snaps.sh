@@ -50,14 +50,15 @@ install_local_jailmode() {
 mksnap_fast() {
     dir="$1"
     snap="$2"
+    shift 2
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*|amazon-*|centos-*)
             # trusty, AMZN2 and CentOS 7 do not support -Xcompression-level 1
-            mksquashfs "$dir" "$snap" -comp gzip -no-fragments -no-progress
+            mksquashfs "$dir" "$snap" -comp gzip -no-fragments -no-progress "$@"
             ;;
         *)
-            mksquashfs "$dir" "$snap" -comp gzip -Xcompression-level 1 -no-fragments -no-progress
+            mksquashfs "$dir" "$snap" -comp gzip -Xcompression-level 1 -no-fragments -no-progress "$@"
             ;;
     esac
 }
