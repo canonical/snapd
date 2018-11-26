@@ -18,7 +18,7 @@ prepare: |
     # Fist layer of dirs and files
     ensure_dir_exists_backup_real "$TESTDIR"
     ensure_file_exists_backup_real "$TESTDIR"/.testfile1
-    ensure_file_exists_backup_real "$TESTDIR"/testfile1
+    ensure_file_exists_backup_real "$TESTDIR"/readonly_file1
     ensure_dir_exists_backup_real "$TESTDIR"/.testdir1
     ensure_dir_exists_backup_real "$TESTDIR"/testdir1
 
@@ -53,7 +53,7 @@ execute: |
 
     echo "Then the snap is able to access all the files and dirs in /testdir"
     test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" | MATCH "content for $TESTDIR/.testfile1"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/testfile1" MATCH "content for $TESTDIR/testfile1"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/readonly_file1" MATCH "content for $TESTDIR/readonly_file1"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/testdir1"
     test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfilé2" | MATCH "content for $TESTDIR/.testdir1/.testfilé2"
@@ -68,15 +68,15 @@ execute: |
         exit 0
     fi
 
-    if test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/testfile1" 2> call.error; then
+    if test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/readonly_file1" 2> call.error; then
         echo "Expected permission error writing the system file"
         exit 1
     fi
     MATCH "Permission denied" < call.error
 
     echo "Then the snap is not able to to access files and dirs in $HOME"
-    test-snapd-sh.with-system-files-plug -c "ls /root/.testdir1" && exit 1
-    test-snapd-sh.with-system-files-plug -c "cat /root/.testfile1" && exit 1
+    test-snapd-sh.with-system-files-plug -c "ls /root/.testdir1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-system-files-plug -c "cat /root/.testfile1" 2>&1| MATCH "Permission denied"
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:system-files
