@@ -206,17 +206,12 @@ static struct sc_mount_ns *sc_alloc_mount_ns(void)
 	return group;
 }
 
-struct sc_mount_ns *sc_open_mount_ns(const char *group_name,
-				     const unsigned flags)
+struct sc_mount_ns *sc_open_mount_ns(const char *group_name)
 {
 	struct sc_mount_ns *group = sc_alloc_mount_ns();
 	group->dir_fd = open(sc_ns_dir,
 			     O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (group->dir_fd < 0) {
-		if (flags & SC_NS_FAIL_GRACEFULLY && errno == ENOENT) {
-			free(group);
-			return NULL;
-		}
 		die("cannot open directory %s", sc_ns_dir);
 	}
 	group->name = strdup(group_name);
@@ -580,13 +575,6 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 		// print pid's portably so this is the best we can do.
 		debug("forked support process %d", (int)pid);
 		group->child = pid;
-
-		// Unshare the mount namespace and set a flag instructing the caller that
-		// the namespace is pristine and needs to be populated now.
-		if (unshare(CLONE_NEWNS) < 0) {
-			die("cannot unshare the mount namespace");
-		}
-		debug("created new mount namespace");
 	}
 }
 

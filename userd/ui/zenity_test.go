@@ -62,6 +62,17 @@ func (s *zenitySuite) TestYesNoSimpleNo(c *C) {
 	})
 }
 
+func (s *zenitySuite) TestYesNoLong(c *C) {
+	mock := testutil.MockCommand(c, "zenity", "true")
+	defer mock.Restore()
+
+	z := &ui.Zenity{}
+	_ = z.YesNo("01234567890", "01234567890", nil)
+	c.Check(mock.Calls(), DeepEquals, [][]string{
+		{"zenity", "--question", "--modal", "--text=<big><b>01234567890</b></big>\n\n01234567890", "--width=500"},
+	})
+}
+
 func (s *zenitySuite) TestYesNoSimpleFooter(c *C) {
 	mock := testutil.MockCommand(c, "zenity", "")
 	defer mock.Restore()

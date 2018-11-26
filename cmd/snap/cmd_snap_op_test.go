@@ -1018,7 +1018,7 @@ func (s *SnapSuite) TestRefreshHold(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
 last: 2017-04-25T17:35:00+02:00
 hold: 2017-04-28T00:00:00+02:00
-next: 2017-04-26T00:58:00+02:00
+next: 2017-04-26T00:58:00+02:00 (but held)
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -1323,6 +1323,25 @@ func (s *SnapOpSuite) TestTryMissingOpt(c *check.C) {
 		kind = test.kind
 		c.Check(snap.RunMain(), testutil.ContainsWrapped, test.expected, check.Commentf("%q", kind))
 	}
+}
+
+func (s *SnapOpSuite) TestInstallConfinedAsClassic(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "value": "some-snap",
+    "kind": "snap-not-classic"
+  },
+  "status-code": 400
+}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "some-snap"})
+	c.Assert(err, check.ErrorMatches, `snap "some-snap" is not compatible with --classic`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
