@@ -52,7 +52,7 @@ type personalFilesInterface struct {
 
 func validateSinglePathHome(np string) error {
 	if !strings.HasPrefix(np, "$HOME/") {
-		return fmt.Errorf(`%q must start with "$HOME"`, np)
+		return fmt.Errorf(`%q must start with "$HOME/"`, np)
 	}
 	if strings.Count(np, "$HOME") > 1 {
 		return fmt.Errorf(`$HOME must only be used at the start of the path of %q`, np)
