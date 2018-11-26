@@ -2761,7 +2761,7 @@ func (s *snapmgrTestSuite) TestInstalling(c *C) {
 func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
-		Revision: snap.R(7),
+		Revision: snap.R(-42),
 	}
 	snaptest.MockSnap(c, `name: some-snap`, &si)
 
@@ -2868,7 +2868,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
-		Revision: snap.R(7),
+		Revision: snap.R(-42),
 	})
 	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
