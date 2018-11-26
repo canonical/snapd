@@ -412,6 +412,11 @@ prepare_suite() {
     else
         prepare_classic
     fi
+
+    # Reset snapd to run the first test on the suite properly
+    # This reset has to be removed and it needs to be slit and reorganized
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
 }
 
 prepare_suite_each() {
