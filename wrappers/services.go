@@ -97,7 +97,9 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	return nil
 }
 
-// StartServices starts service units for the applications from the snap which are services.
+// StartServices starts service units for the applications from the snap which
+// are services. Service units will be started in the order provided by the
+// caller.
 func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
@@ -169,8 +171,14 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 		}
 	}
 
-	if len(services) > 0 {
-		if err := sysd.Start(services...); err != nil {
+	for _, srv := range services {
+		// starting all services at once does not create a single
+		// transaction, but instead spawns multiple jobs, make sure the
+		// services started in the original order by bring them up one
+		// by one, see:
+		// https://github.com/systemd/systemd/issues/8102
+		// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
+		if err := sysd.Start(srv); err != nil {
 			// cleanup was set up by iterating over apps
 			return err
 		}
@@ -389,9 +397,9 @@ func genServiceFile(appInfo *snap.AppInfo) []byte {
 Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
-After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}{{if .After}} {{ stringsJoin .After " " }}{{end}}
 {{- if .Before}}
-Before={{ range .Before -}}{{.}} {{- end}}
+Before={{ stringsJoin .Before " "}}
 {{- end}}
 X-Snappy=yes
 
@@ -438,7 +446,11 @@ WantedBy={{.ServicesTarget}}
 {{- end}}
 `
 	var templateOut bytes.Buffer
-	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
+	tmpl := template.New("service-wrapper")
+	tmpl.Funcs(template.FuncMap{
+		"stringsJoin": strings.Join,
+	})
+	t := template.Must(tmpl.Parse(serviceTemplate))
 
 	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {

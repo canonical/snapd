@@ -77,9 +77,11 @@ static void test_sc_alloc_mount_ns(void)
 	g_test_queue_free(group);
 	g_assert_nonnull(group);
 	g_assert_cmpint(group->dir_fd, ==, -1);
-	g_assert_cmpint(group->event_fd, ==, -1);
+	g_assert_cmpint(group->pipe_master[0], ==, -1);
+	g_assert_cmpint(group->pipe_master[1], ==, -1);
+	g_assert_cmpint(group->pipe_helper[0], ==, -1);
+	g_assert_cmpint(group->pipe_helper[1], ==, -1);
 	g_assert_cmpint(group->child, ==, 0);
-	g_assert_cmpint(group->should_populate, ==, false);
 	g_assert_null(group->name);
 }
 
@@ -93,14 +95,16 @@ static struct sc_mount_ns *sc_test_open_mount_ns(const char *group_name)
 	if (group_name == NULL) {
 		group_name = "test-group";
 	}
-	group = sc_open_mount_ns(group_name, 0);
+	group = sc_open_mount_ns(group_name);
 	g_test_queue_destroy((GDestroyNotify) sc_close_mount_ns, group);
 	// Check if the returned group data looks okay
 	g_assert_nonnull(group);
 	g_assert_cmpint(group->dir_fd, !=, -1);
-	g_assert_cmpint(group->event_fd, ==, -1);
+	g_assert_cmpint(group->pipe_master[0], ==, -1);
+	g_assert_cmpint(group->pipe_master[1], ==, -1);
+	g_assert_cmpint(group->pipe_helper[0], ==, -1);
+	g_assert_cmpint(group->pipe_helper[1], ==, -1);
 	g_assert_cmpint(group->child, ==, 0);
-	g_assert_cmpint(group->should_populate, ==, false);
 	g_assert_cmpstr(group->name, ==, group_name);
 	return group;
 }
@@ -114,15 +118,6 @@ static void test_sc_open_mount_ns(void)
 	// Check that the group directory exists
 	g_assert_true(g_file_test
 		      (ns_dir, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR));
-}
-
-static void test_sc_open_mount_ns_graceful(void)
-{
-	sc_set_ns_dir("/nonexistent");
-	g_test_queue_destroy((GDestroyNotify) sc_set_ns_dir, SC_NS_DIR);
-	struct sc_mount_ns *group =
-	    sc_open_mount_ns("foo", SC_NS_FAIL_GRACEFULLY);
-	g_assert_null(group);
 }
 
 static void unmount_dir(void *dir)
@@ -208,8 +203,6 @@ static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
 	g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
-	g_test_add_func("/ns/sc_open_mount_ns/graceful",
-			test_sc_open_mount_ns_graceful);
 	g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
 	g_test_add_func("/system/ns/sc_is_mount_ns_dir_private",
 			test_sc_is_mount_ns_dir_private);

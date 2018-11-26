@@ -92,6 +92,29 @@ static void test_sc_lock_unlock(void)
 	g_assert_cmpint(err, ==, 0);
 }
 
+// Check that holding a lock is properly detected.
+static void test_sc_verify_snap_lock__locked(void)
+{
+	(void)sc_test_use_fake_lock_dir();
+	int fd = sc_lock_snap("foo");
+	sc_verify_snap_lock("foo");
+	sc_unlock(fd);
+}
+
+// Check that holding a lock is properly detected.
+static void test_sc_verify_snap_lock__unlocked(void)
+{
+	(void)sc_test_use_fake_lock_dir();
+	if (g_test_subprocess()) {
+		sc_verify_snap_lock("foo");
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("unexpectedly managed to acquire exclusive lock over snap foo\n");
+}
+
 static void test_sc_enable_sanity_timeout(void)
 {
 	if (g_test_subprocess()) {
@@ -112,4 +135,8 @@ static void __attribute__ ((constructor)) init(void)
 	g_test_add_func("/locking/sc_lock_unlock", test_sc_lock_unlock);
 	g_test_add_func("/locking/sc_enable_sanity_timeout",
 			test_sc_enable_sanity_timeout);
+	g_test_add_func("/locking/sc_verify_snap_lock__locked",
+			test_sc_verify_snap_lock__locked);
+	g_test_add_func("/locking/sc_verify_snap_lock__unlocked",
+			test_sc_verify_snap_lock__unlocked);
 }

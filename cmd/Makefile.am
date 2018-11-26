@@ -54,19 +54,24 @@ check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
 
+new_format = snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
-fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
+fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
+	clang-format -style='{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 120}' -i $^
+
+fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
 	HOME=$(srcdir) indent $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
-	sudo install -D -m 6755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
+hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
+	sudo install -D -m 6755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
+	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
 
 # for the hack target also:
@@ -92,6 +97,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/error.h \
 	libsnap-confine-private/fault-injection.c \
 	libsnap-confine-private/fault-injection.h \
+	libsnap-confine-private/feature.c \
+	libsnap-confine-private/feature.h \
 	libsnap-confine-private/locking.c \
 	libsnap-confine-private/locking.h \
 	libsnap-confine-private/mount-opt.c \
@@ -121,6 +128,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
+	libsnap-confine-private/feature-test.c \
 	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
@@ -128,8 +136,8 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/string-utils-test.c \
-	libsnap-confine-private/test-utils.c \
 	libsnap-confine-private/test-utils-test.c \
+	libsnap-confine-private/test-utils.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
@@ -203,8 +211,6 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/mount-support.h \
 	snap-confine/ns-support.c \
 	snap-confine/ns-support.h \
-	snap-confine/quirks.c \
-	snap-confine/quirks.h \
 	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args.h \
 	snap-confine/snap-confine.c \
@@ -294,8 +300,6 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
-	snap-confine/quirks.c \
-	snap-confine/quirks.h \
 	snap-confine/snap-confine-args-test.c \
 	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
