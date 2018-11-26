@@ -67,8 +67,6 @@ type Daemon struct {
 	router          *mux.Router
 	standbyOpinions *standby.StandbyOpinions
 
-	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
-	enableInternalInterfaceActions bool
 	// set to remember we need to restart the system
 	restartSystem bool
 	// set to remember that we need to exit the daemon in a way that
@@ -699,9 +697,5 @@ func New() (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Daemon{
-		overlord: ovld,
-		// TODO: Decide when this should be disabled by default.
-		enableInternalInterfaceActions: true,
-	}, nil
+	return &Daemon{overlord: ovld}, nil
 }
