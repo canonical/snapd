@@ -102,7 +102,7 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"trace-exec": i18n.G("Display exec performance data"),
+			"trace-exec": i18n.G("Display exec calls timing data"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -716,9 +716,9 @@ func (stt *SnapTrace) ExecRuntimes() []ExecRuntime {
 	return stt.execRuntimes
 }
 
-func (stt *SnapTrace) AddExecRuntime(execve string, totalSec float64) {
+func (stt *SnapTrace) AddExecRuntime(exe string, totalSec float64) {
 	stt.execRuntimes = append(stt.execRuntimes, ExecRuntime{
-		Execve:   execve,
+		Exe:      exe,
 		TotalSec: totalSec,
 	})
 	stt.prune()
@@ -728,44 +728,44 @@ func (stt *SnapTrace) AddExecRuntime(execve string, totalSec float64) {
 // limit
 func (stt *SnapTrace) prune() {
 	for len(stt.execRuntimes) > stt.nSlowestSamples {
-		fidx := 0
+		fastest := 0
 		for idx, rt := range stt.execRuntimes {
-			if rt.TotalSec < stt.execRuntimes[fidx].TotalSec {
-				fidx = idx
+			if rt.TotalSec < stt.execRuntimes[fastest].TotalSec {
+				fastest = idx
 			}
 		}
 		// delete fastest element
-		stt.execRuntimes = append(stt.execRuntimes[:fidx], stt.execRuntimes[fidx+1:]...)
+		stt.execRuntimes = append(stt.execRuntimes[:fastest], stt.execRuntimes[fastest+1:]...)
 	}
 }
 
 func (stt *SnapTrace) Display(w io.Writer) {
 	fmt.Fprintf(w, "Slowest %d exec calls during snap run:\n", len(stt.execRuntimes))
 	for _, rt := range stt.execRuntimes {
-		fmt.Fprintf(w, "  %2.3fs %s\n", rt.TotalSec, rt.Execve)
+		fmt.Fprintf(w, "  %2.3fs %s\n", rt.TotalSec, rt.Exe)
 	}
 	fmt.Fprintf(w, "Total time: %2.3fs\n", stt.TotalTime)
 }
 
 type perfStart struct {
-	Start  float64
-	Execve string
+	Start float64
+	Exe   string
 }
 
 type ExecRuntime struct {
-	Execve   string
+	Exe      string
 	TotalSec float64
 }
 
 // lines look like:
 // PID   TIME              SYSCALL
 // 17363 1542815326.700248 execve("/snap/brave/44/usr/bin/update-mime-database", ["update-mime-database", "/home/egon/snap/brave/44/.local/"...], 0x1566008 /* 69 vars */) = 0
-var newExecveRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execve\(\"([^"]+)\"`)
+var execveRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execve\(\"([^"]+)\"`)
 
 // lines look like:
 // PID   TIME              SYSCALL
 // 14157 1542875582.816782 execveat(3, "", ["snap-update-ns", "--from-snap-confine", "test-snapd-tools"], 0x7ffce7dd6160 /* 0 vars */, AT_EMPTY_PATH) = 0
-var newExecveatRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execveat\(.*\["([^"]+)"`)
+var execveatRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execveat\(.*\["([^"]+)"`)
 
 // lines look like (both SIGTERM and SIGCHLD need to be handled):
 // PID   TIME                  SIGNAL
@@ -805,22 +805,19 @@ func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 			if err != nil {
 				return err
 			}
-			execve := match[3]
+			exe := match[3]
 			// deal with subsequent execve()
 			if perf, ok := pidToPerf[pid]; ok {
-				snapTrace.AddExecRuntime(perf.Execve, execStart-perf.Start)
+				snapTrace.AddExecRuntime(perf.Exe, execStart-perf.Start)
 			}
-			pidToPerf[pid] = perfStart{
-				Start:  execStart,
-				Execve: execve,
-			}
+			pidToPerf[pid] = perfStart{Start: execStart, Exe: exe}
 			return nil
 		}
-		match := newExecveRE.FindStringSubmatch(line)
+		match := execveRE.FindStringSubmatch(line)
 		if err := handleExecMatch(match); err != nil {
 			return nil, err
 		}
-		match = newExecveatRE.FindStringSubmatch(line)
+		match = execveatRE.FindStringSubmatch(line)
 		if err := handleExecMatch(match); err != nil {
 			return nil, err
 		}
@@ -832,7 +829,7 @@ func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 			}
 			sigPid := match[3]
 			if perf, ok := pidToPerf[sigPid]; ok {
-				snapTrace.AddExecRuntime(perf.Execve, sigTime-perf.Start)
+				snapTrace.AddExecRuntime(perf.Exe, sigTime-perf.Start)
 				delete(pidToPerf, sigPid)
 			}
 		}

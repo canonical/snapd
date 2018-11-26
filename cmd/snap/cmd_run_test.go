@@ -957,11 +957,11 @@ func (s *SnapSuite) TestStraceExtractExecRuntime(c *check.C) {
 	st, err := snaprun.StraceExtractExecRuntime(f.Name())
 	c.Assert(err, check.IsNil)
 	c.Assert(st.ExecRuntimes(), check.DeepEquals, []snaprun.ExecRuntime{
-		{Execve: "/snap/bin/test-snapd-tools.echo", TotalSec: 0.005803108215332031},
-		{Execve: "/snap/core/current/usr/bin/snap", TotalSec: 0.016134977340698242},
-		{Execve: "snap-update-ns", TotalSec: 0.0042438507080078125},
-		{Execve: "/snap/core/5976/usr/lib/snapd/snap-confine", TotalSec: 0.15650391578674316},
-		{Execve: "/usr/lib/snapd/snap-exec", TotalSec: 0.006349086761474609},
+		{Exe: "/snap/bin/test-snapd-tools.echo", TotalSec: 0.005803108215332031},
+		{Exe: "/snap/core/current/usr/bin/snap", TotalSec: 0.016134977340698242},
+		{Exe: "snap-update-ns", TotalSec: 0.0042438507080078125},
+		{Exe: "/snap/core/5976/usr/lib/snapd/snap-confine", TotalSec: 0.15650391578674316},
+		{Exe: "/usr/lib/snapd/snap-exec", TotalSec: 0.006349086761474609},
 	})
 }
 
@@ -1001,9 +1001,9 @@ func (s *SnapSuite) TestExecRuntimePrune(c *check.C) {
 	stt.AddExecRuntime("t3", 4)
 	c.Check(stt.ExecRuntimes(), check.HasLen, 3)
 	c.Check(stt.ExecRuntimes(), check.DeepEquals, []snaprun.ExecRuntime{
-		{Execve: "t0", TotalSec: 2},
-		{Execve: "t2", TotalSec: 5},
-		{Execve: "t3", TotalSec: 4},
+		{Exe: "t0", TotalSec: 2},
+		{Exe: "t2", TotalSec: 5},
+		{Exe: "t3", TotalSec: 4},
 	})
 
 }
