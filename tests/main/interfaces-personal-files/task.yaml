@@ -76,11 +76,11 @@ execute: |
     MATCH "Permission denied" < call.error
 
     echo "Then the snap is not able to to access files and dirs outside $HOME"
-    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/.testdir1" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/.testfile1" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/root/" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/testfile2" && exit 1
-    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/.testfile2" && exit 1
+    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/.testdir1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/.testfile1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/root/" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/testfile2" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/.testfile2" 2>&1| MATCH "Permission denied"
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:personal-files
