@@ -575,13 +575,6 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 		// print pid's portably so this is the best we can do.
 		debug("forked support process %d", (int)pid);
 		group->child = pid;
-
-		// Unshare the mount namespace and set a flag instructing the caller that
-		// the namespace is pristine and needs to be populated now.
-		if (unshare(CLONE_NEWNS) < 0) {
-			die("cannot unshare the mount namespace");
-		}
-		debug("created new mount namespace");
 	}
 }
 

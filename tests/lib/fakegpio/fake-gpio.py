@@ -6,6 +6,7 @@ import logging
 import os
 import selectors
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -59,6 +60,15 @@ def dispatch(sel):
     return True
 
 
+def maybe_sd_notify(s: str) -> None:
+    addr = os.getenv('NOTIFY_SOCKET')
+    if not addr:
+        return
+    soc = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    soc.connect(addr)
+    soc.sendall(s.encode())
+
+
 def main():
     """the main method"""
     if os.getuid() != 0:
@@ -83,6 +93,8 @@ def main():
     ufd = os.open("unexport", os.O_RDWR | os.O_NONBLOCK)
     sel.register(efd, selectors.EVENT_READ, export_ready)
     sel.register(ufd, selectors.EVENT_READ, unexport_ready)
+    # notify
+    maybe_sd_notify("READY=1")
     while True:
         if not dispatch(sel):
             break
