@@ -930,3 +930,46 @@ func (s *SnapSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, "unhappy\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
+
+func (s *SnapSuite) TestSnapRunRestoreSecurityContext(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend we are on SELinux system and have restorecon
+	restoreconCmd := testutil.MockCommand(c, "restorecon", "")
+	defer restoreconCmd.Restore()
+
+	fakeHome := c.MkDir()
+	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{HomeDir: fakeHome}, nil
+	})
+	defer restorer()
+
+	// redirect exec
+	execArgs := []string{}
+	execCalled := false
+	restorer = snaprun.MockSyscallExec(func(_ string, args []string, envv []string) error {
+		execArgs = args
+		execCalled = true
+		return nil
+	})
+	defer restorer()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(restoreconCmd.Calls(), check.DeepEquals, [][]string{
+		{"restorecon", "-R", filepath.Join(fakeHome, dirs.UserHomeSnapDir)},
+	})
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(execCalled, check.Equals, true)
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+}
