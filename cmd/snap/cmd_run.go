@@ -740,6 +740,9 @@ func (stt *SnapTrace) prune() {
 }
 
 func (stt *SnapTrace) Display(w io.Writer) {
+	if len(stt.execRuntimes) == 0 {
+		return
+	}
 	fmt.Fprintf(w, "Slowest %d exec calls during snap run:\n", len(stt.execRuntimes))
 	for _, rt := range stt.execRuntimes {
 		fmt.Fprintf(w, "  %2.3fs %s\n", rt.TotalSec, rt.Exe)
@@ -871,6 +874,13 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	if err := syscall.Mkfifo(straceLog, 0640); err != nil {
 		return err
 	}
+	// ensure we have one writer on the fifo so that if strace fails
+	// nothing blocks
+	fw, err := os.OpenFile(straceLog, os.O_RDWR, 0640)
+	if err != nil {
+		return err
+	}
+	defer fw.Close()
 
 	// read strace data from fifo async
 	var slg *SnapTrace
@@ -891,6 +901,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	gcmd.Stdout = Stdout
 	gcmd.Stderr = Stderr
 	err = gcmd.Run()
+	fw.Close()
 
 	// wait for strace reader
 	<-doneCh
