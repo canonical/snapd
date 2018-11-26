@@ -329,7 +329,26 @@ func createUserDataDirs(info *snap.Info) error {
 		}
 	}
 
-	return createOrUpdateUserDataSymlink(info, usr)
+	if err := createOrUpdateUserDataSymlink(info, usr); err != nil {
+		return err
+	}
+
+	return maybeRestoreSecurityContext(filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir))
+}
+
+// maybeRestoreSecurityContext attempts to restore security context of ~/snap on
+// systems where it's applicable
+func maybeRestoreSecurityContext(aPath string) error {
+	// if restorecon is found we may restore SELinux context
+	restoreconPath, err := exec.LookPath("restorecon")
+	if err != nil {
+		return nil
+	}
+
+	if err := exec.Command(restoreconPath, "-R", aPath).Run(); err != nil {
+		return fmt.Errorf("failed to restore SELinux context of %v: %v", aPath, err)
+	}
+	return nil
 }
 
 func (x *cmdRun) useStrace() bool {
