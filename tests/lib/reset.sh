@@ -61,6 +61,12 @@ reset_classic() {
         exit 1
     fi
 
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
+            ;;
+    esac
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
     fi
