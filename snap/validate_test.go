@@ -1435,8 +1435,15 @@ apps:
 }
 
 func (s *validateSuite) TestValidateDescription(c *C) {
-	c.Check(ValidateDescription(strings.Repeat("x", 5000)), ErrorMatches, `description can have up to 4000 bytes, got 5000`)
-	c.Check(ValidateDescription(strings.Repeat("x", 4000)), IsNil)
+	for _, s := range []string{
+		"xx", // boringest ASCII
+		"🐧🐧", // len("🐧🐧") == 8
+		"á", // á (combining)
+	} {
+		c.Check(ValidateDescription(s), IsNil)
+		c.Check(ValidateDescription(strings.Repeat(s, 2049)), ErrorMatches, `description can have up to 4096 codepoints, got 4098`)
+		c.Check(ValidateDescription(strings.Repeat(s, 2048)), IsNil)
+	}
 }
 
 func (s *validateSuite) TestValidatePlugSlotName(c *C) {

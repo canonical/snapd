@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -327,8 +328,8 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 }
 
 func validateDescription(descr string) error {
-	if len(descr) > 4000 {
-		return fmt.Errorf("description can have up to 4000 bytes, got %d", len(descr))
+	if count := utf8.RuneCountInString(descr); count > 4096 {
+		return fmt.Errorf("description can have up to 4096 codepoints, got %d", count)
 	}
 	return nil
 }
