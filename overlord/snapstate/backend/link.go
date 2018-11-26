@@ -68,8 +68,11 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 		return err
 	}
 
-	if err := updateFontconfigCaches(); err != nil {
-		logger.Noticef("cannot update fontconfig cache: %v", err)
+	// fontconfig is only relevant on classic
+	if release.OnClassic {
+		if err := updateFontconfigCaches(); err != nil {
+			logger.Noticef("cannot update fontconfig cache: %v", err)
+		}
 	}
 
 	// XXX/TODO: this needs to be a task with proper undo and tests!

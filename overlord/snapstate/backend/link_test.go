@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -313,15 +314,25 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	}
 }
 
-func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCaches(c *C) {
-	var updateFontconfigCaches int
-	restore := backend.MockUpdateFontconfigCaches(func() error {
-		updateFontconfigCaches += 1
-		return nil
-	})
-	defer restore()
+func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
+	for _, onClassic := range []bool{false, true} {
 
-	err := s.be.LinkSnap(s.info, nil)
-	c.Assert(err, IsNil)
-	c.Assert(updateFontconfigCaches, Equals, 1)
+		restore := release.MockOnClassic(onClassic)
+		defer restore()
+
+		var updateFontconfigCaches int
+		restore = backend.MockUpdateFontconfigCaches(func() error {
+			updateFontconfigCaches += 1
+			return nil
+		})
+		defer restore()
+
+		err := s.be.LinkSnap(s.info, nil)
+		c.Assert(err, IsNil)
+		if onClassic {
+			c.Assert(updateFontconfigCaches, Equals, 1)
+		} else {
+			c.Assert(updateFontconfigCaches, Equals, 0)
+		}
+	}
 }
