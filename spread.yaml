@@ -425,6 +425,10 @@ debug-each: |
         cat "$RUNTIME_STATE_PATH/runs" || true
     fi
 
+measure-each: |
+    # shellcheck source=tests/lib/measure.sh
+    "$TESTSLIB/measure.sh" kernel
+
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
     # from the content looking similar to codeload.github.com.
