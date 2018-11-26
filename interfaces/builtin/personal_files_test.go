@@ -129,17 +129,20 @@ plugs:
 	}{
 		{`read: ""`, `"read" must be a list of strings`},
 		{`read: [ 123 ]`, `"read" must be a list of strings`},
-		{`read: [ "$HOME/foo/./bar" ]`, `"\$HOME/foo/./bar" must be clean`},
-		{`read: [ "../foo" ]`, `"../foo" must start with "\$HOME"`},
+		{`read: [ "$HOME/foo/./bar" ]`, `cannot use "\$HOME/foo/./bar": try "\$HOME/foo/bar"`},
+		{`read: [ "../foo" ]`, `"../foo" must start with "\$HOME/"`},
 		{`read: [ "/foo[" ]`, `"/foo\[" contains a reserved apparmor char from .*`},
 		{`write: ""`, `"write" must be a list of strings`},
 		{`write: bar`, `"write" must be a list of strings`},
-		{`read: [ "~/foo" ]`, `"~/foo" contains invalid "~"`},
-		{`read: [ "$HOME/foo/~/foo" ]`, `"\$HOME/foo/~/foo" contains invalid "~"`},
-		{`read: [ "$HOME/foo/../foo" ]`, `"\$HOME/foo/../foo" must be clean`},
+		{`read: [ "~/foo" ]`, `"~/foo" cannot contain "~"`},
+		{`read: [ "$HOME/foo/~/foo" ]`, `"\$HOME/foo/~/foo" cannot contain "~"`},
+		{`read: [ "$HOME/foo/../foo" ]`, `cannot use "\$HOME/foo/../foo": try "\$HOME/foo"`},
 		{`read: [ "$HOME/home/$HOME/foo" ]`, `\$HOME must only be used at the start of the path of "\$HOME/home/\$HOME/foo"`},
+		{`read: [ "$HOME/sweet/$HOME" ]`, `\$HOME must only be used at the start of the path of "\$HOME/sweet/\$HOME"`},
 		{`read: [ "/@{FOO}" ]`, `"/@{FOO}" contains a reserved apparmor char from .*`},
 		{`read: [ "/home/@{HOME}/foo" ]`, `"/home/@{HOME}/foo" contains a reserved apparmor char from .*`},
+		{`read: [ "${HOME}/foo" ]`, `"\${HOME}/foo" contains a reserved apparmor char from .*`},
+		{`read: [ "$HOME" ]`, `"\$HOME" must start with "\$HOME/"`},
 	}
 
 	for _, t := range testCases {

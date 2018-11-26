@@ -49,9 +49,9 @@ const (
 func (a filesAAPerm) String() string {
 	switch a {
 	case filesRead:
-		return "rk,"
+		return "rk"
 	case filesWrite:
-		return "rwkl,"
+		return "rwkl"
 	}
 	panic(fmt.Sprintf("invalid perm: %d", a))
 }
@@ -62,8 +62,11 @@ func formatPath(ip interface{}) (string, error) {
 		return "", fmt.Errorf("%[1]v (%[1]T) is not a string", ip)
 	}
 	prefix := ""
-	if strings.HasPrefix(p, "$HOME") && strings.Count(p, "$HOME") == 1 {
-		p = strings.Replace(p, "$HOME", "@{HOME}", 1)
+	// Note that the {personal,system}-files interface impose
+	// limitations on the $HOME usage - system-files forbids it,
+	// personal only allows starting with $HOME in the path.
+	if strings.Contains(p, "$HOME") {
+		p = strings.Replace(p, "$HOME", "@{HOME}", -1)
 		prefix = "owner "
 	}
 	p += "{,/,/**}"
@@ -77,7 +80,7 @@ func allowPathAccess(buf *bytes.Buffer, perm filesAAPerm, paths []interface{}) e
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(buf, "%s %s\n", p, perm)
+		fmt.Fprintf(buf, "%s %s,\n", p, perm)
 	}
 	return nil
 }
@@ -101,10 +104,10 @@ func (iface *commonFilesInterface) validateSinglePath(np string) error {
 	}
 	p := filepath.Clean(np)
 	if p != np {
-		return fmt.Errorf("%q must be clean", np)
+		return fmt.Errorf("cannot use %q: try %q", np, filepath.Clean(np))
 	}
 	if strings.Contains(p, "~") {
-		return fmt.Errorf(`%q contains invalid "~"`, p)
+		return fmt.Errorf(`%q cannot contain "~"`, p)
 	}
 	if err := apparmor.ValidateNoAppArmorRegexp(p); err != nil {
 		return err
@@ -127,11 +130,11 @@ func (iface *commonFilesInterface) BeforePreparePlug(plug *snap.PlugInfo) error 
 		if _, ok := plug.Attrs[att]; !ok {
 			continue
 		}
-		il, ok := plug.Attrs[att].([]interface{})
+		paths, ok := plug.Attrs[att].([]interface{})
 		if !ok {
 			return fmt.Errorf("cannot add %s plug: %q must be a list of strings", iface.name, att)
 		}
-		if err := iface.validatePaths(att, il); err != nil {
+		if err := iface.validatePaths(att, paths); err != nil {
 			return fmt.Errorf("cannot add %s plug: %s", iface.name, err)
 		}
 		hasValidAttr = true
