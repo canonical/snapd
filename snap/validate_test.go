@@ -1446,6 +1446,17 @@ func (s *validateSuite) TestValidateDescription(c *C) {
 	}
 }
 
+func (s *validateSuite) TestValidateTitle(c *C) {
+	for _, s := range []string{
+		"xx", // boringest ASCII
+		"🐧🐧", // len("🐧🐧") == 8
+		"á", // á (combining)
+	} {
+		c.Check(ValidateTitle(strings.Repeat(s, 21)), ErrorMatches, `title can have up to 40 codepoints, got 42`)
+		c.Check(ValidateTitle(strings.Repeat(s, 20)), IsNil)
+	}
+}
+
 func (s *validateSuite) TestValidatePlugSlotName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
