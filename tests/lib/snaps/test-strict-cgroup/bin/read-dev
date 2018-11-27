@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -eu
 
-device=$1
+device="$1"
 dd if="/dev/$device" of=/dev/null count=10
