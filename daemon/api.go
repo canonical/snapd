@@ -1845,8 +1845,6 @@ func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 
 // changeInterfaces controls the interfaces system.
 // Plugs can be connected to and disconnected from slots.
-// When enableInternalInterfaceActions is true plugs and slots can also be
-// explicitly added and removed.
 func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
@@ -1855,9 +1853,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 	if a.Action == "" {
 		return BadRequest("interface action not specified")
-	}
-	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
-		return BadRequest("internal interface actions are disabled")
 	}
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")

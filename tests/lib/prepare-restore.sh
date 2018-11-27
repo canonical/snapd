@@ -415,7 +415,7 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
-    # save the job which is going to be exeuted in the system
+    # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
@@ -488,6 +488,9 @@ restore_project_each() {
         dmesg
         exit 1
     fi
+
+    # Something is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {
