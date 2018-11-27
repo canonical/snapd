@@ -305,11 +305,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
-	//
-	// TODO: we need to deal with the "snapd" snap here soon
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -318,7 +316,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// systems but /etc/apparmor.d is not writable on core18 systems
 	if snapName == "snapd" && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
