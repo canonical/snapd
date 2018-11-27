@@ -676,16 +676,13 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 	debug("capturing per-snap mount namespace");
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
 	sc_must_snprintf(dst, sizeof dst, "%s%s", group->name, SC_NS_MNT_FILE);
-	if (access(dst, F_OK) < 0 && errno == ENOENT) {
-		int fd =
-		    open(dst,
-			 O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW | O_RDONLY,
-			 0600);
-		if (fd < 0) {
-			die("cannot create file %s", dst);
-		}
-		close(fd);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
 	}
+	close(fd);
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve mount namespace of process %d as %s",
 		    (int)parent, dst);
