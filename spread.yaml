@@ -663,12 +663,16 @@ suites:
             . "$TESTSLIB"/prepare.sh
             prepare_classic
         prepare-each: |
-            "$TESTSLIB"/reset.sh --reuse-core
+            #shellcheck source=tests/lib/reset.sh
+            . "$TESTSLIB"/reset.sh
+            reset_snapd --reuse-core
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
             prepare_each_classic
         restore: |
-            "$TESTSLIB"/reset.sh --store
+            #shellcheck source=tests/lib/reset.sh
+            . "$TESTSLIB"/reset.sh
+            reset_snapd --store
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
 

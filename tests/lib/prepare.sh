@@ -16,6 +16,8 @@ set -eux
 . "$TESTSLIB/state.sh"
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
+# shellcheck source=tests/lib/reset.sh
+. "$TESTSLIB/reset.sh"
 
 
 disable_kernel_rate_limiting() {
@@ -278,6 +280,8 @@ prepare_classic() {
         systemctl stop snapd.{service,socket}
         save_snapd_state
         systemctl start snapd.socket
+    else
+        init_state_classic --reuse-core
     fi
 
     disable_kernel_rate_limiting
@@ -613,6 +617,8 @@ prepare_ubuntu_core() {
         systemctl stop snapd.service snapd.socket
         save_snapd_state
         systemctl start snapd.socket
+    else
+        init_state_all_snap --reuse-core
     fi
 
     disable_kernel_rate_limiting
