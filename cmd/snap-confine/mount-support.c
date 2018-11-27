@@ -75,10 +75,7 @@ static void setup_private_mount(const char *snap_name)
 	}
 	// now we create a 1777 /tmp inside our private dir
 	mode_t old_mask = umask(0);
-	char *d = strdup(tmpdir);
-	if (!d) {
-		die("cannot allocate memory for string copy");
-	}
+	char *d = sc_strdup(tmpdir);
 	sc_must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
 	free(d);
 
@@ -164,10 +161,7 @@ static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
 		      profile);
 		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot copy snap name");
-		}
+		snap_name_copy = sc_strdup(snap_name);
 		char *argv[] = {
 			"snap-update-ns", "--from-snap-confine", snap_name_copy,
 			NULL
@@ -813,10 +807,7 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		      profile);
 		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot allocate memory for snap name");
-		}
+		snap_name_copy = sc_strdup(snap_name);
 		char *argv[] = {
 			"snap-update-ns", "--user-mounts", snap_name_copy,
 			NULL
