@@ -93,11 +93,11 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 
 		var add, rm []*backend.Alias
 		if strings.Contains(scenario.ops, "rm") {
-			rm = []*backend.Alias{{"myalias", fmt.Sprintf("alias-snap1.%s", target(scenario.target))}}
+			rm = []*backend.Alias{{Name: "myalias", Target: fmt.Sprintf("alias-snap1.%s", target(scenario.target))}}
 		}
 
 		if strings.Contains(scenario.ops, "add") {
-			add = []*backend.Alias{{"myalias", fmt.Sprintf("alias-snap1.%s", target(scenario.newTarget))}}
+			add = []*backend.Alias{{Name: "myalias", Target: fmt.Sprintf("alias-snap1.%s", target(scenario.newTarget))}}
 		}
 
 		expected := fakeOps{
@@ -133,8 +133,8 @@ func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
 	expected := fakeOps{
 		{
 			op:        "update-aliases",
-			rmAliases: []*backend.Alias{{"myalias0", "alias-snap1.cmd0"}},
-			aliases:   []*backend.Alias{{"myalias1", "alias-snap1"}},
+			rmAliases: []*backend.Alias{{Name: "myalias0", Target: "alias-snap1.cmd0"}},
+			aliases:   []*backend.Alias{{Name: "myalias1", Target: "alias-snap1"}},
 		},
 	}
 
@@ -585,7 +585,7 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:      "update-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+			aliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd1"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -644,7 +644,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceAliasRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:      "update-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap_foo.cmd1"}},
+			aliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap_foo.cmd1"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -764,8 +764,8 @@ func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:        "update-aliases",
-			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
-			aliases:   []*backend.Alias{{"alias1", "alias-snap.cmd5"}},
+			rmAliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd1"}},
+			aliases:   []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd5"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -968,9 +968,9 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd5"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias1", Target: "alias-snap.cmd5"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 		},
 	}
@@ -1040,9 +1040,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableAllAliasesRunThrough(c *C)
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias1", "alias-snap_instance.cmd1"},
-				{"alias2", "alias-snap_instance.cmd2"},
-				{"alias3", "alias-snap_instance.cmd3"},
+				{Name: "alias1", Target: "alias-snap_instance.cmd1"},
+				{Name: "alias2", Target: "alias-snap_instance.cmd2"},
+				{Name: "alias3", Target: "alias-snap_instance.cmd3"},
 			},
 		},
 	}
@@ -1136,7 +1136,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:        "update-aliases",
-			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd5"}},
+			rmAliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd5"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -1188,8 +1188,8 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:        "update-aliases",
-			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd5"}},
-			aliases:   []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+			rmAliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd5"}},
+			aliases:   []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd1"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -1237,8 +1237,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveManualAliasRunThrough(c *C)
 	expected := fakeOps{
 		{
 			op:        "update-aliases",
-			rmAliases: []*backend.Alias{{"alias1", "alias-snap_instance.cmd2"}},
-			aliases:   []*backend.Alias{{"alias1", "alias-snap_instance.cmd1"}},
+			rmAliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap_instance.cmd2"}},
+			aliases:   []*backend.Alias{{Name: "alias1", Target: "alias-snap_instance.cmd1"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -1406,8 +1406,8 @@ func (s *snapmgrTestSuite) TestPreferRunThrough(c *C) {
 		{
 			op: "update-aliases",
 			aliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
+				{Name: "alias1", Target: "alias-snap.cmd1"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
 			},
 		},
 	}
@@ -1470,15 +1470,15 @@ func (s *snapmgrTestSuite) TestParallelInstancePreferRunThrough(c *C) {
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
+				{Name: "alias1", Target: "alias-snap.cmd1"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
 			},
 		},
 		{
 			op: "update-aliases",
 			aliases: []*backend.Alias{
-				{"alias1", "alias-snap_instance.cmd1"},
-				{"alias2", "alias-snap_instance.cmd2"},
+				{Name: "alias1", Target: "alias-snap_instance.cmd1"},
+				{Name: "alias2", Target: "alias-snap_instance.cmd2"},
 			},
 		},
 	}
