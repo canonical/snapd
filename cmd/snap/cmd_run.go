@@ -663,158 +663,6 @@ func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	return gcmd.Run()
 }
 
-type SnapTrace struct {
-	TotalTime    float64
-	execRuntimes []ExecRuntime
-
-	nSlowestSamples int
-}
-
-func (stt *SnapTrace) ExecRuntimes() []ExecRuntime {
-	return stt.execRuntimes
-}
-
-func (stt *SnapTrace) AddExecRuntime(exe string, totalSec float64) {
-	stt.execRuntimes = append(stt.execRuntimes, ExecRuntime{
-		Exe:      exe,
-		TotalSec: totalSec,
-	})
-	stt.prune()
-}
-
-// prune() ensures the number of execRuntimes stays with the nSlowestSamples
-// limit
-func (stt *SnapTrace) prune() {
-	for len(stt.execRuntimes) > stt.nSlowestSamples {
-		fastest := 0
-		for idx, rt := range stt.execRuntimes {
-			if rt.TotalSec < stt.execRuntimes[fastest].TotalSec {
-				fastest = idx
-			}
-		}
-		// delete fastest element
-		stt.execRuntimes = append(stt.execRuntimes[:fastest], stt.execRuntimes[fastest+1:]...)
-	}
-}
-
-func (stt *SnapTrace) Display(w io.Writer) {
-	if len(stt.execRuntimes) == 0 {
-		return
-	}
-	fmt.Fprintf(w, "Slowest %d exec calls during snap run:\n", len(stt.execRuntimes))
-	for _, rt := range stt.execRuntimes {
-		fmt.Fprintf(w, "  %2.3fs %s\n", rt.TotalSec, rt.Exe)
-	}
-	fmt.Fprintf(w, "Total time: %2.3fs\n", stt.TotalTime)
-}
-
-type perfStart struct {
-	Start float64
-	Exe   string
-}
-
-type ExecRuntime struct {
-	Exe      string
-	TotalSec float64
-}
-
-// lines look like:
-// PID   TIME              SYSCALL
-// 17363 1542815326.700248 execve("/snap/brave/44/usr/bin/update-mime-database", ["update-mime-database", "/home/egon/snap/brave/44/.local/"...], 0x1566008 /* 69 vars */) = 0
-var execveRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execve\(\"([^"]+)\"`)
-
-// lines look like:
-// PID   TIME              SYSCALL
-// 14157 1542875582.816782 execveat(3, "", ["snap-update-ns", "--from-snap-confine", "test-snapd-tools"], 0x7ffce7dd6160 /* 0 vars */, AT_EMPTY_PATH) = 0
-var execveatRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execveat\(.*\["([^"]+)"`)
-
-// lines look like (both SIGTERM and SIGCHLD need to be handled):
-// PID   TIME                  SIGNAL
-// 17559 1542815330.242750 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=17643, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*SIG(CHLD|TERM)\ {.*si_pid=([0-9]+),`)
-
-// all lines start with this:
-// PID   TIME
-// 21616 1542882400.198907 ....
-var timeRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*`)
-
-func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
-	slog, err := os.Open(straceLog)
-	if err != nil {
-		return nil, err
-	}
-	defer slog.Close()
-
-	snapTrace := &SnapTrace{nSlowestSamples: 10}
-	pidToPerf := make(map[string]perfStart)
-
-	var start, line string
-	r := bufio.NewScanner(slog)
-	for r.Scan() {
-		line = r.Text()
-		if m := timeRE.FindStringSubmatch(line); len(m) > 0 && start == "" {
-			start = m[1]
-		}
-
-		// look for new Execs
-		handleExecMatch := func(match []string) error {
-			if len(match) == 0 {
-				return nil
-			}
-			pid := match[1]
-			execStart, err := strconv.ParseFloat(match[2], 64)
-			if err != nil {
-				return err
-			}
-			exe := match[3]
-			// deal with subsequent execve()
-			if perf, ok := pidToPerf[pid]; ok {
-				snapTrace.AddExecRuntime(perf.Exe, execStart-perf.Start)
-			}
-			pidToPerf[pid] = perfStart{Start: execStart, Exe: exe}
-			return nil
-		}
-		match := execveRE.FindStringSubmatch(line)
-		if err := handleExecMatch(match); err != nil {
-			return nil, err
-		}
-		match = execveatRE.FindStringSubmatch(line)
-		if err := handleExecMatch(match); err != nil {
-			return nil, err
-		}
-		match = sigChldTermRE.FindStringSubmatch(line)
-		if len(match) > 0 {
-			sigTime, err := strconv.ParseFloat(match[1], 64)
-			if err != nil {
-				return nil, err
-			}
-			sigPid := match[3]
-			if perf, ok := pidToPerf[sigPid]; ok {
-				snapTrace.AddExecRuntime(perf.Exe, sigTime-perf.Start)
-				delete(pidToPerf, sigPid)
-			}
-		}
-
-	}
-	if m := timeRE.FindStringSubmatch(line); len(m) > 0 {
-		tStart, err := strconv.ParseFloat(start, 64)
-		if err != nil {
-			return nil, err
-		}
-		tEnd, err := strconv.ParseFloat(m[1], 64)
-		if err != nil {
-			return nil, err
-		}
-		snapTrace.TotalTime = tEnd - tStart
-	}
-
-	if r.Err() != nil {
-		return nil, r.Err()
-	}
-
-	return snapTrace, nil
-}
-
 func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	// setup private tmp dir with strace fifo
 	straceTmp, err := ioutil.TempDir("", "exec-trace")
@@ -835,11 +683,11 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	defer fw.Close()
 
 	// read strace data from fifo async
-	var slg *SnapTrace
+	var slg *strace.ExecveTiming
 	var straceErr error
 	doneCh := make(chan bool, 1)
 	go func() {
-		slg, straceErr = straceExtractExecRuntime(straceLog)
+		slg, straceErr = strace.TraceExecveTimings(straceLog)
 		close(doneCh)
 	}()
 

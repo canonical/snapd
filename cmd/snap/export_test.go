@@ -72,8 +72,6 @@ var (
 	HelpCategories          = helpCategories
 
 	NotesForSvc = notesForSvc
-
-	StraceExtractExecRuntime = straceExtractExecRuntime
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -214,8 +212,4 @@ func ColorMixin(cmode, umode string) colorMixin {
 
 func CmdAdviseSnap() *cmdAdviseSnap {
 	return &cmdAdviseSnap{}
-}
-
-func (st *SnapTrace) SetNrSamples(n int) {
-	st.nSlowestSamples = n
 }
