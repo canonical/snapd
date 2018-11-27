@@ -234,7 +234,9 @@ prepare_classic() {
     fi
 
     # Snapshot the state including core.
-    if ! is_snapd_state_saved; then
+    if is_snapd_state_saved; then
+        init_state_classic --reuse-core
+    else
         # need to be seeded to proceed with snap install
         # also make sure the captured state is seeded
         snap wait system seed.loaded
@@ -280,8 +282,6 @@ prepare_classic() {
         systemctl stop snapd.{service,socket}
         save_snapd_state
         systemctl start snapd.socket
-    else
-        init_state_classic --reuse-core
     fi
 
     disable_kernel_rate_limiting
@@ -613,12 +613,12 @@ prepare_ubuntu_core() {
     setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
-    if ! is_snapd_state_saved; then
+    if is_snapd_state_saved; then
+        init_state_all_snap --reuse-core
+    else
         systemctl stop snapd.service snapd.socket
         save_snapd_state
         systemctl start snapd.socket
-    else
-        init_state_all_snap --reuse-core
     fi
 
     disable_kernel_rate_limiting
