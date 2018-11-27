@@ -44,6 +44,7 @@
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
 
@@ -304,44 +305,6 @@ enum sc_discard_vote {
 	SC_DISCARD_YES = 2,
 };
 
-static void call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name)
-{
-	debug("calling snap-discard-ns to discard preserved mount namespaces");
-	pid_t child = fork();
-	if (child < 0) {
-		die("cannot fork to run snap-discard-ns");
-	}
-	if (child == 0) {
-		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = sc_strdup(snap_name);
-		char *argv[] =
-		    { "snap-discard-ns", "--from-snap-confine", snap_name_copy,
-			NULL
-		};
-		char *envp[2] = { NULL };
-		int last_env = 0;
-		if (sc_is_debug_enabled()) {
-			envp[last_env++] = "SNAPD_DEBUG=1";
-		}
-		debug("fexecv(%d (snap-discard-ns), %s %s %s %s,)",
-		      snap_discard_ns_fd, argv[0], argv[1], argv[2], argv[3]);
-		fexecve(snap_discard_ns_fd, argv, envp);
-		die("cannot execute snap-discard-ns");
-	}
-	// We are the parent, so wait for snap-discard-ns to finish.
-	int status = 0;
-	debug("waiting for snap-discard-ns to finish...");
-	if (waitpid(child, &status, 0) < 0) {
-		die("waitpid() failed for snap-discard-ns process");
-	}
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		die("snap-discard-ns failed with code %i", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		die("snap-discard-ns killed by signal %i", WTERMSIG(status));
-	}
-	debug("snap-discard-ns finished successfully");
-}
-
 // The namespace may be stale. To check this we must actually switch into it
 // but then we use up our setns call (the kernel misbehaves if we setns twice).
 // To work around this we'll fork a child and use it to probe. The child will
@@ -477,7 +440,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
-	call_snap_discard_ns(snap_discard_ns_fd, snap_name);
+	sc_call_snap_discard_ns(snap_discard_ns_fd, snap_name);
 	return EAGAIN;
 }
 
