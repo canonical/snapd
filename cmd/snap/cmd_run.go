@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/strace"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -648,49 +649,6 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	return nil
 }
 
-func straceCmd() ([]string, error) {
-	current, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
-	sudoPath, err := exec.LookPath("sudo")
-	if err != nil {
-		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
-	}
-
-	// Try strace from the snap first, we use new syscalls like
-	// "_newselect" that are known to not work with the strace of e.g.
-	// ubuntu 14.04.
-	//
-	// TODO: some architectures do not have some syscalls (e.g.
-	// s390x does not have _newselect). In
-	// https://github.com/strace/strace/issues/57 options are
-	// discussed.  We could use "-e trace=?syscall" but that is
-	// only available since strace 4.17 which is not even in
-	// ubutnu 17.10.
-	var stracePath string
-	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
-	if osutil.FileExists(cand) {
-		stracePath = cand
-	}
-	if stracePath == "" {
-		stracePath, err = exec.LookPath("strace")
-		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
-		}
-	}
-
-	return []string{
-		sudoPath, "-E",
-		stracePath,
-		"-u", current.Username,
-		"-f",
-		// these syscalls are excluded because they make strace hang
-		// on all or some architectures (gettimeofday on arm64)
-		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
-	}, nil
-}
-
 func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	env = append(env, "SNAP_CONFINE_RUN_UNDER_GDB=1")
 
@@ -858,12 +816,6 @@ func straceExtractExecRuntime(straceLog string) (*SnapTrace, error) {
 }
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
-	// prepend strace magic
-	cmd, err := straceCmd()
-	if err != nil {
-		return err
-	}
-
 	// setup private tmp dir with strace fifo
 	straceTmp, err := ioutil.TempDir("", "exec-trace")
 	if err != nil {
@@ -891,16 +843,17 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 		close(doneCh)
 	}()
 
-	straceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLog)}
-	cmd = append(cmd, straceOpts...)
-	cmd = append(cmd, origCmd...)
+	extraStraceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLog)}
+	cmd, err := strace.Command(extraStraceOpts, origCmd...)
+	if err != nil {
+		return err
+	}
 	// run
-	gcmd := exec.Command(cmd[0], cmd[1:]...)
-	gcmd.Env = env
-	gcmd.Stdin = Stdin
-	gcmd.Stdout = Stdout
-	gcmd.Stderr = Stderr
-	err = gcmd.Run()
+	cmd.Env = env
+	cmd.Stdin = Stdin
+	cmd.Stdout = Stdout
+	cmd.Stderr = Stderr
+	err = cmd.Run()
 	fw.Close()
 
 	// wait for strace reader
@@ -914,24 +867,20 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 }
 
 func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
-	// prepend strace magic
-	cmd, err := straceCmd()
+	extraStraceOpts, raw, err := x.straceOpts()
 	if err != nil {
 		return err
 	}
-	straceOpts, raw, err := x.straceOpts()
+	cmd, err := strace.Command(extraStraceOpts, origCmd...)
 	if err != nil {
 		return err
 	}
-	cmd = append(cmd, straceOpts...)
-	cmd = append(cmd, origCmd...)
 
 	// run with filter
-	gcmd := exec.Command(cmd[0], cmd[1:]...)
-	gcmd.Env = env
-	gcmd.Stdin = Stdin
-	gcmd.Stdout = Stdout
-	stderr, err := gcmd.StderrPipe()
+	cmd.Env = env
+	cmd.Stdin = Stdin
+	cmd.Stdout = Stdout
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
@@ -995,11 +944,11 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 		}
 		io.Copy(Stderr, r)
 	}()
-	if err := gcmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return err
 	}
 	<-filterDone
-	err = gcmd.Wait()
+	err = cmd.Wait()
 	return err
 }
 
