@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -70,6 +71,7 @@ type mgrsSuite struct {
 	aa               *testutil.MockCmd
 	udev             *testutil.MockCmd
 	umount           *testutil.MockCmd
+	snapCmd          *testutil.MockCmd
 	restoreSystemctl func()
 
 	snapDiscardNs *testutil.MockCmd
@@ -113,6 +115,16 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
+	// mock snap-confine profile inside core snap rev 1 and 30, required by setup-profiles tasks.
+	for _, rev := range []string{"1", "30"} {
+		pth := filepath.Join(ms.tempdir, "/snap/core/", rev, "/etc/apparmor.d/")
+		err = os.MkdirAll(pth, 0755)
+		c.Assert(err, IsNil)
+		pth = filepath.Join(pth, "usr.lib.snapd.snap-confine.real")
+		err = ioutil.WriteFile(pth, nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
@@ -139,6 +151,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 	ms.umount = testutil.MockCommand(c, "umount", "")
 	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
+	ms.snapCmd = testutil.MockCommand(c, "snap", "")
 	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
@@ -273,6 +286,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.udev.Restore()
 	ms.aa.Restore()
 	ms.umount.Restore()
+	ms.snapCmd.Restore()
 	ms.snapDiscardNs.Restore()
 	ms.snapSeccomp.Restore()
 }
