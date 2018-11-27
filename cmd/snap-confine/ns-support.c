@@ -214,10 +214,7 @@ struct sc_mount_ns *sc_open_mount_ns(const char *group_name)
 	if (group->dir_fd < 0) {
 		die("cannot open directory %s", sc_ns_dir);
 	}
-	group->name = strdup(group_name);
-	if (group->name == NULL) {
-		die("cannot allocate memory for string copy");
-	}
+	group->name = sc_strdup(group_name);
 	return group;
 }
 
@@ -316,10 +313,7 @@ static void call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name)
 	}
 	if (child == 0) {
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot allocate memory for snap name");
-		}
+		snap_name_copy = sc_strdup(snap_name);
 		char *argv[] =
 		    { "snap-discard-ns", "--from-snap-confine", snap_name_copy,
 			NULL
