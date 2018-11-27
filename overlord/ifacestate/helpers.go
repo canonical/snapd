@@ -183,8 +183,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
-				// Let's log this but carry on
-				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
+				return fmt.Errorf("cannot regenerate %s profile for snap %q: %s",
 					backend.Name(), snapName, err)
 			}
 		}
