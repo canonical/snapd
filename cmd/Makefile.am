@@ -398,30 +398,11 @@ endif
 EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
 
 snap_discard_ns_snap_discard_ns_SOURCES = \
-	snap-confine/ns-support.c \
-	snap-confine/ns-support.h \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h \
 	snap-discard-ns/snap-discard-ns.c
 snap_discard_ns_snap_discard_ns_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
 snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
 snap_discard_ns_snap_discard_ns_STATIC =
-
-if APPARMOR
-snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
-if STATIC_LIBAPPARMOR
-snap_discard_ns_snap_discard_ns_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
-else
-snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
-endif  # STATIC_LIBAPPARMOR
-endif  # APPARMOR
-
-if STATIC_LIBCAP
-snap_discard_ns_snap_discard_ns_STATIC += -lcap
-else
-snap_discard_ns_snap_discard_ns_LDADD += -lcap
-endif  # STATIC_LIBCAP
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_DEPENDENCIES) $(EXTRA_snap_discard_ns_snap_discard_ns_DEPENDENCIES) snap-discard-ns/$(am__dirstamp)
