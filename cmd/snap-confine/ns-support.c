@@ -689,7 +689,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 			 O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW | O_RDONLY,
 			 0600);
 		if (fd < 0) {
-			die("cannot open file: %s", dst);
+			die("cannot create file %s", dst);
 		}
 		close(fd);
 	}
