@@ -18,7 +18,7 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
-#include "apparmor-support.h"
+#include "../libsnap-confine-private/apparmor-support.h"
 
 /**
  * Return a file descriptor referencing the snap-update-ns utility
