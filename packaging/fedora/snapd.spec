@@ -597,7 +597,7 @@ popd
 %if 0%{?rhel} == 7
 # Install kernel tweaks
 # See: https://access.redhat.com/articles/3128691
-install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysconfdir}/sysctl.d/99-snap.conf
+install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysctldir}/99-snap.conf
 %endif
 
 # Remove snappy core specific units
@@ -735,7 +735,7 @@ popd
 /snap
 %endif
 %if 0%{?rhel} == 7
-%{_sysconfdir}/sysctl.d/99-snap.conf
+%{_sysctldir}/99-snap.conf
 %endif
 
 %files -n snap-confine
