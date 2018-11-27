@@ -22,7 +22,6 @@ package snap
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strconv"
 
 	"github.com/snapcore/snapd/logger"
@@ -54,7 +53,7 @@ import (
 // the read attribute defaults to the value of the write attribute, and the
 // write attribute defaults to the last item in the read attribute. If both are
 // unset, it's the same as not specifying an epoch at all (i.e. epoch: 0). The
-// lists must not have more than 10 elements, they must be in ascending order,
+// lists must not have more than 10 elements, they must be strictly increasing,
 // and there must be a non-empty intersection between them.
 //
 // Epoch numbers must be written in base 10, with no zero padding.
@@ -174,8 +173,8 @@ func (e *Epoch) Validate() error {
 	if len(e.Read) > 10 || len(e.Write) > 10 {
 		return &EpochError{Message: epochListJustRidiculouslyLong}
 	}
-	if !sort.IsSorted(uint32slice(e.Read)) || !sort.IsSorted(uint32slice(e.Write)) {
-		return &EpochError{Message: epochListNotSorted}
+	if !isIncreasing(e.Read) || !isIncreasing(e.Write) {
+		return &EpochError{Message: epochListNotIncreasing}
 	}
 
 	if intersect(e.Read, e.Write) {
@@ -278,7 +277,7 @@ const (
 	badEpochNumber                = "epoch numbers must be base 10 with no zero padding, but got %q"
 	badEpochList                  = "epoch read/write attributes must be lists of epoch numbers"
 	emptyEpochList                = "epoch list cannot be explicitly empty"
-	epochListNotSorted            = "epoch list must be in ascending order"
+	epochListNotIncreasing        = "epoch list must be a strictly increasing sequence"
 	epochListJustRidiculouslyLong = "epoch list must not have more than 10 entries"
 	noEpochIntersection           = "epoch read and write lists must have a non-empty intersection"
 )
@@ -303,10 +302,6 @@ func parseInt(s string) (uint32, error) {
 }
 
 type uint32slice []uint32
-
-func (ns uint32slice) Len() int           { return len(ns) }
-func (ns uint32slice) Less(i, j int) bool { return ns[i] < ns[j] }
-func (ns uint32slice) Swap(i, j int)      { panic("no reordering") }
 
 func (z *uint32slice) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var ss []string
@@ -340,6 +335,18 @@ func (z *uint32slice) UnmarshalJSON(bs []byte) error {
 	}
 	*z = x
 	return nil
+}
+
+func isIncreasing(z []uint32) bool {
+	if len(z) == 0 {
+		return true
+	}
+	for i := range z[1:] {
+		if z[i] >= z[i+1] {
+			return false
+		}
+	}
+	return true
 }
 
 type structuredEpoch struct {
