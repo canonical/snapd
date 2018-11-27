@@ -687,7 +687,9 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	var straceErr error
 	doneCh := make(chan bool, 1)
 	go func() {
-		slg, straceErr = strace.TraceExecveTimings(straceLog)
+		// FIXME: make this configurable?
+		nSlowest := 10
+		slg, straceErr = strace.TraceExecveTimings(straceLog, nSlowest)
 		close(doneCh)
 	}()
 

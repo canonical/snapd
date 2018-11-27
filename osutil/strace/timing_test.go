@@ -40,8 +40,8 @@ func (s *timingSuite) TestNewExecveTiming(c *C) {
 
 func (s *timingSuite) TestDisplayExeRuntimes(c *C) {
 	// setup mock traces
-	stt := &strace.ExecveTiming{TotalTime: 2.71828}
-	stt.SetNrSamples(3)
+	stt := strace.NewExecveTiming(3)
+	stt.TotalTime = 2.71828
 	stt.AddExeRuntime("slow", 1.0001)
 	stt.AddExeRuntime("fast", 0.1002)
 	stt.AddExeRuntime("really-fast", 0.0301)
@@ -59,8 +59,7 @@ Total time: 2.718s
 }
 
 func (s *timingSuite) TestExecveTimingPrunes(c *C) {
-	stt := &strace.ExecveTiming{}
-	stt.SetNrSamples(3)
+	stt := strace.NewExecveTiming(3)
 
 	// simple cases
 	stt.AddExeRuntime("t0", 2)
@@ -126,7 +125,7 @@ func (s *timingSuite) TestTraceExecveTimings(c *C) {
 	c.Assert(err, IsNil)
 	f.Sync()
 
-	st, err := strace.TraceExecveTimings(f.Name())
+	st, err := strace.TraceExecveTimings(f.Name(), 10)
 	c.Assert(err, IsNil)
 	c.Assert(st.ExeRuntimes(), DeepEquals, []strace.ExeRuntime{
 		{Exe: "/snap/bin/test-snapd-tools.echo", TotalSec: 0.005803108215332031},

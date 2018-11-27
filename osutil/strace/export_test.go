@@ -26,3 +26,7 @@ var (
 func (stt *ExecveTiming) ExeRuntimes() []ExeRuntime {
 	return stt.exeRuntimes
 }
+
+func (stt *ExecveTiming) AddExeRuntime(exe string, totalSec float64) {
+	stt.addExeRuntime(exe, totalSec)
+}

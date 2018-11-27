@@ -50,16 +50,12 @@ func NewExecveTiming(nSlowestSamples int) *ExecveTiming {
 	return &ExecveTiming{nSlowestSamples: nSlowestSamples}
 }
 
-func (stt *ExecveTiming) AddExeRuntime(exe string, totalSec float64) {
+func (stt *ExecveTiming) addExeRuntime(exe string, totalSec float64) {
 	stt.exeRuntimes = append(stt.exeRuntimes, ExeRuntime{
 		Exe:      exe,
 		TotalSec: totalSec,
 	})
 	stt.prune()
-}
-
-func (st *ExecveTiming) SetNrSamples(n int) {
-	st.nSlowestSamples = n
 }
 
 // prune() ensures the number of exeRuntimes stays with the nSlowestSamples
@@ -88,9 +84,35 @@ func (stt *ExecveTiming) Display(w io.Writer) {
 	fmt.Fprintf(w, "Total time: %2.3fs\n", stt.TotalTime)
 }
 
-type perfStart struct {
-	Start float64
-	Exe   string
+type exeStart struct {
+	start float64
+	exe   string
+}
+
+type pidTracker struct {
+	pidToExeStart map[string]exeStart
+}
+
+func newPidTracker() *pidTracker {
+	return &pidTracker{
+		pidToExeStart: make(map[string]exeStart),
+	}
+
+}
+
+func (pt *pidTracker) Get(pid string) (startTime float64, exe string) {
+	if exeStart, ok := pt.pidToExeStart[pid]; ok {
+		return exeStart.start, exeStart.exe
+	}
+	return 0, ""
+}
+
+func (pt *pidTracker) Add(pid string, startTime float64, exe string) {
+	pt.pidToExeStart[pid] = exeStart{start: startTime, exe: exe}
+}
+
+func (pt *pidTracker) Del(pid string) {
+	delete(pt.pidToExeStart, pid)
 }
 
 // lines look like:
@@ -113,79 +135,79 @@ var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*SIG(CHLD|TERM)\ {.*s
 // 21616 1542882400.198907 ....
 var timeRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*`)
 
-func TraceExecveTimings(straceLog string) (*ExecveTiming, error) {
+func handleExecMatch(trace *ExecveTiming, pt *pidTracker, match []string) error {
+	if len(match) == 0 {
+		return nil
+	}
+	pid := match[1]
+	execStart, err := strconv.ParseFloat(match[2], 64)
+	if err != nil {
+		return err
+	}
+	exe := match[3]
+	// deal with subsequent execve()
+	if start, exe := pt.Get(pid); exe != "" {
+		trace.addExeRuntime(exe, execStart-start)
+	}
+	pt.Add(pid, execStart, exe)
+	return nil
+}
+
+func handleSignalMatch(trace *ExecveTiming, pt *pidTracker, match []string) error {
+	if len(match) == 0 {
+		return nil
+	}
+	sigTime, err := strconv.ParseFloat(match[1], 64)
+	if err != nil {
+		return err
+	}
+	sigPid := match[3]
+	if start, exe := pt.Get(sigPid); exe != "" {
+		trace.addExeRuntime(exe, sigTime-start)
+		pt.Del(sigPid)
+	}
+	return nil
+}
+
+func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 	slog, err := os.Open(straceLog)
 	if err != nil {
 		return nil, err
 	}
 	defer slog.Close()
 
-	snapTrace := NewExecveTiming(10)
-	pidToPerf := make(map[string]perfStart)
+	// pidTracker maps the "pid" string to the executable
+	pidTracker := newPidTracker()
 
-	var start, line string
+	var line string
+	var start, end, tmp float64
+	trace := NewExecveTiming(nSlowest)
 	r := bufio.NewScanner(slog)
 	for r.Scan() {
 		line = r.Text()
-		if m := timeRE.FindStringSubmatch(line); len(m) > 0 && start == "" {
-			start = m[1]
+		if start == 0.0 {
+			fmt.Sscanf(line, "%f %f ", &tmp, &start)
 		}
 
-		// look for new Execs
-		handleExecMatch := func(match []string) error {
-			if len(match) == 0 {
-				return nil
-			}
-			pid := match[1]
-			execStart, err := strconv.ParseFloat(match[2], 64)
-			if err != nil {
-				return err
-			}
-			exe := match[3]
-			// deal with subsequent execve()
-			if perf, ok := pidToPerf[pid]; ok {
-				snapTrace.AddExeRuntime(perf.Exe, execStart-perf.Start)
-			}
-			pidToPerf[pid] = perfStart{Start: execStart, Exe: exe}
-			return nil
-		}
 		match := execveRE.FindStringSubmatch(line)
-		if err := handleExecMatch(match); err != nil {
+		if err := handleExecMatch(trace, pidTracker, match); err != nil {
 			return nil, err
 		}
 		match = execveatRE.FindStringSubmatch(line)
-		if err := handleExecMatch(match); err != nil {
+		if err := handleExecMatch(trace, pidTracker, match); err != nil {
 			return nil, err
 		}
 		match = sigChldTermRE.FindStringSubmatch(line)
-		if len(match) > 0 {
-			sigTime, err := strconv.ParseFloat(match[1], 64)
-			if err != nil {
-				return nil, err
-			}
-			sigPid := match[3]
-			if perf, ok := pidToPerf[sigPid]; ok {
-				snapTrace.AddExeRuntime(perf.Exe, sigTime-perf.Start)
-				delete(pidToPerf, sigPid)
-			}
-		}
-
-	}
-	if m := timeRE.FindStringSubmatch(line); len(m) > 0 {
-		tStart, err := strconv.ParseFloat(start, 64)
-		if err != nil {
+		if err := handleSignalMatch(trace, pidTracker, match); err != nil {
 			return nil, err
 		}
-		tEnd, err := strconv.ParseFloat(m[1], 64)
-		if err != nil {
-			return nil, err
-		}
-		snapTrace.TotalTime = tEnd - tStart
 	}
+	fmt.Sscanf(line, "%f %f", &tmp, &end)
+	trace.TotalTime = end - start
 
 	if r.Err() != nil {
 		return nil, r.Err()
 	}
 
-	return snapTrace, nil
+	return trace, nil
 }
