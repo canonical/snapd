@@ -22,6 +22,7 @@ package snap
 var (
 	ValidateSocketName           = validateSocketName
 	ValidateDescription          = validateDescription
+	ValidateTitle                = validateTitle
 	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
 )
 

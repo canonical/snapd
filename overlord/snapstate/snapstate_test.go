@@ -11207,8 +11207,8 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 		{
 			op: "update-aliases",
 			aliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
+				{Name: "alias1", Target: "alias-snap.cmd1"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
 			},
 		},
 	}
