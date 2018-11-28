@@ -23,9 +23,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -164,6 +166,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	}
 
 	writeSystemKey := true
+	os.Remove(dirs.SnapSystemKeyFile)
 
 	// For each snap:
 	for _, snapInfo := range snaps {
