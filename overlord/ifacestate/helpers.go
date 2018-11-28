@@ -163,6 +163,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
+	writeSystemKey := true
+
 	// For each snap:
 	for _, snapInfo := range snaps {
 		snapName := snapInfo.InstanceName()
@@ -182,15 +184,18 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
-				// Let's log this but carry on
+				// Let's log this but carry on without writing the system key.
 				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
 					backend.Name(), snapName, err)
+				writeSystemKey = false
 			}
 		}
 	}
 
-	if err := interfaces.WriteSystemKey(); err != nil {
-		logger.Noticef("cannot write system key: %v", err)
+	if writeSystemKey {
+		if err := interfaces.WriteSystemKey(); err != nil {
+			logger.Noticef("cannot write system key: %v", err)
+		}
 	}
 	return nil
 }
