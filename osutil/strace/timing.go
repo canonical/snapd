@@ -139,6 +139,7 @@ func handleExecMatch(trace *ExecveTiming, pt *pidTracker, match []string) error 
 	if len(match) == 0 {
 		return nil
 	}
+	// the pid of the process that does the execve{,at}()
 	pid := match[1]
 	execStart, err := strconv.ParseFloat(match[2], 64)
 	if err != nil {
@@ -188,7 +189,18 @@ func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 		if start == 0.0 {
 			fmt.Sscanf(line, "%f %f ", &tmp, &start)
 		}
-
+		// handleExecMatch looks for execve{,at}() calls and
+		// uses the pidTracker to keep track of execution of
+		// things. Because of fork() we may see many pids and
+		// within each pid we can see multiple execve{,at}()
+		// calls.
+		// An example of pids/exec transitions:
+		// $ snap run --trace-exec test-snapd-sh -c "/bin/true"
+		//    pid 20817 execve("snap-confine")
+		//    pid 20817 execve("snap-exec")
+		//    pid 20817 execve("/snap/test-snapd-sh/x2/bin/sh")
+		//    pid 20817 execve("/bin/sh")
+		//    pid 2023  execve("/bin/true")
 		match := execveRE.FindStringSubmatch(line)
 		if err := handleExecMatch(trace, pidTracker, match); err != nil {
 			return nil, err
