@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
+	"github.com/snapcore/snapd/release"
 )
 
 var (
@@ -480,6 +481,9 @@ func (s *systemd) WriteMountUnitFile(name, revision, what, where, fstype string)
 		}
 		options = append(options, newOptions...)
 		fstype = newFsType
+		if release.SELinuxLevel() != release.NoSELinux {
+			options = append(options, "context=system_u:object_r:snappy_snap_t:s0")
+		}
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
