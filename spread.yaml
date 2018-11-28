@@ -562,6 +562,7 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
 
 suites:
     tests/main/:
