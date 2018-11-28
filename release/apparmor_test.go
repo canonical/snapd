@@ -35,63 +35,67 @@ type apparmorSuite struct{}
 
 var _ = Suite(&apparmorSuite{})
 
-func (s *apparmorSuite) TestMockAppArmorLevel(c *C) {
-	for _, lvl := range []release.AppArmorLevelType{release.NoAppArmor, release.PartialAppArmor, release.FullAppArmor} {
+func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
+	for _, lvl := range []release.AppArmorLevelType{release.NoAppArmor, release.UnusableAppArmor, release.PartialAppArmor, release.FullAppArmor} {
 		restore := release.MockAppArmorLevel(lvl)
-		defer restore()
 		c.Check(release.AppArmorLevel(), Equals, lvl)
+		c.Check(release.AppArmorSummary(), testutil.Contains, "mocked apparmor level: ")
+		c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"mocked-kernel-feature"})
+		c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"mocked-parser-feature"})
+		restore()
 	}
 }
 
-func (s *apparmorSuite) TestProbeAppArmorNoAppArmor(c *C) {
+func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
+	restore := release.MockAppArmorFeatures([]string{}, []string{})
+	c.Check(release.AppArmorLevel(), Equals, release.NoAppArmor)
+	c.Check(release.AppArmorSummary(), Equals, "apparmor not enabled")
+	c.Check(release.AppArmorKernelFeatures(), HasLen, 0)
+	c.Check(release.AppArmorParserFeatures(), HasLen, 0)
+	restore()
+
+	restore = release.MockAppArmorFeatures([]string{"kernel-feature"}, []string{"parser-feature"})
+	c.Check(release.AppArmorLevel(), Equals, release.UnusableAppArmor)
+	c.Check(release.AppArmorSummary(), testutil.Contains, "apparmor_parser lacks essential features: unsafe")
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"kernel-feature"})
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"parser-feature"})
+	restore()
+
+	// Unsafe is sufficient to get partial apparmor.
+	restore = release.MockAppArmorFeatures([]string{"kernel-feature"}, []string{"unsafe"})
+	c.Check(release.AppArmorLevel(), Equals, release.PartialAppArmor)
+	c.Check(release.AppArmorSummary(), testutil.Contains, "apparmor is enabled but some kernel features are missing: ")
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"kernel-feature"})
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"unsafe"})
+	restore()
+
+	// Unsafe is sufficient to get partial apparmor.
+	restore = release.MockAppArmorFeatures(release.RequiredAppArmorKernelFeatures, release.RequiredAppArmorParserFeatures)
+	c.Check(release.AppArmorLevel(), Equals, release.FullAppArmor)
+	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled and all features are available")
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, release.RequiredAppArmorKernelFeatures)
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, release.RequiredAppArmorParserFeatures)
+	restore()
+}
+
+func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	restore := release.MockAppArmorFeaturesSysPath("/does/not/exists")
-	defer restore()
+	c.Check(release.ProbeAppArmorKernelFeatures(), HasLen, 0)
+	restore()
 
-	level, summary := release.ProbeAppArmor()
-	c.Check(level, Equals, release.NoAppArmor)
-	c.Check(summary, Equals, "apparmor not enabled")
+	d := c.MkDir()
+
+	restore = release.MockAppArmorFeaturesSysPath(d)
+	defer restore()
+	c.Check(release.ProbeAppArmorKernelFeatures(), HasLen, 0)
+
+	c.Assert(os.Mkdir(filepath.Join(d, "foo"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "bar"), 0755), IsNil)
+	c.Check(release.ProbeAppArmorKernelFeatures(), DeepEquals, []string{"bar", "foo"})
 }
 
-func (s *apparmorSuite) TestProbeAppArmorPartialAppArmor(c *C) {
-	fakeSysPath := c.MkDir()
-	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
-	defer restore()
-
-	level, summary := release.ProbeAppArmor()
-	c.Check(level, Equals, release.PartialAppArmor)
-	c.Check(summary, Equals, "apparmor is enabled but some features are missing: caps, dbus, domain, file, mount, namespaces, network, ptrace, signal")
-}
-
-func (s *apparmorSuite) TestProbeAppArmorFullAppArmor(c *C) {
-	fakeSysPath := c.MkDir()
-	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
-	defer restore()
-
-	for _, feature := range release.RequiredAppArmorFeatures {
-		err := os.Mkdir(filepath.Join(fakeSysPath, feature), 0755)
-		c.Assert(err, IsNil)
-	}
-
-	level, summary := release.ProbeAppArmor()
-	c.Check(level, Equals, release.FullAppArmor)
-	c.Check(summary, Equals, "apparmor is enabled and all features are available")
-}
-
-func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
-	fakeSysPath := c.MkDir()
-	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
-	defer restore()
-	err := os.MkdirAll(filepath.Join(fakeSysPath, "policy"), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(fakeSysPath, "network"), 0755)
-	c.Assert(err, IsNil)
-
-	features := release.AppArmorFeatures()
-	c.Check(features, DeepEquals, []string{"network", "policy"})
-}
-
-func (s *apparmorSuite) TestAppArmorParserFeatures(c *C) {
-	tmpdir := c.MkDir()
+func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
+	d := c.MkDir()
 
 	var testcases = []struct {
 		exit     string
@@ -102,16 +106,37 @@ func (s *apparmorSuite) TestAppArmorParserFeatures(c *C) {
 	}
 
 	for _, t := range testcases {
-		mockApparmorParser := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf("cat > %s/stdin; %s", tmpdir, t.exit))
-		defer mockApparmorParser.Restore()
-		restore := release.MockAppArmorParserSearchPath(os.Getenv("PATH"))
+		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf("cat > %s/stdin; %s", d, t.exit))
+		defer mockParserCmd.Restore()
+		restore := release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
 		defer restore()
 
-		features := release.AppArmorParserFeatures()
+		features := release.ProbeAppArmorParserFeatures()
 		c.Check(features, DeepEquals, t.features)
-		c.Check(mockApparmorParser.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}})
-		inp, err := ioutil.ReadFile(filepath.Join(tmpdir, "stdin"))
+		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}})
+		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
-		c.Check(string(inp), Equals, "profile snap-test {\n change_profile unsafe /**,\n}")
+		c.Check(string(data), Equals, "profile snap-test {\n change_profile unsafe /**,\n}")
 	}
+}
+
+func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
+	d := c.MkDir()
+	restore := release.MockAppArmorFeaturesSysPath(d)
+	defer restore()
+	c.Assert(os.MkdirAll(filepath.Join(d, "policy"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, "network"), 0755), IsNil)
+
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore = release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+
+	release.AssessAppArmor()
+
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"network", "policy"})
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"unsafe"})
+
+	// Deprecated API
+	c.Check(release.AppArmorFeatures(), DeepEquals, []string{"network", "policy"})
 }
