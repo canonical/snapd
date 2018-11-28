@@ -29,6 +29,7 @@ var supportedHooks = []*HookType{
 	NewHookType(regexp.MustCompile("^install$")),
 	NewHookType(regexp.MustCompile("^pre-refresh$")),
 	NewHookType(regexp.MustCompile("^post-refresh$")),
+	NewHookType(regexp.MustCompile("^pre-remove$")),
 	NewHookType(regexp.MustCompile("^remove$")),
 	NewHookType(regexp.MustCompile("^prepare-(?:plug|slot)-[-a-z0-9]+$")),
 	NewHookType(regexp.MustCompile("^unprepare-(?:plug|slot)-[-a-z0-9]+$")),

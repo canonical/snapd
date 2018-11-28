@@ -2,9 +2,10 @@ summary: Check install, remove and pre-refresh/post-refresh hooks.
 
 environment:
     REMOVE_HOOK_FILE: "$HOME/snap/snap-hooks/common/remove-hook-executed"
+    PREREMOVE_HOOK_FILE: "$HOME/snap/snap-hooks/common/pre-remove-hook-executed"
 
 restore: |
-    rm -f "$REMOVE_HOOK_FILE"
+    rm -f "$REMOVE_HOOK_FILE" "$PREREMOVE_HOOK_FILE"
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
@@ -44,15 +45,19 @@ execute: |
     snap set snap-hooks exitcode=0
     snap remove --revision=x1 snap-hooks
     if test -f "$REMOVE_HOOK_FILE"; then
-        echo "Remove hook was executed. It shouldn't."
+        echo "remove hook was executed. It shouldn't."
         exit 1
     fi
 
-    echo "Verify that remove hook is executed"
+    echo "Verify that remove and pre-remove hooks are executed"
     snap set snap-hooks exitcode=0
     snap remove snap-hooks
+    if ! test -f "$PREREMOVE_HOOK_FILE"; then
+        echo "pre-remove hook was not executed"
+        exit 1
+    fi
     if ! test -f "$REMOVE_HOOK_FILE"; then
-        echo "Remove hook was not executed"
+        echo "remove hook was not executed"
         exit 1
     fi
 
