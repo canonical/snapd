@@ -7,10 +7,12 @@ backends: [-autopkgtest]
 # no iptables on core18 yet
 systems: [-ubuntu-core-18-*]
 
+prepare: |
+    iptables-save > rules
+
 restore: |
-    echo "Remove iptables rules"
-    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
-    iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with tcp-reset || true
+    echo "Restoring iptables rules"
+    iptables-restore < rules
 
 debug: |
     echo "iptables rules"
@@ -21,12 +23,10 @@ execute: |
 
     echo "Disabling DNS queries"
     iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
-    iptables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with tcp-reset
 
     systemctl start snapd.{socket,service}
 
     OUT=$(snap find test 2>&1 || true)
     iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
-    iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with tcp-reset
 
     echo "$OUT" | MATCH "error: unable to contact snap store"
