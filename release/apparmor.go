@@ -35,8 +35,10 @@ import (
 type AppArmorLevelType int
 
 const (
+	// UnknownAppArmor indicates that apparmor was not probed yet.
+	UnknownAppArmor AppArmorLevelType = iota
 	// NoAppArmor indicates that apparmor is not enabled.
-	NoAppArmor AppArmorLevelType = iota
+	NoAppArmor
 	// PartialAppArmor indicates that apparmor is enabled but some
 	// features are missing.
 	PartialAppArmor
@@ -50,19 +52,21 @@ var (
 	appArmorParserFeatures []string
 )
 
-func init() {
-	appArmorLevel, appArmorSummary = probeAppArmor()
-}
-
 // AppArmorLevel quantifies how well apparmor is supported on the
 // current kernel.
 func AppArmorLevel() AppArmorLevelType {
+	if appArmorLevel == UnknownAppArmor {
+		appArmorLevel, appArmorSummary = probeAppArmor()
+	}
 	return appArmorLevel
 }
 
 // AppArmorSummary describes how well apparmor is supported on the
 // current kernel.
 func AppArmorSummary() string {
+	if appArmorLevel == UnknownAppArmor {
+		appArmorLevel, appArmorSummary = probeAppArmor()
+	}
 	return appArmorSummary
 }
 
