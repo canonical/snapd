@@ -535,7 +535,6 @@ restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
     # XXX: something is hosing the filesystem so look for signs of that
     ! grep -F "//deleted /etc" /proc/self/mountinfo
-    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
 
 suites:
     tests/main/:
