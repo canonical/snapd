@@ -23,10 +23,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -164,6 +166,9 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
+	writeSystemKey := true
+	os.Remove(dirs.SnapSystemKeyFile)
+
 	// For each snap:
 	for _, snapInfo := range snaps {
 		snapName := snapInfo.InstanceName()
@@ -183,15 +188,18 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
-				// Let's log this but carry on
+				// Let's log this but carry on without writing the system key.
 				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
 					backend.Name(), snapName, err)
+				writeSystemKey = false
 			}
 		}
 	}
 
-	if err := interfaces.WriteSystemKey(); err != nil {
-		logger.Noticef("cannot write system key: %v", err)
+	if writeSystemKey {
+		if err := interfaces.WriteSystemKey(); err != nil {
+			logger.Noticef("cannot write system key: %v", err)
+		}
 	}
 	return nil
 }
