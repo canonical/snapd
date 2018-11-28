@@ -693,8 +693,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 		close(doneCh)
 	}()
 
-	extraStraceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLog)}
-	cmd, err := strace.Command(extraStraceOpts, origCmd...)
+	cmd, err := strace.TraceExecCommand(straceLog, origCmd...)
 	if err != nil {
 		return err
 	}

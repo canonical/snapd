@@ -83,3 +83,11 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 		Args: args,
 	}, nil
 }
+
+// TraceExecCommand returns an exec.Cmd suitable for tracking timings of
+// execve{,at}() calls
+func TraceExecCommand(straceLogPath string, origCmd ...string) (*exec.Cmd, error) {
+	extraStraceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLogPath)}
+
+	return Command(extraStraceOpts, origCmd...)
+}

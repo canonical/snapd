@@ -95,3 +95,24 @@ func (s *straceSuite) TestStraceCommandNoStrace(c *C) {
 	_, err = strace.Command(nil, "foo")
 	c.Assert(err, ErrorMatches, `cannot find an installed strace, please try 'snap install strace-static'`)
 }
+
+func (s *straceSuite) TestTraceExecCommand(c *C) {
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+
+	cmd, err := strace.TraceExecCommand("/run/snapd/strace.log", "cmd")
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
+	c.Assert(cmd.Args, DeepEquals, []string{
+		s.mockSudo.Exe(), "-E",
+		s.mockStrace.Exe(), "-u", u.Username, "-f",
+		"-e", strace.ExcludedSyscalls,
+		// timing specific trace
+		"-ttt",
+		"-e", "trace=execve,execveat",
+		"-o", "/run/snapd/strace.log",
+		// the command
+		"cmd",
+	})
+
+}
