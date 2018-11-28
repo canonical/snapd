@@ -235,7 +235,7 @@ prepare_classic() {
 
     # Snapshot the state including core.
     if is_snapd_state_saved; then
-        init_state_classic --reuse-core
+        reset_snapd --reuse-core
     else
         # need to be seeded to proceed with snap install
         # also make sure the captured state is seeded
@@ -614,7 +614,7 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if is_snapd_state_saved; then
-        init_state_all_snap --reuse-core
+        reset_snapd --reuse-core
     else
         systemctl stop snapd.service snapd.socket
         save_snapd_state
