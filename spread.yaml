@@ -527,12 +527,15 @@ prepare: |
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
+    apt-get install -y forkstat
 prepare-each: |
+    systemd-run --unit=debug-forkstat --remain-after-exit /bin/sh -c "forkstat > /tmp/forkstat.log"
     "$TESTSLIB"/prepare-restore.sh --prepare-project-each
 restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    systemctl stop debug-forkstat.service
     # XXX: something is hosing the filesystem so look for signs of that
     ! grep -F "//deleted /etc" /proc/self/mountinfo
     if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
