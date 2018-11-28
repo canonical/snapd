@@ -108,10 +108,12 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	oldSetupPreRemoveHook := snapstate.SetupPreRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
+	snapstate.SetupPreRemoveHook = hookstate.SetupPreRemoveHook
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
@@ -141,6 +143,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
+		snapstate.SetupPreRemoveHook = oldSetupPreRemoveHook
 
 		dirs.SetRootDir("/")
 	})
@@ -430,6 +433,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"run-hook[pre-remove]",
 		"stop-snap-services",
 		"auto-disconnect",
 		"run-hook[remove]",
@@ -10297,9 +10301,10 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+			"run-hook[pre-remove]",
 			"stop-snap-services",
 			"auto-disconnect",
 			"run-hook[remove]",

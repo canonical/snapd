@@ -31,6 +31,7 @@ func init() {
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
+	snapstate.SetupPreRemoveHook = SetupPreRemoveHook
 }
 
 func SetupInstallHook(st *state.State, snapName string) *state.Task {
@@ -96,6 +97,18 @@ func SetupRemoveHook(st *state.State, snapName string) *state.Task {
 	summary := fmt.Sprintf(i18n.G("Run remove hook of %q snap if present"), hooksup.Snap)
 	task := HookTask(st, summary, hooksup, nil)
 
+	return task
+}
+
+func SetupPreRemoveHook(st *state.State, snapName string) *state.Task {
+	hooksup := &HookSetup{
+		Snap:        snapName,
+		Hook:        "pre-remove",
+		Optional:    true,
+		IgnoreError: true,
+	}
+	summary := fmt.Sprintf(i18n.G("Run pre-remove hook of %q snap if present"), hooksup.Snap)
+	task := HookTask(st, summary, hooksup, nil)
 	return task
 }
 

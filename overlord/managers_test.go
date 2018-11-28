@@ -119,14 +119,17 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	oldSetupPreRemoveHook := snapstate.SetupPreRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+	snapstate.SetupPreRemoveHook = hookstate.SetupPreRemoveHook
 
 	restoreConnectRetryTimeout := ifacestate.MockConnectRetryTimeout(connectRetryTimeout)
 
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
+		snapstate.SetupPreRemoveHook = oldSetupPreRemoveHook
 		restoreConnectRetryTimeout()
 	}
 

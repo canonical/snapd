@@ -354,6 +354,10 @@ var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupRemoveHook is unset")
 }
 
+var SetupPreRemoveHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupPreRemoveHook is unset")
+}
+
 // WaitRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts)
@@ -1555,13 +1559,18 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		chain = ts
 	}
 
+	var prev *state.Task
 	var removeHook *state.Task
-	// only run remove hook if uninstalling the snap completely
+
+	// only run remove hooks if uninstalling the snap completely
 	if removeAll {
+		preremoveHook := SetupPreRemoveHook(st, snapsup.InstanceName())
+		addNext(state.NewTaskSet(preremoveHook))
+		prev = preremoveHook
+
 		removeHook = SetupRemoveHook(st, snapsup.InstanceName())
 	}
 
-	var prev *state.Task
 	var stopSnapServices *state.Task
 	if active {
 		stopSnapServices = st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
