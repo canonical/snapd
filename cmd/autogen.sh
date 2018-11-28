@@ -39,7 +39,7 @@ case "$ID" in
 		fi
 		;;
 	fedora|centos|rhel)
-		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
+		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor --enable-selinux"
 		;;
 	opensuse|opensuse-tumbleweed)
 		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-biarch --with-32bit-libdir=/usr/lib --enable-merged-usr"

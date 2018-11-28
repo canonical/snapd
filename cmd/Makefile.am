@@ -273,6 +273,18 @@ snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
 
+if SELINUX
+snap_confine_snap_confine_SOURCES += \
+	snap-confine/selinux-support.c \
+	snap-confine/selinux-support.h
+snap_confine_snap_confine_CFLAGS += $(SELINUX_CFLAGS)
+if STATIC_LIBSELINUX
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libselinux)
+else
+snap_confine_snap_confine_extra_libs += $(SELINUX_LIBS)
+endif  # STATIC_LIBSECCOMP
+endif  # SELINUX
+
 # an extra build that has additional debugging enabled at compile time
 
 noinst_PROGRAMS += snap-confine/snap-confine-debug

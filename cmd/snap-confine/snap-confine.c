@@ -47,6 +47,9 @@
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
+#ifdef HAVE_SELINUX
+#include "selinux-support.h"
+#endif
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -212,6 +215,10 @@ int main(int argc, char **argv)
 			sc_reassociate_with_pid1_mount_ns();
 			// Do global initialization:
 			int global_lock_fd = sc_lock_global();
+#ifdef HAVE_SELINUX
+			// Ensure that /run/snapd is properly labeled
+			sc_selinux_relabel_run_dir();
+#endif
 			// ensure that "/" or "/snap" is mounted with the
 			// "shared" option, see LP:#1668659
 			debug("ensuring that snap mount directory is shared");
@@ -376,6 +383,9 @@ int main(int argc, char **argv)
 #ifdef HAVE_SECCOMP
 	sc_apply_seccomp_bpf(security_tag);
 #endif				// ifdef HAVE_SECCOMP
+#ifdef HAVE_SELINUX
+	sc_selinux_set_snap_execcon();
+#endif
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
