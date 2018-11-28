@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -85,6 +86,7 @@ type deviceMgrSuite struct {
 	restoreOnClassic         func()
 	restoreGenericClassicMod func()
 	restoreSanitize          func()
+	restoreBackends          func()
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -122,6 +124,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.restoreOnClassic = release.MockOnClassic(false)
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
+	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
@@ -174,6 +177,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
 	s.restoreSanitize()
+	s.restoreBackends()
 }
 
 var settleTimeout = 15 * time.Second
