@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <libgen.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
@@ -43,7 +44,6 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
-#include "apparmor-support.h"
 
 #define MAX_BUF 1000
 
