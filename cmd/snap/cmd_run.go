@@ -703,6 +703,9 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
 	err = cmd.Run()
+	// ensure we close the fifo here so that the strace.TraceExecCommand()
+	// helper gets a EOF from the fifo (i.e. all writers must be closed
+	// for this)
 	fw.Close()
 
 	// wait for strace reader
