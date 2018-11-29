@@ -22,6 +22,7 @@ package store
 import (
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // snapDetails encapsulates the data sent to us from the store as JSON.
@@ -75,7 +76,10 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
-	info.EditedTitle = d.Title.Clean()
+
+	// https://forum.snapcraft.io/t/title-length-in-snapcraft-yaml-snap-yaml/8625/10
+	info.EditedTitle = strutil.ElliptRight(d.Title.Clean(), 40)
+
 	info.EditedSummary = d.Summary.Clean()
 	info.EditedDescription = d.Description.Clean()
 	// Note that the store side is using confusing terminology here.
