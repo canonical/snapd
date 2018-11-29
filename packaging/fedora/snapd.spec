@@ -823,7 +823,7 @@ fi
 %endif
 
 %changelog
-* Wed Nov 09 2018 Michael Vogt <mvo@ubuntu.com>
+* Fri Nov 09 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.36.1
  - tests,snap-confine: add core18 only hooks test and fix running
    core18 only hooks on classic
