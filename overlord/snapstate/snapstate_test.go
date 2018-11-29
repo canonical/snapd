@@ -1742,7 +1742,7 @@ func (s *snapmgrTestSuite) TestInstallPathEpochMismatch(c *C) {
 	// try to install epoch 42
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0\nepoch: 42\n")
 	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot refresh snap "some-snap" as new epoch \(42\) can't read old epoch \(1\*\)`)
+	c.Assert(err, ErrorMatches, `cannot refresh snap "some-snap" as new revision has epoch 42 that can't read current revision's epoch of 1\*`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
@@ -12497,7 +12497,7 @@ func (s *snapmgrTestSuite) TestUpdateFailsEarlyOnEpoch(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-epoch-snap", "", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot refresh snap .* can't read old epoch .*`)
+	c.Assert(err, ErrorMatches, `cannot refresh snap .* can't read current revision's epoch .*`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
