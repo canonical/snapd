@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <libgen.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
@@ -43,8 +44,6 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
-#include "apparmor-support.h"
-#include "quirks.h"
 
 #define MAX_BUF 1000
 
@@ -575,7 +574,13 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-int sc_open_snap_update_ns(void)
+/**
+ * open_intenral_tool returns a file descriptor of the given internal executable.
+ *
+ * The executable is located based on the location of the currently executing process.
+ * The returning file descriptor can be used with fexecve function.
+**/
+static int open_internal_tool(const char *tool_name)
 {
 	// +1 is for the case where the link is exactly PATH_MAX long but we also
 	// want to store the terminating '\0'. The readlink system call doesn't add
@@ -587,20 +592,29 @@ int sc_open_snap_update_ns(void)
 	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
 		die("readlink /proc/self/exe returned relative path");
 	}
-	char *bufcopy SC_CLEANUP(sc_cleanup_string) = NULL;
-	bufcopy = strdup(buf);
-	if (bufcopy == NULL) {
-		die("cannot copy buffer");
+	char *dir_name = dirname(buf);
+	int dir_fd SC_CLEANUP(sc_cleanup_close) = 1;
+	dir_fd = open(dir_name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+	if (dir_fd < 0) {
+		die("cannot open path %s", dir_name);
 	}
-	char *dname = dirname(bufcopy);
-	sc_must_snprintf(buf, sizeof buf, "%s/%s", dname, "snap-update-ns");
-	debug("snap-update-ns executable: %s", buf);
-	int fd = open(buf, O_PATH | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-	if (fd < 0) {
-		die("cannot open snap-update-ns executable");
+	int tool_fd = -1;
+	tool_fd = openat(dir_fd, tool_name, O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	if (tool_fd < 0) {
+		die("cannot open path %s/%s", dir_name, tool_name);
 	}
-	debug("opened snap-update-ns executable as file descriptor %d", fd);
-	return fd;
+	debug("opened %s executable as file descriptor %d", tool_name, tool_fd);
+	return tool_fd;
+}
+
+int sc_open_snap_update_ns(void)
+{
+	return open_internal_tool("snap-update-ns");
+}
+
+int sc_open_snap_discard_ns(void)
+{
+	return open_internal_tool("snap-discard-ns");
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
@@ -702,10 +716,6 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
-	// setup quirks for specific snaps *only* for the old core snap
-	if (distro == SC_DISTRO_CLASSIC && sc_streq(base_snap_name, "core")) {
-		sc_setup_quirks();
-	}
 	// setup the security backend bind mounts
 	sc_setup_mount_profiles(apparmor, snap_update_ns_fd, snap_name);
 

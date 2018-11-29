@@ -84,3 +84,11 @@ func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 func (Store) ConnectivityCheck() (map[string]bool, error) {
 	panic("ConnectivityCheck not expected")
 }
+
+func (Store) LoginUser(username, password, otp string) (string, string, error) {
+	panic("LoginUser not expected")
+}
+
+func (Store) UserInfo(email string) (userinfo *store.User, err error) {
+	panic("UserInfo not expected")
+}

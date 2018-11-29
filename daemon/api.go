@@ -420,7 +420,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	overlord := c.d.overlord
 	st := overlord.State()
-	macaroon, discharge, err := store.LoginUser(makeHttpClient(st), loginData.Email, loginData.Password, loginData.Otp)
+	theStore := getStore(c)
+	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -525,7 +526,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 	var macaroon string
 	var discharges []string
-	for _, field := range splitQS(authorizationData[1]) {
+	for _, field := range strutil.CommaSeparatedList(authorizationData[1]) {
 		if strings.HasPrefix(field, `root="`) {
 			macaroon = strings.TrimSuffix(field[6:], `"`)
 		}
@@ -825,7 +826,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	var wanted map[string]bool
 	if ns := query.Get("snaps"); len(ns) > 0 {
-		nsl := splitQS(ns)
+		nsl := strutil.CommaSeparatedList(ns)
 		wanted = make(map[string]bool, len(nsl))
 		for _, name := range nsl {
 			wanted[name] = true
@@ -1628,24 +1629,11 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	return iconGet(c.d.overlord.State(), name)
 }
 
-func splitQS(qs string) []string {
-	qsl := strings.Split(qs, ",")
-	split := make([]string, 0, len(qsl))
-	for _, elem := range qsl {
-		elem = strings.TrimSpace(elem)
-		if len(elem) > 0 {
-			split = append(split, elem)
-		}
-	}
-
-	return split
-}
-
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	snapName := configstate.RemapSnapFromRequest(vars["name"])
 
-	keys := splitQS(r.URL.Query().Get("keys"))
+	keys := strutil.CommaSeparatedList(r.URL.Query().Get("keys"))
 
 	s := c.d.overlord.State()
 	s.Lock()
@@ -1857,8 +1845,6 @@ func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 
 // changeInterfaces controls the interfaces system.
 // Plugs can be connected to and disconnected from slots.
-// When enableInternalInterfaceActions is true plugs and slots can also be
-// explicitly added and removed.
 func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
@@ -1867,9 +1853,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 	if a.Action == "" {
 		return BadRequest("interface action not specified")
-	}
-	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
-		return BadRequest("internal interface actions are disabled")
 	}
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
@@ -2197,7 +2180,6 @@ var (
 	postCreateUserUcrednetGet = ucrednetGet
 	runSnapctlUcrednetGet     = ucrednetGet
 	ctlcmdRun                 = ctlcmd.Run
-	storeUserInfo             = store.UserInfo
 	osutilAddUser             = osutil.AddUser
 )
 
@@ -2210,8 +2192,8 @@ func makeHttpClient(st *state.State) *http.Client {
 	})
 }
 
-func getUserDetailsFromStore(client *http.Client, email string) (string, *osutil.AddUserOptions, error) {
-	v, err := storeUserInfo(client, email)
+func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
+	v, err := theStore.UserInfo(email)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
 	}
@@ -2434,7 +2416,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if createData.Known {
 		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(makeHttpClient(st), createData.Email)
+		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
@@ -2816,7 +2798,7 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid select parameter: %q", sel)
 	}
 
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
 	}
@@ -2845,7 +2827,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// only services have logs for now
 	opts := appInfoOptions{service: true}
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
 	}
