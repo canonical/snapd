@@ -98,7 +98,6 @@ var (
 
 	CompletionHelper string
 	CompletersDir    string
-	CompleteSh       string
 
 	SystemFontsDir           string
 	SystemLocalFontsDir      string
@@ -281,7 +280,6 @@ func SetRootDir(rootdir string) {
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
-	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
 
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
@@ -292,4 +290,28 @@ func SetRootDir(rootdir string) {
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
+}
+
+// what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
+func libExecOutside(base string) string {
+	if base == "" {
+		// no explicit base; core is it
+		return filepath.Join(SnapMountDir, "core/current/usr/lib/snapd")
+	}
+	// if a base is set, libexec comes from the snapd snap if it's
+	// installed, and otherwise from the distro.
+	p := filepath.Join(SnapMountDir, "snapd/current/usr/lib/snapd")
+	if st, err := os.Stat(p); err == nil && st.IsDir() {
+		return p
+	}
+	return DistroLibExecDir
+}
+
+func CompleteShPath(base string) string {
+	return filepath.Join(libExecOutside(base), "complete.sh")
+}
+
+func IsCompleteShSymlink(compPath string) bool {
+	target, err := os.Readlink(compPath)
+	return err == nil && filepath.Base(target) == "complete.sh"
 }

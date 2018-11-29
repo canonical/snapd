@@ -1014,7 +1014,9 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	repo := s.manager(c).Repository()
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 1)
-	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
@@ -1106,7 +1108,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowedButNoDecl(c *C) {
 		repo := s.manager(c).Repository()
 		ifaces := repo.Interfaces()
 		c.Assert(ifaces.Connections, HasLen, 1)
-		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+			PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 	})
 }
 
@@ -1125,7 +1129,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckAllowed(c *C) {
 		repo := s.manager(c).Repository()
 		ifaces := repo.Interfaces()
 		c.Assert(ifaces.Connections, HasLen, 1)
-		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+			PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 	})
 }
 
@@ -1208,7 +1214,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) 
 		repo := s.manager(c).Repository()
 		ifaces := repo.Interfaces()
 		c.Assert(ifaces.Connections, HasLen, 1)
-		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+			PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 	})
 }
 
@@ -1247,7 +1255,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightFriendlyStor
 		repo := s.manager(c).Repository()
 		ifaces := repo.Interfaces()
 		c.Assert(ifaces.Connections, HasLen, 1)
-		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+			PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 	})
 }
 
@@ -1947,7 +1957,9 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	c.Assert(slot, Not(IsNil))
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 1)
-	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 // The auto-connect task will auto-connect slots with viable multiple candidates.
@@ -2008,8 +2020,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 2)
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{
-		{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}},
-		{interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+		{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+		{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
 	})
 }
 
@@ -2466,7 +2478,9 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecurityReloadsConnectionsWhenInv
 	// Repository shows the connection
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 1)
-	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 // The setup-profiles task will honor snapstate.DevMode flag by storing it
@@ -3759,7 +3773,9 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 	c.Assert(plug, Not(IsNil))
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 1)
-	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "snap", Name: "network"}, interfaces.SlotRef{Snap: "core", Name: "network"}}})
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "snap", Name: "network"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"}}})
 }
 
 func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot string) *state.Change {
