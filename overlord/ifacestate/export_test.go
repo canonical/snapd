@@ -108,3 +108,10 @@ func GetConnStateAttrs(conns map[string]connState, connID string) (plugStatic, p
 	}
 	return conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, true
 }
+
+// MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
+func MockProfilesNeedRegeneration(fn func() bool) func() {
+	old := profilesNeedRegeneration
+	profilesNeedRegeneration = fn
+	return func() { profilesNeedRegeneration = old }
+}
