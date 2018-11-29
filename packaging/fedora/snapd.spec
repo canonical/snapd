@@ -192,6 +192,9 @@ BuildRequires:  indent
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libcap)
 BuildRequires:  pkgconfig(libseccomp)
+%if 0%{?with_selinux}
+BuildRequires:  pkgconfig(libselinux)
+%endif
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(systemd)
 BuildRequires:  pkgconfig(udev)
@@ -503,6 +506,7 @@ autoreconf --force --install --verbose
 %configure \
     --disable-apparmor \
     --libexecdir=%{_libexecdir}/snapd/ \
+    %{?with_selinux:--enable-selinux} \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
