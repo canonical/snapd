@@ -14,7 +14,7 @@ restore: |
     rm -v test-snapd-epoch_{1,2}_all.snap
 
 execute: |
-    rx="cannot refresh snap .* new epoch [^ ]* can't read old epoch"
+    rx="cannot refresh snap .* new revision has epoch [^ ]* that can't read current revision"
     snap try "$TESTSLIB"/snaps/test-snapd-epoch-1
     ! snap try "$TESTSLIB"/snaps/test-snapd-epoch-2 2> try.err
     tr -s "\n " "  "  < try.err      | MATCH "$rx"
