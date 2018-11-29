@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -32,7 +33,12 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var GIL = &sync.Mutex{}
+
 func addMountUnit(s *snap.Info, meter progress.Meter) error {
+	GIL.Lock()
+	defer GIL.Unlock()
+
 	squashfsPath := dirs.StripRootDir(s.MountFile())
 	whereDir := dirs.StripRootDir(s.MountDir())
 
@@ -56,6 +62,9 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 }
 
 func removeMountUnit(baseDir string, meter progress.Meter) error {
+	GIL.Lock()
+	defer GIL.Unlock()
+
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir))
 	if osutil.FileExists(unit) {
