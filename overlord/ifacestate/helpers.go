@@ -168,7 +168,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	writeSystemKey := true
+	shouldWriteSystemKey := true
 	os.Remove(dirs.SnapSystemKeyFile)
 
 	// For each snap:
@@ -193,12 +193,12 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 				// Let's log this but carry on without writing the system key.
 				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
 					backend.Name(), snapName, err)
-				writeSystemKey = false
+				shouldWriteSystemKey = false
 			}
 		}
 	}
 
-	if writeSystemKey {
+	if shouldWriteSystemKey {
 		if err := interfaces.WriteSystemKey(); err != nil {
 			logger.Noticef("cannot write system key: %v", err)
 		}
