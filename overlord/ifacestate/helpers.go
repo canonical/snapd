@@ -75,7 +75,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if m.profilesNeedRegeneration() {
+	if profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(); err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	return nil
 }
 
-func (m *InterfaceManager) profilesNeedRegeneration() bool {
+func profilesNeedRegeneration() bool {
 	mismatch, err := interfaces.SystemKeyMismatch()
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
