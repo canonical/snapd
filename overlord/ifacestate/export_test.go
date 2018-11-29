@@ -129,3 +129,10 @@ func MockProfilesNeedRegeneration(fn func() bool) func() {
 	profilesNeedRegeneration = fn
 	return func() { profilesNeedRegeneration = old }
 }
+
+// MockWriteSystemKey mocks the function responsible for writing the system key.
+func MockWriteSystemKey(fn func() error) func() {
+	old := writeSystemKey
+	writeSystemKey = fn
+	return func() { writeSystemKey = old }
+}
