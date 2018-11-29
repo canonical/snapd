@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
+	"github.com/snapcore/snapd/release"
 )
 
 func init() {
@@ -96,7 +97,13 @@ func checkSquashfsMount() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("mount", "-t", fstype, tmpSquashfsFile.Name(), tmpMountDir)
+	options := []string{"-t", fstype}
+	if release.SELinuxLevel() != release.NoSELinux {
+		// relabel the mount as snappy_tmp_t where we have full access to
+		options = append(options, "-o", "context=system_u:object_r:snappy_tmp_t:s0")
+	}
+	options = append(options, tmpSquashfsFile.Name(), tmpMountDir)
+	cmd := exec.Command("mount", options...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot mount squashfs image using %q: %v", fstype, osutil.OutputErr(output, err))
