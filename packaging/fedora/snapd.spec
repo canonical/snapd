@@ -506,7 +506,9 @@ autoreconf --force --install --verbose
 %configure \
     --disable-apparmor \
     --libexecdir=%{_libexecdir}/snapd/ \
-    %{?with_selinux:--enable-selinux} \
+%if 0%{?with_selinux}
+    --enable-selinux \
+%endif
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
