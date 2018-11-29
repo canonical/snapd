@@ -335,18 +335,30 @@ func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 	return listener, nil
 }
 
+// activationListeners builds a map of addresses to listeners that were passed
+// during systemd activation
+func activationListeners() (lns map[string]net.Listener, err error) {
+	// pass false to keep LISTEN_* environment variables passed by systemd
+	files := activation.Files(false)
+	lns = make(map[string]net.Listener, len(files))
+
+	for _, f := range files {
+		ln, err := net.FileListener(f)
+		if err != nil {
+			return nil, err
+		}
+		addr := ln.Addr().String()
+		lns[addr] = ln
+	}
+	return lns, nil
+}
+
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
-	listeners, err := activation.Listeners(false)
+	listenerMap, err := activationListeners()
 	if err != nil {
 		return err
-	}
-
-	listenerMap := make(map[string]net.Listener, len(listeners))
-
-	for _, listener := range listeners {
-		listenerMap[listener.Addr().String()] = listener
 	}
 
 	// The SnapdSocket is required-- without it, die.
