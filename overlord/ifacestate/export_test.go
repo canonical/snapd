@@ -122,3 +122,10 @@ func GetConnStateAttrs(conns map[string]*connState, connID string) (plugStatic, 
 func (m *IdentityMapper) SystemSnapName() string {
 	return "unknown"
 }
+
+// MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
+func MockProfilesNeedRegeneration(fn func() bool) func() {
+	old := profilesNeedRegeneration
+	profilesNeedRegeneration = fn
+	return func() { profilesNeedRegeneration = old }
+}
