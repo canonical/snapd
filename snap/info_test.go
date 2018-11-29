@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -333,13 +334,16 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Check(info, IsNil)
 }
 
-func (s *infoSuite) TestReadInfoExceptSizeUnfindable(c *C) {
+func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
-	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
+	mpi := snap.MinimalPlaceInfo("sample", si.Revision)
+	p := filepath.Join(mpi.MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(p, []byte(`name: test`), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0755), IsNil)
+	c.Assert(os.Symlink("/dangling", mpi.MountFile()), IsNil)
 
-	info, err := snap.ReadInfoExceptSize("sample", si)
+	info, err := snap.ReadInfo("sample", si)
 	c.Check(err, IsNil)
 	c.Check(info.SnapName(), Equals, "test")
 	c.Check(info.Revision, Equals, snap.R(42))
@@ -348,7 +352,12 @@ func (s *infoSuite) TestReadInfoExceptSizeUnfindable(c *C) {
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
-func makeTestSnap(c *C, yaml string) string {
+func makeTestSnap(c *C, snapYaml string) string {
+	var m struct {
+		Type string `yaml:"type"`
+	}
+	yaml.Unmarshal([]byte(snapYaml), &m) // yes, ignore the error
+
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
 
@@ -356,12 +365,12 @@ func makeTestSnap(c *C, yaml string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
+	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource)
+	err = snap.Build(snapSource, m.Type)
 	c.Assert(err, IsNil)
 
 	return dest
@@ -469,7 +478,7 @@ type: app`
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, ErrorMatches, "invalid snap name.*")
+	c.Assert(err, ErrorMatches, `invalid snap name.*`)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidType(c *C) {

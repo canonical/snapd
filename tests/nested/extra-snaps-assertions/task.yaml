@@ -1,7 +1,5 @@
 summary: create ubuntu-core image and execute the suite in a nested qemu instance
 
-systems: [ubuntu-16.04-64, ubuntu-16.04-32]
-
 prepare: |
     # download core and save it as extra snap
     mkdir -p extra-snaps
@@ -17,7 +15,7 @@ restore: |
 
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    destroy_nested_core_vm
+    destroy_nested_vm
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

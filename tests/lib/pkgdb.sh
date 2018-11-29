@@ -627,6 +627,7 @@ pkg_dependencies_fedora(){
         rpm-build
         udisks2
         xdg-user-dirs
+        xdg-utils
         "
 }
 
@@ -637,17 +638,18 @@ pkg_dependencies_amazon(){
         expect
         git
         golang
+        grub2-tools
         jq
         iptables-services
         man
         mock
+        nc
         net-tools
         nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
-        grub2-tools
-        nc
+        xdg-utils
         udisks2
         "
 }
@@ -670,8 +672,8 @@ pkg_dependencies_opensuse(){
         osc
         udisks2
         uuidd
-        xdg-utils
         xdg-user-dirs
+        xdg-utils
         "
 }
 
@@ -701,6 +703,7 @@ pkg_dependencies_arch(){
     strace
     udisks2
     xdg-user-dirs
+    xdg-utils
     xfsprogs
     apparmor
     "

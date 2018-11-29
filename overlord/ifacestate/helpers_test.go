@@ -24,8 +24,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type helpersSuite struct {
@@ -36,6 +40,11 @@ var _ = Suite(&helpersSuite{})
 
 func (s *helpersSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *helpersSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
 }
 
 func (s *helpersSuite) TestIdentityMapper(c *C) {
@@ -45,6 +54,8 @@ func (s *helpersSuite) TestIdentityMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("example"), Equals, "example")
 	c.Assert(m.RemapSnapToState("example"), Equals, "example")
 	c.Assert(m.RemapSnapFromRequest("example"), Equals, "example")
+
+	c.Assert(m.SystemSnapName(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
@@ -62,6 +73,8 @@ func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+
+	c.Assert(m.SystemSnapName(), Equals, "core")
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
@@ -84,6 +97,8 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+
+	c.Assert(m.SystemSnapName(), Equals, "snapd")
 }
 
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
@@ -101,6 +116,10 @@ func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
+func (m *caseMapper) SystemSnapName() string {
+	return "unknown"
+}
+
 func (s *helpersSuite) TestMappingFunctions(c *C) {
 	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
@@ -108,6 +127,7 @@ func (s *helpersSuite) TestMappingFunctions(c *C) {
 	c.Assert(ifacestate.RemapSnapFromState("example"), Equals, "EXAMPLE")
 	c.Assert(ifacestate.RemapSnapToState("EXAMPLE"), Equals, "example")
 	c.Assert(ifacestate.RemapSnapFromRequest("example"), Equals, "EXAMPLE")
+	c.Assert(ifacestate.SystemSnapName(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestGetConns(c *C) {
@@ -212,4 +232,104 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 	slots, err = ifacestate.GetHotplugSlots(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(slots, DeepEquals, defs)
+}
+
+func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	// Set conns in the state and get them via GetConns to avoid having to
+	// know the internals of connState struct.
+	st.Set("conns", map[string]interface{}{
+		"snap1:plug1 core:slot1": map[string]interface{}{
+			"interface":   "iface1",
+			"hotplug-key": "key1",
+		},
+		"snap1:plug2 core:slot2": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key1",
+		},
+		"snap1:plug3 core:slot3": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key2",
+		},
+		"snap2:plug1 core:slot1": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key2",
+		},
+	})
+
+	conns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	hotplugConns := ifacestate.FindConnsForHotplugKey(conns, "iface1", "key1")
+	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug1 core:slot1"})
+
+	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "iface2", "key2")
+	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug3 core:slot3", "snap2:plug1 core:slot1"})
+
+	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "unknown", "key1")
+	c.Assert(hotplugConns, HasLen, 0)
+}
+
+func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
+	// no core snap yet
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, false)
+
+	s.st.Lock()
+
+	// add "core" snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnapInstance(c, "", coreSnapYaml, sideInfo)
+	sideInfo.RealName = snapInfo.SnapName()
+
+	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
+	})
+	s.st.Unlock()
+
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)
+}
+
+var snapdYaml = `name: snapd
+version: 1.0
+`
+
+func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{})
+	defer restore()
+
+	// no snapd snap yet
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, false)
+
+	s.st.Lock()
+
+	// "snapd" snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnapInstance(c, "", snapdYaml, sideInfo)
+	sideInfo.RealName = snapInfo.SnapName()
+
+	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
+	})
+
+	inf, err := ifacestate.SystemSnapInfo(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(inf.InstanceName(), Equals, "snapd")
+
+	s.st.Unlock()
+
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)
 }

@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // storeSnap holds the information sent as JSON by the store for a snap.
@@ -220,7 +221,10 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.RealName = d.Name
 	info.Revision = snap.R(d.Revision)
 	info.SnapID = d.SnapID
-	info.EditedTitle = d.Title.Clean()
+
+	// https://forum.snapcraft.io/t/title-length-in-snapcraft-yaml-snap-yaml/8625/10
+	info.EditedTitle = strutil.ElliptRight(d.Title.Clean(), 40)
+
 	info.EditedSummary = d.Summary.Clean()
 	info.EditedDescription = d.Description.Clean()
 	info.Private = d.Private

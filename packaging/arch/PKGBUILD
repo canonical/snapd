@@ -120,7 +120,7 @@ package() {
 
   # Install bash completion
   install -Dm644 data/completion/snap \
-    "$pkgdir/usr/share/bash-completion/completion/snap"
+    "$pkgdir/usr/share/bash-completion/completions/snap"
   install -Dm644 data/completion/complete.sh \
     "$pkgdir/usr/lib/snapd/complete.sh"
   install -Dm644 data/completion/etelpmoc.sh \
