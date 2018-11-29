@@ -139,7 +139,7 @@ func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	return nil
 }
 
-func profilesNeedRegeneration() bool {
+func profilesNeedRegenerationImpl() bool {
 	mismatch, err := interfaces.SystemKeyMismatch()
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
@@ -147,6 +147,8 @@ func profilesNeedRegeneration() bool {
 	}
 	return mismatch
 }
+
+var profilesNeedRegeneration = profilesNeedRegenerationImpl
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
