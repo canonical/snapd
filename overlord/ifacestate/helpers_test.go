@@ -391,7 +391,7 @@ apps:
 	// function that writes the new system key with one always panics.
 	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
 	defer restore()
-	restore = ifacestate.MockWriteSystemKey(func() error { panic("system key should not be written") })
+	restore = ifacestate.MockWriteSystemKey(func() error { panic("should not attempt to write system key") })
 	defer restore()
 	// Put a fake system key in place, we just want to see that file being removed.
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
