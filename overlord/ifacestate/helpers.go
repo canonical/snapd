@@ -168,6 +168,13 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
+	// The reason the system key is unlinked is to prevent snapd from believing
+	// that an old system key is valid and represents security setup
+	// established in the system. If snapd is reverted following a failed
+	// startup then system key may match the system key that used to be on disk
+	// but some of the system security may have been changed by the new snapd,
+	// the one that was reverted. Unlinking avoids such possibility, forcing
+	// old snapd to re-establish proper security view.
 	shouldWriteSystemKey := true
 	os.Remove(dirs.SnapSystemKeyFile)
 
