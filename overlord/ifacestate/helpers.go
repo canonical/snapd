@@ -148,6 +148,7 @@ func profilesNeedRegenerationImpl() bool {
 }
 
 var profilesNeedRegeneration = profilesNeedRegenerationImpl
+var writeSystemKey = interfaces.WriteSystemKey
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
@@ -198,7 +199,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	}
 
 	if shouldWriteSystemKey {
-		if err := interfaces.WriteSystemKey(); err != nil {
+		if err := writeSystemKey(); err != nil {
 			logger.Noticef("cannot write system key: %v", err)
 		}
 	}
