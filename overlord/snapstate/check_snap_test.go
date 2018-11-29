@@ -802,5 +802,5 @@ func (s *checkSnapSuite) TestCheckSnapCheckEpoch(c *C) {
 	defer r1()
 
 	err := snapstate.CheckSnap(s.st, "snap-path", "foo", si, &snap.Info{}, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `cannot refresh snap "foo" as new epoch \(13\) can't read old epoch \(0\)`)
+	c.Check(err, ErrorMatches, `cannot refresh snap "foo" as new revision has epoch 13 that can't read current revision's epoch of 0`)
 }
