@@ -2552,7 +2552,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts store.BuyOptions
+	var opts client.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&opts)
