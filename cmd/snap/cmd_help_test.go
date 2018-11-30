@@ -154,3 +154,23 @@ func (s *SnapSuite) TestHelpCategories(c *check.C) {
 		}
 	}
 }
+
+func (s *SnapSuite) TestHelpCommandAllFails(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap", "help", "interfaces", "--all"}
+
+	err := snap.RunMain()
+	c.Assert(err, check.ErrorMatches, "help accepts a command, or '--all', but not both.")
+}
+
+func (s *SnapSuite) TestManpageInSection8(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap", "help", "--man"}
+
+	err := snap.RunMain()
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.Stdout(), check.Matches, `\.TH snap 8 (?s).*`)
+}

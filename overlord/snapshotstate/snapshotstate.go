@@ -158,16 +158,16 @@ var List = backend.List
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
-func Save(st *state.State, snapNames []string, users []string) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
-	if len(snapNames) == 0 {
-		snapNames, err = allActiveSnapNames(st)
+func Save(st *state.State, instanceNames []string, users []string) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
+	if len(instanceNames) == 0 {
+		instanceNames, err = allActiveSnapNames(st)
 		if err != nil {
 			return 0, nil, nil, err
 		}
 	}
 
 	// Make sure we do not snapshot if anything like install/remove/refresh is in progress
-	if err := snapstateCheckChangeConflictMany(st, snapNames, ""); err != nil {
+	if err := snapstateCheckChangeConflictMany(st, instanceNames, ""); err != nil {
 		return 0, nil, nil, err
 	}
 
@@ -178,7 +178,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 
 	ts = state.NewTaskSet()
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		desc := fmt.Sprintf("Save data of snap %q in snapshot set #%d", name, setID)
 		task := st.NewTask("save-snapshot", desc)
 		snapshot := snapshotSetup{
@@ -201,7 +201,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 		ts.AddTask(task)
 	}
 
-	return setID, snapNames, ts, nil
+	return setID, instanceNames, ts, nil
 }
 
 // Restore creates a taskset for restoring a snapshot's data.
@@ -230,30 +230,24 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 	ts = state.NewTaskSet()
 
 	for _, summary := range summaries {
-		if summary.snapID == "" {
-			// snapshotted snap was unasserted, never mind
-			continue
+		var current snap.Revision
+		if snapst, ok := all[summary.snap]; ok {
+			info, err := snapst.CurrentInfo()
+			if err != nil {
+				// how?
+				return nil, nil, fmt.Errorf("unexpected error while reading snap info: %v", err)
+			}
+			if !info.Epoch.CanRead(summary.epoch) {
+				const tpl = "cannot restore snapshot for %q: current snap (epoch %s) cannot read snapshot data (epoch %s)"
+				return nil, nil, fmt.Errorf(tpl, summary.snap, &info.Epoch, &summary.epoch)
+			}
+			if summary.snapID != "" && info.SnapID != "" && info.SnapID != summary.snapID {
+				const tpl = "cannot restore snapshot for %q: current snap (ID %.7s…) does not match snapshot (ID %.7s…)"
+				return nil, nil, fmt.Errorf(tpl, summary.snap, info.SnapID, summary.snapID)
+			}
+			current = snapst.Current
 		}
-		snapst, ok := all[summary.snap]
-		if !ok {
-			// snap not installed
-			continue
-		}
-		sideInfo := snapst.CurrentSideInfo()
-		if sideInfo == nil {
-			// ... shouldn't happen (but also not installed)
-			continue
-		}
-		if sideInfo.SnapID == "" {
-			// current snap is unasserted, never mind then
-			continue
-		}
-		if sideInfo.SnapID != summary.snapID {
-			return nil, nil, fmt.Errorf("cannot restore snapshot over id change: %.7s… → %.7s…", summary.snapID, sideInfo.SnapID)
-		}
-	}
 
-	for _, summary := range summaries {
 		desc := fmt.Sprintf("Restore data of snap %q from snapshot set #%d", summary.snap, setID)
 		task := st.NewTask("restore-snapshot", desc)
 		snapshot := snapshotSetup{
@@ -261,6 +255,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 			Snap:     summary.snap,
 			Users:    users,
 			Filename: summary.filename,
+			Current:  current,
 		}
 		task.Set("snapshot-setup", &snapshot)
 		// see the note about snapshots not using lanes, above.

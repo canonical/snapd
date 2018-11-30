@@ -41,6 +41,8 @@ var featureSet = map[string]bool{
 	"common-data-dir": true,
 	// Support for the "Environment:" feature in snap.yaml
 	"snap-env": true,
+	// Support for the "command-chain" feature for apps and hooks in snap.yaml
+	"command-chain": true,
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -124,9 +126,21 @@ func (e *SnapNeedsClassicSystemError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", e.Snap)
 }
 
+type SnapNotClassicError struct {
+	Snap string
+}
+
+func (e *SnapNotClassicError) Error() string {
+	return fmt.Sprintf("snap %q is not a classic confined snap", e.Snap)
+}
+
 // determine whether the flags (and system overrides thereof) are
 // compatible with the given *snap.Info
 func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error {
+	if flags.Classic && !info.NeedsClassic() {
+		return &SnapNotClassicError{Snap: info.InstanceName()}
+	}
+
 	switch c := info.Confinement; c {
 	case snap.StrictConfinement, "":
 		// strict is always fine
@@ -273,7 +287,6 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 	// transition we will end up with not connected interface
 	// connections in the "core" snap. But the transition will
 	// kick in automatically quickly so an extra flag is overkill.
-	// TODO parallel-install: use instance name
 	if snapInfo.InstanceName() == "core" && core.InstanceName() == "ubuntu-core" {
 		return nil
 	}

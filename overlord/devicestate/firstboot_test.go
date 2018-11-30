@@ -57,10 +57,7 @@ import (
 )
 
 type FirstBootTestSuite struct {
-	aa          *testutil.MockCmd
-	systemctl   *testutil.MockCmd
-	mockUdevAdm *testutil.MockCmd
-	snapSeccomp *testutil.MockCmd
+	systemctl *testutil.MockCmd
 
 	storeSigning *assertstest.StoreStack
 	restore      func()
@@ -71,6 +68,7 @@ type FirstBootTestSuite struct {
 	overlord *overlord.Overlord
 
 	restoreOnClassic func()
+	restoreBackends  func()
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -89,14 +87,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
-	s.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	s.systemctl = testutil.MockCommand(c, "systemctl", "")
-	s.mockUdevAdm = testutil.MockCommand(c, "udevadm", "")
-
-	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
-	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
-	c.Assert(err, IsNil)
-	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
 
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
@@ -106,6 +97,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", s.brandPrivKey)
+
+	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -119,13 +112,11 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
-	s.aa.Restore()
 	s.systemctl.Restore()
-	s.mockUdevAdm.Restore()
-	s.snapSeccomp.Restore()
 
 	s.restore()
 	s.restoreOnClassic()
+	s.restoreBackends()
 	dirs.SetRootDir("/")
 }
 
@@ -914,7 +905,7 @@ snaps:
 		// we have a gadget at this point(s)
 		_, err := snapstate.GadgetInfo(st)
 		c.Check(err, IsNil)
-		configured = append(configured, ctx.SnapName())
+		configured = append(configured, ctx.InstanceName())
 		return nil, nil
 	}
 

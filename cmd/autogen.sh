@@ -27,7 +27,7 @@ extra_opts=
 . /etc/os-release
 case "$ID" in
 	arch)
-		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-biarch --enable-merged-usr"
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-apparmor --enable-nvidia-biarch --enable-merged-usr"
 		;;
 	debian)
 		extra_opts="--libexecdir=/usr/lib/snapd"
@@ -41,8 +41,8 @@ case "$ID" in
 	fedora|centos|rhel)
 		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
 		;;
-	opensuse)
-		extra_opts="--libexecdir=/usr/lib/snapd"
+	opensuse|opensuse-tumbleweed)
+		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-biarch --with-32bit-libdir=/usr/lib --enable-merged-usr"
 		;;
 	solus)
 		extra_opts="--enable-nvidia-biarch"

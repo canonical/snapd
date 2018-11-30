@@ -38,6 +38,9 @@ fedora_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -70,6 +73,13 @@ opensuse_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-dbus)
+                # In OpenSUSE Leap 15, this is renamed to python3-dbus-python
+                echo "dbus-1-python3"
+                ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -95,6 +105,12 @@ arch_name_package() {
         man)
             echo "man-db"
             ;;
+        python3-dbus)
+            echo "python-dbus"
+            ;;
+        python3-gi)
+            echo "python-gobject"
+            ;;
         *)
             echo "$1"
             ;;
@@ -112,7 +128,7 @@ distro_name_package() {
         fedora-*)
             fedora_name_package "$@"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             amazon_name_package "$@"
             ;;
         opensuse-*)
@@ -158,7 +174,7 @@ distro_install_local_package() {
         fedora-*)
             quiet dnf -y install "$@"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum -y localinstall "$@"
             ;;
         opensuse-*)
@@ -239,7 +255,7 @@ distro_install_package() {
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             ;;
@@ -280,7 +296,7 @@ distro_purge_package() {
             quiet dnf -y remove "$@"
             quiet dnf clean all
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum -y remove "$@"
             ;;
         opensuse-*)
@@ -305,7 +321,7 @@ distro_update_package_db() {
             quiet dnf clean all
             quiet dnf makecache
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum clean all
             quiet yum makecache
             ;;
@@ -330,7 +346,7 @@ distro_clean_package_cache() {
         fedora-*)
             dnf clean all
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             yum clean all
             ;;
         opensuse-*)
@@ -354,7 +370,7 @@ distro_auto_remove_packages() {
         fedora-*)
             quiet dnf -y autoremove
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum -y autoremove
             ;;
         opensuse-*)
@@ -376,7 +392,7 @@ distro_query_package_info() {
         fedora-*)
             dnf info "$1"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             yum info "$1"
             ;;
         opensuse-*)
@@ -413,7 +429,7 @@ distro_install_build_snapd(){
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd_*.deb
                 ;;
-            fedora-*|amazon-*)
+            fedora-*|amazon-*|centos-*)
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH%%:*}"/snapd*.rpm
                 ;;
@@ -437,6 +453,11 @@ distro_install_build_snapd(){
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
             systemctl daemon-reload
+
+            # AppArmor policy needs to be reloaded
+            if systemctl show -p ActiveState apparmor.service | MATCH 'ActiveState=active'; then
+                systemctl restart apparmor.service
+            fi
         fi
 
         # On some distributions the snapd.socket is not yet automatically
@@ -455,7 +476,7 @@ distro_get_package_extension() {
         ubuntu-*|debian-*)
             echo "deb"
             ;;
-        fedora-*|opensuse-*|amazon-*)
+        fedora-*|opensuse-*|amazon-*|centos-*)
             echo "rpm"
             ;;
         arch-*)
@@ -547,6 +568,11 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 "
             ;;
+        ubuntu-18.10-64)
+            echo "
+                evolution-data-server
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools
@@ -601,6 +627,7 @@ pkg_dependencies_fedora(){
         rpm-build
         udisks2
         xdg-user-dirs
+        xdg-utils
         "
 }
 
@@ -611,17 +638,18 @@ pkg_dependencies_amazon(){
         expect
         git
         golang
+        grub2-tools
         jq
         iptables-services
         man
         mock
+        nc
         net-tools
         nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
-        grub2-tools
-        nc
+        xdg-utils
         udisks2
         "
 }
@@ -644,8 +672,8 @@ pkg_dependencies_opensuse(){
         osc
         udisks2
         uuidd
-        xdg-utils
         xdg-user-dirs
+        xdg-utils
         "
 }
 
@@ -675,7 +703,9 @@ pkg_dependencies_arch(){
     strace
     udisks2
     xdg-user-dirs
+    xdg-utils
     xfsprogs
+    apparmor
     "
 }
 
@@ -692,7 +722,7 @@ pkg_dependencies(){
         fedora-*)
             pkg_dependencies_fedora
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             pkg_dependencies_amazon
             ;;
         opensuse-*)

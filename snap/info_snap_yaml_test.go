@@ -62,6 +62,7 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	c.Assert(info.InstanceName(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type, Equals, snap.TypeApp)
+	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
 func (s *InfoSnapYamlTestSuite) TestSnapdTypeAddedByMagic(c *C) {
@@ -1183,7 +1184,7 @@ slots:
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Epoch.String(), Equals, "1*")
+	c.Check(info.Epoch, DeepEquals, snap.E("1*"))
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Title(), Equals, "Foo")
 	c.Check(info.Summary(), Equals, "foo app")
@@ -1324,7 +1325,7 @@ version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Epoch.String(), Equals, "0")
+	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
 func (s *YamlSuite) TestSnapYamlConfinementDefault(c *C) {
@@ -1693,6 +1694,19 @@ layout:
 	})
 }
 
+func (s *YamlSuite) TestLayoutsWithTypo(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+layouts:
+  /usr/share/foo:
+    bind: $SNAP/usr/share/foo
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `cannot parse snap.yaml: typo detected: use singular "layout" instead of plural "layouts"`)
+	c.Assert(info, IsNil)
+}
+
 func (s *YamlSuite) TestSnapYamlAppTimer(c *C) {
 	y := []byte(`name: wat
 version: 42
@@ -1778,4 +1792,20 @@ hooks:
 	c.Check(app.CommandChain, DeepEquals, []string{"chain1", "chain2"})
 	hook := info.Hooks["configure"]
 	c.Check(hook.CommandChain, DeepEquals, []string{"hookchain1", "hookchain2"})
+}
+
+func (s *YamlSuite) TestSnapYamlRestartDelay(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+  command: bin/foo
+  daemon: simple
+  restart-delay: 12s
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Assert(app, NotNil)
+	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
 }

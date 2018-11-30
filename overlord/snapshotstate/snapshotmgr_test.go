@@ -276,7 +276,7 @@ func (rs *readerSuite) SetUpTest(c *check.C) {
 			rs.calls = append(rs.calls, "open")
 			return &backend.Reader{}, nil
 		}),
-		snapshotstate.MockBackendRestore(func(*backend.Reader, context.Context, []string, backend.Logf) (*backend.RestoreState, error) {
+		snapshotstate.MockBackendRestore(func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf) (*backend.RestoreState, error) {
 			rs.calls = append(rs.calls, "restore")
 			return &backend.RestoreState{}, nil
 		}),
@@ -313,7 +313,7 @@ func (rs *readerSuite) TestDoRestore(c *check.C) {
 			Snapshot: client.Snapshot{Conf: map[string]interface{}{"hello": "there"}},
 		}, nil
 	})()
-	defer snapshotstate.MockBackendRestore(func(_ *backend.Reader, _ context.Context, users []string, _ backend.Logf) (*backend.RestoreState, error) {
+	defer snapshotstate.MockBackendRestore(func(_ *backend.Reader, _ context.Context, _ snap.Revision, users []string, _ backend.Logf) (*backend.RestoreState, error) {
 		rs.calls = append(rs.calls, "restore")
 		c.Check(users, check.DeepEquals, []string{"a-user", "b-user"})
 		return &backend.RestoreState{}, nil
@@ -396,7 +396,7 @@ func (rs *readerSuite) TestDoRestoreFailsUnserialisableSnapshotConfigError(c *ch
 }
 
 func (rs *readerSuite) TestDoRestoreFailsOnRestoreError(c *check.C) {
-	defer snapshotstate.MockBackendRestore(func(*backend.Reader, context.Context, []string, backend.Logf) (*backend.RestoreState, error) {
+	defer snapshotstate.MockBackendRestore(func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf) (*backend.RestoreState, error) {
 		rs.calls = append(rs.calls, "restore")
 		return nil, errors.New("bzzt")
 	})()

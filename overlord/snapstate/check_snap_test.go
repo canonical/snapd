@@ -142,6 +142,8 @@ var assumesTests = []struct {
 	assumes: "[snapd2.15.1]",
 	version: "2.15.0",
 	error:   `.* unsupported features: snapd2\.15\.1 .*`,
+}, {
+	assumes: "[command-chain]",
 }}
 
 func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
@@ -536,6 +538,27 @@ confinement: classic
 	err = snapstate.CheckSnap(s.st, "snap-path", "hello", nil, nil, snapstate.Flags{Classic: true})
 
 	c.Assert(err, ErrorMatches, ".* requires classic confinement which is only available on classic systems")
+}
+
+func (s *checkSnapSuite) TestCheckSnapErrorClassicModeForStrictOrDevmode(c *C) {
+	const yaml = `name: hello
+version: 1.10
+confinement: strict
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		c.Check(path, Equals, "snap-path")
+		c.Check(si, IsNil)
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	err = snapstate.CheckSnap(s.st, "snap-path", "hello", nil, nil, snapstate.Flags{Classic: true})
+
+	c.Assert(err, ErrorMatches, `snap "hello" is not a classic confined snap`)
 }
 
 func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {

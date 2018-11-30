@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -45,7 +46,9 @@ import (
 
 func TestOverlord(t *testing.T) { TestingT(t) }
 
-type overlordSuite struct{}
+type overlordSuite struct {
+	restoreBackends func()
+}
 
 var _ = Suite(&overlordSuite{})
 
@@ -54,10 +57,12 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
+	ovs.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	ovs.restoreBackends()
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
@@ -108,7 +113,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 

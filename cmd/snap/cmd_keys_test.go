@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -60,6 +61,9 @@ done
 `)
 
 func (s *SnapKeysSuite) SetUpTest(c *C) {
+	if testing.Short() && s.GnupgCmd == "/usr/bin/gpg2" {
+		c.Skip("gpg2 does not do short tests")
+	}
 	s.BaseSnapSuite.SetUpTest(c)
 
 	s.tempdir = c.MkDir()
@@ -105,8 +109,8 @@ func (s *SnapKeysSuite) TestKeysEmptyNoHeader(c *C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"keys"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, "No keys registered, see `snapcraft create-key`")
-	c.Check(s.Stderr(), Equals, "")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "No keys registered, see `snapcraft create-key`\n")
 }
 
 func (s *SnapKeysSuite) TestKeysJSON(c *C) {

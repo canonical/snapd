@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // Assumptions track the assumptions about the state of the filesystem.
@@ -34,6 +36,12 @@ import (
 type Assumptions struct {
 	unrestrictedPaths []string
 	pastChanges       []*Change
+
+	// verifiedDevices represents the set of devices that are verified as a tmpfs
+	// that was mounted by snapd. Those are only discovered on-demand. The
+	// major:minor number is packed into one uint64 as in syscall.Stat_t.Dev
+	// field.
+	verifiedDevices map[uint64]bool
 }
 
 // AddUnrestrictedPaths adds a list of directories where writing is allowed
@@ -91,14 +99,30 @@ func (as *Assumptions) canWriteToDirectory(dirFd int, dirName string) (bool, err
 	if err := sysFstatfs(dirFd, &fsData); err != nil {
 		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
 	}
+	var fileData syscall.Stat_t
+	if err := sysFstat(dirFd, &fileData); err != nil {
+		return false, fmt.Errorf("cannot fstat %q: %s", dirName, err)
+	}
 	// Writing to read only directories is allowed because EROFS is handled
 	// by each of the writing helpers already.
 	if ok := isReadOnly(dirName, &fsData); ok {
 		return true, nil
 	}
 	// Writing to a trusted tmpfs is allowed because those are not leaking to
-	// the host.
-	if ok := isPrivateTmpfsCreatedBySnapd(dirName, &fsData, as.pastChanges); ok {
+	// the host. Also, each time we find a good tmpfs we explicitly remember the device major/minor,
+	if as.verifiedDevices[fileData.Dev] {
+		return true, nil
+	}
+	if ok := isPrivateTmpfsCreatedBySnapd(dirName, &fsData, &fileData, as.pastChanges); ok {
+		if as.verifiedDevices == nil {
+			as.verifiedDevices = make(map[uint64]bool)
+		}
+		// Don't record 0:0 as those are all to easy to add in tests and would
+		// skew tests using zero-initialized structures. Real device numbers
+		// are not zero either so this is not a test-only conditional.
+		if fileData.Dev != 0 {
+			as.verifiedDevices[fileData.Dev] = true
+		}
 		return true, nil
 	}
 	// If writing is not not allowed by one of the three rules above then it is
@@ -156,7 +180,12 @@ func (rs *Restrictions) Check(dirFd int, dirName string) error {
 		// kind of base snap.
 		return fmt.Errorf("cannot recover from trespassing over /")
 	}
-	return &TrespassingError{ViolatedPath: dirName, DesiredPath: rs.desiredPath}
+	logger.Debugf("trespassing violated %q while striving to %q", dirName, rs.desiredPath)
+	logger.Debugf("restricted mode: %#v", rs.restricted)
+	logger.Debugf("unrestricted paths: %q", rs.assumptions.unrestrictedPaths)
+	logger.Debugf("verified devices: %v", rs.assumptions.verifiedDevices)
+	logger.Debugf("past changes: %v", rs.assumptions.pastChanges)
+	return &TrespassingError{ViolatedPath: filepath.Clean(dirName), DesiredPath: rs.desiredPath}
 }
 
 // Lift lifts write restrictions for the desired path.
@@ -201,7 +230,7 @@ func isReadOnly(dirName string, fsData *syscall.Statfs_t) bool {
 // to the mount namespace. A directory is trusted if it is a tmpfs that was
 // mounted by snap-confine or snapd-update-ns. Note that sub-directories of a
 // trusted tmpfs are not considered trusted by this function.
-func isPrivateTmpfsCreatedBySnapd(dirName string, fsData *syscall.Statfs_t, changes []*Change) bool {
+func isPrivateTmpfsCreatedBySnapd(dirName string, fsData *syscall.Statfs_t, fileData *syscall.Stat_t, changes []*Change) bool {
 	// If something is not a tmpfs it cannot be the trusted tmpfs we are looking for.
 	if fsData.Type != TmpfsMagic {
 		return false
@@ -222,10 +251,5 @@ func isPrivateTmpfsCreatedBySnapd(dirName string, fsData *syscall.Statfs_t, chan
 			return change.Action == Mount
 		}
 	}
-	// TODO: As a special exception, assume that a tmpfs over /var/lib is
-	// trusted. This tmpfs is created by snap-confine as a "quirk" to support
-	// a particular behavior of LXD.  Once the quirk is migrated to a mount
-	// profile (or removed entirely if no longer necessary) the following code
-	// fragment can go away.
-	return dirName == "/var/lib"
+	return false
 }
