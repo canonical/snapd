@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -2803,7 +2804,12 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+	clientAppInfos, err := cmd.ClientAppInfosFromSnapAppInfos(appInfos)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(clientAppInfos, nil)
 }
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
