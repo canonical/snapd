@@ -175,16 +175,6 @@ func (s *SnapSuite) TestConnectionsSomeConnectedSystem(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsUnsupportedFiltering(c *C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Fatal("should not have been called")
-	})
-	_, err := Parser(Client()).ParseArgs([]string{"connections", "foo:bar"})
-	c.Assert(err, ErrorMatches, "filtering by slot/plug name is not supported")
-	c.Assert(s.Stdout(), Equals, "")
-	c.Assert(s.Stderr(), Equals, "")
-}
-
 func (s *SnapSuite) TestConnectionsFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")

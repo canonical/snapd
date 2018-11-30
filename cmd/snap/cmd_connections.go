@@ -20,7 +20,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
@@ -32,7 +31,7 @@ type cmdConnections struct {
 	clientMixin
 	All         bool `short:"a"`
 	Positionals struct {
-		Query interfacesSlotOrPlugSpec `skip-help:"true"`
+		Snap installedSnapName `skip-help:"true"`
 	} `positional-args:"true"`
 }
 
@@ -41,7 +40,7 @@ var longConnectionsHelp = i18n.G(`
 List connections between slots and plugs. When passed an optional
 snap name, lists connection only for that snap.
 
-Pass -a to list slots/plugs that are not connected to anything.
+Pass -a to list unconnected slots/plugs as well.
 `)
 
 func init() {
@@ -80,9 +79,6 @@ func (x *cmdConnections) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if x.Positionals.Query.Name != "" {
-		return errors.New("filtering by slot/plug name is not supported")
-	}
 
 	ifaces, err := x.client.Connections()
 	if err != nil {
@@ -91,7 +87,7 @@ func (x *cmdConnections) Execute(args []string) error {
 	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}
-	wanted := x.Positionals.Query.Snap
+	wanted := string(x.Positionals.Snap)
 
 	matched := false
 	w := tabWriter()
