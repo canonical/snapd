@@ -33,11 +33,11 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var GIL = &sync.Mutex{}
+var GML = &sync.Mutex{}
 
 func addMountUnit(s *snap.Info, meter progress.Meter) error {
-	GIL.Lock()
-	defer GIL.Unlock()
+	GML.Lock()
+	defer GML.Unlock()
 
 	squashfsPath := dirs.StripRootDir(s.MountFile())
 	whereDir := dirs.StripRootDir(s.MountDir())
@@ -62,8 +62,8 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 }
 
 func removeMountUnit(baseDir string, meter progress.Meter) error {
-	GIL.Lock()
-	defer GIL.Unlock()
+	GML.Lock()
+	defer GML.Unlock()
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir))
