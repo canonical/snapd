@@ -1727,7 +1727,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 	c.Check(err, ErrorMatches, `cannot install snap of type snapd as "some-snapd_foo"`)
 }
 
-func (s *snapmgrTestSuite) TestInstallPathEpochMismatch(c *C) {
+func (s *snapmgrTestSuite) TestInstallPathFailsEarlyOnEpochMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1742,7 +1742,7 @@ func (s *snapmgrTestSuite) TestInstallPathEpochMismatch(c *C) {
 	// try to install epoch 42
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0\nepoch: 42\n")
 	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot refresh snap "some-snap" as new revision has epoch 42 that can't read current revision's epoch of 1\*`)
+	c.Assert(err, ErrorMatches, `cannot refresh "some-snap" to local snap with epoch 42, because it can't read the current epoch of 1\*`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
@@ -12483,7 +12483,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
 
-func (s *snapmgrTestSuite) TestUpdateFailsEarlyOnEpoch(c *C) {
+func (s *snapmgrTestSuite) TestUpdateFailsEarlyOnEpochMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -12497,7 +12497,7 @@ func (s *snapmgrTestSuite) TestUpdateFailsEarlyOnEpoch(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-epoch-snap", "", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot refresh snap .* can't read current revision's epoch .*`)
+	c.Assert(err, ErrorMatches, `cannot refresh "some-epoch-snap" to new revision 11 with epoch 42, because it can't read the current epoch of 13`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
