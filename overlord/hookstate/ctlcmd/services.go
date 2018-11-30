@@ -25,7 +25,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
@@ -71,7 +71,7 @@ func (c *servicesCommand) Execute([]string) error {
 	}
 	sort.Sort(byApp(svcInfos))
 
-	services, err := client.AppInfosFromSnapAppInfos(svcInfos)
+	services, err := cmd.ClientAppInfosFromSnapAppInfos(svcInfos)
 	if err != nil || len(services) == 0 {
 		return err
 	}
@@ -90,7 +90,7 @@ func (c *servicesCommand) Execute([]string) error {
 		if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, svc.Notes())
+		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, cmd.ClientAppInfoNotes(&svc))
 	}
 
 	return nil
