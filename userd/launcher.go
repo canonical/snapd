@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/godbus/dbus"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
@@ -105,7 +106,7 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	}
 
 	xdg_data_dirs := []string{}
-	xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf("/snap/%s/current/usr/share", snap))
+	xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf("/%s/%s/current/usr/share", snap, dirs.SnapMountDir))
 	for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
 		xdg_data_dirs = append(xdg_data_dirs, dir)
 	}
