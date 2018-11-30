@@ -232,7 +232,7 @@ func (s *mountSnapSuite) TestDoMountSnapEpochError(c *C) {
 
 	s.state.Lock()
 
-	c.Check(chg.Err(), ErrorMatches, `(?s).* new revision [^ ]* has epoch [^ ]* that can't read current revision's epoch of [^ ]*`)
+	c.Check(chg.Err(), ErrorMatches, `(?s).* new revision 2 with epoch .* can't read the current epoch of [^ ]*`)
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",

@@ -376,11 +376,12 @@ func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags) error {
 	if snapInfo.Epoch.CanRead(curInfo.Epoch) {
 		return nil
 	}
+	desc := "local snap"
 	if snapInfo.SideInfo.Revision.Store() {
-		return fmt.Errorf("cannot refresh snap %q as new revision (%s) has epoch %s that can't read current revision's epoch of %s", snapInfo.InstanceName(), snapInfo.SideInfo.Revision, snapInfo.Epoch, curInfo.Epoch)
-
+		desc = fmt.Sprintf("new revision %s", snapInfo.SideInfo.Revision)
 	}
-	return fmt.Errorf("cannot refresh snap %q as new revision has epoch %s that can't read current revision's epoch of %s", snapInfo.InstanceName(), snapInfo.Epoch, curInfo.Epoch)
+
+	return fmt.Errorf("cannot refresh %q to %s with epoch %s, because it can't read the current epoch of %s", snapInfo.InstanceName(), desc, snapInfo.Epoch, curInfo.Epoch)
 }
 
 // check that the snap installed in the system (via snapst) can be
