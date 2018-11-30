@@ -12,44 +12,7 @@
 #shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
 
-init_state_classic() {
-    if [ "$1" = "--reuse-core" ]; then
-        # Restore snapd state and start systemd service units
-        restore_snapd_state
-        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        all_units="$(systemctl list-unit-files --full | cut -f1 -d ' ')"
-        mounts=""
-        if echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.mount"; then
-            mounts="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.mount")"
-        fi
-        services=""
-        if echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.service"; then
-            services="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.service")"
-        fi
-        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        for unit in $mounts $services; do
-            systemctl start "$unit"
-        done
-
-        # force all profiles to be re-generated
-        rm -f /var/lib/snapd/system-key
-    fi
-
-    if [ "$1" != "--keep-stopped" ]; then
-        systemctl start snapd.socket
-
-        # wait for snapd listening
-        EXTRA_NC_ARGS="-q 1"
-        case "$SPREAD_SYSTEM" in
-            fedora-*|amazon-*|centos-*)
-                EXTRA_NC_ARGS=""
-                ;;
-        esac
-        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
-    fi
-}
-
-clean_classic() {
+reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
@@ -102,19 +65,43 @@ clean_classic() {
 
     rm -rf /root/.snap/gnupg
     rm -f /tmp/core* /tmp/ubuntu-core*
-}
 
-init_state_all_snap() {
-    # ensure we have the same state as initially
-    systemctl stop snapd.service snapd.socket
-    restore_snapd_state
-    rm -rf /root/.snap
-    if [ "$1" != "--keep-stopped" ]; then
-        systemctl start snapd.service snapd.socket
+    if [ "$1" = "--reuse-core" ]; then
+        # Restore snapd state and start systemd service units
+        restore_snapd_state
+        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
+        all_units="$(systemctl list-unit-files --full | cut -f1 -d ' ')"
+        mounts=""
+        if echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.mount"; then
+            mounts="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.mount")"
+        fi
+        services=""
+        if echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.service"; then
+            services="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.service")"
+        fi
+        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
+        for unit in $mounts $services; do
+            systemctl start "$unit"
+        done
+
+        # force all profiles to be re-generated
+        rm -f /var/lib/snapd/system-key
     fi
+
+    if [ "$1" != "--keep-stopped" ]; then
+        systemctl start snapd.socket
+
+        # wait for snapd listening
+        EXTRA_NC_ARGS="-q 1"
+        case "$SPREAD_SYSTEM" in
+            fedora-*|amazon-*|centos-*)
+                EXTRA_NC_ARGS=""
+                ;;
+        esac
+        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
 }
 
-clean_all_snap() {
+reset_all_snap() {
     # remove all leftover snaps
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
@@ -145,6 +132,14 @@ clean_all_snap() {
     if [ -n "$remove_bases" ]; then
         snap remove "$remove_bases"
     fi
+
+    # ensure we have the same state as initially
+    systemctl stop snapd.service snapd.socket
+    restore_snapd_state
+    rm -rf /root/.snap
+    if [ "$1" != "--keep-stopped" ]; then
+        systemctl start snapd.service snapd.socket
+    fi
 }
 
 discard_ns() {
@@ -170,13 +165,11 @@ tear_down_store() {
 
 reset_snapd() {
     if is_core_system; then
-        clean_all_snap "$@"
-        init_state_all_snap "$@"
+        reset_all_snap "$@"
         discard_ns
         tear_down_store "$@"
     else
-        clean_classic "$@"
-        init_state_classic "$@"
+        reset_classic "$@"
         discard_ns
         tear_down_store "$@"
     fi    
