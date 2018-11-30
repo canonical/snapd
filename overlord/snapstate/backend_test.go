@@ -63,6 +63,8 @@ type fakeOp struct {
 	userID int
 
 	otherInstances bool
+
+	services []string
 }
 
 type fakeOps []fakeOp
@@ -188,6 +190,14 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeOS
 	case "some-base":
 		typ = snap.TypeBase
+	case "some-kernel":
+		typ = snap.TypeKernel
+	case "some-gadget":
+		typ = snap.TypeGadget
+	case "some-snapd":
+		typ = snap.TypeSnapd
+	case "some-snap-now-classic":
+		confinement = "classic"
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -255,6 +265,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "services-snap"
 	case "some-snap-id":
 		name = "some-snap"
+	case "some-snap-now-classic-id":
+		name = "some-snap-now-classic"
+	case "some-snap-was-classic-id":
+		name = "some-snap-was-classic"
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
@@ -296,6 +310,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		confinement = snap.ClassicConfinement
 	case "channel-for-devmode":
 		confinement = snap.DevModeConfinement
+	}
+	if name == "some-snap-now-classic" {
+		confinement = "classic"
 	}
 
 	info := &snap.Info{
@@ -563,6 +580,9 @@ type fakeSnappyBackend struct {
 	ops fakeOps
 	mu  sync.Mutex
 
+	linkSnapWaitCh      chan int
+	linkSnapWaitTrigger string
+
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
@@ -578,14 +598,19 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		op.sinfo = *si
 	}
 
-	var name string
+	var info *snap.Info
 	if !osutil.IsDirectory(snapFilePath) {
-		name = filepath.Base(snapFilePath)
+		name := filepath.Base(snapFilePath)
 		split := strings.Split(name, "_")
 		if len(split) >= 2 {
 			// <snap>_<rev>.snap
 			// <snap>_<instance-key>_<rev>.snap
 			name = split[0]
+		}
+
+		info = &snap.Info{SuggestedName: name, Architectures: []string{"all"}}
+		if name == "some-snap-now-classic" {
+			info.Confinement = "classic"
 		}
 	} else {
 		// for snap try only
@@ -594,15 +619,17 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 			return nil, nil, err
 		}
 
-		info, err := snap.ReadInfoFromSnapFile(snapf, si)
+		info, err = snap.ReadInfoFromSnapFile(snapf, si)
 		if err != nil {
 			return nil, nil, err
 		}
-		name = info.SuggestedName
 	}
 
+	if info == nil {
+		return nil, nil, fmt.Errorf("internal error: no mocked snap for %q", snapFilePath)
+	}
 	f.appendOp(&op)
-	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
+	return info, f.emptyContainer, nil
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
@@ -647,6 +674,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		Type:          snap.TypeApp,
+		Epoch:         snap.E("1*"),
 	}
 	if strings.Contains(snapName, "alias-snap") {
 		// only for the switch below
@@ -659,12 +687,19 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Type = snap.TypeOS
 	case "services-snap":
 		var err error
+		// fix services after/before so that there is only one solution
+		// to dependency ordering
 		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
 apps:
   svc1:
     daemon: simple
+    before: [svc3]
   svc2:
     daemon: simple
+    after: [svc1]
+  svc3:
+    daemon: simple
+    before: [svc2]
 `))
 		if err != nil {
 			panic(err)
@@ -731,6 +766,11 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 }
 
 func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
+	if info.MountDir() == f.linkSnapWaitTrigger {
+		f.linkSnapWaitCh <- 1
+		<-f.linkSnapWaitCh
+	}
+
 	if info.MountDir() == f.linkSnapFailTrigger {
 		f.ops = append(f.ops, fakeOp{
 			op:   "link-snap.failed",
@@ -757,9 +797,14 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 }
 
 func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
+	services := make([]string, 0, len(svcs))
+	for _, svc := range svcs {
+		services = append(services, svc.Name)
+	}
 	f.appendOp(&fakeOp{
-		op:   "start-snap-services",
-		path: svcSnapMountDir(svcs),
+		op:       "start-snap-services",
+		path:     svcSnapMountDir(svcs),
+		services: services,
 	})
 	return nil
 }

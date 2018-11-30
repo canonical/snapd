@@ -1,16 +1,16 @@
 summary: core revert test
 
-systems: [ubuntu-16.04-64]
-
-kill-timeout: 40m
+kill-timeout: 30m
 
 prepare: |
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     create_nested_core_vm
 
 restore: |
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    destroy_nested_core_vm
+    destroy_nested_vm
 
 debug: |
     systemctl stop nested-vm || true
@@ -30,8 +30,10 @@ debug: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
+    #shellcheck disable=SC2164
     cd "$SPREAD_PATH"
     execute_remote "sudo snap install network-manager"
     execute_remote "snap aliases" | MATCH "nmcli"

@@ -55,6 +55,7 @@ var defaultTemplate = `
   /etc/ld.so.preload r,
 
   # The base abstraction doesn't yet have this
+  /etc/sysconfig/clock r,
   /lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
@@ -135,6 +136,8 @@ var defaultTemplate = `
   /{,usr/}bin/cpio ixr,
   /{,usr/}bin/cut ixr,
   /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-daemon ixr,
+  /{,usr/}bin/dbus-run-session ixr,
   /{,usr/}bin/dbus-send ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
@@ -346,6 +349,7 @@ var defaultTemplate = `
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
@@ -421,6 +425,7 @@ var defaultTemplate = `
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
+  unix (bind, listen) addr="@snap.@{SNAP_INSTANCE_NAME}.**",
   unix peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),
 
   # Allow apps from the same package to communicate with each other via DBus.
@@ -483,6 +488,11 @@ var defaultTemplate = `
   # Allow read-access to / for navigating to other parts of the filesystem.
   / r,
 
+  # Snap-specific run directory. Bind mount *not* used here
+  # (see 'parallel installs', above)
+  /run/snap.@{SNAP_INSTANCE_NAME}/ rw,
+  /run/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
 ###SNIPPETS###
 }
 `
@@ -509,7 +519,7 @@ var classicTemplate = `
   /** pix,
 
   capability,
-  change_profile,
+  ###CHANGEPROFILE_RULE###
   dbus,
   network,
   mount,
@@ -561,6 +571,19 @@ var overlayRootSnippet = `
   "###UPPERDIR###/{,**/}" r,
 `
 
+var ptraceTraceDenySnippet = `
+# While commands like 'ps', 'ip netns identify <pid>', 'ip netns pids foo', etc
+# trigger a 'ptrace (trace)' denial, they aren't actually tracing other
+# processes. Unfortunately, the kernel overloads trace such that the LSMs are
+# unable to distinguish between tracing other processes and other accesses.
+# ptrace (trace) can be used to break out of the seccomp sandbox unless the
+# kernel has 93e35efb8de45393cf61ed07f7b407629bf698ea (in 4.8+). Until snapd
+# has full ptrace support conditional on kernel support, explicitly deny to
+# silence noisy denials/avoid confusion and accidentally giving away this
+# dangerous access frivolously.
+deny ptrace (trace),
+`
+
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.
 //
 // The per-snap snap-update-ns profiles are composed via a template and
@@ -602,6 +625,8 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # Allow reading file descriptor paths
   @{PROC}/@{pid}/fd/* r,
+  # Allow reading /proc/version. For release.go WSL detection.
+  @{PROC}/version r,
 
   # Allow reading the os-release file (possibly a symlink to /usr/lib).
   /{etc/,usr/lib/}os-release r,

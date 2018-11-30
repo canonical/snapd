@@ -147,6 +147,9 @@ purge() {
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/cookie/*
     rm -rf /var/lib/snapd/cache/*
+    rm -rf /var/lib/snapd/mount/*
+    rm -rf /var/lib/snapd/sequence/*
+    rm -rf /var/lib/snapd/apparmor/*
     rm -f /var/lib/snapd/state.json
     rm -f /var/lib/snapd/system-key
 

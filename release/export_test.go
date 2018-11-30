@@ -19,7 +19,9 @@
 
 package release
 
-var ReadOSRelease = readOSRelease
+var (
+	ReadOSRelease = readOSRelease
+)
 
 func MockOSReleasePath(filename string) (restore func()) {
 	old := osReleasePath
@@ -40,7 +42,24 @@ func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
 	}
 }
 
+func MockAppArmorParserSearchPath(new string) (restore func()) {
+	oldParserSearchPath := parserSearchPath
+	parserSearchPath = new
+	return func() {
+		parserSearchPath = oldParserSearchPath
+	}
+}
+
+func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
+	old := ioutilReadFile
+	ioutilReadFile = newReadfile
+	return func() {
+		ioutilReadFile = old
+	}
+}
+
 var (
 	ProbeAppArmor            = probeAppArmor
 	RequiredAppArmorFeatures = requiredAppArmorFeatures
+	IsWSL                    = isWSL
 )

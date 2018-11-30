@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -87,15 +88,37 @@ func (cmd *cmdHelp) setParser(parser *flags.Parser) {
 	cmd.parser = parser
 }
 
+// manfixer is a hackish way to get the generated manpage into section 8
+// (go-flags doesn't have an option for this; I'll be proposing something
+// there soon, but still waiting on some other PRs to make it through)
+type manfixer struct {
+	done bool
+}
+
+func (w *manfixer) Write(buf []byte) (int, error) {
+	if !w.done {
+		w.done = true
+		if bytes.HasPrefix(buf, []byte(".TH snap 1 ")) {
+			buf[9] = '8'
+		}
+	}
+	return Stdout.Write(buf)
+}
+
 func (cmd cmdHelp) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 	if cmd.Manpage {
-		cmd.parser.WriteManPage(Stdout)
+		// you shouldn't try to to combine --man with --all nor a
+		// subcommand, but --man is hidden so no real need to check.
+		cmd.parser.WriteManPage(&manfixer{})
 		return nil
 	}
 	if cmd.All {
+		if cmd.Positional.Sub != "" {
+			return fmt.Errorf(i18n.G("help accepts a command, or '--all', but not both."))
+		}
 		printLongHelp(cmd.parser)
 		return nil
 	}
@@ -153,6 +176,10 @@ var helpCategories = []helpCategory{
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
 		Commands:    []string{"interfaces", "interface", "connect", "disconnect"},
+	}, {
+		Label:       i18n.G("Snapshots"),
+		Description: i18n.G("archives of snap data"),
+		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget"},
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),

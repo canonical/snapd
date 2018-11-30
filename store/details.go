@@ -22,6 +22,7 @@ package store
 import (
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // snapDetails encapsulates the data sent to us from the store as JSON.
@@ -34,20 +35,18 @@ type snapDetails struct {
 	Description      safejson.Paragraph `json:"description,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
-	Epoch            snap.Epoch         `json:"epoch"`
-	IconURL          string             `json:"icon_url"`
 	LastUpdated      string             `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
 	Prices           map[string]float64 `json:"prices,omitempty"`
 	// Note that the publisher is really the "display name" of the
 	// publisher
-	Publisher      string   `json:"publisher,omitempty"`
-	RatingsAverage float64  `json:"ratings_average,omitempty"`
-	Revision       int      `json:"revision"` // store revisions are ints starting at 1
-	ScreenshotURLs []string `json:"screenshot_urls,omitempty"`
-	SnapID         string   `json:"snap_id"`
-	License        string   `json:"license,omitempty"`
-	Base           string   `json:"base,omitempty"`
+	Publisher      string           `json:"publisher,omitempty"`
+	RatingsAverage float64          `json:"ratings_average,omitempty"`
+	Revision       int              `json:"revision"` // store revisions are ints starting at 1
+	SnapID         string           `json:"snap_id"`
+	License        string           `json:"license,omitempty"`
+	Base           string           `json:"base,omitempty"`
+	Media          []storeSnapMedia `json:"media,omitempty"`
 
 	// FIXME: the store should send "contact" here, once it does we
 	//        can remove support_url
@@ -74,11 +73,13 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
-	info.Epoch = d.Epoch
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
-	info.EditedTitle = d.Title.Clean()
+
+	// https://forum.snapcraft.io/t/title-length-in-snapcraft-yaml-snap-yaml/8625/10
+	info.EditedTitle = strutil.ElliptRight(d.Title.Clean(), 40)
+
 	info.EditedSummary = d.Summary.Clean()
 	info.EditedDescription = d.Description.Clean()
 	// Note that the store side is using confusing terminology here.
@@ -98,7 +99,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
-	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
@@ -110,13 +110,8 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Base = d.Base
 	info.CommonIDs = d.CommonIDs
 
-	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
-	for _, url := range d.ScreenshotURLs {
-		screenshots = append(screenshots, snap.ScreenshotInfo{
-			URL: url,
-		})
-	}
-	info.Screenshots = screenshots
+	addMedia(info, d.Media)
+
 	// FIXME: once the store sends "contact" for everything, remove
 	//        the "SupportURL" part of the if
 	if info.Contact == "" {
