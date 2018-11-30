@@ -87,6 +87,8 @@ snap-seccomp/snap-seccomp: snap-seccomp/*.go
 noinst_LIBRARIES += libsnap-confine-private.a
 
 libsnap_confine_private_a_SOURCES = \
+	libsnap-confine-private/apparmor-support.c \
+	libsnap-confine-private/apparmor-support.h \
 	libsnap-confine-private/cgroup-freezer-support.c \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/classic.c \
@@ -201,8 +203,6 @@ EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 
 snap_confine_snap_confine_SOURCES = \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h \
 	snap-confine/cookie-support.c \
 	snap-confine/cookie-support.h \
 	snap-confine/mount-support-nvidia.c \
@@ -295,8 +295,6 @@ snap_confine_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h \
 	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
