@@ -5,6 +5,11 @@ details: |
     apparmor backend even though it resulted in constant problems with setting
     up security for the core snap. With this bug fixed the old version of
     apparmor_parser makes snapd disable the relevant security backend. 
-systems: [opensuse-42.3-64]
+systems: [ubuntu-*, opensuse-*, arch-linux-*]
 execute: |
-    snap debug sandbox-features | MATCH -v "^apparmor:"
+    if [[ "$SPREAD_SYSTEM" == opensuse-42.3* ]]; then
+        # openSUSE 43.2 has AppArmor parser in version too old to parse snap-confine profile
+        snap debug sandbox-features | MATCH -v "^apparmor:"
+    else
+        snap debug sandbox-features | MATCH "^apparmor:"
+    fi
