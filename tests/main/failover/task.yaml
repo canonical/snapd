@@ -91,7 +91,7 @@ execute: |
         snap pack "$BUILD_DIR/unpack" && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
 
         # use journalctl wrapper to grep only the logs collected while the test is running
-        if check_journalctl_log "Waiting for system reboot"; then
+        if get_journalctl_log | MATCH "Waiting for system reboot"; then
             echo "Already waiting for system reboot, exiting..."
             exit 1
         fi
