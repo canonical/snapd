@@ -62,11 +62,12 @@ execute: |
         test "$(cat /tmp/xdg-open-output)" = "$1"
     }
 
-    # Ensure http, https and mailto work
+    # Ensure http, https, mailto, snap and help work
     ensure_xdg_open_output "https://snapcraft.io"
     ensure_xdg_open_output "http://snapcraft.io"
     ensure_xdg_open_output "mailto:talk@snapcraft.io"
     ensure_xdg_open_output "snap://snapcraft"
+    ensure_xdg_open_output "help:snapcraft"
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
