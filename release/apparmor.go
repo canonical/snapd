@@ -79,9 +79,8 @@ var (
 	appArmorParserFeatures []string
 )
 
-// AppArmorLevel quantifies how well apparmor is supported on the
-// current kernel. The computation is performed once and
-// cached but it is somewhat cosly to perform.
+// AppArmorLevel quantifies how well apparmor is supported on the current
+// kernel. The computation is costly to perform. The result is cached internally.
 func AppArmorLevel() AppArmorLevelType {
 	if appArmorLevel == UnknownAppArmor {
 		assessAppArmor()
@@ -89,9 +88,9 @@ func AppArmorLevel() AppArmorLevelType {
 	return appArmorLevel
 }
 
-// AppArmorSummary describes how well apparmor is supported on the
-// current kernel. The computation is performed once and
-// cached but it is somewhat cosly to perform.
+// AppArmorSummary describes how well apparmor is supported on the current
+// kernel. The computation is costly to perform. The result is cached
+// internally.
 func AppArmorSummary() string {
 	if appArmorLevel == UnknownAppArmor {
 		assessAppArmor()
@@ -100,8 +99,7 @@ func AppArmorSummary() string {
 }
 
 // AppArmorFeatures returns a sorted list of apparmor features like
-// []string{"dbus", "network"}. The computation is performed once and
-// cached.
+// []string{"dbus", "network"}. The result is cached internally.
 func AppArmorKernelFeatures() []string {
 	if appArmorKernelFeatures == nil {
 		appArmorKernelFeatures = probeAppArmorKernelFeatures()
@@ -110,8 +108,8 @@ func AppArmorKernelFeatures() []string {
 }
 
 // AppArmorParserFeatures returns a sorted list of apparmor parser features
-// like []string{"unsafe", ...}.  The computation is performed once and
-// cached but is is somewhat costly to perform.
+// like []string{"unsafe", ...}. The computation is costly to perform. The
+// result is cached internally.
 func AppArmorParserFeatures() []string {
 	if appArmorParserFeatures == nil {
 		appArmorParserFeatures = probeAppArmorParserFeatures()
