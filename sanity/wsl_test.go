@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build 386 amd64
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -18,17 +17,35 @@
  *
  */
 
-package main
+package sanity_test
 
-import "syscall"
+import (
+	. "gopkg.in/check.v1"
 
-func fpSeccompResolver(token string) (uint64, bool) {
-	switch token {
-	case "PTRACE_GETFPREGS":
-		return syscall.PTRACE_GETFPREGS, true
-	case "PTRACE_GETFPXREGS":
-		return syscall.PTRACE_GETFPXREGS, true
-	default:
-		return 0, false
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sanity"
+)
+
+type wslSuite struct{}
+
+var _ = Suite(&wslSuite{})
+
+func mockOnWSL(on bool) (restore func()) {
+	old := release.OnWSL
+	release.OnWSL = on
+	return func() {
+		release.OnWSL = old
 	}
+}
+
+func (s *wslSuite) TestNonWSL(c *C) {
+	defer mockOnWSL(false)()
+
+	c.Check(sanity.CheckWSL(), IsNil)
+}
+
+func (s *wslSuite) TestWSL(c *C) {
+	defer mockOnWSL(true)()
+
+	c.Check(sanity.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
 }

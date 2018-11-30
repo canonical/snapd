@@ -167,6 +167,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	if curInfo.SnapID == "" { // amend
 		action.Action = "install"
+		action.Epoch = curInfo.Epoch
 	}
 
 	theStore := Store(st)
@@ -315,6 +316,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			Revision:         snapInfo.Revision,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
+			Epoch:            snapInfo.Epoch,
 		}
 		curSnaps = append(curSnaps, installed)
 

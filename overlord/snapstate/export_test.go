@@ -143,6 +143,22 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	}
 }
 
+func MockLocalInstallCleanupWait(d time.Duration) (restore func()) {
+	old := localInstallCleanupWait
+	localInstallCleanupWait = d
+	return func() {
+		localInstallCleanupWait = old
+	}
+}
+
+func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
+	old := localInstallLastCleanup
+	localInstallLastCleanup = t
+	return func() {
+		localInstallLastCleanup = old
+	}
+}
+
 func SetModelWithBase(baseName string) {
 	setModel(map[string]string{"base": baseName})
 }

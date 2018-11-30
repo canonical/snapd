@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm64 s390x
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -18,8 +17,27 @@
  *
  */
 
-package main
+package backend
 
-func fpSeccompResolver(token string) (uint64, bool) {
-	return 0, false
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/osutil"
+)
+
+var updateFontconfigCaches = updateFontconfigCachesImpl
+
+// updateFontconfigCaches always update the fontconfig caches
+func updateFontconfigCachesImpl() error {
+	for _, fc := range []string{"fc-cache-v6", "fc-cache-v7"} {
+		// FIXME: also use the snapd snap if available
+		cmd, err := osutil.CommandFromCore("/bin/" + fc)
+		if err != nil {
+			return fmt.Errorf("cannot get %s from core: %v", fc, err)
+		}
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("cannot run %s on core: %v", fc, osutil.OutputErr(output, err))
+		}
+	}
+	return nil
 }
