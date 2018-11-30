@@ -408,10 +408,12 @@ func (b *Backend) Remove(snapName string) error {
 
 var (
 	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
-	attachPattern   = regexp.MustCompile(`\(attach_disconnected,mediate_deleted\)`)
 )
 
-const attachComplain = "(attach_disconnected,mediate_deleted,complain)"
+const (
+	attachPattern  = "(attach_disconnected,mediate_deleted)"
+	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
+)
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
@@ -513,7 +515,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// This is also done for classic so that no confinement applies. Just in
 	// case the profile we start with is not permissive enough.
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
-		policy = attachPattern.ReplaceAllString(policy, attachComplain)
+		policy = strings.Replace(policy, attachPattern, attachComplain, -1)
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {

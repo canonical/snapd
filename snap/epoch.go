@@ -338,7 +338,7 @@ func (z *uint32slice) UnmarshalJSON(bs []byte) error {
 }
 
 func isIncreasing(z []uint32) bool {
-	if len(z) == 0 {
+	if len(z) < 2 {
 		return true
 	}
 	for i := range z[1:] {

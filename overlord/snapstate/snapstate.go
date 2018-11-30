@@ -594,6 +594,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, nil, err
 	}
+	// this might be a refresh; check the epoch before proceeding
+	if err := earlyEpochCheck(info, &snapst); err != nil {
+		return nil, nil, err
+	}
 
 	snapsup := &SnapSetup{
 		Base:        info.Base,
@@ -845,6 +849,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
 		if err := checkInstallPreconditions(st, update, flags, snapst); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
+				continue
+			}
+			return nil, nil, err
+		}
+		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
