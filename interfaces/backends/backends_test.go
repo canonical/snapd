@@ -45,12 +45,20 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 		for i, backend := range all {
 			names[i] = string(backend.Name())
 		}
-
-		if level == release.NoAppArmor {
+		switch level {
+		case release.NoAppArmor:
 			c.Assert(names, Not(testutil.Contains), "apparmor")
-		} else {
+		case release.PartialAppArmor:
+			// Partial support depends on modern apparmor_parser.
+			if len(release.AppArmorParserFeatures()) == 0 {
+				c.Assert(names, Not(testutil.Contains), "apparmor")
+			} else {
+				c.Assert(names, testutil.Contains, "apparmor")
+			}
+		case release.FullAppArmor:
 			c.Assert(names, testutil.Contains, "apparmor")
 		}
+
 	}
 }
 
