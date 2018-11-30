@@ -82,8 +82,7 @@ func (s *timingSuite) TestExecveTimingPrunes(c *C) {
 
 // generated with:
 //  sudo /usr/lib/snapd/snap-discard-ns test-snapd-tools && sudo strace -u $USER -o strace.log -f -e trace=execve,execveat -ttt test-snapd-tools.echo foo && cat strace.log
-var sampleStraceSimple = []byte(`
-21616 1542882400.198907 execve("/snap/bin/test-snapd-tools.echo", ["test-snapd-tools.echo", "foo"], 0x7fff7f275f48 /* 27 vars */) = 0
+var sampleStraceSimple = []byte(`21616 1542882400.198907 execve("/snap/bin/test-snapd-tools.echo", ["test-snapd-tools.echo", "foo"], 0x7fff7f275f48 /* 27 vars */) = 0
 21616 1542882400.204710 execve("/snap/core/current/usr/bin/snap", ["test-snapd-tools.echo", "foo"], 0xc42011c8c0 /* 27 vars */ <unfinished ...>
 21621 1542882400.204845 +++ exited with 0 +++
 21620 1542882400.204853 +++ exited with 0 +++
@@ -127,6 +126,7 @@ func (s *timingSuite) TestTraceExecveTimings(c *C) {
 
 	st, err := strace.TraceExecveTimings(f.Name(), 10)
 	c.Assert(err, IsNil)
+	c.Assert(st.TotalTime, Equals, 0.1860671043395996)
 	c.Assert(st.ExeRuntimes(), DeepEquals, []strace.ExeRuntime{
 		{Exe: "/snap/bin/test-snapd-tools.echo", TotalSec: 0.005803108215332031},
 		{Exe: "/snap/core/current/usr/bin/snap", TotalSec: 0.016134977340698242},

@@ -187,7 +187,9 @@ func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 	for r.Scan() {
 		line = r.Text()
 		if start == 0.0 {
-			fmt.Sscanf(line, "%f %f ", &tmp, &start)
+			if _, err := fmt.Sscanf(line, "%f %f ", &tmp, &start); err != nil {
+				return nil, fmt.Errorf("cannot parse start of exec profile: %s", err)
+			}
 		}
 		// handleExecMatch looks for execve{,at}() calls and
 		// uses the pidTracker to keep track of execution of
@@ -209,12 +211,18 @@ func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 		if err := handleExecMatch(trace, pidTracker, match); err != nil {
 			return nil, err
 		}
+		// handleSignalMatch looks for SIG{CHLD,TERM} signals and
+		// maps them via the pidTracker to the execve{,at}() calls
+		// of the terminating PID to calculate the total time of
+		// a execve{,at}() call.
 		match = sigChldTermRE.FindStringSubmatch(line)
 		if err := handleSignalMatch(trace, pidTracker, match); err != nil {
 			return nil, err
 		}
 	}
-	fmt.Sscanf(line, "%f %f", &tmp, &end)
+	if _, err := fmt.Sscanf(line, "%f %f", &tmp, &end); err != nil {
+		return nil, fmt.Errorf("cannot parse end of exec profile: %s", err)
+	}
 	trace.TotalTime = end - start
 
 	if r.Err() != nil {
