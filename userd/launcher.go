@@ -105,7 +105,7 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	}
 
 	xdg_data_dirs := []string{}
-	xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf("/%s/%s/current/usr/share", snap, dirs.SnapMountDir))
+	xdg_data_dirs = append(xdg_data_dirs, filepath.Join(dirs.SnapMountDir, snap, "current/usr/share"))
 	for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
 		xdg_data_dirs = append(xdg_data_dirs, dir)
 	}
