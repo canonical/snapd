@@ -39,6 +39,7 @@ var _ = Suite(&DirsTestSuite{})
 type DirsTestSuite struct{}
 
 func (s *DirsTestSuite) TestStripRootDir(c *C) {
+	dirs.SetRootDir("/")
 	// strip does nothing if the default (empty) root directory is used
 	c.Check(dirs.StripRootDir("/foo/bar"), Equals, "/foo/bar")
 	// strip only works on absolute paths
@@ -122,4 +123,34 @@ func (s *DirsTestSuite) TestInsideBaseSnap(c *C) {
 	inside, err = dirs.IsInsideBaseSnap()
 	c.Assert(err, IsNil)
 	c.Assert(inside, Equals, true)
+}
+
+func (s *DirsTestSuite) TestCompleteShPath(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// old-style in-core complete.sh
+	c.Check(dirs.CompleteShPath(""), Equals, filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/complete.sh"))
+	// new-style in-host complete.sh
+	c.Check(dirs.CompleteShPath("x"), Equals, filepath.Join(dirs.DistroLibExecDir, "complete.sh"))
+	// new-style in-snapd complete.sh
+	c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
+	c.Check(dirs.CompleteShPath("x"), Equals, filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd/complete.sh"))
+}
+
+func (s *DirsTestSuite) TestIsCompleteShSymlink(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	tests := map[string]string{
+		filepath.Join(dirs.GlobalRootDir, "no-base"):        filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/complete.sh"),
+		filepath.Join(dirs.GlobalRootDir, "no-snapd"):       filepath.Join(dirs.DistroLibExecDir, "complete.sh"),
+		filepath.Join(dirs.GlobalRootDir, "base-and-snapd"): filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd/complete.sh"),
+	}
+	for target, d := range tests {
+		c.Check(os.Symlink(d, target), IsNil)
+		c.Check(dirs.IsCompleteShSymlink(target), Equals, true)
+	}
+	c.Check(dirs.IsCompleteShSymlink("/etc/passwd"), Equals, false)
+	c.Check(dirs.IsCompleteShSymlink("/does-not-exist"), Equals, false)
 }

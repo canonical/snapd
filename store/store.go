@@ -46,6 +46,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -1742,18 +1743,6 @@ func (s *Store) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-// BuyOptions specifies parameters to buy from the store.
-type BuyOptions struct {
-	SnapID   string  `json:"snap-id"`
-	Price    float64 `json:"price"`
-	Currency string  `json:"currency"` // ISO 4217 code as string
-}
-
-// BuyResult holds the state of a buy attempt.
-type BuyResult struct {
-	State string `json:"state,omitempty"`
-}
-
 // orderInstruction holds data sent to the store for orders.
 type orderInstruction struct {
 	SnapID   string `json:"snap_id"`
@@ -1788,13 +1777,13 @@ func (s *storeErrors) Error() string {
 	return s.Errors[0].Error()
 }
 
-func buyOptionError(message string) (*BuyResult, error) {
+func buyOptionError(message string) (*client.BuyResult, error) {
 	return nil, fmt.Errorf("cannot buy snap: %s", message)
 }
 
 // Buy sends a buy request for the specified snap.
 // Returns the state of the order: Complete, Cancelled.
-func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
+func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError("snap ID missing")
 	}
@@ -1841,7 +1830,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 			return buyOptionError("payment cancelled")
 		}
 
-		return &BuyResult{
+		return &client.BuyResult{
 			State: orderDetails.State,
 		}, nil
 	case 400:
@@ -2200,7 +2189,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
-			if a.Epoch.Unset() {
+			if a.Epoch.IsZero() {
 				// Let the store know we can handle epochs, by sending the `epoch`
 				// field in the request.  A nil epoch is not an empty interface{},
 				// you'll get the null in the json. See comment in snapActionJSON.

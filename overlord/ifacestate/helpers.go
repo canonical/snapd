@@ -23,10 +23,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -74,7 +76,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if m.profilesNeedRegeneration() {
+	if profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(); err != nil {
 			return err
 		}
@@ -137,7 +139,7 @@ func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	return nil
 }
 
-func (m *InterfaceManager) profilesNeedRegeneration() bool {
+func profilesNeedRegenerationImpl() bool {
 	mismatch, err := interfaces.SystemKeyMismatch()
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
@@ -145,6 +147,9 @@ func (m *InterfaceManager) profilesNeedRegeneration() bool {
 	}
 	return mismatch
 }
+
+var profilesNeedRegeneration = profilesNeedRegenerationImpl
+var writeSystemKey = interfaces.WriteSystemKey
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
@@ -163,6 +168,16 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			return err
 		}
 	}
+
+	// The reason the system key is unlinked is to prevent snapd from believing
+	// that an old system key is valid and represents security setup
+	// established in the system. If snapd is reverted following a failed
+	// startup then system key may match the system key that used to be on disk
+	// but some of the system security may have been changed by the new snapd,
+	// the one that was reverted. Unlinking avoids such possibility, forcing
+	// old snapd to re-establish proper security view.
+	shouldWriteSystemKey := true
+	os.Remove(dirs.SnapSystemKeyFile)
 
 	// For each snap:
 	for _, snapInfo := range snaps {
@@ -183,15 +198,18 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
-				// Let's log this but carry on
+				// Let's log this but carry on without writing the system key.
 				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
 					backend.Name(), snapName, err)
+				shouldWriteSystemKey = false
 			}
 		}
 	}
 
-	if err := interfaces.WriteSystemKey(); err != nil {
-		logger.Noticef("cannot write system key: %v", err)
+	if shouldWriteSystemKey {
+		if err := writeSystemKey(); err != nil {
+			logger.Noticef("cannot write system key: %v", err)
+		}
 	}
 	return nil
 }
