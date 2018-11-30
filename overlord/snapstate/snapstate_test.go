@@ -10262,6 +10262,15 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, 0)
+	c.Assert(err, NotNil)
+	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
+}
+
 func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
 	tl := tasksWithKind(ts, "stop-snap-services")
 	c.Check(tl, HasLen, 1)

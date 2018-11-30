@@ -522,6 +522,16 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
+func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) error {
+	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
+		return err
+	}
+	if err := validateFeatureFlags(st, info); err != nil {
+		return err
+	}
+	return nil
+}
+
 // InstallPath returns a set of tasks for installing a snap from a file path
 // and the snap.Info for the given snap.
 //
@@ -581,10 +591,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
-		return nil, nil, err
-	}
-	if err := validateFeatureFlags(st, info); err != nil {
+	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, nil, err
 	}
 
@@ -639,10 +646,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
-	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
-		return nil, err
-	}
-	if err := validateFeatureFlags(st, info); err != nil {
+	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, err
 	}
 
@@ -693,10 +697,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
-			return nil, nil, err
-		}
-		if err := validateFeatureFlags(st, info); err != nil {
+		if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 			return nil, nil, err
 		}
 
@@ -842,14 +843,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
-		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
-			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
-				continue
-			}
-			return nil, nil, err
-		}
-		if err := validateFeatureFlags(st, update); err != nil {
+
+		if err := checkInstallPreconditions(st, update, flags, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
