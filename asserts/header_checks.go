@@ -196,6 +196,10 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 	return b, nil
 }
 
+// checkStringListInMap returns the `name` entry in the `m` map as a (possibly nil) `[]string`
+// if `m` has an entry for `name` and it isn't a `[]string`, an error is returned
+// if pattern is not nil, all the strings must match that pattern, otherwise an error is returned
+// `what` is a descriptor, used for error messages
 func checkStringListInMap(m map[string]interface{}, name, what string, pattern *regexp.Regexp) ([]string, error) {
 	value, ok := m[name]
 	if !ok {
