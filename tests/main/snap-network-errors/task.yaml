@@ -31,6 +31,4 @@ execute: |
     systemctl start snapd.{socket,service}
 
     OUT=$(snap find test 2>&1 || true)
-    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
-
     echo "$OUT" | MATCH "error: unable to contact snap store"
