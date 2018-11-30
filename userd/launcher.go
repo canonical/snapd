@@ -24,9 +24,9 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
-	"strings"
 
 	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/dirs"
@@ -98,7 +98,6 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	if !strutil.ListContains(allowedURLSchemes, u.Scheme) {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
-
 
 	snap, err := snapFromSender(s.conn, sender)
 	if err != nil {
