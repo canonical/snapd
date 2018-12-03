@@ -17,7 +17,7 @@
  *
  */
 
-package testutil
+package testutil_test
 
 import (
 	"fmt"
@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/check.v1"
+
+	. "github.com/snapcore/snapd/testutil"
 )
 
 type filePresenceCheckerSuite struct{}
