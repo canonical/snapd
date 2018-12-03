@@ -474,7 +474,7 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 
 func GetFeatureFlagBool(tr *config.Transaction, flag features.SnapdFeature) (bool, error) {
 	confName := "experimental." + flag.String()
-	unset := flag.IsEnabledByDefault()
+	unset := flag.IsEnabledWhenUnset()
 	var v interface{} = unset
 	if err := tr.GetMaybe("core", confName, &v); err != nil {
 		return unset, err

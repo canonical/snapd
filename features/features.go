@@ -66,12 +66,12 @@ func (f SnapdFeature) String() string {
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
 }
 
-// IsEnabledByDefault returns true if a feature is enabled by default.
+// IsEnabledWhenUnset returns true if a feature is enabled when not set.
 //
 // A feature may be enabled or disabled with explicit state in snapd. If
 // explicit state is absent the effective value is the implicit default
 // computed by this function.
-func (f SnapdFeature) IsEnabledByDefault() bool {
+func (f SnapdFeature) IsEnabledWhenUnset() bool {
 	switch f {
 	case Layouts:
 		return true
