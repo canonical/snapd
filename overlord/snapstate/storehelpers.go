@@ -457,6 +457,11 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		return nil, err
 	}
 
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	actions := make([]*store.SnapAction, len(names))
 	for i, name := range names {
 		actions[i] = &store.SnapAction{
@@ -470,5 +475,5 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	defer st.Lock()
-	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, nil)
+	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, opts)
 }
