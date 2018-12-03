@@ -1,3 +1,23 @@
+snapd (2.36.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1795590
+    - daemon, vendor: bump github.com/coreos/go-systemd/activation,
+      handle API changes
+    - snapstate: update fontconfig caches on install
+    - overlord,daemon: mock security backends for testing
+    - sanity, spread, tests: add CentOS
+    - Revert "cmd/snap, tests/main/snap-info: highlight the current
+      channel"
+    - cmd/snap: add nanosleep to blacklisted syscalls when running with
+      --strace
+    - tests: add regression test for LP #1803535
+    - snap-update-ns: fix trailing slash bug on trespassing error
+    - interfaces/builtin/opengl: allow reading /etc/OpenCL/vendors
+    - cmd/snap-confine: nvidia: pick up libnvidia-opencl.so
+    - interfaces/opengl: add additional accesses for cuda
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 29 Nov 2018 10:48:29 +0100
+
 snapd (2.36.1) xenial; urgency=medium
 
   * New upstream release, LP: #1795590

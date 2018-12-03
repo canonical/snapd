@@ -78,34 +78,6 @@ enum {
 	HELPER_CMD_CAPTURE_NS,
 };
 
-/**
- * Read /proc/self/mountinfo and check if /run/snapd/ns is a private bind mount.
- *
- * We do this because /run/snapd/ns cannot be shared with any other peers as per:
- * https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
- **/
-static bool sc_is_mount_ns_dir_private(void)
-{
-	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
-	info = sc_parse_mountinfo(NULL);
-	if (info == NULL) {
-		die("cannot parse /proc/self/mountinfo");
-	}
-	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(info);
-	while (entry != NULL) {
-		const char *mount_dir = entry->mount_dir;
-		const char *optional_fields = entry->optional_fields;
-		if (strcmp(mount_dir, sc_ns_dir) == 0
-		    && strcmp(optional_fields, "") == 0) {
-			// If /run/snapd/ns has no optional fields, we know it is mounted
-			// private and there is nothing else to do.
-			return true;
-		}
-		entry = sc_next_mountinfo_entry(entry);
-	}
-	return false;
-}
-
 void sc_reassociate_with_pid1_mount_ns(void)
 {
 	int init_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -158,18 +130,46 @@ void sc_reassociate_with_pid1_mount_ns(void)
 
 void sc_initialize_mount_ns(void)
 {
+	/* Ensure that /run/snapd/ns is a directory. */
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
 		die("cannot create directory %s", sc_ns_dir);
 	}
-	if (sc_is_mount_ns_dir_private()) {
-		return;
+
+	/* Read and analyze the mount table. We need to see whether /run/snapd/ns
+	 * is a mount point with private event propagation. */
+	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	info = sc_parse_mountinfo(NULL);
+	if (info == NULL) {
+		die("cannot parse /proc/self/mountinfo");
 	}
-	if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) < 0) {
-		die("cannot self-bind mount %s", sc_ns_dir);
+
+	bool is_mnt = false;
+	bool is_private = false;
+	for (struct sc_mountinfo_entry * entry = sc_first_mountinfo_entry(info);
+	     entry != NULL; entry = sc_next_mountinfo_entry(entry)) {
+		/* Find /run/snapd/ns */
+		if (!sc_streq(entry->mount_dir, sc_ns_dir)) {
+			continue;
+		}
+		is_mnt = true;
+		if (strstr(entry->optional_fields, "shared:") == NULL) {
+			/* Mount event propagation is not set to shared, good. */
+			is_private = true;
+		}
+		break;
 	}
-	if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
-		die("cannot change propagation type to MS_PRIVATE in %s",
-		    sc_ns_dir);
+
+	if (!is_mnt) {
+		if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) <
+		    0) {
+			die("cannot self-bind mount %s", sc_ns_dir);
+		}
+	}
+
+	if (!is_private) {
+		if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
+			die("cannot change propagation type to MS_PRIVATE in %s", sc_ns_dir);
+		}
 	}
 }
 
@@ -214,10 +214,7 @@ struct sc_mount_ns *sc_open_mount_ns(const char *group_name)
 	if (group->dir_fd < 0) {
 		die("cannot open directory %s", sc_ns_dir);
 	}
-	group->name = strdup(group_name);
-	if (group->name == NULL) {
-		die("cannot allocate memory for string copy");
-	}
+	group->name = sc_strdup(group_name);
 	return group;
 }
 
@@ -307,6 +304,44 @@ enum sc_discard_vote {
 	SC_DISCARD_YES = 2,
 };
 
+static void call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name)
+{
+	debug("calling snap-discard-ns to discard preserved mount namespaces");
+	pid_t child = fork();
+	if (child < 0) {
+		die("cannot fork to run snap-discard-ns");
+	}
+	if (child == 0) {
+		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
+		snap_name_copy = sc_strdup(snap_name);
+		char *argv[] =
+		    { "snap-discard-ns", "--from-snap-confine", snap_name_copy,
+			NULL
+		};
+		char *envp[2] = { NULL };
+		int last_env = 0;
+		if (sc_is_debug_enabled()) {
+			envp[last_env++] = "SNAPD_DEBUG=1";
+		}
+		debug("fexecv(%d (snap-discard-ns), %s %s %s %s,)",
+		      snap_discard_ns_fd, argv[0], argv[1], argv[2], argv[3]);
+		fexecve(snap_discard_ns_fd, argv, envp);
+		die("cannot execute snap-discard-ns");
+	}
+	// We are the parent, so wait for snap-discard-ns to finish.
+	int status = 0;
+	debug("waiting for snap-discard-ns to finish...");
+	if (waitpid(child, &status, 0) < 0) {
+		die("waitpid() failed for snap-discard-ns process");
+	}
+	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		die("snap-discard-ns failed with code %i", WEXITSTATUS(status));
+	} else if (WIFSIGNALED(status)) {
+		die("snap-discard-ns killed by signal %i", WTERMSIG(status));
+	}
+	debug("snap-discard-ns finished successfully");
+}
+
 // The namespace may be stale. To check this we must actually switch into it
 // but then we use up our setns call (the kernel misbehaves if we setns twice).
 // To work around this we'll fork a child and use it to probe. The child will
@@ -314,11 +349,11 @@ enum sc_discard_vote {
 // unconditionally.
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 						 const char *snap_name,
-						 const char *base_snap_name)
+						 const char *base_snap_name,
+						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
 	char fname[PATH_MAX] = { 0 };
-	char mnt_fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
@@ -442,20 +477,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname,
-			 "%s/%s%s", sc_ns_dir, snap_name, SC_NS_MNT_FILE);
-
-	// Use MNT_DETACH as otherwise we get EBUSY.
-	if (umount2(mnt_fname, MNT_DETACH | UMOUNT_NOFOLLOW) < 0) {
-		die("cannot discard stale mount namespace %s", mnt_fname);
-	}
-	char fstab_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(fstab_fname, sizeof fstab_fname,
-			 "%s/snap.%s.fstab", sc_ns_dir, snap_name);
-	if (unlink(fstab_fname) < 0) {
-		die("cannot remove stale mount profile %s", fstab_fname);
-	}
-	debug("stale mount namespace discarded");
+	call_snap_discard_ns(snap_discard_ns_fd, snap_name);
 	return EAGAIN;
 }
 
@@ -467,7 +489,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
-			 const char *snap_name)
+			 const char *snap_name, int snap_discard_ns_fd)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -511,7 +533,8 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
-		    (mnt_fd, snap_name, base_snap_name) == EAGAIN) {
+		    (mnt_fd, snap_name, base_snap_name,
+		     snap_discard_ns_fd) == EAGAIN) {
 			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.
@@ -575,13 +598,6 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 		// print pid's portably so this is the best we can do.
 		debug("forked support process %d", (int)pid);
 		group->child = pid;
-
-		// Unshare the mount namespace and set a flag instructing the caller that
-		// the namespace is pristine and needs to be populated now.
-		if (unshare(CLONE_NEWNS) < 0) {
-			die("cannot unshare the mount namespace");
-		}
-		debug("created new mount namespace");
 	}
 }
 
@@ -654,6 +670,13 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 	debug("capturing per-snap mount namespace");
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
 	sc_must_snprintf(dst, sizeof dst, "%s%s", group->name, SC_NS_MNT_FILE);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
+	}
+	close(fd);
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve mount namespace of process %d as %s",
 		    (int)parent, dst);

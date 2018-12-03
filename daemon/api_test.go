@@ -90,8 +90,8 @@ type apiBaseSuite struct {
 	restoreBackends   func()
 	currentSnaps      []*store.CurrentSnap
 	actions           []*store.SnapAction
-	buyOptions        *store.BuyOptions
-	buyResult         *store.BuyResult
+	buyOptions        *client.BuyOptions
+	buyResult         *client.BuyResult
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
@@ -163,7 +163,7 @@ func (s *apiBaseSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiBaseSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
+func (s *apiBaseSuite) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
 	s.pokeStateLock()
 
 	s.buyOptions = options
@@ -4097,7 +4097,10 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	repo := d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, check.HasLen, 1)
-	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}})
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
@@ -4355,7 +4358,9 @@ func (s *apiSuite) TestConnectCoreSystemAlias(c *check.C) {
 	repo := d.overlord.InterfaceManager().Repository()
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, check.HasLen, 1)
-	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "core", Name: "slot"}}})
+	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}}})
 }
 
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
@@ -5237,7 +5242,7 @@ const validBuyInput = `{
 		  "currency": "EUR"
 		}`
 
-var validBuyOptions = &store.BuyOptions{
+var validBuyOptions = &client.BuyOptions{
 	SnapID:   "the-snap-id-1234abcd",
 	Price:    1.23,
 	Currency: "EUR",
@@ -5245,21 +5250,21 @@ var validBuyOptions = &store.BuyOptions{
 
 var buyTests = []struct {
 	input                string
-	result               *store.BuyResult
+	result               *client.BuyResult
 	err                  error
 	expectedStatus       int
 	expectedResult       interface{}
 	expectedResponseType ResponseType
-	expectedBuyOptions   *store.BuyOptions
+	expectedBuyOptions   *client.BuyOptions
 }{
 	{
 		// Success
 		input: validBuyInput,
-		result: &store.BuyResult{
+		result: &client.BuyResult{
 			State: "Complete",
 		},
 		expectedStatus: 200,
-		expectedResult: &store.BuyResult{
+		expectedResult: &client.BuyResult{
 			State: "Complete",
 		},
 		expectedResponseType: ResponseTypeSync,
@@ -5278,7 +5283,7 @@ var buyTests = []struct {
 		expectedResult: &errorResult{
 			Message: "internal error banana",
 		},
-		expectedBuyOptions: &store.BuyOptions{
+		expectedBuyOptions: &client.BuyOptions{
 			SnapID:   "the-snap-id-1234abcd",
 			Price:    1.23,
 			Currency: "EUR",
