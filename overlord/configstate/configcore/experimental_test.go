@@ -65,21 +65,15 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 
 func (s *experimentalSuite) TestExportedFeatures(c *C) {
 	conf := &mockConf{
-		state:   s.state,
-		conf:    map[string]interface{}{featureConf(features.Hotplug): true},
-		changes: map[string]interface{}{featureConf(features.Layouts): true},
+		state: s.state,
+		conf:  map[string]interface{}{featureConf(features.PerUserMountNamespace): true},
 	}
-
 	err := configcore.Run(conf)
 	c.Assert(err, IsNil)
+	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
 
-	c.Assert(features.Hotplug.ControlFile(), testutil.FilePresent)
-	c.Assert(features.Layouts.ControlFile(), testutil.FilePresent)
-
-	delete(conf.changes, "experimental.layouts")
+	delete(conf.changes, "experimental.per-user-mount-namespace")
 	err = configcore.Run(conf)
 	c.Assert(err, IsNil)
-
-	c.Assert(features.Hotplug.ControlFile(), testutil.FilePresent)
-	c.Assert(features.Layouts.ControlFile(), testutil.FileAbsent)
+	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
 }
