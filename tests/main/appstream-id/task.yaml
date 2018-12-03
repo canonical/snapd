@@ -1,7 +1,7 @@
 summary: Verify AppStream ID integration
 
-# fedora-*, amazon-*: uses nmap netcat by default (https://nmap.org/ncat/)
-systems: [-fedora-*, -amazon-*]
+# fedora-*, amazon-*, centos-*: use nmap netcat by default (https://nmap.org/ncat/)
+systems: [-fedora-*, -amazon-*, -centos-*]
 
 prepare: |
     snap install jq

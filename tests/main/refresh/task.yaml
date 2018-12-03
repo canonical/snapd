@@ -34,7 +34,7 @@ prepare: |
     flags=
     if [[ "$SNAP_NAME" =~ classic ]]; then
         case "$SPREAD_SYSTEM" in
-            ubuntu-core-*|fedora-*|arch-*)
+            ubuntu-core-*|fedora-*|arch-*|centos-*)
                 exit
                 ;;
         esac
@@ -89,7 +89,7 @@ execute: |
 
     if [[ "$SNAP_NAME" =~ classic ]]; then
         case "$SPREAD_SYSTEM" in
-            ubuntu-core-*|fedora-*|arch-*)
+            ubuntu-core-*|fedora-*|arch-*|centos-*)
                 exit
                 ;;
         esac
