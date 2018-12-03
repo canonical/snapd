@@ -21,7 +21,9 @@ package dbus
 
 import (
 	"bytes"
+	"fmt"
 	"sort"
+	"text/template"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
@@ -32,6 +34,91 @@ type Specification struct {
 	// Snippets are indexed by security tag.
 	snippets     map[string][]string
 	securityTags []string
+
+	sessionServices map[string]*Service
+	systemServices  map[string]*Service
+}
+
+// Service describes an activatable D-Bus service
+type Service struct {
+	SecurityTag string
+	BusName     string
+	Content     []byte
+}
+
+// AddService adds a new D-Bus service
+func (spec *Specification) AddService(bus, name string, appInfo *snap.AppInfo) error {
+	serviceTemplate := `[D-BUS Service]
+Name={{.BusName}}
+Comment=Bus name for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
+Exec={{.App.LauncherCommand}}
+{{- if .SystemdService }}
+SystemdService={{.SystemdService}}
+{{- end}}
+X-Snap={{.App.Snap.InstanceName}}
+`
+	t := template.Must(template.New("dbus-service").Parse(serviceTemplate))
+	serviceData := struct {
+		App            *snap.AppInfo
+		BusName        string
+		SystemdService string
+	}{
+		App:     appInfo,
+		BusName: name,
+	}
+	var services map[string]*Service
+	switch bus {
+	case "session":
+		if spec.sessionServices == nil {
+			spec.sessionServices = make(map[string]*Service)
+		}
+		services = spec.sessionServices
+		// TODO: extract systemd service name for user service, once integrated
+	case "system":
+		if spec.systemServices == nil {
+			spec.systemServices = make(map[string]*Service)
+		}
+		services = spec.systemServices
+		if appInfo.IsService() {
+			// TODO: return an error if this is not a system serice
+			serviceData.SystemdService = appInfo.ServiceName()
+		}
+	default:
+		panic("Unknown D-Bus bus")
+	}
+
+	if old, ok := services[name]; ok && old.SecurityTag != appInfo.SecurityTag() {
+		return fmt.Errorf("multiple apps have claimed D-Bus name %v", name)
+	}
+
+	var templateOut bytes.Buffer
+	if err := t.Execute(&templateOut, serviceData); err != nil {
+		return err
+	}
+	services[name] = &Service{
+		SecurityTag: appInfo.SecurityTag(),
+		BusName:     name,
+		Content:     templateOut.Bytes(),
+	}
+	return nil
+}
+
+// SessionServices returns a copy of all session services
+func (spec *Specification) SessionServices() map[string]*Service {
+	result := make(map[string]*Service, len(spec.sessionServices))
+	for k, v := range spec.sessionServices {
+		result[k] = v
+	}
+	return result
+}
+
+// SystemServices returns a copy of all session services
+func (spec *Specification) SystemServices() map[string]*Service {
+	result := make(map[string]*Service, len(spec.systemServices))
+	for k, v := range spec.systemServices {
+		result[k] = v
+	}
+	return result
 }
 
 // AddSnippet adds a new dbus snippet.

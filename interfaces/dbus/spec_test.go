@@ -103,3 +103,61 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 	c.Assert(s.spec.SnippetForTag("non-existing"), Equals, "")
 }
+
+func (s *specSuite) TestAddService(c *C) {
+	snapInfo := &snap.Info{
+		SuggestedName: "snap1",
+	}
+	app := &snap.AppInfo{
+		Name: "app",
+		Snap: snapInfo,
+	}
+	svc := &snap.AppInfo{
+		Name:   "svc",
+		Daemon: "simple",
+		Snap:   snapInfo,
+	}
+	err := s.spec.AddService("system", "org.foo", svc)
+	c.Assert(err, IsNil)
+	err = s.spec.AddService("system", "org.bar", svc)
+	c.Assert(err, IsNil)
+	c.Check(s.spec.SystemServices(), DeepEquals, map[string]*dbus.Service{
+		"org.foo": {
+			BusName:     "org.foo",
+			SecurityTag: "snap.snap1.svc",
+			Content: []byte(`[D-BUS Service]
+Name=org.foo
+Comment=Bus name for snap application snap1.svc
+Exec=/usr/bin/snap run snap1.svc
+SystemdService=snap.snap1.svc.service
+X-Snap=snap1
+`),
+		},
+		"org.bar": {
+			BusName:     "org.bar",
+			SecurityTag: "snap.snap1.svc",
+			Content: []byte(`[D-BUS Service]
+Name=org.bar
+Comment=Bus name for snap application snap1.svc
+Exec=/usr/bin/snap run snap1.svc
+SystemdService=snap.snap1.svc.service
+X-Snap=snap1
+`),
+		},
+	})
+
+	err = s.spec.AddService("session", "org.baz", app)
+	c.Check(err, IsNil)
+	c.Check(s.spec.SessionServices(), DeepEquals, map[string]*dbus.Service{
+		"org.baz": {
+			BusName:     "org.baz",
+			SecurityTag: "snap.snap1.app",
+			Content: []byte(`[D-BUS Service]
+Name=org.baz
+Comment=Bus name for snap application snap1.app
+Exec=/usr/bin/snap run snap1.app
+X-Snap=snap1
+`),
+		},
+	})
+}
