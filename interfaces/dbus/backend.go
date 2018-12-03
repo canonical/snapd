@@ -30,6 +30,7 @@ package dbus
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -130,8 +131,19 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		}
 	}
 
+	if err := b.setupBusConfig(snapInfo, spec); err != nil {
+		return err
+	}
+	if err := b.setupServiceActivation(snapInfo, spec); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *Backend) setupBusConfig(snapInfo *snap.Info, spec interfaces.Specification) error {
+	snapName := snapInfo.InstanceName()
 	// Get the files that this snap should have
-	content, err := b.deriveContent(spec.(*Specification), snapInfo)
+	content, err := b.deriveContentConfig(spec.(*Specification), snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
@@ -147,10 +159,46 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	return nil
 }
 
+func (b *Backend) setupServiceActivation(snapInfo *snap.Info, spec interfaces.Specification) error {
+	snapName := snapInfo.InstanceName()
+	s := spec.(*Specification)
+	for _, bus := range []struct {
+		dir      string
+		services map[string]*Service
+	}{
+		{dirs.SnapDBusSessionServicesDir, s.SessionServices()},
+		{dirs.SnapDBusSystemServicesDir, s.SystemServices()},
+	} {
+		globs, content, err := b.deriveContentServices(snapInfo, bus.dir, bus.services)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(bus.dir, 0755); err != nil {
+			return err
+		}
+		_, _, err = osutil.EnsureDirStateGlobs(bus.dir, globs, content)
+		if err != nil {
+			return fmt.Errorf("cannot synchronize DBus service activation files for snap %q: %s", snapName, err)
+		}
+	}
+	return nil
+}
+
 // Remove removes dbus configuration files of a given snap.
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
+	if err := b.removeBusConfig(snapName); err != nil {
+		return err
+	}
+	if err := b.removeServiceActivation(snapName); err != nil {
+		return err
+	}
+	return nil
+}
+
+// removeBusConfig removes D-Bus configuration files associated with a snap.
+func (b *Backend) removeBusConfig(snapName string) error {
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
 	if err != nil {
@@ -159,9 +207,35 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
+// removeServiceActivation removes D-Bus service activation files associated with a snap.
+func (b *Backend) removeServiceActivation(snapName string) error {
+	for _, servicesDir := range []string{
+		dirs.SnapDBusSessionServicesDir,
+		dirs.SnapDBusSystemServicesDir,
+	} {
+		glob := filepath.Join(servicesDir, "*.service")
+		matches, err := filepath.Glob(glob)
+		if err != nil {
+			return err
+		}
+		toRemove := []string{}
+		for _, match := range matches {
+			serviceSnap := snapNameFromServiceFile(match)
+			if serviceSnap == snapName {
+				toRemove = append(toRemove, filepath.Base(match))
+			}
+		}
+		_, _, err = osutil.EnsureDirStateGlobs(servicesDir, toRemove, nil)
+		if err != nil {
+			return fmt.Errorf("cannot synchronize DBus service files for snap %q: %s", snapName, err)
+		}
+	}
+	return nil
+}
+
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContentConfig(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
 		appSnippets := spec.SnippetForTag(securityTag)
@@ -201,6 +275,46 @@ func addContent(securityTag string, snippet string, content map[string]osutil.Fi
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
+}
+
+// snapNameFromServiceFile returns the snap name for the D-Bus service activation file.
+func snapNameFromServiceFile(filename string) string {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Noticef("can not read service file %s: %s", filename, err)
+		}
+		return ""
+	}
+	snapKey := []byte("\nX-Snap=")
+	pos := bytes.Index(content, snapKey)
+	if pos == -1 {
+		return ""
+	}
+	snapName := content[pos+len(snapKey):]
+	pos = bytes.IndexRune(snapName, '\n')
+	if pos != -1 {
+		snapName = snapName[:pos]
+	}
+	return string(snapName)
+}
+
+func (b *Backend) deriveContentServices(snapInfo *snap.Info, servicesDir string, services map[string]*Service) (globs []string, content map[string]osutil.FileState, err error) {
+	globs = []string{}
+	content = make(map[string]osutil.FileState)
+	snapName := snapInfo.InstanceName()
+	for _, service := range services {
+		filename := service.BusName + ".service"
+		if old := snapNameFromServiceFile(filepath.Join(servicesDir, filename)); old != "" && old != snapName {
+			return nil, nil, fmt.Errorf("cannot add session dbus name %q, already taken by: %q", service.BusName, old)
+		}
+		globs = append(globs, filename)
+		content[filename] = &osutil.MemoryFileState{
+			Content: service.Content,
+			Mode:    0644,
+		}
+	}
+	return globs, content, nil
 }
 
 func (b *Backend) NewSpecification() interfaces.Specification {

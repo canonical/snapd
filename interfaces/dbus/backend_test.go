@@ -352,3 +352,105 @@ func (s *backendSuite) TestSetupWritesUsedFilesBothSnapdAndCoreInstalled(c *C) {
 		c.Assert(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services/"+fn), testutil.FileEquals, fmt.Sprintf("content of %s for snap snapd", fn))
 	}
 }
+
+func (s *backendSuite) TestInstallingSnapInstallsSessionServiceActivation(c *C) {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		app := &snap.AppInfo{
+			Name: "smbd",
+			Snap: &snap.Info{
+				SuggestedName: "samba",
+			},
+		}
+		spec.AddService("session", "org.foo", app)
+		spec.AddService("session", "org.bar", app)
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		service1 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.foo.service")
+		// file called "org.foo.service" was created
+		_, err := os.Stat(service1)
+		c.Check(err, IsNil)
+		service2 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.bar.service")
+		// file called "org.bar.service" was created
+		_, err = os.Stat(service2)
+		c.Check(err, IsNil)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestRemovingSnapRemovesSessionServiceActivation(c *C) {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		app := &snap.AppInfo{
+			Name: "smbd",
+			Snap: &snap.Info{
+				SuggestedName: "samba",
+			},
+		}
+		spec.AddService("session", "org.foo", app)
+		spec.AddService("session", "org.bar", app)
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		s.RemoveSnap(c, snapInfo)
+		service1 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.foo.service")
+		// Service activation files are removed
+		_, err := os.Stat(service1)
+		c.Check(os.IsNotExist(err), Equals, true)
+		service2 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.bar.service")
+		_, err = os.Stat(service2)
+		c.Check(os.IsNotExist(err), Equals, true)
+	}
+}
+
+func (s *backendSuite) TestInstallingSnapInstallsSystemServiceActivation(c *C) {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		app := &snap.AppInfo{
+			Name: "smbd",
+			Snap: &snap.Info{
+				SuggestedName: "samba",
+			},
+		}
+		spec.AddService("system", "org.foo", app)
+		spec.AddService("system", "org.bar", app)
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		service1 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
+		// file called "org.foo.service" was created
+		_, err := os.Stat(service1)
+		c.Check(err, IsNil)
+		service2 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
+		// file called "org.bar.service" was created
+		_, err = os.Stat(service2)
+		c.Check(err, IsNil)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestRemovingSnapRemovesSystemServiceActivation(c *C) {
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		app := &snap.AppInfo{
+			Name: "smbd",
+			Snap: &snap.Info{
+				SuggestedName: "samba",
+			},
+		}
+		spec.AddService("system", "org.foo", app)
+		spec.AddService("system", "org.bar", app)
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		s.RemoveSnap(c, snapInfo)
+		service1 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
+		// Service activation files are removed
+		_, err := os.Stat(service1)
+		c.Check(os.IsNotExist(err), Equals, true)
+		service2 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
+		_, err = os.Stat(service2)
+		c.Check(os.IsNotExist(err), Equals, true)
+	}
+}
