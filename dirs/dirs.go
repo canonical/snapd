@@ -93,6 +93,9 @@ var (
 	SnapDesktopIconsDir string
 	SnapBusPolicyDir    string
 
+	SnapDBusSessionServicesDir string
+	SnapDBusSystemServicesDir  string
+
 	SnapModeenvFile string
 
 	CloudMetaDataFile     string
@@ -288,6 +291,10 @@ func SetRootDir(rootdir string) {
 	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
+	// Use 'dbus/services' and `dbus/system-services' to mirror
+	// '/usr/share/dbus-1' hierarchy.
+	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus", "services")
+	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus", "system-services")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")

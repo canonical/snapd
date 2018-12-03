@@ -55,6 +55,27 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
 }
 
+// setupHostDBusConf will ensure that we have a dbus configuration
+// that points to /var/lib/snapd/dbus/{services,system-services}. This
+// is needed for systems that re-exec snapd and do not have this
+// configuration as part of the packaged snapd.
+func setupHostDBusConf(snapInfo *snap.Info) error {
+	coreRoot := snapInfo.MountDir()
+	for _, conf := range []string{
+		"session.d/snapd-session.conf",
+		"system.d/snapd-system.conf",
+	} {
+		dst := filepath.Join("/usr/share/dbus-1/", conf)
+		src := filepath.Join(coreRoot, dst)
+		if !osutil.FilesAreEqual(src, dst) {
+			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // setupDbusServiceForUserd will setup the service file for the new
 // `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
@@ -103,6 +124,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && release.OnClassic {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
+		}
+		if err := setupHostDBusConf(snapInfo); err != nil {
+			logger.Noticef("cannot create host dbus config: %s", err)
 		}
 	}
 
