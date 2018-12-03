@@ -548,7 +548,7 @@ type PlugInfo struct {
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
 
-	SnapGlobal bool
+	TopLevel bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -655,7 +655,7 @@ type SlotInfo struct {
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
 
-	SnapGlobal bool
+	TopLevel bool
 
 	// HotplugKey is a unique key built by the slot's interface
 	// using properties of a hotplugged device so that the same
