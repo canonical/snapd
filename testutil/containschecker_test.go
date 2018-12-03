@@ -17,12 +17,14 @@
  *
  */
 
-package testutil
+package testutil_test
 
 import (
 	"runtime"
 
 	"gopkg.in/check.v1"
+
+	. "github.com/snapcore/snapd/testutil"
 )
 
 type containsCheckerSuite struct{}
@@ -73,13 +75,13 @@ type tree struct{}
 
 func (*containsCheckerSuite) TestContainsVerifiesInterfaceTypes(c *check.C) {
 	testCheck(c, Contains,
-		false, "container has items of interface type testutil.animal but expected element does not implement it",
+		false, "container has items of interface type testutil_test.animal but expected element does not implement it",
 		[...]animal{&dog{}, &cat{}}, &tree{})
 	testCheck(c, Contains,
-		false, "container has items of interface type testutil.animal but expected element does not implement it",
+		false, "container has items of interface type testutil_test.animal but expected element does not implement it",
 		[]animal{&dog{}, &cat{}}, &tree{})
 	testCheck(c, Contains,
-		false, "container has items of interface type testutil.animal but expected element does not implement it",
+		false, "container has items of interface type testutil_test.animal but expected element does not implement it",
 		map[string]animal{"dog": &dog{}, "cat": &cat{}}, &tree{})
 }
 
@@ -143,7 +145,7 @@ func (*containsCheckerSuite) TestContainsUncomparableType(c *check.C) {
 	containerArray := [...]myStruct{elem}
 	containerSlice := []myStruct{elem}
 	containerMap := map[string]myStruct{"foo": elem}
-	errMsg := "runtime error: comparing uncomparable type testutil.myStruct"
+	errMsg := "runtime error: comparing uncomparable type testutil_test.myStruct"
 	testInfo(c, Contains, "Contains", []string{"container", "elem"})
 	testCheck(c, Contains, false, errMsg, containerArray, elem)
 	testCheck(c, Contains, false, errMsg, containerSlice, elem)

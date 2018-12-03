@@ -17,7 +17,7 @@
  *
  */
 
-package testutil
+package testutil_test
 
 import (
 	"reflect"

@@ -17,10 +17,12 @@
  *
  */
 
-package testutil
+package testutil_test
 
 import (
 	"gopkg.in/check.v1"
+
+	. "github.com/snapcore/snapd/testutil"
 )
 
 type intCheckersSuite struct{}
@@ -48,6 +50,6 @@ func (*intCheckersSuite) TestIntChecker(c *check.C) {
 	testCheck(c, IntGreaterEqual, false, "relation 1 >= 2 is not true", 1, 2)
 
 	// Unexpected relation.
-	unexpected := &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: "==="}
+	unexpected := UnexpectedIntChecker("===")
 	testCheck(c, unexpected, false, `unexpected relation "==="`, 1, 2)
 }
