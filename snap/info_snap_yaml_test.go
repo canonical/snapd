@@ -129,7 +129,7 @@ plugs:
 		Name:      "network-client",
 		Interface: "network-client",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -149,7 +149,7 @@ plugs:
 		Name:      "net",
 		Interface: "network-client",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -170,7 +170,7 @@ plugs:
 		Name:      "net",
 		Interface: "network-client",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -193,7 +193,7 @@ plugs:
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -224,7 +224,7 @@ plugs:
 			"m": map[string]interface{}{"a": "A", "b": "B"},
 		},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -250,7 +250,7 @@ plugs:
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"attr": int64(2)},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -277,7 +277,7 @@ apps:
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -312,7 +312,7 @@ apps:
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{withPlugApp.Name: withPlugApp},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Assert(withPlugApp, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -349,7 +349,7 @@ apps:
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -405,7 +405,7 @@ plugs:
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -428,7 +428,7 @@ plugs:
 		Interface: "bool-file",
 		Label:     "Disk I/O indicator",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -532,7 +532,7 @@ slots:
 		Name:      "network-client",
 		Interface: "network-client",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -552,7 +552,7 @@ slots:
 		Name:      "net",
 		Interface: "network-client",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -573,7 +573,7 @@ slots:
 		Name:      "net",
 		Interface: "network-client",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -596,7 +596,7 @@ slots:
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -626,7 +626,7 @@ slots:
 			"m": map[string]interface{}{"a": "A"},
 		},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -652,7 +652,7 @@ slots:
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"attr": int64(2)},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -678,7 +678,7 @@ apps:
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -710,7 +710,7 @@ apps:
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -766,7 +766,7 @@ slots:
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -790,7 +790,7 @@ slots:
 		Interface: "bool-file",
 		Label:     "Front panel LED (red)",
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 }
 
@@ -821,7 +821,7 @@ hooks:
 		Interface: "test-slot",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1073,7 +1073,7 @@ hooks:
 		Interface: "test-plug",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1111,7 +1111,7 @@ hooks:
 		Interface: "test-plug",
 		Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Assert(withPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1157,7 +1157,7 @@ hooks:
 		Interface: "test-interface",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1197,7 +1197,7 @@ apps:
 		Apps:      map[string]*snap.AppInfo{},
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 
-		SnapGlobal: true,
+		TopLevel: true,
 	})
 	c.Assert(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
