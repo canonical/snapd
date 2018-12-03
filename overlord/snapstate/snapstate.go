@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -79,7 +80,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		if model == nil || model.Base() == "" {
 			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, "experimental.snapd-snap")
+			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, features.SnapdSnap)
 			if err != nil && !config.IsNoOption(err) {
 				return nil, err
 			}
@@ -471,27 +472,22 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func GetFeatureFlagBool(tr *config.Transaction, flag string, unset ...bool) (bool, error) {
-	if len(unset) == 0 {
-		unset = []bool{false}
-	}
-	if len(unset) > 1 {
-		return false, fmt.Errorf("please specify only a single unset value")
-	}
-
-	var v interface{} = unset[0]
-	if err := tr.GetMaybe("core", flag, &v); err != nil {
-		return unset[0], err
+func GetFeatureFlagBool(tr *config.Transaction, flag features.SnapdFeature) (bool, error) {
+	confName := "experimental." + flag.String()
+	unset := flag.IsEnabledByDefault()
+	var v interface{} = unset
+	if err := tr.GetMaybe("core", confName, &v); err != nil {
+		return unset, err
 	}
 	switch value := v.(type) {
 	case string:
 		if value == "" {
-			return unset[0], nil
+			return unset, nil
 		}
 	case bool:
 		return value, nil
 	}
-	return unset[0], fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
+	return unset, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", confName, v, v)
 }
 
 // validateFeatureFlags validates the given snap only uses experimental
@@ -500,7 +496,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := GetFeatureFlagBool(tr, "experimental.layouts", true)
+		flag, err := GetFeatureFlagBool(tr, features.Layouts)
 		if err != nil {
 			return err
 		}
@@ -510,7 +506,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := GetFeatureFlagBool(tr, "experimental.parallel-instances")
+		flag, err := GetFeatureFlagBool(tr, features.ParallelInstances)
 		if err != nil {
 			return err
 		}
