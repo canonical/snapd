@@ -81,7 +81,6 @@ backends:
                 manual: true
             - fedora-28-64:
                 workers: 4
-                manual: true
 
             - opensuse-42.3-64:
                 workers: 4
@@ -91,6 +90,10 @@ backends:
             - amazon-linux-2-64:
                 workers: 4
                 storage: preserve-size
+
+            - centos-7-64:
+                workers: 4
+                image: centos-7-64
 
     google-sru:
         type: google
@@ -510,7 +513,7 @@ prepare: |
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
-            amazon-*)
+            amazon-*|centos-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
@@ -546,8 +549,6 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
-    # XXX: something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
 
 suites:
     tests/main/:
@@ -642,7 +643,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -687,7 +688,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
