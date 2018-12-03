@@ -80,11 +80,11 @@ func (*featureSuite) TestIsEnabled(c *C) {
 }
 
 func (*featureSuite) TestIsEnabledByDefault(c *C) {
-	c.Check(features.Layouts.IsEnabledByDefault(), Equals, true)
-	c.Check(features.ParallelInstances.IsEnabledByDefault(), Equals, false)
-	c.Check(features.Hotplug.IsEnabledByDefault(), Equals, false)
-	c.Check(features.SnapdSnap.IsEnabledByDefault(), Equals, false)
-	c.Check(features.PerUserMountNamespace.IsEnabledByDefault(), Equals, false)
+	c.Check(features.Layouts.IsEnabledWhenUnset(), Equals, true)
+	c.Check(features.ParallelInstances.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.Hotplug.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.SnapdSnap.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.PerUserMountNamespace.IsEnabledWhenUnset(), Equals, false)
 }
 
 func (*featureSuite) TestControlFile(c *C) {
