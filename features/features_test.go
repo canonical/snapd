@@ -52,6 +52,14 @@ func (*featureSuite) TestKnownFeatures(c *C) {
 	}
 }
 
+func (*featureSuite) TestIsExported(c *C) {
+	c.Check(features.Layouts.IsExported(), Equals, false)
+	c.Check(features.ParallelInstances.IsExported(), Equals, false)
+	c.Check(features.Hotplug.IsExported(), Equals, false)
+	c.Check(features.SnapdSnap.IsExported(), Equals, false)
+	c.Check(features.PerUserMountNamespace.IsExported(), Equals, true)
+}
+
 func (*featureSuite) TestIsEnabled(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")

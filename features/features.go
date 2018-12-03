@@ -79,6 +79,19 @@ func (f SnapdFeature) IsEnabledByDefault() bool {
 	return false
 }
 
+// IsExported returns true if a feature is copied from snapd state to a feature file.
+//
+// Certain features are available outside of snapd internal state and visible as control
+// files in a dedicated directory. Such features can be queried for, via IsEnabled, outside
+// of snapd.
+func (f SnapdFeature) IsExported() bool {
+	switch f {
+	case PerUserMountNamespace:
+		return true
+	}
+	return false
+}
+
 // ControlFile returns the path of the file controlling the exported feature.
 //
 // Snapd considers the feature enabled if the file is present.
