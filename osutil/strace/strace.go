@@ -1,0 +1,93 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2018 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package strace
+
+import (
+	"fmt"
+	"os/exec"
+	"os/user"
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+)
+
+// These syscalls are excluded because they make strace hang on all or
+// some architectures (gettimeofday on arm64).
+var excludedSyscalls = "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep"
+
+// Command returns how to run strace in the users context with the
+// right set of excluded system calls.
+func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
+	current, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+	sudoPath, err := exec.LookPath("sudo")
+	if err != nil {
+		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
+	}
+
+	// Try strace from the snap first, we use new syscalls like
+	// "_newselect" that are known to not work with the strace of e.g.
+	// ubuntu 14.04.
+	//
+	// TODO: some architectures do not have some syscalls (e.g.
+	// s390x does not have _newselect). In
+	// https://github.com/strace/strace/issues/57 options are
+	// discussed.  We could use "-e trace=?syscall" but that is
+	// only available since strace 4.17 which is not even in
+	// ubutnu 17.10.
+	var stracePath string
+	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
+	if osutil.FileExists(cand) {
+		stracePath = cand
+	}
+	if stracePath == "" {
+		stracePath, err = exec.LookPath("strace")
+		if err != nil {
+			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
+		}
+	}
+
+	args := []string{
+		sudoPath,
+		"-E",
+		stracePath,
+		"-u", current.Username,
+		"-f",
+		"-e", excludedSyscalls,
+	}
+	args = append(args, extraStraceOpts...)
+	args = append(args, traceeCmd...)
+
+	return &exec.Cmd{
+		Path: sudoPath,
+		Args: args,
+	}, nil
+}
+
+// TraceExecCommand returns an exec.Cmd suitable for tracking timings of
+// execve{,at}() calls
+func TraceExecCommand(straceLogPath string, origCmd ...string) (*exec.Cmd, error) {
+	extraStraceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLogPath)}
+
+	return Command(extraStraceOpts, origCmd...)
+}
