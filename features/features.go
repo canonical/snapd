@@ -66,7 +66,20 @@ func (f SnapdFeature) String() string {
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
 }
 
-// ControlFile returns the path of the file controlling the feature.
+// IsEnabledByDefault returns true if a feature is enabled by default.
+//
+// A feature may be enabled or disabled with explicit state in snapd. If
+// explicit state is absent the effective value is the implicit default
+// computed by this function.
+func (f SnapdFeature) IsEnabledByDefault() bool {
+	switch f {
+	case Layouts:
+		return true
+	}
+	return false
+}
+
+// ControlFile returns the path of the file controlling the exported feature.
 //
 // Snapd considers the feature enabled if the file is present.
 // The contents of the file are not important.
