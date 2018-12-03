@@ -54,6 +54,9 @@ func handleExperimentalFlags(tr Conf) error {
 	features := features.KnownFeatures()
 	content := make(map[string]*osutil.FileState, len(features))
 	for _, feature := range features {
+		if !feature.IsExported() {
+			continue
+		}
 		value, err := coreCfg(tr, "experimental."+feature.String())
 		if err != nil {
 			return err
