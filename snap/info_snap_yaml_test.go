@@ -125,9 +125,10 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "network-client",
-		Interface:  "network-client",
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+
 		SnapGlobal: true,
 	})
 }
@@ -144,9 +145,10 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+
 		SnapGlobal: true,
 	})
 }
@@ -164,9 +166,10 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+
 		SnapGlobal: true,
 	})
 }
@@ -185,10 +188,11 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
-		Attrs:      map[string]interface{}{"ipv6-aware": true},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
+
 		SnapGlobal: true,
 	})
 }
@@ -219,6 +223,7 @@ plugs:
 			"l": []interface{}{int64(1), int64(2), int64(3)},
 			"m": map[string]interface{}{"a": "A", "b": "B"},
 		},
+
 		SnapGlobal: true,
 	})
 }
@@ -240,10 +245,11 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
-		Attrs:      map[string]interface{}{"attr": int64(2)},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"attr": int64(2)},
+
 		SnapGlobal: true,
 	})
 }
@@ -266,10 +272,11 @@ apps:
 	plug := info.Plugs["network-client"]
 	app := info.Apps["app"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "network-client",
-		Interface:  "network-client",
-		Apps:       map[string]*snap.AppInfo{app.Name: app},
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{app.Name: app},
+
 		SnapGlobal: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
@@ -300,10 +307,11 @@ apps:
 	withPlugApp := info.Apps["with-plug"]
 	withoutPlugApp := info.Apps["without-plug"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "network-client",
-		Interface:  "network-client",
-		Apps:       map[string]*snap.AppInfo{withPlugApp.Name: withPlugApp},
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{withPlugApp.Name: withPlugApp},
+
 		SnapGlobal: true,
 	})
 	c.Assert(withPlugApp, DeepEquals, &snap.AppInfo{
@@ -336,10 +344,11 @@ apps:
 	plug := info.Plugs["net"]
 	app := info.Apps["app"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
-		Apps:       map[string]*snap.AppInfo{app.Name: app},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{app.Name: app},
+
 		SnapGlobal: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
@@ -391,10 +400,11 @@ plugs:
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "network-client",
-		Interface:  "network-client",
-		Attrs:      map[string]interface{}{"ipv6-aware": true},
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
+
 		SnapGlobal: true,
 	})
 }
@@ -413,10 +423,11 @@ plugs:
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Plugs["bool-file"], DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "bool-file",
-		Interface:  "bool-file",
-		Label:      "Disk I/O indicator",
+		Snap:      info,
+		Name:      "bool-file",
+		Interface: "bool-file",
+		Label:     "Disk I/O indicator",
+
 		SnapGlobal: true,
 	})
 }
@@ -517,9 +528,10 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["network-client"], DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "network-client",
-		Interface:  "network-client",
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+
 		SnapGlobal: true,
 	})
 }
@@ -536,9 +548,10 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+
 		SnapGlobal: true,
 	})
 }
@@ -556,9 +569,10 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+
 		SnapGlobal: true,
 	})
 }
@@ -577,10 +591,11 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
-		Attrs:      map[string]interface{}{"ipv6-aware": true},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
+
 		SnapGlobal: true,
 	})
 }
@@ -610,6 +625,7 @@ slots:
 			"l": []interface{}{int64(1), int64(2)},
 			"m": map[string]interface{}{"a": "A"},
 		},
+
 		SnapGlobal: true,
 	})
 }
@@ -631,10 +647,11 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
-		Attrs:      map[string]interface{}{"attr": int64(2)},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"attr": int64(2)},
+
 		SnapGlobal: true,
 	})
 }
@@ -656,10 +673,11 @@ apps:
 	slot := info.Slots["network-client"]
 	app := info.Apps["app"]
 	c.Assert(slot, DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "network-client",
-		Interface:  "network-client",
-		Apps:       map[string]*snap.AppInfo{app.Name: app},
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{app.Name: app},
+
 		SnapGlobal: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
@@ -687,10 +705,11 @@ apps:
 	slot := info.Slots["net"]
 	app := info.Apps["app"]
 	c.Assert(slot, DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "net",
-		Interface:  "network-client",
-		Apps:       map[string]*snap.AppInfo{app.Name: app},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{app.Name: app},
+
 		SnapGlobal: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
@@ -742,10 +761,11 @@ slots:
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Slots["network-client"], DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "network-client",
-		Interface:  "network-client",
-		Attrs:      map[string]interface{}{"ipv6-aware": true},
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
+
 		SnapGlobal: true,
 	})
 }
@@ -765,10 +785,11 @@ slots:
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Slots["led0"], DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "led0",
-		Interface:  "bool-file",
-		Label:      "Front panel LED (red)",
+		Snap:      info,
+		Name:      "led0",
+		Interface: "bool-file",
+		Label:     "Front panel LED (red)",
+
 		SnapGlobal: true,
 	})
 }
@@ -795,16 +816,18 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(slot, DeepEquals, &snap.SlotInfo{
-		Snap:       info,
-		Name:       "test-slot",
-		Interface:  "test-slot",
-		Hooks:      map[string]*snap.HookInfo{hook.Name: hook},
+		Snap:      info,
+		Name:      "test-slot",
+		Interface: "test-slot",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+
 		SnapGlobal: true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Slots:    map[string]*snap.SlotInfo{slot.Name: slot},
+		Snap:  info,
+		Name:  "test-hook",
+		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
 		Explicit: true,
 	})
 }
@@ -836,9 +859,10 @@ hooks:
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Slots:    map[string]*snap.SlotInfo{slot.Name: slot},
+		Snap:  info,
+		Name:  "test-hook",
+		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
 		Explicit: true,
 	})
 }
@@ -929,9 +953,10 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Plugs:    nil,
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: nil,
+
 		Explicit: true,
 	})
 }
@@ -978,9 +1003,10 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Plugs:    nil,
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: nil,
+
 		Explicit: true,
 	})
 }
@@ -1012,9 +1038,10 @@ hooks:
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Plugs:    map[string]*snap.PlugInfo{plug.Name: plug},
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
 		Explicit: true,
 	})
 }
@@ -1041,16 +1068,18 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(plug, DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "test-plug",
-		Interface:  "test-plug",
-		Hooks:      map[string]*snap.HookInfo{hook.Name: hook},
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-plug",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+
 		SnapGlobal: true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Plugs:    map[string]*snap.PlugInfo{plug.Name: plug},
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
 		Explicit: true,
 	})
 }
@@ -1077,22 +1106,25 @@ hooks:
 	withPlugHook := info.Hooks["with-plug"]
 	withoutPlugHook := info.Hooks["without-plug"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "test-plug",
-		Interface:  "test-plug",
-		Hooks:      map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-plug",
+		Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
+
 		SnapGlobal: true,
 	})
 	c.Assert(withPlugHook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "with-plug",
-		Plugs:    map[string]*snap.PlugInfo{plug.Name: plug},
+		Snap:  info,
+		Name:  "with-plug",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
 		Explicit: true,
 	})
 	c.Assert(withoutPlugHook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "without-plug",
-		Plugs:    map[string]*snap.PlugInfo{},
+		Snap:  info,
+		Name:  "without-plug",
+		Plugs: map[string]*snap.PlugInfo{},
+
 		Explicit: true,
 	})
 }
@@ -1120,16 +1152,18 @@ hooks:
 	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
 
 	c.Check(plug, DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "test-plug",
-		Interface:  "test-interface",
-		Hooks:      map[string]*snap.HookInfo{hook.Name: hook},
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-interface",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+
 		SnapGlobal: true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Plugs:    map[string]*snap.PlugInfo{plug.Name: plug},
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
 		Explicit: true,
 	})
 }
@@ -1157,17 +1191,19 @@ apps:
 	hook := info.Hooks["test-hook"]
 	app := info.Apps["test-app"]
 	c.Assert(plug, DeepEquals, &snap.PlugInfo{
-		Snap:       info,
-		Name:       "test-plug",
-		Interface:  "test-plug",
-		Apps:       map[string]*snap.AppInfo{},
-		Hooks:      map[string]*snap.HookInfo{hook.Name: hook},
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-plug",
+		Apps:      map[string]*snap.AppInfo{},
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+
 		SnapGlobal: true,
 	})
 	c.Assert(hook, DeepEquals, &snap.HookInfo{
-		Snap:     info,
-		Name:     "test-hook",
-		Plugs:    map[string]*snap.PlugInfo{plug.Name: plug},
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
 		Explicit: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{

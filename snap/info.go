@@ -541,12 +541,13 @@ var _ PlaceInfo = (*Info)(nil)
 type PlugInfo struct {
 	Snap *Info
 
-	Name       string
-	Interface  string
-	Attrs      map[string]interface{}
-	Label      string
-	Apps       map[string]*AppInfo
-	Hooks      map[string]*HookInfo
+	Name      string
+	Interface string
+	Attrs     map[string]interface{}
+	Label     string
+	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
+
 	SnapGlobal bool
 }
 
@@ -647,12 +648,13 @@ func (slot *SlotInfo) String() string {
 type SlotInfo struct {
 	Snap *Info
 
-	Name       string
-	Interface  string
-	Attrs      map[string]interface{}
-	Label      string
-	Apps       map[string]*AppInfo
-	Hooks      map[string]*HookInfo
+	Name      string
+	Interface string
+	Attrs     map[string]interface{}
+	Label     string
+	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
+
 	SnapGlobal bool
 
 	// HotplugKey is a unique key built by the slot's interface
@@ -802,7 +804,8 @@ type HookInfo struct {
 
 	Environment  strutil.OrderedMap
 	CommandChain []string
-	Explicit     bool
+
+	Explicit bool
 }
 
 // File returns the path to the *.socket file
