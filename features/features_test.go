@@ -68,6 +68,14 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	c.Check(f.IsEnabled(), Equals, true)
 }
 
+func (*featureSuite) TestIsEnabledByDefault(c *C) {
+	c.Check(features.Layouts.IsEnabledByDefault(), Equals, true)
+	c.Check(features.ParallelInstances.IsEnabledByDefault(), Equals, false)
+	c.Check(features.Hotplug.IsEnabledByDefault(), Equals, false)
+	c.Check(features.SnapdSnap.IsEnabledByDefault(), Equals, false)
+	c.Check(features.PerUserMountNamespace.IsEnabledByDefault(), Equals, false)
+}
+
 func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.Layouts.ControlFile(), Equals, "/var/lib/snapd/features/layouts")
 }
