@@ -74,6 +74,9 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	err = ioutil.WriteFile(filepath.Join(dirs.FeaturesDir, f.String()), nil, 0644)
 	c.Assert(err, IsNil)
 	c.Check(f.IsEnabled(), Equals, true)
+
+	// Features that are not exported cannot be queried.
+	c.Check(features.Layouts.IsEnabled, PanicMatches, `cannot check if feature "layouts" is enabled because that feature is not exported`)
 }
 
 func (*featureSuite) TestIsEnabledByDefault(c *C) {
@@ -85,5 +88,7 @@ func (*featureSuite) TestIsEnabledByDefault(c *C) {
 }
 
 func (*featureSuite) TestControlFile(c *C) {
-	c.Check(features.Layouts.ControlFile(), Equals, "/var/lib/snapd/features/layouts")
+	c.Check(features.PerUserMountNamespace.ControlFile(), Equals, "/var/lib/snapd/features/per-user-mount-namespace")
+	// Features that are not exported don't have a control file.
+	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }

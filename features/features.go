@@ -97,10 +97,16 @@ func (f SnapdFeature) IsExported() bool {
 // Snapd considers the feature enabled if the file is present.
 // The contents of the file are not important.
 func (f SnapdFeature) ControlFile() string {
+	if !f.IsExported() {
+		panic(fmt.Sprintf("cannot compute the control file of feature %q because that feature is not exported", f))
+	}
 	return filepath.Join(dirs.FeaturesDir, f.String())
 }
 
-// IsEnabled checks if a given snapd feature is enabled.
+// IsEnabled checks if a given exported snapd feature is enabled.
 func (f SnapdFeature) IsEnabled() bool {
+	if !f.IsExported() {
+		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
+	}
 	return osutil.FileExists(f.ControlFile())
 }
