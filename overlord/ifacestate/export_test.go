@@ -108,3 +108,17 @@ func GetConnStateAttrs(conns map[string]connState, connID string) (plugStatic, p
 	}
 	return conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, true
 }
+
+// MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
+func MockProfilesNeedRegeneration(fn func() bool) func() {
+	old := profilesNeedRegeneration
+	profilesNeedRegeneration = fn
+	return func() { profilesNeedRegeneration = old }
+}
+
+// MockWriteSystemKey mocks the function responsible for writing the system key.
+func MockWriteSystemKey(fn func() error) func() {
+	old := writeSystemKey
+	writeSystemKey = fn
+	return func() { writeSystemKey = old }
+}
