@@ -50,7 +50,7 @@ static int sc_open_snapd_tool(const char *tool_name);
  * anymore. The caller establishes an open file descriptor in one namespace and later on
  * performs the call in another mount namespace.
  *
- * The environment vector has special support for expanding he string "SNAPD_DEBUG=x".
+ * The environment vector has special support for expanding the string "SNAPD_DEBUG=x".
  * If such string is present, the "x" is replaced with either "0" or "1" depending on
  * the result of is_sc_debug_enabled().
  **/
