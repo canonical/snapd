@@ -98,7 +98,7 @@ func AppArmorSummary() string {
 	return appArmorSummary
 }
 
-// AppArmorFeatures returns a sorted list of apparmor features like
+// AppArmorKernelFeatures returns a sorted list of apparmor features like
 // []string{"dbus", "network"}. The result is cached internally.
 func AppArmorKernelFeatures() []string {
 	if appArmorKernelFeatures == nil {
