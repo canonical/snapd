@@ -566,6 +566,7 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 		die("cannot inspect preserved mount namespace file");
 	}
 #ifndef NSFS_MAGIC
+	/* Define NSFS_MAGIC for Ubuntu 14.04 and other older systems. */
 #define NSFS_MAGIC 0x6e736673
 #endif
 	if (ns_statfs_buf.f_type == NSFS_MAGIC
