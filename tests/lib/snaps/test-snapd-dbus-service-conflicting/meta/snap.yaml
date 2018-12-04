@@ -1,0 +1,18 @@
+name: test-snapd-dbus-service-conflicting
+version: 1.0
+summary: dbus service that conflicts with test-snapd-dbus-service
+description: ...
+slots:
+  test-snapd-dbus-service-slot:
+    interface: dbus
+    bus: session
+    service: true
+    name: io.snapcraft.SnapDbusService
+apps:
+  test-snapd-dbus-service:
+    command: bin/test-snapd-dbus-service
+    plugs:
+      - network
+      - network-bind
+    slots:
+      - test-snapd-dbus-service-slot
