@@ -135,7 +135,7 @@ func AppArmorParserMtime() int64 {
 	return mtime
 }
 
-// MockAppArmorSupportLevel makes the system believe it has certain
+// MockAppArmorLevel makes the system believe it has certain
 // level of apparmor support.
 func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 	oldAppArmorLevel := appArmorLevel
