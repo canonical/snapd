@@ -18,7 +18,7 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
-#include "apparmor-support.h"
+#include "../libsnap-confine-private/apparmor-support.h"
 
 /**
  * Return a file descriptor referencing the snap-update-ns utility
@@ -28,6 +28,15 @@
  * mounted at the expected location.
  **/
 int sc_open_snap_update_ns(void);
+
+/**
+ * Return a file descriptor referencing the snap-discard-ns utility
+ *
+ * By calling this prior to changing the mount namespace, it is
+ * possible to execute the utility even if a different version is now
+ * mounted at the expected location.
+ **/
+int sc_open_snap_discard_ns(void);
 
 /**
  * Assuming a new mountspace, populate it accordingly.
