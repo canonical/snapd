@@ -428,10 +428,16 @@ prepare_suite_each() {
     fi
     # Check if journalctl is ready to run the test
     check_journalctl_ready
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp"
+            ;;
+    esac
 }
 
 restore_suite_each() {
-    true
+    rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 }
 
 restore_suite() {
