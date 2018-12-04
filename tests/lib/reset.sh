@@ -70,13 +70,13 @@ reset_classic() {
         # Restore snapd state and start systemd service units
         restore_snapd_state
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        all_units="$(systemctl list-unit-files --full | cut -f1 -d ' ')"
+        all_units="$(systemctl list-unit-files --full --no-legend | cut -f1 -d ' ')"
         mounts=""
-        if echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.mount"; then
+        if echo "$all_units" | grep -q "^${escaped_snap_mount_dir}[-.].*\\.mount"; then
             mounts="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.mount")"
         fi
         services=""
-        if echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.service"; then
+        if echo "$all_units" | grep -q "^${escaped_snap_mount_dir}[-.].*\\.service"; then
             services="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.service")"
         fi
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
@@ -169,13 +169,11 @@ tear_down_store() {
 reset_snapd() {
     if is_core_system; then
         reset_all_snap "$@"
-        discard_ns
-        tear_down_store "$@"
     else
         reset_classic "$@"
-        discard_ns
-        tear_down_store "$@"
     fi    
+    discard_ns
+    tear_down_store "$@"
 }
 
 
