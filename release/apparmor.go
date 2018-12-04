@@ -194,6 +194,7 @@ var (
 )
 
 func assessAppArmor() {
+	// First, quickly check if apparmor is available in the kernel at all.
 	kernelFeatures := AppArmorKernelFeatures()
 
 	if len(kernelFeatures) == 0 {
@@ -202,6 +203,7 @@ func assessAppArmor() {
 		return
 	}
 
+	// Then check that the parser supports the required parser features.
 	parserFeatures := AppArmorParserFeatures()
 	var missingParserFeatures []string
 	for _, feature := range requiredAppArmorParserFeatures {
@@ -217,6 +219,7 @@ func assessAppArmor() {
 		return
 	}
 
+	// Lastly, check that the kernel supports the required kernel features.
 	var missingKernelFeatures []string
 	for _, feature := range requiredAppArmorKernelFeatures {
 		if !strutil.SortedListContains(kernelFeatures, feature) {
