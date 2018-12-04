@@ -472,24 +472,6 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func GetFeatureFlagBool(tr *config.Transaction, flag features.SnapdFeature) (bool, error) {
-	confName := "experimental." + flag.String()
-	unset := flag.IsEnabledWhenUnset()
-	var v interface{} = unset
-	if err := tr.GetMaybe("core", confName, &v); err != nil {
-		return unset, err
-	}
-	switch value := v.(type) {
-	case string:
-		if value == "" {
-			return unset, nil
-		}
-	case bool:
-		return value, nil
-	}
-	return unset, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", confName, v, v)
-}
-
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
