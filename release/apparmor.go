@@ -63,7 +63,7 @@ func (level AppArmorLevelType) String() string {
 	case FullAppArmor:
 		return "full"
 	}
-	return "???"
+	return fmt.Sprintf("AppArmorLevelType:%d", level)
 }
 
 var (
