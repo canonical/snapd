@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 func init() {
@@ -57,11 +58,11 @@ func handleExperimentalFlags(tr Conf) error {
 		if !feature.IsExported() {
 			continue
 		}
-		value, err := coreCfg(tr, "experimental."+feature.String())
+		isEnabled, err := config.GetFeatureFlag(tr, feature)
 		if err != nil {
 			return err
 		}
-		if value == "true" {
+		if isEnabled {
 			content[feature.String()] = &osutil.FileState{Mode: 0644}
 		}
 	}
