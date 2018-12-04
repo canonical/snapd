@@ -154,6 +154,7 @@ func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 	}
 }
 
+// MockAppArmorFeatures makes the system believe it has certain kernel and parser features.
 func MockAppArmorFeatures(kernelFeatures, parserFeatures []string) (restore func()) {
 	oldAppArmorKernelFeatures := appArmorKernelFeatures
 	oldAppArmorParserFeatures := appArmorParserFeatures
