@@ -68,7 +68,7 @@ func (level AppArmorLevelType) String() string {
 
 var (
 	// appArmorLevel contains the assessment of the "level" of apparmor support.
-	appArmorLevel AppArmorLevelType = UnknownAppArmor
+	appArmorLevel = UnknownAppArmor
 	// appArmorSummary contains a human readable description of the assessment.
 	appArmorSummary string
 	// appArmorKernelFeatures contains a list of kernel features that are supported.
