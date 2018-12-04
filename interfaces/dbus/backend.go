@@ -325,3 +325,18 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 func (b *Backend) SandboxFeatures() []string {
 	return []string{"mediated-bus-access"}
 }
+
+// BusNameOwner returns the snap that owns a particular bus name, or an empty string.
+func BusNameOwner(bus, name string) string {
+	var servicesDir string
+	switch bus {
+	case "session":
+		servicesDir = dirs.SnapDBusSessionServicesDir
+	case "system":
+		servicesDir = dirs.SnapDBusSystemServicesDir
+	default:
+		panic(bus)
+	}
+	serviceFile := filepath.Join(servicesDir, name+".service")
+	return snapNameFromServiceFile(serviceFile)
+}

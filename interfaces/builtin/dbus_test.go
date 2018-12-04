@@ -20,8 +20,13 @@
 package builtin_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -37,6 +42,8 @@ type DbusInterfaceSuite struct {
 	testutil.BaseTest
 	iface interfaces.Interface
 
+	RootDir string
+
 	snapInfo *snap.Info
 
 	sessionPlugInfo          *snap.PlugInfo
@@ -48,14 +55,18 @@ type DbusInterfaceSuite struct {
 	connectedSystemPlugInfo  *snap.PlugInfo
 	connectedSystemPlug      *interfaces.ConnectedPlug
 
-	sessionSlotInfo          *snap.SlotInfo
-	sessionSlot              *interfaces.ConnectedSlot
-	systemSlotInfo           *snap.SlotInfo
-	systemSlot               *interfaces.ConnectedSlot
-	connectedSessionSlotInfo *snap.SlotInfo
-	connectedSessionSlot     *interfaces.ConnectedSlot
-	connectedSystemSlotInfo  *snap.SlotInfo
-	connectedSystemSlot      *interfaces.ConnectedSlot
+	sessionSlotInfo            *snap.SlotInfo
+	sessionSlot                *interfaces.ConnectedSlot
+	systemSlotInfo             *snap.SlotInfo
+	systemSlot                 *interfaces.ConnectedSlot
+	connectedSessionSlotInfo   *snap.SlotInfo
+	connectedSessionSlot       *interfaces.ConnectedSlot
+	connectedSystemSlotInfo    *snap.SlotInfo
+	connectedSystemSlot        *interfaces.ConnectedSlot
+	activatableSessionSlotInfo *snap.SlotInfo
+	activatableSessionSlot     *interfaces.ConnectedSlot
+	activatableSystemSlotInfo  *snap.SlotInfo
+	activatableSystemSlot      *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&DbusInterfaceSuite{
@@ -83,6 +94,16 @@ slots:
     interface: dbus
     bus: session
     name: org.test-session-connected
+  test-system-activatable-slot:
+    interface: dbus
+    bus: system
+    name: org.test-system-activatable
+    activatable: true
+  test-session-activatable-slot:
+    interface: dbus
+    bus: session
+    name: org.test-session-activatable
+    activatable: true
 
 plugs:
   test-session-plug:
@@ -115,10 +136,19 @@ apps:
   test-system-consumer:
     plugs:
     - test-system-plug
+  test-session-activatable-provider:
+    slots:
+    - test-session-activatable-slot
+  test-system-activatable-provider:
+    slots:
+    - test-system-activatable-slot
 `, nil)
 }
 
 func (s *DbusInterfaceSuite) SetUpTest(c *C) {
+	s.RootDir = c.MkDir()
+	dirs.SetRootDir(s.RootDir)
+
 	s.sessionSlotInfo = s.snapInfo.Slots["test-session-slot"]
 	s.sessionSlot = interfaces.NewConnectedSlot(s.sessionSlotInfo, nil, nil)
 	s.systemSlotInfo = s.snapInfo.Slots["test-system-slot"]
@@ -127,6 +157,10 @@ func (s *DbusInterfaceSuite) SetUpTest(c *C) {
 	s.connectedSessionSlot = interfaces.NewConnectedSlot(s.connectedSessionSlotInfo, nil, nil)
 	s.connectedSystemSlotInfo = s.snapInfo.Slots["test-system-connected-slot"]
 	s.connectedSystemSlot = interfaces.NewConnectedSlot(s.connectedSystemSlotInfo, nil, nil)
+	s.activatableSessionSlotInfo = s.snapInfo.Slots["test-session-activatable-slot"]
+	s.activatableSessionSlot = interfaces.NewConnectedSlot(s.activatableSessionSlotInfo, nil, nil)
+	s.activatableSystemSlotInfo = s.snapInfo.Slots["test-system-activatable-slot"]
+	s.activatableSystemSlot = interfaces.NewConnectedSlot(s.activatableSessionSlotInfo, nil, nil)
 
 	s.sessionPlugInfo = s.snapInfo.Plugs["test-session-plug"]
 	s.sessionPlug = interfaces.NewConnectedPlug(s.sessionPlugInfo, nil, nil)
@@ -136,6 +170,10 @@ func (s *DbusInterfaceSuite) SetUpTest(c *C) {
 	s.connectedSessionPlug = interfaces.NewConnectedPlug(s.connectedSessionPlugInfo, nil, nil)
 	s.connectedSystemPlugInfo = s.snapInfo.Plugs["test-system-connected-plug"]
 	s.connectedSystemPlug = interfaces.NewConnectedPlug(s.connectedSystemPlugInfo, nil, nil)
+}
+
+func (s *DbusInterfaceSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (s *DbusInterfaceSuite) TestName(c *C) {
@@ -256,6 +294,129 @@ slots:
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
+func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableOk(c *C) {
+	var mockSnapYaml = `name: dbus-snap
+version: 1.0
+slots:
+  dbus-service-slot:
+    interface: dbus
+    bus: session
+    name: org.dbus-snap.session
+    activatable: true
+apps:
+  app-dbus-slot:
+    slots:
+    - dbus-service-slot
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["dbus-service-slot"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableDuplicate(c *C) {
+	var mockSnapYaml = `name: dbus-snap
+version: 1.0
+slots:
+  dbus-service-slot:
+    interface: dbus
+    bus: session
+    name: org.dbus-snap.session
+    activatable: true
+apps:
+  app-dbus-slot:
+    slots:
+    - dbus-service-slot
+  app-dbus-slot-duplicated:
+    slots:
+    - dbus-service-slot
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["dbus-service-slot"]
+	err := interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Assert(err, ErrorMatches, `cannot add activatable dbus service slot to multiple apps`)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableWrongBus(c *C) {
+	var mockSnapYaml = `name: dbus-snap
+version: 1.0
+slots:
+  dbus-service-slot:
+    interface: dbus
+    bus: session
+    name: org.dbus-snap.session
+    activatable: true
+apps:
+  system-service:
+    daemon: simple
+    slots:
+    - dbus-service-slot
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["dbus-service-slot"]
+	err := interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Assert(err, ErrorMatches, `system daemons can only attach to the system bus`)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableSessionConflict(c *C) {
+	var mockSnapYaml = `name: dbus-snap
+version: 1.0
+slots:
+  dbus-service-slot:
+    interface: dbus
+    bus: session
+    name: org.dbus-snap.session
+    activatable: true
+apps:
+  app-dbus-slot:
+    slots:
+    - dbus-service-slot
+`
+
+	err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapDBusSessionServicesDir, "org.dbus-snap.session.service"), []byte(`[D-BUS Service]
+Name=org.dbus-snap.session
+Exec=command
+X-Snap=other-snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["dbus-service-slot"]
+	err = interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Assert(err, ErrorMatches, `bus name "org.dbus-snap.session" is already owned by snap "other-snap"`)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableSystemConflict(c *C) {
+	var mockSnapYaml = `name: dbus-snap
+version: 1.0
+slots:
+  dbus-service-slot:
+    interface: dbus
+    bus: system
+    name: org.dbus-snap.system
+    activatable: true
+apps:
+  app-dbus-slot:
+    slots:
+    - dbus-service-slot
+`
+
+	err := os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapDBusSystemServicesDir, "org.dbus-snap.system.service"), []byte(`[D-BUS Service]
+Name=org.dbus-snap.system
+Exec=command
+X-Snap=other-snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["dbus-service-slot"]
+	err = interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Assert(err, ErrorMatches, `bus name "org.dbus-snap.system" is already owned by snap "other-snap"`)
+}
+
 func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {
 	var mockSnapYaml = `name: dbus-snap
 version: 1.0
@@ -365,6 +526,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
 	err := dbusSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
+	c.Assert(dbusSpec.SessionServices(), HasLen, 0)
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
@@ -375,6 +537,43 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
 	snippet := dbusSpec.SnippetForTag("snap.test-dbus.test-system-provider")
 	c.Check(snippet, testutil.Contains, "<policy user=\"root\">\n    <allow own=\"org.test-system-slot\"/>")
 	c.Check(snippet, testutil.Contains, "<policy context=\"default\">\n    <allow send_destination=\"org.test-system-slot\"/>")
+	c.Assert(dbusSpec.SystemServices(), HasLen, 0)
+}
+
+func (s *DbusInterfaceSuite) TestPermanentSlotDBusSessionActivatable(c *C) {
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddPermanentSlot(s.iface, s.activatableSessionSlotInfo)
+	c.Assert(err, IsNil)
+	c.Check(dbusSpec.SessionServices(), DeepEquals, map[string]*dbus.Service{
+		"org.test-session-activatable": {
+			SecurityTag: "snap.test-dbus.test-session-activatable-provider",
+			BusName:     "org.test-session-activatable",
+			Content: []byte(`[D-BUS Service]
+Name=org.test-session-activatable
+Comment=Bus name for snap application test-dbus.test-session-activatable-provider
+Exec=/usr/bin/snap run test-dbus.test-session-activatable-provider
+X-Snap=test-dbus
+`),
+		},
+	})
+}
+
+func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystemActivatable(c *C) {
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddPermanentSlot(s.iface, s.activatableSystemSlotInfo)
+	c.Assert(err, IsNil)
+	c.Check(dbusSpec.SystemServices(), DeepEquals, map[string]*dbus.Service{
+		"org.test-system-activatable": {
+			SecurityTag: "snap.test-dbus.test-system-activatable-provider",
+			BusName:     "org.test-system-activatable",
+			Content: []byte(`[D-BUS Service]
+Name=org.test-system-activatable
+Comment=Bus name for snap application test-dbus.test-system-activatable-provider
+Exec=/usr/bin/snap run test-dbus.test-system-activatable-provider
+X-Snap=test-dbus
+`),
+		},
+	})
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSystem(c *C) {
@@ -399,7 +598,7 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.connectedSessionPlug, s.connectedSessionSlot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-activatable-provider", "snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-activatable-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-provider")
 
 	// verify introspectable rule
@@ -419,7 +618,7 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.connectedSystemPlug, s.connectedSystemSlot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-activatable-provider", "snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-activatable-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-provider")
 
 	// verify introspectable rule
@@ -439,7 +638,7 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.connectedSessionPlug, s.connectedSessionSlot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-activatable-provider", "snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-activatable-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-consumer")
 
 	// verify introspectable rule
@@ -464,7 +663,7 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.connectedSystemPlug, s.connectedSystemSlot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-activatable-provider", "snap.test-dbus.test-session-consumer", "snap.test-dbus.test-session-provider", "snap.test-dbus.test-system-activatable-provider", "snap.test-dbus.test-system-consumer", "snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-consumer")
 
 	// verify introspectable rule
