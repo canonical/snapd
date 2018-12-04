@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -989,7 +990,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 			msg = fmt.Sprintf(i18n.G("Refresh snaps %s: no updates"), strutil.Quoted(inst.Snaps))
 		} else {
-			msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
+			msg = i18n.G("Refresh all snaps: no updates")
 		}
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
@@ -2552,7 +2553,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts store.BuyOptions
+	var opts client.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&opts)
@@ -2803,7 +2804,12 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+	clientAppInfos, err := cmd.ClientAppInfosFromSnapAppInfos(appInfos)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(clientAppInfos, nil)
 }
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {

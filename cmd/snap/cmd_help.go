@@ -99,7 +99,11 @@ func (w *manfixer) Write(buf []byte) (int, error) {
 	if !w.done {
 		w.done = true
 		if bytes.HasPrefix(buf, []byte(".TH snap 1 ")) {
-			buf[9] = '8'
+			// io.Writer.Write must not modify the buffer, even temporarily
+			n, _ := Stdout.Write(buf[:9])
+			Stdout.Write([]byte{'8'})
+			m, err := Stdout.Write(buf[10:])
+			return n + m + 1, err
 		}
 	}
 	return Stdout.Write(buf)
