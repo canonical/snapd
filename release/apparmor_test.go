@@ -44,6 +44,35 @@ func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 	c.Check(release.AppArmorLevelType(42).String(), Equals, "AppArmorLevelType:42")
 }
 
+func (*apparmorSuite) TestAppArmorLevelTriggersAssesment(c *C) {
+	// Pretend that we know the apparmor kernel and parser features.
+	restore := release.MockAppArmorFeatures([]string{"feature"}, []string{"feature"})
+	defer restore()
+	// Pretend that we don't know what the state of apparmor is.
+	release.ResetAppArmorAssesment()
+
+	// Calling AppArmorLevel assesses the kernel and parser features and sets
+	// the level to not-unknown value, returning it.
+	c.Check(release.CurrentAppArmorLevel(), Equals, release.UnknownAppArmor)
+	level := release.AppArmorLevel()
+	c.Check(level, Not(Equals), release.UnknownAppArmor)
+	c.Check(level, Equals, release.CurrentAppArmorLevel())
+}
+
+func (*apparmorSuite) TestAppArmorSummaryTriggersAssesment(c *C) {
+	// Pretend that we know the apparmor kernel and parser features.
+	restore := release.MockAppArmorFeatures([]string{"feature"}, []string{"feature"})
+	defer restore()
+	// Pretend that we don't know what the state of apparmor is.
+	release.ResetAppArmorAssesment()
+
+	// Calling AppArmorSummary assesses the kernel and parser features and sets
+	// the level to something other than unknown.
+	c.Check(release.CurrentAppArmorLevel(), Equals, release.UnknownAppArmor)
+	release.AppArmorSummary()
+	c.Check(release.CurrentAppArmorLevel(), Not(Equals), release.UnknownAppArmor)
+}
+
 func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
 	for _, lvl := range []release.AppArmorLevelType{release.NoAppArmor, release.UnusableAppArmor, release.PartialAppArmor, release.FullAppArmor} {
 		restore := release.MockAppArmorLevel(lvl)
