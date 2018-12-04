@@ -210,7 +210,7 @@ func assessAppArmor() {
 		}
 	}
 	if len(missingParserFeatures) > 0 {
-		// If we have no parser features then apparmor is not usable.
+		// If we have any missing required features then apparmor is unusable.
 		appArmorLevel = UnusableAppArmor
 		appArmorSummary = fmt.Sprintf("apparmor_parser lacks essential features: %s",
 			strings.Join(missingParserFeatures, ", "))
