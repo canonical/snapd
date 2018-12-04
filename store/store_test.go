@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -2322,7 +2323,7 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 /* acquired via looking at the query snapd does for "snap find 'hello-world of snaps' --narrow" (on core) and adding size=1:
 curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64" 'https://api.snapcraft.io/api/v1/snaps/search?confinement=strict&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Clicense%2Cbase%2Cmedia%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cdeveloper_name%2Cdeveloper_validation%2Cprivate%2Cconfinement%2Ccommon_ids&q=hello-world+of+snaps&size=1' | python -m json.tool | xsel -b
 
-And then add base and prices, and remove the _links dict
+And then add base and prices, increase title's length, and remove the _links dict
 */
 const MockSearchJSON = `{
     "_embedded": {
@@ -2367,7 +2368,7 @@ const MockSearchJSON = `{
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "summary": "The 'hello-world' of snaps",
                 "support_url": "",
-                "title": "Hello World",
+                "title": "This Is The Most Fantastical Snap of Hello World",
                 "version": "6.3"
             }
         ]
@@ -2691,7 +2692,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 	c.Check(snp.Channel, Equals, "stable")
 	c.Check(snp.Description(), Equals, "This is a simple hello world example.")
 	c.Check(snp.Summary(), Equals, "The 'hello-world' of snaps")
-	c.Check(snp.Title(), Equals, "Hello World")
+	c.Check(snp.Title(), Equals, "This Is The Most Fantastical Snap of He…")
 	c.Check(snp.License, Equals, "MIT")
 	// this is more a "we know this isn't there" than an actual test for a wanted feature
 	// NOTE snap.Epoch{} (which prints as "0", and is thus Unset) is not a valid Epoch.
@@ -3548,7 +3549,7 @@ var buyTests = []struct {
 	snapID            string
 	price             float64
 	currency          string
-	expectedResult    *store.BuyResult
+	expectedResult    *client.BuyResult
 	expectedError     string
 }{
 	{
@@ -3556,7 +3557,7 @@ var buyTests = []struct {
 		suggestedCurrency: "EUR",
 		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"0.99","currency":"EUR"}`,
 		buyResponse:       mockOrderResponseJSON,
-		expectedResult:    &store.BuyResult{State: "Complete"},
+		expectedResult:    &client.BuyResult{State: "Complete"},
 	},
 	{
 		// failure due to invalid price
@@ -3633,7 +3634,7 @@ func (s *storeTestSuite) TestBuy500(c *C) {
 	}
 	sto := store.New(&cfg, authContext)
 
-	buyOptions := &store.BuyOptions{
+	buyOptions := &client.BuyOptions{
 		SnapID:   helloWorldSnapID,
 		Currency: "USD",
 		Price:    1,
@@ -3713,7 +3714,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 		c.Assert(snap, NotNil)
 		c.Assert(err, IsNil)
 
-		buyOptions := &store.BuyOptions{
+		buyOptions := &client.BuyOptions{
 			SnapID:   snap.SnapID,
 			Currency: sto.SuggestedCurrency(),
 			Price:    snap.Prices[sto.SuggestedCurrency()],
@@ -3747,7 +3748,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	sto := store.New(&store.Config{}, nil)
 
 	// no snap ID
-	result, err := sto.Buy(&store.BuyOptions{
+	result, err := sto.Buy(&client.BuyOptions{
 		Price:    1.0,
 		Currency: "USD",
 	}, s.user)
@@ -3756,7 +3757,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: snap ID missing")
 
 	// no price
-	result, err = sto.Buy(&store.BuyOptions{
+	result, err = sto.Buy(&client.BuyOptions{
 		SnapID:   "snap ID",
 		Currency: "USD",
 	}, s.user)
@@ -3765,7 +3766,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: invalid expected price")
 
 	// no currency
-	result, err = sto.Buy(&store.BuyOptions{
+	result, err = sto.Buy(&client.BuyOptions{
 		SnapID: "snap ID",
 		Price:  1.0,
 	}, s.user)
@@ -3774,7 +3775,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: currency missing")
 
 	// no user
-	result, err = sto.Buy(&store.BuyOptions{
+	result, err = sto.Buy(&client.BuyOptions{
 		SnapID:   "snap ID",
 		Price:    1.0,
 		Currency: "USD",

@@ -95,7 +95,7 @@
 %endif
 
 Name:           snapd
-Version:        2.36.1
+Version:        2.36.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -597,7 +597,7 @@ popd
 %if 0%{?rhel} == 7
 # Install kernel tweaks
 # See: https://access.redhat.com/articles/3128691
-install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysconfdir}/sysctl.d/99-snap.conf
+install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysctldir}/99-snap.conf
 %endif
 
 # Remove snappy core specific units
@@ -735,7 +735,7 @@ popd
 /snap
 %endif
 %if 0%{?rhel} == 7
-%{_sysconfdir}/sysctl.d/99-snap.conf
+%{_sysctldir}/99-snap.conf
 %endif
 
 %files -n snap-confine
@@ -823,7 +823,23 @@ fi
 %endif
 
 %changelog
-* Wed Nov 09 2018 Michael Vogt <mvo@ubuntu.com>
+* Thu Nov 29 2018 Michael Vogt <mvo@ubuntu.com>
+ - daemon, vendor: bump github.com/coreos/go-systemd/activation,
+   handle API changes
+ - snapstate: update fontconfig caches on install
+ - overlord,daemon: mock security backends for testing
+ - sanity, spread, tests: add CentOS
+ - Revert "cmd/snap, tests/main/snap-info: highlight the current
+   channel"
+ - cmd/snap: add nanosleep to blacklisted syscalls when running with
+   --strace
+ - tests: add regression test for LP: #1803535
+ - snap-update-ns: fix trailing slash bug on trespassing error
+ - interfaces/builtin/opengl: allow reading /etc/OpenCL/vendors
+ - cmd/snap-confine: nvidia: pick up libnvidia-opencl.so
+ - interfaces/opengl: add additional accesses for cuda
+
+* Fri Nov 09 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.36.1
  - tests,snap-confine: add core18 only hooks test and fix running
    core18 only hooks on classic

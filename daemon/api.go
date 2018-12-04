@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -989,7 +990,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 			msg = fmt.Sprintf(i18n.G("Refresh snaps %s: no updates"), strutil.Quoted(inst.Snaps))
 		} else {
-			msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
+			msg = i18n.G("Refresh all snaps: no updates")
 		}
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
@@ -1845,8 +1846,6 @@ func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 
 // changeInterfaces controls the interfaces system.
 // Plugs can be connected to and disconnected from slots.
-// When enableInternalInterfaceActions is true plugs and slots can also be
-// explicitly added and removed.
 func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
@@ -1855,9 +1854,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 	if a.Action == "" {
 		return BadRequest("interface action not specified")
-	}
-	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
-		return BadRequest("internal interface actions are disabled")
 	}
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
@@ -2557,7 +2553,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts store.BuyOptions
+	var opts client.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&opts)
@@ -2808,7 +2804,12 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+	clientAppInfos, err := cmd.ClientAppInfosFromSnapAppInfos(appInfos)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(clientAppInfos, nil)
 }
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {

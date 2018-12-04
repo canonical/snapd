@@ -61,6 +61,15 @@ reset_classic() {
         exit 1
     fi
 
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # On systems running SELinux we need to restore the context of the
+            # directories we just recreated. Otherwise, the entries created
+            # inside will be incorrectly labeled.
+            restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
+            ;;
+    esac
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
     fi
@@ -142,6 +151,17 @@ if is_core_system; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
+fi
+
+# Discard all mount namespaces and active mount profiles.
+# This is duplicating logic in snap-discard-ns but it doesn't
+# support --all switch yet so we cannot use it.
+if [ -d /run/snapd/ns ]; then
+    for mnt in /run/snapd/ns/*.mnt; do
+        umount -l "$mnt" || true
+        rm -f "$mnt"
+    done
+    rm -f /run/snapd/ns/*.fstab
 fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
