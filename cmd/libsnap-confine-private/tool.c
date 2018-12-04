@@ -159,15 +159,6 @@ static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name,
 				*env = entry;
 			}
 		}
-		/* As the child ensure that the file descriptor remains open across exec. */
-		int flags = fcntl(tool_fd, F_GETFD);
-		if (flags < 0) {
-			die("cannot get file descriptor flags");
-		}
-		flags &= ~FD_CLOEXEC;
-		if (fcntl(tool_fd, F_SETFD, flags) < 0) {
-			die("cannot set file descriptor flags");
-		}
 		/* Switch apparmor profile for the process after exec. */
 		if (apparmor != NULL && aa_profile != NULL) {
 			sc_maybe_aa_change_onexec(apparmor, aa_profile);
