@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -280,4 +281,25 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 		st.Set("config", config)
 	}
 	return nil
+}
+
+func featureKey(flag features.SnapdFeature) string {
+	return "experimental." + flag.String()
+}
+
+// GetFeatureFlag returns the value of a given feature flag.
+func GetFeatureFlag(tr Conf, flag features.SnapdFeature) (bool, error) {
+	var isEnabled interface{}
+	if err := tr.Get("core", featureKey(flag), &isEnabled); err != nil && !IsNoOption(err) {
+		return false, err
+	}
+	switch isEnabled {
+	case true, "true":
+		return true, nil
+	case false, "false":
+		return false, nil
+	case nil, "":
+		return flag.IsEnabledWhenUnset(), nil
+	}
+	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", flag, isEnabled)
 }
