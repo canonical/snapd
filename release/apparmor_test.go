@@ -130,6 +130,12 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	c.Assert(os.Mkdir(filepath.Join(d, "foo"), 0755), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d, "bar"), 0755), IsNil)
 	c.Check(release.ProbeAppArmorKernelFeatures(), DeepEquals, []string{"bar", "foo"})
+
+	// Pretend that apparmor kernel features directory doesn't exist.
+	restore = release.MockAppArmorFeaturesSysPath(filepath.Join(d, "non-existent"))
+	defer restore()
+	c.Check(release.ProbeAppArmorKernelFeatures(), DeepEquals, []string{})
+
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
