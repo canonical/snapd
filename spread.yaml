@@ -78,10 +78,9 @@ backends:
 
             - fedora-28-64:
                 workers: 4
-                manual: true
             - fedora-29-64:
                 workers: 4
-
+                manual: true
             - opensuse-42.3-64:
                 workers: 4
             - arch-linux-64:
@@ -549,8 +548,6 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
-    # XXX: something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
 
 suites:
     tests/main/:
