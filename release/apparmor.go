@@ -169,11 +169,15 @@ func MockAppArmorFeatures(kernelFeatures, parserFeatures []string) (restore func
 	oldAppArmorParserFeatures := appArmorParserFeatures
 	appArmorKernelFeatures = kernelFeatures
 	appArmorParserFeatures = parserFeatures
-	assessAppArmor()
+	if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
+		assessAppArmor()
+	}
 	return func() {
 		appArmorKernelFeatures = oldAppArmorKernelFeatures
 		appArmorParserFeatures = oldAppArmorParserFeatures
-		assessAppArmor()
+		if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
+			assessAppArmor()
+		}
 	}
 }
 
