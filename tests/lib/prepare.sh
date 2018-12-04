@@ -141,7 +141,7 @@ update_core_snap_for_classic_reexec() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
-            # on these systems just unpacking core snap to $HOME will
+            # On these systems just unpacking core snap to $HOME will
             # automatically apply user_home_t label on all the contents of the
             # snap; since we cannot drop xattrs when calling mksquashfs, make
             # sure that we relabel the contents in way that a squashfs image
