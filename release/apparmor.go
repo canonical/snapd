@@ -188,7 +188,7 @@ var (
 	// Since AppArmorParserMtime() will be called by generateKey() in
 	// system-key and that could be called by different users on the
 	// system, use a predictable search path for finding the parser.
-	appArmorParserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin"
+	appArmorParserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 	// Each apparmor feature is manifested as a directory entry.
 	appArmorFeaturesSysPath = "/sys/kernel/security/apparmor/features"
 )
