@@ -156,6 +156,12 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, "profile snap-test {\n change_profile unsafe /**,\n}")
 	}
+
+	// Pretend that we just don't have apparmor_parser at all.
+	restore := release.MockAppArmorParserSearchPath(c.MkDir())
+	defer restore()
+	features := release.ProbeAppArmorParserFeatures()
+	c.Check(features, DeepEquals, []string{})
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
