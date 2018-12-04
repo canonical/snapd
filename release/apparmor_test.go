@@ -35,6 +35,15 @@ type apparmorSuite struct{}
 
 var _ = Suite(&apparmorSuite{})
 
+func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
+	c.Check(release.UnknownAppArmor.String(), Equals, "unknown")
+	c.Check(release.NoAppArmor.String(), Equals, "none")
+	c.Check(release.UnusableAppArmor.String(), Equals, "unusable")
+	c.Check(release.PartialAppArmor.String(), Equals, "partial")
+	c.Check(release.FullAppArmor.String(), Equals, "full")
+	c.Check(release.AppArmorLevelType(42).String(), Equals, "AppArmorLevelType:42")
+}
+
 func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
 	for _, lvl := range []release.AppArmorLevelType{release.NoAppArmor, release.UnusableAppArmor, release.PartialAppArmor, release.FullAppArmor} {
 		restore := release.MockAppArmorLevel(lvl)
