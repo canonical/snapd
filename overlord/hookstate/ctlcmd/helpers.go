@@ -46,6 +46,10 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	if err != nil {
 		return nil, err
 	}
+	if len(serviceNames) == 0 {
+		// all services
+		return info.Services(), nil
+	}
 
 	var svcs []*snap.AppInfo
 	for _, svcName := range serviceNames {
