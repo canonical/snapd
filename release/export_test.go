@@ -58,6 +58,20 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
+// CurrentAppArmorLevel returns the internal cached apparmor level.
+func CurrentAppArmorLevel() AppArmorLevelType {
+	return appArmorLevel
+}
+
+// ResetAppArmorAssesment resets the internal apparmor level and summary.
+//
+// Both appArmorLevel and appArmorSummary are assigned with zero values
+// that trigger probing and assessment on the next access via the public APIs.
+func ResetAppArmorAssesment() {
+	appArmorLevel = UnknownAppArmor
+	appArmorSummary = ""
+}
+
 var (
 	ProbeAppArmorKernelFeatures = probeAppArmorKernelFeatures
 	ProbeAppArmorParserFeatures = probeAppArmorParserFeatures
