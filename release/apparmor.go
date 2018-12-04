@@ -135,8 +135,12 @@ func AppArmorParserMtime() int64 {
 	return mtime
 }
 
-// MockAppArmorLevel makes the system believe it has certain
-// level of apparmor support.
+// MockAppArmorLevel makes the system believe it has certain level of apparmor
+// support.
+//
+// AppArmor kernel and parser features are set to unrealistic values that do
+// not match the requested level. Use this function to observe behavior that
+// relies solely on the apparmor level value.
 func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 	oldAppArmorLevel := appArmorLevel
 	oldAppArmorSummary := appArmorSummary
@@ -154,7 +158,12 @@ func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 	}
 }
 
-// MockAppArmorFeatures makes the system believe it has certain kernel and parser features.
+// MockAppArmorFeatures makes the system believe it has certain kernel and
+// parser features.
+//
+// AppArmor level and summary are automatically re-assessed on both the change
+// and the restore process. Use this function to observe real assessment of
+// arbitrary features.
 func MockAppArmorFeatures(kernelFeatures, parserFeatures []string) (restore func()) {
 	oldAppArmorKernelFeatures := appArmorKernelFeatures
 	oldAppArmorParserFeatures := appArmorParserFeatures
