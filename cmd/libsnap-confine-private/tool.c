@@ -159,7 +159,7 @@ static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name,
 				*env = entry;
 			}
 		}
-		/* As the child ensure that the file descriptor is remains open across exec. */
+		/* As the child ensure that the file descriptor remains open across exec. */
 		int flags = fcntl(tool_fd, F_GETFD);
 		if (flags < 0) {
 			die("cannot get file descriptor flags");
