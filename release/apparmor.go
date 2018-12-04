@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// ApparmorLevelType encodes the kind of support for apparmor
+// AppArmorLevelType encodes the kind of support for apparmor
 // found on this system.
 type AppArmorLevelType int
 
