@@ -190,3 +190,21 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	// Deprecated API
 	c.Check(release.AppArmorFeatures(), DeepEquals, []string{"network", "policy"})
 }
+
+func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
+	// Pretend that we have apparmor_parser.
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore := release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+	mtime := release.AppArmorParserMtime()
+	fi, err := os.Stat(filepath.Join(mockParserCmd.BinDir(), "apparmor_parser"))
+	c.Assert(err, IsNil)
+	c.Check(mtime, Equals, fi.ModTime().Unix())
+
+	// Pretend that we don't have apparmor_parser.
+	restore = release.MockAppArmorParserSearchPath(c.MkDir())
+	defer restore()
+	mtime = release.AppArmorParserMtime()
+	c.Check(mtime, Equals, int64(0))
+}
