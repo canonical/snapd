@@ -31,6 +31,14 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// Conf is an interface describing both state and transaction.
+type Conf interface {
+	Get(snapName, key string, result interface{}) error
+	Set(snapName, key string, value interface{}) error
+	Changes() []string
+	State() *state.State
+}
+
 // Transaction holds a copy of the configuration originally present in the
 // provided state which can be queried and mutated in isolation from
 // concurrent logic. All changes performed into it are persisted back into

@@ -24,7 +24,6 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -34,10 +33,7 @@ var (
 )
 
 type Conf interface {
-	Get(snapName, key string, result interface{}) error
-	Set(snapName, key string, value interface{}) error
-	Changes() []string
-	State() *state.State
+	config.Conf
 }
 
 // coreCfg returns the configuration value for the core snap.
