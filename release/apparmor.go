@@ -50,8 +50,8 @@ const (
 	FullAppArmor
 )
 
-func (l AppArmorLevelType) String() string {
-	switch l {
+func (level AppArmorLevelType) String() string {
+	switch level {
 	case UnknownAppArmor:
 		return "unknown"
 	case NoAppArmor:
