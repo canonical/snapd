@@ -178,8 +178,7 @@ static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name,
 		int status = 0;
 		debug("waiting for snapd tool %s to terminate", tool_name);
 		if (waitpid(child, &status, 0) < 0) {
-			die("cannot wait for snapd tool %s to terminate",
-			    tool_name);
+			die("cannot get snapd tool %s termination status via waitpid", tool_name);
 		}
 		if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
 			die("%s failed with code %i", tool_name,
