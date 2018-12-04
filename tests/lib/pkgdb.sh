@@ -191,7 +191,7 @@ distro_install_local_package() {
 }
 
 distro_install_package() {
-    orig_xtrace=$(set -o | grep xtrace | cut -f 2)
+    orig_xtrace=$(set -o | awk '/xtrace / { print $2 }')
     set +x
     echo "distro_install_package $*"
     # Parse additional arguments; once we find the first unknown
