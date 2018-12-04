@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <libgen.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
@@ -43,7 +44,6 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
-#include "apparmor-support.h"
 
 #define MAX_BUF 1000
 
@@ -75,10 +75,7 @@ static void setup_private_mount(const char *snap_name)
 	}
 	// now we create a 1777 /tmp inside our private dir
 	mode_t old_mask = umask(0);
-	char *d = strdup(tmpdir);
-	if (!d) {
-		die("cannot allocate memory for string copy");
-	}
+	char *d = sc_strdup(tmpdir);
 	sc_must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
 	free(d);
 
@@ -164,10 +161,7 @@ static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
 		      profile);
 		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot copy snap name");
-		}
+		snap_name_copy = sc_strdup(snap_name);
 		char *argv[] = {
 			"snap-update-ns", "--from-snap-confine", snap_name_copy,
 			NULL
@@ -574,7 +568,13 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-int sc_open_snap_update_ns(void)
+/**
+ * open_intenral_tool returns a file descriptor of the given internal executable.
+ *
+ * The executable is located based on the location of the currently executing process.
+ * The returning file descriptor can be used with fexecve function.
+**/
+static int open_internal_tool(const char *tool_name)
 {
 	// +1 is for the case where the link is exactly PATH_MAX long but we also
 	// want to store the terminating '\0'. The readlink system call doesn't add
@@ -586,20 +586,29 @@ int sc_open_snap_update_ns(void)
 	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
 		die("readlink /proc/self/exe returned relative path");
 	}
-	char *bufcopy SC_CLEANUP(sc_cleanup_string) = NULL;
-	bufcopy = strdup(buf);
-	if (bufcopy == NULL) {
-		die("cannot copy buffer");
+	char *dir_name = dirname(buf);
+	int dir_fd SC_CLEANUP(sc_cleanup_close) = 1;
+	dir_fd = open(dir_name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+	if (dir_fd < 0) {
+		die("cannot open path %s", dir_name);
 	}
-	char *dname = dirname(bufcopy);
-	sc_must_snprintf(buf, sizeof buf, "%s/%s", dname, "snap-update-ns");
-	debug("snap-update-ns executable: %s", buf);
-	int fd = open(buf, O_PATH | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-	if (fd < 0) {
-		die("cannot open snap-update-ns executable");
+	int tool_fd = -1;
+	tool_fd = openat(dir_fd, tool_name, O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	if (tool_fd < 0) {
+		die("cannot open path %s/%s", dir_name, tool_name);
 	}
-	debug("opened snap-update-ns executable as file descriptor %d", fd);
-	return fd;
+	debug("opened %s executable as file descriptor %d", tool_name, tool_fd);
+	return tool_fd;
+}
+
+int sc_open_snap_update_ns(void)
+{
+	return open_internal_tool("snap-update-ns");
+}
+
+int sc_open_snap_discard_ns(void)
+{
+	return open_internal_tool("snap-discard-ns");
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
@@ -798,10 +807,7 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		      profile);
 		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot allocate memory for snap name");
-		}
+		snap_name_copy = sc_strdup(snap_name);
 		char *argv[] = {
 			"snap-update-ns", "--user-mounts", snap_name_copy,
 			NULL

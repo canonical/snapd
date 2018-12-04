@@ -369,8 +369,43 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) erro
 	return fmt.Errorf("cannot find required base %q", snapInfo.Base)
 }
 
+func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags) error {
+	if curInfo == nil {
+		return nil
+	}
+	if snapInfo.Epoch.CanRead(curInfo.Epoch) {
+		return nil
+	}
+	desc := "local snap"
+	if snapInfo.SideInfo.Revision.Store() {
+		desc = fmt.Sprintf("new revision %s", snapInfo.SideInfo.Revision)
+	}
+
+	return fmt.Errorf("cannot refresh %q to %s with epoch %s, because it can't read the current epoch of %s", snapInfo.InstanceName(), desc, snapInfo.Epoch, curInfo.Epoch)
+}
+
+// check that the snap installed in the system (via snapst) can be
+// upgraded to info (i.e. that info's epoch can read sanpst's epoch)
+func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
+	if snapst == nil {
+		// no snapst, no problem
+		return nil
+	}
+	cur, err := snapst.CurrentInfo()
+	if err == ErrNoCurrent {
+		// refreshing a disabled snap (maybe via InstallPath)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	return checkEpochs(nil, info, cur, Flags{})
+}
+
 func init() {
 	AddCheckSnapCallback(checkCoreName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
+	AddCheckSnapCallback(checkEpochs)
 }
