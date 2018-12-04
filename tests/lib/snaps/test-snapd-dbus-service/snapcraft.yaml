@@ -3,26 +3,37 @@ version: 1.0
 summary: Python based example dbus service
 description: ...
 slots:
-  test-snapd-dbus-service-slot:
+  dbus-session-slot:
     interface: dbus
     bus: session
-    service: true
+    activatable: true
+    name: io.snapcraft.SnapDbusService
+  dbus-system-slot:
+    interface: dbus
+    bus: system
+    activatable: true
     name: io.snapcraft.SnapDbusService
 apps:
-  test-snapd-dbus-service:
-    command: bin/test-snapd-dbus-service
+  session:
+    command: bin/test-snapd-dbus-service session
     plugs:
       - network
-      - network-bind
     slots:
-      - test-snapd-dbus-service-slot
+      - dbus-session-slot
+  system:
+    command: bin/test-snapd-dbus-service system
+    passthrough:
+      daemon: dbus
+      bus-name: io.snapcraft.SnapDbusService
+    plugs:
+      - network
+    slots:
+      - dbus-system-slot
 parts:
   test-snapd-dbus-service:
+    source: .
     plugin: python3
     stage-packages:
       - python3-dbus
       - python3-gi
       - gir1.2-glib-2.0
-  copy:
-    plugin: dump
-    source: .
