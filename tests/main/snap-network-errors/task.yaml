@@ -31,4 +31,5 @@ execute: |
     systemctl start snapd.{socket,service}
 
     OUT=$(snap find test 2>&1 || true)
+    iptables-restore < rules
     echo "$OUT" | MATCH "error: unable to contact snap store"
