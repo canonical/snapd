@@ -80,7 +80,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		if model == nil || model.Base() == "" {
 			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, features.SnapdSnap)
+			experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
 			if err != nil && !config.IsNoOption(err) {
 				return nil, err
 			}
@@ -496,7 +496,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := GetFeatureFlagBool(tr, features.Layouts)
+		flag, err := config.GetFeatureFlag(tr, features.Layouts)
 		if err != nil {
 			return err
 		}
@@ -506,7 +506,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := GetFeatureFlagBool(tr, features.ParallelInstances)
+		flag, err := config.GetFeatureFlag(tr, features.ParallelInstances)
 		if err != nil {
 			return err
 		}
