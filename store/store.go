@@ -303,6 +303,17 @@ type searchResults struct {
 	Payload struct {
 		Packages []*snapDetails `json:"clickindex:package"`
 	} `json:"_embedded"`
+	Links struct {
+		First searchResultsLink `json:"first"`
+		Last  searchResultsLink `json:"last"`
+		Next  searchResultsLink `json:"next"`
+		Prev  searchResultsLink `json:"prev"`
+		Self  searchResultsLink `json:"self"`
+	} `json:"_links"`
+}
+
+type searchResultsLink struct {
+	HRef string `json:"href"`
 }
 
 type sectionResults struct {
@@ -1115,60 +1126,91 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		return nil, ErrBadQuery
 	}
 
-	q := s.defaultSnapQuery()
+	var snaps []*snap.Info
+	var resp *http.Response
+	var err error
 
-	if search.Private {
-		if search.Prefix {
-			// The store only supports "fuzzy" search for private snaps.
-			// See http://search.apps.ubuntu.com/docs/
-			return nil, ErrBadQuery
+	currentPage := 1
+	numPages := 1
+
+	for {
+		q := s.defaultSnapQuery()
+
+		if search.Private {
+			if search.Prefix {
+				// The store only supports "fuzzy" search for private snaps.
+				// See http://search.apps.ubuntu.com/docs/
+				return nil, ErrBadQuery
+			}
+
+			q.Set("private", "true")
 		}
 
-		q.Set("private", "true")
-	}
+		if search.Prefix {
+			q.Set("name", searchTerm)
+		} else {
+			q.Set("q", searchTerm)
+		}
+		if search.Section != "" {
+			q.Set("section", search.Section)
+		}
+		if search.Scope != "" {
+			q.Set("scope", search.Scope)
+		}
 
-	if search.Prefix {
-		q.Set("name", searchTerm)
-	} else {
-		q.Set("q", searchTerm)
-	}
-	if search.Section != "" {
-		q.Set("section", search.Section)
-	}
-	if search.Scope != "" {
-		q.Set("scope", search.Scope)
-	}
+		if release.OnClassic {
+			q.Set("confinement", "strict,classic")
+		} else {
+			q.Set("confinement", "strict")
+		}
 
-	if release.OnClassic {
-		q.Set("confinement", "strict,classic")
-	} else {
-		q.Set("confinement", "strict")
-	}
+		if currentPage > 1 {
+			q.Set("page", strconv.Itoa(currentPage))
+		}
 
-	u := s.endpointURL(searchEndpPath, q)
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
-	}
+		u := s.endpointURL(searchEndpPath, q)
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: halJsonContentType,
+		}
 
-	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
-	if err != nil {
-		return nil, err
-	}
+		var searchData searchResults
+		resp, err = s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
+		if err != nil {
+			return nil, err
+		}
 
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "search")
-	}
+		if resp.StatusCode != 200 {
+			return nil, respToError(resp, "search")
+		}
 
-	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
-	}
+		if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+			return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
+		}
 
-	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
-	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = infoFromRemote(pkg)
+		if currentPage == 1 {
+			lastPageNumIndex := strings.LastIndex(searchData.Links.Last.HRef, "page=")
+
+			if lastPageNumIndex != -1 {
+				numPages, err = strconv.Atoi(searchData.Links.Last.HRef[lastPageNumIndex+5:])
+				if err != nil {
+					numPages = 1
+				}
+			}
+		}
+
+		snapsOnPage := make([]*snap.Info, len(searchData.Payload.Packages))
+
+		for i, pkg := range searchData.Payload.Packages {
+			snapsOnPage[i] = infoFromRemote(pkg)
+		}
+
+		snaps = append(snaps, snapsOnPage...)
+		currentPage++
+		if currentPage > numPages {
+			break
+		}
 	}
 
 	err = s.decorateOrders(snaps, user)
