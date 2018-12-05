@@ -8,15 +8,15 @@ backends: [-autopkgtest]
 systems: [-ubuntu-core-18-*]
 
 prepare: |
-    iptables-save > rules
+    iptables-save > $HOME/rules
 
 restore: |
     echo "Restoring iptables rules"
-    iptables-restore < rules
+    iptables-restore < $HOME/rules
 
 debug: |
-    echo "iptables rules"
-    iptables -L -n -v
+    echo "iptables rules:"
+    iptables-save
 
 execute: |
     # Do a store op to avoid an unexpected device auth refresh on snap find
@@ -31,5 +31,4 @@ execute: |
     systemctl start snapd.{socket,service}
 
     OUT=$(snap find test 2>&1 || true)
-    iptables-restore < rules
     echo "$OUT" | MATCH "error: unable to contact snap store"
