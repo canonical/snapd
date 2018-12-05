@@ -197,7 +197,7 @@ var (
 	// requiredAppArmorKernelFeatures denotes the features that must be present in the kernel.
 	// Absence of any of those features results in the effective level be at most UnusableAppArmor.
 	requiredAppArmorKernelFeatures = []string{
-		// TODO: what is the minimal set?
+		// For now, require at least file and simply prefer the rest.
 		"file",
 	}
 	// preferredAppArmorKernelFeatures denotes the features that should be present in the kernel.
