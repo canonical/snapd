@@ -628,6 +628,7 @@ pkg_dependencies_fedora(){
         udisks2
         xdg-user-dirs
         xdg-utils
+        strace
         "
 }
 
