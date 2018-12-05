@@ -191,6 +191,9 @@ distro_install_local_package() {
 }
 
 distro_install_package() {
+    orig_xtrace=$(set -o | awk '/xtrace / { print $2 }')
+    set +x
+    echo "distro_install_package $*"
     # Parse additional arguments; once we find the first unknown
     # part we break argument parsing and process all further
     # arguments as package names.
@@ -272,6 +275,7 @@ distro_install_package() {
             exit 1
             ;;
     esac
+    test "$orig_xtrace" = on && set -x
 }
 
 distro_purge_package() {
