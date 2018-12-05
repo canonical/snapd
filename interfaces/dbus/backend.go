@@ -68,7 +68,7 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 	} {
 		dst := filepath.Join("/usr/share/dbus-1/", conf)
 		src := filepath.Join(coreRoot, dst)
-		if !osutil.FilesAreEqual(src, dst) {
+		if osutil.FileExists(src) && !osutil.FilesAreEqual(src, dst) {
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
 				return err
 			}
