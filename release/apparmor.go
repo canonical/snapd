@@ -184,10 +184,25 @@ func MockAppArmorFeatures(kernelFeatures, parserFeatures []string) (restore func
 // probe related code
 
 var (
+	// requiredAppArmorParserFeatures denotes the features that must be present in the parser.
+	// Absence of any of those features results in the effective level be at most UnusableAppArmor.
 	requiredAppArmorParserFeatures = []string{
 		"unsafe",
 	}
+	// preferredAppArmorParserFeatures denotes the features that should be present in the parser.
+	// Absence of any of those features results in the effective level be at most PartialAppArmor.
+	preferredAppArmorParserFeatures = []string{
+		"unsafe",
+	}
+	// requiredAppArmorKernelFeatures denotes the features that must be present in the kernel.
+	// Absence of any of those features results in the effective level be at most UnusableAppArmor.
 	requiredAppArmorKernelFeatures = []string{
+		// TODO: what is the minimal set?
+		"file",
+	}
+	// preferredAppArmorKernelFeatures denotes the features that should be present in the kernel.
+	// Absence of any of those features results in the effective level be at most PartialAppArmor.
+	preferredAppArmorKernelFeatures = []string{
 		"caps",
 		"dbus",
 		"domain",
@@ -209,7 +224,6 @@ var (
 func assessAppArmor() {
 	// First, quickly check if apparmor is available in the kernel at all.
 	kernelFeatures := AppArmorKernelFeatures()
-
 	if len(kernelFeatures) == 0 {
 		appArmorLevel = NoAppArmor
 		appArmorSummary = "apparmor not enabled"
@@ -217,6 +231,7 @@ func assessAppArmor() {
 	}
 
 	// Then check that the parser supports the required parser features.
+	// If we have any missing required features then apparmor is unusable.
 	parserFeatures := AppArmorParserFeatures()
 	var missingParserFeatures []string
 	for _, feature := range requiredAppArmorParserFeatures {
@@ -225,16 +240,42 @@ func assessAppArmor() {
 		}
 	}
 	if len(missingParserFeatures) > 0 {
-		// If we have any missing required features then apparmor is unusable.
 		appArmorLevel = UnusableAppArmor
-		appArmorSummary = fmt.Sprintf("apparmor_parser lacks essential features: %s",
+		appArmorSummary = fmt.Sprintf("apparmor_parser is available but required parser features are missing: %s",
 			strings.Join(missingParserFeatures, ", "))
 		return
 	}
 
-	// Lastly, check that the kernel supports the required kernel features.
+	// Next, check that the kernel supports the required kernel features.
 	var missingKernelFeatures []string
 	for _, feature := range requiredAppArmorKernelFeatures {
+		if !strutil.SortedListContains(kernelFeatures, feature) {
+			missingKernelFeatures = append(missingKernelFeatures, feature)
+		}
+	}
+	if len(missingKernelFeatures) > 0 {
+		appArmorLevel = UnusableAppArmor
+		appArmorSummary = fmt.Sprintf("apparmor is enabled but required kernel features are missing: %s",
+			strings.Join(missingKernelFeatures, ", "))
+		return
+	}
+
+	// Next check that the parser supports preferred parser features.
+	// If we have any missing preferred features then apparmor is partially enabled.
+	for _, feature := range preferredAppArmorParserFeatures {
+		if !strutil.SortedListContains(parserFeatures, feature) {
+			missingParserFeatures = append(missingParserFeatures, feature)
+		}
+	}
+	if len(missingParserFeatures) > 0 {
+		appArmorLevel = PartialAppArmor
+		appArmorSummary = fmt.Sprintf("apparmor_parser is available but some features are missing: %s",
+			strings.Join(missingParserFeatures, ", "))
+		return
+	}
+
+	// Lastly check that the kernel supports preferred kernel features.
+	for _, feature := range preferredAppArmorKernelFeatures {
 		if !strutil.SortedListContains(kernelFeatures, feature) {
 			missingKernelFeatures = append(missingKernelFeatures, feature)
 		}
@@ -246,6 +287,7 @@ func assessAppArmor() {
 		return
 	}
 
+	// If we got here then all features are available and supported.
 	appArmorLevel = FullAppArmor
 	appArmorSummary = "apparmor is enabled and all features are available"
 }

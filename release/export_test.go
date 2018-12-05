@@ -78,8 +78,10 @@ var (
 
 	AssessAppArmor = assessAppArmor
 
-	RequiredAppArmorKernelFeatures = requiredAppArmorKernelFeatures
-	RequiredAppArmorParserFeatures = requiredAppArmorParserFeatures
+	RequiredAppArmorKernelFeatures  = requiredAppArmorKernelFeatures
+	RequiredAppArmorParserFeatures  = requiredAppArmorParserFeatures
+	PreferredAppArmorKernelFeatures = preferredAppArmorKernelFeatures
+	PreferredAppArmorParserFeatures = preferredAppArmorParserFeatures
 
 	IsWSL = isWSL
 )

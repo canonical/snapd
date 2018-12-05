@@ -84,35 +84,47 @@ func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
 	}
 }
 
+// Using MockAppArmorFeatures yields in apparmor assessment
 func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
+	// No features, apparmor is disabled.
 	restore := release.MockAppArmorFeatures([]string{}, []string{})
 	c.Check(release.AppArmorLevel(), Equals, release.NoAppArmor)
 	c.Check(release.AppArmorSummary(), Equals, "apparmor not enabled")
-	c.Check(release.AppArmorKernelFeatures(), HasLen, 0)
-	c.Check(release.AppArmorParserFeatures(), HasLen, 0)
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{})
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{})
 	restore()
 
-	restore = release.MockAppArmorFeatures([]string{"kernel-feature"}, []string{"parser-feature"})
+	// Complete kernel features but apparmor is unusable because of missing required parser features.
+	restore = release.MockAppArmorFeatures(release.RequiredAppArmorKernelFeatures, []string{})
 	c.Check(release.AppArmorLevel(), Equals, release.UnusableAppArmor)
-	c.Check(release.AppArmorSummary(), testutil.Contains, "apparmor_parser lacks essential features: unsafe")
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"kernel-feature"})
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"parser-feature"})
+	c.Check(release.AppArmorSummary(), Equals, "apparmor_parser is available but required parser features are missing: unsafe")
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, release.RequiredAppArmorKernelFeatures)
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{})
 	restore()
 
-	// Unsafe is sufficient to get partial apparmor.
-	restore = release.MockAppArmorFeatures([]string{"kernel-feature"}, []string{"unsafe"})
-	c.Check(release.AppArmorLevel(), Equals, release.PartialAppArmor)
-	c.Check(release.AppArmorSummary(), testutil.Contains, "apparmor is enabled but some kernel features are missing: ")
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"kernel-feature"})
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"unsafe"})
+	// Complete parser features but apparmor is unusable because of missing required kernel features.
+	// The dummy feature is there to pretend that apparmor in the kernel is not entirely disabled.
+	restore = release.MockAppArmorFeatures([]string{"dummy-feature"}, release.RequiredAppArmorParserFeatures)
+	c.Check(release.AppArmorLevel(), Equals, release.UnusableAppArmor)
+	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled but required kernel features are missing: file")
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"dummy-feature"})
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, release.RequiredAppArmorParserFeatures)
 	restore()
 
-	// Unsafe is sufficient to get partial apparmor.
+	// Required kernel and parser features available, some optional features are missing though.
 	restore = release.MockAppArmorFeatures(release.RequiredAppArmorKernelFeatures, release.RequiredAppArmorParserFeatures)
-	c.Check(release.AppArmorLevel(), Equals, release.FullAppArmor)
-	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled and all features are available")
+	c.Check(release.AppArmorLevel(), Equals, release.PartialAppArmor)
+	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled but some kernel features are missing: caps, dbus, domain, mount, namespaces, network, ptrace, signal")
 	c.Check(release.AppArmorKernelFeatures(), DeepEquals, release.RequiredAppArmorKernelFeatures)
 	c.Check(release.AppArmorParserFeatures(), DeepEquals, release.RequiredAppArmorParserFeatures)
+	restore()
+
+	// Preferred kernel and parser features available.
+	restore = release.MockAppArmorFeatures(release.PreferredAppArmorKernelFeatures, release.PreferredAppArmorParserFeatures)
+	c.Check(release.AppArmorLevel(), Equals, release.FullAppArmor)
+	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled and all features are available")
+	c.Check(release.AppArmorKernelFeatures(), DeepEquals, release.PreferredAppArmorKernelFeatures)
+	c.Check(release.AppArmorParserFeatures(), DeepEquals, release.PreferredAppArmorParserFeatures)
 	restore()
 }
 
