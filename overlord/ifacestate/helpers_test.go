@@ -411,3 +411,59 @@ apps:
 	c.Check(log.String(), testutil.Contains, `cannot regenerate BROKEN profile for snap "test-snapd-canary": cannot setup security profile`)
 	c.Check(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 }
+
+func (s *helpersSuite) TestIsHotplugChange(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("foo", "")
+	c.Assert(ifacestate.IsHotplugChange(chg), Equals, false)
+
+	chg = s.st.NewChange("hotplug-foo", "")
+	c.Assert(ifacestate.IsHotplugChange(chg), Equals, true)
+}
+
+func (s *helpersSuite) TestGetHotplugChangeAttrs(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("foo", "")
+	chg.Set("hotplug-seq", 1)
+	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "foo"`)
+
+	chg = s.st.NewChange("bar", "")
+	chg.Set("hotplug-key", "2222")
+	seq, key, err = ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, ErrorMatches, `internal error: hotplug-seq not set on change "bar"`)
+
+	chg = s.st.NewChange("baz", "")
+	chg.Set("hotplug-key", "1234")
+	chg.Set("hotplug-seq", 7)
+
+	seq, key, err = ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, IsNil)
+	c.Check(key, Equals, "1234")
+	c.Check(seq, Equals, 7)
+}
+
+func (s *helpersSuite) TestObtainHotplugSeq(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var stateSeq int
+
+	// sanity
+	c.Assert(s.st.Get("hotplug-seq", &stateSeq), Equals, state.ErrNoState)
+
+	seq, err := ifacestate.ObtainHotplugSeq(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(seq, Equals, 1)
+
+	seq, err = ifacestate.ObtainHotplugSeq(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(seq, Equals, 2)
+
+	c.Assert(s.st.Get("hotplug-seq", &stateSeq), IsNil)
+	c.Check(stateSeq, Equals, 2)
+}

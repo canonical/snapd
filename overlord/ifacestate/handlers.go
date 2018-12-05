@@ -1217,3 +1217,48 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	task.SetStatus(state.DoneStatus)
 	return nil
 }
+
+// doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
+// The handler expects "hotplug-key" and "hotplug-seq" values set on own and other hotplug-related changes.
+func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := task.Change()
+	if chg == nil || !isHotplugChange(chg) {
+		return fmt.Errorf("internal error: task %q not in a hotplug change", task.Kind())
+	}
+
+	var hotplugKey string
+	var seq int
+	seq, hotplugKey, err := getHotplugChangeAttrs(chg)
+	if err != nil {
+		return err
+	}
+
+	for _, otherChg := range st.Changes() {
+		if otherChg.Status().Ready() || otherChg.ID() == chg.ID() {
+			continue
+		}
+
+		// only inspect hotplug changes
+		if !isHotplugChange(otherChg) {
+			continue
+		}
+
+		otherSeq, otherKey, err := getHotplugChangeAttrs(otherChg)
+		if err != nil {
+			return err
+		}
+
+		// conflict with retry if there another change affecting same device and has lower sequence number
+		if hotplugKey == otherKey && otherSeq < seq {
+			task.Logf("Waiting for conflicting change %q affecting device with hotplug key %q", otherChg.Kind(), otherKey)
+			return &state.Retry{After: hotplugRetryTimeout}
+		}
+	}
+
+	// no conflicting change for same hotplug key found
+	return nil
+}

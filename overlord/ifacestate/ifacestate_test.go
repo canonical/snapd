@@ -199,6 +199,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 	s.SetupAsserts(c, s.state)
 
+	s.BaseTest.AddCleanup(ifacestate.MockHotplugRetryTimeout(2 * time.Millisecond))
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.state.Lock()
@@ -4974,4 +4975,42 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(restoredSlot.Attr("number", &number), IsNil)
 	c.Check(number, Equals, int64(1))
 	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
+	var order []int
+	_ = s.manager(c)
+	s.o.TaskRunner().AddHandler("witness", func(task *state.Task, tomb *tomb.Tomb) error {
+		var seq int
+		c.Assert(task.Get("seq", &seq), IsNil)
+		order = append(order, seq)
+		return nil
+	}, nil)
+	s.st.Lock()
+
+	// create hotplug changes with witness task to track execution order
+	for i := 10; i >= 1; i-- {
+		chg := s.st.NewChange("hotplug-change", "")
+		chg.Set("hotplug-key", "1234")
+		chg.Set("hotplug-seq", i)
+		t := s.st.NewTask("hotplug-seq-wait", "")
+		witness := s.st.NewTask("witness", "")
+		witness.Set("seq", i)
+		witness.WaitFor(t)
+		chg.AddTask(t)
+		chg.AddTask(witness)
+	}
+
+	s.st.Unlock()
+
+	s.settle(c)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	c.Assert(order, DeepEquals, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+
+	for _, chg := range s.st.Changes() {
+		c.Assert(chg.Status(), Equals, state.DoneStatus)
+	}
 }
