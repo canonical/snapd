@@ -141,8 +141,7 @@ update_core_snap_for_classic_reexec() {
 
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    # make sure that SELinux context is not picked up by accident
-    mksnap_fast "squashfs-root" "$snap" -no-xattrs
+    mksnap_fast "squashfs-root" "$snap"
     chmod --reference="${snap}.orig" "$snap"
     rm -rf squashfs-root
 
