@@ -429,19 +429,19 @@ func (s *helpersSuite) TestGetHotplugChangeAttrs(c *C) {
 
 	chg := s.st.NewChange("foo", "")
 	chg.Set("hotplug-seq", 1)
-	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)
+	_, _, err := ifacestate.GetHotplugChangeAttrs(chg)
 	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "foo"`)
 
 	chg = s.st.NewChange("bar", "")
 	chg.Set("hotplug-key", "2222")
-	seq, key, err = ifacestate.GetHotplugChangeAttrs(chg)
+	_, _, err = ifacestate.GetHotplugChangeAttrs(chg)
 	c.Assert(err, ErrorMatches, `internal error: hotplug-seq not set on change "bar"`)
 
 	chg = s.st.NewChange("baz", "")
 	chg.Set("hotplug-key", "1234")
 	chg.Set("hotplug-seq", 7)
 
-	seq, key, err = ifacestate.GetHotplugChangeAttrs(chg)
+	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)
 	c.Assert(err, IsNil)
 	c.Check(key, Equals, "1234")
 	c.Check(seq, Equals, 7)
