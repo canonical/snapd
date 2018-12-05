@@ -2,31 +2,24 @@ summary: Test dbus activated snaps
 
 systems: [-ubuntu-core-*]
 
-prepare: |
-    apt install -y dbus-x11
-    mv /usr/share/dbus-1/session.d/snapd.conf /usr/share/dbus-1/session.d/snapd.conf.xxx
-
 restore: |
-    killall dbus-daemon
-    apt-get autoremove -y dbus-x11
-    rm /etc/dbus-1/session.d/snapd.conf
-    mv /usr/share/dbus-1/session.d/snapd.conf.xxx /usr/share/dbus-1/session.d/snapd.conf
+    if [ -f dbus-launch.pid ]; then
+        kill "$(cat dbus-launch.pid)"
+        rm -f dbus-launch.pid
+    fi
 
 execute: |
     echo "Ensure we have a snap that is dbus service activated"
     snap install --edge test-snapd-dbus-service
 
-    if [ ! -e /etc/dbus-1/session.d/snapd.conf ]; then
-        echo "re-exec dbus snapd.conf not created, broken test"
-        exit 1
-    fi
-
-    eval $(dbus-launch --auto-syntax)
+    eval "$(dbus-launch --sh-syntax)"
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
 
     echo "Then sending methods to it will wake it up"
     dbus-send --print-reply --dest=io.snapcraft.SnapDbusService /io/snapcraft/SnapDbusService io.snapcraft.ExampleInterface.ExampleMethod | MATCH hello
 
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     if install_local test-snapd-dbus-service-conflicting; then
         echo "installing a conflicting dbus name should fail"
         exit 1
