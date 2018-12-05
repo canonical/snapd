@@ -27,6 +27,11 @@ prepare: |
     . "$TESTSLIB"/pkgdb.sh
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
+    if [[ "$SPREAD_SYSTEM" == fedora-29 ]]; then
+        # Fedora comes with desktop portal installed by default, this will break
+        # the test
+        distro_purge_package xdg-desktop-portal
+    fi
     distro_install_package python3-dbus python3-gi
     install_local test-snapd-desktop
     install_local test-snapd-tools
@@ -44,6 +49,9 @@ restore: |
     distro_purge_package python3-dbus python3-gi
     distro_auto_remove_packages
     rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
+    if [[ "$SPREAD_SYSTEM" == fedora-29 ]]; then
+        distro_install_package xdg-desktop-portal
+    fi
 
 execute: |
     echo "No output on stderr when running without a session bus"
