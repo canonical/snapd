@@ -431,7 +431,7 @@ prepare_suite_each() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
-            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp"
+            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
 }
