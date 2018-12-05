@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -36,7 +37,6 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
-#include "apparmor-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
 #include "udev-support.h"
@@ -219,11 +219,13 @@ int main(int argc, char **argv)
 			sc_initialize_mount_ns();
 			sc_unlock(global_lock_fd);
 
-			// Find and open snap-update-ns from the same
-			// path as where we (snap-confine) were
-			// called.
+			// Find and open snap-update-ns and snap-discard-ns from the same
+			// path as where we (snap-confine) were called.
 			int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
 			snap_update_ns_fd = sc_open_snap_update_ns();
+			int snap_discard_ns_fd SC_CLEANUP(sc_cleanup_close) =
+			    -1;
+			snap_discard_ns_fd = sc_open_snap_discard_ns();
 
 			// Do per-snap initialization.
 			int snap_lock_fd = sc_lock_snap(snap_instance);
@@ -233,7 +235,8 @@ int main(int argc, char **argv)
 			group = sc_open_mount_ns(snap_instance);
 			int retval = sc_join_preserved_ns(group, &apparmor,
 							  base_snap_name,
-							  snap_instance);
+							  snap_instance,
+							  snap_discard_ns_fd);
 			if (retval == ESRCH) {
 				/* Stale mount namespace discarded or no mount namespace to
 				   join. We need to construct a new mount namespace ourselves.
