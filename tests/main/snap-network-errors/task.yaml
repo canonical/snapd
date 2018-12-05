@@ -7,16 +7,13 @@ backends: [-autopkgtest]
 # no iptables on core18 yet
 systems: [-ubuntu-core-18-*]
 
-prepare: |
-    iptables-save > $HOME/rules
-
 restore: |
     echo "Restoring iptables rules"
-    iptables-restore < $HOME/rules
+    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
 
 debug: |
     echo "iptables rules:"
-    iptables-save
+    iptables -L -n -v
 
 execute: |
     # Do a store op to avoid an unexpected device auth refresh on snap find
@@ -31,4 +28,5 @@ execute: |
     systemctl start snapd.{socket,service}
 
     OUT=$(snap find test 2>&1 || true)
+    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
     echo "$OUT" | MATCH "error: unable to contact snap store"
