@@ -172,7 +172,7 @@ distro_install_local_package() {
             apt install $flags "$@"
             ;;
         fedora-*)
-            quiet dnf -y install "$@"
+            quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
         amazon-*|centos-*)
             quiet yum -y localinstall "$@"
