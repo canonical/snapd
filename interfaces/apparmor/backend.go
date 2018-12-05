@@ -522,7 +522,8 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
-			for _, f := range parserFeatures() {
+			features, _ := parserFeatures()
+			for _, f := range features {
 				if f == "unsafe" {
 					return fmt.Sprintf("change_profile unsafe /**,")
 				}
@@ -587,7 +588,7 @@ func (b *Backend) SandboxFeatures() []string {
 	}
 
 	features := kernelFeatures()
-	pFeatures := parserFeatures()
+	pFeatures, _ := parserFeatures()
 	tags := make([]string, 0, len(features)+len(pFeatures))
 	for _, feature := range features {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
