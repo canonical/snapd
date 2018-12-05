@@ -85,7 +85,8 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	apparmorParserMtime, err := json.Marshal(release.AppArmorParserMtime())
 	c.Assert(err, IsNil)
 
-	apparmorParserFeaturesStr, err := json.Marshal(release.AppArmorParserFeatures())
+	parserFeatures, _ := release.AppArmorParserFeatures()
+	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
 	c.Assert(err, IsNil)
 
 	seccompActionsStr, err := json.Marshal(release.SecCompActions())

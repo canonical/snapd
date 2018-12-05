@@ -46,7 +46,7 @@ func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 
 func (*apparmorSuite) TestAppArmorLevelTriggersAssesment(c *C) {
 	// Pretend that we know the apparmor kernel and parser features.
-	restore := release.MockAppArmorFeatures([]string{"feature"}, []string{"feature"})
+	restore := release.MockAppArmorFeatures([]string{"feature"}, nil, []string{"feature"}, nil)
 	defer restore()
 	// Pretend that we don't know what the state of apparmor is.
 	release.ResetAppArmorAssesment()
@@ -61,7 +61,7 @@ func (*apparmorSuite) TestAppArmorLevelTriggersAssesment(c *C) {
 
 func (*apparmorSuite) TestAppArmorSummaryTriggersAssesment(c *C) {
 	// Pretend that we know the apparmor kernel and parser features.
-	restore := release.MockAppArmorFeatures([]string{"feature"}, []string{"feature"})
+	restore := release.MockAppArmorFeatures([]string{"feature"}, nil, []string{"feature"}, nil)
 	defer restore()
 	// Pretend that we don't know what the state of apparmor is.
 	release.ResetAppArmorAssesment()
@@ -78,76 +78,115 @@ func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
 		restore := release.MockAppArmorLevel(lvl)
 		c.Check(release.AppArmorLevel(), Equals, lvl)
 		c.Check(release.AppArmorSummary(), testutil.Contains, "mocked apparmor level: ")
-		c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"mocked-kernel-feature"})
-		c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"mocked-parser-feature"})
+		features, err := release.AppArmorKernelFeatures()
+		c.Check(err, IsNil)
+		c.Check(features, DeepEquals, []string{"mocked-kernel-feature"})
+		features, err = release.AppArmorParserFeatures()
+		c.Check(err, IsNil)
+		c.Check(features, DeepEquals, []string{"mocked-parser-feature"})
 		restore()
 	}
 }
 
 // Using MockAppArmorFeatures yields in apparmor assessment
 func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
-	// No features, apparmor is disabled.
-	restore := release.MockAppArmorFeatures([]string{}, []string{})
+	// No apparmor in the kernel, apparmor is disabled.
+	restore := release.MockAppArmorFeatures([]string{}, os.ErrNotExist, []string{}, nil)
 	c.Check(release.AppArmorLevel(), Equals, release.NoAppArmor)
 	c.Check(release.AppArmorSummary(), Equals, "apparmor not enabled")
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{})
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{})
+	features, err := release.AppArmorKernelFeatures()
+	c.Assert(err, Equals, os.ErrNotExist)
+	c.Check(features, DeepEquals, []string{})
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{})
+	restore()
+
+	// No apparmor_parser, apparmor is disabled.
+	restore = release.MockAppArmorFeatures([]string{}, nil, []string{}, os.ErrNotExist)
+	c.Check(release.AppArmorLevel(), Equals, release.NoAppArmor)
+	c.Check(release.AppArmorSummary(), Equals, "apparmor_parser not found")
+	features, err = release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{})
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, Equals, os.ErrNotExist)
+	c.Check(features, DeepEquals, []string{})
 	restore()
 
 	// Complete kernel features but apparmor is unusable because of missing required parser features.
-	restore = release.MockAppArmorFeatures(release.RequiredAppArmorKernelFeatures, []string{})
+	restore = release.MockAppArmorFeatures(release.RequiredAppArmorKernelFeatures, nil, []string{}, nil)
 	c.Check(release.AppArmorLevel(), Equals, release.UnusableAppArmor)
 	c.Check(release.AppArmorSummary(), Equals, "apparmor_parser is available but required parser features are missing: unsafe")
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, release.RequiredAppArmorKernelFeatures)
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{})
+	features, err = release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, release.RequiredAppArmorKernelFeatures)
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{})
 	restore()
 
 	// Complete parser features but apparmor is unusable because of missing required kernel features.
 	// The dummy feature is there to pretend that apparmor in the kernel is not entirely disabled.
-	restore = release.MockAppArmorFeatures([]string{"dummy-feature"}, release.RequiredAppArmorParserFeatures)
+	restore = release.MockAppArmorFeatures([]string{"dummy-feature"}, nil, release.RequiredAppArmorParserFeatures, nil)
 	c.Check(release.AppArmorLevel(), Equals, release.UnusableAppArmor)
 	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled but required kernel features are missing: file")
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"dummy-feature"})
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, release.RequiredAppArmorParserFeatures)
+	features, err = release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"dummy-feature"})
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, release.RequiredAppArmorParserFeatures)
 	restore()
 
 	// Required kernel and parser features available, some optional features are missing though.
-	restore = release.MockAppArmorFeatures(release.RequiredAppArmorKernelFeatures, release.RequiredAppArmorParserFeatures)
+	restore = release.MockAppArmorFeatures(release.RequiredAppArmorKernelFeatures, nil, release.RequiredAppArmorParserFeatures, nil)
 	c.Check(release.AppArmorLevel(), Equals, release.PartialAppArmor)
 	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled but some kernel features are missing: caps, dbus, domain, mount, namespaces, network, ptrace, signal")
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, release.RequiredAppArmorKernelFeatures)
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, release.RequiredAppArmorParserFeatures)
+	features, err = release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, release.RequiredAppArmorKernelFeatures)
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, release.RequiredAppArmorParserFeatures)
 	restore()
 
 	// Preferred kernel and parser features available.
-	restore = release.MockAppArmorFeatures(release.PreferredAppArmorKernelFeatures, release.PreferredAppArmorParserFeatures)
+	restore = release.MockAppArmorFeatures(release.PreferredAppArmorKernelFeatures, nil, release.PreferredAppArmorParserFeatures, nil)
 	c.Check(release.AppArmorLevel(), Equals, release.FullAppArmor)
 	c.Check(release.AppArmorSummary(), Equals, "apparmor is enabled and all features are available")
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, release.PreferredAppArmorKernelFeatures)
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, release.PreferredAppArmorParserFeatures)
+	features, err = release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, release.PreferredAppArmorKernelFeatures)
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, release.PreferredAppArmorParserFeatures)
 	restore()
 }
 
 func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
-	restore := release.MockAppArmorFeaturesSysPath("/does/not/exists")
-	c.Check(release.ProbeAppArmorKernelFeatures(), HasLen, 0)
-	restore()
-
 	d := c.MkDir()
 
+	// Pretend that apparmor kernel features directory doesn't exist.
+	restore := release.MockAppArmorFeaturesSysPath(filepath.Join(d, "non-existent"))
+	defer restore()
+	features, err := release.ProbeAppArmorKernelFeatures()
+	c.Assert(os.IsNotExist(err), Equals, true)
+	c.Check(features, DeepEquals, []string{})
+
+	// Pretend that apparmor kernel features directory exists but is empty.
 	restore = release.MockAppArmorFeaturesSysPath(d)
 	defer restore()
-	c.Check(release.ProbeAppArmorKernelFeatures(), HasLen, 0)
+	features, err = release.ProbeAppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{})
 
+	// Pretend that apparmor kernel features directory contains some entries.
 	c.Assert(os.Mkdir(filepath.Join(d, "foo"), 0755), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d, "bar"), 0755), IsNil)
-	c.Check(release.ProbeAppArmorKernelFeatures(), DeepEquals, []string{"bar", "foo"})
-
-	// Pretend that apparmor kernel features directory doesn't exist.
-	restore = release.MockAppArmorFeaturesSysPath(filepath.Join(d, "non-existent"))
-	defer restore()
-	c.Check(release.ProbeAppArmorKernelFeatures(), DeepEquals, []string{})
-
+	features, err = release.ProbeAppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"bar", "foo"})
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
@@ -167,7 +206,8 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 		restore := release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
 		defer restore()
 
-		features := release.ProbeAppArmorParserFeatures()
+		features, err := release.ProbeAppArmorParserFeatures()
+		c.Assert(err, IsNil)
 		c.Check(features, DeepEquals, t.features)
 		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}})
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
@@ -178,7 +218,8 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 	// Pretend that we just don't have apparmor_parser at all.
 	restore := release.MockAppArmorParserSearchPath(c.MkDir())
 	defer restore()
-	features := release.ProbeAppArmorParserFeatures()
+	features, err := release.ProbeAppArmorParserFeatures()
+	c.Check(err, Equals, os.ErrNotExist)
 	c.Check(features, DeepEquals, []string{})
 }
 
@@ -196,8 +237,12 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 
 	release.AssessAppArmor()
 
-	c.Check(release.AppArmorKernelFeatures(), DeepEquals, []string{"network", "policy"})
-	c.Check(release.AppArmorParserFeatures(), DeepEquals, []string{"unsafe"})
+	features, err := release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"network", "policy"})
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"unsafe"})
 
 	// Deprecated API
 	c.Check(release.AppArmorFeatures(), DeepEquals, []string{"network", "policy"})
