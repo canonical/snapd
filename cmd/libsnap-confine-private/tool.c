@@ -78,6 +78,8 @@ void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name,
 	snap_name_copy = sc_strdup(snap_name);
 	char *argv[] =
 	    { "snap-update-ns", "--from-snap-confine", snap_name_copy, NULL };
+	/* SNAPD_DEBUG=x is replaced by sc_call_snapd_tool_with_apparmor with
+	 * either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function for details. */
 	char *envp[] = { "SNAPD_DEBUG=x", NULL };
 	char profile[PATH_MAX] = { 0 };
 	sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
@@ -97,6 +99,8 @@ void sc_call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name)
 	snap_name_copy = sc_strdup(snap_name);
 	char *argv[] =
 	    { "snap-discard-ns", "--from-snap-confine", snap_name_copy, NULL };
+	/* SNAPD_DEBUG=x is replaced by sc_call_snapd_tool_with_apparmor with
+	 * either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function for details. */
 	char *envp[] = { "SNAPD_DEBUG=x", NULL };
 	sc_call_snapd_tool(snap_discard_ns_fd, "snap-discard-ns", argv, envp);
 }
