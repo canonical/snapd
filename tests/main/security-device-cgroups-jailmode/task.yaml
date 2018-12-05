@@ -34,7 +34,7 @@ execute: |
     test-devmode-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "the jailmode snap cannot access other devices"
-    test-devmode-cgroup.read-dev mem 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev random 2>&1 | MATCH '(Permission denied|Operation not permitted)'
 
     echo "And the framebuffer plug is disconnected"
     snap disconnect test-devmode-cgroup:framebuffer
@@ -43,4 +43,4 @@ execute: |
     test-devmode-cgroup.read-dev fb0 2>&1 | MATCH '(Permission denied|Operation not permitted)'
 
     echo "the jailmode snap cannot access other devices"
-    test-devmode-cgroup.read-dev mem 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev random 2>&1 | MATCH '(Permission denied|Operation not permitted)'
