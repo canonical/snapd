@@ -4981,6 +4981,8 @@ func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
 	var order []int
 	_ = s.manager(c)
 	s.o.TaskRunner().AddHandler("witness", func(task *state.Task, tomb *tomb.Tomb) error {
+		task.State().Lock()
+		defer task.State().Unlock()
 		var seq int
 		c.Assert(task.Get("seq", &seq), IsNil)
 		order = append(order, seq)
