@@ -181,6 +181,7 @@ const (
 	errorKindBadQuery = errorKind("bad-query")
 
 	errorKindNetworkTimeout      = errorKind("network-timeout")
+	errorKindDNSFailure          = errorKind("dns-failure")
 	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
 
 	errorKindConfigNoSuchOption = errorKind("option-not-found")
