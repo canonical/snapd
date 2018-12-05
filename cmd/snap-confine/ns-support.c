@@ -728,10 +728,9 @@ static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent)
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
 	sc_must_snprintf(dst, sizeof dst, "%s.%d.mnt", group->name, (int)uid);
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
-		die("cannot preserve mount namespace of process %d as %s",
-		    (int)parent, dst);
+		die("cannot preserve per-user mount namespace of process %d as %s", (int)parent, dst);
 	}
-	debug("mount namespace of process %d preserved as %s",
+	debug("per-user mount namespace of process %d preserved as %s",
 	      (int)parent, dst);
 }
 
