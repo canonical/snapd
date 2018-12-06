@@ -148,7 +148,7 @@ func (s *cmdSuite) TestNonClassicDistroNoSupportsReExec(c *C) {
 	// no distro supports re-exec when not on classic :-)
 	for _, id := range []string{
 		"fedora", "centos", "rhel", "opensuse", "suse", "poky",
-		"debian", "ubuntu", "arch",
+		"debian", "ubuntu", "arch", "archlinux",
 	} {
 		restore = release.MockReleaseInfo(&release.OS{ID: id})
 		defer restore()
