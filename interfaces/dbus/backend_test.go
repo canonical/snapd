@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -365,16 +366,13 @@ func (s *backendSuite) TestInstallingSnapInstallsSessionServiceActivation(c *C) 
 		spec.AddService("session", "org.bar", app)
 		return nil
 	}
+	fooService := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.foo.service")
+	barService := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.bar.service")
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		service1 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.foo.service")
-		// file called "org.foo.service" was created
-		_, err := os.Stat(service1)
-		c.Check(err, IsNil)
-		service2 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.bar.service")
-		// file called "org.bar.service" was created
-		_, err = os.Stat(service2)
-		c.Check(err, IsNil)
+		// Service activation files are created
+		c.Check(osutil.FileExists(fooService), Equals, true)
+		c.Check(osutil.FileExists(barService), Equals, true)
 		s.RemoveSnap(c, snapInfo)
 	}
 }
@@ -391,16 +389,14 @@ func (s *backendSuite) TestRemovingSnapRemovesSessionServiceActivation(c *C) {
 		spec.AddService("session", "org.bar", app)
 		return nil
 	}
+	fooService := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.foo.service")
+	barService := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.bar.service")
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
-		service1 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.foo.service")
 		// Service activation files are removed
-		_, err := os.Stat(service1)
-		c.Check(os.IsNotExist(err), Equals, true)
-		service2 := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.bar.service")
-		_, err = os.Stat(service2)
-		c.Check(os.IsNotExist(err), Equals, true)
+		c.Check(osutil.FileExists(fooService), Equals, false)
+		c.Check(osutil.FileExists(barService), Equals, false)
 	}
 }
 
@@ -416,16 +412,13 @@ func (s *backendSuite) TestInstallingSnapInstallsSystemServiceActivation(c *C) {
 		spec.AddService("system", "org.bar", app)
 		return nil
 	}
+	fooService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
+	barService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		service1 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
-		// file called "org.foo.service" was created
-		_, err := os.Stat(service1)
-		c.Check(err, IsNil)
-		service2 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
-		// file called "org.bar.service" was created
-		_, err = os.Stat(service2)
-		c.Check(err, IsNil)
+		// Service activation files are created
+		c.Check(osutil.FileExists(fooService), Equals, true)
+		c.Check(osutil.FileExists(barService), Equals, true)
 		s.RemoveSnap(c, snapInfo)
 	}
 }
@@ -442,15 +435,83 @@ func (s *backendSuite) TestRemovingSnapRemovesSystemServiceActivation(c *C) {
 		spec.AddService("system", "org.bar", app)
 		return nil
 	}
+	fooService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
+	barService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
-		service1 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
 		// Service activation files are removed
-		_, err := os.Stat(service1)
-		c.Check(os.IsNotExist(err), Equals, true)
-		service2 := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
-		_, err = os.Stat(service2)
-		c.Check(os.IsNotExist(err), Equals, true)
+		c.Check(osutil.FileExists(fooService), Equals, false)
+		c.Check(osutil.FileExists(barService), Equals, false)
+	}
+}
+
+func (s *backendSuite) _TestUpdatingSnapToOneWithMoreServices(c *C) {
+	var busNames []string
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		app := &snap.AppInfo{
+			Name: "smbd",
+			Snap: &snap.Info{
+				SuggestedName: "samba",
+			},
+		}
+		for _, busName := range busNames {
+			if err := spec.AddService("system", busName, app); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	fooService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
+	barService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
+	for _, opts := range testedConfinementOpts {
+		busNames = []string{"org.foo"}
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		// Only org.foo service activation file is present
+		c.Check(osutil.FileExists(fooService), Equals, true)
+		c.Check(osutil.FileExists(barService), Equals, false)
+
+		busNames = []string{"org.foo", "org.bar"}
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV2, 1)
+		// Both service activation files are present
+		c.Check(osutil.FileExists(fooService), Equals, true)
+		c.Check(osutil.FileExists(barService), Equals, true)
+
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerServices(c *C) {
+	var busNames []string
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *snap.SlotInfo) error {
+		app := &snap.AppInfo{
+			Name: "smbd",
+			Snap: &snap.Info{
+				SuggestedName: "samba",
+			},
+		}
+		for _, busName := range busNames {
+			if err := spec.AddService("system", busName, app); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	fooService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.foo.service")
+	barService := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.bar.service")
+	for _, opts := range testedConfinementOpts {
+		busNames = []string{"org.foo", "org.bar"}
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		// Both service activation files are present
+		c.Check(osutil.FileExists(fooService), Equals, true)
+		c.Check(osutil.FileExists(barService), Equals, true)
+
+		busNames = []string{"org.foo"}
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV2, 1)
+		// Only the org.foo service activation file is present
+		c.Check(osutil.FileExists(fooService), Equals, true)
+		c.Check(osutil.FileExists(barService), Equals, false)
+
+		s.RemoveSnap(c, snapInfo)
 	}
 }

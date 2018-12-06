@@ -207,23 +207,31 @@ func (b *Backend) removeBusConfig(snapName string) error {
 	return nil
 }
 
+// snapServiceActivationFiles returns the list of service activation files for a snap.
+func snapServiceActivationFiles(dir, snapName string) (services []string, err error) {
+	glob := filepath.Join(dir, "*.service")
+	matches, err := filepath.Glob(glob)
+	if err != nil {
+		return nil, err
+	}
+	for _, match := range matches {
+		serviceSnap := snapNameFromServiceFile(match)
+		if serviceSnap == snapName {
+			services = append(services, filepath.Base(match))
+		}
+	}
+	return services, nil
+}
+
 // removeServiceActivation removes D-Bus service activation files associated with a snap.
 func (b *Backend) removeServiceActivation(snapName string) error {
 	for _, servicesDir := range []string{
 		dirs.SnapDBusSessionServicesDir,
 		dirs.SnapDBusSystemServicesDir,
 	} {
-		glob := filepath.Join(servicesDir, "*.service")
-		matches, err := filepath.Glob(glob)
+		toRemove, err := snapServiceActivationFiles(servicesDir, snapName)
 		if err != nil {
 			return err
-		}
-		toRemove := []string{}
-		for _, match := range matches {
-			serviceSnap := snapNameFromServiceFile(match)
-			if serviceSnap == snapName {
-				toRemove = append(toRemove, filepath.Base(match))
-			}
 		}
 		_, _, err = osutil.EnsureDirStateGlobs(servicesDir, toRemove, nil)
 		if err != nil {
@@ -300,9 +308,14 @@ func snapNameFromServiceFile(filename string) string {
 }
 
 func (b *Backend) deriveContentServices(snapInfo *snap.Info, servicesDir string, services map[string]*Service) (globs []string, content map[string]osutil.FileState, err error) {
-	globs = []string{}
-	content = make(map[string]osutil.FileState)
 	snapName := snapInfo.InstanceName()
+	// Prime globs with the already existing service activation
+	// files associated with this snap.
+	globs, err = snapServiceActivationFiles(servicesDir, snapName)
+	if err != nil {
+		return nil, nil, err
+	}
+	content = make(map[string]osutil.FileState)
 	for _, service := range services {
 		filename := service.BusName + ".service"
 		if old := snapNameFromServiceFile(filepath.Join(servicesDir, filename)); old != "" && old != snapName {
