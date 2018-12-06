@@ -454,7 +454,7 @@ func (s *helpersSuite) TestGetHotplugChangeAttrs(c *C) {
 	c.Check(seq, Equals, 7)
 }
 
-func (s *helpersSuite) TestObtainHotplugSeq(c *C) {
+func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -463,11 +463,11 @@ func (s *helpersSuite) TestObtainHotplugSeq(c *C) {
 	// sanity
 	c.Assert(s.st.Get("hotplug-seq", &stateSeq), Equals, state.ErrNoState)
 
-	seq, err := ifacestate.ObtainHotplugSeq(s.st)
+	seq, err := ifacestate.AllocHotplugSeq(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(seq, Equals, 1)
 
-	seq, err = ifacestate.ObtainHotplugSeq(s.st)
+	seq, err = ifacestate.AllocHotplugSeq(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(seq, Equals, 2)
 
