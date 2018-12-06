@@ -873,13 +873,11 @@ func isHotplugChange(chg *state.Change) bool {
 	return strings.HasPrefix(chg.Kind(), "hotplug-")
 }
 
-func getHotplugChangeAttrs(chg *state.Change) (int, string, error) {
-	var hotplugKey string
-	var seq int
-	if err := chg.Get("hotplug-key", &hotplugKey); err != nil {
+func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey string, err error) {
+	if err = chg.Get("hotplug-key", &hotplugKey); err != nil {
 		return 0, "", fmt.Errorf("internal error: hotplug-key not set on change %q", chg.Kind())
 	}
-	if err := chg.Get("hotplug-seq", &seq); err != nil {
+	if err = chg.Get("hotplug-seq", &seq); err != nil {
 		return 0, "", fmt.Errorf("internal error: hotplug-seq not set on change %q", chg.Kind())
 	}
 	return seq, hotplugKey, nil
