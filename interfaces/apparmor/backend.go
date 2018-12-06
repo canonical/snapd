@@ -60,7 +60,7 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
-	kernelFeatures        = release.AppArmorFeatures
+	kernelFeatures        = release.AppArmorKernelFeatures
 	parserFeatures        = release.AppArmorParserFeatures
 )
 
@@ -587,10 +587,10 @@ func (b *Backend) SandboxFeatures() []string {
 		return nil
 	}
 
-	features := kernelFeatures()
+	kFeatures, _ := kernelFeatures()
 	pFeatures, _ := parserFeatures()
-	tags := make([]string, 0, len(features)+len(pFeatures))
-	for _, feature := range features {
+	tags := make([]string, 0, len(kFeatures)+len(pFeatures))
+	for _, feature := range kFeatures {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)
