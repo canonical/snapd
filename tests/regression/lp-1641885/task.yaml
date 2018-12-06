@@ -1,7 +1,7 @@
 summary: snaps installed with --jailmode are not in devmode
 
 # No confinement (AppArmor, Seccomp) available on these systems
-systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 details: |
     Users found that a snap that uses "confinement: devmode", even when

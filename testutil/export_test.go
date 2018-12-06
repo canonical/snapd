@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,16 +17,12 @@
  *
  */
 
-#ifndef SNAP_QUIRKS_H
-#define SNAP_QUIRKS_H
+package testutil
 
-/**
- * Setup various quirks that have to exists for now.
- *
- * This function applies non-standard tweaks that are required
- * because of requirement to stay compatible with certain snaps
- * that were tested with pre-chroot layout.
- **/
-void sc_setup_quirks(void);
+import (
+	"gopkg.in/check.v1"
+)
 
-#endif
+func UnexpectedIntChecker(relation string) *intChecker {
+	return &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: relation}
+}

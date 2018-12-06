@@ -46,6 +46,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -1742,18 +1743,6 @@ func (s *Store) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-// BuyOptions specifies parameters to buy from the store.
-type BuyOptions struct {
-	SnapID   string  `json:"snap-id"`
-	Price    float64 `json:"price"`
-	Currency string  `json:"currency"` // ISO 4217 code as string
-}
-
-// BuyResult holds the state of a buy attempt.
-type BuyResult struct {
-	State string `json:"state,omitempty"`
-}
-
 // orderInstruction holds data sent to the store for orders.
 type orderInstruction struct {
 	SnapID   string `json:"snap_id"`
@@ -1788,13 +1777,13 @@ func (s *storeErrors) Error() string {
 	return s.Errors[0].Error()
 }
 
-func buyOptionError(message string) (*BuyResult, error) {
+func buyOptionError(message string) (*client.BuyResult, error) {
 	return nil, fmt.Errorf("cannot buy snap: %s", message)
 }
 
 // Buy sends a buy request for the specified snap.
 // Returns the state of the order: Complete, Cancelled.
-func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
+func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError("snap ID missing")
 	}
@@ -1841,7 +1830,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 			return buyOptionError("payment cancelled")
 		}
 
-		return &BuyResult{
+		return &client.BuyResult{
 			State: orderDetails.State,
 		}, nil
 	case 400:
@@ -1941,6 +1930,7 @@ type CurrentSnap struct {
 	RefreshedDate    time.Time
 	IgnoreValidation bool
 	Block            []snap.Revision
+	Epoch            snap.Epoch
 }
 
 type currentSnapV2JSON struct {
@@ -1948,6 +1938,7 @@ type currentSnapV2JSON struct {
 	InstanceKey      string     `json:"instance-key"`
 	Revision         int        `json:"revision"`
 	TrackingChannel  string     `json:"tracking-channel"`
+	Epoch            snap.Epoch `json:"epoch"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 }
@@ -1966,6 +1957,7 @@ type SnapAction struct {
 	Channel      string
 	Revision     snap.Revision
 	Flags        SnapActionFlags
+	Epoch        snap.Epoch
 }
 
 func isValidAction(action string) bool {
@@ -1985,6 +1977,14 @@ type snapActionJSON struct {
 	Channel          string `json:"channel,omitempty"`
 	Revision         int    `json:"revision,omitempty"`
 	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
+
+	// NOTE the store needs an epoch (even if null) for the "install" and "download"
+	// actions, to know the client handles epochs at all.  "refresh" actions should
+	// send nothing, not even null -- the snap in the context should have the epoch
+	// already.  We achieve this by making Epoch be an `interface{}` with omitempty,
+	// and then setting it to a (possibly nil) epoch for install and download. As a
+	// nil epoch is not an empty interface{}, you'll get the null in the json.
+	Epoch interface{} `json:"epoch,omitempty"`
 }
 
 type snapRelease struct {
@@ -2133,6 +2133,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			TrackingChannel:  channel,
 			IgnoreValidation: curSnap.IgnoreValidation,
 			RefreshedDate:    refreshedDate,
+			Epoch:            curSnap.Epoch,
 		}
 	}
 
@@ -2169,6 +2170,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if !a.Revision.Unset() {
 			a.Channel = ""
 		}
+
 		if a.Action == "install" {
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
@@ -2187,6 +2189,15 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
+			if a.Epoch.IsZero() {
+				// Let the store know we can handle epochs, by sending the `epoch`
+				// field in the request.  A nil epoch is not an empty interface{},
+				// you'll get the null in the json. See comment in snapActionJSON.
+				aJSON.Epoch = (*snap.Epoch)(nil)
+			} else {
+				// this is the amend case
+				aJSON.Epoch = &a.Epoch
+			}
 		}
 
 		aJSON.InstanceKey = instanceKey
