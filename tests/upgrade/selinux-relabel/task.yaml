@@ -1,0 +1,36 @@
+summary: Check that correct SELinux file contexts were assigned on upgrade
+
+# TODO: enable centos once we build the policy there too
+systems: [fedora-*]
+
+execute: |
+    # only runs on distros with SELinux enabled
+    selinuxenabled
+
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    pkg_extension="$(distro_get_package_extension)"
+
+    echo "Remove snapd and snap-confine"
+    distro_purge_package snapd snap-confine || true
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
+        distro_purge_package snapd-selinux || true
+    fi
+
+    echo "Install previous snapd version from the repositories"
+    distro_install_package snap-confine snapd
+
+    distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extension"
+
+    ls -Z /usr/bin/snap "$LIBEXECDIR"/snapd/* > labels
+
+    MATCH "^\s*system_u:object_r:snappy_cli_exec_t:s0 /usr/bin/snap$"                       < labels
+    MATCH "^\s*system_u:object_r:snappy_cli_exec_t:s0 $LIBEXECDIR/snapd/snapctl$"           < labels
+    MATCH "^\s*system_u:object_r:snappy_confine_exec_t:s0 $LIBEXECDIR/snapd/snap-confine$"  < labels
+    MATCH "^\s*system_u:object_r:snappy_mount_exec_t:s0 $LIBEXECDIR/snapd/snap-update-ns$"  < labels
+    MATCH "^\s*system_u:object_r:snappy_mount_exec_t:s0 $LIBEXECDIR/snapd/snap-discard-ns$" < labels
+    MATCH "^\s*system_u:object_r:snappy_exec_t:s0 $LIBEXECDIR/snapd/snap-device-helper$"    < labels
+    MATCH "^\s*system_u:object_r:snappy_exec_t:s0 $LIBEXECDIR/snapd/snap-seccomp$"          < labels
+    MATCH "^\s*system_u:object_r:snappy_exec_t:s0 $LIBEXECDIR/snapd/snapd$"                 < labels
