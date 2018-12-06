@@ -859,7 +859,7 @@ func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error)
 	return ifaceName, hotplugKey, err
 }
 
-func obtainHotplugSeq(st *state.State) (int, error) {
+func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
 	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
 		return 0, err

@@ -1219,6 +1219,9 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 }
 
 // doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
+// Sequence numbers control the order of execution of hotplug-related changes, which would otherwise be executed in
+// arbitrary order by task runner, leading to unexpected results if multiple events for same device are in flight
+// (e.g. plugging, followed by immediate unplugging, or snapd restart with pending hotplug changes).
 // The handler expects "hotplug-key" and "hotplug-seq" values set on own and other hotplug-related changes.
 func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
@@ -1230,8 +1233,6 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("internal error: task %q not in a hotplug change", task.Kind())
 	}
 
-	var hotplugKey string
-	var seq int
 	seq, hotplugKey, err := getHotplugChangeAttrs(chg)
 	if err != nil {
 		return err

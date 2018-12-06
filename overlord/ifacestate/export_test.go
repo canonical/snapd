@@ -49,7 +49,7 @@ var (
 	SystemSnapInfo               = systemSnapInfo
 	IsHotplugChange              = isHotplugChange
 	GetHotplugChangeAttrs        = getHotplugChangeAttrs
-	ObtainHotplugSeq             = obtainHotplugSeq
+	AllocHotplugSeq              = allocHotplugSeq
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
