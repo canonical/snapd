@@ -118,7 +118,7 @@ func generateSystemKey() (*systemKey, error) {
 	sk.BuildID = buildID
 
 	// Add apparmor-features (which is already sorted)
-	sk.AppArmorFeatures = release.AppArmorFeatures()
+	sk.AppArmorFeatures, _ = release.AppArmorKernelFeatures()
 
 	// Add apparmor-parser-mtime
 	sk.AppArmorParserMtime = release.AppArmorParserMtime()

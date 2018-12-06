@@ -1442,7 +1442,7 @@ func (s *backendSuite) TestNsProfile(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
 	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
@@ -1457,7 +1457,7 @@ func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("4.16.10-1-default")
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
 	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
