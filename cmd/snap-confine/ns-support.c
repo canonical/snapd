@@ -44,6 +44,7 @@
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
 
@@ -75,7 +76,8 @@ static const char *sc_ns_dir = SC_NS_DIR;
 
 enum {
 	HELPER_CMD_EXIT,
-	HELPER_CMD_CAPTURE_NS,
+	HELPER_CMD_CAPTURE_MOUNT_NS,
+	HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS,
 };
 
 void sc_reassociate_with_pid1_mount_ns(void)
@@ -304,44 +306,6 @@ enum sc_discard_vote {
 	SC_DISCARD_YES = 2,
 };
 
-static void call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name)
-{
-	debug("calling snap-discard-ns to discard preserved mount namespaces");
-	pid_t child = fork();
-	if (child < 0) {
-		die("cannot fork to run snap-discard-ns");
-	}
-	if (child == 0) {
-		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = sc_strdup(snap_name);
-		char *argv[] =
-		    { "snap-discard-ns", "--from-snap-confine", snap_name_copy,
-			NULL
-		};
-		char *envp[2] = { NULL };
-		int last_env = 0;
-		if (sc_is_debug_enabled()) {
-			envp[last_env++] = "SNAPD_DEBUG=1";
-		}
-		debug("fexecv(%d (snap-discard-ns), %s %s %s %s,)",
-		      snap_discard_ns_fd, argv[0], argv[1], argv[2], argv[3]);
-		fexecve(snap_discard_ns_fd, argv, envp);
-		die("cannot execute snap-discard-ns");
-	}
-	// We are the parent, so wait for snap-discard-ns to finish.
-	int status = 0;
-	debug("waiting for snap-discard-ns to finish...");
-	if (waitpid(child, &status, 0) < 0) {
-		die("waitpid() failed for snap-discard-ns process");
-	}
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		die("snap-discard-ns failed with code %i", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		die("snap-discard-ns killed by signal %i", WTERMSIG(status));
-	}
-	debug("snap-discard-ns finished successfully");
-}
-
 // The namespace may be stale. To check this we must actually switch into it
 // but then we use up our setns call (the kernel misbehaves if we setns twice).
 // To work around this we'll fork a child and use it to probe. The child will
@@ -477,7 +441,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
-	call_snap_discard_ns(snap_discard_ns_fd, snap_name);
+	sc_call_snap_discard_ns(snap_discard_ns_fd, snap_name);
 	return EAGAIN;
 }
 
@@ -486,6 +450,7 @@ static void helper_fork(struct sc_mount_ns *group,
 static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 			pid_t parent);
 static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
+static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
@@ -552,6 +517,57 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
+		if (chdir(vanilla_cwd) != 0) {
+			debug("cannot enter %s, moving to void", vanilla_cwd);
+			if (chdir(SC_VOID_DIR) != 0) {
+				die("cannot change directory to %s",
+				    SC_VOID_DIR);
+			}
+		}
+		return 0;
+	}
+	return ESRCH;
+}
+
+int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
+				  const char *snap_name)
+{
+	uid_t uid = getuid();
+	char mnt_fname[PATH_MAX] = { 0 };
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.%d.mnt", group->name,
+			 (int)uid);
+
+	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	mnt_fd = openat(group->dir_fd, mnt_fname,
+			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0) {
+		die("cannot open preserved mount namespace %s", group->name);
+	}
+	struct statfs ns_statfs_buf;
+	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
+		die("cannot inspect filesystem of preserved mount namespace file");
+	}
+	struct stat ns_stat_buf;
+	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
+		die("cannot inspect preserved mount namespace file");
+	}
+#ifndef NSFS_MAGIC
+	/* Define NSFS_MAGIC for Ubuntu 14.04 and other older systems. */
+#define NSFS_MAGIC 0x6e736673
+#endif
+	if (ns_statfs_buf.f_type == NSFS_MAGIC
+	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
+		// TODO: refactor the cwd workflow across all of snap-confine.
+		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
+		vanilla_cwd = get_current_dir_name();
+		if (vanilla_cwd == NULL) {
+			die("cannot get the current working directory");
+		}
+		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
+			die("cannot join preserved per-user mount namespace %s",
+			    group->name);
+		}
+		debug("joined preserved mount namespace %s", group->name);
 		if (chdir(vanilla_cwd) != 0) {
 			debug("cannot enter %s, moving to void", vanilla_cwd);
 			if (chdir(SC_VOID_DIR) != 0) {
@@ -650,8 +666,11 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 		case HELPER_CMD_EXIT:
 			run = 0;
 			break;
-		case HELPER_CMD_CAPTURE_NS:
+		case HELPER_CMD_CAPTURE_MOUNT_NS:
 			helper_capture_ns(group, parent);
+			break;
+		case HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS:
+			helper_capture_per_user_ns(group, parent);
 			break;
 		}
 		if (write(group->pipe_helper[1], &command, sizeof command) < 0) {
@@ -682,6 +701,22 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 		    (int)parent, dst);
 	}
 	debug("mount namespace of process %d preserved as %s",
+	      (int)parent, dst);
+}
+
+static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent)
+{
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
+	uid_t uid = getuid();
+
+	debug("capturing per-snap, per-user mount namespace");
+	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
+	sc_must_snprintf(dst, sizeof dst, "%s.%d.mnt", group->name, (int)uid);
+	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
+		die("cannot preserve per-user mount namespace of process %d as %s", (int)parent, dst);
+	}
+	debug("per-user mount namespace of process %d preserved as %s",
 	      (int)parent, dst);
 }
 
@@ -733,7 +768,12 @@ void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group)
 {
-	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_NS);
+	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_MOUNT_NS);
+}
+
+void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group)
+{
+	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS);
 }
 
 void sc_wait_for_helper(struct sc_mount_ns *group)

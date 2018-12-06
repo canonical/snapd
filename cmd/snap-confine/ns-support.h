@@ -96,6 +96,18 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 const char *snap_name, int snap_discard_ns_fd);
 
 /**
+ * Join a preserved, per-user, mount namespace if one exists.
+ *
+ * Technically the function opens /run/snapd/ns/snap.$SNAP_NAME.$UID.mnt and
+ * tries to use setns() with the obtained file descriptor.
+ *
+ * The return is ESRCH if a preserved per-user mount namespace does not exist
+ * and cannot be joined or zero otherwise.
+**/
+int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
+				  const char *snap_name);
+
+/**
  * Fork off a helper process for mount namespace capture.
  *
  * This function forks the helper process. It needs to be paired with
@@ -121,6 +133,8 @@ void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor);
  * sc_wait_for_helper() to terminate it.
  **/
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group);
+
+void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
 
 /**
  * Ask the helper process to terminate and wait for it to finish.
