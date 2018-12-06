@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -93,7 +94,7 @@ func ValidateInstanceName(instanceName string) error {
 func ValidateName(name string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_snap_name_validate and validate_snap_name .
-	if len(name) > 40 || !isValidName(name) {
+	if len(name) < 2 || len(name) > 40 || !isValidName(name) {
 		return fmt.Errorf("invalid snap name: %q", name)
 	}
 	return nil
@@ -326,6 +327,20 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 	return nil
 }
 
+func validateDescription(descr string) error {
+	if count := utf8.RuneCountInString(descr); count > 4096 {
+		return fmt.Errorf("description can have up to 4096 codepoints, got %d", count)
+	}
+	return nil
+}
+
+func validateTitle(title string) error {
+	if count := utf8.RuneCountInString(title); count > 40 {
+		return fmt.Errorf("title can have up to 40 codepoints, got %d", count)
+	}
+	return nil
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
@@ -337,6 +352,14 @@ func Validate(info *Info) error {
 		return err
 	}
 	if err := ValidateInstanceName(name); err != nil {
+		return err
+	}
+
+	if err := validateTitle(info.Title()); err != nil {
+		return err
+	}
+
+	if err := validateDescription(info.Description()); err != nil {
 		return err
 	}
 

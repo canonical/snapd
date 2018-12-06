@@ -439,6 +439,7 @@ const (
 	ErrorKindNotSnap = "snap-not-a-snap"
 
 	ErrorKindNetworkTimeout = "network-timeout"
+	ErrorKindDNSFailure     = "dns-failure"
 
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
 
