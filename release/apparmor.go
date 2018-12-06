@@ -332,7 +332,7 @@ func probeAppArmorKernelFeatures() ([]string, error) {
 
 func probeAppArmorParserFeatures() ([]string, error) {
 	parser, err := findAppArmorParser()
-	if os.IsNotExist(err) {
+	if err != nil {
 		return []string{}, err
 	}
 	features := make([]string, 0, 1)
