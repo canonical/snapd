@@ -123,12 +123,6 @@ func AppArmorParserFeatures() ([]string, error) {
 	return appArmorParserFeatures, appArmorParserError
 }
 
-// AppArmorFeatures is a deprecated version for AppArmorKernelFeatures.
-func AppArmorFeatures() []string {
-	features, _ := AppArmorKernelFeatures()
-	return features
-}
-
 // AppArmorParserMtime returns the mtime of the parser, else 0.
 func AppArmorParserMtime() int64 {
 	var mtime int64

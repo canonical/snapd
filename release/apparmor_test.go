@@ -243,9 +243,6 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	features, err = release.AppArmorParserFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"unsafe"})
-
-	// Deprecated API
-	c.Check(release.AppArmorFeatures(), DeepEquals, []string{"network", "policy"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
