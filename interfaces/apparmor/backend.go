@@ -474,7 +474,7 @@ func downgradeConfinement() bool {
 			// 4.16, do not downgrade the confinement template.
 			return false
 		}
-	case release.DistroLike("arch"):
+	case release.DistroLike("arch", "archlinux"):
 		// The default kernel has AppArmor enabled since 4.18.8, the
 		// hardened one since 4.17.4
 		return false
