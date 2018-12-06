@@ -419,6 +419,9 @@ func (s *helpersSuite) TestIsHotplugChange(c *C) {
 	chg := s.st.NewChange("foo", "")
 	c.Assert(ifacestate.IsHotplugChange(chg), Equals, false)
 
+	chg = s.st.NewChange("hotplugfoo", "")
+	c.Assert(ifacestate.IsHotplugChange(chg), Equals, false)
+
 	chg = s.st.NewChange("hotplug-foo", "")
 	c.Assert(ifacestate.IsHotplugChange(chg), Equals, true)
 }
@@ -427,9 +430,13 @@ func (s *helpersSuite) TestGetHotplugChangeAttrs(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	chg := s.st.NewChange("foo", "")
-	chg.Set("hotplug-seq", 1)
+	chg := s.st.NewChange("none-set", "")
 	_, _, err := ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "none-set"`)
+
+	chg = s.st.NewChange("foo", "")
+	chg.Set("hotplug-seq", 1)
+	_, _, err = ifacestate.GetHotplugChangeAttrs(chg)
 	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "foo"`)
 
 	chg = s.st.NewChange("bar", "")
