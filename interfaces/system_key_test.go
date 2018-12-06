@@ -79,8 +79,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
-	kernelFeatures, err := release.AppArmorKernelFeatures()
-	c.Assert(err, IsNil)
+	kernelFeatures, _ := release.AppArmorKernelFeatures()
 
 	apparmorFeaturesStr, err := json.Marshal(kernelFeatures)
 	c.Assert(err, IsNil)
