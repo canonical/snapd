@@ -498,3 +498,15 @@ allow init_t snappy_unconfined_snap_t:dir search_dir_perms;
 allow init_t snappy_unconfined_snap_t:file { read_file_perms };
 allow init_t snappy_unconfined_snap_t:lnk_file { read_lnk_file_perms };
 allow init_t snappy_unconfined_snap_t:process { sigkill signull signal };
+
+########################################
+#
+# file/dir transitions for unconfined_t
+#
+
+# snap tools can be invoked by the regular user, make sure that things get
+# proper labels
+gen_require(` type unconfined_t; ')
+userdom_user_home_dir_filetrans(unconfined_t, snappy_home_t, dir, "snap")
+userdom_admin_home_dir_filetrans(unconfined_t, snappy_home_t, dir, "snap")
+files_pid_filetrans(unconfined_t, snappy_var_run_t, dir, "snapd")
