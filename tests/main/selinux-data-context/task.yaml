@@ -1,0 +1,36 @@
+summary: Check that SELinux file context transitions work
+
+description: |
+    Verify that automatic file context transitions work and cover typical use cases
+
+# TODO: enable centos once we are able to build the policy
+systems: [fedora-*]
+
+prepare: |
+    rm -rf /root/snap
+    rm -rf /home/test/snap
+
+execute: |
+    # verify that we're actually running on a SELinux system
+    selinuxenabled
+
+    snap install test-snapd-tools
+
+    test-snapd-tools.cmd id -Z | MATCH ':unconfined_t:'
+    test-snapd-tools.cmd sh -c "mkdir -p \$SNAP_USER_DATA/foo && echo hello world > \$SNAP_USER_DATA/foo/bar"
+
+    su -c 'test-snapd-tools.cmd id -Z' test | MATCH ':unconfined_t:'
+    su -c "test-snapd-tools.cmd sh -c 'mkdir -p \$SNAP_USER_DATA/foo && echo hello world > \$SNAP_USER_DATA/foo/bar'" test
+
+    ls -Zd /root/snap /root/snap/test-snapd-tools/current/foo /root/snap/test-snapd-tools/current/foo/bar > root-labels
+    MATCH '^.*:snappy_home_t:.*/root/snap$'                                  < root-labels
+    MATCH '^.*:snappy_home_t:.*/root/snap/test-snapd-tools/current/foo$'     < root-labels
+    MATCH '^.*:snappy_home_t:.*/root/snap/test-snapd-tools/current/foo/bar$' < root-labels
+
+    ls -Zd /home/test/snap /home/test/snap/test-snapd-tools/current/foo /home/test/snap/test-snapd-tools/current/foo/bar > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                                  < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo$'     < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo/bar$' < test-labels
+
+    #shellcheck disable=SC2012
+    ls -Zd /run/snapd | MATCH ':snappy_var_run_t:'
