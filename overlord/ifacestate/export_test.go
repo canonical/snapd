@@ -35,6 +35,7 @@ var (
 	GetConns                     = getConns
 	SetConns                     = setConns
 	DefaultDeviceKey             = defaultDeviceKey
+	RemoveDevice                 = removeDevice
 	MakeSlotName                 = makeSlotName
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
@@ -44,6 +45,8 @@ var (
 	GetHotplugSlots              = getHotplugSlots
 	SetHotplugSlots              = setHotplugSlots
 	FindConnsForHotplugKey       = findConnsForHotplugKey
+	CheckSystemSnapIsPresent     = checkSystemSnapIsPresent
+	SystemSnapInfo               = systemSnapInfo
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -113,4 +116,23 @@ func GetConnStateAttrs(conns map[string]*connState, connID string) (plugStatic, 
 		return nil, nil, nil, nil, false
 	}
 	return conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, true
+}
+
+// SystemSnapName returns actual name of the system snap - reimplemented by concrete mapper.
+func (m *IdentityMapper) SystemSnapName() string {
+	return "unknown"
+}
+
+// MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
+func MockProfilesNeedRegeneration(fn func() bool) func() {
+	old := profilesNeedRegeneration
+	profilesNeedRegeneration = fn
+	return func() { profilesNeedRegeneration = old }
+}
+
+// MockWriteSystemKey mocks the function responsible for writing the system key.
+func MockWriteSystemKey(fn func() error) func() {
+	old := writeSystemKey
+	writeSystemKey = fn
+	return func() { writeSystemKey = old }
 }

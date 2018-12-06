@@ -25,7 +25,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/store"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -76,7 +75,7 @@ func buySnap(cli *client.Client, snapName string) error {
 		return err
 	}
 
-	opts := &store.BuyOptions{
+	opts := &client.BuyOptions{
 		SnapID:   snap.ID,
 		Currency: resultInfo.SuggestedCurrency,
 	}

@@ -482,7 +482,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	logger.SimpleSetup()
 
 	epoch := snap.E("42*")
-	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: *epoch}
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
@@ -492,7 +492,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
 	c.Check(shw.SnapID, check.Equals, info.SnapID)
 	c.Check(shw.Version, check.Equals, info.Version)
-	c.Check(shw.Epoch, check.DeepEquals, *epoch)
+	c.Check(shw.Epoch, check.DeepEquals, epoch)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
@@ -513,7 +513,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		c.Check(sh.Snap, check.Equals, info.InstanceName(), comm)
 		c.Check(sh.SnapID, check.Equals, info.SnapID, comm)
 		c.Check(sh.Version, check.Equals, info.Version, comm)
-		c.Check(sh.Epoch, check.DeepEquals, *epoch)
+		c.Check(sh.Epoch, check.DeepEquals, epoch)
 		c.Check(sh.Revision, check.Equals, info.Revision, comm)
 		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
 		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
@@ -555,7 +555,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	logger.SimpleSetup()
 
 	epoch := snap.E("42*")
-	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: *epoch}
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
 	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"})

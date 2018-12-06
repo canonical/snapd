@@ -30,32 +30,47 @@ type bootstrapSuite struct{}
 var _ = Suite(&bootstrapSuite{})
 
 // Check that ValidateSnapName rejects "/" and "..".
-func (s *bootstrapSuite) TestValidateSnapName(c *C) {
-	c.Assert(update.ValidateInstanceName("hello-world"), Equals, 0)
-	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789"), Equals, 0)
-	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_0123456789"), Equals, 0)
-	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_01234567890"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("hello/world"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("hello..world"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("hello-world_foo"), Equals, 0)
-	c.Assert(update.ValidateInstanceName("foo_0123456789"), Equals, 0)
-	c.Assert(update.ValidateInstanceName("foo_1234abcd"), Equals, 0)
-	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789"), Equals, 0)
-	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_0123456789"), Equals, 0)
+func (s *bootstrapSuite) TestValidateInstanceName(c *C) {
+	validNames := []string{
+		"aa",
+		"aa_a",
+		"hello-world",
+		"a123456789012345678901234567890123456789",
+		"a123456789012345678901234567890123456789_0123456789",
+		"hello-world_foo",
+		"foo_0123456789",
+		"foo_1234abcd",
+		"a123456789012345678901234567890123456789",
+		"a123456789012345678901234567890123456789_0123456789",
+	}
+	for _, name := range validNames {
+		c.Check(update.ValidateInstanceName(name), Equals, 0, Commentf("name %q should be valid but is not", name))
+	}
 
-	c.Assert(update.ValidateInstanceName("INVALID"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("-invalid"), Equals, -1)
-	c.Assert(update.ValidateInstanceName(""), Equals, -1)
-	c.Assert(update.ValidateInstanceName("hello-world_"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("_foo"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("foo_01234567890"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("foo_123_456"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("foo__456"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("foo_"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("hello-world_foo_foo"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("foo01234567890012345678900123456789001234567890"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("foo01234567890012345678900123456789001234567890_foo"), Equals, -1)
-	c.Assert(update.ValidateInstanceName("a123456789012345678901234567890123456789_0123456789_"), Equals, -1)
+	invalidNames := []string{
+		"",
+		"a",
+		"a_a",
+		"a123456789012345678901234567890123456789_01234567890",
+		"hello/world",
+		"hello..world",
+		"INVALID",
+		"-invalid",
+		"hello-world_",
+		"_foo",
+		"foo_01234567890",
+		"foo_123_456",
+		"foo__456",
+		"foo_",
+		"hello-world_foo_foo",
+		"foo01234567890012345678900123456789001234567890",
+		"foo01234567890012345678900123456789001234567890_foo",
+		"a123456789012345678901234567890123456789_0123456789_",
+	}
+	for _, name := range invalidNames {
+		c.Check(update.ValidateInstanceName(name), Equals, -1, Commentf("name %q should be invalid but is valid", name))
+	}
+
 }
 
 // Test various cases of command line handling.

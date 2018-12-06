@@ -587,6 +587,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	if err := validateFeatureFlags(st, info); err != nil {
 		return nil, nil, err
 	}
+	// this might be a refresh; check the epoch before proceeding
+	if err := earlyEpochCheck(info, &snapst); err != nil {
+		return nil, nil, err
+	}
 
 	snapsup := &SnapSetup{
 		Base:        info.Base,
@@ -731,6 +735,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
+		updateFlags := snapst.Flags
+		if !update.NeedsClassic() && updateFlags.Classic {
+			// allow updating from classic to strict
+			updateFlags.Classic = false
+		}
 		return snapst.Channel, snapst.Flags, snapst
 
 	}
@@ -806,6 +815,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			return nil, nil, err
 		}
 		if err := validateFeatureFlags(st, update); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
+				continue
+			}
+			return nil, nil, err
+		}
+		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -1118,7 +1134,12 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
-		return channel, flags, &snapst
+		updateFlags := flags
+		if !update.NeedsClassic() && updateFlags.Classic {
+			// allow updating from classic to strict
+			updateFlags.Classic = false
+		}
+		return channel, updateFlags, &snapst
 	}
 
 	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags)
@@ -1190,9 +1211,6 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		}
 		info, err := updateInfo(st, snapst, opts, userID)
 		if err != nil {
-			return nil, err
-		}
-		if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {

@@ -41,9 +41,9 @@ execute: |
     # When the process terminates the control group is updated and the task no
     # longer registers there.
     kill "$pid1"
-    wait -n || true  # wait returns the exit code and we kill the process
+    wait "$pid1" || true  # wait returns the exit code and we kill the process
     MATCH -v "$pid1" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
 
     kill "$pid2"
-    wait -n || true  # same as above
+    wait "$pid2" || true  # same as above
     MATCH -v "$pid2" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
