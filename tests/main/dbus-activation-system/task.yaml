@@ -1,0 +1,20 @@
+summary: D-Bus system services support activation
+
+execute: |
+    echo "Install a snap containing an activatable D-Bus system service"
+    snap install --edge test-snapd-dbus-service
+
+    echo "A service activation file has been created"
+    [ -f /var/lib/snapd/dbus/system-services/io.snapcraft.SnapDbusService.service ]
+
+    echo "Ensure that the service is not running"
+    systemctl stop snap.test-snapd-dbus-service.system.service
+
+    echo "Making a method call wakes the service"
+    dbus-send --system --print-reply \
+      --dest=io.snapcraft.SnapDbusService /io/snapcraft/SnapDbusService  \
+      io.snapcraft.ExampleInterface.ExampleMethod | MATCH hello
+
+    echo "Removing the snap also removes the service activation file"
+    snap remove test-snapd-dbus-service
+    [ ! -f /var/lib/snapd/dbus/system-services/io.snapcraft.SnapDbusService.service ]
