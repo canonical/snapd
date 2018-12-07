@@ -3,18 +3,30 @@
 # of this makefile is to *reduce* the duplication, *avoid* unintended
 # inconsistency between packaging of snapd across distributions.
 #
-# The makefile has three control knobs, some of which are currently unused.
-# Those knobs influence the build and installation process. The knobs cannot be
-# undefined if they are actually used by the Makefile below.
+# -----------------------------------------------------
+# Interface between snapd.mk and distribution packaging
+# -----------------------------------------------------
+#
+# Distribution packaging must generate snapd.defines.mk with a set of makefile
+# variable definitions that are discussed below. This allows the packaging
+# world to define directory layout and build configuration in one place and
+# this makefile to simply obey and implement that configuration.
 
-# Set to 1 to build snapd with test key built in.
-with_test_keys?=$(error with_test_keys is unset, must be 1 or 0)
-# Set to 1 to build snapd with apparmor support.
-with_apparmor?=$(error with_apparmor is unset, must be 1 or 0)
-# Set to 1 to build snapd with things needed for the core/snapd snap.
-with_core_bits?=$(error with_core_bits is unset, must be 1 or 0)
-# Set to 1 to build snapd with alternate snap mount directory.
-with_alt_snap_mount_dir=$(error with_alt_snap_mount_dir is unset, must be 1 or 0)
+include snapd.defines.mk
+
+# There are two sets of definitions expected:
+# 1) variables defining various directory names
+vars += bindir sbindir libexecdir mandir datadir localstatedir unitdir
+# 2) variables defining build options:
+#   with_test_keys: set to 1 to build snapd with test key built in
+#   with_apparmor: set to 1 to build snapd with apparmor support
+#   with_core_bits: set to 1 to build snapd with things needed for the core/snapd snap
+#   with_alt_snap_mount_dir: set to 1 to build snapd with alternate snap mount directory
+vars += with_test_keys with_apparmor with_core_bits with_alt_snap_mount_dir
+# Verify that none of the variables are empty. This may happen if snapd.mk and
+# distribution packaging generating snapd.defines.mk get out of sync.
+
+$(foreach var,$(vars),$(if $(value $(var)),,$(error $(var) is empty or unset, check snapd.defines.mk)))
 
 # ------------------------------------------------
 # There are no more control knobs after this point
@@ -23,33 +35,6 @@ with_alt_snap_mount_dir=$(error with_alt_snap_mount_dir is unset, must be 1 or 0
 # Import path of snapd.
 import_path=github.com/snapcore/snapd
 
-# Set a set of variables to some well-known directories. If rpm is installed
-# then it is used as canonical reference. In absence of rpm the values are
-# built out of Debian-ish defaults.
-ifneq ($(shell which rpm),)
-prefix:=$(shell rpm -E %{_prefix})
-bindir:=$(shell rpm -E %{_bindir})
-sbindir:=$(shell rpm -E %{_sbindir})
-libexecdir:=$(shell rpm -E %{_libexecdir})
-mandir:=$(shell rpm -E %{_mandir})
-datadir:=$(shell rpm -E %{_datadir})
-localstatedir:=$(shell rpm -E %{_localstatedir})
-unitdir=$(shell rpm -E %{_unitdir})
-else
-$(error expected RPM to be used)
-prefix=/usr
-bindir=$(prefix)/bin
-sbindir=$(prefix)/sbin
-libexecdir=$(prefix)/lib
-mandir=$(prefix)/
-datadir=$(prefix)/share
-localstatedir=/var
-unitdir=$(prefix)/lib/systemd/system
-endif
-
-# Ensure that none of the directory variables are empty.
-vars=bindir sbindir libexecdir mandir datadir localstatedir unitdir
-$(foreach var,$(vars),$(if $(value $(var)),,$(error $(var) is empty or unset)))
 
 # This is usually set by %make_install. It is defined here to avoid warnings or
 # errors from referencing undefined variables.
