@@ -90,9 +90,6 @@
 %if 0%{?amzn2} == 1
 %global with_selinux 0
 %endif
-%if 0%{?centos} == 7
-%global with_selinux 0
-%endif
 
 Name:           snapd
 Version:        2.36.2
