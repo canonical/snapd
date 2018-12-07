@@ -44,6 +44,7 @@
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
 
@@ -75,7 +76,8 @@ static const char *sc_ns_dir = SC_NS_DIR;
 
 enum {
 	HELPER_CMD_EXIT,
-	HELPER_CMD_CAPTURE_NS,
+	HELPER_CMD_CAPTURE_MOUNT_NS,
+	HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS,
 };
 
 void sc_reassociate_with_pid1_mount_ns(void)
@@ -214,10 +216,7 @@ struct sc_mount_ns *sc_open_mount_ns(const char *group_name)
 	if (group->dir_fd < 0) {
 		die("cannot open directory %s", sc_ns_dir);
 	}
-	group->name = strdup(group_name);
-	if (group->name == NULL) {
-		die("cannot allocate memory for string copy");
-	}
+	group->name = sc_strdup(group_name);
 	return group;
 }
 
@@ -314,11 +313,11 @@ enum sc_discard_vote {
 // unconditionally.
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 						 const char *snap_name,
-						 const char *base_snap_name)
+						 const char *base_snap_name,
+						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
 	char fname[PATH_MAX] = { 0 };
-	char mnt_fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
@@ -442,20 +441,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname,
-			 "%s/%s%s", sc_ns_dir, snap_name, SC_NS_MNT_FILE);
-
-	// Use MNT_DETACH as otherwise we get EBUSY.
-	if (umount2(mnt_fname, MNT_DETACH | UMOUNT_NOFOLLOW) < 0) {
-		die("cannot discard stale mount namespace %s", mnt_fname);
-	}
-	char fstab_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(fstab_fname, sizeof fstab_fname,
-			 "%s/snap.%s.fstab", sc_ns_dir, snap_name);
-	if (unlink(fstab_fname) < 0) {
-		die("cannot remove stale mount profile %s", fstab_fname);
-	}
-	debug("stale mount namespace discarded");
+	sc_call_snap_discard_ns(snap_discard_ns_fd, snap_name);
 	return EAGAIN;
 }
 
@@ -464,10 +450,11 @@ static void helper_fork(struct sc_mount_ns *group,
 static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 			pid_t parent);
 static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
+static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
-			 const char *snap_name)
+			 const char *snap_name, int snap_discard_ns_fd)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -511,7 +498,8 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
-		    (mnt_fd, snap_name, base_snap_name) == EAGAIN) {
+		    (mnt_fd, snap_name, base_snap_name,
+		     snap_discard_ns_fd) == EAGAIN) {
 			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.
@@ -529,6 +517,57 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
+		if (chdir(vanilla_cwd) != 0) {
+			debug("cannot enter %s, moving to void", vanilla_cwd);
+			if (chdir(SC_VOID_DIR) != 0) {
+				die("cannot change directory to %s",
+				    SC_VOID_DIR);
+			}
+		}
+		return 0;
+	}
+	return ESRCH;
+}
+
+int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
+				  const char *snap_name)
+{
+	uid_t uid = getuid();
+	char mnt_fname[PATH_MAX] = { 0 };
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.%d.mnt", group->name,
+			 (int)uid);
+
+	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	mnt_fd = openat(group->dir_fd, mnt_fname,
+			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0) {
+		die("cannot open preserved mount namespace %s", group->name);
+	}
+	struct statfs ns_statfs_buf;
+	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
+		die("cannot inspect filesystem of preserved mount namespace file");
+	}
+	struct stat ns_stat_buf;
+	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
+		die("cannot inspect preserved mount namespace file");
+	}
+#ifndef NSFS_MAGIC
+	/* Define NSFS_MAGIC for Ubuntu 14.04 and other older systems. */
+#define NSFS_MAGIC 0x6e736673
+#endif
+	if (ns_statfs_buf.f_type == NSFS_MAGIC
+	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
+		// TODO: refactor the cwd workflow across all of snap-confine.
+		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
+		vanilla_cwd = get_current_dir_name();
+		if (vanilla_cwd == NULL) {
+			die("cannot get the current working directory");
+		}
+		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
+			die("cannot join preserved per-user mount namespace %s",
+			    group->name);
+		}
+		debug("joined preserved mount namespace %s", group->name);
 		if (chdir(vanilla_cwd) != 0) {
 			debug("cannot enter %s, moving to void", vanilla_cwd);
 			if (chdir(SC_VOID_DIR) != 0) {
@@ -627,8 +666,11 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 		case HELPER_CMD_EXIT:
 			run = 0;
 			break;
-		case HELPER_CMD_CAPTURE_NS:
+		case HELPER_CMD_CAPTURE_MOUNT_NS:
 			helper_capture_ns(group, parent);
+			break;
+		case HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS:
+			helper_capture_per_user_ns(group, parent);
 			break;
 		}
 		if (write(group->pipe_helper[1], &command, sizeof command) < 0) {
@@ -647,11 +689,34 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 	debug("capturing per-snap mount namespace");
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
 	sc_must_snprintf(dst, sizeof dst, "%s%s", group->name, SC_NS_MNT_FILE);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
+	}
+	close(fd);
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve mount namespace of process %d as %s",
 		    (int)parent, dst);
 	}
 	debug("mount namespace of process %d preserved as %s",
+	      (int)parent, dst);
+}
+
+static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent)
+{
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
+	uid_t uid = getuid();
+
+	debug("capturing per-snap, per-user mount namespace");
+	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
+	sc_must_snprintf(dst, sizeof dst, "%s.%d.mnt", group->name, (int)uid);
+	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
+		die("cannot preserve per-user mount namespace of process %d as %s", (int)parent, dst);
+	}
+	debug("per-user mount namespace of process %d preserved as %s",
 	      (int)parent, dst);
 }
 
@@ -703,7 +768,12 @@ void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group)
 {
-	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_NS);
+	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_MOUNT_NS);
+}
+
+void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group)
+{
+	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS);
 }
 
 void sc_wait_for_helper(struct sc_mount_ns *group)

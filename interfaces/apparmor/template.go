@@ -620,6 +620,13 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
   /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
 
+  # Common devices accesses
+  /dev/null rw,
+  /dev/full rw,
+  /dev/zero rw,
+  /dev/random r,
+  /dev/urandom r,
+
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
 
