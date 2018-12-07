@@ -77,7 +77,7 @@ endif
 
 # Know how to create certain directories.
 $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 $(localstatedir)/lib/snapd $(localstatedir)/cache/snapd $(snap_mount_dir)):
-	install -d -m 755 $@
+	install -m 755 -d $@
 
 .PHONY: install
 
@@ -99,19 +99,19 @@ install:: snap | $(DESTDIR)$(mandir)/man8
 
 # Install the directory structure in /var/lib/snapd
 install::
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/apparmor/profiles
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/apparmor/snap-confine
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/assertions
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/cache
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/cookie
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/desktop/applications
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/device
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/hostfs
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/lib/{gl,gl32,vulkan}
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/mount
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/seccomp/bpf
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/sequence
-	install -d $(DESTDIR)$(localstatedir)/lib/snapd/snaps
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/apparmor/profiles
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/apparmor/snap-confine
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/assertions
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/cache
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/cookie
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/desktop/applications
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/device
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/hostfs
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/lib/{gl,gl32,vulkan}
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/mount
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/seccomp/bpf
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/sequence
+	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/snaps
 
 # Touch files that are ghosted by the package. Those are _NOT_ installed but
 # this way the package manager knows about them belonging to the package.
@@ -130,12 +130,12 @@ install:: | $(DESTDIR)$(snap_mount_dir)
 
 # Install the /snap/bin directory
 install::
-	install -d $(DESTDIR)$(snap_mount_dir)/bin
+	install -m 755 -d $(DESTDIR)$(snap_mount_dir)/bin
 
 # Install misc directories: 
 install::
-	install -d $(DESTDIR)$(localstatedir)/cache/snapd
-	install -d $(DESTDIR)$(datadir)/polkit-1/actions
+	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
+	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
 
 # Remove traces of ubuntu-core-launcher. It is a phased-out executable that is
 # still partially present in the tree but should be removed in the subsequent
