@@ -49,6 +49,7 @@ var (
 	SystemSnapInfo               = systemSnapInfo
 	IsHotplugChange              = isHotplugChange
 	GetHotplugChangeAttrs        = getHotplugChangeAttrs
+	SetHotplugChangeAttrs        = setHotplugChangeAttrs
 	AllocHotplugSeq              = allocHotplugSeq
 )
 

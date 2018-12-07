@@ -883,6 +883,11 @@ func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey string, err e
 	return seq, hotplugKey, nil
 }
 
+func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
+	chg.Set("hotplug-seq", seq)
+	chg.Set("hotplug-key", hotplugKey)
+}
+
 type HotplugSlotInfo struct {
 	Name        string                 `json:"name"`
 	Interface   string                 `json:"interface"`
