@@ -412,7 +412,7 @@ var defaultTemplate = `
   # bind mount *not* used here (see 'parallel installs', above)
   /{dev,run}/shm/snap.@{SNAP_INSTANCE_NAME}.** mrwlkix,
   # Also allow app-specific access for sem_open()
-  /{dev,run}/shm/sem.snap.@{SNAP_INSTANCE_NAME}.* mrwk,
+  /{dev,run}/shm/sem.snap.@{SNAP_INSTANCE_NAME}.* mrwlk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
   # bind mount *not* used here (see 'parallel installs', above)
