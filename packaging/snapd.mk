@@ -33,24 +33,24 @@ $(foreach var,$(vars),$(if $(value $(var)),,$(error $(var) is empty or unset, ch
 # ------------------------------------------------
 
 # Import path of snapd.
-import_path=github.com/snapcore/snapd
+import_path = github.com/snapcore/snapd
 
 
 # This is usually set by %make_install. It is defined here to avoid warnings or
 # errors from referencing undefined variables.
-DESTDIR?=
+DESTDIR? =
 
 # Decide which of the two snap mount directories to use. This is not
 # referencing localstatedir because the code copes with only those two values
 # explicitly.
 ifeq ($(with_alt_snap_mount_dir),1)
-snap_mount_dir=/var/lib/snapd/snap
+snap_mount_dir = /var/lib/snapd/snap
 else
-snap_mount_dir=/snap
+snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries=snap snapctl snap-seccomp snap-update-ns snap-exec snapd
+go_binaries = snap snapctl snap-seccomp snap-update-ns snap-exec snapd
 
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
