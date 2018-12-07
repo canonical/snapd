@@ -539,7 +539,7 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 	}}
 
 	for i, scenario := range changeProfileScenarios {
-		restore = apparmor.MockParserFeatures(func() []string { return scenario.features })
+		restore = apparmor.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
 		defer restore()
 
 		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, "", ifacetest.SambaYamlV1, 1)
@@ -1477,9 +1477,9 @@ func (s *backendSuite) TestNsProfile(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:full", "policy:default"})
@@ -1492,9 +1492,9 @@ func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("4.16.10-1-default")
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:partial", "policy:default"})

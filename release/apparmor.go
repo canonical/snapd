@@ -28,9 +28,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
-// ApparmorLevelType encodes the kind of support for apparmor
+// AppArmorLevelType encodes the kind of support for apparmor
 // found on this system.
 type AppArmorLevelType int
 
@@ -39,6 +41,8 @@ const (
 	UnknownAppArmor AppArmorLevelType = iota
 	// NoAppArmor indicates that apparmor is not enabled.
 	NoAppArmor
+	// UnusableAppArmor indicates that apparmor is enabled but cannot be used.
+	UnusableAppArmor
 	// PartialAppArmor indicates that apparmor is enabled but some
 	// features are missing.
 	PartialAppArmor
@@ -46,47 +50,172 @@ const (
 	FullAppArmor
 )
 
+func (level AppArmorLevelType) String() string {
+	switch level {
+	case UnknownAppArmor:
+		return "unknown"
+	case NoAppArmor:
+		return "none"
+	case UnusableAppArmor:
+		return "unusable"
+	case PartialAppArmor:
+		return "partial"
+	case FullAppArmor:
+		return "full"
+	}
+	return fmt.Sprintf("AppArmorLevelType:%d", level)
+}
+
 var (
-	appArmorLevel          AppArmorLevelType
-	appArmorSummary        string
+	// appArmorLevel contains the assessment of the "level" of apparmor support.
+	appArmorLevel = UnknownAppArmor
+	// appArmorSummary contains a human readable description of the assessment.
+	appArmorSummary string
+	// appArmorKernelFeatures contains a list of kernel features that are supported.
+	// If the value is nil then the features were not probed yet.
+	appArmorKernelFeatures []string
+	// appArmorKernelError contains an error, if any, encountered when
+	// discovering available kernel features.
+	appArmorKernelError error
+	// appArmorParserFeatures contains a list of parser features that are supported.
+	// If the value is nil then the features were not probed yet.
 	appArmorParserFeatures []string
+	// appArmorParserError contains an error, if any, encountered when
+	// discovering available parser features.
+	appArmorParserError error
 )
 
-// AppArmorLevel quantifies how well apparmor is supported on the
-// current kernel.
+// AppArmorLevel quantifies how well apparmor is supported on the current
+// kernel. The computation is costly to perform. The result is cached internally.
 func AppArmorLevel() AppArmorLevelType {
 	if appArmorLevel == UnknownAppArmor {
-		appArmorLevel, appArmorSummary = probeAppArmor()
+		assessAppArmor()
 	}
 	return appArmorLevel
 }
 
-// AppArmorSummary describes how well apparmor is supported on the
-// current kernel.
+// AppArmorSummary describes how well apparmor is supported on the current
+// kernel. The computation is costly to perform. The result is cached
+// internally.
 func AppArmorSummary() string {
 	if appArmorLevel == UnknownAppArmor {
-		appArmorLevel, appArmorSummary = probeAppArmor()
+		assessAppArmor()
 	}
 	return appArmorSummary
 }
 
-// MockAppArmorSupportLevel makes the system believe it has certain
-// level of apparmor support.
+// AppArmorKernelFeatures returns a sorted list of apparmor features like
+// []string{"dbus", "network"}. The result is cached internally.
+func AppArmorKernelFeatures() ([]string, error) {
+	if appArmorKernelFeatures == nil {
+		appArmorKernelFeatures, appArmorKernelError = probeAppArmorKernelFeatures()
+	}
+	return appArmorKernelFeatures, appArmorKernelError
+}
+
+// AppArmorParserFeatures returns a sorted list of apparmor parser features
+// like []string{"unsafe", ...}. The computation is costly to perform. The
+// result is cached internally.
+func AppArmorParserFeatures() ([]string, error) {
+	if appArmorParserFeatures == nil {
+		appArmorParserFeatures, appArmorParserError = probeAppArmorParserFeatures()
+	}
+	return appArmorParserFeatures, appArmorParserError
+}
+
+// AppArmorParserMtime returns the mtime of the parser, else 0.
+func AppArmorParserMtime() int64 {
+	var mtime int64
+	mtime = 0
+
+	if path, err := findAppArmorParser(); err == nil {
+		if fi, err := os.Stat(path); err == nil {
+			mtime = fi.ModTime().Unix()
+		}
+	}
+	return mtime
+}
+
+// MockAppArmorLevel makes the system believe it has certain level of apparmor
+// support.
+//
+// AppArmor kernel and parser features are set to unrealistic values that do
+// not match the requested level. Use this function to observe behavior that
+// relies solely on the apparmor level value.
 func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 	oldAppArmorLevel := appArmorLevel
 	oldAppArmorSummary := appArmorSummary
+	oldAppArmorKernelFeatures := appArmorKernelFeatures
+	oldAppArmorKernelError := appArmorKernelError
+	oldAppArmorParserFeatures := appArmorParserFeatures
+	oldAppArmorParserError := appArmorParserError
 	appArmorLevel = level
-	appArmorSummary = fmt.Sprintf("mocked apparmor level: %v", level)
+	appArmorSummary = fmt.Sprintf("mocked apparmor level: %s", level)
+	appArmorKernelFeatures = []string{"mocked-kernel-feature"}
+	appArmorKernelError = nil
+	appArmorParserFeatures = []string{"mocked-parser-feature"}
+	appArmorParserError = nil
 	return func() {
 		appArmorLevel = oldAppArmorLevel
 		appArmorSummary = oldAppArmorSummary
+		appArmorKernelFeatures = oldAppArmorKernelFeatures
+		appArmorKernelError = oldAppArmorKernelError
+		appArmorParserFeatures = oldAppArmorParserFeatures
+		appArmorParserError = oldAppArmorParserError
+	}
+}
+
+// MockAppArmorFeatures makes the system believe it has certain kernel and
+// parser features.
+//
+// AppArmor level and summary are automatically re-assessed on both the change
+// and the restore process. Use this function to observe real assessment of
+// arbitrary features.
+func MockAppArmorFeatures(kernelFeatures []string, kernelError error, parserFeatures []string, parserError error) (restore func()) {
+	oldAppArmorKernelFeatures := appArmorKernelFeatures
+	oldAppArmorKernelError := appArmorKernelError
+	oldAppArmorParserFeatures := appArmorParserFeatures
+	oldAppArmorParserError := appArmorParserError
+	appArmorKernelFeatures = kernelFeatures
+	appArmorKernelError = kernelError
+	appArmorParserFeatures = parserFeatures
+	appArmorParserError = parserError
+	if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
+		assessAppArmor()
+	}
+	return func() {
+		appArmorKernelFeatures = oldAppArmorKernelFeatures
+		appArmorKernelError = oldAppArmorKernelError
+		appArmorParserFeatures = oldAppArmorParserFeatures
+		appArmorParserError = oldAppArmorParserError
+		if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
+			assessAppArmor()
+		}
 	}
 }
 
 // probe related code
+
 var (
-	appArmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
-	requiredAppArmorFeatures = []string{
+	// requiredAppArmorParserFeatures denotes the features that must be present in the parser.
+	// Absence of any of those features results in the effective level be at most UnusableAppArmor.
+	requiredAppArmorParserFeatures = []string{
+		"unsafe",
+	}
+	// preferredAppArmorParserFeatures denotes the features that should be present in the parser.
+	// Absence of any of those features results in the effective level be at most PartialAppArmor.
+	preferredAppArmorParserFeatures = []string{
+		"unsafe",
+	}
+	// requiredAppArmorKernelFeatures denotes the features that must be present in the kernel.
+	// Absence of any of those features results in the effective level be at most UnusableAppArmor.
+	requiredAppArmorKernelFeatures = []string{
+		// For now, require at least file and simply prefer the rest.
+		"file",
+	}
+	// preferredAppArmorKernelFeatures denotes the features that should be present in the kernel.
+	// Absence of any of those features results in the effective level be at most PartialAppArmor.
+	preferredAppArmorKernelFeatures = []string{
 		"caps",
 		"dbus",
 		"domain",
@@ -97,117 +226,134 @@ var (
 		"ptrace",
 		"signal",
 	}
-)
-
-// isDirectoy is like osutil.IsDirectory but we cannot import this
-// because of import cycles
-func isDirectory(path string) bool {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	return stat.IsDir()
-}
-
-func probeAppArmor() (AppArmorLevelType, string) {
-	if !isDirectory(appArmorFeaturesSysPath) {
-		return NoAppArmor, "apparmor not enabled"
-	}
-	var missing []string
-	for _, feature := range requiredAppArmorFeatures {
-		if !isDirectory(filepath.Join(appArmorFeaturesSysPath, feature)) {
-			missing = append(missing, feature)
-		}
-	}
-	if len(missing) > 0 {
-		return PartialAppArmor, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
-	}
-	return FullAppArmor, "apparmor is enabled and all features are available"
-}
-
-// AppArmorFeatures returns a sorted list of apparmor features like
-// []string{"dbus", "network"}.
-func AppArmorFeatures() []string {
-	// note that ioutil.ReadDir() is already sorted
-	dentries, err := ioutil.ReadDir(appArmorFeaturesSysPath)
-	if err != nil {
-		return nil
-	}
-	appArmorFeatures := make([]string, 0, len(dentries))
-	for _, f := range dentries {
-		if isDirectory(filepath.Join(appArmorFeaturesSysPath, f.Name())) {
-			appArmorFeatures = append(appArmorFeatures, f.Name())
-		}
-	}
-	return appArmorFeatures
-}
-
-// parser probe related code
-type apparmorParserFeature struct {
-	feature string
-	rule    string
-}
-
-var (
-	requestedParserFeatures = []apparmorParserFeature{
-		{"unsafe", "change_profile unsafe /**,"},
-	}
 	// Since AppArmorParserMtime() will be called by generateKey() in
 	// system-key and that could be called by different users on the
 	// system, use a predictable search path for finding the parser.
-	parserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin"
+	appArmorParserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	// Each apparmor feature is manifested as a directory entry.
+	appArmorFeaturesSysPath = "/sys/kernel/security/apparmor/features"
 )
 
-// lookupParser will look for apparmor_parser in a predictable search path
-func lookupParser() (string, error) {
-	for _, dir := range filepath.SplitList(parserSearchPath) {
+func assessAppArmor() {
+	// First, quickly check if apparmor is available in the kernel at all.
+	kernelFeatures, err := AppArmorKernelFeatures()
+	if os.IsNotExist(err) {
+		appArmorLevel = NoAppArmor
+		appArmorSummary = "apparmor not enabled"
+		return
+	}
+	// Then check that the parser supports the required parser features.
+	// If we have any missing required features then apparmor is unusable.
+	parserFeatures, err := AppArmorParserFeatures()
+	if os.IsNotExist(err) {
+		appArmorLevel = NoAppArmor
+		appArmorSummary = "apparmor_parser not found"
+		return
+	}
+	var missingParserFeatures []string
+	for _, feature := range requiredAppArmorParserFeatures {
+		if !strutil.SortedListContains(parserFeatures, feature) {
+			missingParserFeatures = append(missingParserFeatures, feature)
+		}
+	}
+	if len(missingParserFeatures) > 0 {
+		appArmorLevel = UnusableAppArmor
+		appArmorSummary = fmt.Sprintf("apparmor_parser is available but required parser features are missing: %s",
+			strings.Join(missingParserFeatures, ", "))
+		return
+	}
+
+	// Next, check that the kernel supports the required kernel features.
+	var missingKernelFeatures []string
+	for _, feature := range requiredAppArmorKernelFeatures {
+		if !strutil.SortedListContains(kernelFeatures, feature) {
+			missingKernelFeatures = append(missingKernelFeatures, feature)
+		}
+	}
+	if len(missingKernelFeatures) > 0 {
+		appArmorLevel = UnusableAppArmor
+		appArmorSummary = fmt.Sprintf("apparmor is enabled but required kernel features are missing: %s",
+			strings.Join(missingKernelFeatures, ", "))
+		return
+	}
+
+	// Next check that the parser supports preferred parser features.
+	// If we have any missing preferred features then apparmor is partially enabled.
+	for _, feature := range preferredAppArmorParserFeatures {
+		if !strutil.SortedListContains(parserFeatures, feature) {
+			missingParserFeatures = append(missingParserFeatures, feature)
+		}
+	}
+	if len(missingParserFeatures) > 0 {
+		appArmorLevel = PartialAppArmor
+		appArmorSummary = fmt.Sprintf("apparmor_parser is available but some features are missing: %s",
+			strings.Join(missingParserFeatures, ", "))
+		return
+	}
+
+	// Lastly check that the kernel supports preferred kernel features.
+	for _, feature := range preferredAppArmorKernelFeatures {
+		if !strutil.SortedListContains(kernelFeatures, feature) {
+			missingKernelFeatures = append(missingKernelFeatures, feature)
+		}
+	}
+	if len(missingKernelFeatures) > 0 {
+		appArmorLevel = PartialAppArmor
+		appArmorSummary = fmt.Sprintf("apparmor is enabled but some kernel features are missing: %s",
+			strings.Join(missingKernelFeatures, ", "))
+		return
+	}
+
+	// If we got here then all features are available and supported.
+	appArmorLevel = FullAppArmor
+	appArmorSummary = "apparmor is enabled and all features are available"
+}
+
+func probeAppArmorKernelFeatures() ([]string, error) {
+	// note that ioutil.ReadDir() is already sorted
+	dentries, err := ioutil.ReadDir(appArmorFeaturesSysPath)
+	if err != nil {
+		return []string{}, err
+	}
+	features := make([]string, 0, len(dentries))
+	for _, fi := range dentries {
+		if fi.IsDir() {
+			features = append(features, fi.Name())
+		}
+	}
+	return features, nil
+}
+
+func probeAppArmorParserFeatures() ([]string, error) {
+	parser, err := findAppArmorParser()
+	if err != nil {
+		return []string{}, err
+	}
+	features := make([]string, 0, 1)
+	if tryAppArmorParserFeature(parser, "change_profile unsafe /**,") {
+		features = append(features, "unsafe")
+	}
+	sort.Strings(features)
+	return features, nil
+}
+
+// findAppArmorParser returns the path of the apparmor_parser binary if one is found.
+func findAppArmorParser() (string, error) {
+	for _, dir := range filepath.SplitList(appArmorParserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
 			return path, nil
 		}
 	}
-
-	return "", fmt.Errorf("apparmor_parser not found in '%s'", parserSearchPath)
+	return "", os.ErrNotExist
 }
 
-// tryParser will run the parser on the rule to determine if the feature is
-// supported.
-func tryParser(parser, rule string) bool {
+// tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
+func tryAppArmorParserFeature(parser, rule string) bool {
 	cmd := exec.Command(parser, "--preprocess")
 	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
 	if err := cmd.Run(); err != nil {
 		return false
 	}
 	return true
-}
-
-// AppArmorParserMtime returns the mtime of the parser, else 0
-func AppArmorParserMtime() int64 {
-	var mtime int64
-	mtime = 0
-
-	if path, err := lookupParser(); err == nil {
-		if s, err := os.Stat(path); err == nil {
-			mtime = s.ModTime().Unix()
-		}
-	}
-	return mtime
-}
-
-// AppArmorParserFeatures returns a sorted list of apparmor parser features
-// like []string{"unsafe", ...}.
-func AppArmorParserFeatures() []string {
-	parser, err := lookupParser()
-	if err != nil {
-		return nil
-	}
-
-	parserFeatures := make([]string, 0, len(requestedParserFeatures))
-	for _, f := range requestedParserFeatures {
-		if tryParser(parser, f.rule) {
-			parserFeatures = append(parserFeatures, f.feature)
-		}
-	}
-	sort.Strings(parserFeatures)
-	return parserFeatures
 }
