@@ -454,6 +454,21 @@ func (s *helpersSuite) TestGetHotplugChangeAttrs(c *C) {
 	c.Check(seq, Equals, 7)
 }
 
+func (s *helpersSuite) TestSetHotplugChangeAttrs(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("foo", "")
+	ifacestate.SetHotplugChangeAttrs(chg, 12, "abcd")
+
+	var seq int
+	var hotplugKey string
+	c.Assert(chg.Get("hotplug-seq", &seq), IsNil)
+	c.Assert(chg.Get("hotplug-key", &hotplugKey), IsNil)
+	c.Check(seq, Equals, 12)
+	c.Check(hotplugKey, Equals, "abcd")
+}
+
 func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
