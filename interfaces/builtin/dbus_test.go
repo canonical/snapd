@@ -407,6 +407,7 @@ apps:
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapDBusSystemServicesDir, "org.dbus-snap.system.service"), []byte(`[D-BUS Service]
 Name=org.dbus-snap.system
 Exec=command
+User=root
 X-Snap=other-snap
 `), 0644)
 	c.Assert(err, IsNil)
@@ -570,6 +571,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystemActivatable(c *C) {
 Name=org.test-system-activatable
 Comment=Bus name for snap application test-dbus.test-system-activatable-provider
 Exec=/usr/bin/snap run test-dbus.test-system-activatable-provider
+User=root
 X-Snap=test-dbus
 `),
 		},

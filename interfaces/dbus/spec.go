@@ -52,6 +52,9 @@ func (spec *Specification) AddService(bus, name string, appInfo *snap.AppInfo) e
 Name={{.BusName}}
 Comment=Bus name for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Exec={{.App.LauncherCommand}}
+{{- if .IsSystem }}
+User=root
+{{- end}}
 {{- if .SystemdService }}
 SystemdService={{.SystemdService}}
 {{- end}}
@@ -62,9 +65,11 @@ X-Snap={{.App.Snap.InstanceName}}
 		App            *snap.AppInfo
 		BusName        string
 		SystemdService string
+		IsSystem       bool
 	}{
-		App:     appInfo,
-		BusName: name,
+		App:      appInfo,
+		BusName:  name,
+		IsSystem: bus == "system",
 	}
 	var services map[string]*Service
 	switch bus {

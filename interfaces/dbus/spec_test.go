@@ -129,6 +129,7 @@ func (s *specSuite) TestAddService(c *C) {
 Name=org.foo
 Comment=Bus name for snap application snap1.svc
 Exec=/usr/bin/snap run snap1.svc
+User=root
 SystemdService=snap.snap1.svc.service
 X-Snap=snap1
 `),
@@ -140,6 +141,7 @@ X-Snap=snap1
 Name=org.bar
 Comment=Bus name for snap application snap1.svc
 Exec=/usr/bin/snap run snap1.svc
+User=root
 SystemdService=snap.snap1.svc.service
 X-Snap=snap1
 `),
