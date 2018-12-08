@@ -1732,6 +1732,10 @@ apps:
  svc3:
   command: bin/hello
   daemon: simple
+ svc4:
+  command: bin/hello
+  daemon: dbus
+  bus-name: com.example.svc4
 `
 
 	svc3Name := "snap.hello-snap.svc3.service"

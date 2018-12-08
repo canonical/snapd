@@ -180,7 +180,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			}
 		}(app)
 
-		if len(app.Sockets) == 0 && app.Timer == nil {
+		if len(app.Sockets) == 0 && app.Timer == nil && app.Daemon != "dbus" {
 			// check if the service is disabled, if so don't start it up
 			// this could happen for example if the service was disabled in
 			// the install hook by snapctl or if the service was disabled in
@@ -392,9 +392,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 			written = append(written, path)
 		}
 
-		if app.Timer != nil || len(app.Sockets) != 0 {
-			// service is socket or timer activated, not during the
-			// boot
+		if app.Timer != nil || len(app.Sockets) != 0 || app.Daemon == "dbus" {
+			// service is dbus, socket, or timer activated,
+			// not during the boot
 			continue
 		}
 
