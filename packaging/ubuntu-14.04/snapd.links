@@ -1,2 +1,4 @@
 ../../usr/lib/snapd/snap-device-helper  /lib/udev/snappy-app-dev
 usr/lib/snapd/snapctl usr/bin/snapctl
+usr/share/dbus-1/session.d/snapd-session.conf etc/dbus-1/session.d/snapd-session.conf
+usr/share/dbus-1/system.d/snapd-system.conf etc/dbus-1/system.d/snapd-system.conf
