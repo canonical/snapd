@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
@@ -45,6 +46,16 @@ var (
 
 func init() {
 	selinuxLevel, selinuxSummary = probeSELinux()
+}
+
+// isDirectoy is like osutil.IsDirectory but we cannot import this
+// because of import cycles
+func isDirectory(path string) bool {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return stat.IsDir()
 }
 
 // SELinuxLevel tells what level of SELinux enforcement is currently used
