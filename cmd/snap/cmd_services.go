@@ -22,11 +22,11 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -115,33 +115,6 @@ func svcNames(s []serviceName) []string {
 	return svcNames
 }
 
-func notesForSvc(app *client.AppInfo) string {
-	if !app.IsService() {
-		return "-"
-	}
-
-	var notes = make([]string, 0, 2)
-	var seenTimer, seenSocket bool
-	for _, act := range app.Activators {
-		switch act.Type {
-		case "timer":
-			seenTimer = true
-		case "socket":
-			seenSocket = true
-		}
-	}
-	if seenTimer {
-		notes = append(notes, "timer-activated")
-	}
-	if seenSocket {
-		notes = append(notes, "socket-activated")
-	}
-	if len(notes) == 0 {
-		return "-"
-	}
-	return strings.Join(notes, ",")
-}
-
 func (s *svcStatus) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -171,7 +144,7 @@ func (s *svcStatus) Execute(args []string) error {
 		if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, notesForSvc(svc))
+		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, cmd.ClientAppInfoNotes(svc))
 	}
 
 	return nil

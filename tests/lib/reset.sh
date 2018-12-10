@@ -63,6 +63,9 @@ reset_classic() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
+            # On systems running SELinux we need to restore the context of the
+            # directories we just recreated. Otherwise, the entries created
+            # inside will be incorrectly labeled.
             restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
             ;;
     esac
