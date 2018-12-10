@@ -463,11 +463,6 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
-	//
-	// If the mounted namespace is discarded with
-	// sc_discard_preserved_mount_ns() it will revert to a regular file.  If
-	// snap-confine is killed for whatever reason after the file is created but
-	// before the file is bind-mounted it will also be a regular file.
 	mnt_fd = openat(group->dir_fd, mnt_fname,
 			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (mnt_fd < 0) {
@@ -780,45 +775,4 @@ void sc_wait_for_helper(struct sc_mount_ns *group)
 {
 	sc_message_capture_helper(group, HELPER_CMD_EXIT);
 	sc_wait_for_capture_helper(group);
-}
-
-void sc_discard_preserved_mount_ns(struct sc_mount_ns *group)
-{
-	// Remember the current working directory
-	int old_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	old_dir_fd = open(".", O_PATH | O_DIRECTORY | O_CLOEXEC);
-	if (old_dir_fd < 0) {
-		die("cannot open current directory");
-	}
-	// Move to the mount namespace directory (/run/snapd/ns)
-	if (fchdir(group->dir_fd) < 0) {
-		die("cannot move to namespace group directory");
-	}
-	// Unmount ${group_name}.mnt which holds the preserved namespace
-	char mnt_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-			 SC_NS_MNT_FILE);
-	debug("unmounting preserved mount namespace file %s", mnt_fname);
-	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) < 0) {
-		switch (errno) {
-		case EINVAL:
-			// EINVAL is returned when there's nothing to unmount (no bind-mount).
-			// Instead of checking for this explicitly (which is always racy) we
-			// just unmount and check the return code.
-			break;
-		case ENOENT:
-			// We may be asked to discard a namespace that doesn't yet
-			// exist (even the mount point may be absent). We just
-			// ignore that error and return gracefully.
-			break;
-		default:
-			die("cannot unmount preserved mount namespace file %s",
-			    mnt_fname);
-			break;
-		}
-	}
-	// Get back to the original directory
-	if (fchdir(old_dir_fd) < 0) {
-		die("cannot move back to original directory");
-	}
 }
