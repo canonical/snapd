@@ -18,7 +18,7 @@ prepare: |
 
     # Create a test char device so we can verify the test snap cannot read.
     if [ ! -e /dev/test1 ]; then
-        mknod /dev/test1 c 29 0
+        mknod /dev/test1 c 29 1
         touch /dev/test1.spread
     fi
 
