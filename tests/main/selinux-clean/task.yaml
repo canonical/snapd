@@ -1,0 +1,39 @@
+summary: Check that basic snap management does not raise any SELinux denials
+
+description: |
+    On systems where SELinux is supported, make sure that starting snapd and
+    performing basic install/remove tasks does not cause SELinux denials. Even
+    though we do not support SELinux for enforcing confinement of snaps, we do
+    not want to cause unnecessary warnings when users are performing basic
+    management tasks on snaps.
+
+systems: [fedora-*, centos-*]
+prepare: |
+    # Enable enforcing mode, our policy is already marked as permissive, so we
+    # will get audit entries but the program will not be stopped by SELinux
+    setenforce 1
+    ausearch --checkpoint stamp -m AVC || true
+
+restore: |
+    rm -f stamp
+    setenforce 0
+
+execute: |
+    snap install test-snapd-tools
+    test-snapd-tools.cmd echo 'hello world'
+    su -c 'test-snapd-tools.cmd echo hello world' test
+    snap remove test-snapd-tools
+    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    install_local test-snapd-service
+    snap remove test-snapd-service
+    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    install_local test-snapd-layout
+    test-snapd-layout.sh -c 'ls /'
+    su -c "test-snapd-layout.sh -c 'ls /'" test
+    snap remove test-snapd-layout
+    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
