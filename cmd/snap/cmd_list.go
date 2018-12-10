@@ -128,20 +128,30 @@ func (x *cmdList) Execute(args []string) error {
 	esc := x.getEscapes()
 	w := tabWriter()
 
-	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
-	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher%s\tNotes\n"), fillerPublisher(esc))
+	cols := []string{
+		i18n.G("Name"),
+		i18n.G("Version"),
+		i18n.G("Rev"),
+		i18n.G("Tracking"),
+		i18n.G("Publisher") + fillerPublisher(esc),
+		i18n.G("Notes"),
+	}
+	fncs := []func(*client.Snap) string{
+		func(snap *client.Snap) string { return snap.Name },
+		func(snap *client.Snap) string { return snap.Version },
+		func(snap *client.Snap) string { return snap.Revision.String() },
+		func(snap *client.Snap) string { return fmtChannel(snap.TrackingChannel) },
+		func(snap *client.Snap) string { return shortPublisher(esc, snap.Publisher) },
+		func(snap *client.Snap) string { return NotesFromLocal(snap).String() },
+	}
 
+	fmt.Fprintln(w, strings.Join(cols, "\t"))
+	fields := make([]string, len(fncs))
 	for _, snap := range snaps {
-		// doing it this way because otherwise it's a sea of %s\t%s\t%s
-		line := []string{
-			snap.Name,
-			snap.Version,
-			snap.Revision.String(),
-			fmtChannel(snap.TrackingChannel),
-			shortPublisher(esc, snap.Publisher),
-			NotesFromLocal(snap).String(),
+		for i := range fncs {
+			fields[i] = fncs[i](snap)
 		}
-		fmt.Fprintln(w, strings.Join(line, "\t"))
+		fmt.Fprintln(w, strings.Join(fields, "\t"))
 	}
 	w.Flush()
 
