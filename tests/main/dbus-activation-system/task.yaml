@@ -7,13 +7,16 @@ execute: |
     echo "A service activation file has been created"
     [ -f /var/lib/snapd/dbus/system-services/io.snapcraft.SnapDbusService.service ]
 
-    echo "Ensure that the service is not running"
-    systemctl stop snap.test-snapd-dbus-service.system.service
+    echo "The service is not initially running"
+    ! systemctl is-active snap.test-snapd-dbus-service.system.service
 
     echo "Making a method call wakes the service"
     dbus-send --system --print-reply \
       --dest=io.snapcraft.SnapDbusService /io/snapcraft/SnapDbusService  \
       io.snapcraft.ExampleInterface.ExampleMethod | MATCH hello
+
+    echo "The corresponding D-Bus service is now running"
+    systemctl is-active snap.test-snapd-dbus-service.system.service
 
     echo "Removing the snap also removes the service activation file"
     snap remove test-snapd-dbus-service
