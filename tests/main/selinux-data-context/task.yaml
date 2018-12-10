@@ -3,8 +3,8 @@ summary: Check that SELinux file context transitions work
 description: |
     Verify that automatic file context transitions work and cover typical use cases
 
-# TODO: enable centos once we are able to build the policy
-systems: [fedora-*]
+# Only distros that support SELinux
+systems: [fedora-*, centos-*]
 
 prepare: |
     rm -rf /root/snap
