@@ -92,8 +92,10 @@ unconfined_domain(snappy_unconfined_snap_t)
 permissive snappy_t;
 
 # Allow transitions from init_t to snappy for sockets
-init_named_socket_activation(snappy_t, snappy_var_run_t, "snapd.socket")
-init_named_socket_activation(snappy_t, snappy_var_run_t, "snapd-snap.socket")
+# init_named_socket_activation() is not supported by core policy in RHEL7
+gen_require(` type init_t; type var_run_t; ')
+filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
+filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
 
 # Allow init_t to read snappy data
 allow init_t snappy_var_lib_t:dir read;
@@ -357,7 +359,8 @@ fs_manage_cgroup_dirs(snappy_confine_t)
 fs_write_cgroup_files(snappy_confine_t)
 kernel_getattr_debugfs(snappy_confine_t)
 term_getattr_pty_fs(snappy_confine_t)
-term_getattr_generic_ptys(snappy_confine_t)
+# term_getattr_generic_ptys() is not supported by core policy in RHEL7
+allow snappy_confine_t devpts_t:chr_file getattr;
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 allow snappy_confine_t unconfined_t:file getattr;
