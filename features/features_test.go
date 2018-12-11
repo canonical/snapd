@@ -92,3 +92,9 @@ func (*featureSuite) TestControlFile(c *C) {
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }
+
+func (*featureSuite) TestConfigOption(c *C) {
+	snapName, configName := features.Layouts.ConfigOption()
+	c.Check(snapName, Equals, "core")
+	c.Check(configName, Equals, "experimental.layouts")
+}
