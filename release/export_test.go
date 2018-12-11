@@ -58,6 +58,22 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
+func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
+	old := selinuxIsEnabled
+	selinuxIsEnabled = isEnabled
+	return func() {
+		selinuxIsEnabled = old
+	}
+}
+
+func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
+	old := selinuxIsEnforcing
+	selinuxIsEnforcing = isEnforcing
+	return func() {
+		selinuxIsEnforcing = old
+	}
+}
+
 // CurrentAppArmorLevel returns the internal cached apparmor level.
 func CurrentAppArmorLevel() AppArmorLevelType {
 	return appArmorLevel
@@ -84,4 +100,6 @@ var (
 	PreferredAppArmorParserFeatures = preferredAppArmorParserFeatures
 
 	IsWSL = isWSL
+
+	ProbeSELinux = probeSELinux
 )
