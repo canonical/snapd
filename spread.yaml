@@ -78,11 +78,13 @@ backends:
 
             - fedora-28-64:
                 workers: 4
+                manual: true
             - fedora-29-64:
                 workers: 4
-                manual: true
             - opensuse-42.3-64:
                 workers: 4
+                # golang stack cannot compile anything, needs investigation
+                manual: true
             - arch-linux-64:
                 workers: 4
 
@@ -562,6 +564,7 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
 
 suites:
     tests/main/:
