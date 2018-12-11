@@ -106,6 +106,11 @@ func (f SnapdFeature) ControlFile() string {
 	return filepath.Join(dirs.FeaturesDir, f.String())
 }
 
+// ConfigOption returns the snap name and configuration option associated with this feature.
+func (f SnapdFeature) ConfigOption() (snapName, confName string) {
+	return "core", "experimental." + f.String()
+}
+
 // IsEnabled checks if a given exported snapd feature is enabled.
 //
 // The function panics for features that are not exported.
