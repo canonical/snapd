@@ -83,6 +83,8 @@ backends:
                 workers: 4
             - opensuse-42.3-64:
                 workers: 4
+                # golang stack cannot compile anything, needs investigation
+                manual: true
             - arch-linux-64:
                 workers: 4
 

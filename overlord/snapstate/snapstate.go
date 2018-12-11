@@ -1566,12 +1566,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		chain = ts
 	}
 
-	var removeHook *state.Task
-	// only run remove hook if uninstalling the snap completely
-	if removeAll {
-		removeHook = SetupRemoveHook(st, snapsup.InstanceName())
-	}
-
 	var prev *state.Task
 	var stopSnapServices *state.Task
 	if active {
@@ -1580,6 +1574,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
 		addNext(state.NewTaskSet(stopSnapServices))
 		prev = stopSnapServices
+	}
+
+	// only run remove hook if uninstalling the snap completely
+	if removeAll {
+		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
+		addNext(state.NewTaskSet(removeHook))
+		prev = removeHook
 	}
 
 	if removeAll {
@@ -1595,11 +1596,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 	if active { // unlink
 		var tasks []*state.Task
-		if removeHook != nil {
-			tasks = append(tasks, removeHook)
-			removeHook.WaitFor(prev)
-			prev = removeHook
-		}
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
 		removeAliases.WaitFor(prev)
@@ -1615,8 +1611,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 		tasks = append(tasks, removeAliases, unlink, removeSecurity)
 		addNext(state.NewTaskSet(tasks...))
-	} else if removeHook != nil {
-		addNext(state.NewTaskSet(removeHook))
 	}
 
 	if removeAll {
