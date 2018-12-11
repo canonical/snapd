@@ -41,6 +41,8 @@ const (
 	SnapdSnap
 	// PerUserMountNamespace controls the persistence of per-user mount namespaces.
 	PerUserMountNamespace
+	// lastFeature is the final known feature, it is only used for testing.
+	lastFeature
 )
 
 // KnownFeatures returns the list of all known features.

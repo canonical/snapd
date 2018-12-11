@@ -47,9 +47,11 @@ func (*featureSuite) TestName(c *C) {
 
 func (*featureSuite) TestKnownFeatures(c *C) {
 	// Check that known features have names.
-	for _, f := range features.KnownFeatures() {
+	known := features.KnownFeatures()
+	for _, f := range known {
 		c.Check(f.String(), Not(Equals), "", Commentf("feature code: %d", int(f)))
 	}
+	c.Check(known, HasLen, features.NumberOfFeatures())
 }
 
 func (*featureSuite) TestIsExported(c *C) {
