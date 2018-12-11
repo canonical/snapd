@@ -199,6 +199,18 @@ distro_install_package() {
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # Fedora images we use come with a number of preinstalled package, among
+        # them gtk3. Those packages are needed to run the tests. The
+        # xdg-desktop-portal-gtk package uses this in the spec:
+        #
+        #   Supplements:    (gtk3 and (flatpak or snapd))
+        #
+        # As a result, when snapd is installed, we will unintentionally pull in
+        # xdg-desktop-portal-gtk and its dependencies breaking tests. For this
+        # reason, disable weak deps altogether.
+        DNF_FLAGS="--setopt=install_weak_deps=False"
+    fi
     YUM_FLAGS=
     ZYPPER_FLAGS=
     while [ -n "$1" ]; do
