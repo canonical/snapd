@@ -27,21 +27,20 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "And the framebuffer plug is connected"
     snap connect test-devmode-cgroup:framebuffer
+
     echo "the jailmode snap can access the framebuffer"
-    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-fb 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "the jailmode snap cannot access other devices"
-    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-kmsg 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev mem 2>&1 | MATCH '(Permission denied|Operation not permitted)'
 
     echo "And the framebuffer plug is disconnected"
     snap disconnect test-devmode-cgroup:framebuffer
+
     echo "the jailmode snap cannot access the framebuffer"
-    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-fb 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev fb0 2>&1 | MATCH '(Permission denied|Operation not permitted)'
 
     echo "the jailmode snap cannot access other devices"
-    "$SNAP_MOUNT_DIR"/bin/test-devmode-cgroup.read-kmsg 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev mem 2>&1 | MATCH '(Permission denied|Operation not permitted)'
