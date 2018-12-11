@@ -36,10 +36,10 @@ var (
 // SELinux context
 func Verifypathcon(aPath string) (bool, error) {
 	if _, err := os.Stat(aPath); err != nil {
-		// path that cannot be accessed cannot be verified either
+		// path that cannot be accessed cannot be verified
 		return false, err
 	}
-	// if restorecon is found we may restore SELinux context
+	// if matchpathcon is found we may verify SELinux context
 	matchpathconPath, err := exec.LookPath("matchpathcon")
 	if err != nil {
 		return false, err
