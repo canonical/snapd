@@ -6,7 +6,7 @@ execute: |
     echo "Given a tried snap"
     base_dir=$(mktemp -d)
     chmod 0755 "$base_dir"
-    cp -R "$TESTSLIB"/snaps/test-snapd-tools/* "$base_dir"
+    cp -a "$TESTSLIB"/snaps/test-snapd-tools/* "$base_dir"
     snap try "$base_dir"
 
     echo "Then it is listed as installed"

@@ -90,9 +90,6 @@
 %if 0%{?amzn2} == 1
 %global with_selinux 0
 %endif
-%if 0%{?centos} == 7
-%global with_selinux 0
-%endif
 
 Name:           snapd
 Version:        2.36.2
@@ -226,7 +223,11 @@ BuildArch:      noarch
 BuildRequires:  selinux-policy, selinux-policy-devel
 Requires(post): selinux-policy-base >= %{_selinux_policy_version}
 Requires(post): policycoreutils
+%if 0%{?rhel} == 7
+Requires(post): policycoreutils-python
+%else
 Requires(post): policycoreutils-python-utils
+%endif
 Requires(pre):  libselinux-utils
 Requires(post): libselinux-utils
 

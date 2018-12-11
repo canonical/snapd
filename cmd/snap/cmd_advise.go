@@ -197,10 +197,10 @@ func adviseViaAptHook() error {
 		}
 
 	}
-	if rpc.Method == "org.debian.apt.hooks.search.post" {
-		// FIXME: do a snap search here
-		// FIXME2: figure out why apt does not tell us the search results
-	}
+	// if rpc.Method == "org.debian.apt.hooks.search.post" {
+	// 	// FIXME: do a snap search here
+	// 	// FIXME2: figure out why apt does not tell us the search results
+	// }
 
 	// bye
 	rpc, err = readRpc(r)
