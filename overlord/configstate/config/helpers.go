@@ -284,9 +284,9 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 }
 
 // GetFeatureFlag returns the value of a given feature flag.
-func GetFeatureFlag(tr Conf, flag features.SnapdFeature) (bool, error) {
+func GetFeatureFlag(tr Conf, feature features.SnapdFeature) (bool, error) {
 	var isEnabled interface{}
-	snapName, confName := flag.ConfigOption()
+	snapName, confName := feature.ConfigOption()
 	if err := tr.Get(snapName, confName, &isEnabled); err != nil && !IsNoOption(err) {
 		return false, err
 	}
@@ -296,7 +296,7 @@ func GetFeatureFlag(tr Conf, flag features.SnapdFeature) (bool, error) {
 	case false, "false":
 		return false, nil
 	case nil, "":
-		return flag.IsEnabledWhenUnset(), nil
+		return feature.IsEnabledWhenUnset(), nil
 	}
-	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", flag, isEnabled)
+	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", feature, isEnabled)
 }
