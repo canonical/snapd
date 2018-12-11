@@ -290,6 +290,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Apps",
 		"LegacyAliases",
 		"Hooks",
+		"ToplevelPlugs",
+		"ToplevelSlots",
 		"BadInterfaces",
 		"Broken",
 		"MustBuy",

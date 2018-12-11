@@ -146,12 +146,14 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 
 	// At this point snap.Plugs and snap.Slots only contain globally-declared
-	// plugs and slots, so flag them as such for later.
+	// plugs and slots, so copy them for later.
+	snap.ToplevelPlugs = make([]*PlugInfo, 0, len(snap.Plugs))
+	snap.ToplevelSlots = make([]*SlotInfo, 0, len(snap.Slots))
 	for _, plug := range snap.Plugs {
-		plug.TopLevel = true
+		snap.ToplevelPlugs = append(snap.ToplevelPlugs, plug)
 	}
 	for _, slot := range snap.Slots {
-		slot.TopLevel = true
+		snap.ToplevelSlots = append(snap.ToplevelSlots, slot)
 	}
 
 	// Collect all apps, their aliases and hooks
@@ -514,10 +516,7 @@ func bindUnboundSlots(snap *Info) {
 
 // bindImplicitHooks binds all global plugs and slots to implicit hooks
 func bindImplicitHooks(snap *Info) {
-	for plugName, plug := range snap.Plugs {
-		if !plug.TopLevel {
-			continue
-		}
+	for _, plug := range snap.ToplevelPlugs {
 		for hookName, hook := range snap.Hooks {
 			if hook.Explicit {
 				continue
@@ -525,7 +524,7 @@ func bindImplicitHooks(snap *Info) {
 			if hook.Plugs == nil {
 				hook.Plugs = make(map[string]*PlugInfo)
 			}
-			hook.Plugs[plugName] = plug
+			hook.Plugs[plug.Name] = plug
 			if plug.Hooks == nil {
 				plug.Hooks = make(map[string]*HookInfo)
 			}
@@ -533,10 +532,7 @@ func bindImplicitHooks(snap *Info) {
 		}
 	}
 
-	for slotName, slot := range snap.Slots {
-		if !slot.TopLevel {
-			continue
-		}
+	for _, slot := range snap.ToplevelSlots {
 		for hookName, hook := range snap.Hooks {
 			if hook.Explicit {
 				continue
@@ -544,7 +540,7 @@ func bindImplicitHooks(snap *Info) {
 			if hook.Slots == nil {
 				hook.Slots = make(map[string]*SlotInfo)
 			}
-			hook.Slots[slotName] = slot
+			hook.Slots[slot.Name] = slot
 			if slot.Hooks == nil {
 				slot.Hooks = make(map[string]*HookInfo)
 			}

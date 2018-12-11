@@ -782,12 +782,10 @@ hooks:
 
 		plug := info.Plugs["test-plug"]
 		c.Assert(plug, NotNil)
-		c.Assert(plug.TopLevel, Equals, true)
 		c.Assert(implicitHook.Plugs["test-plug"], DeepEquals, plug)
 
 		slot := info.Slots["test-slot"]
 		c.Assert(slot, NotNil)
-		c.Assert(slot.TopLevel, Equals, true)
 		c.Assert(implicitHook.Slots["test-slot"], DeepEquals, slot)
 
 		explicitHook := info.Hooks["explicit"]
