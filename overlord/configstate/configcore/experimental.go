@@ -31,7 +31,8 @@ import (
 
 func init() {
 	for _, feature := range features.KnownFeatures() {
-		supportedConfigurations["core.experimental."+feature.String()] = true
+		snapName, confName := feature.ConfigOption()
+		supportedConfigurations[snapName+"."+confName] = true
 	}
 }
 

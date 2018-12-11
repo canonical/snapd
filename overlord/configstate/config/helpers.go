@@ -283,14 +283,11 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 	return nil
 }
 
-func featureKey(flag features.SnapdFeature) string {
-	return "experimental." + flag.String()
-}
-
 // GetFeatureFlag returns the value of a given feature flag.
 func GetFeatureFlag(tr Conf, flag features.SnapdFeature) (bool, error) {
 	var isEnabled interface{}
-	if err := tr.Get("core", featureKey(flag), &isEnabled); err != nil && !IsNoOption(err) {
+	snapName, confName := flag.ConfigOption()
+	if err := tr.Get(snapName, confName, &isEnabled); err != nil && !IsNoOption(err) {
 		return false, err
 	}
 	switch isEnabled {
