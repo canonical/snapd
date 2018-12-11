@@ -20,11 +20,9 @@
 package release
 
 import (
-	"bytes"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
+
+	"github.com/snapcore/snapd/selinux"
 )
 
 // SELinuxLevelType encodes the state of SELinux support found on this system.
@@ -42,20 +40,13 @@ const (
 var (
 	selinuxLevel   SELinuxLevelType
 	selinuxSummary string
+
+	selinuxIsEnabled   = selinux.IsEnabled
+	selinuxIsEnforcing = selinux.IsEnforcing
 )
 
 func init() {
 	selinuxLevel, selinuxSummary = probeSELinux()
-}
-
-// isDirectoy is like osutil.IsDirectory but we cannot import this
-// because of import cycles
-func isDirectory(path string) bool {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	return stat.IsDir()
 }
 
 // SELinuxLevel tells what level of SELinux enforcement is currently used
@@ -68,25 +59,21 @@ func SELinuxSummary() string {
 	return selinuxSummary
 }
 
-// probe related code
-var (
-	selinuxSysPath = "sys/fs/selinux"
-)
-
 func probeSELinux() (SELinuxLevelType, string) {
-	if !isDirectory(selinuxSysPath) {
-		return NoSELinux, "SELinux not enabled"
+	enabled, err := selinuxIsEnabled()
+	if err != nil {
+		return NoSELinux, err.Error()
+	}
+	if !enabled {
+		return NoSELinux, ""
 	}
 
-	rawState, err := ioutil.ReadFile(filepath.Join(selinuxSysPath, "enforce"))
+	enforcing, err := selinuxIsEnforcing()
 	if err != nil {
-		return NoSELinux, fmt.Sprintf("SELinux status cannot be determined: %v", err)
+		return NoSELinux, fmt.Sprintf("SELinux is enabled, but status cannot be determined: %v", err)
 	}
-	switch {
-	case bytes.Equal(rawState, []byte("0")):
+	if !enforcing {
 		return SELinuxPermissive, "SELinux is enabled and in permissive mode"
-	case bytes.Equal(rawState, []byte("1")):
-		return SELinuxEnforcing, "SELinux is enabled and in enforcing mode"
 	}
-	return NoSELinux, fmt.Sprintf("SELinux present but status cannot be determined: %s", rawState)
+	return SELinuxEnforcing, "SELinux is enabled and in enforcing mode"
 }
