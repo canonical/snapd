@@ -9,6 +9,9 @@ restore: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
     echo "Set up a private D-Bus session bus"
     eval "$(dbus-launch --sh-syntax)"
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
@@ -20,9 +23,10 @@ execute: |
     [ -f /var/lib/snapd/dbus/services/io.snapcraft.SnapDbusService.service ]
 
     echo "Making a method call wakes the service"
-    dbus-send --session --print-reply \
-      --dest=io.snapcraft.SnapDbusService /io/snapcraft/SnapDbusService \
-      io.snapcraft.ExampleInterface.ExampleMethod | MATCH hello
+    install_local test-snapd-dbus-service-client
+    snap connect test-snapd-dbus-service-client:dbus-session-plug \
+                 test-snapd-dbus-service:dbus-session-slot
+    test-snapd-dbus-service-client.session | MATCH hello
 
     echo "Removing the snap also removes the service activation file"
     snap remove test-snapd-dbus-service
