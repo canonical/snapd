@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -91,7 +92,20 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 			}
 			logger.Debugf("Encountered syscall error: %#v", syscallErr)
 		}
-		// Retry for temp network errors like DNS connection refused
+
+		// If we are unable to talk to a DNS go1.9+ will set
+		// opErr.IsTemporary - we also support go1.6 so we need to
+		// add a workaround here. This block can go away once we
+		// use go1.9+ only.
+		if dnsErr, ok := opErr.Err.(*net.DNSError); ok {
+			// The horror, the horror
+			if strings.Contains(dnsErr.Err, "connection refused") {
+				logger.Debugf("Retrying because DNS connection refused error: %#v", dnsErr)
+				return true
+			}
+		}
+
+		// Retry for temporary network errors (like dns errors in 1.9+)
 		if opErr.Temporary() {
 			logger.Debugf("Retrying because of temporary net error: %#v", opErr)
 			return true

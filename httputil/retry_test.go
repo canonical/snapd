@@ -440,5 +440,24 @@ func (s *retrySuite) TestRetryOnTemporaryDNSfailure(c *C) {
 	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
 	c.Assert(err, NotNil)
 	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
+}
 
+func (s *retrySuite) TestRetryOnTemporaryDNSfailureNotGo19(c *C) {
+	n := 0
+	doRequest := func() (*http.Response, error) {
+		n++
+		return nil, &net.OpError{
+			Op:  "dial",
+			Net: "tcp",
+			Err: &net.DNSError{
+				Err: "[::1]:42463->[::1]:53: read: connection refused",
+			},
+		}
+	}
+	readResponseBody := func(resp *http.Response) error {
+		return nil
+	}
+	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	c.Assert(err, NotNil)
+	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
 }
