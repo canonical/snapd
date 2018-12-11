@@ -82,16 +82,21 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 				logger.Debugf("Retrying because of: %s", opErr)
 				return true
 			}
+			// FIXME: code below is not (unit) tested and
+			// it is unclear if we need it with the new
+			// opErr.Temporary() "if" below
 			if opErr.Op == "dial" {
 				logger.Debugf("Retrying because of: %#v (syscall error: %#v)", opErr, syscallErr.Err)
 				return true
 			}
 			logger.Debugf("Encountered syscall error: %#v", syscallErr)
 		}
-		if opNetErr, ok := opErr.Err.(net.Error); ok {
-			// TODO: some DNS errors? just log for now
-			logger.Debugf("Not retrying: %#v", opNetErr)
+		// Retry for temp network errors like DNS connection refused
+		if opErr.Temporary() {
+			logger.Debugf("Retrying because of temporary net error: %#v", opErr)
+			return true
 		}
+		logger.Debugf("Encountered non temporary net.OpError: %#v", opErr)
 	}
 
 	if err == io.ErrUnexpectedEOF || err == io.EOF {
