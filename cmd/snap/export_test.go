@@ -211,3 +211,27 @@ func ColorMixin(cmode, umode string) colorMixin {
 func CmdAdviseSnap() *cmdAdviseSnap {
 	return &cmdAdviseSnap{}
 }
+
+func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
+	old := selinuxIsEnabled
+	selinuxIsEnabled = isEnabled
+	return func() {
+		selinuxIsEnabled = old
+	}
+}
+
+func MockSELinuxVerifypathcon(verifypathcon func(string) (bool, error)) (restore func()) {
+	old := selinuxVerifypathcon
+	selinuxVerifypathcon = verifypathcon
+	return func() {
+		selinuxVerifypathcon = old
+	}
+}
+
+func MockSELinuxRestorecon(restorecon func(string, bool) error) (restore func()) {
+	old := selinuxRestorecon
+	selinuxRestorecon = restorecon
+	return func() {
+		selinuxRestorecon = old
+	}
+}

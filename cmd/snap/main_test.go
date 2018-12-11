@@ -92,6 +92,8 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snap.MockIsStdoutTTY(false))
 	s.AddCleanup(snap.MockIsStdinTTY(false))
+
+	s.AddCleanup(snap.MockSELinuxIsEnabled(func() (bool, error) { return false, nil }))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {

@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -52,10 +53,13 @@ import (
 )
 
 var (
-	syscallExec = syscall.Exec
-	userCurrent = user.Current
-	osGetenv    = os.Getenv
-	timeNow     = time.Now
+	syscallExec          = syscall.Exec
+	userCurrent          = user.Current
+	osGetenv             = os.Getenv
+	timeNow              = time.Now
+	selinuxIsEnabled     = selinux.IsEnabled
+	selinuxVerifypathcon = selinux.Verifypathcon
+	selinuxRestorecon    = selinux.Restorecon
 )
 
 type cmdRun struct {
@@ -343,13 +347,25 @@ func createUserDataDirs(info *snap.Info) error {
 // maybeRestoreSecurityContext attempts to restore security context of ~/snap on
 // systems where it's applicable
 func maybeRestoreSecurityContext(aPath string) error {
-	// if restorecon is found we may restore SELinux context
-	restoreconPath, err := exec.LookPath("restorecon")
+	enabled, err := selinuxIsEnabled()
 	if err != nil {
+		return fmt.Errorf("cannot determine SELinux status: %v", err)
+	}
+	if !enabled {
+		logger.Debugf("SELinux not enabled")
 		return nil
 	}
 
-	if err := exec.Command(restoreconPath, "-R", aPath).Run(); err != nil {
+	match, err := selinuxVerifypathcon(aPath)
+	if err != nil {
+		return fmt.Errorf("failed to verify SELinux context of %v: %v", aPath, err)
+	}
+	if match {
+		return nil
+	}
+	logger.Noticef("restoring default SELinux context of %v", aPath)
+
+	if err := selinuxRestorecon(aPath, true); err != nil {
 		return fmt.Errorf("failed to restore SELinux context of %v: %v", aPath, err)
 	}
 	return nil
