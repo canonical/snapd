@@ -48,21 +48,21 @@ func KnownFeatures() []SnapdFeature {
 	return []SnapdFeature{Layouts, ParallelInstances, Hotplug, SnapdSnap, PerUserMountNamespace}
 }
 
+// featyreNames maps feature constant to stable string representation.
+// The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
+var featureNames = map[SnapdFeature]string{
+	Layouts:               "layouts",
+	ParallelInstances:     "parallel-instances",
+	Hotplug:               "hotplug",
+	SnapdSnap:             "snapd-snap",
+	PerUserMountNamespace: "per-user-mount-namespace",
+}
+
 // String returns the name of a snapd feature.
 // The function panics for bogus feature values.
 func (f SnapdFeature) String() string {
-	// The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
-	switch f {
-	case Layouts:
-		return "layouts"
-	case ParallelInstances:
-		return "parallel-instances"
-	case Hotplug:
-		return "hotplug"
-	case SnapdSnap:
-		return "snapd-snap"
-	case PerUserMountNamespace:
-		return "per-user-mount-namespace"
+	if name, ok := featureNames[f]; ok {
+		return name
 	}
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
 }
