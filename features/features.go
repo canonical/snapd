@@ -49,6 +49,7 @@ func KnownFeatures() []SnapdFeature {
 }
 
 // String returns the name of a snapd feature.
+// The function panics for bogus feature values.
 func (f SnapdFeature) String() string {
 	// The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
 	switch f {
@@ -96,6 +97,8 @@ func (f SnapdFeature) IsExported() bool {
 //
 // Snapd considers the feature enabled if the file is present.
 // The contents of the file are not important.
+//
+// The function panics for features that are not exported.
 func (f SnapdFeature) ControlFile() string {
 	if !f.IsExported() {
 		panic(fmt.Sprintf("cannot compute the control file of feature %q because that feature is not exported", f))
@@ -104,6 +107,8 @@ func (f SnapdFeature) ControlFile() string {
 }
 
 // IsEnabled checks if a given exported snapd feature is enabled.
+//
+// The function panics for features that are not exported.
 func (f SnapdFeature) IsEnabled() bool {
 	if !f.IsExported() {
 		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
