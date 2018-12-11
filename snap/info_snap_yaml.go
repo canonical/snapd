@@ -476,7 +476,13 @@ func bindUnboundPlugs(snap *Info) {
 			}
 
 			for hookName, hook := range snap.Hooks {
+				if hook.Plugs == nil {
+					hook.Plugs = make(map[string]*PlugInfo)
+				}
 				hook.Plugs[plugName] = plug
+				if plug.Hooks == nil {
+					plug.Hooks = make(map[string]*HookInfo)
+				}
 				plug.Hooks[hookName] = hook
 			}
 		}
