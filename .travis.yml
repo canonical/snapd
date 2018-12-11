@@ -41,6 +41,8 @@ jobs:
         apt:
           packages:
             python-launchpadlib
+      git:
+        depth: false
       script:
         - ./tests/lib/cla_check.py
     - stage: integration
