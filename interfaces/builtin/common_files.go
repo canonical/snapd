@@ -49,7 +49,7 @@ const (
 func (a filesAAPerm) String() string {
 	switch a {
 	case filesRead:
-		return "rk"
+		return "rk" // [r]ead and loc[k]
 	case filesWrite:
 		return "rwkl"
 	}
