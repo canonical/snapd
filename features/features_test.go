@@ -79,7 +79,7 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	c.Check(features.Layouts.IsEnabled, PanicMatches, `cannot check if feature "layouts" is enabled because that feature is not exported`)
 }
 
-func (*featureSuite) TestIsEnabledByDefault(c *C) {
+func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.Layouts.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.ParallelInstances.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.Hotplug.IsEnabledWhenUnset(), Equals, false)
