@@ -290,8 +290,6 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Apps",
 		"LegacyAliases",
 		"Hooks",
-		"ToplevelPlugs",
-		"ToplevelSlots",
 		"BadInterfaces",
 		"Broken",
 		"MustBuy",
@@ -306,6 +304,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		t := x.Type()
 		for i := 0; i < x.NumField(); i++ {
 			f := t.Field(i)
+			if f.PkgPath != "" {
+				// not exported, ignore
+				continue
+			}
 			v := x.Field(i)
 			if f.Anonymous {
 				checker(pfx+f.Name+".", v)
