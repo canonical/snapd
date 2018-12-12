@@ -728,9 +728,6 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
         backends: [google-nested]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
@@ -750,9 +747,6 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
         backends: [google-nested]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
