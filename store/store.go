@@ -1582,7 +1582,7 @@ func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	case osutil.ExecutableExists("xdelta3"):
 		return exec.Command("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
+		return osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", args...)
 	}
 	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }
