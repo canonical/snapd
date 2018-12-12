@@ -47,7 +47,11 @@ const (
 
 // KnownFeatures returns the list of all known features.
 func KnownFeatures() []SnapdFeature {
-	return []SnapdFeature{Layouts, ParallelInstances, Hotplug, SnapdSnap, PerUserMountNamespace}
+	features := make([]SnapdFeature, int(lastFeature))
+	for i := range features {
+		features[i] = SnapdFeature(i)
+	}
+	return features
 }
 
 // featureNames maps feature constant to stable string representation.
