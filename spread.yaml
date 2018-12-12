@@ -637,6 +637,9 @@ suites:
         # this test prepare
         backends: [-autopkgtest]
         prepare-each: |
+            # FIXME: this should really use prepare-restore.sh --prepare-suite-each
+            # like other suites, needs more investigation
+
             # shellcheck source=tests/lib/state.sh
             "$TESTSLIB"/state.sh
             mkdir -p "$RUNTIME_STATE_PATH"
