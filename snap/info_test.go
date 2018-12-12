@@ -757,6 +757,22 @@ hooks:
 	})
 }
 
+func (s *infoSuite) TestReadInfoExplicitHooks(c *C) {
+	yaml := `name: foo
+version: 1.0
+plugs:
+  test-plug:
+slots:
+  test-slot:
+hooks:
+  explicit:
+`
+	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"explicit"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 1)
+		verifyExplicitHook(c, info, "explicit", []string{"test-plug"}, []string{"test-slot"})
+	})
+}
+
 func (s *infoSuite) TestReadInfoImplicitHookWithTopLevelPlugSlots(c *C) {
 	yaml := `name: foo
 version: 1.0
