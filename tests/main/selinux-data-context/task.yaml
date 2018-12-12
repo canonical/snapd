@@ -10,6 +10,9 @@ prepare: |
     rm -rf /root/snap
     rm -rf /home/test/snap
 
+restore: |
+    rm -rf ./*-labels
+
 execute: |
     # verify that we're actually running on a SELinux system
     selinuxenabled
@@ -34,3 +37,37 @@ execute: |
 
     #shellcheck disable=SC2012
     ls -Zd /run/snapd | MATCH ':snappy_var_run_t:'
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    # install a snap that does some file manipulation
+    install_local test-snapd-service-writer
+
+    ls -Zd /var/snap/test-snapd-service-writer/common \
+           /var/snap/test-snapd-service-writer/common/by-hook \
+           /var/snap/test-snapd-service-writer/common/by-hook/foo \
+           /var/snap/test-snapd-service-writer/current \
+           /var/snap/test-snapd-service-writer/current/by-hook \
+           /var/snap/test-snapd-service-writer/current/by-hook/foo > hook-labels
+
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'              < hook-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook$'      < hook-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook/foo$'  < hook-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current$'             < hook-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook$'     < hook-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook/foo$' < hook-labels
+
+    ls -Zd /var/snap/test-snapd-service-writer/common \
+           /var/snap/test-snapd-service-writer/common/foo \
+           /var/snap/test-snapd-service-writer/common/foo/bar \
+           /var/snap/test-snapd-service-writer/current \
+           /var/snap/test-snapd-service-writer/current/foo \
+           /var/snap/test-snapd-service-writer/current/foo/bar > service-labels
+
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'          < service-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo$'      < service-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo/bar$'  < service-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current$'         < service-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo$'     < service-labels
+    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo/bar$' < service-labels
