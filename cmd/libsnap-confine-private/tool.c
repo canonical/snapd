@@ -72,7 +72,7 @@ int sc_open_snap_update_ns(void)
 }
 
 void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name,
-			    struct sc_apparmor *apparmor, bool is_user_profile)
+			    struct sc_apparmor *apparmor)
 {
 	char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 	snap_name_copy = sc_strdup(snap_name);
@@ -81,43 +81,54 @@ void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name,
 	sc_must_snprintf(aa_profile, sizeof aa_profile, "snap-update-ns.%s",
 			 snap_name);
 
-	if (is_user_profile) {
-		const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-		char xdg_runtime_dir_env[PATH_MAX];
-		if (xdg_runtime_dir != NULL) {
-			sc_must_snprintf(xdg_runtime_dir_env,
-					 sizeof(xdg_runtime_dir_env),
-					 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
-		}
-		char *argv[] = {
-			"snap-update-ns",
-			/* This tells snap-update-ns we are calling from snap-confine and locking is in place */
-			/* TODO: enable this in sync with snap-update-ns changes, "--from-snap-confine", */
-			/* This tells snap-update-ns that we want to process the per-user profile */
-			"--user-mounts", snap_name_copy, NULL
-		};
-		char *envp[] = {
-			/* SNAPD_DEBUG=x is replaced by sc_call_snapd_tool_with_apparmor
-			 * with either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function
-			 * for details. */
-			"SNAPD_DEBUG=x",
-			xdg_runtime_dir_env, NULL
-		};
-		sc_call_snapd_tool_with_apparmor(snap_update_ns_fd,
-						 "snap-update-ns", apparmor,
-						 aa_profile, argv, envp);
-	} else {
-		char *argv[] = {
-			"snap-update-ns",
-			/* This tells snap-update-ns we are calling from snap-confine and locking is in place */
-			"--from-snap-confine",
-			snap_name_copy, NULL
-		};
-		char *envp[] = { "SNAPD_DEBUG=x", NULL };
-		sc_call_snapd_tool_with_apparmor(snap_update_ns_fd,
-						 "snap-update-ns", apparmor,
-						 aa_profile, argv, envp);
+	char *argv[] = {
+		"snap-update-ns",
+		/* This tells snap-update-ns we are calling from snap-confine and locking is in place */
+		"--from-snap-confine",
+		snap_name_copy, NULL
+	};
+	char *envp[] = { "SNAPD_DEBUG=x", NULL };
+	sc_call_snapd_tool_with_apparmor(snap_update_ns_fd,
+					 "snap-update-ns", apparmor,
+					 aa_profile, argv, envp);
+}
+
+void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
+				    const char *snap_name,
+				    struct sc_apparmor *apparmor)
+{
+	char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
+	snap_name_copy = sc_strdup(snap_name);
+
+	char aa_profile[PATH_MAX] = { 0 };
+	sc_must_snprintf(aa_profile, sizeof aa_profile, "snap-update-ns.%s",
+			 snap_name);
+
+	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+	char xdg_runtime_dir_env[PATH_MAX];
+	if (xdg_runtime_dir != NULL) {
+		sc_must_snprintf(xdg_runtime_dir_env,
+				 sizeof(xdg_runtime_dir_env),
+				 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
 	}
+
+	char *argv[] = {
+		"snap-update-ns",
+		/* This tells snap-update-ns we are calling from snap-confine and locking is in place */
+		/* TODO: enable this in sync with snap-update-ns changes, "--from-snap-confine", */
+		/* This tells snap-update-ns that we want to process the per-user profile */
+		"--user-mounts", snap_name_copy, NULL
+	};
+	char *envp[] = {
+		/* SNAPD_DEBUG=x is replaced by sc_call_snapd_tool_with_apparmor
+		 * with either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function
+		 * for details. */
+		"SNAPD_DEBUG=x",
+		xdg_runtime_dir_env, NULL
+	};
+	sc_call_snapd_tool_with_apparmor(snap_update_ns_fd,
+					 "snap-update-ns", apparmor,
+					 aa_profile, argv, envp);
 }
 
 int sc_open_snap_discard_ns(void)
