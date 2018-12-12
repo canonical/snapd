@@ -769,6 +769,14 @@ hooks:
     plugs: [test-plug,other-plug]
     slots: [test-slot,other-slot]
 `
+
+	yaml2 := `name: foo
+version: 1.0
+plugs:
+  test-plug:
+slots:
+  test-slot:
+`
 	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 2)
 		implicitHook := info.Hooks["implicit"]
@@ -802,6 +810,27 @@ hooks:
 		c.Assert(slot, NotNil)
 		c.Assert(explicitHook.Slots["test-slot"], DeepEquals, slot)
 	})
+
+	s.checkInstalledSnapAndSnapFile(c, yaml2, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 1)
+		implicitHook := info.Hooks["implicit"]
+		c.Assert(implicitHook, NotNil)
+		c.Assert(implicitHook.Explicit, Equals, false)
+		c.Assert(implicitHook.Plugs, HasLen, 1)
+		c.Assert(implicitHook.Slots, HasLen, 1)
+
+		c.Check(info.Plugs, HasLen, 1)
+		c.Check(info.Slots, HasLen, 1)
+
+		plug := info.Plugs["test-plug"]
+		c.Assert(plug, NotNil)
+		c.Assert(implicitHook.Plugs["test-plug"], DeepEquals, plug)
+
+		slot := info.Slots["test-slot"]
+		c.Assert(slot, NotNil)
+		c.Assert(implicitHook.Slots["test-slot"], DeepEquals, slot)
+	})
+
 }
 
 func verifyImplicitHook(c *C, info *snap.Info, hookName string, plugNames []string) {
