@@ -13,6 +13,9 @@ restore: |
 
 execute: |
     mkdir -p "$TRYDIR"
+    # make sure the dir has correct permissions in case the default umask is
+    # different
+    chmod 0755 "$TRYDIR"
 
     cp -ar  "$TESTSLIB"/snaps/"$SNAP_NAME"/* "$TRYDIR"
 
