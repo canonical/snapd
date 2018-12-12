@@ -365,7 +365,7 @@ func maybeRestoreSecurityContext(aPath string) error {
 	}
 	logger.Noticef("restoring default SELinux context of %v", aPath)
 
-	if err := selinuxRestoreContext(aPath, true); err != nil {
+	if err := selinuxRestoreContext(aPath, selinux.RestoreMode{Recursive: true}); err != nil {
 		return fmt.Errorf("failed to restore SELinux context of %v: %v", aPath, err)
 	}
 	return nil

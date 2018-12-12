@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -972,8 +973,8 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	})
 	defer restorer()
 
-	restorer = snaprun.MockSELinuxRestoreContext(func(what string, recursive bool) error {
-		c.Check(recursive, check.Equals, true)
+	restorer = snaprun.MockSELinuxRestoreContext(func(what string, mode selinux.RestoreMode) error {
+		c.Check(mode, check.Equals, selinux.RestoreMode{Recursive: true})
 		c.Check(what, check.Equals, snapUserDir)
 		restoreCalls++
 		return nil
@@ -1060,8 +1061,8 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	})
 	defer restorer()
 
-	restorer = snaprun.MockSELinuxRestoreContext(func(what string, recursive bool) error {
-		c.Check(recursive, check.Equals, true)
+	restorer = snaprun.MockSELinuxRestoreContext(func(what string, mode selinux.RestoreMode) error {
+		c.Check(mode, check.Equals, selinux.RestoreMode{Recursive: true})
 		c.Check(what, check.Equals, snapUserDir)
 		restoreCalls++
 		return restoreErr
