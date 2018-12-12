@@ -641,7 +641,7 @@ suites:
             # like other suites, needs more investigation
 
             # shellcheck source=tests/lib/state.sh
-            "$TESTSLIB"/state.sh
+            . "$TESTSLIB"/state.sh
             mkdir -p "$RUNTIME_STATE_PATH"
             # save the job which is going to be executed in the system
             echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
