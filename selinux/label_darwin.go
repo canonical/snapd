@@ -18,13 +18,13 @@
  */
 package selinux
 
-// Verifypathcon checks whether a given path is labeled according to its default
+// VerifyPathContext checks whether a given path is labeled according to its default
 // SELinux context
-func Verifypathcon(aPath string) (bool, error) {
+func VerifyPathContext(aPath string) (bool, error) {
 	return true, nil
 }
 
-// Restorecon restores the default SELinux context of given path
-func Restorecon(aPath string, recursive bool) error {
+// RestoreContext restores the default SELinux context of given path
+func RestoreContext(aPath string, recursive bool) error {
 	return nil
 }
