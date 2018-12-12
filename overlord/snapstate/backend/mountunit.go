@@ -33,11 +33,12 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var GML = &sync.Mutex{}
-
-func addMountUnit(s *snap.Info, meter progress.Meter) error {
-	GML.Lock()
-	defer GML.Unlock()
+// addMountUnit adds a new mount unit for the given snap "s". It requires
+// a lock that ensures there is only a single concurrent operation that
+// manipulates mount units (see https://github.com/systemd/systemd/issues/10872)
+func addMountUnit(s *snap.Info, meter progress.Meter, lock *sync.Mutex) error {
+	lock.Lock()
+	defer lock.Unlock()
 
 	squashfsPath := dirs.StripRootDir(s.MountFile())
 	whereDir := dirs.StripRootDir(s.MountDir())
@@ -61,9 +62,12 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 	return sysd.Start(mountUnitName)
 }
 
-func removeMountUnit(baseDir string, meter progress.Meter) error {
-	GML.Lock()
-	defer GML.Unlock()
+// removeMountUnit removes the mount unit for the given baseDir. It requires
+// a lock that ensures there is only a single concurrent operation that
+// manipulates mount units (see https://github.com/systemd/systemd/issues/10872)
+func removeMountUnit(baseDir string, meter progress.Meter, lock *sync.Mutex) error {
+	lock.Lock()
+	defer lock.Unlock()
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir))

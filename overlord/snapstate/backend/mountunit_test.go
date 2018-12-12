@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	. "gopkg.in/check.v1"
 
@@ -74,7 +75,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, progress.Null)
+	err := backend.AddMountUnit(info, progress.Null, &sync.Mutex{})
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -105,7 +106,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 
-	err := backend.AddMountUnit(info, progress.Null)
+	err := backend.AddMountUnit(info, progress.Null, &sync.Mutex{})
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -114,8 +115,32 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = backend.RemoveMountUnit(info.MountDir(), progress.Null)
+	err = backend.RemoveMountUnit(info.MountDir(), progress.Null, &sync.Mutex{})
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)
+}
+
+func (s *mountunitSuite) TestAddMountUnitLocks(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(13),
+		},
+		Version:       "1.1",
+		Architectures: []string{"all"},
+	}
+
+	// created a locked mutex
+	lock := sync.Mutex{}
+	lock.Lock()
+
+	// run AddMountUnit and ensure it does not run until the lock is
+	// released
+	doneCh := make(chan bool, 1)
+	go func() {
+		backend.AddMountUnit(info, progress.Null, lock)
+		close(doneCh)
+	}()
+
 }

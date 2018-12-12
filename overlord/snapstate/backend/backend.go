@@ -21,11 +21,18 @@
 package backend
 
 import (
+	"sync"
+
 	"github.com/snapcore/snapd/snap"
 )
 
 // Backend exposes all the low-level primitives to manage snaps and their installation on disk.
-type Backend struct{}
+type Backend struct {
+	// mountLock ensures there is only a single concurrent mountunit
+	// operation. This works around this systemd bug:
+	//   https://github.com/systemd/systemd/issues/10872
+	mountLock sync.Mutex
+}
 
 // Candidate is a test hook.
 func (b Backend) Candidate(*snap.SideInfo) {}
