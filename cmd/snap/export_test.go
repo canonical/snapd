@@ -220,18 +220,18 @@ func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
 	}
 }
 
-func MockSELinuxVerifypathcon(verifypathcon func(string) (bool, error)) (restore func()) {
-	old := selinuxVerifypathcon
-	selinuxVerifypathcon = verifypathcon
+func MockSELinuxVerifyPathContext(verifypathcon func(string) (bool, error)) (restore func()) {
+	old := selinuxVerifypathContext
+	selinuxVerifypathContext = verifypathcon
 	return func() {
-		selinuxVerifypathcon = old
+		selinuxVerifypathContext = old
 	}
 }
 
-func MockSELinuxRestorecon(restorecon func(string, bool) error) (restore func()) {
-	old := selinuxRestorecon
-	selinuxRestorecon = restorecon
+func MockSELinuxRestoreContext(restorecon func(string, bool) error) (restore func()) {
+	old := selinuxRestoreContext
+	selinuxRestoreContext = restorecon
 	return func() {
-		selinuxRestorecon = old
+		selinuxRestoreContext = old
 	}
 }
