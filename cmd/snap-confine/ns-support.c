@@ -727,10 +727,10 @@ static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
 		die("precondition failed: we don't have a helper process");
 	}
 	if (group->pipe_master[1] < 0) {
-		die("precondition failed: we don't have an pipe");
+		die("precondition failed: we don't have a pipe");
 	}
 	if (group->pipe_helper[0] < 0) {
-		die("precondition failed: we don't have an pipe");
+		die("precondition failed: we don't have a pipe");
 	}
 	debug("sending command %d to helper process (pid: %d)",
 	      command_id, group->child);
