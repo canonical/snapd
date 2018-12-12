@@ -44,7 +44,7 @@ func (l *labelSuite) TestVerifyHappyOk(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", "")
 	defer cmd.Restore()
 
-	ok, err := selinux.Verifypathcon(l.path)
+	ok, err := selinux.VerifyPathContext(l.path)
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(cmd.Calls(), check.DeepEquals, [][]string{
@@ -56,7 +56,7 @@ func (l *labelSuite) TestVerifyFailGibberish(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", "echo gibberish; exit 1 ")
 	defer cmd.Restore()
 
-	ok, err := selinux.Verifypathcon(l.path)
+	ok, err := selinux.VerifyPathContext(l.path)
 	c.Assert(err, check.ErrorMatches, "exit status 1")
 	c.Assert(ok, check.Equals, false)
 }
@@ -65,7 +65,7 @@ func (l *labelSuite) TestVerifyFailStatus(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", "echo gibberish; exit 5 ")
 	defer cmd.Restore()
 
-	ok, err := selinux.Verifypathcon(l.path)
+	ok, err := selinux.VerifyPathContext(l.path)
 	c.Assert(err, check.ErrorMatches, "exit status 5")
 	c.Assert(ok, check.Equals, false)
 }
@@ -74,13 +74,13 @@ func (l *labelSuite) TestVerifyFailNoPath(c *check.C) {
 	cmd := testutil.MockCommand(c, "matchpathcon", ``)
 	defer cmd.Restore()
 
-	ok, err := selinux.Verifypathcon("does-not-exist")
+	ok, err := selinux.VerifyPathContext("does-not-exist")
 	c.Assert(err, check.ErrorMatches, ".* does-not-exist: no such file or directory")
 	c.Assert(ok, check.Equals, false)
 }
 
 func (l *labelSuite) TestVerifyFailNoTool(c *check.C) {
-	ok, err := selinux.Verifypathcon(l.path)
+	ok, err := selinux.VerifyPathContext(l.path)
 	c.Assert(err, check.ErrorMatches, `exec: "matchpathcon": executable file not found in \$PATH`)
 	c.Assert(ok, check.Equals, false)
 }
@@ -91,7 +91,7 @@ echo %s has context unconfined_u:object_r:user_home_t:s0, should be unconfined_u
 exit 1`, l.path))
 	defer cmd.Restore()
 
-	ok, err := selinux.Verifypathcon(l.path)
+	ok, err := selinux.VerifyPathContext(l.path)
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, false)
 }
@@ -100,7 +100,7 @@ func (l *labelSuite) TestRestoreHappy(c *check.C) {
 	cmd := testutil.MockCommand(c, "restorecon", "")
 	defer cmd.Restore()
 
-	err := selinux.Restorecon(l.path, false)
+	err := selinux.RestoreContext(l.path, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Calls(), check.DeepEquals, [][]string{
 		{"restorecon", l.path},
@@ -108,7 +108,7 @@ func (l *labelSuite) TestRestoreHappy(c *check.C) {
 
 	cmd.ForgetCalls()
 
-	err = selinux.Restorecon(l.path, true)
+	err = selinux.RestoreContext(l.path, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Calls(), check.DeepEquals, [][]string{
 		{"restorecon", "-R", l.path},
@@ -116,15 +116,15 @@ func (l *labelSuite) TestRestoreHappy(c *check.C) {
 }
 
 func (l *labelSuite) TestRestoreFail(c *check.C) {
-	err := selinux.Restorecon(l.path, false)
+	err := selinux.RestoreContext(l.path, false)
 	c.Assert(err, check.ErrorMatches, `exec: "restorecon": executable file not found in \$PATH`)
 
 	cmd := testutil.MockCommand(c, "restorecon", "exit 1")
 	defer cmd.Restore()
 
-	err = selinux.Restorecon(l.path, false)
+	err = selinux.RestoreContext(l.path, false)
 	c.Assert(err, check.ErrorMatches, "exit status 1")
 
-	err = selinux.Restorecon("does-not-exist", false)
+	err = selinux.RestoreContext("does-not-exist", false)
 	c.Assert(err, check.ErrorMatches, ".* does-not-exist: no such file or directory")
 }
