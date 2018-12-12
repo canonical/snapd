@@ -21,6 +21,7 @@ package selinux_test
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
@@ -80,6 +81,9 @@ func (l *labelSuite) TestVerifyFailNoPath(c *check.C) {
 }
 
 func (l *labelSuite) TestVerifyFailNoTool(c *check.C) {
+	if _, err := exec.LookPath("matchpathcon"); err == nil {
+		c.Skip("matchpathcon found in $PATH")
+	}
 	ok, err := selinux.VerifyPathContext(l.path)
 	c.Assert(err, check.ErrorMatches, `exec: "matchpathcon": executable file not found in \$PATH`)
 	c.Assert(ok, check.Equals, false)
@@ -115,14 +119,19 @@ func (l *labelSuite) TestRestoreHappy(c *check.C) {
 	})
 }
 
-func (l *labelSuite) TestRestoreFail(c *check.C) {
+func (l *labelSuite) TestRestoreFailNoTool(c *check.C) {
+	if _, err := exec.LookPath("matchpathcon"); err == nil {
+		c.Skip("matchpathcon found in $PATH")
+	}
 	err := selinux.RestoreContext(l.path, false)
 	c.Assert(err, check.ErrorMatches, `exec: "restorecon": executable file not found in \$PATH`)
+}
 
+func (l *labelSuite) TestRestoreFail(c *check.C) {
 	cmd := testutil.MockCommand(c, "restorecon", "exit 1")
 	defer cmd.Restore()
 
-	err = selinux.RestoreContext(l.path, false)
+	err := selinux.RestoreContext(l.path, false)
 	c.Assert(err, check.ErrorMatches, "exit status 1")
 
 	err = selinux.RestoreContext("does-not-exist", false)
