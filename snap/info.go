@@ -224,8 +224,9 @@ type Info struct {
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
-	ToplevelPlugs    []*PlugInfo
-	ToplevelSlots    []*SlotInfo
+
+	ToplevelPlugs []*PlugInfo
+	ToplevelSlots []*SlotInfo
 
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
