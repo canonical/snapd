@@ -333,6 +333,11 @@ prepare_project() {
         debian-*|ubuntu-*)
             # in 16.04: apt build-dep -y ./
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
+            # The go 1.10 backport is not using alternatives or anything else so
+            # we need to get it on path somehow. This is not perfect but simple.
+            if [ -z "$(command -v go)" ]; then
+                ln -s /usr/lib/go-1.10/bin/go /usr/bin/go
+            fi
             ;;
     esac
 
