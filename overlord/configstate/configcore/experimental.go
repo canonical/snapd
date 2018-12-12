@@ -36,7 +36,7 @@ func init() {
 	}
 }
 
-func validateExperimentalSettings(tr Conf) error {
+func validateExperimentalSettings(tr config.Conf) error {
 	for k := range supportedConfigurations {
 		if !strings.HasPrefix(k, "core.experimental.") {
 			continue
@@ -48,7 +48,7 @@ func validateExperimentalSettings(tr Conf) error {
 	return nil
 }
 
-func handleExperimentalFlags(tr Conf) error {
+func handleExperimentalFlags(tr config.Conf) error {
 	dir := dirs.FeaturesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err

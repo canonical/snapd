@@ -32,12 +32,8 @@ var (
 	Stderr = os.Stderr
 )
 
-type Conf interface {
-	config.Conf
-}
-
 // coreCfg returns the configuration value for the core snap.
-func coreCfg(tr Conf, key string) (result string, err error) {
+func coreCfg(tr config.Conf, key string) (result string, err error) {
 	var v interface{} = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
@@ -52,7 +48,7 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 // The actual values are populated by `init()` functions in each module.
 var supportedConfigurations = make(map[string]bool, 32)
 
-func validateBoolFlag(tr Conf, flag string) error {
+func validateBoolFlag(tr config.Conf, flag string) error {
 	value, err := coreCfg(tr, flag)
 	if err != nil {
 		return err
@@ -66,7 +62,7 @@ func validateBoolFlag(tr Conf, flag string) error {
 	return nil
 }
 
-func Run(tr Conf) error {
+func Run(tr config.Conf) error {
 	// check if the changes
 	for _, k := range tr.Changes() {
 		if !supportedConfigurations[k] {
