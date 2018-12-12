@@ -90,11 +90,11 @@ var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 ))
 
 var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
-		retry.Exponential{
-			Initial: 500 * time.Millisecond,
-			Factor:  2.5,
-		},
-	))
+	retry.Exponential{
+		Initial: 500 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
 
 var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
 	retry.Exponential{

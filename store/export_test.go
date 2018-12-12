@@ -77,7 +77,6 @@ func MockDownloadRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	})
 }
 
-
 func MockConnCheckStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	originalConnCheckStrategy := connCheckStrategy
 	connCheckStrategy = strategy
