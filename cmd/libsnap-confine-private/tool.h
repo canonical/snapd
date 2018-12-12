@@ -18,8 +18,6 @@
 #ifndef SNAP_CONFINE_TOOL_H
 #define SNAP_CONFINE_TOOL_H
 
-#include <stdbool.h>
-
 /* Forward declaration, for real see apparmor-support.h */
 struct sc_apparmor;
 
@@ -32,7 +30,14 @@ int sc_open_snap_update_ns(void);
  * sc_call_snap_update_ns calls snap-update-ns from snap-confine
  **/
 void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name,
-			    struct sc_apparmor *apparmor, bool is_user_profile);
+			    struct sc_apparmor *apparmor);
+
+/**
+ * sc_call_snap_update_ns calls snap-update-ns --user-mounts from snap-confine
+ **/
+void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
+				    const char *snap_name,
+				    struct sc_apparmor *apparmor);
 
 /**
  * sc_open_snap_update_ns returns a file descriptor for the snap-discard-ns tool.

@@ -618,7 +618,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	setup_private_pts();
 
 	// setup the security backend bind mounts
-	sc_call_snap_update_ns(snap_update_ns_fd, snap_name, apparmor, false);
+	sc_call_snap_update_ns(snap_update_ns_fd, snap_name, apparmor);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
@@ -699,5 +699,5 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 
 	sc_make_slave_mount_ns();
-	sc_call_snap_update_ns(snap_update_ns_fd, snap_name, apparmor, true);
+	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }
