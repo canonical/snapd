@@ -199,7 +199,6 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 	s.SetupAsserts(c, s.state)
 
-	s.BaseTest.AddCleanup(ifacestate.MockHotplugRetryTimeout(2 * time.Millisecond))
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.state.Lock()
