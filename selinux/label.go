@@ -18,13 +18,9 @@
  */
 package selinux
 
-// VerifyPathContext checks whether a given path is labeled according to its default
-// SELinux context
-func VerifyPathContext(aPath string) (bool, error) {
-	return true, nil
-}
-
-// RestoreContext restores the default SELinux context of given path
-func RestoreContext(aPath string, mode RestoreMode) error {
-	return nil
+// RestoreMode configures how default path context is restored
+type RestoreMode struct {
+	// Recursive indicates whether the default context shall be restored
+	// recursively
+	Recursive bool
 }

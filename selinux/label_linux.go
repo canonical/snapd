@@ -62,14 +62,14 @@ func VerifyPathContext(aPath string) (bool, error) {
 }
 
 // RestoreContext restores the default SELinux context of given path
-func RestoreContext(aPath string, recursive bool) error {
+func RestoreContext(aPath string, mode RestoreMode) error {
 	if _, err := os.Stat(aPath); err != nil {
 		// path that cannot be accessed cannot be restored
 		return err
 	}
 
 	args := make([]string, 0, 2)
-	if recursive {
+	if mode.Recursive {
 		// -R: recursive
 		args = append(args, "-R")
 	}
