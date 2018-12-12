@@ -100,7 +100,7 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 		if dnsErr, ok := opErr.Err.(*net.DNSError); ok {
 			// The horror, the horror
 			if strings.Contains(dnsErr.Err, "connection refused") {
-				logger.Debugf("Retrying because DNS connection refused error: %#v", dnsErr)
+				logger.Debugf("Retrying because of temporary net error (DNS): %#v", dnsErr)
 				return true
 			}
 		}
