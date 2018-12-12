@@ -43,7 +43,7 @@ func MockLink(newLink func(string, string) error) (restore func()) {
 	}
 }
 
-func MockFromCore(newFromCore func(string, ...string) (*exec.Cmd, error)) (restore func()) {
+func MockFromCore(newFromCore func(string, string, ...string) (*exec.Cmd, error)) (restore func()) {
 	oldFromCore := osutilCommandFromCore
 	osutilCommandFromCore = newFromCore
 	return func() {
