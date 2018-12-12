@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -228,7 +229,7 @@ func MockSELinuxVerifyPathContext(verifypathcon func(string) (bool, error)) (res
 	}
 }
 
-func MockSELinuxRestoreContext(restorecon func(string, bool) error) (restore func()) {
+func MockSELinuxRestoreContext(restorecon func(string, selinux.RestoreMode) error) (restore func()) {
 	old := selinuxRestoreContext
 	selinuxRestoreContext = restorecon
 	return func() {
