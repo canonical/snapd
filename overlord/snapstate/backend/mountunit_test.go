@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
 	. "gopkg.in/check.v1"
 
@@ -39,6 +38,7 @@ import (
 
 type mountunitSuite struct {
 	umount *testutil.MockCmd
+	be     *backend.Backend
 
 	systemctlRestorer func()
 }
@@ -55,6 +55,8 @@ func (s *mountunitSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.umount = testutil.MockCommand(c, "umount", "")
+
+	s.be = &backend.Backend{}
 }
 
 func (s *mountunitSuite) TearDownTest(c *C) {
@@ -75,7 +77,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, progress.Null, &sync.Mutex{})
+	err := s.be.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -106,7 +108,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 
-	err := backend.AddMountUnit(info, progress.Null, &sync.Mutex{})
+	err := s.be.AddMountUnit(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -115,7 +117,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = backend.RemoveMountUnit(info.MountDir(), progress.Null, &sync.Mutex{})
+	err = s.be.RemoveMountUnit(info.MountDir(), progress.Null)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)

@@ -19,10 +19,18 @@
 
 package backend
 
-var (
-	AddMountUnit    = addMountUnit
-	RemoveMountUnit = removeMountUnit
+import (
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 )
+
+func (b *Backend) AddMountUnit(s *snap.Info, meter progress.Meter) error {
+	return b.addMountUnit(s, meter)
+}
+
+func (b *Backend) RemoveMountUnit(baseDir string, meter progress.Meter) error {
+	return b.removeMountUnit(baseDir, meter)
+}
 
 func MockUpdateFontconfigCaches(f func() error) (restore func()) {
 	oldUpdateFontconfigCaches := updateFontconfigCaches

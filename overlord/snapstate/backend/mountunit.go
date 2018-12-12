@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -36,9 +35,9 @@ import (
 // addMountUnit adds a new mount unit for the given snap "s". It requires
 // a lock that ensures there is only a single concurrent operation that
 // manipulates mount units (see https://github.com/systemd/systemd/issues/10872)
-func addMountUnit(s *snap.Info, meter progress.Meter, lock *sync.Mutex) error {
-	lock.Lock()
-	defer lock.Unlock()
+func (b *Backend) addMountUnit(s *snap.Info, meter progress.Meter) error {
+	b.mountLock.Lock()
+	defer b.mountLock.Unlock()
 
 	squashfsPath := dirs.StripRootDir(s.MountFile())
 	whereDir := dirs.StripRootDir(s.MountDir())
@@ -65,9 +64,9 @@ func addMountUnit(s *snap.Info, meter progress.Meter, lock *sync.Mutex) error {
 // removeMountUnit removes the mount unit for the given baseDir. It requires
 // a lock that ensures there is only a single concurrent operation that
 // manipulates mount units (see https://github.com/systemd/systemd/issues/10872)
-func removeMountUnit(baseDir string, meter progress.Meter, lock *sync.Mutex) error {
-	lock.Lock()
-	defer lock.Unlock()
+func (b *Backend) removeMountUnit(baseDir string, meter progress.Meter) error {
+	b.mountLock.Lock()
+	defer b.mountLock.Unlock()
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir))

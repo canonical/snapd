@@ -69,7 +69,7 @@ func (b *Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Si
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addMountUnit(s, meter, &b.mountLock); err != nil {
+	if err := b.addMountUnit(s, meter); err != nil {
 		return snapType, err
 	}
 
@@ -87,7 +87,7 @@ func (b *Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progres
 	mountDir := s.MountDir()
 
 	// this also ensures that the mount unit stops
-	if err := removeMountUnit(mountDir, meter, &b.mountLock); err != nil {
+	if err := b.removeMountUnit(mountDir, meter); err != nil {
 		return err
 	}
 
