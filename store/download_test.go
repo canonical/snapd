@@ -56,7 +56,7 @@ var _ = Suite(&downloadSuite{})
 func (s *downloadSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.Exponential{
+	store.MockDownloadRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.Exponential{
 		Initial: time.Millisecond,
 		Factor:  2.5,
 	}))
