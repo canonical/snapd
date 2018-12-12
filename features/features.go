@@ -50,7 +50,7 @@ func KnownFeatures() []SnapdFeature {
 	return []SnapdFeature{Layouts, ParallelInstances, Hotplug, SnapdSnap, PerUserMountNamespace}
 }
 
-// featyreNames maps feature constant to stable string representation.
+// featureNames maps feature constant to stable string representation.
 // The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
 var featureNames = map[SnapdFeature]string{
 	Layouts:               "layouts",
