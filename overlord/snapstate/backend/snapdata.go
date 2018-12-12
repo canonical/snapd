@@ -33,7 +33,7 @@ import (
 )
 
 // RemoveSnapData removes the data for the given version of the given snap.
-func (b Backend) RemoveSnapData(snap *snap.Info) error {
+func (b *Backend) RemoveSnapData(snap *snap.Info) error {
 	dirs, err := snapDataDirs(snap)
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func (b Backend) RemoveSnapData(snap *snap.Info) error {
 }
 
 // RemoveSnapCommonData removes the data common between versions of the given snap.
-func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
+func (b *Backend) RemoveSnapCommonData(snap *snap.Info) error {
 	dirs, err := snapCommonDataDirs(snap)
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
 }
 
 // RemoveSnapDataDir removes base snap data directory
-func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error {
+func (b *Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error {
 	if info.InstanceKey != "" {
 		// data directories of snaps with instance key are never used by
 		// other instances
@@ -72,7 +72,7 @@ func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) erro
 	return nil
 }
 
-func (b Backend) untrashData(snap *snap.Info) error {
+func (b *Backend) untrashData(snap *snap.Info) error {
 	dirs, err := snapDataDirs(snap)
 	if err != nil {
 		return err

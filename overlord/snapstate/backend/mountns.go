@@ -24,6 +24,6 @@ import (
 )
 
 // Discard the mount namespace of a given snap.
-func (b Backend) DiscardSnapNamespace(snapName string) error {
+func (b *Backend) DiscardSnapNamespace(snapName string) error {
 	return mount.DiscardSnapNamespace(snapName)
 }

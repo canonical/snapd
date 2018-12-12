@@ -35,10 +35,10 @@ type Backend struct {
 }
 
 // Candidate is a test hook.
-func (b Backend) Candidate(*snap.SideInfo) {}
+func (b *Backend) Candidate(*snap.SideInfo) {}
 
 // CurrentInfo is a test hook.
-func (b Backend) CurrentInfo(*snap.Info) {}
+func (b *Backend) CurrentInfo(*snap.Info) {}
 
 // OpenSnapFile opens a snap blob returning both a snap.Info completed
 // with sideInfo (if not nil) and a corresponding snap.Container.

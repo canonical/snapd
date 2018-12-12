@@ -40,7 +40,7 @@ import (
 )
 
 type copydataSuite struct {
-	be      backend.Backend
+	be      *backend.Backend
 	tempdir string
 }
 

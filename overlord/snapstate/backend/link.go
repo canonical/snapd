@@ -59,7 +59,7 @@ func updateCurrentSymlinks(info *snap.Info) error {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
+func (b *Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if info.Revision.Unset() {
 		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
@@ -93,11 +93,11 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	return updateCurrentSymlinks(info)
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter) error {
+func (b *Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter) error {
 	return wrappers.StartServices(apps, meter)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
+func (b *Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
 	return wrappers.StopServices(apps, reason, meter)
 }
 
@@ -141,7 +141,7 @@ func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 }
 
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and symlinks.
-func (b Backend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
+func (b *Backend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
 	// remove generated services, binaries etc
 	err1 := removeGeneratedWrappers(info, meter)
 

@@ -120,27 +120,3 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)
 }
-
-func (s *mountunitSuite) TestAddMountUnitLocks(c *C) {
-	info := &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(13),
-		},
-		Version:       "1.1",
-		Architectures: []string{"all"},
-	}
-
-	// created a locked mutex
-	lock := sync.Mutex{}
-	lock.Lock()
-
-	// run AddMountUnit and ensure it does not run until the lock is
-	// released
-	doneCh := make(chan bool, 1)
-	go func() {
-		backend.AddMountUnit(info, progress.Null, lock)
-		close(doneCh)
-	}()
-
-}

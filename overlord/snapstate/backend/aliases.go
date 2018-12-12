@@ -38,7 +38,7 @@ type Alias struct {
 // MatchingAliases returns the subset of aliases that exist on disk and have the expected targets.
 
 // UpdateAliases adds and removes the given aliases.
-func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
+func (b *Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 	removed := make(map[string]bool, len(remove))
 	for _, alias := range remove {
 		err := os.Remove(filepath.Join(dirs.SnapBinariesDir, alias.Name))
@@ -76,7 +76,7 @@ func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 }
 
 // RemoveSnapAliases removes all the aliases targeting the given snap.
-func (b Backend) RemoveSnapAliases(snapName string) error {
+func (b *Backend) RemoveSnapAliases(snapName string) error {
 	removeSymlinksTo(dirs.CompletersDir, snapName)
 	return removeSymlinksTo(dirs.SnapBinariesDir, snapName)
 }

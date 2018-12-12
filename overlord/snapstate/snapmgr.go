@@ -323,7 +323,7 @@ func Store(st *state.State) StoreService {
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	m := &SnapManager{
 		state:          st,
-		backend:        backend.Backend{},
+		backend:        &backend.Backend{},
 		autoRefresh:    newAutoRefresh(st),
 		refreshHints:   newRefreshHints(st),
 		catalogRefresh: newCatalogRefresh(st),

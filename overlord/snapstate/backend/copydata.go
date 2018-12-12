@@ -28,7 +28,7 @@ import (
 )
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
-func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error {
+func (b *Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
@@ -57,7 +57,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter)
 }
 
 // UndoCopySnapData removes the copy that may have been done for newInfo snap of oldInfo snap data and also the data directories that may have been created for newInfo snap.
-func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
+func (b *Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
 	if oldInfo != nil && oldInfo.Revision == newInfo.Revision {
 		// nothing to do
 		return nil
@@ -85,7 +85,7 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 }
 
 // ClearTrashedData removes the trash. It returns no errors on the assumption that it is called very late in the game.
-func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
+func (b *Backend) ClearTrashedData(oldSnap *snap.Info) {
 	dirs, err := snapDataDirs(oldSnap)
 	if err != nil {
 		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.InstanceName(), err)
