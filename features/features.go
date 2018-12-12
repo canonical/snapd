@@ -60,6 +60,11 @@ var featureNames = map[SnapdFeature]string{
 	PerUserMountNamespace: "per-user-mount-namespace",
 }
 
+// featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
+var featuresEnabledWhenUnset = map[SnapdFeature]bool{
+	Layouts: true,
+}
+
 // String returns the name of a snapd feature.
 // The function panics for bogus feature values.
 func (f SnapdFeature) String() string {
@@ -75,11 +80,7 @@ func (f SnapdFeature) String() string {
 // explicit state is absent the effective value is the implicit default
 // computed by this function.
 func (f SnapdFeature) IsEnabledWhenUnset() bool {
-	switch f {
-	case Layouts:
-		return true
-	}
-	return false
+	return featuresEnabledWhenUnset[f]
 }
 
 // IsExported returns true if a feature is copied from snapd state to a feature file.
