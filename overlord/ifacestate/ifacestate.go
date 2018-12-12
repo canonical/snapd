@@ -39,7 +39,6 @@ import (
 )
 
 var connectRetryTimeout = time.Second * 5
-var hotplugRetryTimeout = time.Second * 3
 
 // ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.
 type ErrAlreadyConnected struct {
@@ -473,10 +472,4 @@ func MockConnectRetryTimeout(d time.Duration) (restore func()) {
 	old := connectRetryTimeout
 	connectRetryTimeout = d
 	return func() { connectRetryTimeout = old }
-}
-
-func MockHotplugRetryTimeout(d time.Duration) (restore func()) {
-	old := hotplugRetryTimeout
-	hotplugRetryTimeout = d
-	return func() { hotplugRetryTimeout = old }
 }
