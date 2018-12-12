@@ -68,12 +68,6 @@
  **/
 static const char *sc_ns_dir = SC_NS_DIR;
 
-/**
- * Name of the preserved mount namespace associated with SC_NS_DIR
- * and a given group identifier (typically SNAP_NAME).
- **/
-#define SC_NS_MNT_FILE ".mnt"
-
 enum {
 	HELPER_CMD_EXIT,
 	HELPER_CMD_CAPTURE_MOUNT_NS,
@@ -458,8 +452,7 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-			 SC_NS_MNT_FILE);
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.mnt", group->name);
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
@@ -617,11 +610,10 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 {
 	// This is the child process which will capture the mount namespace.
 	//
-	// It will do so by bind-mounting the SC_NS_MNT_FILE after the parent
-	// process calls unshare() and finishes setting up the namespace
-	// completely.
-	// Change the hat to a sub-profile that has limited permissions
-	// necessary to accomplish the capture of the mount namespace.
+	// It will do so by bind-mounting the .mnt after the parent process calls
+	// unshare() and finishes setting up the namespace completely. Change the
+	// hat to a sub-profile that has limited permissions necessary to
+	// accomplish the capture of the mount namespace.
 	sc_maybe_aa_change_hat(apparmor, "mount-namespace-capture-helper", 0);
 	// Configure the child to die as soon as the parent dies. In an odd
 	// case where the parent is killed then we don't want to complete our
@@ -683,7 +675,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 
 	debug("capturing per-snap mount namespace");
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
-	sc_must_snprintf(dst, sizeof dst, "%s%s", group->name, SC_NS_MNT_FILE);
+	sc_must_snprintf(dst, sizeof dst, "%s.mnt", group->name);
 
 	/* Ensure the bind mount destination exists. */
 	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
@@ -722,10 +714,10 @@ static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
 		die("precondition failed: we don't have a helper process");
 	}
 	if (group->pipe_master[1] < 0) {
-		die("precondition failed: we don't have an pipe");
+		die("precondition failed: we don't have a pipe");
 	}
 	if (group->pipe_helper[0] < 0) {
-		die("precondition failed: we don't have an pipe");
+		die("precondition failed: we don't have a pipe");
 	}
 	debug("sending command %d to helper process (pid: %d)",
 	      command_id, group->child);
