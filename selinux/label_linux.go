@@ -32,20 +32,16 @@ var (
 	matchIncorrectLabel = regexp.MustCompile("^.* has context .* should be .*\n$")
 )
 
-// Verifypathcon checks whether a given path is labeled according to its default
+// VerifyPathContext checks whether a given path is labeled according to its default
 // SELinux context
-func Verifypathcon(aPath string) (bool, error) {
+func VerifyPathContext(aPath string) (bool, error) {
 	if _, err := os.Stat(aPath); err != nil {
 		// path that cannot be accessed cannot be verified
 		return false, err
 	}
-	// if matchpathcon is found we may verify SELinux context
-	matchpathconPath, err := exec.LookPath("matchpathcon")
-	if err != nil {
-		return false, err
-	}
-	// -V: verify
-	cmd := exec.Command(matchpathconPath, "-V", aPath)
+	// matchpathcon -V verifies whether the context of a path matches the
+	// default
+	cmd := exec.Command("matchpathcon", "-V", aPath)
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 	out, err := cmd.Output()
 	if err == nil {
@@ -53,21 +49,22 @@ func Verifypathcon(aPath string) (bool, error) {
 		return true, nil
 	}
 	exit, _ := osutil.ExitCode(err)
+	// exits with 1 when the verification failed or other error occurred,
+	// when verification failed a message like this will be printed to
+	// stdout:
+	//   <the-path> has context <some-context>, should be <some-other-context>
+	// match the message so that we can distinguish a failed verification
+	// case from other errors
 	if exit == 1 && matchIncorrectLabel.Match(out) {
 		return false, nil
 	}
 	return false, err
 }
 
-// Restorecon restores the default SELinux context of given path
-func Restorecon(aPath string, recursive bool) error {
+// RestoreContext restores the default SELinux context of given path
+func RestoreContext(aPath string, recursive bool) error {
 	if _, err := os.Stat(aPath); err != nil {
 		// path that cannot be accessed cannot be restored
-		return err
-	}
-	// if restorecon is found we may restore SELinux context
-	restoreconPath, err := exec.LookPath("restorecon")
-	if err != nil {
 		return err
 	}
 
@@ -78,5 +75,5 @@ func Restorecon(aPath string, recursive bool) error {
 	}
 	args = append(args, aPath)
 
-	return exec.Command(restoreconPath, args...).Run()
+	return exec.Command("restorecon", args...).Run()
 }
