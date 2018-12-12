@@ -53,13 +53,13 @@ import (
 )
 
 var (
-	syscallExec          = syscall.Exec
-	userCurrent          = user.Current
-	osGetenv             = os.Getenv
-	timeNow              = time.Now
-	selinuxIsEnabled     = selinux.IsEnabled
-	selinuxVerifypathcon = selinux.Verifypathcon
-	selinuxRestorecon    = selinux.Restorecon
+	syscallExec              = syscall.Exec
+	userCurrent              = user.Current
+	osGetenv                 = os.Getenv
+	timeNow                  = time.Now
+	selinuxIsEnabled         = selinux.IsEnabled
+	selinuxVerifypathContext = selinux.VerifyPathContext
+	selinuxRestoreContext    = selinux.RestoreContext
 )
 
 type cmdRun struct {
@@ -356,7 +356,7 @@ func maybeRestoreSecurityContext(aPath string) error {
 		return nil
 	}
 
-	match, err := selinuxVerifypathcon(aPath)
+	match, err := selinuxVerifypathContext(aPath)
 	if err != nil {
 		return fmt.Errorf("failed to verify SELinux context of %v: %v", aPath, err)
 	}
@@ -365,7 +365,7 @@ func maybeRestoreSecurityContext(aPath string) error {
 	}
 	logger.Noticef("restoring default SELinux context of %v", aPath)
 
-	if err := selinuxRestorecon(aPath, true); err != nil {
+	if err := selinuxRestoreContext(aPath, true); err != nil {
 		return fmt.Errorf("failed to restore SELinux context of %v: %v", aPath, err)
 	}
 	return nil

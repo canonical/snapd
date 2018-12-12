@@ -965,14 +965,14 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 
 	snapUserDir := filepath.Join(fakeHome, dirs.UserHomeSnapDir)
 
-	restorer = snaprun.MockSELinuxVerifypathcon(func(what string) (bool, error) {
+	restorer = snaprun.MockSELinuxVerifyPathContext(func(what string) (bool, error) {
 		c.Check(what, check.Equals, snapUserDir)
 		verifyCalls++
 		return verify, nil
 	})
 	defer restorer()
 
-	restorer = snaprun.MockSELinuxRestorecon(func(what string, recursive bool) error {
+	restorer = snaprun.MockSELinuxRestoreContext(func(what string, recursive bool) error {
 		c.Check(recursive, check.Equals, true)
 		c.Check(what, check.Equals, snapUserDir)
 		restoreCalls++
@@ -1053,14 +1053,14 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 
 	snapUserDir := filepath.Join(fakeHome, dirs.UserHomeSnapDir)
 
-	restorer = snaprun.MockSELinuxVerifypathcon(func(what string) (bool, error) {
+	restorer = snaprun.MockSELinuxVerifyPathContext(func(what string) (bool, error) {
 		c.Check(what, check.Equals, snapUserDir)
 		verifyCalls++
 		return false, verifyErr
 	})
 	defer restorer()
 
-	restorer = snaprun.MockSELinuxRestorecon(func(what string, recursive bool) error {
+	restorer = snaprun.MockSELinuxRestoreContext(func(what string, recursive bool) error {
 		c.Check(recursive, check.Equals, true)
 		c.Check(what, check.Equals, snapUserDir)
 		restoreCalls++
