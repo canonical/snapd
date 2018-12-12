@@ -65,6 +65,11 @@ var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	Layouts: true,
 }
 
+// featuresExported contains a set of features that are exported outside of snapd.
+var featuresExported = map[SnapdFeature]bool{
+	PerUserMountNamespace: true,
+}
+
 // String returns the name of a snapd feature.
 // The function panics for bogus feature values.
 func (f SnapdFeature) String() string {
@@ -89,11 +94,7 @@ func (f SnapdFeature) IsEnabledWhenUnset() bool {
 // files in a dedicated directory. Such features can be queried for, via IsEnabled, outside
 // of snapd.
 func (f SnapdFeature) IsExported() bool {
-	switch f {
-	case PerUserMountNamespace:
-		return true
-	}
-	return false
+	return featuresExported[f]
 }
 
 // ControlFile returns the path of the file controlling the exported feature.
