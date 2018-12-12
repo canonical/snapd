@@ -582,7 +582,6 @@ restore-each: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        backends: [-google-upgrade]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -593,7 +592,6 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --restore-suite
     tests/core18/:
         summary: Subset of core18 specific tests
-        backends: [-google-upgrade]
         systems: [ubuntu-core-18-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
@@ -605,7 +603,6 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --restore-suite
     tests/completion/:
         summary: completion tests
-        backends: [-google-upgrade]
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
         systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
         prepare: |
@@ -634,7 +631,6 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        backends: [-google-upgrade]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -678,7 +674,6 @@ suites:
             distro_purge_package snapd-xdg-open || true
     tests/cross/:
         summary: Cross-compile tests
-        backends: [-google-upgrade]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
     tests/unit/:
@@ -688,7 +683,7 @@ suites:
         # drop this blacklist.
         systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         # unittests are run as part of the autopkgtest build already
-        backends: [-autopkgtest, -google-upgrade]
+        backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
@@ -731,7 +726,6 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        backends: [-google-upgrade]
         systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
