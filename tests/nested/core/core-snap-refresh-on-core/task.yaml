@@ -14,6 +14,10 @@ restore: |
     rm -f prevBoot nextBoot
     rm -f core_*.{assert,snap} 
 
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
