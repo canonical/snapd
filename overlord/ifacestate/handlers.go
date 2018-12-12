@@ -1255,7 +1255,7 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 
 		// conflict with retry if there another change affecting same device and has lower sequence number
 		if hotplugKey == otherKey && otherSeq < seq {
-			task.Logf("Waiting processing of earlier hotplug event change %q affecting device with hotplug key %q", otherChg.Kind(), otherKey)
+			task.Logf("Waiting processing of earlier hotplug event change %q affecting device with hotplug key %q", otherChg.Kind(), hotplugKey)
 			return &state.Retry{}
 		}
 	}
