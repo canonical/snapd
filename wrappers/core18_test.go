@@ -122,6 +122,7 @@ WantedBy=snapd.service
 		{"start", "snapd.autoimport.service"},
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
+		{"start", "--no-block", "snapd.autoimport.service"},
 	})
 }
 

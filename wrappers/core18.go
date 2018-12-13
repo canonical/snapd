@@ -179,6 +179,13 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 	if err := sysd.StartNoBlock("snapd.seeded.service"); err != nil {
 		return err
 	}
+	// we cannot start snapd.autoimport in blocking mode because
+	// it has a "After=snapd.seeded.service" which means that on
+	// seeding a "systemctl start" that blocks would hang forever
+	// and we deadlock.
+	if err := sysd.StartNoBlock("snapd.autoimport.service"); err != nil {
+		return err
+	}
 
 	return nil
 }
