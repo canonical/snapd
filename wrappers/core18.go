@@ -167,8 +167,23 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		if bytes.Contains(snapdUnits[unit].Content, []byte("X-Snapd-Snap: do-not-start")) {
 			continue
 		}
-		if err := sysd.Restart(unit, 5*time.Second); err != nil {
+		// Ensure to only restart if the unit was previously active.
+		// This ensures we DTRT on firstboot and do not stop e.g.
+		// snapd.socket because doing that would mean that the
+		// snapd.seeded.service is also stopped which confuses the
+		// boot order (the unit exists before we are fully seeded)
+		statuses, err := sysd.Status(unit)
+		if err != nil {
 			return err
+		}
+		if statuses[0].Active {
+			if err := sysd.Restart(unit, 5*time.Second); err != nil {
+				return err
+			}
+		} else {
+			if err := sysd.Start(unit); err != nil {
+				return err
+			}
 		}
 	}
 	// and finally start snapd.service (it will stop by itself and gets
