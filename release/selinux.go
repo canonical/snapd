@@ -38,25 +38,26 @@ const (
 )
 
 var (
-	selinuxLevel   SELinuxLevelType
-	selinuxSummary string
-
 	selinuxIsEnabled   = selinux.IsEnabled
 	selinuxIsEnforcing = selinux.IsEnforcing
 )
 
-func init() {
-	selinuxLevel, selinuxSummary = probeSELinux()
-}
-
 // SELinuxLevel tells what level of SELinux enforcement is currently used
 func SELinuxLevel() SELinuxLevelType {
-	return selinuxLevel
+	level, _ := probeSELinux()
+	return level
 }
 
 // SELinuxSummary describes SELinux status
 func SELinuxSummary() string {
-	return selinuxSummary
+	_, summary := probeSELinux()
+	return summary
+}
+
+// SELinuxStatus returns the current level of SELinux support and a descriptive
+// summary
+func SELinuxStatus() (level SELinuxLevelType, summary string) {
+	return probeSELinux()
 }
 
 func probeSELinux() (SELinuxLevelType, string) {

@@ -38,6 +38,9 @@ func (s *selinuxSuite) TestProbeNone(c *C) {
 	level, status := release.ProbeSELinux()
 	c.Assert(level, Equals, release.NoSELinux)
 	c.Assert(status, Equals, "")
+
+	c.Assert(release.SELinuxLevel(), Equals, level)
+	c.Assert(release.SELinuxSummary(), Equals, status)
 }
 
 func (s *selinuxSuite) TestProbeEnforcingHappy(c *C) {
@@ -49,6 +52,9 @@ func (s *selinuxSuite) TestProbeEnforcingHappy(c *C) {
 	level, status := release.ProbeSELinux()
 	c.Assert(level, Equals, release.SELinuxEnforcing)
 	c.Assert(status, Equals, "SELinux is enabled and in enforcing mode")
+
+	c.Assert(release.SELinuxLevel(), Equals, level)
+	c.Assert(release.SELinuxSummary(), Equals, status)
 }
 
 func (s *selinuxSuite) TestProbeEnabledError(c *C) {
@@ -58,6 +64,9 @@ func (s *selinuxSuite) TestProbeEnabledError(c *C) {
 	level, status := release.ProbeSELinux()
 	c.Assert(level, Equals, release.NoSELinux)
 	c.Assert(status, Equals, "so much fail")
+
+	c.Assert(release.SELinuxLevel(), Equals, level)
+	c.Assert(release.SELinuxSummary(), Equals, status)
 }
 
 func (s *selinuxSuite) TestProbeEnforcingError(c *C) {
@@ -69,6 +78,9 @@ func (s *selinuxSuite) TestProbeEnforcingError(c *C) {
 	level, status := release.ProbeSELinux()
 	c.Assert(level, Equals, release.NoSELinux)
 	c.Assert(status, Equals, "SELinux is enabled, but status cannot be determined: so much fail")
+
+	c.Assert(release.SELinuxLevel(), Equals, level)
+	c.Assert(release.SELinuxSummary(), Equals, status)
 }
 
 func (s *selinuxSuite) TestProbePermissive(c *C) {
@@ -80,4 +92,7 @@ func (s *selinuxSuite) TestProbePermissive(c *C) {
 	level, status := release.ProbeSELinux()
 	c.Assert(level, Equals, release.SELinuxPermissive)
 	c.Assert(status, Equals, "SELinux is enabled and in permissive mode")
+
+	c.Assert(release.SELinuxLevel(), Equals, level)
+	c.Assert(release.SELinuxSummary(), Equals, status)
 }
