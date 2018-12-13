@@ -51,12 +51,12 @@ execute: |
            /var/snap/test-snapd-service-writer/current/by-hook \
            /var/snap/test-snapd-service-writer/current/by-hook/foo > hook-labels
 
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'              < hook-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook$'      < hook-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook/foo$'  < hook-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current$'             < hook-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook$'     < hook-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook/foo$' < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'              < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook$'      < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook/foo$'  < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current( -> x1)?$'    < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook$'     < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook/foo$' < hook-labels
 
     ls -Zd /var/snap/test-snapd-service-writer/common \
            /var/snap/test-snapd-service-writer/common/foo \
@@ -65,9 +65,9 @@ execute: |
            /var/snap/test-snapd-service-writer/current/foo \
            /var/snap/test-snapd-service-writer/current/foo/bar > service-labels
 
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'          < service-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo$'      < service-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo/bar$'  < service-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current$'         < service-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo$'     < service-labels
-    MATCH '^system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo/bar$' < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'           < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo$'       < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo/bar$'   < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current( -> x1)?$' < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo$'      < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo/bar$'  < service-labels
