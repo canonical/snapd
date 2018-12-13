@@ -388,6 +388,13 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 			Factor:  1,
 		},
 	)))
+
+	store.MockDownloadRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1,
+		},
+	)))
 }
 
 func (s *storeTestSuite) TearDownTest(c *C) {
