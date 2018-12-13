@@ -2,11 +2,22 @@ summary: Ensure network retry works correctly
 
 prepare: |
     echo "Break DNS"
-    mv /etc/resolv.conf /etc/resolv.conf.save
-
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+       resolvConf=$(realpath /etc/resolv.conf)
+       mv "${resolvConf}" "${resolvConf}.save"
+       echo "${resolvConf}" > resolvConf.txt
+    else
+        mv /etc/resolv.conf /etc/resolv.conf.save
+    fi
 restore: |
     echo "Unbreak DNS"
-    mv /etc/resolv.conf.save /etc/resolv.conf
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+       resolvConf=$(cat resolvConf.txt)
+       mv "${resolvConf}.save" "${resolvConf}"
+       rm resolvConf.txt
+    else
+       mv /etc/resolv.conf.save /etc/resolv.conf
+    fi
 
 execute: |
     echo "Try to install a snap with broken DNS"
