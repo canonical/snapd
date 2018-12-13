@@ -13,7 +13,8 @@ jobs:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
         - ./get-deps.sh
       script:
-        - ./run-checks --static && ./run-checks --short-unit
+        - ./run-checks --static
+        - ./run-checks --short-unit
     - stage: quick
       go: 1.10
       name: OSX build and minimal runtime sanity check
