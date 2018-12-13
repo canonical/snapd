@@ -12,6 +12,9 @@ jobs:
       install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
         - ./get-deps.sh
+        # use a recent gofmt to workaround people working with the code using
+        # recent versions of Go that may do the formatting differently
+        - go get -u -v github.com/golang/go/src/cmd/gofmt
       script:
         - ./run-checks --static
         - ./run-checks --short-unit
