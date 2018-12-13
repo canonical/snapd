@@ -17,6 +17,7 @@ WatchdogSec=5m
 Type=notify
 SuccessExitStatus=42
 RestartPreventExitStatus=42
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target

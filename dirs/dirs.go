@@ -108,6 +108,8 @@ var (
 
 	ErrtrackerDbDir string
 	SysfsDir        string
+
+	FeaturesDir string
 )
 
 const (
@@ -201,7 +203,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	isInsideBase, _ := isInsideBaseSnap()
-	if !isInsideBase && release.DistroLike("fedora", "arch", "manjaro", "antergos") {
+	if !isInsideBase && release.DistroLike("fedora", "arch", "archlinux", "manjaro", "antergos") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -290,6 +292,8 @@ func SetRootDir(rootdir string) {
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
+
+	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

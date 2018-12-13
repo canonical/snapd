@@ -95,6 +95,8 @@ func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *
 		{"debian", nil, true},
 		{"suse", nil, true},
 		{"yocto", nil, true},
+		{"arch", []string{"archlinux"}, false},
+		{"archlinux", nil, false},
 	} {
 		reset := release.MockReleaseInfo(&release.OS{ID: t.ID, IDLike: t.IDLike})
 		defer reset()

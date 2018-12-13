@@ -71,7 +71,8 @@ var (
 	SnapHelpFooter          = snapHelpFooter
 	HelpCategories          = helpCategories
 
-	NotesForSvc = notesForSvc
+	LintArg  = lintArg
+	LintDesc = lintDesc
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

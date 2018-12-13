@@ -118,7 +118,7 @@ func generateSystemKey() (*systemKey, error) {
 	sk.BuildID = buildID
 
 	// Add apparmor-features (which is already sorted)
-	sk.AppArmorFeatures = release.AppArmorFeatures()
+	sk.AppArmorFeatures, _ = release.AppArmorKernelFeatures()
 
 	// Add apparmor-parser-mtime
 	sk.AppArmorParserMtime = release.AppArmorParserMtime()
@@ -158,7 +158,7 @@ func WriteSystemKey() error {
 	// We only want to calculate this when the mtime of the parser changes.
 	// Since we calculate the mtime() as part of generateSystemKey, we can
 	// simply unconditionally write this out here.
-	sk.AppArmorParserFeatures = release.AppArmorParserFeatures()
+	sk.AppArmorParserFeatures, _ = release.AppArmorParserFeatures()
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
