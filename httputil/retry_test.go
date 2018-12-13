@@ -21,8 +21,8 @@ package httputil_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -403,9 +403,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	c.Assert(somewhatBrokenSrvCalls, Equals, 3)
 }
 
-func (s *retrySuite) TestRetryRequestFailOnDNS(c *C) {
-	// TODO: retry some types of DNS errors?
-
+func (s *retrySuite) TestRetryDoesNotFailForPermanentDNSErrors(c *C) {
 	url := "http://nonexistingserver909123.com/"
 
 	cli := httputil.NewHTTPClient(nil)
@@ -416,14 +414,50 @@ func (s *retrySuite) TestRetryRequestFailOnDNS(c *C) {
 		return cli.Get(url)
 	}
 
-	var got interface{}
 	readResponseBody := func(resp *http.Response) error {
-		if resp.StatusCode >= 500 {
-			return fmt.Errorf("proxy error")
-		}
-		return json.NewDecoder(resp.Body).Decode(&got)
+		return nil
 	}
 
 	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
 	c.Assert(err, NotNil)
+	// we try exactly once, a non-existing server is a permanent error
+	c.Assert(n, Equals, 1)
+}
+
+func (s *retrySuite) TestRetryOnTemporaryDNSfailure(c *C) {
+	n := 0
+	doRequest := func() (*http.Response, error) {
+		n++
+		return nil, &net.OpError{
+			Op:  "dial",
+			Net: "tcp",
+			Err: &net.DNSError{IsTemporary: true},
+		}
+	}
+	readResponseBody := func(resp *http.Response) error {
+		return nil
+	}
+	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	c.Assert(err, NotNil)
+	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
+}
+
+func (s *retrySuite) TestRetryOnTemporaryDNSfailureNotGo19(c *C) {
+	n := 0
+	doRequest := func() (*http.Response, error) {
+		n++
+		return nil, &net.OpError{
+			Op:  "dial",
+			Net: "tcp",
+			Err: &net.DNSError{
+				Err: "[::1]:42463->[::1]:53: read: connection refused",
+			},
+		}
+	}
+	readResponseBody := func(resp *http.Response) error {
+		return nil
+	}
+	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	c.Assert(err, NotNil)
+	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
 }
