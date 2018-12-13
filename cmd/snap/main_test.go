@@ -373,7 +373,26 @@ func (s *SnapSuite) TestLintArg(c *C) {
 	c.Check(log.String(), HasLen, 0)
 	log.Reset()
 
-	// LintArg complains about when option is not enclosed with < >.
+	// LintArg complains about when option is not properly enclosed with < >.
 	snap.LintArg("command", "option", "Description", "")
-	c.Check(log.String(), testutil.Contains, `argument "command"'s "option" should be wrapped in <>s`)
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "option" should begin with < and end with >`)
+	log.Reset()
+	snap.LintArg("command", "<option", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "<option" should begin with < and end with >`)
+	log.Reset()
+	snap.LintArg("command", "option>", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "option>" should begin with < and end with >`)
+	log.Reset()
+
+	// LintArg ignores the special case of <option>s.
+	snap.LintArg("command", "<option>s", "Description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+}
+
+func (s *SnapSuite) TestFixupArg(c *C) {
+	c.Check(snap.FixupArg("option"), Equals, "option")
+	c.Check(snap.FixupArg("<option>"), Equals, "<option>")
+	// Trailing ">s" is fixed to just >.
+	c.Check(snap.FixupArg("<option>s"), Equals, "<option>")
 }
