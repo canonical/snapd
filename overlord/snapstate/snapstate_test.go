@@ -12538,7 +12538,7 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	tr.Commit()
 
 	err = snapstate.ValidateFeatureFlags(s.state, info)
-	c.Assert(err, ErrorMatches, `internal error: feature flag experimental.parallel-instances has unexpected value "veryfalse" \(string\)`)
+	c.Assert(err, ErrorMatches, `parallel-instances can only be set to 'true' or 'false', got "veryfalse"`)
 
 	// enable parallel instances
 	tr = config.NewTransaction(s.state)
