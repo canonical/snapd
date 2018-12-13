@@ -23,13 +23,17 @@ import (
 	"io/ioutil"
 	"sort"
 	"strings"
+	"sync"
 )
 
 var (
 	secCompAvailableActionsPath = "/proc/sys/kernel/seccomp/actions_avail"
 )
 
-var secCompActions []string
+var (
+	secCompActions []string
+	secCompLock    sync.Mutex
+)
 
 func MockSecCompActions(actions []string) (restore func()) {
 	old := secCompActions
@@ -40,6 +44,9 @@ func MockSecCompActions(actions []string) (restore func()) {
 // SecCompActions returns a sorted list of seccomp actions like
 // []string{"allow", "errno", "kill", "log", "trace", "trap"}.
 func SecCompActions() []string {
+	secCompLock.Lock()
+	defer secCompLock.Unlock()
+
 	if secCompActions == nil {
 		var actions []string
 		contents, err := ioutil.ReadFile(secCompAvailableActionsPath)

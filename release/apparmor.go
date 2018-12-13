@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/snapcore/snapd/strutil"
 )
@@ -83,11 +84,17 @@ var (
 	// appArmorParserError contains an error, if any, encountered when
 	// discovering available parser features.
 	appArmorParserError error
+
+	appArmorFeaturesLock sync.Mutex
+	appArmorLevelLock    sync.Mutex
 )
 
 // AppArmorLevel quantifies how well apparmor is supported on the current
 // kernel. The computation is costly to perform. The result is cached internally.
 func AppArmorLevel() AppArmorLevelType {
+	appArmorLevelLock.Lock()
+	defer appArmorLevelLock.Unlock()
+
 	if appArmorLevel == UnknownAppArmor {
 		assessAppArmor()
 	}
@@ -98,6 +105,9 @@ func AppArmorLevel() AppArmorLevelType {
 // kernel. The computation is costly to perform. The result is cached
 // internally.
 func AppArmorSummary() string {
+	appArmorLevelLock.Lock()
+	defer appArmorLevelLock.Unlock()
+
 	if appArmorLevel == UnknownAppArmor {
 		assessAppArmor()
 	}
@@ -107,6 +117,9 @@ func AppArmorSummary() string {
 // AppArmorKernelFeatures returns a sorted list of apparmor features like
 // []string{"dbus", "network"}. The result is cached internally.
 func AppArmorKernelFeatures() ([]string, error) {
+	appArmorFeaturesLock.Lock()
+	defer appArmorFeaturesLock.Unlock()
+
 	if appArmorKernelFeatures == nil {
 		appArmorKernelFeatures, appArmorKernelError = probeAppArmorKernelFeatures()
 	}
@@ -117,6 +130,9 @@ func AppArmorKernelFeatures() ([]string, error) {
 // like []string{"unsafe", ...}. The computation is costly to perform. The
 // result is cached internally.
 func AppArmorParserFeatures() ([]string, error) {
+	appArmorFeaturesLock.Lock()
+	defer appArmorFeaturesLock.Unlock()
+
 	if appArmorParserFeatures == nil {
 		appArmorParserFeatures, appArmorParserError = probeAppArmorParserFeatures()
 	}
