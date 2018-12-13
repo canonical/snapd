@@ -172,11 +172,11 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		// snapd.socket because doing that would mean that the
 		// snapd.seeded.service is also stopped which confuses the
 		// boot order (the unit exists before we are fully seeded)
-		statuses, err := sysd.Status(unit)
+		isActive, err := sysd.IsActive(unit)
 		if err != nil {
 			return err
 		}
-		if statuses[0].Active {
+		if isActive {
 			if err := sysd.Restart(unit, 5*time.Second); err != nil {
 				return err
 			}
