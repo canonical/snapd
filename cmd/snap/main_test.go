@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -327,4 +328,52 @@ func (s *SnapSuite) TestFirstNonOptionIsRun(c *C) {
 		os.Args = strings.Fields(positive)
 		c.Check(snap.FirstNonOptionIsRun(), Equals, true)
 	}
+}
+
+func (s *SnapSuite) TestLintDesc(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// LintDesc is happy about capitalized description.
+	snap.LintDesc("command", "<option>", "Description ...", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintDesc complains about lowercase description.
+	snap.LintDesc("command", "<option>", "description", "")
+	c.Check(log.String(), testutil.Contains, `description of command's "<option>" is lowercase: "description"`)
+	log.Reset()
+
+	// LintDesc does not complain about lowercase description starting with login.ubuntu.com
+	snap.LintDesc("command", "<option>", "login.ubuntu.com description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintDesc panics when original description is present.
+	fn := func() {
+		snap.LintDesc("command", "<option>", "description", "original description")
+	}
+	c.Check(fn, PanicMatches, `description of command's "<option>" of "original description" set from tag \(=> no i18n\)`)
+	log.Reset()
+
+	// LintDesc panics when option name is empty.
+	fn = func() {
+		snap.LintDesc("command", "", "description", "")
+	}
+	c.Check(fn, PanicMatches, `option on "command" has no name`)
+	log.Reset()
+}
+
+func (s *SnapSuite) TestLintArg(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// LintArg is happy when option is enclosed with < >.
+	snap.LintArg("command", "<option>", "Description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintArg complains about when option is not enclosed with < >.
+	snap.LintArg("command", "option", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "option" should be wrapped in <>s`)
 }
