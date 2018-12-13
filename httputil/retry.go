@@ -99,7 +99,9 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 		// use go1.9+ only.
 		if dnsErr, ok := opErr.Err.(*net.DNSError); ok {
 			// The horror, the horror
-			if strings.Contains(dnsErr.Err, "connection refused") {
+			// TODO: stop Arch to use the cgo resolver
+			// which requires the right side of the OR
+			if strings.Contains(dnsErr.Err, "connection refused") || strings.Contains(dnsErr.Err, "Temporary failure in name resolution") {
 				logger.Debugf("Retrying because of temporary net error (DNS): %#v", dnsErr)
 				return true
 			}
