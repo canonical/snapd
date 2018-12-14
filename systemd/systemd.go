@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/selinux"
 )
 
 var (
@@ -550,7 +551,8 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 		options = append(options, newOptions...)
 		fstype = newFsType
 		if release.SELinuxLevel() != release.NoSELinux {
-			options = append(options, "context=system_u:object_r:snappy_snap_t:s0")
+			mountCtx := selinux.SnapMountContext()
+			options = append(options, fmt.Sprintf("context=%s", mountCtx))
 		}
 	}
 	if osutil.IsDirectory(what) {
