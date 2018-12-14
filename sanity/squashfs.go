@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/selinux"
 )
 
 func init() {
@@ -99,8 +100,7 @@ func checkSquashfsMount() error {
 	}
 	options := []string{"-t", fstype}
 	if release.SELinuxLevel() != release.NoSELinux {
-		// relabel the mount as snappy_tmp_t where we have full access to
-		options = append(options, "-o", "context=system_u:object_r:snappy_tmp_t:s0")
+		options = append(options, "-o", fmt.Sprintf("context=%s", selinux.SnapMountContext()))
 	}
 	options = append(options, tmpSquashfsFile.Name(), tmpMountDir)
 	cmd := exec.Command("mount", options...)
