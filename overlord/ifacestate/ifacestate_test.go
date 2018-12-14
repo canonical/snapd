@@ -5107,8 +5107,7 @@ func (s *interfaceManagerSuite) testHotplugDisconnectWaitsForCoreRefresh(c *C, t
 
 	chg := s.state.NewChange("hotplug change", "")
 	t := s.state.NewTask("hotplug-disconnect", "")
-	t.Set("hotplug-key", "1234")
-	t.Set("interface", "test")
+	ifacestate.SetHotplugAttrs(t, "test", "1234")
 	chg.AddTask(t)
 
 	chg2 := s.state.NewChange("other-chg", "...")
@@ -5155,6 +5154,95 @@ func (s *interfaceManagerSuite) TestHotplugDisconnectWaitsForCoreLnkSnap(c *C) {
 
 func (s *interfaceManagerSuite) TestHotplugDisconnectWaitsForCoreUnlinkSnap(c *C) {
 	s.testHotplugDisconnectWaitsForCoreRefresh(c, "unlink-snap")
+}
+
+func (s *interfaceManagerSuite) TestHotplugDisconnectWaitsForDisconnectPlug(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// mock the consumer
+	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
+	testSnap := snaptest.MockSnapInstance(c, "", consumerYaml, si)
+	c.Assert(testSnap.Plugs["plug"], NotNil)
+	c.Assert(repo.AddPlug(testSnap.Plugs["plug"]), IsNil)
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	conn, err := repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"}},
+		nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	hotplugChg := s.state.NewChange("hotplug change", "")
+	hotplugDisconnect := s.state.NewTask("hotplug-disconnect", "")
+	ifacestate.SetHotplugAttrs(hotplugDisconnect, "test", "1234")
+	hotplugChg.AddTask(hotplugDisconnect)
+
+	disconnectChg := s.state.NewChange("disconnect change", "...")
+	disconnectTs, err := ifacestate.Disconnect(s.state, conn)
+	c.Assert(err, IsNil)
+	disconnectChg.AddAll(disconnectTs)
+
+	holdingTask := s.state.NewTask("other", "")
+	disconnectTs.WaitFor(holdingTask)
+	holdingTask.SetStatus(state.HoldStatus)
+	disconnectChg.AddTask(holdingTask)
+
+	s.state.Unlock()
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Assert(hotplugChg.Err(), IsNil)
+
+	c.Assert(strings.Join(hotplugDisconnect.Log(), ""), Matches, `.*Waiting for conflicting change in progress: conflicting plug snap consumer.*`)
+	c.Assert(hotplugChg.Status(), Equals, state.DoingStatus)
+
+	for _, t := range disconnectTs.Tasks() {
+		t.SetStatus(state.DoneStatus)
+	}
+	holdingTask.SetStatus(state.DoneStatus)
+
+	s.state.Unlock()
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+
+	c.Assert(hotplugChg.Err(), IsNil)
+	c.Assert(hotplugChg.Status(), Equals, state.DoneStatus)
 }
 
 func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
