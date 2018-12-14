@@ -67,11 +67,7 @@ func backends() []interfaces.SecurityBackend {
 	// When some features are missing the backend will generate more permissive
 	// profiles that keep applications operational, in forced-devmode.
 	switch release.AppArmorLevel() {
-	case release.PartialAppArmor:
-		if len(release.AppArmorParserFeatures()) != 0 {
-			all = append(all, &apparmor.Backend{})
-		}
-	case release.FullAppArmor:
+	case release.PartialAppArmor, release.FullAppArmor:
 		all = append(all, &apparmor.Backend{})
 	}
 	return all
