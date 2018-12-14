@@ -6,10 +6,19 @@ description: |
 systems: [fedora-*, centos-*]
 prepare: |
     snap install test-snapd-tools
-    rm -rf /home/test/snap
+    if [ -d /home/test/snap ]; then
+        mv /home/test/snap /home/test/snap.old
+    fi
+
+restore: |
+    if [ -d /home/test/snap.old ]; then
+        rm -rf /home/test/snap
+        mv /home/test/snap.old /home/test/snap
+    fi
 
 execute: |
     # TODO: extend the test to work for root when the policy is fixed for admin_home_t
+    # TODO: use snap debug sandbox-features once selinux backend is added
 
     test ! -d /home/test/snap
     su -c "test-snapd-tools.cmd sh -c 'touch \$SNAP_USER_DATA/foo'" test
