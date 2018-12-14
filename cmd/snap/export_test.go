@@ -74,6 +74,8 @@ var (
 
 	LintArg  = lintArg
 	LintDesc = lintDesc
+
+	FixupArg = fixupArg
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
