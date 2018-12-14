@@ -85,19 +85,23 @@ var (
 	// discovering available parser features.
 	appArmorParserError error
 
-	appArmorFeaturesLock sync.Mutex
-	appArmorLevelLock    sync.Mutex
+	appArmorProbeParserOnce sync.Once
+	appArmorProbeKernelOnce sync.Once
+	appArmorAssessOnce      sync.Once
+
+	appArmorProbeKernel = probeAppArmorKernelFeaturesOnce
+	appArmorProbeParser = probeAppArmorParserFeaturesOnce
+	appArmorAssess      = assessAppArmorOnce
 )
+
+func assessAppArmorOnce() {
+	appArmorAssessOnce.Do(assessAppArmor)
+}
 
 // AppArmorLevel quantifies how well apparmor is supported on the current
 // kernel. The computation is costly to perform. The result is cached internally.
 func AppArmorLevel() AppArmorLevelType {
-	appArmorLevelLock.Lock()
-	defer appArmorLevelLock.Unlock()
-
-	if appArmorLevel == UnknownAppArmor {
-		assessAppArmor()
-	}
+	appArmorAssess()
 	return appArmorLevel
 }
 
@@ -105,37 +109,34 @@ func AppArmorLevel() AppArmorLevelType {
 // kernel. The computation is costly to perform. The result is cached
 // internally.
 func AppArmorSummary() string {
-	appArmorLevelLock.Lock()
-	defer appArmorLevelLock.Unlock()
-
-	if appArmorLevel == UnknownAppArmor {
-		assessAppArmor()
-	}
+	appArmorAssess()
 	return appArmorSummary
+}
+
+func probeAppArmorKernelFeaturesOnce() {
+	appArmorProbeKernelOnce.Do(func() {
+		appArmorKernelFeatures, appArmorKernelError = probeAppArmorKernelFeatures()
+	})
 }
 
 // AppArmorKernelFeatures returns a sorted list of apparmor features like
 // []string{"dbus", "network"}. The result is cached internally.
 func AppArmorKernelFeatures() ([]string, error) {
-	appArmorFeaturesLock.Lock()
-	defer appArmorFeaturesLock.Unlock()
-
-	if appArmorKernelFeatures == nil {
-		appArmorKernelFeatures, appArmorKernelError = probeAppArmorKernelFeatures()
-	}
+	appArmorProbeKernel()
 	return appArmorKernelFeatures, appArmorKernelError
+}
+
+func probeAppArmorParserFeaturesOnce() {
+	appArmorProbeParserOnce.Do(func() {
+		appArmorParserFeatures, appArmorParserError = probeAppArmorParserFeatures()
+	})
 }
 
 // AppArmorParserFeatures returns a sorted list of apparmor parser features
 // like []string{"unsafe", ...}. The computation is costly to perform. The
 // result is cached internally.
 func AppArmorParserFeatures() ([]string, error) {
-	appArmorFeaturesLock.Lock()
-	defer appArmorFeaturesLock.Unlock()
-
-	if appArmorParserFeatures == nil {
-		appArmorParserFeatures, appArmorParserError = probeAppArmorParserFeatures()
-	}
+	appArmorProbeParser()
 	return appArmorParserFeatures, appArmorParserError
 }
 
@@ -165,12 +166,19 @@ func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 	oldAppArmorKernelError := appArmorKernelError
 	oldAppArmorParserFeatures := appArmorParserFeatures
 	oldAppArmorParserError := appArmorParserError
+	oldAppArmorProbeKernel := appArmorProbeKernel
+	oldAppArmorProbeParser := appArmorProbeParser
+	oldAppArmorAssess := appArmorAssess
 	appArmorLevel = level
 	appArmorSummary = fmt.Sprintf("mocked apparmor level: %s", level)
 	appArmorKernelFeatures = []string{"mocked-kernel-feature"}
 	appArmorKernelError = nil
 	appArmorParserFeatures = []string{"mocked-parser-feature"}
 	appArmorParserError = nil
+	nop := func() {}
+	appArmorProbeKernel = nop
+	appArmorProbeParser = nop
+	appArmorAssess = nop
 	return func() {
 		appArmorLevel = oldAppArmorLevel
 		appArmorSummary = oldAppArmorSummary
@@ -178,6 +186,9 @@ func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
 		appArmorKernelError = oldAppArmorKernelError
 		appArmorParserFeatures = oldAppArmorParserFeatures
 		appArmorParserError = oldAppArmorParserError
+		appArmorProbeKernel = oldAppArmorProbeKernel
+		appArmorProbeParser = oldAppArmorProbeParser
+		appArmorAssess = oldAppArmorAssess
 	}
 }
 
@@ -192,10 +203,17 @@ func MockAppArmorFeatures(kernelFeatures []string, kernelError error, parserFeat
 	oldAppArmorKernelError := appArmorKernelError
 	oldAppArmorParserFeatures := appArmorParserFeatures
 	oldAppArmorParserError := appArmorParserError
+	oldAppArmorProbeKernel := appArmorProbeKernel
+	oldAppArmorProbeParser := appArmorProbeParser
+	oldAppArmorAssess := appArmorAssess
 	appArmorKernelFeatures = kernelFeatures
 	appArmorKernelError = kernelError
 	appArmorParserFeatures = parserFeatures
 	appArmorParserError = parserError
+	nop := func() {}
+	appArmorProbeKernel = nop
+	appArmorProbeParser = nop
+	appArmorAssess = nop
 	if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
 		assessAppArmor()
 	}
@@ -204,6 +222,9 @@ func MockAppArmorFeatures(kernelFeatures []string, kernelError error, parserFeat
 		appArmorKernelError = oldAppArmorKernelError
 		appArmorParserFeatures = oldAppArmorParserFeatures
 		appArmorParserError = oldAppArmorParserError
+		appArmorProbeKernel = oldAppArmorProbeKernel
+		appArmorProbeParser = oldAppArmorProbeParser
+		appArmorAssess = oldAppArmorAssess
 		if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
 			assessAppArmor()
 		}

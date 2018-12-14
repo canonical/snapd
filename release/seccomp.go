@@ -31,32 +31,41 @@ var (
 )
 
 var (
-	secCompActions []string
-	secCompLock    sync.Mutex
+	secCompActions      []string
+	secCompOnce         sync.Once
+	probeSecCompActions = probeSecCompActionsOnce
 )
 
 func MockSecCompActions(actions []string) (restore func()) {
 	old := secCompActions
 	secCompActions = actions
-	return func() { secCompActions = old }
+	oldProbe := probeSecCompActions
+	// nop
+	probeSecCompActions = func() {}
+	return func() {
+		secCompActions = old
+		probeSecCompActions = oldProbe
+	}
+}
+
+func probeSecCompActionsOnce() {
+	secCompOnce.Do(func() {
+		secCompActions = []string{}
+
+		contents, err := ioutil.ReadFile(secCompAvailableActionsPath)
+		if err != nil {
+			return
+		}
+		actions := strings.Split(strings.TrimRight(string(contents), "\n"), " ")
+		sort.Strings(actions)
+		secCompActions = actions
+	})
 }
 
 // SecCompActions returns a sorted list of seccomp actions like
 // []string{"allow", "errno", "kill", "log", "trace", "trap"}.
 func SecCompActions() []string {
-	secCompLock.Lock()
-	defer secCompLock.Unlock()
-
-	if secCompActions == nil {
-		var actions []string
-		contents, err := ioutil.ReadFile(secCompAvailableActionsPath)
-		if err != nil {
-			return actions
-		}
-		actions = strings.Split(strings.TrimRight(string(contents), "\n"), " ")
-		sort.Strings(actions)
-		secCompActions = actions
-	}
+	probeSecCompActions()
 	return secCompActions
 }
 
