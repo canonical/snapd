@@ -26,6 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -75,7 +76,7 @@ command, a reload is performed instead of a restart.
 
 func init() {
 	argdescs := []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<service>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("A service specification, which can be just a snap name (for all services in the snap), or <snap>.<app> for a single service."),
@@ -124,10 +125,15 @@ func (s *svcStatus) Execute(args []string) error {
 		return err
 	}
 
+	if len(services) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("There are no services provided by installed snaps."))
+		return nil
+	}
+
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent"))
+	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 
 	for _, svc := range services {
 		startup := i18n.G("disabled")
@@ -138,7 +144,7 @@ func (s *svcStatus) Execute(args []string) error {
 		if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current)
+		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, cmd.ClientAppInfoNotes(svc))
 	}
 
 	return nil

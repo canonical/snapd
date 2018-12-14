@@ -50,6 +50,11 @@ var _ = Suite(&helpersSuite{})
 
 func (s *helpersSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *helpersSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
 }
 
 func (s *helpersSuite) TestIdentityMapper(c *C) {
@@ -59,6 +64,8 @@ func (s *helpersSuite) TestIdentityMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("example"), Equals, "example")
 	c.Assert(m.RemapSnapToState("example"), Equals, "example")
 	c.Assert(m.RemapSnapFromRequest("example"), Equals, "example")
+
+	c.Assert(m.SystemSnapName(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
@@ -76,6 +83,8 @@ func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+
+	c.Assert(m.SystemSnapName(), Equals, "core")
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
@@ -98,6 +107,8 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	c.Assert(m.RemapSnapFromState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
+
+	c.Assert(m.SystemSnapName(), Equals, "snapd")
 }
 
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
@@ -115,6 +126,10 @@ func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
+func (m *caseMapper) SystemSnapName() string {
+	return "unknown"
+}
+
 func (s *helpersSuite) TestMappingFunctions(c *C) {
 	restore := ifacestate.MockSnapMapper(&caseMapper{})
 	defer restore()
@@ -122,6 +137,7 @@ func (s *helpersSuite) TestMappingFunctions(c *C) {
 	c.Assert(ifacestate.RemapSnapFromState("example"), Equals, "EXAMPLE")
 	c.Assert(ifacestate.RemapSnapToState("EXAMPLE"), Equals, "example")
 	c.Assert(ifacestate.RemapSnapFromRequest("example"), Equals, "EXAMPLE")
+	c.Assert(ifacestate.SystemSnapName(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestGetConns(c *C) {
@@ -228,9 +244,105 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 	c.Assert(slots, DeepEquals, defs)
 }
 
+func (s *helpersSuite) TestFindConnsForHotplugKey(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	// Set conns in the state and get them via GetConns to avoid having to
+	// know the internals of connState struct.
+	st.Set("conns", map[string]interface{}{
+		"snap1:plug1 core:slot1": map[string]interface{}{
+			"interface":   "iface1",
+			"hotplug-key": "key1",
+		},
+		"snap1:plug2 core:slot2": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key1",
+		},
+		"snap1:plug3 core:slot3": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key2",
+		},
+		"snap2:plug1 core:slot1": map[string]interface{}{
+			"interface":   "iface2",
+			"hotplug-key": "key2",
+		},
+	})
+
+	conns, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	hotplugConns := ifacestate.FindConnsForHotplugKey(conns, "iface1", "key1")
+	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug1 core:slot1"})
+
+	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "iface2", "key2")
+	c.Assert(hotplugConns, DeepEquals, []string{"snap1:plug3 core:slot3", "snap2:plug1 core:slot1"})
+
+	hotplugConns = ifacestate.FindConnsForHotplugKey(conns, "unknown", "key1")
+	c.Assert(hotplugConns, HasLen, 0)
+}
+
+func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
+	// no core snap yet
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, false)
+
+	s.st.Lock()
+
+	// add "core" snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnapInstance(c, "", coreSnapYaml, sideInfo)
+	sideInfo.RealName = snapInfo.SnapName()
+
+	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
+	})
+	s.st.Unlock()
+
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)
+}
+
 var snapdYaml = `name: snapd
 version: 1.0
 `
+
+func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{})
+	defer restore()
+
+	// no snapd snap yet
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, false)
+
+	s.st.Lock()
+
+	// "snapd" snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnapInstance(c, "", snapdYaml, sideInfo)
+	sideInfo.RealName = snapInfo.SnapName()
+
+	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active:      true,
+		Sequence:    []*snap.SideInfo{sideInfo},
+		Current:     sideInfo.Revision,
+		SnapType:    string(snapInfo.Type),
+		InstanceKey: snapInfo.InstanceKey,
+	})
+
+	inf, err := ifacestate.SystemSnapInfo(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(inf.InstanceName(), Equals, "snapd")
+
+	s.st.Unlock()
+
+	c.Assert(ifacestate.CheckSystemSnapIsPresent(s.st), Equals, true)
+}
 
 // Check what happens with system-key when security profile regeneration fails.
 func (s *helpersSuite) TestSystemKeyAndFailingProfileRegeneration(c *C) {
@@ -298,4 +410,82 @@ apps:
 	// Check that system key is not on disk.
 	c.Check(log.String(), testutil.Contains, `cannot regenerate BROKEN profile for snap "test-snapd-canary": cannot setup security profile`)
 	c.Check(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+}
+
+func (s *helpersSuite) TestIsHotplugChange(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("foo", "")
+	c.Assert(ifacestate.IsHotplugChange(chg), Equals, false)
+
+	chg = s.st.NewChange("hotplugfoo", "")
+	c.Assert(ifacestate.IsHotplugChange(chg), Equals, false)
+
+	chg = s.st.NewChange("hotplug-foo", "")
+	c.Assert(ifacestate.IsHotplugChange(chg), Equals, true)
+}
+
+func (s *helpersSuite) TestGetHotplugChangeAttrs(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("none-set", "")
+	_, _, err := ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "none-set"`)
+
+	chg = s.st.NewChange("foo", "")
+	chg.Set("hotplug-seq", 1)
+	_, _, err = ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, ErrorMatches, `internal error: hotplug-key not set on change "foo"`)
+
+	chg = s.st.NewChange("bar", "")
+	chg.Set("hotplug-key", "2222")
+	_, _, err = ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, ErrorMatches, `internal error: hotplug-seq not set on change "bar"`)
+
+	chg = s.st.NewChange("baz", "")
+	chg.Set("hotplug-key", "1234")
+	chg.Set("hotplug-seq", 7)
+
+	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, IsNil)
+	c.Check(key, Equals, "1234")
+	c.Check(seq, Equals, 7)
+}
+
+func (s *helpersSuite) TestSetHotplugChangeAttrs(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("foo", "")
+	ifacestate.SetHotplugChangeAttrs(chg, 12, "abcd")
+
+	var seq int
+	var hotplugKey string
+	c.Assert(chg.Get("hotplug-seq", &seq), IsNil)
+	c.Assert(chg.Get("hotplug-key", &hotplugKey), IsNil)
+	c.Check(seq, Equals, 12)
+	c.Check(hotplugKey, Equals, "abcd")
+}
+
+func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var stateSeq int
+
+	// sanity
+	c.Assert(s.st.Get("hotplug-seq", &stateSeq), Equals, state.ErrNoState)
+
+	seq, err := ifacestate.AllocHotplugSeq(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(seq, Equals, 1)
+
+	seq, err = ifacestate.AllocHotplugSeq(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(seq, Equals, 2)
+
+	c.Assert(s.st.Get("hotplug-seq", &stateSeq), IsNil)
+	c.Check(stateSeq, Equals, 2)
 }

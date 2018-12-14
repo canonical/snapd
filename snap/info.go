@@ -225,6 +225,9 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	toplevelPlugs []*PlugInfo
+	toplevelSlots []*SlotInfo
+
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -444,7 +447,6 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// inside the mount namespace snap-confine creates and there we will
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
-			// TODO parallel-install: use of proper instance/store name
 			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
 			return DataDir(s.SnapName(), s.Revision)
@@ -654,8 +656,9 @@ type SlotInfo struct {
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
 
-	// HotplugKey is a unique key built by the slot's interface using properties of a
-	// hotplugged so that the same slot may be made available if the device is reinserted.
+	// HotplugKey is a unique key built by the slot's interface
+	// using properties of a hotplugged device so that the same
+	// slot may be made available if the device is reinserted.
 	// It's empty for regular slots.
 	HotplugKey string
 }
@@ -800,6 +803,8 @@ type HookInfo struct {
 
 	Environment  strutil.OrderedMap
 	CommandChain []string
+
+	Explicit bool
 }
 
 // File returns the path to the *.socket file
@@ -986,10 +991,8 @@ var SanitizePlugsSlots = func(snapInfo *Info) {
 	panic("SanitizePlugsSlots function not set")
 }
 
-// ReadInfoExceptSize reads the snap information for the installed snap with the given name and given side-info.
-//
-// The Size field of snap.Info is not set.
-func ReadInfoExceptSize(name string, si *SideInfo) (*Info, error) {
+// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
+func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
@@ -1009,21 +1012,13 @@ func ReadInfoExceptSize(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	bindImplicitHooks(info)
+
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
-	return info, nil
-}
-
-// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
-func ReadInfo(name string, si *SideInfo) (*Info, error) {
-	info, err := ReadInfoExceptSize(name, si)
-	if err != nil {
-		return nil, err
-	}
-
 	mountFile := MountFile(name, si.Revision)
-	st, err := os.Stat(mountFile)
+	st, err := os.Lstat(mountFile)
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount
 		// is still in place (it's a bind mount, it doesn't care about the
@@ -1034,7 +1029,12 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	info.Size = st.Size()
+	// If the file is a regular file than it must be a squashfs file that is
+	// used as the backing store for the snap. The size of that file is the
+	// size of the snap.
+	if st.Mode().IsRegular() {
+		info.Size = st.Size()
+	}
 
 	return info, nil
 }
@@ -1077,6 +1077,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	bindImplicitHooks(info)
 
 	err = Validate(info)
 	if err != nil {

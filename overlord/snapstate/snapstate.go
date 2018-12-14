@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -79,7 +80,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		if model == nil || model.Base() == "" {
 			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, "experimental.snapd-snap", false)
+			experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
 			if err != nil && !config.IsNoOption(err) {
 				return nil, err
 			}
@@ -471,29 +472,13 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func GetFeatureFlagBool(tr *config.Transaction, flag string, unset bool) (bool, error) {
-	var v interface{} = unset
-	if err := tr.GetMaybe("core", flag, &v); err != nil {
-		return unset, err
-	}
-	switch value := v.(type) {
-	case string:
-		if value == "" {
-			return unset, nil
-		}
-	case bool:
-		return value, nil
-	}
-	return unset, fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
-}
-
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := GetFeatureFlagBool(tr, "experimental.layouts", true)
+		flag, err := config.GetFeatureFlag(tr, features.Layouts)
 		if err != nil {
 			return err
 		}
@@ -503,7 +488,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := GetFeatureFlagBool(tr, "experimental.parallel-instances", false)
+		flag, err := config.GetFeatureFlag(tr, features.ParallelInstances)
 		if err != nil {
 			return err
 		}
@@ -578,6 +563,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
+		return nil, nil, err
+	}
+	// this might be a refresh; check the epoch before proceeding
+	if err := earlyEpochCheck(info, &snapst); err != nil {
 		return nil, nil, err
 	}
 
@@ -724,6 +713,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
+		updateFlags := snapst.Flags
+		if !update.NeedsClassic() && updateFlags.Classic {
+			// allow updating from classic to strict
+			updateFlags.Classic = false
+		}
 		return snapst.Channel, snapst.Flags, snapst
 
 	}
@@ -799,6 +793,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			return nil, nil, err
 		}
 		if err := validateFeatureFlags(st, update); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
+				continue
+			}
+			return nil, nil, err
+		}
+		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -924,9 +925,9 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 
 	// dropped alias -> snapName
 	droppedAliases := make(map[string][]string, len(dropped))
-	for snapName, aliases := range dropped {
+	for instanceName, aliases := range dropped {
 		for _, alias := range aliases {
-			droppedAliases[alias] = append(droppedAliases[alias], snapName)
+			droppedAliases[alias] = append(droppedAliases[alias], instanceName)
 		}
 	}
 
@@ -945,10 +946,10 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	// mark snaps that are sources or target of transfers
 	transferSources := make(map[string]bool, len(dropped))
 	transferTargets = make(map[string]bool, len(changed))
-	for snapName, aliases := range changed {
+	for instanceName, aliases := range changed {
 		for _, alias := range aliases {
 			if sources := droppedAliases[alias]; len(sources) != 0 {
-				transferTargets[snapName] = true
+				transferTargets[instanceName] = true
 				for _, source := range sources {
 					transferSources[source] = true
 				}
@@ -963,22 +964,22 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
-	for snapName := range changed {
-		if updating[snapName] {
-			delete(changed, snapName)
+	for instanceName := range changed {
+		if updating[instanceName] {
+			delete(changed, instanceName)
 		}
 	}
 
 	// prune explicitly auto-aliases only for snaps that are mentioned
 	// and not updated OR the source of transfers
 	mustPrune = make(map[string][]string, len(dropped))
-	for snapName := range transferSources {
-		mustPrune[snapName] = dropped[snapName]
+	for instanceName := range transferSources {
+		mustPrune[instanceName] = dropped[instanceName]
 	}
 	if refreshAll {
-		for snapName, aliases := range dropped {
-			if !updating[snapName] {
-				mustPrune[snapName] = aliases
+		for instanceName, aliases := range dropped {
+			if !updating[instanceName] {
+				mustPrune[instanceName] = aliases
 			}
 		}
 	} else {
@@ -1111,7 +1112,12 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	params := func(update *snap.Info) (string, Flags, *SnapState) {
-		return channel, flags, &snapst
+		updateFlags := flags
+		if !update.NeedsClassic() && updateFlags.Classic {
+			// allow updating from classic to strict
+			updateFlags.Classic = false
+		}
+		return channel, updateFlags, &snapst
 	}
 
 	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags)
@@ -1183,9 +1189,6 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		}
 		info, err := updateInfo(st, snapst, opts, userID)
 		if err != nil {
-			return nil, err
-		}
-		if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
@@ -1541,12 +1544,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		chain = ts
 	}
 
-	var removeHook *state.Task
-	// only run remove hook if uninstalling the snap completely
-	if removeAll {
-		removeHook = SetupRemoveHook(st, snapsup.InstanceName())
-	}
-
 	var prev *state.Task
 	var stopSnapServices *state.Task
 	if active {
@@ -1555,6 +1552,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
 		addNext(state.NewTaskSet(stopSnapServices))
 		prev = stopSnapServices
+	}
+
+	// only run remove hook if uninstalling the snap completely
+	if removeAll {
+		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
+		addNext(state.NewTaskSet(removeHook))
+		prev = removeHook
 	}
 
 	if removeAll {
@@ -1570,11 +1574,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 	if active { // unlink
 		var tasks []*state.Task
-		if removeHook != nil {
-			tasks = append(tasks, removeHook)
-			removeHook.WaitFor(prev)
-			prev = removeHook
-		}
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
 		removeAliases.WaitFor(prev)
@@ -1590,8 +1589,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 		tasks = append(tasks, removeAliases, unlink, removeSecurity)
 		addNext(state.NewTaskSet(tasks...))
-	} else if removeHook != nil {
-		addNext(state.NewTaskSet(removeHook))
 	}
 
 	if removeAll {
@@ -1874,8 +1871,8 @@ func All(st *state.State) (map[string]*SnapState, error) {
 		return nil, err
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
-	for snapName, snapst := range stateMap {
-		curStates[snapName] = snapst
+	for instanceName, snapst := range stateMap {
+		curStates[instanceName] = snapst
 	}
 	return curStates, nil
 }
@@ -1919,13 +1916,13 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	for snapName, snapst := range stateMap {
+	for instanceName, snapst := range stateMap {
 		if !snapst.Active {
 			continue
 		}
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
 		}
 		infos = append(infos, snapInfo)

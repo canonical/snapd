@@ -550,7 +550,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
+	msg := i18n.G("Transition ubuntu-core to core")
 	chg := m.state.NewChange("transition-ubuntu-core", msg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -583,8 +583,8 @@ var (
 	localInstallLastCleanup time.Time
 )
 
-// cleanOldTemps removes files that might've been left behind by an
-// old aborted local install
+// localInstallCleanup removes files that might've been left behind by an
+// old aborted local install.
 //
 // They're usually cleaned up, but if they're created and then snapd
 // stops before writing the change to disk (killed, light cut, etc)

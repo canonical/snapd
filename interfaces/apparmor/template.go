@@ -571,6 +571,19 @@ var overlayRootSnippet = `
   "###UPPERDIR###/{,**/}" r,
 `
 
+var ptraceTraceDenySnippet = `
+# While commands like 'ps', 'ip netns identify <pid>', 'ip netns pids foo', etc
+# trigger a 'ptrace (trace)' denial, they aren't actually tracing other
+# processes. Unfortunately, the kernel overloads trace such that the LSMs are
+# unable to distinguish between tracing other processes and other accesses.
+# ptrace (trace) can be used to break out of the seccomp sandbox unless the
+# kernel has 93e35efb8de45393cf61ed07f7b407629bf698ea (in 4.8+). Until snapd
+# has full ptrace support conditional on kernel support, explicitly deny to
+# silence noisy denials/avoid confusion and accidentally giving away this
+# dangerous access frivolously.
+deny ptrace (trace),
+`
+
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.
 //
 // The per-snap snap-update-ns profiles are composed via a template and
@@ -607,11 +620,20 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
   /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
 
+  # Common devices accesses
+  /dev/null rw,
+  /dev/full rw,
+  /dev/zero rw,
+  /dev/random r,
+  /dev/urandom r,
+
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
 
   # Allow reading file descriptor paths
   @{PROC}/@{pid}/fd/* r,
+  # Allow reading /proc/version. For release.go WSL detection.
+  @{PROC}/version r,
 
   # Allow reading the os-release file (possibly a symlink to /usr/lib).
   /{etc/,usr/lib/}os-release r,

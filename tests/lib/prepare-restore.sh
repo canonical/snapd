@@ -411,7 +411,7 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
-    # save the job which is going to be exeuted in the system
+    # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
@@ -424,10 +424,16 @@ prepare_suite_each() {
     fi
     # Check if journalctl is ready to run the test
     check_journalctl_ready
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
+            ;;
+    esac
 }
 
 restore_suite_each() {
-    true
+    rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 }
 
 restore_suite() {
@@ -484,6 +490,9 @@ restore_project_each() {
         dmesg
         exit 1
     fi
+
+    # Something is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {

@@ -60,7 +60,7 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
-	kernelFeatures        = release.AppArmorFeatures
+	kernelFeatures        = release.AppArmorKernelFeatures
 	parserFeatures        = release.AppArmorParserFeatures
 )
 
@@ -408,10 +408,12 @@ func (b *Backend) Remove(snapName string) error {
 
 var (
 	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
-	attachPattern   = regexp.MustCompile(`\(attach_disconnected,mediate_deleted\)`)
 )
 
-const attachComplain = "(attach_disconnected,mediate_deleted,complain)"
+const (
+	attachPattern  = "(attach_disconnected,mediate_deleted)"
+	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
+)
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
@@ -419,12 +421,12 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
@@ -482,7 +484,7 @@ func downgradeConfinement() bool {
 	return true
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
+func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, spec *Specification) {
 	// Normally we use a specific apparmor template for all snap programs.
 	policy := defaultTemplate
 	ignoreSnippets := false
@@ -513,7 +515,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// This is also done for classic so that no confinement applies. Just in
 	// case the profile we start with is not permissive enough.
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
-		policy = attachPattern.ReplaceAllString(policy, attachComplain)
+		policy = strings.Replace(policy, attachPattern, attachComplain, -1)
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
@@ -522,7 +524,8 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
-			for _, f := range parserFeatures() {
+			features, _ := parserFeatures()
+			for _, f := range features {
 				if f == "unsafe" {
 					return fmt.Sprintf("change_profile unsafe /**,")
 				}
@@ -553,6 +556,17 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 					tagSnippets += snippet
 				}
 			}
+
+			if !ignoreSnippets {
+				// For policy with snippets that request
+				// suppression of 'ptrace (trace)' denials, add
+				// the suppression rule unless another
+				// interface said it uses them.
+				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
+					tagSnippets += ptraceTraceDenySnippet
+				}
+			}
+
 			return tagSnippets
 		}
 		return ""
@@ -575,10 +589,10 @@ func (b *Backend) SandboxFeatures() []string {
 		return nil
 	}
 
-	features := kernelFeatures()
-	pFeatures := parserFeatures()
-	tags := make([]string, 0, len(features)+len(pFeatures))
-	for _, feature := range features {
+	kFeatures, _ := kernelFeatures()
+	pFeatures, _ := parserFeatures()
+	tags := make([]string, 0, len(kFeatures)+len(pFeatures))
+	for _, feature := range kFeatures {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)

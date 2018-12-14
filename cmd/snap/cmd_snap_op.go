@@ -45,7 +45,10 @@ var (
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs the named snaps in the system.
+The install command installs the named snaps on the system.
+
+To install multiple instances of the same snap, append an underscore and a
+unique identifier (for each instance) to a snap's name.
 
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement.
@@ -56,10 +59,12 @@ store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override, taking the snap
 back to the current revision of the channel it's tracking.
+
+Use --name to set the instance name when installing from snap file.
 `)
 
 var longRemoveHelp = i18n.G(`
-The remove command removes the named snap from the system.
+The remove command removes the named snap instance from the system.
 
 By default all the snap revisions are removed, including their data and the
 common data directory. When a --revision option is passed only the specified
@@ -348,7 +353,7 @@ type cmdInstall struct {
 
 	Unaliased bool `long:"unaliased"`
 
-	Name string `long:"name" hidden:"yes"`
+	Name string `long:"name"`
 
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
@@ -562,6 +567,14 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	return showDone(x.client, []string{name}, "refresh", x.getEscapes())
 }
 
+func parseSysinfoTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 func (x *cmdRefresh) showRefreshTimes() error {
 	sysinfo, err := x.client.SysInfo()
 	if err != nil {
@@ -575,17 +588,27 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	} else {
 		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Last); err == nil {
-		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(t))
+	last := parseSysinfoTime(sysinfo.Refresh.Last)
+	hold := parseSysinfoTime(sysinfo.Refresh.Hold)
+	next := parseSysinfoTime(sysinfo.Refresh.Next)
+
+	if !last.IsZero() {
+		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(last))
 	} else {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
-
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Hold); err == nil {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(t))
+	if !hold.IsZero() {
+		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Next); err == nil {
-		fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(t))
+	// only show "next" if its after "hold" to not confuse users
+	if !next.IsZero() {
+		// Snapstate checks for holdTime.After(limitTime) so we need
+		// to check for before or equal here to be fully correct.
+		if next.Before(hold) || next.Equal(hold) {
+			fmt.Fprintf(Stdout, "next: %s (but held)\n", x.fmtTime(next))
+		} else {
+			fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(next))
+		}
 	} else {
 		fmt.Fprintf(Stdout, "next: n/a\n")
 	}
@@ -923,7 +946,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unaliased": i18n.G("Install the given snap without enabling its automatic aliases"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"name": i18n.G("Install the snap file under given snap name"),
+			"name": i18n.G("Install the snap file under the given instance name"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{

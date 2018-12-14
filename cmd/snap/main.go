@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -90,6 +91,7 @@ type cmdInfo struct {
 	optDescs                  map[string]string
 	argDescs                  []argDesc
 	alias                     string
+	extra                     func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -156,9 +158,27 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 
 func lintArg(cmdName, optName, desc, origDesc string) {
 	lintDesc(cmdName, optName, desc, origDesc)
-	if optName[0] != '<' || optName[len(optName)-1] != '>' {
-		noticef("argument %q's %q should be wrapped in <>s", cmdName, optName)
+	if len(optName) > 0 && optName[0] == '<' && optName[len(optName)-1] == '>' {
+		return
 	}
+	if len(optName) > 0 && optName[0] == '<' && strings.HasSuffix(optName, ">s") {
+		// see comment in fixupArg about the >s case
+		return
+	}
+	noticef("argument %q's %q should begin with < and end with >", cmdName, optName)
+}
+
+func fixupArg(optName string) string {
+	// Due to misunderstanding some localized versions of option name are
+	// literally "<option>s" instead of "<option>". While translators can
+	// improve this over time we can be smarter and avoid silly messages
+	// logged whenever "snap" command is used.
+	//
+	// See: https://bugs.launchpad.net/snapd/+bug/1806761
+	if strings.HasSuffix(optName, ">s") {
+		return optName[:len(optName)-1]
+	}
+	return optName
 }
 
 type clientSetter interface {
@@ -259,8 +279,12 @@ func Parser(cli *client.Client) *flags.Parser {
 				desc = c.argDescs[i].desc
 			}
 			lintArg(c.name, name, desc, arg.Description)
+			name = fixupArg(name)
 			arg.Name = name
 			arg.Description = desc
+		}
+		if c.extra != nil {
+			c.extra(cmd)
 		}
 	}
 	// Add the debug command
@@ -310,6 +334,7 @@ func Parser(cli *client.Client) *flags.Parser {
 				desc = c.argDescs[i].desc
 			}
 			lintArg(c.name, name, desc, arg.Description)
+			name = fixupArg(name)
 			arg.Name = name
 			arg.Description = desc
 		}
@@ -331,11 +356,15 @@ var ClientConfig = client.Config{
 // commands should (in general) not use this, and instead use clientMixin.
 func mkClient() *client.Client {
 	cli := client.New(&ClientConfig)
-	if runtime.GOOS != "linux" {
+	goos := runtime.GOOS
+	if release.OnWSL {
+		goos = "Windows Subsystem for Linux"
+	}
+	if goos != "linux" {
 		cli.Hijack(func(*http.Request) (*http.Response, error) {
 			fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
 This command has been left available for documentation purposes only.
-`), runtime.GOOS)
+`), goos)
 			os.Exit(1)
 			panic("execution continued past call to exit")
 		})
@@ -418,6 +447,9 @@ func main() {
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
+		if client.IsRetryable(err) {
+			os.Exit(10)
+		}
 		os.Exit(1)
 	}
 }
