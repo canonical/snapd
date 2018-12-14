@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/state"
 
 	. "gopkg.in/check.v1"
 )
@@ -230,6 +231,7 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 			"slot3-6":  true,
 			"11":       true,
 			"12foo":    true,
+			"slot-99":  true,
 		}
 		return !reserved[n]
 	}
@@ -239,11 +241,12 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 		{"slot", "slot2"},
 		{"slot1", "slot2"},
 		{"slot1234", "slot1235"},
-		{"slot-1", "slot2"},
-		{"slot3-5", "slot36"},
+		{"slot-1", "slot-3"},
+		{"slot3-5", "slot3-7"},
 		{"slot3-1", "slot3-1"},
 		{"11", "12"},
 		{"12foo", "12foo1"},
+		{"slot-99", "slot-100"},
 	}
 
 	for _, name := range names {
@@ -320,4 +323,33 @@ func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
 		slotName := ifacestate.SuggestedSlotName(di, "fallbackname")
 		c.Assert(slotName, Equals, data.outName)
 	}
+}
+
+func (s *hotplugSuite) TestRemoveDeviceTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tss := ifacestate.RemoveDevice(st, "interface", "key")
+	c.Assert(tss, NotNil)
+	c.Assert(tss.Tasks(), HasLen, 2)
+
+	task1 := tss.Tasks()[0]
+	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
+
+	iface, key, err := ifacestate.GetHotplugAttrs(task1)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+
+	task2 := tss.Tasks()[1]
+	c.Assert(task2.Kind(), Equals, "hotplug-remove-slot")
+	iface, key, err = ifacestate.GetHotplugAttrs(task2)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+
+	wt := task2.WaitTasks()
+	c.Assert(wt, HasLen, 1)
+	c.Assert(wt[0], DeepEquals, task1)
 }

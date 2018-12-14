@@ -56,8 +56,15 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
-	theStore := Store(r.state)
 	now := time.Now()
+	if r.nextCatalogRefresh.IsZero() {
+		// try to use the timestamp on the sections file
+		if st, err := os.Stat(dirs.SnapSectionsFile); err == nil && st.ModTime().Before(now) {
+			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelay)
+		}
+	}
+
+	theStore := Store(r.state)
 	needsRefresh := r.nextCatalogRefresh.IsZero() || r.nextCatalogRefresh.Before(now)
 
 	if !needsRefresh {

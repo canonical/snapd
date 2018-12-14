@@ -105,6 +105,8 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
+	st := task.State()
+
 	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
 		return err
 	}
@@ -137,11 +139,15 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
+	// Reload the connections and compute the set of affected snaps. The set
+	// affectedSet set contains name of all the affected snap instances.  The
+	// arrays affectedNames and affectedSnaps contain, arrays of snap names and
+	// snapInfo's, respectively. The arrays are sorted by name with the special
+	// exception that the snap being setup is always first. The affectedSnaps
+	// array may be shorter than the set of affected snaps in case any of the
+	// snaps cannot be found in the state.
 	reconnectedSnaps, err := m.reloadConnections(snapName)
 	if err != nil {
-		return err
-	}
-	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
 	affectedSet := make(map[string]bool)
@@ -151,14 +157,43 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	for _, name := range reconnectedSnaps {
 		affectedSet[name] = true
 	}
-	// The principal snap was already handled above.
-	delete(affectedSet, snapInfo.InstanceName())
-	affectedSnaps := make([]string, 0, len(affectedSet))
+
+	// Sort the set of affected names, ensuring that the snap being setup
+	// is first regardless of the name it has.
+	affectedNames := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
-		affectedSnaps = append(affectedSnaps, name)
+		if name != snapName {
+			affectedNames = append(affectedNames, name)
+		}
 	}
-	sort.Strings(affectedSnaps)
-	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
+	sort.Strings(affectedNames)
+	affectedNames = append([]string{snapName}, affectedNames...)
+
+	// Obtain snap.Info for each affected snap, skipping those that cannot be
+	// found and compute the confinement options that apply to it.
+	affectedSnaps := make([]*snap.Info, 0, len(affectedSet))
+	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
+	// For the snap being setup we know exactly what was requested.
+	affectedSnaps = append(affectedSnaps, snapInfo)
+	confinementOpts = append(confinementOpts, opts)
+	// For remaining snaps we need to interrogate the state.
+	for _, name := range affectedNames[1:] {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, name, &snapst); err != nil {
+			task.Errorf("cannot obtain state of snap %s: %s", name, err)
+			continue
+		}
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		if err := addImplicitSlots(st, snapInfo); err != nil {
+			return err
+		}
+		affectedSnaps = append(affectedSnaps, snapInfo)
+		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
+	}
+	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
@@ -436,6 +471,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
 		ByGadget:         byGadget,
+		HotplugKey:       slot.HotplugKey,
 	}
 	setConns(st, conns)
 
@@ -1231,5 +1267,51 @@ Loop:
 		break
 	}
 
+	return nil
+}
+
+// doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
+// Sequence numbers control the order of execution of hotplug-related changes, which would otherwise be executed in
+// arbitrary order by task runner, leading to unexpected results if multiple events for same device are in flight
+// (e.g. plugging, followed by immediate unplugging, or snapd restart with pending hotplug changes).
+// The handler expects "hotplug-key" and "hotplug-seq" values set on own and other hotplug-related changes.
+func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := task.Change()
+	if chg == nil || !isHotplugChange(chg) {
+		return fmt.Errorf("internal error: task %q not in a hotplug change", task.Kind())
+	}
+
+	seq, hotplugKey, err := getHotplugChangeAttrs(chg)
+	if err != nil {
+		return err
+	}
+
+	for _, otherChg := range st.Changes() {
+		if otherChg.Status().Ready() || otherChg.ID() == chg.ID() {
+			continue
+		}
+
+		// only inspect hotplug changes
+		if !isHotplugChange(otherChg) {
+			continue
+		}
+
+		otherSeq, otherKey, err := getHotplugChangeAttrs(otherChg)
+		if err != nil {
+			return err
+		}
+
+		// conflict with retry if there another change affecting same device and has lower sequence number
+		if hotplugKey == otherKey && otherSeq < seq {
+			task.Logf("Waiting processing of earlier hotplug event change %q affecting device with hotplug key %q", otherChg.Kind(), hotplugKey)
+			return &state.Retry{}
+		}
+	}
+
+	// no conflicting change for same hotplug key found
 	return nil
 }
