@@ -77,3 +77,8 @@ func RestoreContext(aPath string, mode RestoreMode) error {
 
 	return exec.Command("restorecon", args...).Run()
 }
+
+// SnapMountContext finds out the right context for mounting snaps
+func SnapMountContext() string {
+	return "system_u:object_r:snappy_snap_t:s0"
+}
