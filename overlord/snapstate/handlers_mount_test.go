@@ -64,7 +64,7 @@ func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 }
 
 func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
-	v1 := "name: core\nversion: 1.0\n"
+	v1 := "name: core\nversion: 1.0\nepoch: 1\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
 	s.state.Lock()
@@ -132,7 +132,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 }
 
 func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {
-	v1 := "name: borken\nversion: 1.0\n"
+	v1 := "name: borken\nversion: 1.0\nepoch: 1\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
 	s.state.Lock()
@@ -195,6 +195,52 @@ func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {
 	})
 }
 
+func (s *mountSnapSuite) TestDoMountSnapEpochError(c *C) {
+	v1 := "name: some-snap\nversion: 1.0\nepoch: 13\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).* new revision 2 with epoch .* can't read the current epoch of [^ ]*`)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+	})
+}
+
 func (s *mountSnapSuite) TestDoMountSnapErrorSetupSnap(c *C) {
 	v1 := "name: borken\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
@@ -243,8 +289,9 @@ func (s *mountSnapSuite) TestDoMountSnapErrorSetupSnap(c *C) {
 		},
 	})
 }
+
 func (s *mountSnapSuite) TestDoMountSnapUndoError(c *C) {
-	v1 := "name: borken-undo-setup\nversion: 1.0\n"
+	v1 := "name: borken-undo-setup\nversion: 1.0\nepoch: 1\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
 	s.state.Lock()
@@ -311,7 +358,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 	r := snapstate.MockMountPollInterval(10 * time.Millisecond)
 	defer r()
 
-	v1 := "name: not-there\nversion: 1.0\n"
+	v1 := "name: not-there\nversion: 1.0\nepoch: 1\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
 	s.state.Lock()

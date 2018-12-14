@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -905,7 +904,7 @@ snaps:
 		// we have a gadget at this point(s)
 		_, err := snapstate.GadgetInfo(st)
 		c.Check(err, IsNil)
-		configured = append(configured, ctx.SnapName())
+		configured = append(configured, ctx.InstanceName())
 		return nil, nil
 	}
 
@@ -913,7 +912,7 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	restore := configstate.MockConfigcoreRun(func(configcore.Conf) error {
+	restore := configstate.MockConfigcoreRun(func(config.Conf) error {
 		configured = append(configured, "configcore")
 		return nil
 	})

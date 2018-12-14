@@ -539,7 +539,7 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 	}}
 
 	for i, scenario := range changeProfileScenarios {
-		restore = apparmor.MockParserFeatures(func() []string { return scenario.features })
+		restore = apparmor.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
 		defer restore()
 
 		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, "", ifacetest.SambaYamlV1, 1)
@@ -1477,9 +1477,9 @@ func (s *backendSuite) TestNsProfile(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:full", "policy:default"})
@@ -1492,9 +1492,9 @@ func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("4.16.10-1-default")
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:partial", "policy:default"})
@@ -1549,5 +1549,150 @@ func (s *backendSuite) TestDowngradeConfinement(c *C) {
 		restore = osutil.MockKernelVersion(tc.kernel)
 		defer restore()
 		c.Check(apparmor.DowngradeConfinement(), Equals, tc.expected, Commentf("unexpected result for %+v", tc))
+	}
+}
+
+func (s *backendSuite) TestPtraceTraceRule(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
+	defer restoreTemplate()
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	needle := `deny ptrace (trace),`
+	for _, tc := range []struct {
+		opts     interfaces.ConfinementOptions
+		uses     bool
+		suppress bool
+		expected bool
+	}{
+		// strict, only suppress if suppress == true and uses == false
+		{
+			opts:     interfaces.ConfinementOptions{},
+			uses:     false,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{},
+			uses:     false,
+			suppress: true,
+			expected: true,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{},
+			uses:     true,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{},
+			uses:     true,
+			suppress: true,
+			expected: false,
+		},
+		// devmode, only suppress if suppress == true and uses == false
+		{
+			opts:     interfaces.ConfinementOptions{DevMode: true},
+			uses:     false,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{DevMode: true},
+			uses:     false,
+			suppress: true,
+			expected: true,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{DevMode: true},
+			uses:     true,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{DevMode: true},
+			uses:     true,
+			suppress: true,
+			expected: false,
+		},
+		// classic, never suppress
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true},
+			uses:     false,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true},
+			uses:     false,
+			suppress: true,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true},
+			uses:     true,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true},
+			uses:     true,
+			suppress: true,
+			expected: false,
+		},
+		// classic with jail, only suppress if suppress == true and uses == false
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true, JailMode: true},
+			uses:     false,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true, JailMode: true},
+			uses:     false,
+			suppress: true,
+			expected: true,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true, JailMode: true},
+			uses:     true,
+			suppress: false,
+			expected: false,
+		},
+		{
+			opts:     interfaces.ConfinementOptions{Classic: true, JailMode: true},
+			uses:     true,
+			suppress: true,
+			expected: false,
+		},
+	} {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+			if tc.uses {
+				spec.SetUsesPtraceTrace()
+			}
+			if tc.suppress {
+				spec.SetSuppressPtraceTrace()
+			}
+			return nil
+		}
+
+		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+
+		err := s.Backend.Setup(snapInfo, tc.opts, s.Repo)
+		c.Assert(err, IsNil)
+
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := ioutil.ReadFile(profile)
+		c.Assert(err, IsNil)
+
+		if tc.expected {
+			c.Assert(string(data), testutil.Contains, needle)
+		} else {
+			c.Assert(string(data), Not(testutil.Contains), needle)
+		}
+		s.RemoveSnap(c, snapInfo)
 	}
 }

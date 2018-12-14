@@ -176,10 +176,12 @@ const (
 	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
 	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
+	errorKindSnapNotClassic         = errorKind("snap-not-classic")
 
 	errorKindBadQuery = errorKind("bad-query")
 
 	errorKindNetworkTimeout      = errorKind("network-timeout")
+	errorKindDNSFailure          = errorKind("dns-failure")
 	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
 
 	errorKindConfigNoSuchOption = errorKind("option-not-found")
@@ -544,6 +546,9 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicSystemError:
 			kind = errorKindSnapNeedsClassicSystem
+			snapName = err.Snap
+		case *snapstate.SnapNotClassicError:
+			kind = errorKindSnapNotClassic
 			snapName = err.Snap
 		case net.Error:
 			if err.Timeout() {

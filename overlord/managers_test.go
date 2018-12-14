@@ -71,6 +71,7 @@ type mgrsSuite struct {
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
+	mockSnapCmd    *testutil.MockCmd
 
 	devAcct *asserts.Account
 
@@ -108,6 +109,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(ms.tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	// needed by hooks
+	ms.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
@@ -256,6 +260,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.restoreTrusted()
 	ms.restore()
 	ms.restoreSystemctl()
+	ms.mockSnapCmd.Restore()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	ms.restoreBackends()
 }
@@ -2609,6 +2614,8 @@ apps:
    foo:
         command: bin/bar
         slots: [media-hub]
+hooks:
+   disconnect-slot-media-hub:
 `
 	const otherSnapYaml = `name: other-snap
 version: 1.0
@@ -2616,6 +2623,8 @@ apps:
    baz:
         command: bin/bar
         plugs: [media-hub]
+hooks:
+   disconnect-plug-media-hub:
 `
 	st := ms.o.State()
 	st.Lock()

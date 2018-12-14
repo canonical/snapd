@@ -50,16 +50,17 @@ type AddUserOptions struct {
 	ForcePasswordChange bool
 }
 
+// we check the (user)name ourselves, adduser is a bit too
+// strict (i.e. no `.`) - this regexp is in sync with that SSO
+// allows as valid usernames
+var isValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`).MatchString
+
 func AddUser(name string, opts *AddUserOptions) error {
 	if opts == nil {
 		opts = &AddUserOptions{}
 	}
 
-	// we check the (user)name ourselves, adduser is a bit too
-	// strict (i.e. no `.`) - this regexp is in sync with that SSO
-	// allows as valid usernames
-	validNames := regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`)
-	if !validNames.MatchString(name) {
+	if !isValidUsername(name) {
 		return fmt.Errorf("cannot add user %q: name contains invalid characters", name)
 	}
 
@@ -76,7 +77,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("adduser failed with %s: %s", err, output)
+		return fmt.Errorf("adduser failed with: %s", OutputErr(output, err))
 	}
 
 	if opts.Sudoer {

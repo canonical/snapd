@@ -27,7 +27,7 @@ execute: |
     iptables -I OUTPUT -j ACCEPT -p tcp -m owner --uid-owner "$(id -u test)"
 
     # run a proxy that can access http/https (via the owner rule)
-    systemd-run --uid=test --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
+    systemd-run --service-type=notify --uid=test --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     wait_for_service tinyproxy
