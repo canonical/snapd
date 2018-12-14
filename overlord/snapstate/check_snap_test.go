@@ -788,3 +788,36 @@ version: 1.0`
 
 	c.Check(checkCbCalled, Equals, true)
 }
+
+func (s *checkSnapSuite) TestCheckSnapCheckEpochLocal(c *C) {
+	si := &snap.SideInfo{
+		SnapID: "snap-id",
+	}
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		info := snaptest.MockInfo(c, "{name: foo, version: 1.0, epoch: 13}", si)
+		return info, emptyContainer(c), nil
+	}
+	r1 := snapstate.MockOpenSnapFile(openSnapFile)
+	defer r1()
+
+	err := snapstate.CheckSnap(s.st, "snap-path", "foo", si, &snap.Info{}, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot refresh "foo" to local snap with epoch 13, because it can't read the current epoch of 0`)
+}
+
+func (s *checkSnapSuite) TestCheckSnapCheckEpochNonLocal(c *C) {
+	si := &snap.SideInfo{
+		SnapID:   "snap-id",
+		Revision: snap.R(42),
+	}
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		info := snaptest.MockInfo(c, "{name: foo, version: 1.0, epoch: 13}", si)
+		return info, emptyContainer(c), nil
+	}
+	r1 := snapstate.MockOpenSnapFile(openSnapFile)
+	defer r1()
+
+	err := snapstate.CheckSnap(s.st, "snap-path", "foo", si, &snap.Info{}, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot refresh "foo" to new revision 42 with epoch 13, because it can't read the current epoch of 0`)
+}

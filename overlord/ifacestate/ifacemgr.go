@@ -83,6 +83,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 
+	// don't block on hotplug-seq-wait task
+	runner.AddHandler("hotplug-seq-wait", m.doHotplugSeqWait, nil)
+
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
 

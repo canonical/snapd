@@ -60,7 +60,7 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
-	kernelFeatures        = release.AppArmorFeatures
+	kernelFeatures        = release.AppArmorKernelFeatures
 	parserFeatures        = release.AppArmorParserFeatures
 )
 
@@ -408,10 +408,12 @@ func (b *Backend) Remove(snapName string) error {
 
 var (
 	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
-	attachPattern   = regexp.MustCompile(`\(attach_disconnected,mediate_deleted\)`)
 )
 
-const attachComplain = "(attach_disconnected,mediate_deleted,complain)"
+const (
+	attachPattern  = "(attach_disconnected,mediate_deleted)"
+	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
+)
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
@@ -474,7 +476,7 @@ func downgradeConfinement() bool {
 			// 4.16, do not downgrade the confinement template.
 			return false
 		}
-	case release.DistroLike("arch"):
+	case release.DistroLike("arch", "archlinux"):
 		// The default kernel has AppArmor enabled since 4.18.8, the
 		// hardened one since 4.17.4
 		return false
@@ -513,7 +515,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// This is also done for classic so that no confinement applies. Just in
 	// case the profile we start with is not permissive enough.
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
-		policy = attachPattern.ReplaceAllString(policy, attachComplain)
+		policy = strings.Replace(policy, attachPattern, attachComplain, -1)
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
@@ -522,7 +524,8 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
-			for _, f := range parserFeatures() {
+			features, _ := parserFeatures()
+			for _, f := range features {
 				if f == "unsafe" {
 					return fmt.Sprintf("change_profile unsafe /**,")
 				}
@@ -586,10 +589,10 @@ func (b *Backend) SandboxFeatures() []string {
 		return nil
 	}
 
-	features := kernelFeatures()
-	pFeatures := parserFeatures()
-	tags := make([]string, 0, len(features)+len(pFeatures))
-	for _, feature := range features {
+	kFeatures, _ := kernelFeatures()
+	pFeatures, _ := parserFeatures()
+	tags := make([]string, 0, len(kFeatures)+len(pFeatures))
+	for _, feature := range kFeatures {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)

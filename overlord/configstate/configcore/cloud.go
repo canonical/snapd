@@ -27,10 +27,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func alreadySeeded(tr Conf) (bool, error) {
+func alreadySeeded(tr config.Conf) (bool, error) {
 	st := tr.State()
 	st.Lock()
 	defer st.Unlock()
@@ -42,7 +43,7 @@ func alreadySeeded(tr Conf) (bool, error) {
 	return seeded, nil
 }
 
-func setCloudInfoWhenSeeding(tr Conf) error {
+func setCloudInfoWhenSeeding(tr config.Conf) error {
 	// if we are during seeding try to capture cloud information
 	seeded, err := alreadySeeded(tr)
 	if err != nil {
