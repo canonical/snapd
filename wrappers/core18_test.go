@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -65,6 +66,16 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 
 	// reset root dir
 	dirs.SetRootDir(s.tempdir)
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
+			return []byte(s), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
@@ -117,11 +128,13 @@ WantedBy=snapd.service
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.autoimport.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.system-shutdown.service"},
+		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
 		{"show", "--property=ActiveState", "snapd.autoimport.service"},
 		{"start", "snapd.autoimport.service"},
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
+		{"start", "--no-block", "snapd.autoimport.service"},
 	})
 }
 
