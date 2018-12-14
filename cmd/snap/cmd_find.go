@@ -171,7 +171,7 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"section": i18n.G("Restrict the search to a given section"),
 	}), []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<query>"),
 	}}).alias = "search"
 
