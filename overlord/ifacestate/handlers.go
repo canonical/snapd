@@ -809,8 +809,11 @@ func checkHotplugDisconnectConflicts(st *state.State, plugSnap, slotSnap string)
 			if err != nil {
 				return err
 			}
-			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
-				return &state.Retry{After: connectRetryTimeout}
+			if plugRef.Snap == plugSnap {
+				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting plug snap %s, task %q", plugSnap, k)}
+			}
+			if slotRef.Snap == slotSnap {
+				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting slot snap %s, task %q", slotSnap, k)}
 			}
 			continue
 		}
@@ -829,7 +832,7 @@ func checkHotplugDisconnectConflicts(st *state.State, plugSnap, slotSnap string)
 
 		if k == "link-snap" || k == "setup-profiles" || k == "unlink-snap" {
 			// other snap is getting installed/refreshed/removed - temporary conflict
-			return &state.Retry{After: connectRetryTimeout}
+			return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s with task %q", otherSnapName, k)}
 		}
 	}
 	return nil
@@ -1262,11 +1265,6 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	syssnap, err := systemSnapInfo(st)
-	if err != nil {
-		return err
-	}
-
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
@@ -1283,9 +1281,8 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
 		if err := checkHotplugDisconnectConflicts(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
-			if _, retry := err.(*state.Retry); retry {
-				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", syssnap.InstanceName(), connRef.PlugRef.Snap, connRef.SlotRef.Snap)
-				task.Logf("Waiting for conflicting change in progress...")
+			if retry, ok := err.(*state.Retry); ok {
+				task.Logf("Waiting for conflicting change in progress: %s", retry.Reason)
 				return err // will retry
 			}
 			return fmt.Errorf("cannot check conflicts when disconnecting interfaces: %s", err)
