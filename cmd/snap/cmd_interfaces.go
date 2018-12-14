@@ -62,7 +62,7 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"i": i18n.G("Constrain listing to specific interfaces"),
 	}, []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<snap>:<slot or plug>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
