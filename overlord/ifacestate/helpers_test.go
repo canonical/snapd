@@ -489,3 +489,37 @@ func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
 	c.Assert(s.st.Get("hotplug-seq", &stateSeq), IsNil)
 	c.Check(stateSeq, Equals, 2)
 }
+
+func (s *helpersSuite) TestAddHotplugSeqWaitTask(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("foo", "")
+	t1 := s.st.NewTask("task1", "")
+	t2 := s.st.NewTask("task2", "")
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	c.Assert(ifacestate.AddHotplugSeqWaitTask(chg, "1234"), IsNil)
+	// hotplug change got an extra task
+	c.Assert(chg.Tasks(), HasLen, 3)
+	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)
+	c.Assert(err, IsNil)
+	c.Check(seq, Equals, 1)
+	c.Check(key, Equals, "1234")
+
+	var seqTask *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "hotplug-seq-wait" {
+			seqTask = t
+			break
+		}
+	}
+	c.Assert(seqTask, NotNil)
+
+	// existing tasks wait for the hotplug-seq-wait task
+	c.Assert(t1.WaitTasks(), HasLen, 1)
+	c.Assert(t1.WaitTasks()[0].ID(), Equals, seqTask.ID())
+	c.Assert(t2.WaitTasks(), HasLen, 1)
+	c.Assert(t2.WaitTasks()[0].ID(), Equals, seqTask.ID())
+}
