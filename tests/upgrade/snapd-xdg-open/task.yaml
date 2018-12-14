@@ -7,7 +7,7 @@ details: |
 # Test case only applies to Ubuntu as that is the only distribution where
 # we had a snapd-xdg-open package ever.
 
-systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*, -amazon-*]
+systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*, -amazon-*, -centos-*]
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -34,11 +34,11 @@ execute: |
         fi
     fi
 
-    prevsnapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
+    prevsnapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open || true)
 
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
     distro_install_local_package --allow-downgrades "$GOHOME"/snapd*.deb
 
-    snapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open)
+    snapdxdgver=$(dpkg-query --showformat='${Version}' --show snapd-xdg-open || true)
     [ "$snapdxdgver" != "$prevsnapdxdgver" ]

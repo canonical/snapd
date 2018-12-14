@@ -10,3 +10,5 @@ ExecStart=@bindir@/snap auto-import
 
 [Install]
 WantedBy=multi-user.target
+# This cannot be started on firstboot
+# X-Snapd-Snap: do-not-start
