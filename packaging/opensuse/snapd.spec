@@ -46,6 +46,12 @@
 %{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 %{?!_systemd_user_env_generator_dir: %global _systemd_user_env_generator_dir %{_prefix}/lib/systemd/user-environment-generators}
 
+# This is fixed in SUSE Linux 15
+# Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
+%if 0%{?suse_version} < 1500
+%global _sharedstatedir %{_localstatedir}/lib
+%endif
+
 %global provider        github
 %global provider_tld    com
 %global project         snapcore
@@ -181,6 +187,7 @@ libexecdir = %{_libexecdir}
 mandir = %{_mandir}
 datadir = %{_datadir}
 localstatedir = %{_localstatedir}
+sharedstatedir = %{_sharedstatedir}
 unitdir = %{_unitdir}
 # Build configuration
 with_core_bits = 0
@@ -325,9 +332,9 @@ fi
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
-%ghost %{_localstatedir}/lib/snapd/state.json
-%ghost %{_localstatedir}/lib/snapd/system-key
-%dir %attr(0000,root,root) %{_localstatedir}/lib/snapd/void
+%ghost %{_sharedstatedir}/snapd/state.json
+%ghost %{_sharedstatedir}/snapd/system-key
+%dir %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 %dir %{snap_mount_dir}
 %dir %{snap_mount_dir}/bin
 %ghost %{snap_mount_dir}/README
@@ -336,26 +343,26 @@ fi
 %ghost %{_localstatedir}/cache/snapd/commands
 %ghost %{_localstatedir}/cache/snapd/names
 %ghost %{_localstatedir}/cache/snapd/sections
-%dir %{_localstatedir}/lib/snapd
-%dir %{_localstatedir}/lib/snapd/apparmor
-%dir %{_localstatedir}/lib/snapd/apparmor/profiles
-%dir %{_localstatedir}/lib/snapd/apparmor/snap-confine
-%dir %{_localstatedir}/lib/snapd/assertions
-%dir %{_localstatedir}/lib/snapd/cache
-%dir %{_localstatedir}/lib/snapd/cookie
-%dir %{_localstatedir}/lib/snapd/desktop
-%dir %{_localstatedir}/lib/snapd/desktop/applications
-%dir %{_localstatedir}/lib/snapd/device
-%dir %{_localstatedir}/lib/snapd/hostfs
-%dir %{_localstatedir}/lib/snapd/lib
-%dir %{_localstatedir}/lib/snapd/lib/gl
-%dir %{_localstatedir}/lib/snapd/lib/gl32
-%dir %{_localstatedir}/lib/snapd/lib/vulkan
-%dir %{_localstatedir}/lib/snapd/mount
-%dir %{_localstatedir}/lib/snapd/seccomp
-%dir %{_localstatedir}/lib/snapd/seccomp/bpf
-%dir %{_localstatedir}/lib/snapd/sequence
-%dir %{_localstatedir}/lib/snapd/snaps
+%dir %{_sharedstatedir}/snapd
+%dir %{_sharedstatedir}/snapd/apparmor
+%dir %{_sharedstatedir}/snapd/apparmor/profiles
+%dir %{_sharedstatedir}/snapd/apparmor/snap-confine
+%dir %{_sharedstatedir}/snapd/assertions
+%dir %{_sharedstatedir}/snapd/cache
+%dir %{_sharedstatedir}/snapd/cookie
+%dir %{_sharedstatedir}/snapd/desktop
+%dir %{_sharedstatedir}/snapd/desktop/applications
+%dir %{_sharedstatedir}/snapd/device
+%dir %{_sharedstatedir}/snapd/hostfs
+%dir %{_sharedstatedir}/snapd/lib
+%dir %{_sharedstatedir}/snapd/lib/gl
+%dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/vulkan
+%dir %{_sharedstatedir}/snapd/mount
+%dir %{_sharedstatedir}/snapd/seccomp
+%dir %{_sharedstatedir}/snapd/seccomp/bpf
+%dir %{_sharedstatedir}/snapd/sequence
+%dir %{_sharedstatedir}/snapd/snaps
 %dir %{_environmentdir}
 %dir %{_systemd_system_env_generator_dir}
 %dir %{_systemdgeneratordir}

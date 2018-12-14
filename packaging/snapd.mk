@@ -16,7 +16,7 @@ include snapd.defines.mk
 
 # There are two sets of definitions expected:
 # 1) variables defining various directory names
-vars += bindir sbindir libexecdir mandir datadir localstatedir unitdir
+vars += bindir sbindir libexecdir mandir datadir localstatedir sharedstatedir unitdir
 # 2) variables defining build options:
 #   with_test_keys: set to 1 to build snapd with test key built in
 #   with_apparmor: set to 1 to build snapd with apparmor support
@@ -76,7 +76,7 @@ else
 endif
 
 # Know how to create certain directories.
-$(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 $(localstatedir)/lib/snapd $(localstatedir)/cache/snapd $(snap_mount_dir)):
+$(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedstatedir)/snapd $(localstatedir)/cache/snapd $(snap_mount_dir)):
 	install -m 755 -d $@
 
 .PHONY: install
@@ -99,23 +99,23 @@ install:: snap | $(DESTDIR)$(mandir)/man8
 
 # Install the directory structure in /var/lib/snapd
 install::
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/apparmor/profiles
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/apparmor/snap-confine
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/assertions
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/cache
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/cookie
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/desktop/applications
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/device
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/hostfs
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/lib/{gl,gl32,vulkan}
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/mount
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/seccomp/bpf
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/sequence
-	install -m 755 -d $(DESTDIR)$(localstatedir)/lib/snapd/snaps
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/apparmor/profiles
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/apparmor/snap-confine
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/assertions
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cache
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cookie
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/desktop/applications
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/device
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/hostfs
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/{gl,gl32,vulkan}
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/mount
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/seccomp/bpf
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/sequence
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/snaps
 
 # Touch files that are ghosted by the package. Those are _NOT_ installed but
 # this way the package manager knows about them belonging to the package.
-install:: | $(DESTDIR)$(localstatedir)/lib/snapd
+install:: | $(DESTDIR)/$(sharedstatedir)/snapd
 	touch $|/state.json
 	touch $|/system-key
 
