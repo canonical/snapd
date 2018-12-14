@@ -5113,10 +5113,7 @@ func (s *interfaceManagerSuite) testHotplugDisconnectWaitsForCoreRefresh(c *C, t
 
 	chg2 := s.state.NewChange("other-chg", "...")
 	t2 := s.state.NewTask(taskKind, "...")
-	t2.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "core"},
-	})
+	t2.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "core"}})
 	chg2.AddTask(t2)
 	t3 := s.state.NewTask("other", "")
 	t2.WaitFor(t3)
@@ -5131,7 +5128,7 @@ func (s *interfaceManagerSuite) testHotplugDisconnectWaitsForCoreRefresh(c *C, t
 	s.state.Lock()
 	c.Assert(chg.Err(), IsNil)
 
-	c.Assert(strings.Join(t.Log(), ""), Matches, `.*Waiting for conflicting change in progress...`)
+	c.Assert(strings.Join(t.Log(), ""), Matches, `.*Waiting for conflicting change in progress:.*`)
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 
 	t2.SetStatus(state.DoneStatus)
