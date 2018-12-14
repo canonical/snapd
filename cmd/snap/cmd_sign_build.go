@@ -65,7 +65,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"grade": i18n.G("Grade states the build quality of the snap (defaults to 'stable')"),
 		}, []argDesc{{
-			// TRANSLATORS: This needs to be wrapped in <>s.
+			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<filename>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Filename of the snap you want to assert a build for"),

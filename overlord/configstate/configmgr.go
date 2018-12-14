@@ -22,13 +22,14 @@ package configstate
 import (
 	"regexp"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
 var configcoreRun = configcore.Run
 
-func MockConfigcoreRun(f func(conf configcore.Conf) error) (restore func()) {
+func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
 	origConfigcoreRun := configcoreRun
 	configcoreRun = f
 	return func() {

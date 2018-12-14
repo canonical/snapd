@@ -27,6 +27,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
@@ -342,7 +343,7 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 
 func (m *InterfaceManager) hotplugEnabled() (bool, error) {
 	tr := config.NewTransaction(m.state)
-	return snapstate.GetFeatureFlagBool(tr, "experimental.hotplug")
+	return config.GetFeatureFlag(tr, features.Hotplug)
 }
 
 // ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.
