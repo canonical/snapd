@@ -198,6 +198,9 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 				ts := updateDevice(st, iface.Name(), key, slotSpec.Attrs)
 				chg := st.NewChange(fmt.Sprintf("hotplug-update-%s", iface), fmt.Sprintf("Update hotplug slot of interface %s, device %s", iface.Name(), key))
 				chg.AddAll(ts)
+				if err := addHotplugSeqWaitTask(chg, key); err != nil {
+					logger.Noticef(err.Error())
+				}
 				continue // next interface
 			}
 		} else {
@@ -245,6 +248,9 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of device %q", key))
 		setHotplugAttrs(hotplugConnect, iface.Name(), key)
 		chg.AddTask(hotplugConnect)
+		if err := addHotplugSeqWaitTask(chg, key); err != nil {
+			logger.Noticef(err.Error())
+		}
 		st.EnsureBefore(0)
 	}
 }
@@ -287,7 +293,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", ifaceName), fmt.Sprintf("Remove hotplug connections and slots of interface %s", ifaceName))
 		ts := removeDevice(st, ifaceName, hotplugKey)
 		chg.AddAll(ts)
-
+		addHotplugSeqWaitTask(chg, hotplugKey)
 		changed = true
 	}
 
@@ -334,6 +340,9 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", slot.Interface), fmt.Sprintf("Remove hotplug connections and slots of interface %s", slot.Interface))
 		ts := removeDevice(st, slot.Interface, slot.HotplugKey)
 		chg.AddAll(ts)
+		if err := addHotplugSeqWaitTask(chg, slot.HotplugKey); err != nil {
+			logger.Noticef(err.Error())
+		}
 	}
 	st.EnsureBefore(0)
 
