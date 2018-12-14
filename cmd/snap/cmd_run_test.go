@@ -1105,7 +1105,7 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
 	c.Assert(err, check.IsNil)
 	c.Check(execCalled, check.Equals, 3)
-	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("failed to restore SELinux context of %s: restore failed", snapUserDir))
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("cannot restore SELinux context of %s: restore failed", snapUserDir))
 	c.Check(isEnabledCalls, check.Equals, 3)
 	c.Check(verifyCalls, check.Equals, 2)
 	c.Check(restoreCalls, check.Equals, 1)

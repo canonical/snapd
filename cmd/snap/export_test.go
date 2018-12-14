@@ -74,6 +74,8 @@ var (
 
 	LintArg  = lintArg
 	LintDesc = lintDesc
+
+	FixupArg = fixupArg
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -225,10 +227,10 @@ func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
 }
 
 func MockSELinuxVerifyPathContext(verifypathcon func(string) (bool, error)) (restore func()) {
-	old := selinuxVerifypathContext
-	selinuxVerifypathContext = verifypathcon
+	old := selinuxVerifyPathContext
+	selinuxVerifyPathContext = verifypathcon
 	return func() {
-		selinuxVerifypathContext = old
+		selinuxVerifyPathContext = old
 	}
 }
 

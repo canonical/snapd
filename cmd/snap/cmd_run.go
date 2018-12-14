@@ -58,7 +58,7 @@ var (
 	osGetenv                 = os.Getenv
 	timeNow                  = time.Now
 	selinuxIsEnabled         = selinux.IsEnabled
-	selinuxVerifypathContext = selinux.VerifyPathContext
+	selinuxVerifyPathContext = selinux.VerifyPathContext
 	selinuxRestoreContext    = selinux.RestoreContext
 )
 
@@ -356,7 +356,7 @@ func maybeRestoreSecurityContext(aPath string) error {
 		return nil
 	}
 
-	match, err := selinuxVerifypathContext(aPath)
+	match, err := selinuxVerifyPathContext(aPath)
 	if err != nil {
 		return fmt.Errorf("failed to verify SELinux context of %v: %v", aPath, err)
 	}
