@@ -553,6 +553,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSessionActivatable(c *C) {
 Name=org.test-session-activatable
 Comment=Bus name for snap application test-dbus.test-session-activatable-provider
 Exec=/usr/bin/snap run test-dbus.test-session-activatable-provider
+AssumedAppArmorLabel=snap.test-dbus.test-session-activatable-provider
 X-Snap=test-dbus
 `),
 		},
@@ -571,6 +572,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystemActivatable(c *C) {
 Name=org.test-system-activatable
 Comment=Bus name for snap application test-dbus.test-system-activatable-provider
 Exec=/usr/bin/snap run test-dbus.test-system-activatable-provider
+AssumedAppArmorLabel=snap.test-dbus.test-system-activatable-provider
 User=root
 X-Snap=test-dbus
 `),

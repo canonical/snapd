@@ -52,6 +52,7 @@ func (spec *Specification) AddService(bus, name string, appInfo *snap.AppInfo) e
 Name={{.BusName}}
 Comment=Bus name for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Exec={{.App.LauncherCommand}}
+AssumedAppArmorLabel={{.App.SecurityTag}}
 {{- if .IsSystem }}
 User=root
 {{- end}}
