@@ -700,29 +700,13 @@ suites:
             TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
-            #shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            prepare_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            "$TESTSLIB"/reset.sh --reuse-core
-            #shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            prepare_each_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            "$TESTSLIB"/reset.sh --store
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-
-            distro_purge_package snapd
-            case "$SPREAD_SYSTEM" in
-                arch-*)
-                    # there is no snap-confine and ubuntu-core-launcher
-                    # in Arch
-                    ;;
-                *)
-                    distro_purge_package snap-confine ubuntu-core-launcher
-                    ;;
-            esac
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
