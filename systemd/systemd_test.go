@@ -641,3 +641,35 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
 }
+
+func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
+	sysErr := &Error{}
+	sysErr.SetExitCode(1)
+	sysErr.SetMsg([]byte("inactive\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New("xyzzy", s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsActiveIsActive(c *C) {
+	s.errors = []error{nil}
+
+	active, err := New("xyzzy", s.rep).IsActive("foo")
+	c.Assert(active, Equals, true)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsActiveErr(c *C) {
+	sysErr := &Error{}
+	sysErr.SetExitCode(1)
+	sysErr.SetMsg([]byte("random-failure\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New("xyzzy", s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, ErrorMatches, ".* failed with exit status 1: random-failure\n")
+}
