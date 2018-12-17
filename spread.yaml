@@ -81,6 +81,8 @@ backends:
                 manual: true
             - fedora-29-64:
                 workers: 4
+                # https://twitter.com/zygoon/status/1073629342884864000
+                manual: true
             - opensuse-42.3-64:
                 workers: 4
                 # golang stack cannot compile anything, needs investigation
@@ -95,6 +97,38 @@ backends:
             - centos-7-64:
                 workers: 4
                 image: centos-7-64
+
+    google-upgrade:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-14.04-64:
+                workers: 1
+            - ubuntu-16.04-32:
+                workers: 1
+            - ubuntu-16.04-64:
+                workers: 1
+            - ubuntu-18.04-64:
+                workers: 1
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
+                workers: 1
+            - debian-9-64:
+                workers: 1
+            - fedora-29-64:
+                workers: 1
+                # https://twitter.com/zygoon/status/1073629342884864000
+                manual: true
+            - arch-linux-64:
+                workers: 1
+            - amazon-linux-2-64:
+                workers: 1
+                storage: preserve-size
+            - centos-7-64:
+                workers: 1
+
 
     google-sru:
         type: google
@@ -124,23 +158,6 @@ backends:
             - ubuntu-18.04-64:
                 image: ubuntu-1804-64-virt-enabled
                 workers: 1
-
-    linode:
-        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        plan: 4GB
-        location: Fremont
-        halt-timeout: 2h
-        environment:
-            # Using proxy can help to accelerate testing in local conditions
-            # but it is unlikely anyone has a proxy that is addressable from
-            # Linode network. As such, don't honor host's SPREAD_HTTP_PROXY
-            # that was set globally above.
-            HTTP_PROXY: null
-            HTTPS_PROXY: null
-        systems:
-            - fedora-25-64:
-                workers: 4
-                manual: true
 
     qemu:
         systems:
@@ -635,7 +652,7 @@ suites:
         systems: [-ubuntu-core-*, -opensuse-*]
         # autopkgtest runs against localhost which causes problems with
         # this test prepare
-        backends: [-autopkgtest]
+        backends: [google-upgrade]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
             # like other suites, needs more investigation
@@ -683,29 +700,13 @@ suites:
             TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
-            #shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            prepare_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            "$TESTSLIB"/reset.sh --reuse-core
-            #shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            prepare_each_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            "$TESTSLIB"/reset.sh --store
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-
-            distro_purge_package snapd
-            case "$SPREAD_SYSTEM" in
-                arch-*)
-                    # there is no snap-confine and ubuntu-core-launcher
-                    # in Arch
-                    ;;
-                *)
-                    distro_purge_package snap-confine ubuntu-core-launcher
-                    ;;
-            esac
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests

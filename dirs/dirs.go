@@ -108,6 +108,8 @@ var (
 
 	ErrtrackerDbDir string
 	SysfsDir        string
+
+	FeaturesDir string
 )
 
 const (
@@ -290,6 +292,8 @@ func SetRootDir(rootdir string) {
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
+
+	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
