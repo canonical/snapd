@@ -214,9 +214,7 @@ func MockAppArmorFeatures(kernelFeatures []string, kernelError error, parserFeat
 	appArmorProbeKernel = nop
 	appArmorProbeParser = nop
 	appArmorAssess = nop
-	if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
-		assessAppArmor()
-	}
+	assessAppArmor()
 	return func() {
 		appArmorKernelFeatures = oldAppArmorKernelFeatures
 		appArmorKernelError = oldAppArmorKernelError
@@ -225,9 +223,7 @@ func MockAppArmorFeatures(kernelFeatures []string, kernelError error, parserFeat
 		appArmorProbeKernel = oldAppArmorProbeKernel
 		appArmorProbeParser = oldAppArmorProbeParser
 		appArmorAssess = oldAppArmorAssess
-		if appArmorKernelFeatures != nil && appArmorParserFeatures != nil {
-			assessAppArmor()
-		}
+		assessAppArmor()
 	}
 }
 
