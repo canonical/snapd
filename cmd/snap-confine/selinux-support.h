@@ -18,12 +18,6 @@
 #define SNAP_CONFINE_SELINUX_SUPPORT_H
 
 /**
- * Relabel snap run directory
- *
- **/
-int sc_selinux_relabel_run_dir(void);
-
-/**
  * Set security context for the snap
  *
  **/

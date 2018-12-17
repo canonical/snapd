@@ -17,28 +17,11 @@
 #include "config.h"
 #include "selinux-support.h"
 
-#include <selinux/restorecon.h>
 #include <selinux/selinux.h>
 #include <selinux/context.h>
 
 #include "../libsnap-confine-private/utils.h"
 #include "../libsnap-confine-private/string-utils.h"
-
-int sc_selinux_relabel_run_dir(void)
-{
-	if (is_selinux_enabled() < 1) {
-		return 0;
-	}
-
-	int ret = selinux_restorecon("/run/snapd",
-				     SELINUX_RESTORECON_RECURSE |
-				     SELINUX_RESTORECON_IGNORE_MOUNTS |
-				     SELINUX_RESTORECON_XDEV);
-	if (ret == -1) {
-		die("failed to restore context of /run/snapd");
-	}
-	return ret;
-}
 
 /**
  * Set security context for the snap
