@@ -416,7 +416,7 @@ var defaultTemplate = `
   # bind mount *not* used here (see 'parallel installs', above)
   /{dev,run}/shm/snap.@{SNAP_INSTANCE_NAME}.** mrwlkix,
   # Also allow app-specific access for sem_open()
-  /{dev,run}/shm/sem.snap.@{SNAP_INSTANCE_NAME}.* mrwk,
+  /{dev,run}/shm/sem.snap.@{SNAP_INSTANCE_NAME}.* mrwlk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
   # bind mount *not* used here (see 'parallel installs', above)
@@ -620,11 +620,20 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
   /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
 
+  # Common devices accesses
+  /dev/null rw,
+  /dev/full rw,
+  /dev/zero rw,
+  /dev/random r,
+  /dev/urandom r,
+
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
 
   # Allow reading file descriptor paths
   @{PROC}/@{pid}/fd/* r,
+  # Allow reading /proc/version. For release.go WSL detection.
+  @{PROC}/version r,
 
   # Allow reading the os-release file (possibly a symlink to /usr/lib).
   /{etc/,usr/lib/}os-release r,

@@ -105,6 +105,8 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
+	st := task.State()
+
 	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
 		return err
 	}
@@ -137,11 +139,15 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
+	// Reload the connections and compute the set of affected snaps. The set
+	// affectedSet set contains name of all the affected snap instances.  The
+	// arrays affectedNames and affectedSnaps contain, arrays of snap names and
+	// snapInfo's, respectively. The arrays are sorted by name with the special
+	// exception that the snap being setup is always first. The affectedSnaps
+	// array may be shorter than the set of affected snaps in case any of the
+	// snaps cannot be found in the state.
 	reconnectedSnaps, err := m.reloadConnections(snapName)
 	if err != nil {
-		return err
-	}
-	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
 	affectedSet := make(map[string]bool)
@@ -151,14 +157,43 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	for _, name := range reconnectedSnaps {
 		affectedSet[name] = true
 	}
-	// The principal snap was already handled above.
-	delete(affectedSet, snapInfo.InstanceName())
-	affectedSnaps := make([]string, 0, len(affectedSet))
+
+	// Sort the set of affected names, ensuring that the snap being setup
+	// is first regardless of the name it has.
+	affectedNames := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
-		affectedSnaps = append(affectedSnaps, name)
+		if name != snapName {
+			affectedNames = append(affectedNames, name)
+		}
 	}
-	sort.Strings(affectedSnaps)
-	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
+	sort.Strings(affectedNames)
+	affectedNames = append([]string{snapName}, affectedNames...)
+
+	// Obtain snap.Info for each affected snap, skipping those that cannot be
+	// found and compute the confinement options that apply to it.
+	affectedSnaps := make([]*snap.Info, 0, len(affectedSet))
+	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
+	// For the snap being setup we know exactly what was requested.
+	affectedSnaps = append(affectedSnaps, snapInfo)
+	confinementOpts = append(confinementOpts, opts)
+	// For remaining snaps we need to interrogate the state.
+	for _, name := range affectedNames[1:] {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, name, &snapst); err != nil {
+			task.Errorf("cannot obtain state of snap %s: %s", name, err)
+			continue
+		}
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		if err := addImplicitSlots(st, snapInfo); err != nil {
+			return err
+		}
+		affectedSnaps = append(affectedSnaps, snapInfo)
+		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
+	}
+	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
@@ -762,6 +797,47 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 	return nil
 }
 
+func checkHotplugDisconnectConflicts(st *state.State, plugSnap, slotSnap string) error {
+	for _, task := range st.Tasks() {
+		if task.Status().Ready() {
+			continue
+		}
+
+		k := task.Kind()
+		if k == "connect" || k == "disconnect" {
+			plugRef, slotRef, err := getPlugAndSlotRefs(task)
+			if err != nil {
+				return err
+			}
+			if plugRef.Snap == plugSnap {
+				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting plug snap %s, task %q", plugSnap, k)}
+			}
+			if slotRef.Snap == slotSnap {
+				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting slot snap %s, task %q", slotSnap, k)}
+			}
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		// e.g. hook tasks don't have task snap setup
+		if err != nil {
+			continue
+		}
+		otherSnapName := snapsup.InstanceName()
+
+		// different snaps - no conflict
+		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+			continue
+		}
+
+		if k == "link-snap" || k == "setup-profiles" || k == "unlink-snap" {
+			// other snap is getting installed/refreshed/removed - temporary conflict
+			return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s with task %q", otherSnapName, k)}
+		}
+	}
+	return nil
+}
+
 // inSameChangeWaitChains returns true if there is a wait chain so
 // that `startT` is run before `searchT` in the same state.Change.
 func inSameChangeWaitChain(startT, searchT *state.Task) bool {
@@ -1260,6 +1336,112 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+// doHotplugRemoveSlot removes hotplug slot for given device from the repository in response to udev "remove" event.
+// This task must necessarily be run after all affected slot gets disconnected in the repo.
+func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot determine slots: %v", err)
+	}
+	if slot != nil {
+		if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
+			return fmt.Errorf("cannot remove hotplug slot: %v", err)
+		}
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
+	}
+
+	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
+	// including connection with hotplug-gone=true.
+Loop:
+	for slotName, def := range stateSlots {
+		if def.Interface != ifaceName || def.HotplugKey != hotplugKey {
+			continue
+		}
+		conns, err := getConns(st)
+		if err != nil {
+			return err
+		}
+		for _, conn := range conns {
+			if conn.Interface == def.Interface && conn.HotplugKey == def.HotplugKey {
+				// there is a connection referencing this slot, do not remove it
+				break Loop
+			}
+		}
+		delete(stateSlots, slotName)
+		setHotplugSlots(st, stateSlots)
+		break
+	}
+
+	return nil
+}
+
+// doHotplugDisconnect creates task(s) to disconnect connections and remove slots in response to hotplug "remove" event.
+func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	connections, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return err
+	}
+	if len(connections) == 0 {
+		return nil
+	}
+
+	// check for conflicts on all connections first before creating disconnect hooks
+	for _, connRef := range connections {
+		if err := checkHotplugDisconnectConflicts(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+			if retry, ok := err.(*state.Retry); ok {
+				task.Logf("Waiting for conflicting change in progress: %s", retry.Reason)
+				return err // will retry
+			}
+			return fmt.Errorf("cannot check conflicts when disconnecting interfaces: %s", err)
+		}
+	}
+
+	dts := state.NewTaskSet()
+	for _, connRef := range connections {
+		conn, err := m.repo.Connection(connRef)
+		if err != nil {
+			// this should never happen since we get all connections from the repo
+			return fmt.Errorf("internal error: cannot get connection %q: %s", connRef, err)
+		}
+		// "by-hotplug" flag indicates it's a disconnect triggered as part of hotplug removal.
+		ts, err := disconnectTasks(st, conn, disconnectOpts{ByHotplug: true})
+		if err != nil {
+			return fmt.Errorf("internal error: cannot create disconnect tasks: %s", err)
+		}
+		dts.AddAll(ts)
+	}
+
+	snapstate.InjectTasks(task, dts)
+	st.EnsureBefore(0)
+
+	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
+	task.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
 func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hotplugKey string) error {
 	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
 	if err != nil {
@@ -1268,9 +1450,6 @@ func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hot
 
 	st := task.State()
 	autochecker, err := newAutoConnectChecker(st)
-	if err != nil {
-		return err
-	}
 
 	instanceName := slot.Snap.InstanceName()
 	candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
@@ -1291,9 +1470,8 @@ func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hot
 		}
 
 		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
-			if _, retry := err.(*state.Retry); retry {
-				logger.Debugf("auto-connect of snap %q will be retried because of %q - %q conflict", instanceName, plug.Snap.InstanceName(), slot.Snap.InstanceName())
-				task.Logf("Waiting for conflicting change in progress...")
+			if retry, ok := err.(*state.Retry); ok {
+				task.Logf("Waiting for conflicting change in progress: %s", retry.Reason)
 				return err // will retry
 			}
 			return fmt.Errorf("auto-connect conflict check failed: %s", err)
@@ -1319,5 +1497,51 @@ func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hot
 	}
 
 	task.SetStatus(state.DoneStatus)
+	return nil
+}
+
+// doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
+// Sequence numbers control the order of execution of hotplug-related changes, which would otherwise be executed in
+// arbitrary order by task runner, leading to unexpected results if multiple events for same device are in flight
+// (e.g. plugging, followed by immediate unplugging, or snapd restart with pending hotplug changes).
+// The handler expects "hotplug-key" and "hotplug-seq" values set on own and other hotplug-related changes.
+func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := task.Change()
+	if chg == nil || !isHotplugChange(chg) {
+		return fmt.Errorf("internal error: task %q not in a hotplug change", task.Kind())
+	}
+
+	seq, hotplugKey, err := getHotplugChangeAttrs(chg)
+	if err != nil {
+		return err
+	}
+
+	for _, otherChg := range st.Changes() {
+		if otherChg.Status().Ready() || otherChg.ID() == chg.ID() {
+			continue
+		}
+
+		// only inspect hotplug changes
+		if !isHotplugChange(otherChg) {
+			continue
+		}
+
+		otherSeq, otherKey, err := getHotplugChangeAttrs(otherChg)
+		if err != nil {
+			return err
+		}
+
+		// conflict with retry if there another change affecting same device and has lower sequence number
+		if hotplugKey == otherKey && otherSeq < seq {
+			task.Logf("Waiting processing of earlier hotplug event change %q affecting device with hotplug key %q", otherChg.Kind(), hotplugKey)
+			return &state.Retry{}
+		}
+	}
+
+	// no conflicting change for same hotplug key found
 	return nil
 }

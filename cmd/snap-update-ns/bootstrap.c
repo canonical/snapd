@@ -239,6 +239,10 @@ int validate_snap_name(const char *snap_name)
 		bootstrap_msg = "snap name must contain at least one letter";
 		return -1;
 	}
+	if (n < 2) {
+		bootstrap_msg = "snap name must be longer than 1 character";
+		return -1;
+	}
 	if (n > 40) {
 		bootstrap_msg = "snap name must be shorter than 40 characters";
 		return -1;
