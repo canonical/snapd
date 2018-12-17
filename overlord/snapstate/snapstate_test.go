@@ -10277,6 +10277,8 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
+
 	for i, ts := range tts {
 		verifyInstallTasks(c, 0, 0, ts, s.state)
 		// check that tasksets are in separate lanes
@@ -10284,6 +10286,18 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
 		}
 	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, 0)
+	c.Assert(err, NotNil)
+	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
+
+	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, 0)
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
 }
 
 func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
