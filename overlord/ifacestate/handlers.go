@@ -1273,17 +1273,17 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 
 	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
 	if err != nil {
-		return fmt.Errorf("cannot determine slots: %s", err)
+		return fmt.Errorf("internal error: cannot determine slots: %v", err)
 	}
 	if slot != nil {
 		if err := m.repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name); err != nil {
-			return fmt.Errorf("cannot remove slot %s of snap %q: %s", slot.Snap.InstanceName(), slot.Name, err)
+			return fmt.Errorf("cannot remove hotplug slot: %v", err)
 		}
 	}
 
 	stateSlots, err := getHotplugSlots(st)
 	if err != nil {
-		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
+		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
 	}
 
 	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
