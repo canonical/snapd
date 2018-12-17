@@ -1450,6 +1450,9 @@ func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hot
 
 	st := task.State()
 	autochecker, err := newAutoConnectChecker(st)
+	if err != nil {
+		return err
+	}
 
 	instanceName := slot.Snap.InstanceName()
 	candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
