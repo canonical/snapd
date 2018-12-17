@@ -9,6 +9,12 @@ description: |
 
 systems: [fedora-*, centos-*]
 prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+
+    # Install some fonts so that the fc-cache helpers have something to work with
+    distro_install_package fontconfig dejavu-sans-fonts
+
     # Enable enforcing mode, our policy is already marked as permissive, so we
     # will get audit entries but the program will not be stopped by SELinux
     setenforce 1
