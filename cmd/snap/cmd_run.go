@@ -341,12 +341,13 @@ func createUserDataDirs(info *snap.Info) error {
 		return err
 	}
 
-	return maybeRestoreSecurityContext(filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir))
+	return maybeRestoreSecurityContext(usr)
 }
 
 // maybeRestoreSecurityContext attempts to restore security context of ~/snap on
 // systems where it's applicable
-func maybeRestoreSecurityContext(aPath string) error {
+func maybeRestoreSecurityContext(usr *user.User) error {
+	snapUserHome := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
 	enabled, err := selinuxIsEnabled()
 	if err != nil {
 		return fmt.Errorf("cannot determine SELinux status: %v", err)
@@ -356,17 +357,17 @@ func maybeRestoreSecurityContext(aPath string) error {
 		return nil
 	}
 
-	match, err := selinuxVerifyPathContext(aPath)
+	match, err := selinuxVerifyPathContext(snapUserHome)
 	if err != nil {
-		return fmt.Errorf("failed to verify SELinux context of %v: %v", aPath, err)
+		return fmt.Errorf("failed to verify SELinux context of %v: %v", snapUserHome, err)
 	}
 	if match {
 		return nil
 	}
-	logger.Noticef("restoring default SELinux context of %v", aPath)
+	logger.Noticef("restoring default SELinux context of %v", snapUserHome)
 
-	if err := selinuxRestoreContext(aPath, selinux.RestoreMode{Recursive: true}); err != nil {
-		return fmt.Errorf("cannot restore SELinux context of %v: %v", aPath, err)
+	if err := selinuxRestoreContext(snapUserHome, selinux.RestoreMode{Recursive: true}); err != nil {
+		return fmt.Errorf("cannot restore SELinux context of %v: %v", snapUserHome, err)
 	}
 	return nil
 }
