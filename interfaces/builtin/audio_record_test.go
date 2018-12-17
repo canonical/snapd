@@ -75,15 +75,15 @@ func (s *AudioRecordInterfaceSuite) SetUpTest(c *C) {
 	// audio-record snap with audio-record slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, audioRecordMockCoreSlotSnapInfoYaml, nil)
 	s.coreSlotInfo = snapInfo.Slots["audio-record"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil)
+	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
 	// audio-record slot on a core snap in a classic install.
 	snapInfo = snaptest.MockInfo(c, audioRecordMockClassicSlotSnapInfoYaml, nil)
 	s.classicSlotInfo = snapInfo.Slots["audio-record"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil)
+	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
 	// snap with the audio-record plug
 	snapInfo = snaptest.MockInfo(c, audioRecordMockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["audio-record"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *AudioRecordInterfaceSuite) TestName(c *C) {

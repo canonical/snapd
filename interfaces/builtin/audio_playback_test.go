@@ -77,15 +77,15 @@ func (s *AudioPlaybackInterfaceSuite) SetUpTest(c *C) {
 	// audio-playback snap with audio-playback slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, audioPlaybackMockCoreSlotSnapInfoYaml, nil)
 	s.coreSlotInfo = snapInfo.Slots["audio-playback"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil)
+	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
 	// audio-playback slot on a core snap in a classic install.
 	snapInfo = snaptest.MockInfo(c, audioPlaybackMockClassicSlotSnapInfoYaml, nil)
 	s.classicSlotInfo = snapInfo.Slots["audio-playback"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil)
+	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
 	// snap with the audio-playback plug
 	snapInfo = snaptest.MockInfo(c, audioPlaybackMockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["audio-playback"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestName(c *C) {
