@@ -43,10 +43,10 @@ func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
 }
 
 func MockAppArmorParserSearchPath(new string) (restore func()) {
-	oldParserSearchPath := parserSearchPath
-	parserSearchPath = new
+	oldAppArmorParserSearchPath := appArmorParserSearchPath
+	appArmorParserSearchPath = new
 	return func() {
-		parserSearchPath = oldParserSearchPath
+		appArmorParserSearchPath = oldAppArmorParserSearchPath
 	}
 }
 
@@ -58,8 +58,30 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
+// CurrentAppArmorLevel returns the internal cached apparmor level.
+func CurrentAppArmorLevel() AppArmorLevelType {
+	return appArmorLevel
+}
+
+// ResetAppArmorAssesment resets the internal apparmor level and summary.
+//
+// Both appArmorLevel and appArmorSummary are assigned with zero values
+// that trigger probing and assessment on the next access via the public APIs.
+func ResetAppArmorAssesment() {
+	appArmorLevel = UnknownAppArmor
+	appArmorSummary = ""
+}
+
 var (
-	ProbeAppArmor            = probeAppArmor
-	RequiredAppArmorFeatures = requiredAppArmorFeatures
-	IsWSL                    = isWSL
+	ProbeAppArmorKernelFeatures = probeAppArmorKernelFeatures
+	ProbeAppArmorParserFeatures = probeAppArmorParserFeatures
+
+	AssessAppArmor = assessAppArmor
+
+	RequiredAppArmorKernelFeatures  = requiredAppArmorKernelFeatures
+	RequiredAppArmorParserFeatures  = requiredAppArmorParserFeatures
+	PreferredAppArmorKernelFeatures = preferredAppArmorKernelFeatures
+	PreferredAppArmorParserFeatures = preferredAppArmorParserFeatures
+
+	IsWSL = isWSL
 )

@@ -234,7 +234,7 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	snaps, resInfo, err := x.client.Find(opts)
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
+	if e, ok := err.(*client.Error); ok && (e.Kind == client.ErrorKindNetworkTimeout || e.Kind == client.ErrorKindDNSFailure) {
 		logger.Debugf("cannot list snaps: %v", e)
 		return fmt.Errorf("unable to contact snap store")
 	}
