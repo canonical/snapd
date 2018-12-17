@@ -215,10 +215,6 @@ int main(int argc, char **argv)
 			sc_reassociate_with_pid1_mount_ns();
 			// Do global initialization:
 			int global_lock_fd = sc_lock_global();
-#ifdef HAVE_SELINUX
-			// Ensure that /run/snapd is properly labeled
-			sc_selinux_relabel_run_dir();
-#endif
 			// ensure that "/" or "/snap" is mounted with the
 			// "shared" option, see LP:#1668659
 			debug("ensuring that snap mount directory is shared");
