@@ -7,6 +7,9 @@ apps:
     with-broadcom-asic-control-plug:
         command: bin/sh
         plugs: [broadcom-asic-control]
+    with-device-buttons-plug:
+        command: bin/sh
+        plugs: [device-buttons]
     with-dvb-plug:
         command: bin/sh
         plugs: [dvb]

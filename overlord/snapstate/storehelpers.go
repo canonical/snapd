@@ -167,6 +167,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	if curInfo.SnapID == "" { // amend
 		action.Action = "install"
+		action.Epoch = curInfo.Epoch
 	}
 
 	theStore := Store(st)
@@ -315,6 +316,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			Revision:         snapInfo.Revision,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
+			Epoch:            snapInfo.Epoch,
 		}
 		curSnaps = append(curSnaps, installed)
 
@@ -447,4 +449,31 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	}
 
 	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
+}
+
+func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]*snap.Info, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	actions := make([]*store.SnapAction, len(names))
+	for i, name := range names {
+		actions[i] = &store.SnapAction{
+			Action:       "install",
+			InstanceName: name,
+			// the desired channel
+			Channel: channel,
+		}
+	}
+
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	defer st.Lock()
+	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, opts)
 }

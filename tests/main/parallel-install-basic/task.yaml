@@ -40,12 +40,12 @@ execute: |
     MATCH 'SNAP=/snap/test-snapd-tools/x1'                < snap-env.txt
 
     mkdir /var/snap/test-snapd-tools_foo/common/foobar
-    chown test:test /var/snap/test-snapd-tools_foo/common/foobar
     echo canary-instance > /var/snap/test-snapd-tools_foo/common/foobar/data
+    chown -R test:test /var/snap/test-snapd-tools_foo/common/foobar
 
     mkdir /var/snap/test-snapd-tools/common/foobar
-    chown test:test /var/snap/test-snapd-tools/common/foobar
     echo canary-regular > /var/snap/test-snapd-tools/common/foobar/data
+    chown -R test:test /var/snap/test-snapd-tools/common/foobar
 
     echo "Make sure snap data writes and reads work"
 

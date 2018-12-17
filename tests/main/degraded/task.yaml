@@ -13,7 +13,7 @@ debug: |
         units="$(systemctl --failed --type=$unit_type --no-pager | grep -o -E ".*.$unit_type" | tr '●' ' ' )"
         for unit in $units; do
             echo " -- systemctl status $unit --"
-            systemctl status "$unit"
+            systemctl status "$unit" || true
         done
     done
 

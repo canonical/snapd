@@ -225,6 +225,9 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	toplevelPlugs []*PlugInfo
+	toplevelSlots []*SlotInfo
+
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -653,8 +656,9 @@ type SlotInfo struct {
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
 
-	// HotplugKey is a unique key built by the slot's interface using properties of a
-	// hotplugged so that the same slot may be made available if the device is reinserted.
+	// HotplugKey is a unique key built by the slot's interface
+	// using properties of a hotplugged device so that the same
+	// slot may be made available if the device is reinserted.
 	// It's empty for regular slots.
 	HotplugKey string
 }
@@ -799,6 +803,8 @@ type HookInfo struct {
 
 	Environment  strutil.OrderedMap
 	CommandChain []string
+
+	Explicit bool
 }
 
 // File returns the path to the *.socket file
@@ -1006,6 +1012,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	bindImplicitHooks(info)
+
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
@@ -1069,6 +1077,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	bindImplicitHooks(info)
 
 	err = Validate(info)
 	if err != nil {
