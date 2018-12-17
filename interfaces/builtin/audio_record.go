@@ -29,7 +29,9 @@ import (
 // interface and is not meant to be used without it. The design of this
 // interface is based on the idea that the slot implementation (eg pulseaudio)
 // is expected to query snapd on if the audio-record slot is connected or not
-// and the audio service will mediate recording. If other audio recording
+// and the audio service will mediate recording (ie, the rules below allow
+// connecting to the audio service, but do not implement enforcement rules; it
+// is up to the audio service to provide enforcement). If other audio recording
 // servers require different security policy for record (eg, a different socket
 // path), then those accesses will be added to this interface.
 
