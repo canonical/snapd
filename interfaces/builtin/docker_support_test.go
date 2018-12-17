@@ -106,7 +106,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
-	restore := builtin.MockParserFeatures(func() []string { return []string{} })
+	restore := builtin.MockParserFeatures(func() ([]string, error) { return []string{}, nil })
 	defer restore()
 
 	var mockSnapYaml = []byte(`name: docker
@@ -229,7 +229,7 @@ apps:
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 
 	for _, scenario := range changeProfileScenarios {
-		restore := builtin.MockParserFeatures(func() []string { return scenario.features })
+		restore := builtin.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
 		defer restore()
 
 		apparmorSpec := &apparmor.Specification{}

@@ -580,7 +580,8 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	var privileged bool
 	_ = plug.Attr("privileged-containers", &privileged)
 	useUnsafe := false
-	for _, f := range parserFeatures() {
+	features, _ := parserFeatures()
+	for _, f := range features {
 		if f == "unsafe" {
 			useUnsafe = true
 		}
