@@ -81,6 +81,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
+	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 
 	// don't block on hotplug-seq-wait task
