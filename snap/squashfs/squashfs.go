@@ -116,9 +116,11 @@ type unsquashfsStderrWriter struct {
 	strutil.MatchCounter
 }
 
+var unsquashfsStderrRegexp = regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`)
+
 func newUnsquashfsStderrWriter() *unsquashfsStderrWriter {
 	return &unsquashfsStderrWriter{strutil.MatchCounter{
-		Regexp: regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`),
+		Regexp: unsquashfsStderrRegexp,
 		N:      4, // note Err below uses this value
 	}}
 }
@@ -298,28 +300,33 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 }
 
 // Build builds the snap.
-func (s *Snap) Build(buildDir, snapType string) error {
+func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	fullSnapPath, err := filepath.Abs(s.path)
 	if err != nil {
 		return err
 	}
-
-	args := []string{
+	cmd, err := osutilCommandFromCore("/usr/bin/mksquashfs")
+	if err != nil {
+		cmd = exec.Command("mksquashfs")
+	}
+	cmd.Args = append(cmd.Args,
 		".", fullSnapPath,
 		"-noappend",
 		"-comp", "xz",
 		"-no-fragments",
 		"-no-progress",
+	)
+	if len(excludeFiles) > 0 {
+		cmd.Args = append(cmd.Args, "-wildcards")
+		for _, excludeFile := range excludeFiles {
+			cmd.Args = append(cmd.Args, "-ef", excludeFile)
+		}
 	}
 	if snapType != "os" && snapType != "core" && snapType != "base" {
-		args = append(args, "-all-root", "-no-xattrs")
-	}
-	cmd, err := osutilCommandFromCore("/usr/bin/mksquashfs", args...)
-	if err != nil {
-		cmd = exec.Command("mksquashfs", args...)
+		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}
 
-	return osutil.ChDir(buildDir, func() error {
+	return osutil.ChDir(sourceDir, func() error {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("mksquashfs call failed: %s", osutil.OutputErr(output, err))

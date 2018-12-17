@@ -99,7 +99,11 @@ func (w *manfixer) Write(buf []byte) (int, error) {
 	if !w.done {
 		w.done = true
 		if bytes.HasPrefix(buf, []byte(".TH snap 1 ")) {
-			buf[9] = '8'
+			// io.Writer.Write must not modify the buffer, even temporarily
+			n, _ := Stdout.Write(buf[:9])
+			Stdout.Write([]byte{'8'})
+			m, err := Stdout.Write(buf[10:])
+			return n + m + 1, err
 		}
 	}
 	return Stdout.Write(buf)
@@ -110,11 +114,15 @@ func (cmd cmdHelp) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	if cmd.Manpage {
-
+		// you shouldn't try to to combine --man with --all nor a
+		// subcommand, but --man is hidden so no real need to check.
 		cmd.parser.WriteManPage(&manfixer{})
 		return nil
 	}
 	if cmd.All {
+		if cmd.Positional.Sub != "" {
+			return fmt.Errorf(i18n.G("help accepts a command, or '--all', but not both."))
+		}
 		printLongHelp(cmd.parser)
 		return nil
 	}
@@ -172,6 +180,10 @@ var helpCategories = []helpCategory{
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
 		Commands:    []string{"interfaces", "interface", "connect", "disconnect"},
+	}, {
+		Label:       i18n.G("Snapshots"),
+		Description: i18n.G("archives of snap data"),
+		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget"},
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),

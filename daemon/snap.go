@@ -28,15 +28,12 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -277,39 +274,6 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	return appInfos, nil
 }
 
-func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
-	// TODO: pass in an actual notifier here instead of null
-	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
-
-	out := make([]client.AppInfo, len(apps))
-	for i, app := range apps {
-		out[i] = client.AppInfo{
-			Snap:     app.Snap.InstanceName(),
-			Name:     app.Name,
-			CommonID: app.CommonID,
-		}
-		if fn := app.DesktopFile(); osutil.FileExists(fn) {
-			out[i].DesktopFile = fn
-		}
-
-		out[i].Daemon = app.Daemon
-		if app.IsService() && app.Snap.IsActive() {
-			// TODO: look into making a single call to Status for all services
-			if sts, err := sysd.Status(app.ServiceName()); err != nil {
-				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
-			} else if len(sts) != 1 {
-				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
-			} else {
-				out[i].Enabled = sts[0].Enabled
-				out[i].Active = sts[0].Active
-			}
-		}
-	}
-
-	return out
-}
-
 func mapLocal(about aboutSnap) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
 	status := "installed"
@@ -323,7 +287,10 @@ func mapLocal(about aboutSnap) *client.Snap {
 	}
 	sort.Sort(bySnapApp(snapapps))
 
-	apps := clientAppInfosFromSnapAppInfos(snapapps)
+	apps, err := cmd.ClientAppInfosFromSnapAppInfos(snapapps)
+	if err != nil {
+		logger.Noticef("cannot get full app info: %v", err)
+	}
 
 	// TODO: expose aliases information and state?
 

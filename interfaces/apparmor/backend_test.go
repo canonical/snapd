@@ -539,7 +539,7 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 	}}
 
 	for i, scenario := range changeProfileScenarios {
-		restore = apparmor.MockParserFeatures(func() []string { return scenario.features })
+		restore = apparmor.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
 		defer restore()
 
 		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, "", ifacetest.SambaYamlV1, 1)
@@ -673,10 +673,45 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
 	c.Check(profile, testutil.FileEquals, "\n#classic"+commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n")
 }
 
+func (s *backendSuite) TestCombineSnippetsArchOldIDSufficientHardened(c *C) {
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "arch", IDLike: []string{"archlinux"}})
+	defer restore()
+	restore = osutil.MockKernelVersion("4.18.2.a-1-hardened")
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
+		"#classic\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreClassicTemplate()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("snippet")
+		return nil
+	}
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
+}
+
 func (s *backendSuite) TestCombineSnippetsArchSufficientHardened(c *C) {
 	restore := release.MockAppArmorLevel(release.PartialAppArmor)
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "arch"})
+	restore = release.MockReleaseInfo(&release.OS{ID: "archlinux"})
 	defer restore()
 	restore = osutil.MockKernelVersion("4.18.2.a-1-hardened")
 	defer restore()
@@ -1442,9 +1477,9 @@ func (s *backendSuite) TestNsProfile(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:full", "policy:default"})
@@ -1457,9 +1492,9 @@ func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("4.16.10-1-default")
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:partial", "policy:default"})
@@ -1506,6 +1541,7 @@ func (s *backendSuite) TestDowngradeConfinement(c *C) {
 		{"opensuse-tumbleweed", "4.14.1-default", true},
 		{"arch", "4.18.2.a-1-hardened", false},
 		{"arch", "4.18.8-arch1-1-ARCH", false},
+		{"archlinux", "4.18.2.a-1-hardened", false},
 	} {
 		c.Logf("trying: %+v", tc)
 		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})

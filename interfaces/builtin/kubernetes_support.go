@@ -107,6 +107,8 @@ deny ptrace (trace) peer=unconfined,
 @{PROC}/[0-9]*/map_files/ r,
 @{PROC}/[0-9]*/ns/ r,
 
+# kubernetes will verify and set panic and panic_on_oops to values it considers
+# sane
 @{PROC}/sys/kernel/panic w,
 @{PROC}/sys/kernel/panic_on_oops w,
 @{PROC}/sys/kernel/keys/root_maxbytes r,
@@ -129,7 +131,7 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet mount rules
   capability sys_admin,
   /bin/mount ixr,
-  mount -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   deny /run/mount/utab rw,
 `
 
@@ -172,20 +174,13 @@ var kubernetesSupportConnectedPlugKmodKubeProxy = []string{
 	`stp`,
 }
 
-type kubernetesSupportInterface struct{}
-
-func (iface *kubernetesSupportInterface) Name() string {
-	return "kubernetes-support"
+type kubernetesSupportInterface struct {
+	commonInterface
 }
 
-func (iface *kubernetesSupportInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              kubernetesSupportSummary,
-		BaseDeclarationPlugs: kubernetesSupportBaseDeclarationPlugs,
-		BaseDeclarationSlots: kubernetesSupportBaseDeclarationSlots,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-	}
+func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	iface.commonInterface.BeforePrepareSlot(slot)
+	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func k8sFlavor(plug *interfaces.ConnectedPlug) string {
@@ -198,7 +193,7 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	snippet := kubernetesSupportConnectedPlugAppArmorCommon
 	systemd_run_extra := ""
 
-	switch flavor := k8sFlavor(plug); flavor {
+	switch k8sFlavor(plug) {
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
@@ -248,10 +243,6 @@ func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specificat
 	return nil
 }
 
-func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	return sanitizeSlotReservedForOS(iface, slot)
-}
-
 func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	// It's fine if flavor isn't specified, but if it is, it needs to be
 	// either "kubelet" or "kubeproxy"
@@ -262,11 +253,13 @@ func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) 
 	return nil
 }
 
-func (iface *kubernetesSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	// allow what declarations allowed
-	return true
-}
-
 func init() {
-	registerIface(&kubernetesSupportInterface{})
+	registerIface(&kubernetesSupportInterface{commonInterface{
+		name:                 "kubernetes-support",
+		summary:              kubernetesSupportSummary,
+		implicitOnClassic:    true,
+		implicitOnCore:       true,
+		baseDeclarationPlugs: kubernetesSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: kubernetesSupportBaseDeclarationSlots,
+	}})
 }

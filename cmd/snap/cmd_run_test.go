@@ -738,7 +738,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -761,7 +761,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -808,7 +808,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			"-tt",
 			"-o",
 			"file with spaces",
@@ -906,4 +906,27 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
+}
+
+func (s *SnapSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("1"),
+	})
+
+	// pretend we have sudo
+	sudoCmd := testutil.MockCommand(c, "sudo", "echo unhappy; exit 12")
+	defer sudoCmd.Restore()
+
+	// pretend we have strace
+	straceCmd := testutil.MockCommand(c, "strace", "")
+	defer straceCmd.Restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--trace-exec", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.ErrorMatches, "exit status 12")
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1", "arg2"})
+	c.Check(s.Stdout(), check.Equals, "unhappy\n")
+	c.Check(s.Stderr(), check.Equals, "")
 }
