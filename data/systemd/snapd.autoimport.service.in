@@ -1,6 +1,6 @@
 [Unit]
 Description=Auto import assertions from block devices
-After=snapd.service snapd.socket
+After=snapd.service snapd.socket snapd.seeded.service
 # don't run on classic
 ConditionKernelCommandLine=snap_core
 
