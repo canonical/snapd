@@ -427,6 +427,7 @@ const (
 	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
+	ErrorKindSnapNotClassic         = "snap-not-classic"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
 
 	ErrorKindRevisionNotAvailable     = "snap-revision-not-available"
@@ -438,6 +439,7 @@ const (
 	ErrorKindNotSnap = "snap-not-a-snap"
 
 	ErrorKindNetworkTimeout = "network-timeout"
+	ErrorKindDNSFailure     = "dns-failure"
 
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
 

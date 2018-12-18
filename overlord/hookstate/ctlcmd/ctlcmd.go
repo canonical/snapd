@@ -43,7 +43,7 @@ func (c *baseCommand) setStdout(w io.Writer) {
 
 func (c *baseCommand) printf(format string, a ...interface{}) {
 	if c.stdout != nil {
-		c.stdout.Write([]byte(fmt.Sprintf(format, a...)))
+		fmt.Fprintf(c.stdout, format, a...)
 	}
 }
 
@@ -53,7 +53,7 @@ func (c *baseCommand) setStderr(w io.Writer) {
 
 func (c *baseCommand) errorf(format string, a ...interface{}) {
 	if c.stderr != nil {
-		c.stderr.Write([]byte(fmt.Sprintf(format, a...)))
+		fmt.Fprintf(c.stderr, format, a...)
 	}
 }
 
@@ -121,7 +121,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		var data interface{}
 		// commands listed here will be allowed for regular users
 		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || name == "get" {
+		if uid == 0 || name == "get" || name == "services" {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)

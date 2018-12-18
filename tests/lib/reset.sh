@@ -1,18 +1,16 @@
 #!/bin/bash
 
-set -e -x
-
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
+
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
 
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
 #shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB"/systems.sh
+. "$TESTSLIB/systems.sh"
 
 reset_classic() {
     # Reload all service units as in some situations the unit might
@@ -37,7 +35,7 @@ reset_classic() {
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
-        fedora-*|opensuse-*|arch-*|amazon-*)
+        fedora-*|opensuse-*|arch-*|amazon-*|centos-*)
             # We don't know if snap-mgmt was built, so call the *.in file
             # directly and pass arguments that will override the placeholders
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
@@ -48,6 +46,7 @@ reset_classic() {
             rm -rf /var/lib/snapd
             ;;
         *)
+            echo "don't know how to reset $SPREAD_SYSTEM"
             exit 1
             ;;
     esac
@@ -60,6 +59,15 @@ reset_classic() {
         exit 1
     fi
 
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # On systems running SELinux we need to restore the context of the
+            # directories we just recreated. Otherwise, the entries created
+            # inside will be incorrectly labeled.
+            restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
+            ;;
+    esac
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
     fi
@@ -71,8 +79,15 @@ reset_classic() {
         # Restore snapd state and start systemd service units
         restore_snapd_state
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        mounts="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.mount" | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.service" | cut -f1 -d ' ')"
+        all_units="$(systemctl list-unit-files --full --no-legend | cut -f1 -d ' ')"
+        mounts=""
+        if echo "$all_units" | grep -q "^${escaped_snap_mount_dir}[-.].*\\.mount"; then
+            mounts="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.mount")"
+        fi
+        services=""
+        if echo "$all_units" | grep -q "^${escaped_snap_mount_dir}[-.].*\\.service"; then
+            services="$(echo "$all_units" | grep "^${escaped_snap_mount_dir}[-.].*\\.service")"
+        fi
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         for unit in $mounts $services; do
             systemctl start "$unit"
@@ -87,10 +102,14 @@ reset_classic() {
 
         # wait for snapd listening
         EXTRA_NC_ARGS="-q 1"
-        if [[ "$SPREAD_SYSTEM" = fedora-* || "$SPREAD_SYSTEM" = amazon-* ]]; then
-            EXTRA_NC_ARGS=""
-        fi
-        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
+        case "$SPREAD_SYSTEM" in
+            fedora-*|amazon-*|centos-*)
+                EXTRA_NC_ARGS=""
+                ;;
+        esac
+        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do
+            sleep 0.5
+        done
     fi
 }
 
@@ -104,7 +123,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "core" | README)
+            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "core" | "snapd" |README)
                 ;;
             *)
                 # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
@@ -135,14 +154,35 @@ reset_all_snap() {
     fi
 }
 
-if is_core_system; then
-    reset_all_snap "$@"
-else
-    reset_classic "$@"
-fi
+discard_ns() {
+    # Discard all mount namespaces and active mount profiles.
+    # This is duplicating logic in snap-discard-ns but it doesn't
+    # support --all switch yet so we cannot use it.
+    if [ -d /run/snapd/ns ]; then
+        for mnt in /run/snapd/ns/*.mnt; do
+            umount -l "$mnt" || true
+            rm -f "$mnt"
+        done
+        rm -f /run/snapd/ns/*.fstab
+    fi
+}
 
-if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
-    # shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_staging_store
-fi
+tear_down_store() {
+    if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
+        # shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_staging_store
+    fi  
+}
+
+reset_snapd() {
+    if is_core_system; then
+        reset_all_snap "$@"
+    else
+        reset_classic "$@"
+    fi    
+    discard_ns
+    tear_down_store "$@"
+}
+
+
