@@ -169,7 +169,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		}
 		// Ensure to only restart if the unit was previously
 		// active. This ensures we DTRT on firstboot and do
-		// not stop e.g.  snapd.socket because doing that
+		// not stop e.g. snapd.socket because doing that
 		// would mean that the snapd.seeded.service is also
 		// stopped (independently of snapd.socket being
 		// active) which confuses the boot order (the unit
