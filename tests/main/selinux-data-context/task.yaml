@@ -74,4 +74,5 @@ execute: |
 
     install_local socket-activation
     [ -S /var/snap/socket-activation/common/socket ]
+    #shellcheck disable=SC2012
     ls -Zd /var/snap/socket-activation/common/socket | MATCH ':snappy_var_t:'
