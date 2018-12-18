@@ -67,6 +67,16 @@ func (level AppArmorLevelType) String() string {
 	return fmt.Sprintf("AppArmorLevelType:%d", level)
 }
 
+// TODO: use something simpler once we are on go1.9+
+//	appArmorProbeParserOnce sync.Once
+//	appArmorProbeKernelOnce sync.Once
+//	appArmorAssessOnce      sync.Once
+type appArmorOnceBattery struct {
+	probeParser sync.Once
+	probeKernel sync.Once
+	assess      sync.Once
+}
+
 var (
 	// appArmorLevel contains the assessment of the "level" of apparmor support.
 	appArmorLevel = UnknownAppArmor
@@ -85,9 +95,7 @@ var (
 	// discovering available parser features.
 	appArmorParserError error
 
-	appArmorProbeParserOnce sync.Once
-	appArmorProbeKernelOnce sync.Once
-	appArmorAssessOnce      sync.Once
+	appArmorOnces = new(appArmorOnceBattery)
 
 	appArmorProbeKernel = probeAppArmorKernelFeaturesOnce
 	appArmorProbeParser = probeAppArmorParserFeaturesOnce
@@ -95,7 +103,7 @@ var (
 )
 
 func assessAppArmorOnce() {
-	appArmorAssessOnce.Do(assessAppArmor)
+	appArmorOnces.assess.Do(assessAppArmor)
 }
 
 // AppArmorLevel quantifies how well apparmor is supported on the current
@@ -114,7 +122,7 @@ func AppArmorSummary() string {
 }
 
 func probeAppArmorKernelFeaturesOnce() {
-	appArmorProbeKernelOnce.Do(func() {
+	appArmorOnces.probeKernel.Do(func() {
 		appArmorKernelFeatures, appArmorKernelError = probeAppArmorKernelFeatures()
 	})
 }
@@ -127,7 +135,7 @@ func AppArmorKernelFeatures() ([]string, error) {
 }
 
 func probeAppArmorParserFeaturesOnce() {
-	appArmorProbeParserOnce.Do(func() {
+	appArmorOnces.probeParser.Do(func() {
 		appArmorParserFeatures, appArmorParserError = probeAppArmorParserFeatures()
 	})
 }

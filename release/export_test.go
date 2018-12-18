@@ -19,10 +19,6 @@
 
 package release
 
-import (
-	"sync"
-)
-
 var (
 	ReadOSRelease = readOSRelease
 )
@@ -80,7 +76,5 @@ var (
 )
 
 func ResetAppArmorOnces() {
-	appArmorProbeParserOnce = sync.Once{}
-	appArmorProbeKernelOnce = sync.Once{}
-	appArmorAssessOnce = sync.Once{}
+	appArmorOnces = new(appArmorOnceBattery)
 }
