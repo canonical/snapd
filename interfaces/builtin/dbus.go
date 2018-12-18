@@ -459,7 +459,10 @@ func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		if app.IsService() && bus != "system" {
 			return fmt.Errorf("system daemons can only attach to the system bus")
 		}
-		if owner := dbus.BusNameOwner(bus, name); owner != "" && owner != slot.Snap.InstanceName() {
+		if owner := dbus.BusNameOwner(bus, name); owner != slot.Snap.InstanceName() {
+			if owner == "" {
+				return fmt.Errorf("bus name %q is owned by a non-snap application", name)
+			}
 			return fmt.Errorf("bus name %q is already owned by snap %q", name, owner)
 		}
 	}

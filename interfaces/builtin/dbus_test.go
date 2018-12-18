@@ -420,6 +420,36 @@ X-Snap=other-snap
 	c.Assert(err, ErrorMatches, `bus name "org.dbus-snap.system" is already owned by snap "other-snap"`)
 }
 
+func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableSystemConflictNonSnap(c *C) {
+	var mockSnapYaml = `name: dbus-snap
+version: 1.0
+slots:
+  dbus-service-slot:
+    interface: dbus
+    bus: system
+    name: org.dbus-snap.system
+    activatable: true
+apps:
+  app-dbus-slot:
+    slots:
+    - dbus-service-slot
+`
+
+	err := os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapDBusSystemServicesDir, "org.dbus-snap.system.service"), []byte(`[D-BUS Service]
+Name=org.dbus-snap.system
+Exec=command
+User=root
+`), 0644)
+	c.Assert(err, IsNil)
+
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["dbus-service-slot"]
+	err = interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Assert(err, ErrorMatches, `bus name "org.dbus-snap.system" is already owned by a non-snap application`)
+}
+
 func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {
 	var mockSnapYaml = `name: dbus-snap
 version: 1.0
