@@ -188,7 +188,7 @@ func updateDevice(st *state.State, ifaceName, hotplugKey string, newAttrs map[st
 	updateSlot.Set("slot-attrs", newAttrs)
 	updateSlot.WaitFor(hotplugDisconnect)
 
-	hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %s hotplug key %q", ifaceName, hotplugKey))
+	hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %s, hotplug key %q", ifaceName, hotplugKey))
 	setHotplugAttrs(hotplugConnect, ifaceName, hotplugKey)
 	hotplugConnect.WaitFor(updateSlot)
 
