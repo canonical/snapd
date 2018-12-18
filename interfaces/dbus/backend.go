@@ -215,7 +215,10 @@ func snapServiceActivationFiles(dir, snapName string) (services []string, err er
 		return nil, err
 	}
 	for _, match := range matches {
-		serviceSnap := snapNameFromServiceFile(match)
+		serviceSnap, err := snapNameFromServiceFile(match)
+		if err != nil {
+			return nil, err
+		}
 		if serviceSnap == snapName {
 			services = append(services, filepath.Base(match))
 		}
@@ -286,25 +289,22 @@ func addContent(securityTag string, snippet string, content map[string]osutil.Fi
 }
 
 // snapNameFromServiceFile returns the snap name for the D-Bus service activation file.
-func snapNameFromServiceFile(filename string) string {
+func snapNameFromServiceFile(filename string) (owner string, err error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			logger.Noticef("can not read service file %s: %s", filename, err)
-		}
-		return ""
+		return "", err
 	}
 	snapKey := []byte("\nX-Snap=")
 	pos := bytes.Index(content, snapKey)
 	if pos == -1 {
-		return ""
+		return "", nil
 	}
 	snapName := content[pos+len(snapKey):]
 	pos = bytes.IndexRune(snapName, '\n')
 	if pos != -1 {
 		snapName = snapName[:pos]
 	}
-	return string(snapName)
+	return string(snapName), nil
 }
 
 func (b *Backend) deriveContentServices(snapInfo *snap.Info, servicesDir string, services map[string]*Service) (globs []string, content map[string]osutil.FileState, err error) {
@@ -318,7 +318,13 @@ func (b *Backend) deriveContentServices(snapInfo *snap.Info, servicesDir string,
 	content = make(map[string]osutil.FileState)
 	for _, service := range services {
 		filename := service.BusName + ".service"
-		if old := snapNameFromServiceFile(filepath.Join(servicesDir, filename)); old != "" && old != snapName {
+		if old, err := snapNameFromServiceFile(filepath.Join(servicesDir, filename)); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, nil, fmt.Errorf("cannot add session dbus name %q: %q", service.BusName, err)
+			}
+		} else if old == "" {
+			return nil, nil, fmt.Errorf("cannot add session dbus name %q, already taken by non-snap application", service.BusName)
+		} else if old != snapName {
 			return nil, nil, fmt.Errorf("cannot add session dbus name %q, already taken by: %q", service.BusName, old)
 		}
 		globs = append(globs, filename)
@@ -340,7 +346,7 @@ func (b *Backend) SandboxFeatures() []string {
 }
 
 // BusNameOwner returns the snap that owns a particular bus name, or an empty string.
-func BusNameOwner(bus, name string) string {
+func BusNameOwner(bus, name string) (owner string, err error) {
 	var servicesDir string
 	switch bus {
 	case "session":

@@ -447,7 +447,7 @@ User=root
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["dbus-service-slot"]
 	err = interfaces.BeforePrepareSlot(s.iface, slot)
-	c.Assert(err, ErrorMatches, `bus name "org.dbus-snap.system" is already owned by a non-snap application`)
+	c.Assert(err, ErrorMatches, `bus name "org.dbus-snap.system" is owned by a non-snap application`)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {

@@ -22,6 +22,7 @@ package builtin
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -459,10 +460,13 @@ func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		if app.IsService() && bus != "system" {
 			return fmt.Errorf("system daemons can only attach to the system bus")
 		}
-		if owner := dbus.BusNameOwner(bus, name); owner != slot.Snap.InstanceName() {
-			if owner == "" {
-				return fmt.Errorf("bus name %q is owned by a non-snap application", name)
+		if owner, err := dbus.BusNameOwner(bus, name); err != nil {
+			if !os.IsNotExist(err) {
+				return err
 			}
+		} else if owner == "" {
+			return fmt.Errorf("bus name %q is owned by a non-snap application", name)
+		} else if owner != slot.Snap.InstanceName() {
 			return fmt.Errorf("bus name %q is already owned by snap %q", name, owner)
 		}
 	}
