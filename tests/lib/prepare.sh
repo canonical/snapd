@@ -626,8 +626,10 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is available"
     # Install core to keep it as part of the snapd state
-    if ! snap list core; then
-        snap install core
+    if is_core18_system; then
+        if ! snap list core; then
+            snap install core
+        fi
     fi
 
     disable_refreshes
