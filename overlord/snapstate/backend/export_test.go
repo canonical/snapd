@@ -19,6 +19,10 @@
 
 package backend
 
+import (
+	"os/exec"
+)
+
 var (
 	AddMountUnit    = addMountUnit
 	RemoveMountUnit = removeMountUnit
@@ -29,5 +33,13 @@ func MockUpdateFontconfigCaches(f func() error) (restore func()) {
 	updateFontconfigCaches = f
 	return func() {
 		updateFontconfigCaches = oldUpdateFontconfigCaches
+	}
+}
+
+func MockCommandFromCore(f func(string, string, ...string) (*exec.Cmd, error)) (restore func()) {
+	old := commandFromCore
+	commandFromCore = f
+	return func() {
+		commandFromCore = old
 	}
 }

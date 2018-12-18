@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
@@ -335,4 +337,51 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 			c.Assert(updateFontconfigCaches, Equals, 0)
 		}
 	}
+}
+
+func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesCallsFromNewCurrent(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	const yaml = `name: core
+version: 1.0
+type: os
+`
+	// old version is 'current'
+	infoOld := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	mountDirOld := infoOld.MountDir()
+	err := os.Symlink(filepath.Base(mountDirOld), filepath.Join(mountDirOld, "..", "current"))
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Join(mountDirOld, "bin"), 0755)
+	c.Assert(err, IsNil)
+
+	oldCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v6"), "")
+	oldCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v7"), "")
+
+	infoNew := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(12)})
+	mountDirNew := infoNew.MountDir()
+
+	err = os.MkdirAll(filepath.Join(mountDirNew, "bin"), 0755)
+	c.Assert(err, IsNil)
+
+	newCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v6"), "")
+	newCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v7"), "")
+
+	// provide our own mock, osutil.CommandFromCore expects an ELF binary
+	restore = backend.MockCommandFromCore(func(mountDir, name string, args ...string) (*exec.Cmd, error) {
+		cmd := filepath.Join(mountDir, "core", "current", name)
+		c.Logf("command from core: %v", cmd)
+		return exec.Command(cmd, args...), nil
+	})
+	defer restore()
+
+	err = s.be.LinkSnap(infoNew, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(oldCmdV6.Calls(), HasLen, 0)
+	c.Check(oldCmdV7.Calls(), HasLen, 0)
+
+	c.Check(newCmdV6.Calls(), HasLen, 1)
+	c.Check(newCmdV7.Calls(), HasLen, 1)
 }
