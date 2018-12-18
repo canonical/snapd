@@ -23,6 +23,8 @@ set -ue
 debian_tarball="${1:-}"
 if [ "$debian_tarball" = "" ]; then
 	echo "Usage: repack-debian-tarball.sh <snapd-debian-tarball>"
+	echo
+	head -n 19 "$0" | tail -n 18 | sed -e 's/#[ ]*//g'
 	exit 1
 fi
 
