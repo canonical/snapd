@@ -28,3 +28,8 @@ func VerifyPathContext(aPath string) (bool, error) {
 func RestoreContext(aPath string, mode RestoreMode) error {
 	return nil
 }
+
+// SnapMountContext finds out the right context for mounting snaps
+func SnapMountContext() string {
+	return ""
+}
