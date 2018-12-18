@@ -43,3 +43,8 @@ execute: |
     su -c "test-snapd-layout.sh -c 'ls /'" test
     snap remove test-snapd-layout
     ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    install_local socket-activation
+    [ -S /var/snap/socket-activation/common/socket ]
+    snap remove socket-activation
+    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
