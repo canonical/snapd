@@ -102,11 +102,3 @@ func MockOsGetenv(mock func(string) string) (restore func()) {
 
 	return restore
 }
-
-func MockParserFeatures(f func() ([]string, error)) (restore func()) {
-	old := parserFeatures
-	parserFeatures = f
-	return func() {
-		parserFeatures = old
-	}
-}
