@@ -71,3 +71,7 @@ execute: |
     MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current( -> x1)?$' < service-labels
     MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo$'      < service-labels
     MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo/bar$'  < service-labels
+
+    install_local socket-activation
+    [ -S /var/snap/socket-activation/common/socket ]
+    ls -Zd /var/snap/socket-activation/common/socket | MATCH ':snappy_var_t:'
