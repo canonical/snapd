@@ -106,9 +106,6 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
-	restore := builtin.MockParserFeatures(func() ([]string, error) { return []string{}, nil })
-	defer restore()
-
 	var mockSnapYaml = []byte(`name: docker
 version: 1.0
 plugs:
@@ -132,7 +129,7 @@ apps:
 	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile -> *,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /**,`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
@@ -165,7 +162,7 @@ apps:
 	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile -> *,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile unsafe /**,`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
@@ -187,59 +184,6 @@ plugs:
 
 	plug := info.Plugs["privileged"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
-}
-
-func (s *DockerSupportInterfaceSuite) TestAppArmorUnsafe(c *C) {
-	var mockSnapYaml = []byte(`name: docker
-version: 1.0
-plugs:
- privileged:
-  interface: docker-support
-  privileged-containers: true
-apps:
- app:
-  command: foo
-  plugs:
-   - privileged
-`)
-
-	type changeProfileScenario struct {
-		features []string
-		expected []string
-	}
-
-	var changeProfileScenarios = []changeProfileScenario{{
-		features: []string{},
-		expected: []string{
-			"change_profile -> docker-default,",
-			"change_profile -> *,",
-		},
-	}, {
-		features: []string{"unsafe"},
-		expected: []string{
-			"change_profile unsafe /** -> docker-default,",
-			"change_profile unsafe /**,",
-		},
-	}}
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	plug := info.Plugs["privileged"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
-
-	for _, scenario := range changeProfileScenarios {
-		restore := builtin.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
-		defer restore()
-
-		apparmorSpec := &apparmor.Specification{}
-		err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
-		c.Assert(err, IsNil)
-		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
-		for _, rule := range scenario.expected {
-			c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, rule)
-		}
-	}
 }
 
 func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
