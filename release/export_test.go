@@ -19,6 +19,10 @@
 
 package release
 
+import (
+	"sync"
+)
+
 var (
 	ReadOSRelease = readOSRelease
 )
@@ -67,8 +71,6 @@ var (
 	ProbeAppArmorKernelFeatures = probeAppArmorKernelFeatures
 	ProbeAppArmorParserFeatures = probeAppArmorParserFeatures
 
-	AssessAppArmor = assessAppArmor
-
 	RequiredAppArmorKernelFeatures  = requiredAppArmorKernelFeatures
 	RequiredAppArmorParserFeatures  = requiredAppArmorParserFeatures
 	PreferredAppArmorKernelFeatures = preferredAppArmorKernelFeatures
@@ -76,3 +78,9 @@ var (
 
 	IsWSL = isWSL
 )
+
+func ResetAppArmorOnces() {
+	appArmorProbeParserOnce = sync.Once{}
+	appArmorProbeKernelOnce = sync.Once{}
+	appArmorAssessOnce = sync.Once{}
+}

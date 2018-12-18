@@ -195,6 +195,8 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
+	release.ResetAppArmorOnces()
+
 	d := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(d)
 	defer restore()
@@ -206,7 +208,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	restore = release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
 
-	release.AssessAppArmor()
+	release.AppArmorLevel()
 
 	features, err := release.AppArmorKernelFeatures()
 	c.Assert(err, IsNil)
