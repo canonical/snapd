@@ -624,6 +624,12 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
+    echo "Ensure the core snap is available"
+    # Install core to keep it as part of the snapd state
+    if ! snap list core; then
+        snap install core
+    fi
+
     disable_refreshes
     setup_systemd_snapd_overrides
 
