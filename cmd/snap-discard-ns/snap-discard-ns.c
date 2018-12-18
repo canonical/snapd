@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
     }
 
     /* Move to the namespace directory. This is used so that we don't need to
-     * traverse the path over and over in our upcoming unmount2(2) calls. */
+     * traverse the path over and over in our upcoming umount2(2) calls. */
     if (fchdir(ns_dir_fd) < 0) {
         die("cannot move to directory %s", ns_dir_path);
     }
