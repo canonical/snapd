@@ -14,10 +14,7 @@ prepare: |
     snap pack "$TESTSLIB/snaps/basic"
     snap download "--$CORE_CHANNEL" core
 
-    #shellcheck source=tests/lib/reset.sh
-    . "$TESTSLIB/reset.sh"
-    reset_snapd --keep-stopped
-
+    "$TESTSLIB/reset.sh" --keep-stopped
     mkdir -p "$SEED_DIR/snaps"
     mkdir -p "$SEED_DIR/assertions"
     cat > "$SEED_DIR/seed.yaml" <<EOF
