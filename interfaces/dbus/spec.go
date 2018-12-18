@@ -81,14 +81,15 @@ X-Snap={{.App.Snap.InstanceName}}
 		services = spec.sessionServices
 		// TODO: extract systemd service name for user service, once integrated
 	case "system":
+		// TODO: return an error if this is not a system serice
+		if !appInfo.IsService() {
+			return fmt.Errorf("system D-Bus services must be daemons")
+		}
+		serviceData.SystemdService = appInfo.ServiceName()
 		if spec.systemServices == nil {
 			spec.systemServices = make(map[string]*Service)
 		}
 		services = spec.systemServices
-		if appInfo.IsService() {
-			// TODO: return an error if this is not a system serice
-			serviceData.SystemdService = appInfo.ServiceName()
-		}
 	default:
 		panic("Unknown D-Bus bus")
 	}

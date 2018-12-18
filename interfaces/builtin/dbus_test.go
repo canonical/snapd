@@ -140,6 +140,8 @@ apps:
     slots:
     - test-session-activatable-slot
   test-system-activatable-provider:
+    daemon: dbus
+    bus-name: org.test-session-activatable
     slots:
     - test-system-activatable-slot
 `, nil)
@@ -574,6 +576,7 @@ Comment=Bus name for snap application test-dbus.test-system-activatable-provider
 Exec=/usr/bin/snap run test-dbus.test-system-activatable-provider
 AssumedAppArmorLabel=snap.test-dbus.test-system-activatable-provider
 User=root
+SystemdService=snap.test-dbus.test-system-activatable-provider.service
 X-Snap=test-dbus
 `),
 		},

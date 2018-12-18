@@ -407,6 +407,7 @@ func (s *backendSuite) TestInstallingSnapInstallsSystemServiceActivation(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
+			Daemon: "dbus",
 		}
 		spec.AddService("system", "org.foo", app)
 		spec.AddService("system", "org.bar", app)
@@ -454,6 +455,7 @@ func (s *backendSuite) _TestUpdatingSnapToOneWithMoreServices(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
+			Daemon: "dbus",
 		}
 		for _, busName := range busNames {
 			if err := spec.AddService("system", busName, app); err != nil {
@@ -489,6 +491,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerServices(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
+			Daemon: "dbus",
 		}
 		for _, busName := range busNames {
 			if err := spec.AddService("system", busName, app); err != nil {
