@@ -287,19 +287,17 @@ func makeFetcher(tsto *ToolingStore, dlOpts *DownloadOptions, db *asserts.Databa
 }
 
 func installCloudConfig(gadgetDir string) error {
-	var err error
+	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
+	if !osutil.FileExists(cloudConfig) {
+		return nil
+	}
 
 	cloudDir := filepath.Join(dirs.GlobalRootDir, "/etc/cloud")
 	if err := os.MkdirAll(cloudDir, 0755); err != nil {
 		return err
 	}
-
-	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
-	if osutil.FileExists(cloudConfig) {
-		dst := filepath.Join(cloudDir, "cloud.cfg")
-		err = osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
-	}
-	return err
+	dst := filepath.Join(cloudDir, "cloud.cfg")
+	return osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
 }
 
 // defaultCore is used if no base is specified by the model
