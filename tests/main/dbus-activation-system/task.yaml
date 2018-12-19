@@ -1,5 +1,8 @@
 summary: D-Bus system services support activation
 
+# Ubuntu 14.04 does not run the system bus under systemd's control.
+systems: [-ubuntu-14.04-*]
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
