@@ -159,12 +159,17 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 		return err
 	}
 
-	err = GetFromChange(snapName, subkeys, 0, t.changes[snapName], result)
-	if IsNoOption(err) {
-		err = getFromPristine(snapName, subkeys, 0, t.pristine[snapName], result)
+	// commit changes onto pristine configuration, so that get has a complete view of the config.
+	// this doesn't make them visible in the state until real Commit().
+	config, ok := t.pristine[snapName]
+	if !ok {
+		config = make(map[string]*json.RawMessage)
 	}
-
-	return err
+	snapChanges := t.changes[snapName]
+	for k, v := range snapChanges {
+		config[k] = commitChange(config[k], v)
+	}
+	return getFromPristine(snapName, subkeys, 0, config, result)
 }
 
 // GetMaybe unmarshals into result the cached value of the provided snap's configuration key.
