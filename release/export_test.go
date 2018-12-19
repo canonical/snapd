@@ -75,6 +75,6 @@ var (
 	IsWSL = isWSL
 )
 
-func ResetAppArmorOnces() {
+func FreshAppArmorOnces() {
 	appArmorOnces = new(appArmorOnceBattery)
 }

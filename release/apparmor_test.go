@@ -195,7 +195,7 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
-	release.ResetAppArmorOnces()
+	release.FreshAppArmorOnces()
 
 	d := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(d)
@@ -234,4 +234,40 @@ func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
 	defer restore()
 	mtime = release.AppArmorParserMtime()
 	c.Check(mtime, Equals, int64(0))
+}
+
+func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
+	release.FreshAppArmorOnces()
+
+	d := c.MkDir()
+	restore := release.MockAppArmorFeaturesSysPath(d)
+	defer restore()
+	c.Assert(os.MkdirAll(filepath.Join(d, "policy"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, "network"), 0755), IsNil)
+
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore = release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+
+	features, err := release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"network", "policy"})
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"unsafe"})
+
+	// this makes probing fails but is not done again
+	err = os.RemoveAll(d)
+	c.Assert(err, IsNil)
+
+	_, err = release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+
+	// this makes probing fails but is not done again
+	err = os.RemoveAll(mockParserCmd.BinDir())
+	c.Assert(err, IsNil)
+
+	_, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
 }
