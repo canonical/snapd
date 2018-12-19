@@ -25,12 +25,12 @@ import (
 	"sync"
 )
 
-var secCompProbe = &secCompProber{}
+var secCompProber = &secCompProbe{}
 
 // SecCompActions returns a sorted list of seccomp actions like
 // []string{"allow", "errno", "kill", "log", "trace", "trap"}.
 func SecCompActions() []string {
-	return secCompProbe.probe()
+	return secCompProber.probe()
 }
 
 func SecCompSupportsAction(action string) bool {
@@ -44,13 +44,13 @@ func SecCompSupportsAction(action string) bool {
 
 // probing
 
-type secCompProber struct {
+type secCompProbe struct {
 	actions []string
 
 	once sync.Once
 }
 
-func (scp *secCompProber) probe() []string {
+func (scp *secCompProbe) probe() []string {
 	scp.once.Do(func() {
 		scp.actions = probeSecCompActions()
 	})
@@ -70,12 +70,12 @@ func probeSecCompActions() []string {
 // mocking
 
 func MockSecCompActions(actions []string) (restore func()) {
-	old := secCompProbe
-	secCompProbe = &secCompProber{
+	old := secCompProber
+	secCompProber = &secCompProbe{
 		actions: actions,
 	}
-	secCompProbe.once.Do(func() {})
+	secCompProber.once.Do(func() {})
 	return func() {
-		secCompProbe = old
+		secCompProber = old
 	}
 }

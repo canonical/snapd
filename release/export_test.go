@@ -75,5 +75,5 @@ func FreshAppArmorAssessment() {
 }
 
 func FreshSecCompProbe() {
-	secCompProbe = &secCompProber{}
+	secCompProber = &secCompProbe{}
 }
