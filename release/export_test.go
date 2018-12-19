@@ -58,11 +58,6 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
-// CurrentAppArmorLevel returns the internal cached apparmor level.
-func CurrentAppArmorLevel() AppArmorLevelType {
-	return appArmorLevel
-}
-
 var (
 	ProbeAppArmorKernelFeatures = probeAppArmorKernelFeatures
 	ProbeAppArmorParserFeatures = probeAppArmorParserFeatures
@@ -75,6 +70,10 @@ var (
 	IsWSL = isWSL
 )
 
-func FreshAppArmorOnces() {
-	appArmorOnces = new(appArmorOnceBattery)
+func FreshAppArmorAssessment() {
+	appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
+}
+
+func FreshSecCompProbe() {
+	secCompProbe = &secCompProber{}
 }

@@ -195,7 +195,7 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
-	release.FreshAppArmorOnces()
+	release.FreshAppArmorAssessment()
 
 	d := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(d)
@@ -237,7 +237,7 @@ func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
 }
 
 func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
-	release.FreshAppArmorOnces()
+	release.FreshAppArmorAssessment()
 
 	d := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(d)

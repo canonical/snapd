@@ -20,53 +20,17 @@
 package release
 
 import (
-	"io/ioutil"
 	"sort"
 	"strings"
 	"sync"
 )
 
-var (
-	secCompAvailableActionsPath = "/proc/sys/kernel/seccomp/actions_avail"
-)
-
-var (
-	secCompActions      []string
-	secCompOnce         sync.Once
-	probeSecCompActions = probeSecCompActionsOnce
-)
-
-func MockSecCompActions(actions []string) (restore func()) {
-	old := secCompActions
-	secCompActions = actions
-	oldProbe := probeSecCompActions
-	// nop
-	probeSecCompActions = func() {}
-	return func() {
-		secCompActions = old
-		probeSecCompActions = oldProbe
-	}
-}
-
-func probeSecCompActionsOnce() {
-	secCompOnce.Do(func() {
-		secCompActions = []string{}
-
-		contents, err := ioutil.ReadFile(secCompAvailableActionsPath)
-		if err != nil {
-			return
-		}
-		actions := strings.Split(strings.TrimRight(string(contents), "\n"), " ")
-		sort.Strings(actions)
-		secCompActions = actions
-	})
-}
+var secCompProbe = &secCompProber{}
 
 // SecCompActions returns a sorted list of seccomp actions like
 // []string{"allow", "errno", "kill", "log", "trace", "trap"}.
 func SecCompActions() []string {
-	probeSecCompActions()
-	return secCompActions
+	return secCompProbe.probe()
 }
 
 func SecCompSupportsAction(action string) bool {
@@ -76,4 +40,42 @@ func SecCompSupportsAction(action string) bool {
 		return true
 	}
 	return false
+}
+
+// probing
+
+type secCompProber struct {
+	actions []string
+
+	once sync.Once
+}
+
+func (scp *secCompProber) probe() []string {
+	scp.once.Do(func() {
+		scp.actions = probeSecCompActions()
+	})
+	return scp.actions
+}
+
+func probeSecCompActions() []string {
+	contents, err := ioutilReadFile("/proc/sys/kernel/seccomp/actions_avail")
+	if err != nil {
+		return []string{}
+	}
+	actions := strings.Split(strings.TrimRight(string(contents), "\n"), " ")
+	sort.Strings(actions)
+	return actions
+}
+
+// mocking
+
+func MockSecCompActions(actions []string) (restore func()) {
+	old := secCompProbe
+	secCompProbe = &secCompProber{
+		actions: actions,
+	}
+	secCompProbe.once.Do(func() {})
+	return func() {
+		secCompProbe = old
+	}
 }

@@ -67,85 +67,35 @@ func (level AppArmorLevelType) String() string {
 	return fmt.Sprintf("AppArmorLevelType:%d", level)
 }
 
-// TODO: use something simpler once we are on go1.9+
-//	appArmorProbeParserOnce sync.Once
-//	appArmorProbeKernelOnce sync.Once
-//	appArmorAssessOnce      sync.Once
-type appArmorOnceBattery struct {
-	probeParser sync.Once
-	probeKernel sync.Once
-	assess      sync.Once
-}
-
-var (
-	// appArmorLevel contains the assessment of the "level" of apparmor support.
-	appArmorLevel = UnknownAppArmor
-	// appArmorSummary contains a human readable description of the assessment.
-	appArmorSummary string
-	// appArmorKernelFeatures contains a list of kernel features that are supported.
-	// If the value is nil then the features were not probed yet.
-	appArmorKernelFeatures []string
-	// appArmorKernelError contains an error, if any, encountered when
-	// discovering available kernel features.
-	appArmorKernelError error
-	// appArmorParserFeatures contains a list of parser features that are supported.
-	// If the value is nil then the features were not probed yet.
-	appArmorParserFeatures []string
-	// appArmorParserError contains an error, if any, encountered when
-	// discovering available parser features.
-	appArmorParserError error
-
-	appArmorOnces = new(appArmorOnceBattery)
-
-	appArmorProbeKernel = probeAppArmorKernelFeaturesOnce
-	appArmorProbeParser = probeAppArmorParserFeaturesOnce
-	appArmorAssess      = assessAppArmorOnce
-)
-
-func assessAppArmorOnce() {
-	appArmorOnces.assess.Do(assessAppArmor)
-}
+// appArmorAssessment represents what is supported AppArmor-wise by the system.
+var appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
 
 // AppArmorLevel quantifies how well apparmor is supported on the current
 // kernel. The computation is costly to perform. The result is cached internally.
 func AppArmorLevel() AppArmorLevelType {
-	appArmorAssess()
-	return appArmorLevel
+	appArmorAssessment.assess()
+	return appArmorAssessment.level
 }
 
 // AppArmorSummary describes how well apparmor is supported on the current
 // kernel. The computation is costly to perform. The result is cached
 // internally.
 func AppArmorSummary() string {
-	appArmorAssess()
-	return appArmorSummary
-}
-
-func probeAppArmorKernelFeaturesOnce() {
-	appArmorOnces.probeKernel.Do(func() {
-		appArmorKernelFeatures, appArmorKernelError = probeAppArmorKernelFeatures()
-	})
+	appArmorAssessment.assess()
+	return appArmorAssessment.summary
 }
 
 // AppArmorKernelFeatures returns a sorted list of apparmor features like
 // []string{"dbus", "network"}. The result is cached internally.
 func AppArmorKernelFeatures() ([]string, error) {
-	appArmorProbeKernel()
-	return appArmorKernelFeatures, appArmorKernelError
-}
-
-func probeAppArmorParserFeaturesOnce() {
-	appArmorOnces.probeParser.Do(func() {
-		appArmorParserFeatures, appArmorParserError = probeAppArmorParserFeatures()
-	})
+	return appArmorAssessment.KernelFeatures()
 }
 
 // AppArmorParserFeatures returns a sorted list of apparmor parser features
 // like []string{"unsafe", ...}. The computation is costly to perform. The
 // result is cached internally.
 func AppArmorParserFeatures() ([]string, error) {
-	appArmorProbeParser()
-	return appArmorParserFeatures, appArmorParserError
+	return appArmorAssessment.ParserFeatures()
 }
 
 // AppArmorParserMtime returns the mtime of the parser, else 0.
@@ -159,80 +109,6 @@ func AppArmorParserMtime() int64 {
 		}
 	}
 	return mtime
-}
-
-// MockAppArmorLevel makes the system believe it has certain level of apparmor
-// support.
-//
-// AppArmor kernel and parser features are set to unrealistic values that do
-// not match the requested level. Use this function to observe behavior that
-// relies solely on the apparmor level value.
-func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
-	oldAppArmorLevel := appArmorLevel
-	oldAppArmorSummary := appArmorSummary
-	oldAppArmorKernelFeatures := appArmorKernelFeatures
-	oldAppArmorKernelError := appArmorKernelError
-	oldAppArmorParserFeatures := appArmorParserFeatures
-	oldAppArmorParserError := appArmorParserError
-	oldAppArmorProbeKernel := appArmorProbeKernel
-	oldAppArmorProbeParser := appArmorProbeParser
-	oldAppArmorAssess := appArmorAssess
-	appArmorLevel = level
-	appArmorSummary = fmt.Sprintf("mocked apparmor level: %s", level)
-	appArmorKernelFeatures = []string{"mocked-kernel-feature"}
-	appArmorKernelError = nil
-	appArmorParserFeatures = []string{"mocked-parser-feature"}
-	appArmorParserError = nil
-	nop := func() {}
-	appArmorProbeKernel = nop
-	appArmorProbeParser = nop
-	appArmorAssess = nop
-	return func() {
-		appArmorLevel = oldAppArmorLevel
-		appArmorSummary = oldAppArmorSummary
-		appArmorKernelFeatures = oldAppArmorKernelFeatures
-		appArmorKernelError = oldAppArmorKernelError
-		appArmorParserFeatures = oldAppArmorParserFeatures
-		appArmorParserError = oldAppArmorParserError
-		appArmorProbeKernel = oldAppArmorProbeKernel
-		appArmorProbeParser = oldAppArmorProbeParser
-		appArmorAssess = oldAppArmorAssess
-	}
-}
-
-// MockAppArmorFeatures makes the system believe it has certain kernel and
-// parser features.
-//
-// AppArmor level and summary are automatically re-assessed on both the change
-// and the restore process. Use this function to observe real assessment of
-// arbitrary features.
-func MockAppArmorFeatures(kernelFeatures []string, kernelError error, parserFeatures []string, parserError error) (restore func()) {
-	oldAppArmorKernelFeatures := appArmorKernelFeatures
-	oldAppArmorKernelError := appArmorKernelError
-	oldAppArmorParserFeatures := appArmorParserFeatures
-	oldAppArmorParserError := appArmorParserError
-	oldAppArmorProbeKernel := appArmorProbeKernel
-	oldAppArmorProbeParser := appArmorProbeParser
-	oldAppArmorAssess := appArmorAssess
-	appArmorKernelFeatures = kernelFeatures
-	appArmorKernelError = kernelError
-	appArmorParserFeatures = parserFeatures
-	appArmorParserError = parserError
-	nop := func() {}
-	appArmorProbeKernel = nop
-	appArmorProbeParser = nop
-	appArmorAssess = nop
-	assessAppArmor()
-	return func() {
-		appArmorKernelFeatures = oldAppArmorKernelFeatures
-		appArmorKernelError = oldAppArmorKernelError
-		appArmorParserFeatures = oldAppArmorParserFeatures
-		appArmorParserError = oldAppArmorParserError
-		appArmorProbeKernel = oldAppArmorProbeKernel
-		appArmorProbeParser = oldAppArmorProbeParser
-		appArmorAssess = oldAppArmorAssess
-		assessAppArmor()
-	}
 }
 
 // probe related code
@@ -275,21 +151,38 @@ var (
 	appArmorFeaturesSysPath = "/sys/kernel/security/apparmor/features"
 )
 
-func assessAppArmor() {
+type appArmorProber interface {
+	KernelFeatures() ([]string, error)
+	ParserFeatures() ([]string, error)
+}
+
+type appArmorAssess struct {
+	appArmorProber
+	// level contains the assessment of the "level" of apparmor support.
+	level AppArmorLevelType
+	// summary contains a human readable description of the assessment.
+	summary string
+
+	once sync.Once
+}
+
+func (aaa *appArmorAssess) assess() {
+	aaa.once.Do(func() {
+		aaa.level, aaa.summary = aaa.doAssess()
+	})
+}
+
+func (aaa *appArmorAssess) doAssess() (level AppArmorLevelType, summary string) {
 	// First, quickly check if apparmor is available in the kernel at all.
-	kernelFeatures, err := AppArmorKernelFeatures()
+	kernelFeatures, err := aaa.KernelFeatures()
 	if os.IsNotExist(err) {
-		appArmorLevel = NoAppArmor
-		appArmorSummary = "apparmor not enabled"
-		return
+		return NoAppArmor, "apparmor not enabled"
 	}
 	// Then check that the parser supports the required parser features.
 	// If we have any missing required features then apparmor is unusable.
-	parserFeatures, err := AppArmorParserFeatures()
+	parserFeatures, err := aaa.ParserFeatures()
 	if os.IsNotExist(err) {
-		appArmorLevel = NoAppArmor
-		appArmorSummary = "apparmor_parser not found"
-		return
+		return NoAppArmor, "apparmor_parser not found"
 	}
 	var missingParserFeatures []string
 	for _, feature := range requiredAppArmorParserFeatures {
@@ -298,10 +191,9 @@ func assessAppArmor() {
 		}
 	}
 	if len(missingParserFeatures) > 0 {
-		appArmorLevel = UnusableAppArmor
-		appArmorSummary = fmt.Sprintf("apparmor_parser is available but required parser features are missing: %s",
+		summary := fmt.Sprintf("apparmor_parser is available but required parser features are missing: %s",
 			strings.Join(missingParserFeatures, ", "))
-		return
+		return UnusableAppArmor, summary
 	}
 
 	// Next, check that the kernel supports the required kernel features.
@@ -312,10 +204,9 @@ func assessAppArmor() {
 		}
 	}
 	if len(missingKernelFeatures) > 0 {
-		appArmorLevel = UnusableAppArmor
-		appArmorSummary = fmt.Sprintf("apparmor is enabled but required kernel features are missing: %s",
+		summary := fmt.Sprintf("apparmor is enabled but required kernel features are missing: %s",
 			strings.Join(missingKernelFeatures, ", "))
-		return
+		return UnusableAppArmor, summary
 	}
 
 	// Next check that the parser supports preferred parser features.
@@ -326,10 +217,9 @@ func assessAppArmor() {
 		}
 	}
 	if len(missingParserFeatures) > 0 {
-		appArmorLevel = PartialAppArmor
-		appArmorSummary = fmt.Sprintf("apparmor_parser is available but some features are missing: %s",
+		summary := fmt.Sprintf("apparmor_parser is available but some features are missing: %s",
 			strings.Join(missingParserFeatures, ", "))
-		return
+		return PartialAppArmor, summary
 	}
 
 	// Lastly check that the kernel supports preferred kernel features.
@@ -339,15 +229,43 @@ func assessAppArmor() {
 		}
 	}
 	if len(missingKernelFeatures) > 0 {
-		appArmorLevel = PartialAppArmor
-		appArmorSummary = fmt.Sprintf("apparmor is enabled but some kernel features are missing: %s",
+		summary := fmt.Sprintf("apparmor is enabled but some kernel features are missing: %s",
 			strings.Join(missingKernelFeatures, ", "))
-		return
+		return PartialAppArmor, summary
 	}
 
 	// If we got here then all features are available and supported.
-	appArmorLevel = FullAppArmor
-	appArmorSummary = "apparmor is enabled and all features are available"
+	return FullAppArmor, "apparmor is enabled and all features are available"
+}
+
+type appArmorProbe struct {
+	// kernelFeatures contains a list of kernel features that are supported.
+	kernelFeatures []string
+	// kernelError contains an error, if any, encountered when
+	// discovering available kernel features.
+	kernelError error
+	// parserFeatures contains a list of parser features that are supported.
+	parserFeatures []string
+	// parserError contains an error, if any, encountered when
+	// discovering available parser features.
+	parserError error
+
+	probeKernelOnce sync.Once
+	probeParserOnce sync.Once
+}
+
+func (aap *appArmorProbe) KernelFeatures() ([]string, error) {
+	aap.probeKernelOnce.Do(func() {
+		aap.kernelFeatures, aap.kernelError = probeAppArmorKernelFeatures()
+	})
+	return aap.kernelFeatures, aap.kernelError
+}
+
+func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
+	aap.probeParserOnce.Do(func() {
+		aap.parserFeatures, aap.parserError = probeAppArmorParserFeatures()
+	})
+	return aap.parserFeatures, aap.parserError
 }
 
 func probeAppArmorKernelFeatures() ([]string, error) {
@@ -397,4 +315,68 @@ func tryAppArmorParserFeature(parser, rule string) bool {
 		return false
 	}
 	return true
+}
+
+// mocking
+
+type mockAppArmorProbe struct {
+	kernelFeatures []string
+	kernelError    error
+	parserFeatures []string
+	parserError    error
+}
+
+func (m *mockAppArmorProbe) KernelFeatures() ([]string, error) {
+	return m.kernelFeatures, m.kernelError
+}
+
+func (m *mockAppArmorProbe) ParserFeatures() ([]string, error) {
+	return m.parserFeatures, m.parserError
+}
+
+// MockAppArmorLevel makes the system believe it has certain level of apparmor
+// support.
+//
+// AppArmor kernel and parser features are set to unrealistic values that do
+// not match the requested level. Use this function to observe behavior that
+// relies solely on the apparmor level value.
+func MockAppArmorLevel(level AppArmorLevelType) (restore func()) {
+	oldAppArmorAssessment := appArmorAssessment
+	mockProbe := &mockAppArmorProbe{
+		kernelFeatures: []string{"mocked-kernel-feature"},
+		parserFeatures: []string{"mocked-parser-feature"},
+	}
+	appArmorAssessment = &appArmorAssess{
+		appArmorProber: mockProbe,
+		level:          level,
+		summary:        fmt.Sprintf("mocked apparmor level: %s", level),
+	}
+	appArmorAssessment.once.Do(func() {})
+	return func() {
+		appArmorAssessment = oldAppArmorAssessment
+	}
+}
+
+// MockAppArmorFeatures makes the system believe it has certain kernel and
+// parser features.
+//
+// AppArmor level and summary are automatically re-assessed as needed
+// on both the change and the restore process. Use this function to
+// observe real assessment of arbitrary features.
+func MockAppArmorFeatures(kernelFeatures []string, kernelError error, parserFeatures []string, parserError error) (restore func()) {
+	oldAppArmorAssessment := appArmorAssessment
+	mockProbe := &mockAppArmorProbe{
+		kernelFeatures: kernelFeatures,
+		kernelError:    kernelError,
+		parserFeatures: parserFeatures,
+		parserError:    parserError,
+	}
+	appArmorAssessment = &appArmorAssess{
+		appArmorProber: mockProbe,
+	}
+	appArmorAssessment.assess()
+	return func() {
+		appArmorAssessment = oldAppArmorAssessment
+	}
+
 }
