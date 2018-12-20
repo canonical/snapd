@@ -248,9 +248,18 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 	now := time.Now()
 	next := now.Add(d)
-	if next.Before(o.ensureNext) || o.ensureNext.Before(now) {
+	if next.Before(o.ensureNext) {
 		o.ensureTimer.Reset(d)
 		o.ensureNext = next
+		return
+	}
+
+	if o.ensureNext.Before(now) {
+		if !o.ensureTimer.Stop() {
+			return
+		}
+		o.ensureTimer.Reset(0)
+		o.ensureNext = now
 	}
 }
 
