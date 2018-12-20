@@ -32,6 +32,9 @@ ubuntu_14_04_name_package() {
 fedora_name_package() {
     for i in "$@"; do
         case "$i" in
+            dbus-user-session)
+                echo "dbus"
+                ;;
             openvswitch-switch)
                 echo "openvswitch"
                 ;;
@@ -70,6 +73,9 @@ opensuse_name_package() {
             python3-yaml)
                 echo "python3-PyYAML"
                 ;;
+            dbus-user-session)
+                echo "dbus-1"
+                ;;
             dbus-x11)
                 echo "dbus-1-x11"
                 ;;
@@ -94,6 +100,9 @@ arch_name_package() {
     case "$1" in
         python3-yaml)
             echo "python-yaml"
+            ;;
+        dbus-user-session)
+            echo "dbus"
             ;;
         dbus-x11)
             # no separate dbus-x11 package in arch

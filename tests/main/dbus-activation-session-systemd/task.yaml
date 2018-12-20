@@ -1,0 +1,49 @@
+summary: D-Bus session services support activation via systemd user session
+
+systems:
+    # Ubuntu Core does not contain the D-Bus user session systemd units
+    - -ubuntu-core-*
+    # Ubuntu 14.04 does not provide user@.service
+    - -ubuntu-14.04-*
+    # CentOS/Amazon Linux give error "Unit user@0.service not loaded."
+    - -amazon-linux-2-*
+    - -centos-7-*
+
+environment:
+    XDG_RUNTIME_DIR: /run/user/$(id -u)
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    distro_install_package dbus-user-session
+    systemctl stop "user@$(id -u).service"
+    mkdir -p "$XDG_RUNTIME_DIR"
+    chmod u=rwX,go= "$XDG_RUNTIME_DIR"
+
+restore: |
+    systemctl stop "user@$(id -u).service"
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Set up a systemd user session"
+    systemctl start "user@$(id -u).service"
+    eval "$(systemctl --user show-environment | grep ^DBUS_)"
+    export DBUS_SESSION_BUS_ADDRESS
+
+    echo "Install a snap containing an activatable D-Bus session service"
+    snap install --edge test-snapd-dbus-service
+
+    echo "A service activation file has been created"
+    [ -f /var/lib/snapd/dbus/services/io.snapcraft.SnapDbusService.service ]
+
+    echo "Making a method call wakes the service"
+    install_local test-snapd-dbus-service-client
+    snap connect test-snapd-dbus-service-client:dbus-session-plug \
+                 test-snapd-dbus-service:dbus-session-slot
+    test-snapd-dbus-service-client.session | MATCH hello
+
+    echo "Removing the snap also removes the service activation file"
+    snap remove test-snapd-dbus-service
+    [ ! -f /var/lib/snapd/dbus/services/io.snapcraft.SnapDbusService.service ]
