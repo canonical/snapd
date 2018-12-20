@@ -4978,14 +4978,17 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
 }
 
-func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
-	s.MockModel(c, nil)
+func (s *interfaceManagerSuite) setupHotplugConnectTestData(c *C) *state.Change {
+	s.state.Unlock()
+
 	coreInfo := s.mockSnap(c, coreSnapYaml)
 	repo := s.manager(c).Repository()
 	err := repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName: "test",
 	})
 	c.Assert(err, IsNil)
+
+	// mock hotplug slot in the repo and state
 	err = repo.AddSlot(&snap.SlotInfo{
 		Snap:       coreInfo,
 		Name:       "hotplugslot",
@@ -4995,7 +4998,12 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	defer s.state.Unlock()
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
 
 	// mock the consumer
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
@@ -5009,12 +5017,20 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 		SnapType: "app",
 	})
 
-	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot": map[string]interface{}{
-			"name":        "hotplugslot",
-			"interface":   "test",
-			"hotplug-key": "1234",
-		}})
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "1234")
+	chg.AddTask(t)
+
+	return chg
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
 
 	// simulate a device that was known and connected before
 	s.state.Set("conns", map[string]interface{}{
@@ -5024,17 +5040,8 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 			"hotplug-gone": true,
 		}})
 
-	chg := s.state.NewChange("hotplug change", "")
-	t := s.state.NewTask("hotplug-connect", "")
-	t.Set("hotplug-key", "1234")
-	t.Set("interface", "test")
-	chg.AddTask(t)
-
 	s.state.Unlock()
-	for i := 0; i < 5; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -5045,6 +5052,30 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 		"consumer:plug core:hotplugslot": map[string]interface{}{
 			"interface":   "test",
 			"hotplug-key": "1234",
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAutoconnect(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"auto":        true,
 			"plug-static": map[string]interface{}{"attr1": "value1"},
 		}})
 }
