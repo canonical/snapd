@@ -5056,6 +5056,41 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 		}})
 }
 
+func (s *interfaceManagerSuite) TestHotplugConnectConflictRetry(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	// simulate a device that was known and connected before
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	otherChg := s.state.NewChange("other-chg", "...")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "core"}})
+	otherChg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status().Ready(), Equals, false)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 1)
+
+	hotplugConnectTask := tasks[0]
+	c.Check(hotplugConnectTask.Status(), Equals, state.DoingStatus)
+	c.Check(hotplugConnectTask.Log()[0], Matches, `.*hotplug connect will be retried: conflicting snap core with task "link-snap"`)
+}
+
 func (s *interfaceManagerSuite) TestHotplugAutoconnect(c *C) {
 	s.MockModel(c, nil)
 

@@ -1302,8 +1302,8 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		}
 
 		if err := checkAutoconnectConflicts(st, task, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
-			if _, retry := err.(*state.Retry); retry {
-				task.Logf("hotplug connect will be retried because of %q - %q conflict", connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+			if retry, ok := err.(*state.Retry); ok {
+				task.Logf("hotplug connect will be retried: %s", retry.Reason)
 				return err // will retry
 			}
 			return fmt.Errorf("hotplug connect conflict check failed: %s", err)
