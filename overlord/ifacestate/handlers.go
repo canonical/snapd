@@ -1474,7 +1474,7 @@ func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hot
 
 		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 			if retry, ok := err.(*state.Retry); ok {
-				task.Logf("Waiting for conflicting change in progress: %s", retry.Reason)
+				task.Logf("hotplug connect will be retried: %s", retry.Reason)
 				return err // will retry
 			}
 			return fmt.Errorf("auto-connect conflict check failed: %s", err)
