@@ -16,11 +16,14 @@ description: |
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
 systems:
+  # Ships xdg-desktop-portal 0.11
   - ubuntu-18.04-*
-  - ubuntu-18.10-*
 
-environment:
-    USER_RUNTIME_DIR: /run/user/$(id -u test)
+  # Ships xdg-desktop-portal 1.0.2-1ubuntu1.
+  # Fails on the safe-file portion of the test.  1.0.3 appears to work though.
+  # https://bugs.launchpad.net/ubuntu/+source/xdg-desktop-portal/+bug/1810757
+
+  #- ubuntu-18.10-*
 
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
