@@ -14,7 +14,7 @@ description: |
     xdg-document-portal services.
 
 # Only enable the test on systems we know portals to function on.
-# Expand as 
+# Expand as needed.
 systems:
   - ubuntu-18.04-*
   - ubuntu-18.10-*
@@ -23,79 +23,31 @@ environment:
     USER_RUNTIME_DIR: /run/user/$(id -u test)
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-    distro_install_package python3-dbus python3-gi xdg-desktop-portal
-    snap install --edge test-snapd-portal-client
-
-    systemctl stop user@"$(id -u test)".service
-    cat << EOF > /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
-    [D-BUS Service]
-    Name=org.freedesktop.impl.portal.spread
-    Exec=/usr/bin/python3 $TESTSLIB/fakeportalui/portalui.py
-    SystemdService=spread-portal-ui.service
-    EOF
-    cat << EOF > /usr/lib/systemd/user/spread-portal-ui.service
-    [Unit]
-    Description=Fake portal UI
-    [Service]
-    Type=dbus
-    BusName=org.freedesktop.impl.portal.spread
-    ExecStart=/usr/bin/python3 $TESTSLIB/fakeportalui/portalui.py
-    EOF
-    mkdir -p /usr/share/xdg-desktop-portal/portals
-    cat << EOF > /usr/share/xdg-desktop-portal/portals/spread.portal
-    [portal]
-    DBusName=org.freedesktop.impl.portal.spread
-    Interfaces=org.freedesktop.impl.portal.FileChooser
-    UseIn=spread
-    EOF
-
-    mkdir -p "$USER_RUNTIME_DIR"
-    umount --lazy  "${USER_RUNTIME_DIR}/doc" || :
-    rm -rf "${USER_RUNTIME_DIR:?}"/*
-    chmod u=rwX,go= "$USER_RUNTIME_DIR"
-    chown test:test "$USER_RUNTIME_DIR"
-
-    rm -f /tmp/file-to-read.txt
-    rm -f /tmp/file-to-write.txt
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    setup_portals
 
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-
-    systemctl stop user@"$(id -u test)".service
-    rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
-    rm -f /usr/lib/systemd/user/spread-portal-ui.service
-    rm -f /usr/share/xdg-desktop-portal/portals/spread.portal
-    distro_purge_package python3-dbus python3-gi xdg-desktop-portal
-    distro_auto_remove_packages
-    umount --lazy  "${USER_RUNTIME_DIR}/doc" || :
-    rm -rf "${USER_RUNTIME_DIR:?}/*" "${USER_RUNTIME_DIR:?}/.[!.]*"
-
-    rm -f /tmp/file-to-read.txt
-    rm -f /tmp/file-to-write.txt
+    . "$TESTSLIB"/desktop-portal.sh
+    teardown_portals
 
 execute: |
-    systemctl start user@"$(id -u test)".service
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/desktop-portal.sh
 
-    # This isn't quote-safe, but is good enough for our tests.
-    function as_user() {
-      su -l -c "XDG_RUNTIME_DIR=\"${USER_RUNTIME_DIR}\" $*" test
-    }
-    function as_user_session() {
-      as_user systemd-run --user --pipe --wait "$@"
-    }
-
-    as_user systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
+    echo "Install the portals test client"
+    snap install --edge test-snapd-portal-client
 
     echo "The confined application can run open files via the portal"
     echo "from-host-system" > /tmp/file-to-read.txt
+    # file ownership is exposed through the document portal, and our
+    # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/file-to-read.txt
-    as_user_session test-snapd-portal-client open-file | MATCH "from-host-system"
+    as_user test-snapd-portal-client open-file | MATCH "from-host-system"
 
     echo "The confined application can write files via the portal"
     [ ! -f /tmp/file-to-write.txt ]
-    as_user_session test-snapd-portal-client save-file "from-sandbox"
+    as_user test-snapd-portal-client save-file "from-sandbox"
     [ -f /tmp/file-to-write.txt ]
     MATCH "from-sandbox" < /tmp/file-to-write.txt
