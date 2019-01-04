@@ -200,9 +200,9 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
+	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 		return fmt.Errorf(
-			"invalid %q: must have a prefix of $SNAP_DATA or $SNAP_COMMON", fieldName)
+			"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
 	}
 
 	return nil
