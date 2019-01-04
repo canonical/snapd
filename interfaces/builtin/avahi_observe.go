@@ -47,7 +47,7 @@ network netlink,
 
 # Allow access to daemon to create socket
 /{,var/}run/avahi-daemon/  w,
-/{,var/}run/avahi-daemon/{pid,socket} rw,
+/{,var/}run/avahi-daemon/{pid,socket} rwk,
 
 # Description: Allow operating as the avahi service. This gives
 # privileged access to the system.
