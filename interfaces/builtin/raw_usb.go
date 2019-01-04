@@ -35,7 +35,7 @@ const rawusbConnectedPlugAppArmor = `
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
 # Allow access to all ttyUSB devices too
-/dev/ttyUSB[0-9]* rw,
+/dev/tty{USB|ACM}[0-9]* rw,
 
 # Allow detection of usb devices. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
