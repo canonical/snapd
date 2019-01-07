@@ -49,6 +49,10 @@ var (
 	// trespassing
 	IsReadOnly                   = isReadOnly
 	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
+
+	// system
+	DesiredSystemProfilePath = desiredSystemProfilePath
+	CurrentSystemProfilePath = currentSystemProfilePath
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
