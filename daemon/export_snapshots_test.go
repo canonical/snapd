@@ -33,10 +33,7 @@ import (
 )
 
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{
-		overlord:                       o,
-		enableInternalInterfaceActions: true,
-	}
+	d := &Daemon{overlord: o}
 	d.addRoutes()
 	return d
 }
