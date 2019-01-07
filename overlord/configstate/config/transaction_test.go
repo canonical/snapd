@@ -90,6 +90,8 @@ func (op setGetOp) fails() bool {
 
 var setGetTests = [][]setGetOp{{
 	// Basics.
+	`set n=null`,
+	`get n=null`,
 	`set one=1 two=2`,
 	`set big=1234567890`,
 	`setunder three=3 big=9876543210`,
@@ -97,6 +99,7 @@ var setGetTests = [][]setGetOp{{
 	`getunder one=- two=- three=3 big=9876543210`,
 	`changes core.big core.one core.two`,
 	`commit`,
+	`get n=null`,
 	`getunder one=1 two=2 three=3`,
 	`get one=1 two=2 three=3`,
 	`set two=22 four=4 big=1234567890`,

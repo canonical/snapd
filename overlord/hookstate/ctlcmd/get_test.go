@@ -205,6 +205,16 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(string(stderr), Equals, "")
 		c.Check(string(stdout), Equals, test.stdout)
+
+		tr2 = nil
+
+		// another transaction doesn't see uncommited changes
+		state.Lock()
+		defer state.Unlock()
+		tr3 := config.NewTransaction(state)
+		var config map[string]interface{}
+		c.Assert(tr3.Get("test-snap", "root", &config), IsNil)
+		c.Assert(config, DeepEquals, map[string]interface{}{"key1": "a", "key2": "b", "key3": map[string]interface{}{"sub1": "x", "sub2": "y"}})
 	}
 }
 
@@ -256,6 +266,7 @@ func (s *setSuite) TestNull(c *C) {
 	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
 	c.Assert(value, DeepEquals, []interface{}{nil})
 }
+
 func (s *getAttrSuite) SetUpTest(c *C) {
 	s.mockHandler = hooktest.NewMockHandler()
 
@@ -273,6 +284,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	}
 	dynamicPlugAttrs := map[string]interface{}{
 		"dyn-plug-attr": "c",
+		"nilattr":       nil,
 	}
 	dynamicSlotAttrs := map[string]interface{}{
 		"dyn-slot-attr": "d",
@@ -339,6 +351,9 @@ var getPlugAttributesTests = []struct {
 }, {
 	args:   "get :aplug dyn-plug-attr",
 	stdout: "c\n",
+}, {
+	args:   "get -t :aplug nilattr",
+	stdout: "null\n",
 }, {
 	// The --plug parameter doesn't do anything if used on plug side
 	args:   "get --plug :aplug aattr",
