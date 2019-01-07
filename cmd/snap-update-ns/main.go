@@ -86,10 +86,10 @@ func run() error {
 	if opts.UserMounts {
 		return applyUserFstab(opts.Positionals.SnapName)
 	}
-	return applyFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
+	return applySystemFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
 }
 
-func applyFstab(instanceName string, fromSnapConfine bool) error {
+func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
 	lock, err := mount.OpenLock(instanceName)
