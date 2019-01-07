@@ -37,42 +37,6 @@ func newConnRef(plugSnap, plug, slotSnap, slot string) *interfaces.ConnRef {
 	return &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plug}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slot}}
 }
 
-func (s *SortingSuite) TestSortBySlotRef(c *C) {
-	list := []interfaces.SlotRef{{
-		Snap: "snap-2",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2_instance",
-		Name: "name-2",
-	}, {
-		Snap: "snap-3",
-		Name: "name-2",
-	}, {
-		Snap: "snap-1",
-		Name: "name-2",
-	}, {
-		Snap: "snap-1",
-		Name: "name-1",
-	}}
-	sort.Sort(interfaces.BySlotRef(list))
-	c.Assert(list, DeepEquals, []interfaces.SlotRef{{
-		Snap: "snap-1",
-		Name: "name-1",
-	}, {
-		Snap: "snap-1",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2_instance",
-		Name: "name-2",
-	}, {
-		Snap: "snap-3",
-		Name: "name-2",
-	}})
-}
-
 func (s *SortingSuite) TestSortByPlugRef(c *C) {
 	list := []interfaces.PlugRef{{
 		Snap: "snap-2",
