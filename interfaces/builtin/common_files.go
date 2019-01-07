@@ -51,7 +51,7 @@ func (a filesAAPerm) String() string {
 	case filesRead:
 		return "rk" // [r]ead and loc[k]
 	case filesWrite:
-		return "rwkl"
+		return "rwkl" // [r]ead, [w]rite, loc[k] and [l]ink//
 	}
 	panic(fmt.Sprintf("invalid perm: %d", a))
 }
@@ -69,9 +69,10 @@ func formatPath(ip interface{}) (string, error) {
 		p = strings.Replace(p, "$HOME", "@{HOME}", -1)
 		prefix = "owner "
 	}
+	p = filepath.Clean(p)
 	p += "{,/,/**}"
 
-	return fmt.Sprintf("%s%q", prefix, filepath.Clean(p)), nil
+	return fmt.Sprintf("%s%q", prefix, p), nil
 }
 
 func allowPathAccess(buf *bytes.Buffer, perm filesAAPerm, paths []interface{}) error {
