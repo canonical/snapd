@@ -43,12 +43,6 @@ func (c ByInterfaceName) Len() int           { return byInterfaceName(c).Len() }
 func (c ByInterfaceName) Swap(i, j int)      { byInterfaceName(c).Swap(i, j) }
 func (c ByInterfaceName) Less(i, j int) bool { return byInterfaceName(c).Less(i, j) }
 
-type BySlotInfo bySlotInfo
-
-func (c BySlotInfo) Len() int           { return bySlotInfo(c).Len() }
-func (c BySlotInfo) Swap(i, j int)      { bySlotInfo(c).Swap(i, j) }
-func (c BySlotInfo) Less(i, j int) bool { return bySlotInfo(c).Less(i, j) }
-
 var (
 	FindSnapdPath = findSnapdPath
 )
