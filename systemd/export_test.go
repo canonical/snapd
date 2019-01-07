@@ -46,3 +46,11 @@ func MockJournalStdoutPath(path string) func() {
 		journalStdoutPath = oldPath
 	}
 }
+
+func (e *Error) SetExitCode(i int) {
+	e.exitCode = i
+}
+
+func (e *Error) SetMsg(msg []byte) {
+	e.msg = msg
+}

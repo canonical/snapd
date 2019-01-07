@@ -82,9 +82,16 @@ type RefreshOptions struct {
 
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 300 * time.Millisecond,
+		Initial: 350 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
+var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
+	retry.Exponential{
+		Initial: 500 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -1443,7 +1450,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	var finalErr error
 	var dlSize float64
 	startTime := time.Now()
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
 		reqOptions := reqOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
