@@ -148,10 +148,6 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	//
 	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
 	// remapping for parallel installs only when the snap has an instance key
-	//
-	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
-	// allow defining layout items that refer to SNAP_USER_DATA and
-	// SNAP_USER_COMMON.
 	as := &Assumptions{}
 	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
@@ -183,6 +179,9 @@ func applyUserFstab(snapName string) error {
 	// TODO: configure the secure helper and inform it about directories that
 	// can be created without trespassing.
 	as := &Assumptions{}
+	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
+	// allow defining layout items that refer to SNAP_USER_DATA and
+	// SNAP_USER_COMMON.
 	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, as)
 	return err
 }
