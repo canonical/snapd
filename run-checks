@@ -217,6 +217,8 @@ if [ "$STATIC" = 1 ]; then
 
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
+
+    # FIXME: re-add staticcheck with a matching version for the used go-version
 fi
 
 if [ "$UNIT" = 1 ]; then
