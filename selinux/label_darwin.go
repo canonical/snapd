@@ -25,6 +25,6 @@ func VerifyPathContext(aPath string) (bool, error) {
 }
 
 // RestoreContext restores the default SELinux context of given path
-func RestoreContext(aPath string, recursive bool) error {
+func RestoreContext(aPath string, mode RestoreMode) error {
 	return nil
 }
