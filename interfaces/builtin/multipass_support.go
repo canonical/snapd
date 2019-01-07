@@ -40,8 +40,6 @@ const multipassSupportConnectedPlugAppArmor = `
 # allows the Multipass daemon to configure AppArmor, and we expect Multipass to
 # create and apply correct policies for the child processes it spawns.
 
-###include <abstractions/openssl>
-
 # Allow socket
 /run/multipass_socket  rw,
 capability chown,
@@ -58,7 +56,7 @@ capability fsetid,
 /etc/apparmor.d/abstractions/{,**} r,
 /etc/apparmor/parser.conf r,
 /etc/apparmor/subdomain.conf r,
-/sys/kernel/security/apparmor/.replace rw,
+/sys/kernel/security/apparmor/.replace w,
 /sys/kernel/security/apparmor/.remove w,
 /sys/kernel/security/apparmor/{,**} r,
 
