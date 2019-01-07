@@ -22,6 +22,7 @@ package backend
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -31,7 +32,7 @@ var updateFontconfigCaches = updateFontconfigCachesImpl
 func updateFontconfigCachesImpl() error {
 	for _, fc := range []string{"fc-cache-v6", "fc-cache-v7"} {
 		// FIXME: also use the snapd snap if available
-		cmd, err := osutil.CommandFromCore("/bin/" + fc)
+		cmd, err := osutil.CommandFromCore(dirs.SnapMountDir, "/bin/"+fc)
 		if err != nil {
 			return fmt.Errorf("cannot get %s from core: %v", fc, err)
 		}

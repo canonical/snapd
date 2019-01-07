@@ -859,6 +859,51 @@ func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error)
 	return ifaceName, hotplugKey, err
 }
 
+func allocHotplugSeq(st *state.State) (int, error) {
+	var seq int
+	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
+		return 0, err
+	}
+	seq++
+	st.Set("hotplug-seq", seq)
+	return seq, nil
+}
+
+func isHotplugChange(chg *state.Change) bool {
+	return strings.HasPrefix(chg.Kind(), "hotplug-")
+}
+
+func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey string, err error) {
+	if err = chg.Get("hotplug-key", &hotplugKey); err != nil {
+		return 0, "", fmt.Errorf("internal error: hotplug-key not set on change %q", chg.Kind())
+	}
+	if err = chg.Get("hotplug-seq", &seq); err != nil {
+		return 0, "", fmt.Errorf("internal error: hotplug-seq not set on change %q", chg.Kind())
+	}
+	return seq, hotplugKey, nil
+}
+
+func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
+	chg.Set("hotplug-seq", seq)
+	chg.Set("hotplug-key", hotplugKey)
+}
+
+// addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
+// and makes all existing tasks of the change wait for it.
+func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
+	st := hotplugChange.State()
+	seq, err := allocHotplugSeq(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
+	}
+	setHotplugChangeAttrs(hotplugChange, seq, hotplugKey)
+	seqControl := st.NewTask("hotplug-seq-wait", fmt.Sprintf("Serialize hotplug change for hotplug key %q", hotplugKey))
+	tss := state.NewTaskSet(hotplugChange.Tasks()...)
+	tss.WaitFor(seqControl)
+	hotplugChange.AddTask(seqControl)
+	return nil
+}
+
 type HotplugSlotInfo struct {
 	Name        string                 `json:"name"`
 	Interface   string                 `json:"interface"`

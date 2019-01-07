@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -688,6 +689,17 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
+		if e, ok := err.(*url.Error); ok {
+			if neterr, ok := e.Err.(*net.OpError); ok {
+				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
+					return SyncResponse(&resp{
+						Type:   ResponseTypeError,
+						Result: &errorResult{Message: dnserr.Error(), Kind: errorKindDNSFailure},
+						Status: 400,
+					}, nil)
+				}
+			}
+		}
 		if e, ok := err.(net.Error); ok && e.Timeout() {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,

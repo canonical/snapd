@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -60,7 +60,7 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
-	kernelFeatures        = release.AppArmorFeatures
+	kernelFeatures        = release.AppArmorKernelFeatures
 	parserFeatures        = release.AppArmorParserFeatures
 )
 
@@ -305,11 +305,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
-	//
-	// TODO: we need to deal with the "snapd" snap here soon
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -318,7 +316,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// systems but /etc/apparmor.d is not writable on core18 systems
 	if snapName == "snapd" && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -476,7 +474,7 @@ func downgradeConfinement() bool {
 			// 4.16, do not downgrade the confinement template.
 			return false
 		}
-	case release.DistroLike("arch"):
+	case release.DistroLike("arch", "archlinux"):
 		// The default kernel has AppArmor enabled since 4.18.8, the
 		// hardened one since 4.17.4
 		return false
@@ -524,7 +522,8 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
-			for _, f := range parserFeatures() {
+			features, _ := parserFeatures()
+			for _, f := range features {
 				if f == "unsafe" {
 					return fmt.Sprintf("change_profile unsafe /**,")
 				}
@@ -564,6 +563,14 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
 					tagSnippets += ptraceTraceDenySnippet
 				}
+
+				// Use 'ix' rules in the home interface unless an
+				// interface asked to suppress them
+				repl := "ix"
+				if spec.SuppressHomeIx() {
+					repl = ""
+				}
+				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
 			}
 
 			return tagSnippets
@@ -588,10 +595,10 @@ func (b *Backend) SandboxFeatures() []string {
 		return nil
 	}
 
-	features := kernelFeatures()
-	pFeatures := parserFeatures()
-	tags := make([]string, 0, len(features)+len(pFeatures))
-	for _, feature := range features {
+	kFeatures, _ := kernelFeatures()
+	pFeatures, _ := parserFeatures()
+	tags := make([]string, 0, len(kFeatures)+len(pFeatures))
+	for _, feature := range kFeatures {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)

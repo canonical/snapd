@@ -43,10 +43,10 @@ func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
 }
 
 func MockAppArmorParserSearchPath(new string) (restore func()) {
-	oldParserSearchPath := parserSearchPath
-	parserSearchPath = new
+	oldAppArmorParserSearchPath := appArmorParserSearchPath
+	appArmorParserSearchPath = new
 	return func() {
-		parserSearchPath = oldParserSearchPath
+		appArmorParserSearchPath = oldAppArmorParserSearchPath
 	}
 }
 
@@ -59,7 +59,21 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 }
 
 var (
-	ProbeAppArmor            = probeAppArmor
-	RequiredAppArmorFeatures = requiredAppArmorFeatures
-	IsWSL                    = isWSL
+	ProbeAppArmorKernelFeatures = probeAppArmorKernelFeatures
+	ProbeAppArmorParserFeatures = probeAppArmorParserFeatures
+
+	RequiredAppArmorKernelFeatures  = requiredAppArmorKernelFeatures
+	RequiredAppArmorParserFeatures  = requiredAppArmorParserFeatures
+	PreferredAppArmorKernelFeatures = preferredAppArmorKernelFeatures
+	PreferredAppArmorParserFeatures = preferredAppArmorParserFeatures
+
+	IsWSL = isWSL
 )
+
+func FreshAppArmorAssessment() {
+	appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
+}
+
+func FreshSecCompProbe() {
+	secCompProber = &secCompProbe{}
+}
