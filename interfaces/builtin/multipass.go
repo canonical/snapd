@@ -37,7 +37,6 @@ const multipassConnectedPlugAppArmor = `
 const multipassConnectedPlugSecComp = `
 # Description: allow access to the Multipass daemon socket.
 bind
-socket AF_NETLINK - NETLINK_GENERIC
 `
 
 func init() {
