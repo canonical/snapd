@@ -16,8 +16,6 @@ set -eux
 . "$TESTSLIB/state.sh"
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
-# shellcheck source=tests/lib/reset.sh
-. "$TESTSLIB/reset.sh"
 
 
 disable_kernel_rate_limiting() {
@@ -253,9 +251,7 @@ prepare_classic() {
     fi
 
     # Snapshot the state including core.
-    if is_snapd_state_saved; then
-        reset_snapd --reuse-core
-    else
+    if ! is_snapd_state_saved; then
         # need to be seeded to proceed with snap install
         # also make sure the captured state is seeded
         snap wait system seed.loaded
@@ -632,9 +628,7 @@ prepare_ubuntu_core() {
     setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
-    if is_snapd_state_saved; then
-        reset_snapd --reuse-core
-    else
+    if ! is_snapd_state_saved; then
         systemctl stop snapd.service snapd.socket
         save_snapd_state
         systemctl start snapd.socket
