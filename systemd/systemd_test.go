@@ -486,7 +486,7 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 	c.Assert(MountUnitPath("/apps/hello/1.1"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello-1.1.mount"))
 }
 
-func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
+func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
@@ -496,7 +496,7 @@ func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New("", nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -516,13 +516,13 @@ WantedBy=multi-user.target
 `[1:], mockSnapPath))
 }
 
-func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
+func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
+	mountUnitName, err := New("", nil).AddMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -564,7 +564,7 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New("", nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -602,7 +602,7 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New("", nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
