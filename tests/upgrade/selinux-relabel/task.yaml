@@ -1,8 +1,7 @@
 summary: Check that correct SELinux file contexts were assigned on upgrade
 
 # Only distros that support SELinux and have snapd in their repositories
-# TODO: add CentOS once snapd lands in EPEL
-systems: [fedora-*]
+systems: [fedora-*, centos-*]
 
 execute: |
     # only runs on distros with SELinux enabled
