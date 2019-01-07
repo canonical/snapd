@@ -1070,7 +1070,6 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		const auto = true
 		if err := checkDisconnectConflicts(st, snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
