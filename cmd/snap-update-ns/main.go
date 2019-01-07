@@ -153,7 +153,7 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
-	return computeAndSaveChanges(instanceName, as)
+	return computeAndSaveSystemChanges(instanceName, as)
 }
 
 func applyUserFstab(snapName string) error {
@@ -186,7 +186,7 @@ func applyUserFstab(snapName string) error {
 	return err
 }
 
-func computeAndSaveChanges(snapName string, as *Assumptions) error {
+func computeAndSaveSystemChanges(snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
