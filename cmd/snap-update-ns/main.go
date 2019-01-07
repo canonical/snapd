@@ -241,28 +241,6 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 	return &currentAfter, nil
 }
 
-func debugShowProfile(profile *osutil.MountProfile, header string) {
-	if len(profile.Entries) > 0 {
-		logger.Debugf("%s:", header)
-		for _, entry := range profile.Entries {
-			logger.Debugf("\t%s", entry)
-		}
-	} else {
-		logger.Debugf("%s: (none)", header)
-	}
-}
-
-func debugShowChanges(changes []*Change, header string) {
-	if len(changes) > 0 {
-		logger.Debugf("%s:", header)
-		for _, change := range changes {
-			logger.Debugf("\t%s", change)
-		}
-	} else {
-		logger.Debugf("%s: (none)", header)
-	}
-}
-
 func applyUserFstab(snapName string) error {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
