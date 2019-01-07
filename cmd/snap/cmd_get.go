@@ -79,7 +79,7 @@ func init() {
 				desc: i18n.G("The snap whose conf is being requested"),
 			},
 			{
-				// TRANSLATORS: This needs to be wrapped in <>s.
+				// TRANSLATORS: This needs to begin with < and end with >
 				name: i18n.G("<key>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Key of interest within the configuration"),
