@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -563,6 +563,14 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
 					tagSnippets += ptraceTraceDenySnippet
 				}
+
+				// Use 'ix' rules in the home interface unless an
+				// interface asked to suppress them
+				repl := "ix"
+				if spec.SuppressHomeIx() {
+					repl = ""
+				}
+				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
 			}
 
 			return tagSnippets
