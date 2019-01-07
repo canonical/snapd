@@ -53,6 +53,9 @@ var (
 	// system
 	DesiredSystemProfilePath = desiredSystemProfilePath
 	CurrentSystemProfilePath = currentSystemProfilePath
+
+	// user
+	DesiredUserProfilePath = desiredUserProfilePath
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
