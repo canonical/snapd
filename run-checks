@@ -218,18 +218,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
 
-    if command -v staticcheck >/dev/null || ( go version | grep -E 'go1\.(9|1[0-9])(\.[0-9]| )' ); then
-        # either you already have staticcheck on your path, or you're on a new enough go
-        echo Running staticcheck
-        if ! command -v staticcheck >/dev/null; then
-            go get -u honnef.co/go/tools/cmd/staticcheck
-        fi
-        # SA1019 https://github.com/dominikh/go-tools/blob/master/cmd/staticcheck/docs/checks/SA1019
-        # complains about using os.SEEK_* instead of io.Seek*, when the latter don't exist in 1.6 yet
-        # SA1012 https://github.com/dominikh/go-tools/blob/master/cmd/staticcheck/docs/checks/SA1012
-        # complains about tomb.Context(nil), which is wrong -- that is, tomb.Context(nil) is right.
-        go list ./... | grep -v '/vendor/' | xargs staticcheck -tests=false -ignore '*:SA1019,SA1012'
-    fi
+    # FIXME: re-add staticcheck with a matching version for the used go-version
 fi
 
 if [ "$UNIT" = 1 ]; then
