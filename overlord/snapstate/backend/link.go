@@ -68,6 +68,14 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 		return err
 	}
 
+	// fontconfig is only relevant on classic
+	// TODO: consider moving this to a less hidden place
+	if release.OnClassic {
+		if err := updateFontconfigCaches(); err != nil {
+			logger.Noticef("cannot update fontconfig cache: %v", err)
+		}
+	}
+
 	// XXX/TODO: this needs to be a task with proper undo and tests!
 	if model != nil && !release.OnClassic {
 		bootBase := "core"

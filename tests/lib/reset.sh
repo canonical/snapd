@@ -61,6 +61,15 @@ reset_classic() {
         exit 1
     fi
 
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # On systems running SELinux we need to restore the context of the
+            # directories we just recreated. Otherwise, the entries created
+            # inside will be incorrectly labeled.
+            restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
+            ;;
+    esac
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
     fi
@@ -107,7 +116,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "core" | README)
+            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "core" | "snapd" |README)
                 ;;
             *)
                 # make sure snapd is running before we attempt to remove snaps, in case a test stopped it

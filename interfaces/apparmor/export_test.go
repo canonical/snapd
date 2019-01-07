@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	ChopTree                   = chopTree
 	NsProfile                  = nsProfile
 	ProfileGlobs               = profileGlobs
 	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
@@ -94,7 +93,7 @@ func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
 	return spec.setScope(securityTags)
 }
 
-func MockKernelFeatures(f func() []string) (resture func()) {
+func MockKernelFeatures(f func() ([]string, error)) (resture func()) {
 	old := kernelFeatures
 	kernelFeatures = f
 	return func() {
@@ -102,7 +101,7 @@ func MockKernelFeatures(f func() []string) (resture func()) {
 	}
 }
 
-func MockParserFeatures(f func() []string) (resture func()) {
+func MockParserFeatures(f func() ([]string, error)) (resture func()) {
 	old := parserFeatures
 	parserFeatures = f
 	return func() {
