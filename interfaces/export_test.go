@@ -25,12 +25,6 @@ func (c ByConnRef) Len() int           { return byConnRef(c).Len() }
 func (c ByConnRef) Swap(i, j int)      { byConnRef(c).Swap(i, j) }
 func (c ByConnRef) Less(i, j int) bool { return byConnRef(c).Less(i, j) }
 
-type ByPlugRef byPlugRef
-
-func (c ByPlugRef) Len() int           { return byPlugRef(c).Len() }
-func (c ByPlugRef) Swap(i, j int)      { byPlugRef(c).Swap(i, j) }
-func (c ByPlugRef) Less(i, j int) bool { return byPlugRef(c).Less(i, j) }
-
 type ByPlugSnapAndName byPlugSnapAndName
 
 func (c ByPlugSnapAndName) Len() int           { return byPlugSnapAndName(c).Len() }

@@ -42,17 +42,6 @@ func (c byConnRef) Less(i, j int) bool {
 	return c[i].SlotRef.Name < c[j].SlotRef.Name
 }
 
-type byPlugRef []PlugRef
-
-func (c byPlugRef) Len() int      { return len(c) }
-func (c byPlugRef) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byPlugRef) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
-	}
-	return c[i].Name < c[j].Name
-}
-
 type byPlugSnapAndName []*snap.PlugInfo
 
 func (c byPlugSnapAndName) Len() int      { return len(c) }
