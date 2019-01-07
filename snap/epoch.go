@@ -159,7 +159,7 @@ func (e *Epoch) IsZero() bool {
 	return rZero && wZero
 }
 
-func ueq(a, b []uint32) bool {
+func epochListEq(a, b []uint32) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -175,7 +175,7 @@ func (e *Epoch) Equal(other *Epoch) bool {
 	if e.IsZero() {
 		return other.IsZero()
 	}
-	return ueq(e.Read, other.Read) && ueq(e.Write, other.Write)
+	return epochListEq(e.Read, other.Read) && epochListEq(e.Write, other.Write)
 }
 
 // Validate checks that the epoch makes sense.
