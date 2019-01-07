@@ -20,6 +20,8 @@
 package release_test
 
 import (
+	"io"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
@@ -47,4 +49,21 @@ func (s *seccompSuite) TestSecCompSupportsAction(c *C) {
 	reset = release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
 	defer reset()
 	c.Check(release.SecCompSupportsAction("log"), Equals, true)
+}
+
+func (s *seccompSuite) TestProbe(c *C) {
+	release.FreshSecCompProbe()
+	r1 := release.MockIoutilReadfile(func(string) ([]byte, error) {
+		return []byte("a b\n"), nil
+	})
+	defer r1()
+
+	c.Check(release.SecCompActions(), DeepEquals, []string{"a", "b"})
+
+	r2 := release.MockIoutilReadfile(func(string) ([]byte, error) {
+		return nil, io.ErrUnexpectedEOF
+	})
+	defer r2()
+
+	c.Check(release.SecCompActions(), DeepEquals, []string{"a", "b"})
 }

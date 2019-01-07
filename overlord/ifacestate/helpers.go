@@ -23,10 +23,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -74,7 +76,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if m.profilesNeedRegeneration() {
+	if profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(); err != nil {
 			return err
 		}
@@ -137,7 +139,7 @@ func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	return nil
 }
 
-func (m *InterfaceManager) profilesNeedRegeneration() bool {
+func profilesNeedRegenerationImpl() bool {
 	mismatch, err := interfaces.SystemKeyMismatch()
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
@@ -145,6 +147,9 @@ func (m *InterfaceManager) profilesNeedRegeneration() bool {
 	}
 	return mismatch
 }
+
+var profilesNeedRegeneration = profilesNeedRegenerationImpl
+var writeSystemKey = interfaces.WriteSystemKey
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
@@ -163,6 +168,16 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			return err
 		}
 	}
+
+	// The reason the system key is unlinked is to prevent snapd from believing
+	// that an old system key is valid and represents security setup
+	// established in the system. If snapd is reverted following a failed
+	// startup then system key may match the system key that used to be on disk
+	// but some of the system security may have been changed by the new snapd,
+	// the one that was reverted. Unlinking avoids such possibility, forcing
+	// old snapd to re-establish proper security view.
+	shouldWriteSystemKey := true
+	os.Remove(dirs.SnapSystemKeyFile)
 
 	// For each snap:
 	for _, snapInfo := range snaps {
@@ -183,15 +198,18 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
-				// Let's log this but carry on
+				// Let's log this but carry on without writing the system key.
 				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
 					backend.Name(), snapName, err)
+				shouldWriteSystemKey = false
 			}
 		}
 	}
 
-	if err := interfaces.WriteSystemKey(); err != nil {
-		logger.Noticef("cannot write system key: %v", err)
+	if shouldWriteSystemKey {
+		if err := writeSystemKey(); err != nil {
+			logger.Noticef("cannot write system key: %v", err)
+		}
 	}
 	return nil
 }
@@ -839,6 +857,51 @@ func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error)
 		return "", "", fmt.Errorf("internal error: cannot get hotplug key from hotplug task: %s", err)
 	}
 	return ifaceName, hotplugKey, err
+}
+
+func allocHotplugSeq(st *state.State) (int, error) {
+	var seq int
+	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
+		return 0, err
+	}
+	seq++
+	st.Set("hotplug-seq", seq)
+	return seq, nil
+}
+
+func isHotplugChange(chg *state.Change) bool {
+	return strings.HasPrefix(chg.Kind(), "hotplug-")
+}
+
+func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey string, err error) {
+	if err = chg.Get("hotplug-key", &hotplugKey); err != nil {
+		return 0, "", fmt.Errorf("internal error: hotplug-key not set on change %q", chg.Kind())
+	}
+	if err = chg.Get("hotplug-seq", &seq); err != nil {
+		return 0, "", fmt.Errorf("internal error: hotplug-seq not set on change %q", chg.Kind())
+	}
+	return seq, hotplugKey, nil
+}
+
+func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
+	chg.Set("hotplug-seq", seq)
+	chg.Set("hotplug-key", hotplugKey)
+}
+
+// addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
+// and makes all existing tasks of the change wait for it.
+func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
+	st := hotplugChange.State()
+	seq, err := allocHotplugSeq(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
+	}
+	setHotplugChangeAttrs(hotplugChange, seq, hotplugKey)
+	seqControl := st.NewTask("hotplug-seq-wait", fmt.Sprintf("Serialize hotplug change for hotplug key %q", hotplugKey))
+	tss := state.NewTaskSet(hotplugChange.Tasks()...)
+	tss.WaitFor(seqControl)
+	hotplugChange.AddTask(seqControl)
+	return nil
 }
 
 type HotplugSlotInfo struct {
