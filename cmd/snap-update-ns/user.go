@@ -28,8 +28,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+func desiredUserProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+}
+
 func applyUserFstab(snapName string) error {
-	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+	desiredProfilePath := desiredUserProfilePath(snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)

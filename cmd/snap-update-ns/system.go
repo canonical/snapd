@@ -29,6 +29,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func desiredSystemProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+}
+
+func currentSystemProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+}
+
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
@@ -100,14 +108,14 @@ func computeAndSaveSystemChanges(snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
-	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+	desiredProfilePath := desiredSystemProfilePath(snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(desired, "desired mount profile")
 
-	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	currentProfilePath := currentSystemProfilePath(snapName)
 	currentBefore, err := osutil.LoadMountProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
