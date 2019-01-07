@@ -451,6 +451,8 @@ debug-each: |
         snap interfaces || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
+        echo '# free space'
+        df -h || true
     fi
 
 rename:
