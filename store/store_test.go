@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -396,6 +397,13 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	s.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
 
 	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1,
+		},
+	)))
+
+	store.MockDownloadRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,
 			Factor:  1,
@@ -3548,7 +3556,7 @@ var buyTests = []struct {
 	snapID            string
 	price             float64
 	currency          string
-	expectedResult    *store.BuyResult
+	expectedResult    *client.BuyResult
 	expectedError     string
 }{
 	{
@@ -3556,7 +3564,7 @@ var buyTests = []struct {
 		suggestedCurrency: "EUR",
 		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"0.99","currency":"EUR"}`,
 		buyResponse:       mockOrderResponseJSON,
-		expectedResult:    &store.BuyResult{State: "Complete"},
+		expectedResult:    &client.BuyResult{State: "Complete"},
 	},
 	{
 		// failure due to invalid price
@@ -3633,7 +3641,7 @@ func (s *storeTestSuite) TestBuy500(c *C) {
 	}
 	sto := store.New(&cfg, authContext)
 
-	buyOptions := &store.BuyOptions{
+	buyOptions := &client.BuyOptions{
 		SnapID:   helloWorldSnapID,
 		Currency: "USD",
 		Price:    1,
@@ -3713,7 +3721,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 		c.Assert(snap, NotNil)
 		c.Assert(err, IsNil)
 
-		buyOptions := &store.BuyOptions{
+		buyOptions := &client.BuyOptions{
 			SnapID:   snap.SnapID,
 			Currency: sto.SuggestedCurrency(),
 			Price:    snap.Prices[sto.SuggestedCurrency()],
@@ -3747,7 +3755,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	sto := store.New(&store.Config{}, nil)
 
 	// no snap ID
-	result, err := sto.Buy(&store.BuyOptions{
+	result, err := sto.Buy(&client.BuyOptions{
 		Price:    1.0,
 		Currency: "USD",
 	}, s.user)
@@ -3756,7 +3764,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: snap ID missing")
 
 	// no price
-	result, err = sto.Buy(&store.BuyOptions{
+	result, err = sto.Buy(&client.BuyOptions{
 		SnapID:   "snap ID",
 		Currency: "USD",
 	}, s.user)
@@ -3765,7 +3773,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: invalid expected price")
 
 	// no currency
-	result, err = sto.Buy(&store.BuyOptions{
+	result, err = sto.Buy(&client.BuyOptions{
 		SnapID: "snap ID",
 		Price:  1.0,
 	}, s.user)
@@ -3774,7 +3782,7 @@ func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap: currency missing")
 
 	// no user
-	result, err = sto.Buy(&store.BuyOptions{
+	result, err = sto.Buy(&client.BuyOptions{
 		SnapID:   "snap ID",
 		Price:    1.0,
 		Currency: "USD",

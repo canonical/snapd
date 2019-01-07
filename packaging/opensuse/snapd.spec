@@ -76,7 +76,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.36.2
+Version:        2.36.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -272,7 +272,7 @@ rm -f %{buildroot}%{_bindir}/ubuntu-core-launcher
 # shutdown process and thus can be left out of the distribution package.
 rm -f %{buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
-install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,cookie,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 
 install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/vulkan}
 install -d %{buildroot}%{_localstatedir}/cache/snapd
@@ -360,6 +360,7 @@ fi
 %dir %{_sharedstatedir}/snapd/apparmor/profiles
 %dir %{_sharedstatedir}/snapd/apparmor/snap-confine
 %dir %{_sharedstatedir}/snapd/assertions
+%dir %{_sharedstatedir}/snapd/cookie
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device

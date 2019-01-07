@@ -152,11 +152,7 @@ build_rpm() {
         -ba \
         "$packaging_path/snapd.spec"
 
-    cp "$rpm_dir"/RPMS/$arch/snap*.rpm "${GOPATH%%:*}"
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
-        # On Fedora we have an additional package for SELinux
-        cp "$rpm_dir"/RPMS/noarch/snap*.rpm "${GOPATH%%:*}"
-    fi
+    find "$rpm_dir"/RPMS -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
 }
 
 build_arch_pkg() {
@@ -428,10 +424,16 @@ prepare_suite_each() {
     fi
     # Check if journalctl is ready to run the test
     check_journalctl_ready
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
+            ;;
+    esac
 }
 
 restore_suite_each() {
-    true
+    rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 }
 
 restore_suite() {

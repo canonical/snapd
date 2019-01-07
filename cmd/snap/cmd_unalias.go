@@ -43,7 +43,7 @@ func init() {
 	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
 		return &cmdUnalias{}
 	}, waitDescs.also(nil), []argDesc{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		{name: i18n.G("<alias-or-snap>")},
 	})
 }

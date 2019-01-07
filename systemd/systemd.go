@@ -131,6 +131,7 @@ type Systemd interface {
 	Restart(service string, timeout time.Duration) error
 	Status(units ...string) ([]*UnitStatus, error)
 	IsEnabled(service string) (bool, error)
+	IsActive(service string) (bool, error)
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
@@ -330,6 +331,20 @@ func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	// for disabled services
 	sysdErr, ok := err.(*Error)
 	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
+		return false, nil
+	}
+	return false, err
+}
+
+// IsActive checkes whether the given service is Active
+func (s *systemd) IsActive(serviceName string) (bool, error) {
+	_, err := systemctlCmd("--root", s.rootDir, "is-active", serviceName)
+	if err == nil {
+		return true, nil
+	}
+	// "systemctl is-active <name>" prints `inactive\n` to stderr and returns exit code 1 for inactive services
+	sysdErr, ok := err.(*Error)
+	if ok && sysdErr.exitCode > 0 && strings.TrimSpace(string(sysdErr.msg)) == "inactive" {
 		return false, nil
 	}
 	return false, err
