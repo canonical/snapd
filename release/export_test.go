@@ -58,14 +58,6 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
-func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
-	old := selinuxIsEnabled
-	selinuxIsEnabled = isEnabled
-	return func() {
-		selinuxIsEnabled = old
-	}
-}
-
 func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
 	old := selinuxIsEnforcing
 	selinuxIsEnforcing = isEnforcing
