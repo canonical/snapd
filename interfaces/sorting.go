@@ -70,14 +70,6 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
-type byBackendName []SecurityBackend
-
-func (c byBackendName) Len() int      { return len(c) }
-func (c byBackendName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byBackendName) Less(i, j int) bool {
-	return c[i].Name() < c[j].Name()
-}
-
 func sortedSnapNamesWithPlugs(m map[string]map[string]*snap.PlugInfo) []string {
 	keys := make([]string, 0, len(m))
 	for key := range m {

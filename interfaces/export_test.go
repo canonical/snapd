@@ -37,12 +37,6 @@ func (c BySlotSnapAndName) Len() int           { return bySlotSnapAndName(c).Len
 func (c BySlotSnapAndName) Swap(i, j int)      { bySlotSnapAndName(c).Swap(i, j) }
 func (c BySlotSnapAndName) Less(i, j int) bool { return bySlotSnapAndName(c).Less(i, j) }
 
-type ByBackendName byBackendName
-
-func (c ByBackendName) Len() int           { return byBackendName(c).Len() }
-func (c ByBackendName) Swap(i, j int)      { byBackendName(c).Swap(i, j) }
-func (c ByBackendName) Less(i, j int) bool { return byBackendName(c).Less(i, j) }
-
 type ByInterfaceName byInterfaceName
 
 func (c ByInterfaceName) Len() int           { return byInterfaceName(c).Len() }
