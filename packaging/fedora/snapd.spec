@@ -83,14 +83,16 @@
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 
-# SELinux policy does not build on Amazon Linux 2 at the moment, fails with
-# checkmodule complaining about missing 'map' permission for 'file' class
+# Fedora selinux-policy includes 'map' permission on a 'file' class. However,
+# neither Amazon Linux 2 nor CentOS 7 have had the policy updated. According to
+# https://bugzilla.redhat.com/show_bug.cgi?id=1574383 RHEL 7.6 should have the
+# necessary updates. For now disable SELinux on the affected distros.
 %if 0%{?amzn2} == 1
 %global with_selinux 0
 %endif
 
 Name:           snapd
-Version:        2.36.1
+Version:        2.36.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -221,7 +223,11 @@ BuildArch:      noarch
 BuildRequires:  selinux-policy, selinux-policy-devel
 Requires(post): selinux-policy-base >= %{_selinux_policy_version}
 Requires(post): policycoreutils
+%if 0%{?rhel} == 7
+Requires(post): policycoreutils-python
+%else
 Requires(post): policycoreutils-python-utils
+%endif
 Requires(pre):  libselinux-utils
 Requires(post): libselinux-utils
 
@@ -523,6 +529,7 @@ install -d -p %{buildroot}%{_unitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
@@ -587,12 +594,18 @@ pushd ./data
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+popd
+
+%if 0%{?rhel} == 7
+# Install kernel tweaks
+# See: https://access.redhat.com/articles/3128691
+install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysctldir}/99-snap.conf
+%endif
 
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
-popd
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
@@ -702,6 +715,7 @@ popd
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
+%dir %{_sharedstatedir}/snapd/cookie
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
@@ -722,6 +736,9 @@ popd
 %ghost %{_sharedstatedir}/snapd/snap/README
 %if %{with snap_symlink}
 /snap
+%endif
+%if 0%{?rhel} == 7
+%{_sysctldir}/99-snap.conf
 %endif
 
 %files -n snap-confine
@@ -764,6 +781,9 @@ popd
 %endif
 
 %post
+%if 0%{?rhel} == 7
+%sysctl_apply 99-snap.conf
+%endif
 %systemd_post %{snappy_svcs}
 # If install, test if snapd socket and timer are enabled.
 # If enabled, then attempt to start them. This will silently fail
@@ -806,7 +826,41 @@ fi
 %endif
 
 %changelog
-* Wed Nov 09 2018 Michael Vogt <mvo@ubuntu.com>
+* Fri Dec 14 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.36.3
+ - wrappers: use new systemd.IsActive in core18 early boot
+ - httputil: retry on temporary net errors
+ - wrappers: only restart service in core18 when they are active
+ - systemd: start snapd.autoimport.service in --no-block mode
+ - data/selinux: fix syntax error in definition of snappy_admin
+   interfacewhen installing selinux-policy-devel package.
+ - centos: enable SELinux support on CentOS 7
+ - cmd, dirs, interfaces/apparmor: update distro identification to
+   support ID="archlinux"
+ - apparmor: allow hard link to snap-specific semaphore files
+ - overlord,apparmor: new syskey behaviour + non-ignored snap-confine
+   profile errors
+ - snap: add new `snap run --trace-exec` call
+ - interfaces/backends: detect too old apparmor_parser
+
+* Thu Nov 29 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.36.2
+ - daemon, vendor: bump github.com/coreos/go-systemd/activation,
+   handle API changes
+ - snapstate: update fontconfig caches on install
+ - overlord,daemon: mock security backends for testing
+ - sanity, spread, tests: add CentOS
+ - Revert "cmd/snap, tests/main/snap-info: highlight the current
+   channel"
+ - cmd/snap: add nanosleep to blacklisted syscalls when running with
+   --strace
+ - tests: add regression test for LP: #1803535
+ - snap-update-ns: fix trailing slash bug on trespassing error
+ - interfaces/builtin/opengl: allow reading /etc/OpenCL/vendors
+ - cmd/snap-confine: nvidia: pick up libnvidia-opencl.so
+ - interfaces/opengl: add additional accesses for cuda
+
+* Fri Nov 09 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.36.1
  - tests,snap-confine: add core18 only hooks test and fix running
    core18 only hooks on classic

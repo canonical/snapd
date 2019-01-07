@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -1430,6 +1431,29 @@ apps:
 			c.Assert(err, NotNil)
 			c.Check(err, ErrorMatches, tc.err)
 		}
+	}
+}
+
+func (s *validateSuite) TestValidateDescription(c *C) {
+	for _, s := range []string{
+		"xx", // boringest ASCII
+		"🐧🐧", // len("🐧🐧") == 8
+		"á", // á (combining)
+	} {
+		c.Check(ValidateDescription(s), IsNil)
+		c.Check(ValidateDescription(strings.Repeat(s, 2049)), ErrorMatches, `description can have up to 4096 codepoints, got 4098`)
+		c.Check(ValidateDescription(strings.Repeat(s, 2048)), IsNil)
+	}
+}
+
+func (s *validateSuite) TestValidateTitle(c *C) {
+	for _, s := range []string{
+		"xx", // boringest ASCII
+		"🐧🐧", // len("🐧🐧") == 8
+		"á", // á (combining)
+	} {
+		c.Check(ValidateTitle(strings.Repeat(s, 21)), ErrorMatches, `title can have up to 40 codepoints, got 42`)
+		c.Check(ValidateTitle(strings.Repeat(s, 20)), IsNil)
 	}
 }
 

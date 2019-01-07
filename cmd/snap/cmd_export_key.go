@@ -48,7 +48,7 @@ imported by other systems.
 		}, map[string]string{
 			"account": i18n.G("Format public key material as a request for an account-key for this account-id"),
 		}, []argDesc{{
-			// TRANSLATORS: This needs to be wrapped in <>s.
+			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<key-name>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Name of key to export"),
