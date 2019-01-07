@@ -78,3 +78,13 @@ func probeSELinux() (SELinuxLevelType, string) {
 	}
 	return SELinuxEnforcing, "SELinux is enabled and in enforcing mode"
 }
+
+// MockSELinuxIsEnabled makes the system believe a certain SELinux state is
+// currently true
+func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
+	old := selinuxIsEnabled
+	selinuxIsEnabled = isEnabled
+	return func() {
+		selinuxIsEnabled = old
+	}
+}
