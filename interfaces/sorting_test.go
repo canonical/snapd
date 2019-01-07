@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
-	"github.com/snapcore/snapd/snap"
 )
 
 type SortingSuite struct{}
