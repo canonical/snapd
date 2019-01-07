@@ -37,18 +37,6 @@ func newConnRef(plugSnap, plug, slotSnap, slot string) *interfaces.ConnRef {
 	return &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plug}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slot}}
 }
 
-func (s *SortingSuite) TestByBackendName(c *C) {
-	list := []interfaces.SecurityBackend{
-		&ifacetest.TestSecurityBackend{BackendName: "backend-2"},
-		&ifacetest.TestSecurityBackend{BackendName: "backend-1"},
-	}
-	sort.Sort(interfaces.ByBackendName(list))
-	c.Assert(list, DeepEquals, []interfaces.SecurityBackend{
-		&ifacetest.TestSecurityBackend{BackendName: "backend-1"},
-		&ifacetest.TestSecurityBackend{BackendName: "backend-2"},
-	})
-}
-
 func (s *SortingSuite) TestByInterfaceName(c *C) {
 	list := []interfaces.Interface{
 		&ifacetest.TestInterface{InterfaceName: "iface-2"},
