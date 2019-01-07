@@ -49,28 +49,6 @@ func (s *SortingSuite) TestByInterfaceName(c *C) {
 	})
 }
 
-func (s *SortingSuite) TestByPlugInfo(c *C) {
-	list := []*snap.PlugInfo{
-		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-1"},
-	}
-	sort.Sort(interfaces.ByPlugInfo(list))
-	c.Assert(list, DeepEquals, []*snap.PlugInfo{
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
-	})
-}
-
 func (s *SortingSuite) TestBySlotInfo(c *C) {
 	list := []*snap.SlotInfo{
 		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},

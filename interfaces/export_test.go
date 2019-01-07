@@ -43,12 +43,6 @@ func (c ByInterfaceName) Len() int           { return byInterfaceName(c).Len() }
 func (c ByInterfaceName) Swap(i, j int)      { byInterfaceName(c).Swap(i, j) }
 func (c ByInterfaceName) Less(i, j int) bool { return byInterfaceName(c).Less(i, j) }
 
-type ByPlugInfo byPlugInfo
-
-func (c ByPlugInfo) Len() int           { return byPlugInfo(c).Len() }
-func (c ByPlugInfo) Swap(i, j int)      { byPlugInfo(c).Swap(i, j) }
-func (c ByPlugInfo) Less(i, j int) bool { return byPlugInfo(c).Less(i, j) }
-
 type BySlotInfo bySlotInfo
 
 func (c BySlotInfo) Len() int           { return bySlotInfo(c).Len() }

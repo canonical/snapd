@@ -114,20 +114,6 @@ func (c byInterfaceName) Less(i, j int) bool {
 	return c[i].Name() < c[j].Name()
 }
 
-type byPlugInfo []*snap.PlugInfo
-
-func (c byPlugInfo) Len() int      { return len(c) }
-func (c byPlugInfo) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byPlugInfo) Less(i, j int) bool {
-	if c[i].Snap.SnapName() != c[j].Snap.SnapName() {
-		return c[i].Snap.SnapName() < c[j].Snap.SnapName()
-	}
-	if c[i].Snap.InstanceKey != c[j].Snap.InstanceKey {
-		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
-	}
-	return c[i].Name < c[j].Name
-}
-
 type bySlotInfo []*snap.SlotInfo
 
 func (c bySlotInfo) Len() int      { return len(c) }
