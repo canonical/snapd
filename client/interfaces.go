@@ -82,10 +82,31 @@ type InterfaceAction struct {
 	Slots  []Slot `json:"slots,omitempty"`
 }
 
+type ConnectionOptions struct {
+	Snap string
+	// Name of slot or plug
+	Name      string
+	Interface string
+	All       bool
+}
+
 // Connections returns all plugs, slots and their connections.
-func (client *Client) Connections() (Connections, error) {
+func (client *Client) Connections(opts *ConnectionOptions) (Connections, error) {
 	var conns Connections
-	_, err := client.doSync("GET", "/v2/interfaces", nil, nil, nil, &conns)
+	query := url.Values{}
+	if opts != nil && opts.Snap != "" {
+		query.Set("snap", opts.Snap)
+	}
+	if opts != nil && opts.Name != "" {
+		query.Set("name", opts.Name)
+	}
+	if opts != nil && opts.Interface != "" {
+		query.Set("interface", opts.Interface)
+	}
+	if opts != nil && opts.All {
+		query.Set("select", "all")
+	}
+	_, err := client.doSync("GET", "/v2/connections", query, nil, nil, &conns)
 	return conns, err
 }
 
