@@ -80,7 +80,7 @@ func (s *MultipassInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.multipass.app"})
-	c.Check(seccompSpec.SnippetForTag("snap.multipass.app"), testutil.Contains, "socket AF_NETLINK - NETLINK_GENERIC\n")
+	c.Check(seccompSpec.SnippetForTag("snap.multipass.app"), testutil.Contains, "bind\n")
 }
 
 func (s *MultipassInterfaceSuite) TestSanitizeSlot(c *C) {
