@@ -32,16 +32,14 @@ var (
 	// change
 	ValidateInstanceName = validateInstanceName
 	ProcessArguments     = processArguments
+
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
+
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
-
-	// main
-	ComputeAndSaveSystemChanges = computeAndSaveSystemChanges
-	ApplyUserFstab              = applyUserFstab
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
@@ -56,6 +54,14 @@ var (
 
 	// user
 	DesiredUserProfilePath = desiredUserProfilePath
+	CurrentUserProfilePath = currentUserProfilePath
+
+	// xdg
+	XdgRuntimeDir       = xdgRuntimeDir
+	ExpandXdgRuntimeDir = expandXdgRuntimeDir
+
+	// update
+	ExecuteMountProfileUpdate = executeMountProfileUpdate
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -187,4 +193,8 @@ func (as *Assumptions) PastChanges() []*Change {
 
 func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
 	return as.canWriteToDirectory(dirFd, dirName)
+}
+
+func (as *Assumptions) UnrestrictedPaths() []string {
+	return as.unrestrictedPaths
 }

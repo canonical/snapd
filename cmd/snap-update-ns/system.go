@@ -29,37 +29,44 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func desiredSystemProfilePath(snapName string) string {
-	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+// SystemProfileUpdate contains information about update to system-wide mount namespace.
+type SystemProfileUpdate struct {
+	// InstanceName is the name of the snap or instance to update.
+	InstanceName string
+
+	// FromSnapConfine indicates that the update is triggered by snap-confine
+	// and not from snapd. When set, snap-confine is still constructing the user
+	// mount namespace and is delegating mount profile application to snap-update-ns.
+	FromSnapConfine bool
 }
 
-func currentSystemProfilePath(snapName string) string {
-	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+// NewSystemProfileUpdate returns encapsulated information for performing a per-user mount namespace update.
+func NewSystemProfileUpdate(instanceName string, fromSnapConfine bool) *SystemProfileUpdate {
+	return &SystemProfileUpdate{InstanceName: instanceName, FromSnapConfine: fromSnapConfine}
 }
 
-func applySystemFstab(instanceName string, fromSnapConfine bool) error {
+// Lock acquires locks / freezes needed to synchronize mount namespace changes.
+func (up *SystemProfileUpdate) Lock() (func(), error) {
+	instanceName := up.InstanceName
+
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
 	lock, err := mount.OpenLock(instanceName)
 	if err != nil {
-		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
+		return nil, fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
 	}
-	defer func() {
-		logger.Debugf("unlocking mount namespace of snap %q", instanceName)
-		lock.Close()
-	}()
 
 	logger.Debugf("locking mount namespace of snap %q", instanceName)
-	if fromSnapConfine {
+	if up.FromSnapConfine {
 		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
-			return fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
+			return nil, fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
 		}
 	} else {
 		if err := lock.Lock(); err != nil {
-			return fmt.Errorf("cannot lock mount namespace of snap %q: %s", instanceName, err)
+			return nil, fmt.Errorf("cannot lock mount namespace of snap %q: %s", instanceName, err)
 		}
 	}
 
@@ -70,13 +77,26 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// than what we expected).
 	logger.Debugf("freezing processes of snap %q", instanceName)
 	if err := freezeSnapProcesses(instanceName); err != nil {
-		return err
+		// If we cannot freeze the processes we should drop the lock.
+		lock.Close()
+		return nil, err
 	}
-	defer func() {
+
+	unlock := func() {
+		logger.Debugf("unlocking mount namespace of snap %q", instanceName)
+		lock.Close()
 		logger.Debugf("thawing processes of snap %q", instanceName)
 		thawSnapProcesses(instanceName)
-	}()
+	}
+	return unlock, nil
+}
 
+// Assumptions returns information about file system mutability rules.
+//
+// System mount profiles can write to /tmp (this is required for constructing
+// writable mimics) to /var/snap (where $SNAP_DATA is for services), /snap/$SNAP_NAME,
+// and, in case of instances, /snap/$SNAP_INSTANCE_NAME.
+func (up *SystemProfileUpdate) Assumptions() *Assumptions {
 	// Allow creating directories related to this snap name.
 	//
 	// Note that we allow /var/snap instead of /var/snap/$SNAP_NAME because
@@ -97,43 +117,57 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
 	// remapping for parallel installs only when the snap has an instance key
 	as := &Assumptions{}
+	instanceName := up.InstanceName
 	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
-	return computeAndSaveSystemChanges(instanceName, as)
+	return as
 }
 
-func computeAndSaveSystemChanges(snapName string, as *Assumptions) error {
-	// Read the desired and current mount profiles. Note that missing files
-	// count as empty profiles so that we can gracefully handle a mount
-	// interface connection/disconnection.
-	desiredProfilePath := desiredSystemProfilePath(snapName)
-	desired, err := osutil.LoadMountProfile(desiredProfilePath)
-	if err != nil {
-		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
-	}
-	debugShowProfile(desired, "desired mount profile")
+// NeededChanges computes the sequence of mount changes needed to transform current profile to desired profile.
+func (up *SystemProfileUpdate) NeededChanges(current, desired *osutil.MountProfile) []*Change {
+	return NeededChanges(current, desired)
+}
 
-	currentProfilePath := currentSystemProfilePath(snapName)
-	currentBefore, err := osutil.LoadMountProfile(currentProfilePath)
-	if err != nil {
-		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
-	}
-	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
-	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
-	for _, entry := range currentBefore.Entries {
-		as.AddChange(&Change{Action: Mount, Entry: entry})
-	}
+// PerformChange performs a given mount namespace change under given filesystem assumptions.
+func (up *SystemProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
+	return changePerform(change, as)
+}
 
-	currentAfter, err := applyProfile(snapName, currentBefore, desired, as)
+// LoadDesiredProfile loads the desired, system mount profile.
+func (up *SystemProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(desiredSystemProfilePath(up.InstanceName))
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot load desired system-wide, mount profile of snap %q: %s", up.InstanceName, err)
 	}
+	return profile, nil
+}
 
-	logger.Debugf("saving current mount profile of snap %q", snapName)
-	if err := currentAfter.Save(currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
+// LoadCurrentProfile loads the current, system mount profile.
+func (up *SystemProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(currentSystemProfilePath(up.InstanceName))
+	if err != nil {
+		return nil, fmt.Errorf("cannot load current system-wide, mount profile of snap %q: %s", up.InstanceName, err)
+	}
+	return profile, nil
+}
+
+// SaveCurrentProfile saves the current, system mount profile.
+func (up *SystemProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	logger.Debugf("saving current mount profile of snap %q", up.InstanceName)
+	if err := profile.Save(currentSystemProfilePath(up.InstanceName)); err != nil {
+		return fmt.Errorf("cannot save current system-wide, mount profile of snap %q: %s", up.InstanceName, err)
 	}
 	return nil
+}
+
+// desiredSystemProfilePath returns the path of the fstab-like file with the desired, system-wide mount profile for a snap.
+func desiredSystemProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+}
+
+// currentSystemProfilePath returns the path of the fstab-like file with the applied, system-wide mount profile for a snap.
+func currentSystemProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
 }

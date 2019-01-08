@@ -20,14 +20,29 @@
 package main_test
 
 import (
-	"testing"
+	"strings"
 
 	. "gopkg.in/check.v1"
+
+	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/osutil"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+type xdgSuite struct{}
 
-type mainSuite struct {
+var _ = Suite(&xdgSuite{})
+
+func (s *xdgSuite) TestXdgRuntimeDir(c *C) {
+	c.Check(update.XdgRuntimeDir(1234), Equals, "/run/user/1234")
 }
 
-var _ = Suite(&mainSuite{})
+func (s *xdgSuite) TestExpandXdgRuntimeDir(c *C) {
+	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
+	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
+	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
+	c.Assert(err, IsNil)
+	update.ExpandXdgRuntimeDir(profile, 1234)
+	builder := &strings.Builder{}
+	profile.WriteTo(builder)
+	c.Check(builder.String(), Equals, output)
+}
