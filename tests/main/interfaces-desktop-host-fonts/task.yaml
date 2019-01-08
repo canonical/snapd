@@ -7,6 +7,14 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+restore: |
+    rm -f /usr/share/fonts/dist-font.txt
+    rm -f /usr/local/share/fonts/local-font.txt
+    rm -f "$HOME"/.fonts/user-font1.txt
+    rm -f "$HOME"/.local/share/fonts/user-font2.txt
+    rm -f /var/cache/fontconfig/cache.txt
+    rm -f /usr/lib/fontconfig/cache/cache.txt
+
 execute: |
     mkdir -p /usr/share/fonts
     echo "Distribution font" > /usr/share/fonts/dist-font.txt
@@ -14,8 +22,14 @@ execute: |
     mkdir -p /usr/local/share/fonts
     echo "Local font" > /usr/local/share/fonts/local-font.txt
 
-    mkdir -p /var/cache/fontconfig
-    echo "Cache file" > /var/cache/fontconfig/cache.txt
+    cache_dir=/var/cache/fontconfig
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            cache_dir=/usr/lib/fontconfig/cache
+            ;;
+    esac
+    mkdir -p "$cache_dir"
+    echo "Cache file" > "$cache_dir"/cache.txt
 
     mkdir -p "$HOME"/.fonts
     echo "User font 1" > "$HOME"/.fonts/user-font1.txt
