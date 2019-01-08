@@ -74,7 +74,7 @@ func probeSELinux() (SELinuxLevelType, string) {
 		return NoSELinux, fmt.Sprintf("SELinux is enabled, but status cannot be determined: %v", err)
 	}
 	if !enforcing {
-		return SELinuxPermissive, "SELinux is enabled and in permissive mode"
+		return SELinuxPermissive, "SELinux is enabled but in permissive mode"
 	}
 	return SELinuxEnforcing, "SELinux is enabled and in enforcing mode"
 }
