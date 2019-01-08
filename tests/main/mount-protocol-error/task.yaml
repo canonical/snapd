@@ -1,0 +1,17 @@
+summary: Check mount bug https://forum.snapcraft.io/t/5682
+
+description: |
+   Regression test for systemd mount race that produces a protocol
+   error. We added a workaround to snapd for the upstream bug
+   https://github.com/systemd/systemd/issues/10872
+
+   For more discussion on the issue see
+   https://forum.snapcraft.io/t/5682
+
+backends: [-autopkgtest]
+
+execute: |
+   for _ in $(seq 50); do
+       snap install test-snapd-tools test-snapd-public
+       snap remove test-snapd-tools test-snapd-public
+   done
