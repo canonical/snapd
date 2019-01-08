@@ -13,7 +13,7 @@ restore: |
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service snapd.socket
-    umount /tmp || true
+    umount /tmp
     systemctl start snapd.{socket,service}
 
 execute: |
