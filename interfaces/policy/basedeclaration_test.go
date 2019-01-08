@@ -673,7 +673,9 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"multipass-support":     true,
+		"personal-files":        true,
 		"snapd-control":         true,
+		"system-files":          true,
 		"unity8":                true,
 	}
 
@@ -800,7 +802,9 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"multipass-support":     true,
+		"personal-files":        true,
 		"snapd-control":         true,
+		"system-files":          true,
 		"udisks2":               true,
 		"unity8":                true,
 		"wayland":               true,
