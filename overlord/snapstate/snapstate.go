@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // control flags for doInstall
@@ -69,7 +70,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+func doInstall(st *state.State, fromChange string, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
@@ -111,7 +112,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, snapsup.InstanceName(), snapst); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, fromChange); err != nil {
 		return nil, err
 	}
 
@@ -573,7 +574,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 	// this might be a refresh; check the epoch before proceeding
-	if err := earlyEpochCheck(info, &snapst); err != nil {
+	if _, err := earlyEpochCheck(info, &snapst); err != nil {
 		return nil, nil, err
 	}
 
@@ -589,7 +590,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		InstanceKey: info.InstanceKey,
 	}
 
-	ts, err := doInstall(st, &snapst, snapsup, instFlags)
+	ts, err := doInstall(st, "", &snapst, snapsup, instFlags)
 	return ts, info, err
 }
 
@@ -645,7 +646,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		InstanceKey:  info.InstanceKey,
 	}
 
-	return doInstall(st, &snapst, snapsup, 0)
+	return doInstall(st, "", &snapst, snapsup, 0)
 }
 
 // InstallMany installs everything from the given list of names.
@@ -696,7 +697,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			InstanceKey:  info.InstanceKey,
 		}
 
-		ts, err := doInstall(st, &snapst, snapsup, 0)
+		ts, err := doInstall(st, "", &snapst, snapsup, 0)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -721,6 +722,10 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
 func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	return updateManyFromChange(ctx, st, "", names, userID, flags)
+}
+
+func updateManyFromChange(ctx context.Context, st *state.State, fromChange string, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -762,15 +767,15 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 
 	}
 
-	return doUpdate(ctx, st, names, updates, params, userID, flags)
+	return doUpdate(ctx, st, fromChange, names, updates, params, userID, flags)
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, fromChange string, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags) ([]string, []*state.TaskSet, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
 
-	tasksets := make([]*state.TaskSet, 0, len(updates))
+	tasksets := make([]*state.TaskSet, 0, len(updates)+2) // 1 for auto-aliases, 1 for re-refresh
 
 	refreshAll := len(names) == 0
 	var nameSet map[string]bool
@@ -820,6 +825,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		}
 	}
 
+	var rerefreshes []string
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, update := range updates {
@@ -833,12 +839,15 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			}
 			return nil, nil, err
 		}
-		if err := earlyEpochCheck(update, snapst); err != nil {
+
+		if needsRe, err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
+		} else if needsRe {
+			rerefreshes = append(rerefreshes, update.InstanceName())
 		}
 
 		snapUserID, err := userIDForSnap(st, snapst, userID)
@@ -859,7 +868,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			InstanceKey:  update.InstanceKey,
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, 0)
+		ts, err := doInstall(st, fromChange, snapst, snapsup, 0)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -899,6 +908,19 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			return nil, nil, err
 		}
 		tasksets = append(tasksets, addAutoAliasesTs)
+	}
+
+	if len(rerefreshes) > 0 {
+		rerefresh := st.NewTask("rerefresh", fmt.Sprintf("Re-refresh %s due to epoch change", strutil.Quoted(rerefreshes)))
+		rerefresh.Set("rerefresh-setup", reRefreshSetup{
+			Snaps:  rerefreshes,
+			UserID: userID,
+			Flags:  globalFlags,
+		})
+		for _, taskset := range tasksets {
+			rerefresh.WaitAll(taskset)
+		}
+		tasksets = append(tasksets, state.NewTaskSet(rerefresh))
 	}
 
 	updated := make([]string, 0, len(reportUpdated))
@@ -1154,7 +1176,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return channel, updateFlags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags)
+	_, tts, err := doUpdate(context.TODO(), st, "", []string{name}, updates, params, userID, &flags)
 	if err != nil {
 		return nil, err
 	}
@@ -1742,7 +1764,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, &snapst, snapsup, 0)
+	return doInstall(st, "", &snapst, snapsup, 0)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1778,7 +1800,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		}
 
 		// start by instaling the new snap
-		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
+		tsInst, err := doInstall(st, "", &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,

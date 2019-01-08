@@ -719,14 +719,14 @@ func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 		SnapType: "app",
 	}
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0)
+	_, err := snapstate.DoInstall(s.state, "", snapst, snapsup, 0)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
 func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0)
+	_, err := snapstate.DoInstall(s.state, "", nil, snapsup, 0)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
 }
@@ -3037,6 +3037,26 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
+				InstanceName:    "services-snap",
+				SnapID:          "services-snap-id",
+				Revision:        snap.R(11),
+				TrackingChannel: "some-channel",
+				Epoch:           snap.E("0"),
+			}},
+			userID: 1,
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "refresh",
+				InstanceName: "services-snap",
+				SnapID:       "services-snap-id",
+			},
+			userID: 1,
+		},
+		{
 			op:    "cleanup-trash",
 			name:  "services-snap",
 			revno: snap.R(11),
@@ -3254,6 +3274,29 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			path:     filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
 			services: []string{"svc1", "svc3", "svc2"},
 		},
+		{
+			// re-refresh because of epoch jump
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
+				InstanceName:    "services-snap_instance",
+				SnapID:          "services-snap-id",
+				Revision:        snap.R(11),
+				TrackingChannel: "some-channel",
+				Epoch:           snap.E("0"),
+			}},
+			userID: 1,
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "refresh",
+				SnapID:       "services-snap-id",
+				InstanceName: "services-snap_instance",
+				Flags:        0, // 0 because the rereresh is done via UpdateMany
+			},
+			userID: 1,
+		},
+
 		{
 			op:    "cleanup-trash",
 			name:  "services-snap_instance",
@@ -3643,6 +3686,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 		switch op.op {
 		case "storesvc-snap-action":
 			ir++
+			if ir == 3 {
+				break
+			}
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
 				{
 					InstanceName:  "core",
@@ -3682,7 +3728,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 			di++
 		}
 	}
-	c.Check(ir, Equals, 2)
+	c.Check(ir, Equals, 3)
 	// we check all snaps with each user
 	c.Check(seen["some-snap-id"], Equals, 1)
 	c.Check(seen["services-snap-id"], Equals, 2)
@@ -3755,6 +3801,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 		switch op.op {
 		case "storesvc-snap-action":
 			ir++
+			if ir == 3 {
+				break
+			}
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
 				{
 					InstanceName:  "core",
@@ -3794,7 +3843,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 			di++
 		}
 	}
-	c.Check(ir, Equals, 2)
+	c.Check(ir, Equals, 3)
 	// we check all snaps with each user
 	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
 		{snapID: "core-snap-id", userID: 2}:     true,
@@ -3878,6 +3927,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 		switch op.op {
 		case "storesvc-snap-action":
 			ir++
+			if ir == 2 {
+				break
+			}
 			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
 				{
 					InstanceName:  "core",
@@ -3903,7 +3955,9 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
-			seen[snapID] = op.userID
+			if _, ok := seen[snapID]; !ok {
+				seen[snapID] = op.userID
+			}
 		case "storesvc-download":
 			snapName := op.name
 			fakeDl := s.fakeStore.downloads[di]
@@ -3917,7 +3971,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 			di++
 		}
 	}
-	c.Check(ir, Equals, 1)
+	c.Check(ir, Equals, 2)
 	// we check all snaps with each user
 	c.Check(seen["some-snap-id"], Equals, 1)
 	// coalesced with request for 1

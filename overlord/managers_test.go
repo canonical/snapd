@@ -78,6 +78,8 @@ type mgrsSuite struct {
 	serveIDtoName map[string]string
 	serveSnapPath map[string]string
 	serveRevision map[string]string
+	serveOldPaths map[string][]string
+	serveOldRevs  map[string][]string
 
 	hijackServeSnap func(http.ResponseWriter)
 
@@ -147,6 +149,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
+	ms.serveOldPaths = make(map[string][]string)
+	ms.serveOldRevs = make(map[string][]string)
 	ms.hijackServeSnap = nil
 
 	ms.restoreBackends = ifacestate.MockSecurityBackends(nil)
@@ -378,6 +382,7 @@ const (
         "download": {
             "url": "@URL@"
         },
+        "epoch": @EPOCH@,
         "type": "@TYPE@",
 	"name": "@NAME@",
 	"revision": @REVISION@,
@@ -447,10 +452,27 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 	return snapPath, snapDigest
 }
 
-func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
-	var baseURL *url.URL
-	fillHit := func(hitTemplate, name string) string {
-		snapf, err := snap.Open(ms.serveSnapPath[name])
+func (ms *mgrsSuite) pathFor(name, revno string) string {
+	if revno == ms.serveRevision[name] {
+		return ms.serveSnapPath[name]
+	}
+	for i, r := range ms.serveOldRevs[name] {
+		if r == revno {
+			return ms.serveOldPaths[name][i]
+		}
+	}
+	return "/not/found"
+}
+
+func (ms *mgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *snap.Info, rev string) {
+	if ms.serveSnapPath[name] == "" {
+		return nil, ""
+	}
+	idx := len(ms.serveOldPaths[name])
+	rev = ms.serveRevision[name]
+	path := ms.serveSnapPath[name]
+	for {
+		snapf, err := snap.Open(path)
 		if err != nil {
 			panic(err)
 		}
@@ -458,13 +480,35 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 		if err != nil {
 			panic(err)
 		}
-		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name, -1)
+		if info.Epoch.CanRead(epoch) {
+			return info, rev
+		}
+		idx--
+		if idx < 0 {
+			return nil, ""
+		}
+		path = ms.serveOldPaths[name][idx]
+		rev = ms.serveOldRevs[name][idx]
+	}
+}
+
+func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
+	var baseURL *url.URL
+	fillHit := func(hitTemplate, revno string, info *snap.Info) string {
+		epochBuf, err := json.Marshal(info.Epoch)
+		if err != nil {
+			panic(err)
+		}
+		name := info.SnapName()
+
+		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
 		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
-		hit = strings.Replace(hit, "@REVISION@", ms.serveRevision[name], -1)
+		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type), -1)
+		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		return hit
 	}
 
@@ -514,7 +558,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				ms.hijackServeSnap(w)
 				return
 			}
-			snapR, err := os.Open(ms.serveSnapPath[comps[1]])
+			snapR, err := os.Open(ms.pathFor(comps[1], comps[2]))
 			if err != nil {
 				panic(err)
 			}
@@ -523,14 +567,23 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			dec := json.NewDecoder(r.Body)
 			var input struct {
 				Actions []struct {
-					Action      string `json:"action"`
-					SnapID      string `json:"snap-id"`
-					Name        string `json:"name"`
-					InstanceKey string `json:"instance-key"`
+					Action      string     `json:"action"`
+					SnapID      string     `json:"snap-id"`
+					Name        string     `json:"name"`
+					InstanceKey string     `json:"instance-key"`
+					Epoch       snap.Epoch `json:"epoch"`
 				} `json:"actions"`
+				Context []struct {
+					SnapID string     `json:"snap-id"`
+					Epoch  snap.Epoch `json:"epoch"`
+				} `json:"context"`
 			}
 			if err := dec.Decode(&input); err != nil {
 				panic(err)
+			}
+			id2epoch := make(map[string]snap.Epoch, len(input.Context))
+			for _, s := range input.Context {
+				id2epoch[s.SnapID] = s.Epoch
 			}
 			type resultJSON struct {
 				Result      string          `json:"result"`
@@ -542,10 +595,14 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			var results []resultJSON
 			for _, a := range input.Actions {
 				name := ms.serveIDtoName[a.SnapID]
+				epoch := id2epoch[a.SnapID]
 				if a.Action == "install" {
 					name = a.Name
+					epoch = a.Epoch
 				}
-				if ms.serveSnapPath[name] == "" {
+
+				info, revno := ms.newestThatCanRead(name, epoch)
+				if info == nil {
 					// no match
 					continue
 				}
@@ -554,7 +611,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 					SnapID:      a.SnapID,
 					InstanceKey: a.InstanceKey,
 					Name:        name,
-					Snap:        json.RawMessage(fillHit(snapV2, name)),
+					Snap:        json.RawMessage(fillHit(snapV2, revno, info)),
 				})
 			}
 			w.WriteHeader(200)
@@ -597,6 +654,15 @@ func (ms *mgrsSuite) serveSnap(snapPath, revno string) {
 	}
 	name := info.SnapName()
 	ms.serveIDtoName[fakeSnapID(name)] = name
+
+	if oldPath := ms.serveSnapPath[name]; oldPath != "" {
+		oldRev := ms.serveRevision[name]
+		if oldRev == "" {
+			panic("old path set but not old revision")
+		}
+		ms.serveOldPaths[name] = append(ms.serveOldPaths[name], oldPath)
+		ms.serveOldRevs[name] = append(ms.serveOldRevs[name], oldRev)
+	}
 	ms.serveSnapPath[name] = snapPath
 	ms.serveRevision[name] = revno
 }
@@ -713,6 +779,72 @@ apps:
 
 	// check updated service file
 	c.Assert(svcFile, testutil.FileContains, "/var/snap/foo/"+revno)
+}
+
+func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeWithEpochBump(c *C) {
+	// test install through store and update, where there's an epoch bump in the upgrade
+	// this does less checks on the details of install/update than TestHappyRemoteInstallAndUpgradeSvc
+
+	ms.prereqSnapAssertions(c)
+
+	snapPath, _ := ms.makeStoreTestSnap(c, "{name: foo, version: 0}", "1")
+	ms.serveSnap(snapPath, "1")
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it worked
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	// sanity checks
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(info.Revision, Equals, snap.R(1))
+	c.Assert(info.SnapID, Equals, fooSnapID)
+	c.Assert(info.Epoch.String(), Equals, "0")
+
+	// now add some more snaps
+	for i, epoch := range []string{"1*", "2*", "3*"} {
+		revno := fmt.Sprint(i + 2)
+		snapPath, _ := ms.makeStoreTestSnap(c, "{name: foo, version: 0, epoch: "+epoch+"}", revno)
+		ms.serveSnap(snapPath, revno)
+	}
+
+	// refresh
+
+	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg = st.NewChange("upgrade-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+
+	c.Check(info.Revision, Equals, snap.R(4))
+	c.Check(info.SnapID, Equals, fooSnapID)
+	c.Check(info.Epoch.String(), Equals, "3*")
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstallWithStoreMetadata(c *C) {

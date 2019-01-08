@@ -386,21 +386,28 @@ func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags) error {
 
 // check that the snap installed in the system (via snapst) can be
 // upgraded to info (i.e. that info's epoch can read sanpst's epoch)
-func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
+// also return whether the epoch has changed
+func earlyEpochCheck(info *snap.Info, snapst *SnapState) (changed bool, err error) {
 	if snapst == nil {
 		// no snapst, no problem
-		return nil
+		return false, nil
 	}
 	cur, err := snapst.CurrentInfo()
 	if err == ErrNoCurrent {
 		// refreshing a disabled snap (maybe via InstallPath)
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return checkEpochs(nil, info, cur, Flags{})
+	if err := checkEpochs(nil, info, cur, Flags{}); err != nil {
+		return false, err
+	}
+
+	changed = !info.Epoch.Equal(&cur.Epoch)
+
+	return changed, nil
 }
 
 func init() {

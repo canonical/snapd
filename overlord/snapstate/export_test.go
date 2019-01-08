@@ -22,6 +22,8 @@ package snapstate
 import (
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -199,5 +201,13 @@ func setModel(override map[string]string) {
 
 	Model = func(*state.State) (*asserts.Model, error) {
 		return a.(*asserts.Model), nil
+	}
+}
+
+func MockReRefreshUpdater(f func(context.Context, *state.State, string, []string, int, *Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+	old := reRefreshUpdater
+	reRefreshUpdater = f
+	return func() {
+		reRefreshUpdater = old
 	}
 }

@@ -143,7 +143,11 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
 func CheckChangeConflict(st *state.State, instanceName string, snapst *SnapState) error {
-	if err := CheckChangeConflictMany(st, []string{instanceName}, ""); err != nil {
+	return checkChangeConflictIgnoringOneChange(st, instanceName, snapst, "")
+}
+
+func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, snapst *SnapState, ignoreChangeID string) error {
+	if err := CheckChangeConflictMany(st, []string{instanceName}, ignoreChangeID); err != nil {
 		return err
 	}
 

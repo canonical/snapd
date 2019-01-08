@@ -1942,6 +1942,46 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// reRefreshSetup holds the necessary details to re-refresh snaps that need it
+type reRefreshSetup struct {
+	Snaps  []string `json:"snaps,omitempty"`
+	UserID int      `json:"user-id,omitempty"`
+	*Flags
+}
+
+var reRefreshUpdater = updateManyFromChange
+
+func (m *SnapManager) doReRefresh(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var re reRefreshSetup
+	if err := t.Get("rerefresh-setup", &re); err != nil {
+		return err
+	}
+
+	chg := t.Change()
+	updated, tasksets, err := reRefreshUpdater(tomb.Context(nil), st, chg.ID(), re.Snaps, re.UserID, re.Flags)
+	if err != nil {
+		return err
+	}
+
+	if len(updated) == 0 {
+		t.Logf("no re-refreshes found")
+	} else {
+		t.Logf("found re-refresh for %s", strutil.Quoted(updated))
+
+		for _, taskset := range tasksets {
+			chg.AddAll(taskset)
+		}
+		st.EnsureBefore(0)
+	}
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
 // InjectTasks makes all the halt tasks of the mainTask wait for extraTasks;
 // extraTasks join the same lane and change as the mainTask.
 func InjectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
