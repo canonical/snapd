@@ -101,6 +101,7 @@ var api = []*Command{
 	warningsCmd,
 	debugCmd,
 	snapshotCmd,
+	connectionsCmd,
 }
 
 var (
@@ -181,6 +182,12 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage-interfaces",
 		GET:      interfacesConnectionsMultiplexer,
 		POST:     changeInterfaces,
+	}
+
+	connectionsCmd = &Command{
+		Path:   "/v2/connections",
+		UserOK: true,
+		GET:    getConnections,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -1723,6 +1730,141 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
+type collectFilter struct {
+	snapName     string
+	plugSlotName string
+	ifaceName    string
+	connected    bool
+}
+
+func (c *collectFilter) plugMatches(plug *interfaces.PlugRef, connectedSlots []interfaces.SlotRef) bool {
+	for _, slot := range connectedSlots {
+		if c.slotMatches(&slot, nil) {
+			return true
+		}
+	}
+	if c.snapName != "" && plug.Snap != c.snapName {
+		return false
+	}
+	if c.plugSlotName != "" && plug.Name != c.plugSlotName {
+		return false
+	}
+	return true
+}
+
+func (c *collectFilter) slotMatches(slot *interfaces.SlotRef, connectedPlugs []interfaces.PlugRef) bool {
+	for _, plug := range connectedPlugs {
+		if c.plugMatches(&plug, nil) {
+			return true
+		}
+	}
+	if c.snapName != "" && slot.Snap != c.snapName {
+		return false
+	}
+	if c.plugSlotName != "" && slot.Name != c.plugSlotName {
+		return false
+	}
+	return true
+}
+
+func (c *collectFilter) ifaceMatches(ifaceName string) bool {
+	if c.ifaceName != "" && c.ifaceName != ifaceName {
+		return false
+	}
+	return true
+}
+
+func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) interfaceJSON {
+	repo := ifaceMgr.Repository()
+	ifaces := repo.Interfaces()
+
+	var ifjson interfaceJSON
+	plugConns := map[string][]interfaces.SlotRef{}
+	slotConns := map[string][]interfaces.PlugRef{}
+
+	for _, cref := range ifaces.Connections {
+		if !filter.plugMatches(&cref.PlugRef, nil) && !filter.slotMatches(&cref.SlotRef, nil) {
+			continue
+		}
+		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
+		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
+		plugID := plugRef.String()
+		slotID := slotRef.String()
+		plugConns[plugID] = append(plugConns[plugID], slotRef)
+		slotConns[slotID] = append(slotConns[slotID], plugRef)
+	}
+
+	for _, plug := range ifaces.Plugs {
+		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
+		connectedSlots, connected := plugConns[plugRef.String()]
+		if !connected && filter.connected {
+			continue
+		}
+		if !filter.ifaceMatches(plug.Interface) || !filter.plugMatches(&plugRef, connectedSlots) {
+			continue
+		}
+		var apps []string
+		for _, app := range plug.Apps {
+			apps = append(apps, app.Name)
+		}
+		pj := &plugJSON{
+			Snap:        plugRef.Snap,
+			Name:        plugRef.Name,
+			Interface:   plug.Interface,
+			Attrs:       plug.Attrs,
+			Apps:        apps,
+			Label:       plug.Label,
+			Connections: connectedSlots,
+		}
+		ifjson.Plugs = append(ifjson.Plugs, pj)
+	}
+	for _, slot := range ifaces.Slots {
+		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
+		connectedPlugs, connected := slotConns[slotRef.String()]
+		if !connected && filter.connected {
+			continue
+		}
+		if !filter.ifaceMatches(slot.Interface) || !filter.slotMatches(&slotRef, connectedPlugs) {
+			continue
+		}
+		var apps []string
+		for _, app := range slot.Apps {
+			apps = append(apps, app.Name)
+		}
+		sj := &slotJSON{
+			Snap:        slotRef.Snap,
+			Name:        slotRef.Name,
+			Interface:   slot.Interface,
+			Attrs:       slot.Attrs,
+			Apps:        apps,
+			Label:       slot.Label,
+			Connections: connectedPlugs,
+		}
+		ifjson.Slots = append(ifjson.Slots, sj)
+	}
+	return ifjson
+}
+
+func getConnections(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	snapName := query.Get("snap")
+	plugSlotName := query.Get("name")
+	ifaceName := query.Get("interface")
+	qselect := query.Get("select")
+	if qselect != "all" && qselect != "" {
+		return BadRequest("unsupported select qualifier")
+	}
+	onlyConnected := qselect == ""
+
+	ifjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
+		snapName:     snapName,
+		plugSlotName: plugSlotName,
+		ifaceName:    ifaceName,
+		connected:    onlyConnected,
+	})
+	return SyncResponse(ifjson, nil)
+}
+
 // interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).
 func interfacesConnectionsMultiplexer(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
@@ -1789,56 +1931,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-
-	var ifjson interfaceJSON
-	plugConns := map[string][]interfaces.SlotRef{}
-	slotConns := map[string][]interfaces.PlugRef{}
-
-	for _, cref := range ifaces.Connections {
-		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
-		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
-		plugID := plugRef.String()
-		slotID := slotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], slotRef)
-		slotConns[slotID] = append(slotConns[slotID], plugRef)
-	}
-
-	for _, plug := range ifaces.Plugs {
-		var apps []string
-		for _, app := range plug.Apps {
-			apps = append(apps, app.Name)
-		}
-		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
-		pj := &plugJSON{
-			Snap:        plugRef.Snap,
-			Name:        plugRef.Name,
-			Interface:   plug.Interface,
-			Attrs:       plug.Attrs,
-			Apps:        apps,
-			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
-		}
-		ifjson.Plugs = append(ifjson.Plugs, pj)
-	}
-	for _, slot := range ifaces.Slots {
-		var apps []string
-		for _, app := range slot.Apps {
-			apps = append(apps, app.Name)
-		}
-		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
-		sj := &slotJSON{
-			Snap:        slotRef.Snap,
-			Name:        slotRef.Name,
-			Interface:   slot.Interface,
-			Attrs:       slot.Attrs,
-			Apps:        apps,
-			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
-		}
-		ifjson.Slots = append(ifjson.Slots, sj)
-	}
+	ifjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
 	return SyncResponse(ifjson, nil)
 }
 
