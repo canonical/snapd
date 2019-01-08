@@ -134,12 +134,12 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 		return fmt.Errorf("internal error: unexpected empty subkeys for key %q", key)
 	}
 	var existing interface{}
-	err = config.GetFromChange(context.InstanceName(), subkeys[:1], 0, staticAttrs, &existing)
+	err = getAttribute(context.InstanceName(), subkeys[:1], 0, staticAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
 	}
-	// we expect NoOptionError here, any other error is unexpected (a real error)
-	if !config.IsNoOption(err) {
+	// we expect NoAttributeError here, any other error is unexpected (a real error)
+	if !isNoAttribute(err) {
 		return err
 	}
 

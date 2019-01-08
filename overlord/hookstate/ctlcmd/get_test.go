@@ -343,6 +343,9 @@ var getPlugAttributesTests = []struct {
 	args:   "get -d :aplug baz",
 	stdout: "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n",
 }, {
+	args:  "get :aplug",
+	error: `.*get which attribute.*`,
+}, {
 	args:   "get :aplug mapattr.mapattr1",
 	stdout: "mapval1\n",
 }, {
