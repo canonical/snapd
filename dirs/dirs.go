@@ -286,7 +286,9 @@ func SetRootDir(rootdir string) {
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
-	if release.DistroLike("fedora") {
+	if release.DistroLike("fedora") && !release.DistroLike("amzn") {
+		// Applies to Fedora and CentOS, Amazon Linux 2 is behind with
+		// updates to fontconfig and uses /var/cache/fontconfig instead,
 		// see:
 		// https://fedoraproject.org/wiki/Changes/FontconfigCacheDirChange
 		// https://bugzilla.redhat.com/show_bug.cgi?id=1416380
