@@ -91,7 +91,7 @@ func (s *selinuxSuite) TestProbePermissive(c *C) {
 
 	level, status := release.ProbeSELinux()
 	c.Assert(level, Equals, release.SELinuxPermissive)
-	c.Assert(status, Equals, "SELinux is enabled and in permissive mode")
+	c.Assert(status, Equals, "SELinux is enabled but in permissive mode")
 
 	c.Assert(release.SELinuxLevel(), Equals, level)
 	c.Assert(release.SELinuxSummary(), Equals, status)
