@@ -990,7 +990,7 @@ func (s *imageSuite) TestInstallCloudConfigNoConfig(c *C) {
 	dirs.SetRootDir(targetDir)
 	err := image.InstallCloudConfig(emptyGadgetDir)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud")), Equals, false)
 }
 
 func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
