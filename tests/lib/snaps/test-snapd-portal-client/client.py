@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import sys
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 import dbus
 import dbus.mainloop.glib
@@ -49,7 +49,7 @@ class Client:
             for uri in self._results["uris"]:
                 parsed = urlparse(uri)
                 assert parsed.scheme == "file"
-                with open(parsed.path, "r") as fp:
+                with open(unquote(parsed.path), "r") as fp:
                     sys.stdout.write(fp.read())
         elif self._response == 1:
             # user cancelled
@@ -70,8 +70,61 @@ class Client:
             assert len(uris) == 1
             parsed = urlparse(uris[0])
             assert parsed.scheme == "file"
-            with open(parsed.path, "w") as fp:
+            with open(unquote(parsed.path), "w") as fp:
                 fp.write(content)
+        elif self._response == 1:
+            # user cancelled
+            sys.stderr.write("request cancelled\n")
+            return 1
+        else:
+            sys.stderr.write("request failed\n")
+            return 1
+
+    def cmd_open_uri(self, uri):
+        iface = dbus.Interface(
+            self._portal, "org.freedesktop.portal.OpenURI")
+        self._request_path = iface.OpenURI(
+            "", uri, dbus.Dictionary(signature="sv"))
+        self._main_loop.run()
+        if self._response == 0:
+            pass
+        elif self._response == 1:
+            # user cancelled
+            sys.stderr.write("request cancelled\n")
+            return 1
+        else:
+            sys.stderr.write("request failed\n")
+            return 1
+
+    def cmd_launch_file(self, filename):
+        iface = dbus.Interface(
+            self._portal, "org.freedesktop.portal.OpenURI")
+        with open(filename, 'rb') as fp:
+            self._request_path = iface.OpenFile(
+                "", dbus.types.UnixFd(fp), dbus.Dictionary(signature="sv"))
+        self._main_loop.run()
+        if self._response == 0:
+            pass
+        elif self._response == 1:
+            # user cancelled
+            sys.stderr.write("request cancelled\n")
+            return 1
+        else:
+            sys.stderr.write("request failed\n")
+            return 1
+
+    def cmd_screenshot(self):
+        iface = dbus.Interface(
+            self._portal, "org.freedesktop.portal.Screenshot")
+        self._request_path = iface.Screenshot(
+            "", dbus.Dictionary(signature="sv"))
+        self._main_loop.run()
+        if self._response == 0:
+            uri = self._results["uri"]
+            parsed = urlparse(uri)
+            assert parsed.scheme == "file"
+            with open(unquote(parsed.path), "rb") as fp:
+                sys.stdout.buffer.write(fp.read())
         elif self._response == 1:
             # user cancelled
             sys.stderr.write("request cancelled\n")
