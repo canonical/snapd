@@ -44,35 +44,6 @@ func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 	c.Check(release.AppArmorLevelType(42).String(), Equals, "AppArmorLevelType:42")
 }
 
-func (*apparmorSuite) TestAppArmorLevelTriggersAssesment(c *C) {
-	// Pretend that we know the apparmor kernel and parser features.
-	restore := release.MockAppArmorFeatures([]string{"feature"}, nil, []string{"feature"}, nil)
-	defer restore()
-	// Pretend that we don't know what the state of apparmor is.
-	release.ResetAppArmorAssesment()
-
-	// Calling AppArmorLevel assesses the kernel and parser features and sets
-	// the level to not-unknown value, returning it.
-	c.Check(release.CurrentAppArmorLevel(), Equals, release.UnknownAppArmor)
-	level := release.AppArmorLevel()
-	c.Check(level, Not(Equals), release.UnknownAppArmor)
-	c.Check(level, Equals, release.CurrentAppArmorLevel())
-}
-
-func (*apparmorSuite) TestAppArmorSummaryTriggersAssesment(c *C) {
-	// Pretend that we know the apparmor kernel and parser features.
-	restore := release.MockAppArmorFeatures([]string{"feature"}, nil, []string{"feature"}, nil)
-	defer restore()
-	// Pretend that we don't know what the state of apparmor is.
-	release.ResetAppArmorAssesment()
-
-	// Calling AppArmorSummary assesses the kernel and parser features and sets
-	// the level to something other than unknown.
-	c.Check(release.CurrentAppArmorLevel(), Equals, release.UnknownAppArmor)
-	release.AppArmorSummary()
-	c.Check(release.CurrentAppArmorLevel(), Not(Equals), release.UnknownAppArmor)
-}
-
 func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
 	for _, lvl := range []release.AppArmorLevelType{release.NoAppArmor, release.UnusableAppArmor, release.PartialAppArmor, release.FullAppArmor} {
 		restore := release.MockAppArmorLevel(lvl)
@@ -224,6 +195,8 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
+	release.FreshAppArmorAssessment()
+
 	d := c.MkDir()
 	restore := release.MockAppArmorFeaturesSysPath(d)
 	defer restore()
@@ -235,7 +208,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	restore = release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
 
-	release.AssessAppArmor()
+	release.AppArmorLevel()
 
 	features, err := release.AppArmorKernelFeatures()
 	c.Assert(err, IsNil)
@@ -261,4 +234,40 @@ func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
 	defer restore()
 	mtime = release.AppArmorParserMtime()
 	c.Check(mtime, Equals, int64(0))
+}
+
+func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
+	release.FreshAppArmorAssessment()
+
+	d := c.MkDir()
+	restore := release.MockAppArmorFeaturesSysPath(d)
+	defer restore()
+	c.Assert(os.MkdirAll(filepath.Join(d, "policy"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, "network"), 0755), IsNil)
+
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore = release.MockAppArmorParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+
+	features, err := release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"network", "policy"})
+	features, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"unsafe"})
+
+	// this makes probing fails but is not done again
+	err = os.RemoveAll(d)
+	c.Assert(err, IsNil)
+
+	_, err = release.AppArmorKernelFeatures()
+	c.Assert(err, IsNil)
+
+	// this makes probing fails but is not done again
+	err = os.RemoveAll(mockParserCmd.BinDir())
+	c.Assert(err, IsNil)
+
+	_, err = release.AppArmorParserFeatures()
+	c.Assert(err, IsNil)
 }

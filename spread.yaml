@@ -451,6 +451,8 @@ debug-each: |
         snap interfaces || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
+        echo '# free space'
+        df -h || true
     fi
 
 rename:
@@ -700,13 +702,29 @@ suites:
             TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            prepare_classic
         prepare-each: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-        restore-each: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+            "$TESTSLIB"/reset.sh --reuse-core
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            prepare_each_classic
         restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
+            "$TESTSLIB"/reset.sh --store
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+
+            distro_purge_package snapd
+            case "$SPREAD_SYSTEM" in
+                arch-*)
+                    # there is no snap-confine and ubuntu-core-launcher
+                    # in Arch
+                    ;;
+                *)
+                    distro_purge_package snap-confine ubuntu-core-launcher
+                    ;;
+            esac
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
