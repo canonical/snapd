@@ -286,6 +286,13 @@ func SetRootDir(rootdir string) {
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
+	if release.DistroLike("fedora") {
+		// see:
+		// https://fedoraproject.org/wiki/Changes/FontconfigCacheDirChange
+		// https://bugzilla.redhat.com/show_bug.cgi?id=1416380
+		// https://bugzilla.redhat.com/show_bug.cgi?id=1377367
+		SystemFontconfigCacheDir = filepath.Join(rootdir, "/usr/lib/fontconfig/cache")
+	}
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
