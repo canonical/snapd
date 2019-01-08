@@ -1274,38 +1274,23 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: cannot get slot-attrs attribute for device %s, interface %s: %s", hotplugKey, ifaceName, err)
 	}
 
-	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot determine slot for device %s, interface %s: %s", hotplugKey, ifaceName, err)
-	}
-	if slot == nil {
-		return nil
-	}
-
 	stateSlots, err := getHotplugSlots(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
 	}
 
-	conns, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
+	slot, err := m.repo.UpdateStaticSlotAttrs(ifaceName, hotplugKey, attrs)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot determine connections for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+		return err
 	}
-
-	// hotplug-update-slot is meant to be run as part of a change that first disconnects all slots, then updates the slot and finally
-	// reconnects all connections, so that disconnect- and connect- hooks are run with old and new attributes, respectively. In theory
-	// we should never hit this condition as it should be prevented by conflict logic.
-	if len(conns) > 0 {
-		return fmt.Errorf("internal error: cannot update slot %s while connected", slot.Name)
+	if slot == nil {
+		return nil
 	}
 
 	if slotSpec, ok := stateSlots[slot.Name]; ok {
 		slotSpec.StaticAttrs = attrs
 		stateSlots[slot.Name] = slotSpec
 		setHotplugSlots(st, stateSlots)
-
-		// XXX: this is ugly and relies on the slot infos being kept as pointers in the repository
-		slot.Attrs = attrs
 	} else {
 		return fmt.Errorf("internal error: cannot find slot %s for device %s", slot.Name, hotplugKey)
 	}
