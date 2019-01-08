@@ -11,6 +11,7 @@ BUS_NAME = "org.freedesktop.impl.portal.spread"
 OBJECT_PATH = "/org/freedesktop/portal/desktop"
 
 FILE_CHOOSER_IFACE = "org.freedesktop.impl.portal.FileChooser"
+SCREENSHOT_IFACE = "org.freedesktop.impl.portal.Screenshot"
 
 class PortalImpl(dbus.service.Object):
     def __init__(self, connection, object_path, config):
@@ -20,14 +21,19 @@ class PortalImpl(dbus.service.Object):
     @dbus.service.method(dbus_interface=FILE_CHOOSER_IFACE,
                          in_signature="osssa{sv}", out_signature="ua{sv}")
     def OpenFile(self, handle, app_id, parent_window, title, options):
-        return (0, dict(uris=dbus.Array(['file:///tmp/file-to-read.txt'], signature='s'),
+        return (0, dict(uris=dbus.Array(["file:///tmp/file-to-read.txt"], signature="s"),
                         writable=False))
 
     @dbus.service.method(dbus_interface=FILE_CHOOSER_IFACE,
                          in_signature="osssa{sv}", out_signature="ua{sv}")
     def SaveFile(self, handle, app_id, parent_window, title, options):
-        return (0, dict(uris=dbus.Array(['file:///tmp/file-to-write.txt'], signature='s'),
+        return (0, dict(uris=dbus.Array(["file:///tmp/file-to-write.txt"], signature="s"),
                         writable=True))
+
+    @dbus.service.method(dbus_interface=SCREENSHOT_IFACE,
+                         in_signature="ossa{sv}", out_signature="ua{sv}")
+    def Screenshot(self, handle, app_id, parent_window, options):
+        return (0, dict(uri="file:///tmp/screenshot.txt"))
 
 
 def main(argv):
@@ -50,5 +56,5 @@ def main(argv):
 
     main_loop.run()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))
