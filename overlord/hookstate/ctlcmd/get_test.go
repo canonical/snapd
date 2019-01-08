@@ -208,7 +208,7 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 
 		tr2 = nil
 
-		// another transaction doesn't see uncommited changes
+		// another transaction doesn't see uncommitted changes
 		state.Lock()
 		defer state.Unlock()
 		tr3 := config.NewTransaction(state)
