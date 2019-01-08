@@ -276,7 +276,7 @@ var fortestingConnectionList = client.Connections{
 func (s *SnapSuite) TestConnectCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/interfaces":
+		case "/v2/connections":
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
