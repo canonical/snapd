@@ -262,7 +262,7 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread -repeat 20 google:amazon-linux-2-64:tests/regression/lp-1800004 google:amazon-linux-2-64:tests/main/install-store-laaaarge google:amazon-linux-2-64:tests/main/xdg-open
+    spread google: google-upgrade:tests/upgrade/
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
