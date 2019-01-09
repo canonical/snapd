@@ -120,7 +120,7 @@ func (s *systemSuite) TestSaveCurrentProfile(c *C) {
 
 	// Ask the system profile update to write the current profile.
 	c.Assert(up.SaveCurrentProfile(profile), IsNil)
-	c.Check(update.CurrentSystemProfilePath(up.InstanceName()), testutil.FilePresent)
+	c.Check(update.CurrentSystemProfilePath(up.InstanceName()), testutil.FileEquals, text)
 }
 
 func (s *systemSuite) TestDesiredSystemProfilePath(c *C) {

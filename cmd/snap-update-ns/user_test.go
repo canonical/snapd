@@ -38,10 +38,6 @@ type userSuite struct{}
 
 var _ = Suite(&userSuite{})
 
-func (s *userSuite) TestDesiredUserProfilePath(c *C) {
-	c.Check(update.DesiredUserProfilePath("foo"), Equals, "/var/lib/snapd/mount/snap.foo.user-fstab")
-}
-
 func (s *userSuite) TestLock(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
@@ -147,5 +143,13 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	c.Assert(ioutil.WriteFile(feature.ControlFile(), nil, 0644), IsNil)
 	c.Check(feature.IsEnabled(), Equals, true)
 	c.Assert(up.SaveCurrentProfile(profile), IsNil)
-	c.Check(update.CurrentUserProfilePath(up.InstanceName(), up.UID()), testutil.FilePresent)
+	c.Check(update.CurrentUserProfilePath(up.InstanceName(), up.UID()), testutil.FileEquals, text)
+}
+
+func (s *userSuite) TestDesiredUserProfilePath(c *C) {
+	c.Check(update.DesiredUserProfilePath("foo"), Equals, "/var/lib/snapd/mount/snap.foo.user-fstab")
+}
+
+func (s *userSuite) TestCurrentUserProfilePath(c *C) {
+	c.Check(update.CurrentUserProfilePath("foo", 12345), Equals, "/run/snapd/ns/snap.foo.12345.user-fstab")
 }
