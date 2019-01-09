@@ -283,8 +283,10 @@ func SetRootDir(rootdir string) {
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 
+	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
+	// The cache path is true for Ubuntu, Debian, openSUSE, Arch
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
 	if release.DistroLike("fedora") && !release.DistroLike("amzn") {
 		// Applies to Fedora and CentOS, Amazon Linux 2 is behind with
