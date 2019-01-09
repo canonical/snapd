@@ -371,7 +371,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -472,7 +472,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, stoAs), IsNil)
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -559,7 +559,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "classic-alt-store", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "classic-alt-store", map[string]interface{}{
 		"classic": "true",
 		"store":   "alt-store",
 	})
@@ -700,7 +700,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]string{
+	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
 		"classic": "true",
 		"store":   "alt-store",
 	})
@@ -1027,7 +1027,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1131,7 +1131,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "gadget",
@@ -1273,7 +1273,7 @@ func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, n
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, stoAs), IsNil)
 
-	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "gadget",
@@ -1345,7 +1345,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	// sanity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1451,7 +1451,7 @@ type: gadget
 version: gadget
 `, "")
 
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2129,7 +2129,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
 }
 
-func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]string) {
+func (s *deviceMgrSuite) makeModelAssertion(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
 	headers := map[string]interface{}{
 		"series":    "16",
 		"brand-id":  brandID,
@@ -2149,7 +2149,12 @@ func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, 
 	}
 	modelAs, err := signer.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, modelAs)
+	return modelAs.(*asserts.Model)
+}
+
+func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) {
+	modelAs := s.makeModelAssertion(c, brandID, model, extras)
+	err := assertstate.Add(s.state, modelAs)
 	c.Assert(err, IsNil)
 }
 
@@ -2190,7 +2195,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2230,7 +2235,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNoSerialFallback(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2270,7 +2275,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"classic": "true",
 	})
 	c.Check(canAutoRefresh(), Equals, false)
@@ -2594,4 +2599,105 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 
 	st.Set("seeded", true)
 	c.Check(mgr.CanStandby(), Equals, true)
+}
+
+type testModel struct {
+	brand, model               string
+	arch, base, kernel, gadget string
+}
+
+func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// set a model assertion
+	cur := map[string]string{
+		"brand":        "canonical",
+		"model":        "pc-model",
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	}
+	s.makeModelAssertionInState(c, cur["brand"], cur["model"], map[string]interface{}{
+		"architecture": cur["architecture"],
+		"kernel":       cur["kernel"],
+		"gadget":       cur["gadget"],
+		"base":         cur["base"],
+	})
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: cur["brand"],
+		Model: cur["model"],
+	})
+
+	// ensure all error cases are checked
+	for _, t := range []struct {
+		new    map[string]string
+		errStr string
+	}{
+		{map[string]string{"brand": "my-brand"}, "cannot remodel to different brands yet"},
+		{map[string]string{"model": "other-model"}, "cannot remodel to different models yet"},
+		{map[string]string{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
+		{map[string]string{"base": "core20"}, "cannot remodel to different bases yet"},
+		{map[string]string{"kernel": "other-kernel"}, "cannot remodel to different kernels yet"},
+		{map[string]string{"gadget": "other-gadget"}, "cannot remodel to different gadgets yet"},
+	} {
+		// copy current model unless new model test data is different
+		for k, v := range cur {
+			if t.new[k] != "" {
+				continue
+			}
+			t.new[k] = v
+		}
+		new := s.makeModelAssertion(c, t.new["brand"], t.new["model"], map[string]interface{}{
+			"architecture": t.new["architecture"],
+			"kernel":       t.new["kernel"],
+			"gadget":       t.new["gadget"],
+			"base":         t.new["base"],
+		})
+		tss, err := devicestate.Remodel(s.state, new)
+		c.Check(tss, IsNil)
+		c.Check(err, ErrorMatches, t.errStr)
+	}
+}
+
+func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		ts := state.NewTaskSet()
+		ts.AddTask(s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name)))
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+	})
+	tss, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "fake-install")
+	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Install new-required-snap-1")
+	c.Assert(tss[1].Tasks()[0].Kind(), Equals, "fake-install")
+	c.Assert(tss[1].Tasks()[0].Summary(), Equals, "Install new-required-snap-2")
 }
