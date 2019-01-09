@@ -91,7 +91,7 @@ backends:
                 workers: 4
 
             - amazon-linux-2-64:
-                workers: 4
+                workers: 1
                 storage: preserve-size
 
             - centos-7-64:
