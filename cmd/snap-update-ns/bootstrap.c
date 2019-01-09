@@ -96,8 +96,16 @@ static int switch_to_privileged_user()
 	    { _LINUX_CAPABILITY_VERSION_3, 0 };
 	struct __user_cap_data_struct data[2] = { {0} };
 
-	data[0].effective = (CAP_TO_MASK(CAP_SYS_ADMIN) |
-			     CAP_TO_MASK(CAP_SETUID) | CAP_TO_MASK(CAP_SETGID));
+	data[0].effective = (
+		/* To perform mount operations. */
+		CAP_TO_MASK(CAP_SYS_ADMIN) |
+		/* To change user and group IDs. */
+		CAP_TO_MASK(CAP_SETUID) |
+		CAP_TO_MASK(CAP_SETGID) |
+		/* To ignore filesystem permissions. */
+		CAP_TO_MASK(CAP_DAC_OVERRIDE) |
+		CAP_TO_MASK(CAP_DAC_READ_SEARCH)
+	);
 	data[0].permitted = data[0].effective;
 	data[0].inheritable = 0;
 	data[1].effective = 0;
@@ -136,7 +144,13 @@ static int switch_to_privileged_user()
 	}
 	// After changing uid, our effective capabilities were dropped.
 	// Reacquire CAP_SYS_ADMIN, and discard CAP_SETUID/CAP_SETGID.
-	data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+	data[0].effective = (
+		/* To perform mount operations. */
+		CAP_TO_MASK(CAP_SYS_ADMIN) |
+		/* To ignore filesystem permissions. */
+		CAP_TO_MASK(CAP_DAC_OVERRIDE) |
+		CAP_TO_MASK(CAP_DAC_READ_SEARCH)
+	);
 	data[0].permitted = data[0].effective;
 	if (capset(&hdr, data) != 0) {
 		bootstrap_errno = errno;
