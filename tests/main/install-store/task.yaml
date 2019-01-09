@@ -13,16 +13,16 @@ environment:
 
 execute: |
     echo "Install from different channels"
-    expected="(?s)$SNAP_NAME .* from Canonical✓ installed\\n"
+    expected="(?s)$SNAP_NAME .* from Canonical\\* installed\\n"
     for channel in edge beta candidate stable
     do
-        snap install "$SNAP_NAME" --channel=$channel | grep -Pzq "$expected"
+        snap install --unicode=never "$SNAP_NAME" --channel=$channel | grep -Pzq "$expected"
         snap remove "$SNAP_NAME"
     done
 
     echo "Install non-devmode snap with devmode option"
-    expected="(?s)$SNAP_NAME .* from Canonical✓ installed\\n"
-    snap install "$SNAP_NAME" --devmode | grep -Pzq "$expected"
+    expected="(?s)$SNAP_NAME .* from Canonical\\* installed\\n"
+    snap install --unicode=never "$SNAP_NAME" --devmode | grep -Pzq "$expected"
 
     echo "Install devmode snap without devmode option"
     expected="repeat the command including --devmode"
