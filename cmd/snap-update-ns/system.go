@@ -23,9 +23,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -47,52 +44,6 @@ func NewSystemProfileUpdate(instanceName string, fromSnapConfine bool) *SystemPr
 // InstanceName returns the snap instance name being updated.
 func (up *SystemProfileUpdate) InstanceName() string {
 	return up.commonProfileUpdate.instanceName
-}
-
-// Lock acquires locks / freezes needed to synchronize mount namespace changes.
-func (up *SystemProfileUpdate) Lock() (func(), error) {
-	instanceName := up.commonProfileUpdate.instanceName
-
-	// Lock the mount namespace so that any concurrently attempted invocations
-	// of snap-confine are synchronized and will see consistent state.
-	lock, err := mount.OpenLock(instanceName)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
-	}
-
-	logger.Debugf("locking mount namespace of snap %q", instanceName)
-	if up.commonProfileUpdate.fromSnapConfine {
-		// When --from-snap-confine is passed then we just ensure that the
-		// namespace is locked. This is used by snap-confine to use
-		// snap-update-ns to apply mount profiles.
-		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
-			return nil, fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
-		}
-	} else {
-		if err := lock.Lock(); err != nil {
-			return nil, fmt.Errorf("cannot lock mount namespace of snap %q: %s", instanceName, err)
-		}
-	}
-
-	// Freeze the mount namespace and unfreeze it later. This lets us perform
-	// modifications without snap processes attempting to construct
-	// symlinks or perform other malicious activity (such as attempting to
-	// introduce a symlink that would cause us to mount something other
-	// than what we expected).
-	logger.Debugf("freezing processes of snap %q", instanceName)
-	if err := freezeSnapProcesses(instanceName); err != nil {
-		// If we cannot freeze the processes we should drop the lock.
-		lock.Close()
-		return nil, err
-	}
-
-	unlock := func() {
-		logger.Debugf("unlocking mount namespace of snap %q", instanceName)
-		lock.Close()
-		logger.Debugf("thawing processes of snap %q", instanceName)
-		thawSnapProcesses(instanceName)
-	}
-	return unlock, nil
 }
 
 // Assumptions returns information about file system mutability rules.

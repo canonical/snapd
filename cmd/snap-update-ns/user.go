@@ -61,8 +61,12 @@ func (up *UserProfileUpdate) UID() int {
 
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
 func (up *UserProfileUpdate) Lock() (unlock func(), err error) {
-	// TODO: grab per-snap lock, freeze all processes.
-	// This is hard to do when not running as root.
+	// If persistent user mount namespaces are not enabled then don't acquire
+	// any locks. This is for parity with the pre-persistence behavior (to
+	// minimise impact before the feature is enabled by default).
+	if features.PerUserMountNamespace.IsEnabled() {
+		return up.commonProfileUpdate.Lock()
+	}
 	return func() {}, nil
 }
 

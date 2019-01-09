@@ -43,8 +43,24 @@ func (s *userSuite) TestDesiredUserProfilePath(c *C) {
 }
 
 func (s *userSuite) TestLock(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+
 	up := update.NewUserProfileUpdate("foo", false, 1234)
+	feature := features.PerUserMountNamespace
+
+	// When the feature is disabled locking is a no-op.
+	c.Check(feature.IsEnabled(), Equals, false)
 	unlock, err := up.Lock()
+	c.Assert(err, IsNil)
+	c.Check(unlock, NotNil)
+	unlock()
+
+	// When the feature is enabled a lock is acquired and cgroup is frozen.
+	c.Assert(ioutil.WriteFile(feature.ControlFile(), nil, 0644), IsNil)
+	c.Check(feature.IsEnabled(), Equals, true)
+	unlock, err = up.Lock()
 	c.Assert(err, IsNil)
 	c.Check(unlock, NotNil)
 	unlock()
