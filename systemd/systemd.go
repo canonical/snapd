@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/snapcore/squashfuse"
@@ -56,8 +57,35 @@ var (
 	//
 	// See https://github.com/systemd/systemd/issues/10872 for the
 	// upstream systemd bug
-	daemonReloadLock sync.Mutex
+	daemonReloadLock extMutex
 )
+
+// mu is a sync.Mutex that also supports to check if the lock is taken
+type extMutex struct {
+	lock sync.Mutex
+	muC  int32
+}
+
+// Lock acquires the mutex
+func (m *extMutex) Lock() {
+	m.lock.Lock()
+	atomic.AddInt32(&m.muC, 1)
+}
+
+// Unlock releases the mutex
+func (m *extMutex) Unlock() {
+	m.lock.Unlock()
+	atomic.AddInt32(&m.muC, -1)
+}
+
+// Taken will panic with the given error message if the lock is not
+// taken when this code runs. This is useful to internally check if
+// something is accessed without a valid lock.
+func (m *extMutex) Taken(errMsg string) {
+	if atomic.LoadInt32(&m.muC) != 1 {
+		panic("internal error: " + errMsg)
+	}
+}
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
@@ -190,6 +218,8 @@ func (s *systemd) DaemonReload() error {
 }
 
 func (s *systemd) daemonReloadNoLock() error {
+	daemonReloadLock.Taken("cannot use daemon-reload without lock")
+
 	_, err := systemctlCmd("daemon-reload")
 	return err
 }
