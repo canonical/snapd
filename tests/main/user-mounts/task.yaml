@@ -11,9 +11,14 @@ details: |
 # available on core, we can switch to that.
 systems: [-ubuntu-core-*]
 
+environment:
+    FEATURE/ephemeral: false
+    FEATURE/persistent: true
+
 prepare: |
     snap try "$TESTSLIB"/snaps/test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
+    snap set core experimental.per-user-mount-namespace="$FEATURE"
 
 restore: |
     rm -rf /run/user/12345/*
@@ -51,3 +56,12 @@ execute: |
     test-snapd-desktop.check-dirs /run/user/12345/doc
     EOF
     su -l -c "sh /tmp/check-user-mount.sh" test | MATCH in-source
+
+    if [ "$(snap get core experimental.per-user-mount-namespace)" = true ]; then
+        test -e /run/snapd/ns/snap.test-snapd-desktop.12345.user-fstab
+        test -e /run/snapd/ns/test-snapd-desktop.12345.mnt
+        MATCH '/run/user/12345/doc/by-app/snap.test-snapd-desktop /run/user/12345/doc none bind,rw,x-snapd.ignore-missing 0 0' < /run/snapd/ns/snap.test-snapd-desktop.12345.user-fstab
+    else
+        test ! -e /run/snapd/ns/snap.test-snapd-desktop.12345.user-fstab
+        test ! -e /run/snapd/ns/test-snapd-desktop.12345.mnt
+    fi
