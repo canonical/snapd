@@ -281,16 +281,13 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
-		target := dirs.StripRootDir(dir)
-		if dir == dirs.SystemFontconfigCacheDir {
-			// fontconfig cache directory path is a little special
-			// and varies across systems, but we always mount it at
-			// the same location
-			target = "/var/cache/fontconfig"
-		}
+		// Since /etc/fonts/fonts.conf in the snap mount ns is the same
+		// as on the host, we need to preserve the original directory
+		// paths for the fontconfig runtime to poke the correct
+		// locations
 		spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
-			Dir:     target,
+			Dir:     dirs.StripRootDir(dir),
 			Options: []string{"bind", "ro"},
 		})
 	}
