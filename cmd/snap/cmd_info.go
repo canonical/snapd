@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -321,8 +322,13 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
 // displayChannels displays channels and tracks in the right order
-func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap) {
-	fmt.Fprintf(w, "channels:"+strings.Repeat("\t", strings.Count(chantpl, "\t"))+"\n")
+func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap) {
+	fmt.Fprintln(w, "channels:")
+
+	releasedfmt := "2006-01-02"
+	if x.AbsTime {
+		releasedfmt = time.RFC3339
+	}
 
 	// order by tracks
 	for _, tr := range remote.Tracks {
@@ -333,10 +339,11 @@ func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.S
 			if tr == "latest" {
 				chName = risk
 			}
-			var version, revision, size, notes string
+			var version, released, revision, size, notes string
 			if ok {
 				version = ch.Version
 				revision = fmt.Sprintf("(%s)", ch.Revision)
+				released = ch.ReleasedAt.Format(releasedfmt)
 				size = strutil.SizeToStr(ch.Size)
 				notes = NotesFromChannelSnapInfo(ch).String()
 				trackHasOpenChannel = true
@@ -347,7 +354,7 @@ func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.S
 					version = esc.dash
 				}
 			}
-			fmt.Fprintf(w, "  "+chantpl, chName, version, revision, size, notes)
+			fmt.Fprintf(w, "  "+chantpl, chName, version, released, revision, size, notes)
 		}
 	}
 }
@@ -457,17 +464,17 @@ func (x *infoCmd) Execute([]string) error {
 			}
 		}
 
-		chantpl := "%s:\t%s %s %s %s\n"
+		chantpl := "%s:\t%s %s%s %s %s\n"
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			chantpl = "%s:\t%s\t%s\t%s\t%s\n"
+			chantpl = "%s:\t%s\t%s\t%s\t%s\t%s\n"
 
 			w.Flush()
-			displayChannels(w, chantpl, esc, remote)
+			x.displayChannels(w, chantpl, esc, remote)
 		}
 		if local != nil {
 			revstr := fmt.Sprintf("(%s)", local.Revision)
 			fmt.Fprintf(w, chantpl,
-				"installed", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
+				"installed", local.Version, "", revstr, strutil.SizeToStr(local.InstalledSize), notes)
 		}
 
 	}
