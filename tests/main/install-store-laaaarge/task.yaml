@@ -13,17 +13,8 @@ restore: |
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service snapd.socket
-    # Iterate trying to umount /tmp which could be busy
-    for i in $(seq 10); do
-        if [ "$i" -eq 10 ]; then
-            echo "Failed to umount /tmp"
-            exit 1
-        fi
-        if umount /tmp; then
-            break
-        fi
-        sleep 1
-    done
+    # Umount lazy to avoid busy device error
+    umount -l /tmp
     systemctl start snapd.{socket,service}
 
 execute: |
