@@ -43,7 +43,7 @@ func (s *userSuite) TestDesiredUserProfilePath(c *C) {
 }
 
 func (s *userSuite) TestLock(c *C) {
-	up := &update.UserProfileUpdate{InstanceName: "foo", UID: 1234}
+	up := update.NewUserProfileUpdate("foo", false, 1234)
 	unlock, err := up.Lock()
 	c.Assert(err, IsNil)
 	c.Check(unlock, NotNil)
@@ -51,21 +51,21 @@ func (s *userSuite) TestLock(c *C) {
 }
 
 func (s *userSuite) TestAssumptions(c *C) {
-	up := &update.UserProfileUpdate{InstanceName: "foo", UID: 1234}
+	up := update.NewUserProfileUpdate("foo", false, 1234)
 	as := up.Assumptions()
 	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/run/user/1234"})
 }
 
 func (s *userSuite) TestLoadDesiredProfile(c *C) {
-	up := &update.UserProfileUpdate{InstanceName: "foo", UID: 1234}
-
-	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
-	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
-
 	// Mock directories but to simplify testing use the real value for XDG.
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	dirs.XdgRuntimeDirBase = "/run/user"
+
+	up := update.NewUserProfileUpdate("foo", false, 1234)
+
+	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
+	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
 
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
@@ -83,15 +83,15 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 }
 
 func (s *userSuite) TestLoadCurrentProfile(c *C) {
-	up := &update.UserProfileUpdate{InstanceName: "foo", UID: 1234}
-
 	// Mock directories.
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
+	up := update.NewUserProfileUpdate("foo", false, 1234)
+
 	// Write a current user mount profile for snap "foo".
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
-	path := update.CurrentUserProfilePath(up.InstanceName, up.UID)
+	path := update.CurrentUserProfilePath(up.InstanceName(), up.UID())
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(path, []byte(text), 0644), IsNil)
 
@@ -106,31 +106,30 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 }
 
 func (s *userSuite) TestSaveCurrentProfile(c *C) {
-	up := &update.UserProfileUpdate{InstanceName: "foo", UID: 1234}
-
-	// Prepare a mount profile to be saved.
-	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
-	profile, err := osutil.LoadMountProfileText(text)
-	c.Assert(err, IsNil)
-
 	// Mock directories and create directory for features and runtime mount profiles.
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
 
-	feature := features.PerUserMountNamespace
+	up := update.NewUserProfileUpdate("foo", false, 1234)
 
+	// Prepare a mount profile to be saved.
+	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
+	profile, err := osutil.LoadMountProfileText(text)
+	c.Assert(err, IsNil)
+
+	feature := features.PerUserMountNamespace
 	// Ask the user profile update to write the current profile.
 	// Because the per-user-mount-namespace feature is disabled the profile is not persisted.
 	c.Check(feature.IsEnabled(), Equals, false)
 	c.Assert(up.SaveCurrentProfile(profile), IsNil)
-	c.Check(update.CurrentUserProfilePath(up.InstanceName, up.UID), testutil.FileAbsent)
+	c.Check(update.CurrentUserProfilePath(up.InstanceName(), up.UID()), testutil.FileAbsent)
 
 	// Ask the user profile update to write the current profile, again.
 	// When the per-user-mount-namespace feature is enabled the profile is saved.
 	c.Assert(ioutil.WriteFile(feature.ControlFile(), nil, 0644), IsNil)
 	c.Check(feature.IsEnabled(), Equals, true)
 	c.Assert(up.SaveCurrentProfile(profile), IsNil)
-	c.Check(update.CurrentUserProfilePath(up.InstanceName, up.UID), testutil.FilePresent)
+	c.Check(update.CurrentUserProfilePath(up.InstanceName(), up.UID()), testutil.FilePresent)
 }
