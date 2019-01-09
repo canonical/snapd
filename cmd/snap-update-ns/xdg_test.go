@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -42,7 +43,7 @@ func (s *xdgSuite) TestExpandXdgRuntimeDir(c *C) {
 	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
 	c.Assert(err, IsNil)
 	update.ExpandXdgRuntimeDir(profile, 1234)
-	builder := &strings.Builder{}
+	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 	c.Check(builder.String(), Equals, output)
 }

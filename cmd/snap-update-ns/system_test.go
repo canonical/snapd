@@ -20,10 +20,10 @@
 package main_test
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -76,7 +76,7 @@ func (s *systemSuite) TestLoadDesiredProfile(c *C) {
 	// Ask the system profile update helper to read the desired profile.
 	profile, err := up.LoadDesiredProfile()
 	c.Assert(err, IsNil)
-	builder := &strings.Builder{}
+	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
 	c.Check(builder.String(), Equals, text)
@@ -98,7 +98,7 @@ func (s *systemSuite) TestLoadCurrentProfile(c *C) {
 	// Ask the system profile update helper to read the current profile.
 	profile, err := up.LoadCurrentProfile()
 	c.Assert(err, IsNil)
-	builder := &strings.Builder{}
+	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
 	// The profile is returned unchanged.

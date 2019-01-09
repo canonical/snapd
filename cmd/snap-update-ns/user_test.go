@@ -20,10 +20,10 @@
 package main_test
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -87,7 +87,7 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	// Ask the user profile update helper to read the desired profile.
 	profile, err := up.LoadDesiredProfile()
 	c.Assert(err, IsNil)
-	builder := &strings.Builder{}
+	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
 	// Note that the profile read back contains expanded $XDG_RUNTIME_DIR.
@@ -110,7 +110,7 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	// Ask the user profile update helper to read the current profile.
 	profile, err := up.LoadCurrentProfile()
 	c.Assert(err, IsNil)
-	builder := &strings.Builder{}
+	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
 	// The profile is returned unchanged.
