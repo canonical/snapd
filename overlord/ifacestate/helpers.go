@@ -20,14 +20,21 @@
 package ifacestate
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"os"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -69,7 +76,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if m.profilesNeedRegeneration() {
+	if profilesNeedRegeneration() {
 		if err := m.regenerateAllSecurityProfiles(); err != nil {
 			return err
 		}
@@ -132,7 +139,7 @@ func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
 	return nil
 }
 
-func (m *InterfaceManager) profilesNeedRegeneration() bool {
+func profilesNeedRegenerationImpl() bool {
 	mismatch, err := interfaces.SystemKeyMismatch()
 	if err != nil {
 		logger.Noticef("error trying to compare the snap system key: %v", err)
@@ -140,6 +147,9 @@ func (m *InterfaceManager) profilesNeedRegeneration() bool {
 	}
 	return mismatch
 }
+
+var profilesNeedRegeneration = profilesNeedRegenerationImpl
+var writeSystemKey = interfaces.WriteSystemKey
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
@@ -158,6 +168,16 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			return err
 		}
 	}
+
+	// The reason the system key is unlinked is to prevent snapd from believing
+	// that an old system key is valid and represents security setup
+	// established in the system. If snapd is reverted following a failed
+	// startup then system key may match the system key that used to be on disk
+	// but some of the system security may have been changed by the new snapd,
+	// the one that was reverted. Unlinking avoids such possibility, forcing
+	// old snapd to re-establish proper security view.
+	shouldWriteSystemKey := true
+	os.Remove(dirs.SnapSystemKeyFile)
 
 	// For each snap:
 	for _, snapInfo := range snaps {
@@ -178,15 +198,18 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			}
 			// Refresh security of this snap and backend
 			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
-				// Let's log this but carry on
+				// Let's log this but carry on without writing the system key.
 				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
 					backend.Name(), snapName, err)
+				shouldWriteSystemKey = false
 			}
 		}
 	}
 
-	if err := interfaces.WriteSystemKey(); err != nil {
-		logger.Noticef("cannot write system key: %v", err)
+	if shouldWriteSystemKey {
+		if err := writeSystemKey(); err != nil {
+			logger.Noticef("cannot write system key: %v", err)
+		}
 	}
 	return nil
 }
@@ -272,7 +295,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 	affected := make(map[string]bool)
 	for id, conn := range conns {
-		if conn.Undesired {
+		if conn.Undesired || conn.HotplugGone {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(id)
@@ -305,30 +328,50 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
+	st := task.State()
+
+	// Setup all affected snaps, start with the most important security
+	// backend and run it for all snaps. See LP: 1802581
+	for _, backend := range m.repo.Backends() {
+		for i, snapInfo := range snaps {
+			st.Unlock()
+			err := backend.Setup(snapInfo, opts[i], m.repo)
+			st.Lock()
+			if err != nil {
+				task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapInfo.InstanceName(), err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
-	snapName := snapInfo.InstanceName()
+	instanceName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		err := backend.Setup(snapInfo, opts, m.repo)
 		st.Lock()
 		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
+			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string) error {
+func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {
 	st := task.State()
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Remove(snapName)
+		err := backend.Remove(instanceName)
 		st.Lock()
 		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
+			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
 			return err
 		}
 	}
@@ -521,15 +564,22 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 // getConns returns information about connections from the state.
 //
 // Connections are transparently re-mapped according to remapIncomingConnRef
-func getConns(st *state.State) (conns map[string]connState, err error) {
-	err = st.Get("conns", &conns)
+func getConns(st *state.State) (conns map[string]*connState, err error) {
+	var raw *json.RawMessage
+	err = st.Get("conns", &raw)
 	if err != nil && err != state.ErrNoState {
-		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
+	}
+	if raw != nil {
+		err = jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &conns)
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode data about existing connections: %s", err)
+		}
 	}
 	if conns == nil {
-		conns = make(map[string]connState)
+		conns = make(map[string]*connState)
 	}
-	remapped := make(map[string]connState, len(conns))
+	remapped := make(map[string]*connState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -537,6 +587,10 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 		}
 		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
 		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
+		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]interface{})
+		cstate.DynamicSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicSlotAttrs).(map[string]interface{})
+		cstate.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticPlugAttrs).(map[string]interface{})
+		cstate.DynamicPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicPlugAttrs).(map[string]interface{})
 		remapped[cref.ID()] = cstate
 	}
 	return remapped, nil
@@ -545,8 +599,8 @@ func getConns(st *state.State) (conns map[string]connState, err error) {
 // setConns sets information about connections in the state.
 //
 // Connections are transparently re-mapped according to remapOutgoingConnRef
-func setConns(st *state.State, conns map[string]connState) {
-	remapped := make(map[string]connState, len(conns))
+func setConns(st *state.State, conns map[string]*connState) {
+	remapped := make(map[string]*connState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -580,8 +634,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		snapName := snapsup.InstanceName()
-		if seen[snapName] {
+		instanceName := snapsup.InstanceName()
+		if seen[instanceName] {
 			continue
 		}
 
@@ -592,7 +646,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				if err != nil {
 					return nil, err
 				}
-				if snapsup1.InstanceName() == snapName {
+				if snapsup1.InstanceName() == instanceName {
 					doneProfiles = true
 					break
 				}
@@ -602,10 +656,10 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 			continue
 		}
 
-		seen[snapName] = true
-		snapInfo, err := snap.ReadInfo(snapName, snapsup.SideInfo)
+		seen[instanceName] = true
+		snapInfo, err := snap.ReadInfo(instanceName, snapsup.SideInfo)
 		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
 		}
 		infos = append(infos, snapInfo)
@@ -641,6 +695,8 @@ type SnapMapper interface {
 	// There is no corresponding mapping function for API responses anymore.
 	// The API responses always reflect the real system state.
 	RemapSnapFromRequest(snapName string) string
+	// Returns actual name of the system snap.
+	SystemSnapName() string
 }
 
 // IdentityMapper implements SnapMapper and performs no transformations at all.
@@ -678,9 +734,14 @@ type CoreCoreSystemMapper struct {
 // explicitly refer to "core" or using the "system" nickname.
 func (m *CoreCoreSystemMapper) RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" {
-		return "core"
+		return m.SystemSnapName()
 	}
 	return snapName
+}
+
+// SystemSnapName returns actual name of the system snap.
+func (m *CoreCoreSystemMapper) SystemSnapName() string {
+	return "core"
 }
 
 // CoreSnapdSystemMapper implements SnapMapper and makes implicit slots
@@ -697,7 +758,7 @@ type CoreSnapdSystemMapper struct {
 // using "snapd" snap for hosting those slots and this lets us stay compatible.
 func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
 	if snapName == "core" {
-		return "snapd"
+		return m.SystemSnapName()
 	}
 	return snapName
 }
@@ -708,7 +769,7 @@ func (m *CoreSnapdSystemMapper) RemapSnapFromState(snapName string) string {
 // seem to refer to the "core" snap, as in pre core{16,18} days where there was
 // only one core snap.
 func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
-	if snapName == "snapd" {
+	if snapName == m.SystemSnapName() {
 		return "core"
 	}
 	return snapName
@@ -723,9 +784,14 @@ func (m *CoreSnapdSystemMapper) RemapSnapToState(snapName string) string {
 // even if the request used "core".
 func (m *CoreSnapdSystemMapper) RemapSnapFromRequest(snapName string) string {
 	if snapName == "system" || snapName == "core" {
-		return "snapd"
+		return m.SystemSnapName()
 	}
 	return snapName
+}
+
+// SystemSnapName returns actual name of the system snap.
+func (m *CoreSnapdSystemMapper) SystemSnapName() string {
+	return "snapd"
 }
 
 // mapper contains the currently active snap mapper.
@@ -753,6 +819,16 @@ func RemapSnapFromRequest(snapName string) string {
 	return mapper.RemapSnapFromRequest(snapName)
 }
 
+// SystemSnapName returns actual name of the system snap.
+func SystemSnapName() string {
+	return mapper.SystemSnapName()
+}
+
+// systemSnapInfo returns current info for system snap.
+func systemSnapInfo(st *state.State) (*snap.Info, error) {
+	return snapstate.CurrentInfo(st, SystemSnapName())
+}
+
 func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	plugRef, slotRef, err := getPlugAndSlotRefs(t)
 	if err != nil {
@@ -761,11 +837,11 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	return []string{plugRef.Snap, slotRef.Snap}, nil
 }
 
-func ensureSystemSnapIsPresent(st *state.State) error {
+func checkSystemSnapIsPresent(st *state.State) bool {
 	st.Lock()
 	defer st.Unlock()
-	_, err := snapstate.CoreInfo(st)
-	return err
+	_, err := systemSnapInfo(st)
+	return err == nil
 }
 
 func setHotplugAttrs(task *state.Task, ifaceName, hotplugKey string) {
@@ -781,6 +857,51 @@ func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error)
 		return "", "", fmt.Errorf("internal error: cannot get hotplug key from hotplug task: %s", err)
 	}
 	return ifaceName, hotplugKey, err
+}
+
+func allocHotplugSeq(st *state.State) (int, error) {
+	var seq int
+	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
+		return 0, err
+	}
+	seq++
+	st.Set("hotplug-seq", seq)
+	return seq, nil
+}
+
+func isHotplugChange(chg *state.Change) bool {
+	return strings.HasPrefix(chg.Kind(), "hotplug-")
+}
+
+func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey string, err error) {
+	if err = chg.Get("hotplug-key", &hotplugKey); err != nil {
+		return 0, "", fmt.Errorf("internal error: hotplug-key not set on change %q", chg.Kind())
+	}
+	if err = chg.Get("hotplug-seq", &seq); err != nil {
+		return 0, "", fmt.Errorf("internal error: hotplug-seq not set on change %q", chg.Kind())
+	}
+	return seq, hotplugKey, nil
+}
+
+func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
+	chg.Set("hotplug-seq", seq)
+	chg.Set("hotplug-key", hotplugKey)
+}
+
+// addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
+// and makes all existing tasks of the change wait for it.
+func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
+	st := hotplugChange.State()
+	seq, err := allocHotplugSeq(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
+	}
+	setHotplugChangeAttrs(hotplugChange, seq, hotplugKey)
+	seqControl := st.NewTask("hotplug-seq-wait", fmt.Sprintf("Serialize hotplug change for hotplug key %q", hotplugKey))
+	tss := state.NewTaskSet(hotplugChange.Tasks()...)
+	tss.WaitFor(seqControl)
+	hotplugChange.AddTask(seqControl)
+	return nil
 }
 
 type HotplugSlotInfo struct {
@@ -804,4 +925,16 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 
 func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
+}
+
+func findConnsForHotplugKey(conns map[string]*connState, ifaceName, hotplugKey string) []string {
+	var connsForDevice []string
+	for id, connSt := range conns {
+		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {
+			continue
+		}
+		connsForDevice = append(connsForDevice, id)
+	}
+	sort.Strings(connsForDevice)
+	return connsForDevice
 }

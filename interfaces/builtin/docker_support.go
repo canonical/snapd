@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -81,6 +82,10 @@ unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
 /sys/fs/cgroup/*/docker/   rw,
 /sys/fs/cgroup/*/docker/** rw,
 
+# Also allow cgroup writes to kubernetes pods
+/sys/fs/cgroup/*/kubepods/ rw,
+/sys/fs/cgroup/*/kubepods/** rw,
+
 # Allow tracing ourself (especially the "runc" process we create)
 ptrace (trace) peer=@{profile_name},
 
@@ -111,7 +116,7 @@ pivot_root,
 /sbin/apparmor_parser ixr,
 /etc/apparmor.d/cache/ r,
 /etc/apparmor.d/cache/.features r,
-/etc/apparmor.d/cache/docker* rw,
+/etc/apparmor.d/{,cache/}docker* rw,
 /etc/apparmor.d/tunables/{,**} r,
 /etc/apparmor.d/abstractions/{,**} r,
 /etc/apparmor/parser.conf r,
@@ -120,7 +125,7 @@ pivot_root,
 /sys/kernel/security/apparmor/{,**} r,
 
 # use 'privileged-containers: true' to support --security-opts
-change_profile -> docker-default,
+change_profile unsafe /** -> docker-default,
 signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
 
@@ -525,13 +530,17 @@ const dockerSupportPrivilegedAppArmor = `
 # These rules are here to allow Docker to launch unconfined containers but
 # allow the docker daemon itself to go unconfined. Since it runs as root, this
 # grants device ownership.
-change_profile -> *,
+change_profile unsafe /**,
 signal (send) peer=unconfined,
 ptrace (read, trace) peer=unconfined,
 
 # This grants raw access to device files and thus device ownership
 /dev/** mrwkl,
 @{PROC}/** mrwkl,
+
+# When kubernetes drives docker, it creates files in the container at arbitrary
+# locations.
+/** wl,
 `
 
 const dockerSupportPrivilegedSecComp = `
@@ -560,13 +569,22 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
+var (
+	parserFeatures = release.AppArmorParserFeatures
+)
+
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var privileged bool
 	_ = plug.Attr("privileged-containers", &privileged)
+
+	// The 'change_profile unsafe' rules conflict with the 'ix' rules in
+	// the home interface, so suppress them (LP: #1797786)
+	spec.SetSuppressHomeIx()
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
 	}
+	spec.UsesPtraceTrace()
 	return nil
 }
 

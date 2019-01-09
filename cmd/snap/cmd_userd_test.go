@@ -60,24 +60,39 @@ func (s *userdSuite) TestUserdBadCommandline(c *C) {
 	c.Assert(err, ErrorMatches, "too many arguments for command")
 }
 
-func (s *userdSuite) TestUserd(c *C) {
+func (s *userdSuite) TestUserdDBus(c *C) {
 	go func() {
+		myPid := os.Getpid()
 		defer func() {
-			me, err := os.FindProcess(os.Getpid())
+			me, err := os.FindProcess(myPid)
 			c.Assert(err, IsNil)
 			me.Signal(syscall.SIGUSR1)
 		}()
 
-		needle := "io.snapcraft.Launcher"
+		names := map[string]bool{
+			"io.snapcraft.Launcher": false,
+			"io.snapcraft.Settings": false,
+		}
 		for i := 0; i < 1000; i++ {
-			for _, objName := range s.SessionBus.Names() {
-				if objName == needle {
-					return
+			seenCount := 0
+			for name, seen := range names {
+				if seen {
+					seenCount++
+					continue
 				}
+				pid, err := testutil.DBusGetConnectionUnixProcessID(s.SessionBus, name)
+				c.Logf("name: %v pid: %v err: %v", name, pid, err)
+				if pid == myPid {
+					names[name] = true
+					seenCount++
+				}
+			}
+			if seenCount == len(names) {
+				return
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		c.Fatalf("%s has not appeared on the bus", needle)
+		c.Fatalf("not all names have appeared on the bus: %v", names)
 	}()
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd"})

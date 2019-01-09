@@ -43,10 +43,6 @@ var (
 	UseDeltas  = useDeltas
 	ApplyDelta = applyDelta
 
-	// FIXME: there is a name clash, store has both "currentSnap"
-	// and "CurrentSnap" which do different things.
-	GetCurrentSnap = currentSnap
-
 	AuthLocation      = authLocation
 	AuthURL           = authURL
 	StoreURL          = storeURL
@@ -70,6 +66,14 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	defaultRetryStrategy = strategy
 	t.AddCleanup(func() {
 		defaultRetryStrategy = originalDefaultRetryStrategy
+	})
+}
+
+func MockDownloadRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
+	originalDownloadRetryStrategy := downloadRetryStrategy
+	downloadRetryStrategy = strategy
+	t.AddCleanup(func() {
+		downloadRetryStrategy = originalDownloadRetryStrategy
 	})
 }
 

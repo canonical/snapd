@@ -128,7 +128,7 @@ distro_name_package() {
         fedora-*)
             fedora_name_package "$@"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             amazon_name_package "$@"
             ;;
         opensuse-*)
@@ -172,9 +172,9 @@ distro_install_local_package() {
             apt install $flags "$@"
             ;;
         fedora-*)
-            quiet dnf -y install "$@"
+            quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum -y localinstall "$@"
             ;;
         opensuse-*)
@@ -191,11 +191,26 @@ distro_install_local_package() {
 }
 
 distro_install_package() {
+    orig_xtrace=$(set -o | awk '/xtrace / { print $2 }')
+    set +x
+    echo "distro_install_package $*"
     # Parse additional arguments; once we find the first unknown
     # part we break argument parsing and process all further
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # Fedora images we use come with a number of preinstalled package, among
+        # them gtk3. Those packages are needed to run the tests. The
+        # xdg-desktop-portal-gtk package uses this in the spec:
+        #
+        #   Supplements:    (gtk3 and (flatpak or snapd))
+        #
+        # As a result, when snapd is installed, we will unintentionally pull in
+        # xdg-desktop-portal-gtk and its dependencies breaking tests. For this
+        # reason, disable weak deps altogether.
+        DNF_FLAGS="--setopt=install_weak_deps=False"
+    fi
     YUM_FLAGS=
     ZYPPER_FLAGS=
     while [ -n "$1" ]; do
@@ -255,7 +270,7 @@ distro_install_package() {
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             ;;
@@ -272,6 +287,7 @@ distro_install_package() {
             exit 1
             ;;
     esac
+    test "$orig_xtrace" = on && set -x
 }
 
 distro_purge_package() {
@@ -296,7 +312,7 @@ distro_purge_package() {
             quiet dnf -y remove "$@"
             quiet dnf clean all
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum -y remove "$@"
             ;;
         opensuse-*)
@@ -321,7 +337,7 @@ distro_update_package_db() {
             quiet dnf clean all
             quiet dnf makecache
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum clean all
             quiet yum makecache
             ;;
@@ -346,7 +362,7 @@ distro_clean_package_cache() {
         fedora-*)
             dnf clean all
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             yum clean all
             ;;
         opensuse-*)
@@ -370,7 +386,7 @@ distro_auto_remove_packages() {
         fedora-*)
             quiet dnf -y autoremove
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             quiet yum -y autoremove
             ;;
         opensuse-*)
@@ -392,7 +408,7 @@ distro_query_package_info() {
         fedora-*)
             dnf info "$1"
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             yum info "$1"
             ;;
         opensuse-*)
@@ -429,7 +445,7 @@ distro_install_build_snapd(){
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd_*.deb
                 ;;
-            fedora-*|amazon-*)
+            fedora-*|amazon-*|centos-*)
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snap-confine*.rpm\ "${GOPATH%%:*}"/snapd*.rpm
                 ;;
@@ -476,7 +492,7 @@ distro_get_package_extension() {
         ubuntu-*|debian-*)
             echo "deb"
             ;;
-        fedora-*|opensuse-*|amazon-*)
+        fedora-*|opensuse-*|amazon-*|centos-*)
             echo "rpm"
             ;;
         arch-*)
@@ -627,6 +643,8 @@ pkg_dependencies_fedora(){
         rpm-build
         udisks2
         xdg-user-dirs
+        xdg-utils
+        strace
         "
 }
 
@@ -637,17 +655,18 @@ pkg_dependencies_amazon(){
         expect
         git
         golang
+        grub2-tools
         jq
         iptables-services
         man
         mock
+        nc
         net-tools
         nfs-utils
         system-lsb-core
         rpm-build
         xdg-user-dirs
-        grub2-tools
-        nc
+        xdg-utils
         udisks2
         "
 }
@@ -670,8 +689,8 @@ pkg_dependencies_opensuse(){
         osc
         udisks2
         uuidd
-        xdg-utils
         xdg-user-dirs
+        xdg-utils
         "
 }
 
@@ -701,6 +720,7 @@ pkg_dependencies_arch(){
     strace
     udisks2
     xdg-user-dirs
+    xdg-utils
     xfsprogs
     apparmor
     "
@@ -719,7 +739,7 @@ pkg_dependencies(){
         fedora-*)
             pkg_dependencies_fedora
             ;;
-        amazon-*)
+        amazon-*|centos-*)
             pkg_dependencies_amazon
             ;;
         opensuse-*)

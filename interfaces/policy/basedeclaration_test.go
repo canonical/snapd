@@ -522,6 +522,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"adb-support":             {"core"},
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
@@ -645,7 +646,9 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"personal-files":        true,
 		"snapd-control":         true,
+		"system-files":          true,
 		"unity8":                true,
 	}
 
@@ -770,7 +773,9 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"personal-files":        true,
 		"snapd-control":         true,
+		"system-files":          true,
 		"udisks2":               true,
 		"unity8":                true,
 		"wayland":               true,

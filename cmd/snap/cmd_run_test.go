@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -738,7 +740,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -761,7 +763,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -808,7 +810,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
 			"-tt",
 			"-o",
 			"file with spaces",
@@ -906,4 +908,204 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
+}
+
+func (s *SnapSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("1"),
+	})
+
+	// pretend we have sudo
+	sudoCmd := testutil.MockCommand(c, "sudo", "echo unhappy; exit 12")
+	defer sudoCmd.Restore()
+
+	// pretend we have strace
+	straceCmd := testutil.MockCommand(c, "strace", "")
+	defer straceCmd.Restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--trace-exec", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.ErrorMatches, "exit status 12")
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1", "arg2"})
+	c.Check(s.Stdout(), check.Equals, "unhappy\n")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
+	logbuf, restorer := logger.MockLogger()
+	defer restorer()
+
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	fakeHome := c.MkDir()
+	restorer = snaprun.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{HomeDir: fakeHome}, nil
+	})
+	defer restorer()
+
+	// redirect exec
+	execCalled := 0
+	restorer = snaprun.MockSyscallExec(func(_ string, args []string, envv []string) error {
+		execCalled++
+		return nil
+	})
+	defer restorer()
+
+	verifyCalls := 0
+	restoreCalls := 0
+	isEnabledCalls := 0
+	enabled := false
+	verify := true
+
+	snapUserDir := filepath.Join(fakeHome, dirs.UserHomeSnapDir)
+
+	restorer = snaprun.MockSELinuxVerifyPathContext(func(what string) (bool, error) {
+		c.Check(what, check.Equals, snapUserDir)
+		verifyCalls++
+		return verify, nil
+	})
+	defer restorer()
+
+	restorer = snaprun.MockSELinuxRestoreContext(func(what string, mode selinux.RestoreMode) error {
+		c.Check(mode, check.Equals, selinux.RestoreMode{Recursive: true})
+		c.Check(what, check.Equals, snapUserDir)
+		restoreCalls++
+		return nil
+	})
+	defer restorer()
+
+	restorer = snaprun.MockSELinuxIsEnabled(func() (bool, error) {
+		isEnabledCalls++
+		return enabled, nil
+	})
+	defer restorer()
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalled, check.Equals, 1)
+	c.Check(isEnabledCalls, check.Equals, 1)
+	c.Check(verifyCalls, check.Equals, 0)
+	c.Check(restoreCalls, check.Equals, 0)
+
+	// pretend SELinux is on
+	enabled = true
+
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalled, check.Equals, 2)
+	c.Check(isEnabledCalls, check.Equals, 2)
+	c.Check(verifyCalls, check.Equals, 1)
+	c.Check(restoreCalls, check.Equals, 0)
+
+	// pretend the context does not match
+	verify = false
+
+	logbuf.Reset()
+
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalled, check.Equals, 3)
+	c.Check(isEnabledCalls, check.Equals, 3)
+	c.Check(verifyCalls, check.Equals, 2)
+	c.Check(restoreCalls, check.Equals, 1)
+
+	// and we let the user know what we're doing
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("restoring default SELinux context of %s", snapUserDir))
+}
+
+func (s *SnapSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
+	logbuf, restorer := logger.MockLogger()
+	defer restorer()
+
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	fakeHome := c.MkDir()
+	restorer = snaprun.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{HomeDir: fakeHome}, nil
+	})
+	defer restorer()
+
+	// redirect exec
+	execCalled := 0
+	restorer = snaprun.MockSyscallExec(func(_ string, args []string, envv []string) error {
+		execCalled++
+		return nil
+	})
+	defer restorer()
+
+	verifyCalls := 0
+	restoreCalls := 0
+	isEnabledCalls := 0
+	enabledErr := errors.New("enabled failed")
+	verifyErr := errors.New("verify failed")
+	restoreErr := errors.New("restore failed")
+
+	snapUserDir := filepath.Join(fakeHome, dirs.UserHomeSnapDir)
+
+	restorer = snaprun.MockSELinuxVerifyPathContext(func(what string) (bool, error) {
+		c.Check(what, check.Equals, snapUserDir)
+		verifyCalls++
+		return false, verifyErr
+	})
+	defer restorer()
+
+	restorer = snaprun.MockSELinuxRestoreContext(func(what string, mode selinux.RestoreMode) error {
+		c.Check(mode, check.Equals, selinux.RestoreMode{Recursive: true})
+		c.Check(what, check.Equals, snapUserDir)
+		restoreCalls++
+		return restoreErr
+	})
+	defer restorer()
+
+	restorer = snaprun.MockSELinuxIsEnabled(func() (bool, error) {
+		isEnabledCalls++
+		return enabledErr == nil, enabledErr
+	})
+	defer restorer()
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	// these errors are only logged, but we still run the snap
+	c.Assert(err, check.IsNil)
+	c.Check(execCalled, check.Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, "cannot determine SELinux status: enabled failed")
+	c.Check(isEnabledCalls, check.Equals, 1)
+	c.Check(verifyCalls, check.Equals, 0)
+	c.Check(restoreCalls, check.Equals, 0)
+	// pretend selinux is on
+	enabledErr = nil
+
+	logbuf.Reset()
+
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalled, check.Equals, 2)
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("failed to verify SELinux context of %s: verify failed", snapUserDir))
+	c.Check(isEnabledCalls, check.Equals, 2)
+	c.Check(verifyCalls, check.Equals, 1)
+	c.Check(restoreCalls, check.Equals, 0)
+
+	// pretend the context does not match
+	verifyErr = nil
+
+	logbuf.Reset()
+
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalled, check.Equals, 3)
+	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("cannot restore SELinux context of %s: restore failed", snapUserDir))
+	c.Check(isEnabledCalls, check.Equals, 3)
+	c.Check(verifyCalls, check.Equals, 2)
+	c.Check(restoreCalls, check.Equals, 1)
 }

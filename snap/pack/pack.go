@@ -119,9 +119,11 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	return info, nil
 }
 
-func snapPath(info *snap.Info, targetDir string) string {
-	snapName := fmt.Sprintf("%s_%s_%v.snap", info.InstanceName(), info.Version, debArchitecture(info))
-	if targetDir != "" {
+func snapPath(info *snap.Info, targetDir, snapName string) string {
+	if snapName == "" {
+		snapName = fmt.Sprintf("%s_%s_%v.snap", info.InstanceName(), info.Version, debArchitecture(info))
+	}
+	if targetDir != "" && !filepath.IsAbs(snapName) {
 		snapName = filepath.Join(targetDir, snapName)
 	}
 	return snapName
@@ -167,7 +169,7 @@ func excludesFile() (filename string, err error) {
 
 // Snap the given sourceDirectory and return the generated
 // snap file
-func Snap(sourceDir, targetDir string) (string, error) {
+func Snap(sourceDir, targetDir, snapName string) (string, error) {
 	info, err := prepare(sourceDir, targetDir)
 	if err != nil {
 		return "", err
@@ -179,7 +181,7 @@ func Snap(sourceDir, targetDir string) (string, error) {
 	}
 	defer os.Remove(excludes)
 
-	snapName := snapPath(info, targetDir)
+	snapName = snapPath(info, targetDir, snapName)
 	d := squashfs.New(snapName)
 	if err = d.Build(sourceDir, string(info.Type), excludes); err != nil {
 		return "", err

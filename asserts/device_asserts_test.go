@@ -201,7 +201,7 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 
 	validNames := []string{
-		"a", "aa", "aaa", "aaaa",
+		"aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2",
@@ -218,6 +218,8 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 	invalidNames := []string{
 		// name cannot be empty, never reaches snap name validation
 		"",
+		// too short (min 2 chars)
+		"a",
 		// names cannot be too long
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",

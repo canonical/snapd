@@ -540,7 +540,7 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 			Snap:     name,
 			Version:  "v1",
 			Revision: sideInfo.Revision,
-			Epoch:    *snap.E("0"),
+			Epoch:    snap.E("0"),
 		}
 	}
 
@@ -855,7 +855,7 @@ func (snapshotSuite) TestRestoreChecksChangesToEpoch(c *check.C) {
 			Snapshot: client.Snapshot{
 				SetID: 42,
 				Snap:  "a-snap",
-				Epoch: *snap.E("42"),
+				Epoch: snap.E("42"),
 			},
 			File: shotfile,
 		}), check.IsNil)
@@ -896,7 +896,7 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 			Snapshot: client.Snapshot{
 				SetID: 42,
 				Snap:  "a-snap",
-				Epoch: *snap.E("17"),
+				Epoch: snap.E("17"),
 			},
 			File: shotfile,
 		}), check.IsNil)
@@ -1115,7 +1115,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 			// finished and needed to be undone (UndoneStatus); it's
 			// a race, but either is fine.
 			if task.Status() == state.ErrorStatus {
-				c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR context canceled`)
+				c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR.* context canceled`)
 			} else {
 				c.Check(task.Status(), check.Equals, state.UndoneStatus)
 			}

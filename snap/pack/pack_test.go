@@ -112,7 +112,7 @@ printf "hello world"
 func (s *packSuite) TestPackNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
-	_, err := pack.Snap(sourceDir, "")
+	_, err := pack.Snap(sourceDir, "", "")
 	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
 }
 
@@ -124,7 +124,7 @@ apps:
   command: bin/hello-world
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	_, err := pack.Snap(sourceDir, "")
+	_, err := pack.Snap(sourceDir, "", "")
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -145,7 +145,7 @@ func (s *packSuite) TestPackExcludesBackups(c *C) {
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir())
+	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 
@@ -163,7 +163,7 @@ func (s *packSuite) TestPackExcludesTopLevelDEBIAN(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir())
+	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
@@ -181,7 +181,7 @@ func (s *packSuite) TestPackExcludesWholeDirs(c *C) {
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir())
+	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
@@ -208,55 +208,49 @@ integration:
   apparmor-profile: meta/hello.apparmor
 `)
 
-	resultSnap, err := pack.Snap(sourceDir, "")
-	c.Assert(err, IsNil)
-
-	// check that there is result
-	_, err = os.Stat(resultSnap)
-	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_1.0.1_multi.snap")
-
-	// check that the content looks sane
-	output, err := exec.Command("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
-	c.Assert(err, IsNil)
-	for _, needle := range []string{
-		"meta/snap.yaml",
-		"bin/hello-world",
-		"symlink -> bin/hello-world",
-	} {
-		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
-		c.Assert(string(output), Matches, expr)
-	}
-}
-
-func (s *packSuite) TestPackSimpleOutputDir(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-architectures: ["i386", "amd64"]
-integration:
- app:
-  apparmor-profile: meta/hello.apparmor
-`)
-
 	outputDir := filepath.Join(c.MkDir(), "output")
-	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
-	resultSnap, err := pack.Snap(sourceDir, outputDir)
-	c.Assert(err, IsNil)
+	absSnapFile := filepath.Join(c.MkDir(), "foo.snap")
 
-	// check that there is result
-	_, err = os.Stat(resultSnap)
-	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, snapOutput)
-
-	// check that the content looks sane
-	output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
-	c.Assert(err, IsNil)
-	for _, needle := range []string{
-		"meta/snap.yaml",
-		"bin/hello-world",
-		"symlink -> bin/hello-world",
-	} {
-		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
-		c.Assert(string(output), Matches, expr)
+	type T struct {
+		outputDir, filename, expected string
 	}
+
+	table := []T{
+		// no output dir, no filename -> default in .
+		{"", "", "hello_1.0.1_multi.snap"},
+		// no output dir, relative filename -> filename in .
+		{"", "foo.snap", "foo.snap"},
+		// no putput dir, absolute filename -> absolute filename
+		{"", absSnapFile, absSnapFile},
+		// output dir, no filename -> default in outputdir
+		{outputDir, "", filepath.Join(outputDir, "hello_1.0.1_multi.snap")},
+		// output dir, relative filename -> filename in outputDir
+		{filepath.Join(outputDir, "inner"), "../foo.snap", filepath.Join(outputDir, "foo.snap")},
+		// output dir, absolute filename -> absolute filename
+		{outputDir, absSnapFile, absSnapFile},
+	}
+
+	for i, t := range table {
+		comm := Commentf("%d", i)
+		resultSnap, err := pack.Snap(sourceDir, t.outputDir, t.filename)
+		c.Assert(err, IsNil, comm)
+
+		// check that there is result
+		_, err = os.Stat(resultSnap)
+		c.Assert(err, IsNil, comm)
+		c.Assert(resultSnap, Equals, t.expected, comm)
+
+		// check that the content looks sane
+		output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
+		c.Assert(err, IsNil, comm)
+		for _, needle := range []string{
+			"meta/snap.yaml",
+			"bin/hello-world",
+			"symlink -> bin/hello-world",
+		} {
+			expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+			c.Assert(string(output), Matches, expr, comm)
+		}
+	}
+
 }
