@@ -1,5 +1,7 @@
 summary: snap install a large snap from the store (bigger than tmpfs)
 
+priority: 100
+
 prepare: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"

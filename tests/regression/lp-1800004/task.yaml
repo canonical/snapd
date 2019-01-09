@@ -1,5 +1,7 @@
 summary: Check that snap try can be used for snaps in /tmp 
 
+priority: 200
+
 prepare: |
     cp -a "$TESTSLIB"/snaps/test-snapd-sh /tmp
 
