@@ -202,7 +202,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(entries, HasLen, 3)
 
 	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDir)
-	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
+	c.Check(entries[2].Dir, Equals, "/usr/lib/fontconfig/cache")
 	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
 }
 
