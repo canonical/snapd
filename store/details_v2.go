@@ -20,8 +20,10 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
@@ -88,6 +90,28 @@ type storeInfoChannel struct {
 	Name         string `json:"name"`
 	Risk         string `json:"risk"`
 	Track        string `json:"track"`
+	ReleasedAt   xTime  `json:"released-at"`
+}
+
+// time.Time but also try without a timezone -- this is a workaround
+// for a store-side issue that already has a fix, that should get
+// deployed today (2019-01-09)
+type xTime time.Time
+
+func (tp *xTime) UnmarshalJSON(buf []byte) error {
+	var str string
+	if err := json.Unmarshal(buf, &str); err != nil {
+		return err
+	}
+	t, err := time.Parse(time.RFC3339, str)
+	if err != nil {
+		t, err = time.Parse("2006-01-02T15:04:05", str)
+		if err != nil {
+			return err
+		}
+	}
+	*tp = xTime(t)
+	return nil
 }
 
 // storeInfoChannelSnap is the snap-in-a-channel of which the channel map is made
@@ -136,6 +160,7 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 			Channel:     ch.Name,
 			Epoch:       s.Epoch,
 			Size:        s.Download.Size,
+			ReleasedAt:  time.Time(ch.ReleasedAt).UTC(),
 		}
 		if !seen[ch.Track] {
 			seen[ch.Track] = true

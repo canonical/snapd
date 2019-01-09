@@ -203,7 +203,8 @@ const mockInfoJSONWithChannels = `
           "revision": "1",
           "version": "2.10",
           "channel": "1/stable",
-          "size": 65536
+          "size": 65536,
+          "released-at": "2018-12-18T15:16:56.723501Z"
         }
       },
       "tracks": ["1"]
@@ -390,16 +391,16 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
-		case 0:
+		case 0, 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			fmt.Fprintln(w, mockInfoJSONWithChannels)
-		case 1:
+		case 1, 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
 			fmt.Fprintln(w, mockInfoJSONNoLicense)
 		default:
-			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+			c.Fatalf("expected to get 4 requests, now on %d (%v)", n+1, r)
 		}
 
 		n++
@@ -417,14 +418,39 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-channels:                    
-  1/stable:    2.10 (1) 65kB -
-  1/candidate: ↑             
-  1/beta:      ↑             
-  1/edge:      ↑             
-installed:     2.10 (1) 1kB  disabled
+channels:
+  1/stable:    2.10 2018-12-18T15:16:56Z (1) 65kB -
+  1/candidate: ↑                                  
+  1/beta:      ↑                                  
+  1/edge:      ↑                                  
+installed:     2.10                      (1) 1kB  disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
+
+	// now the same but without abs-time
+	s.ResetStdStreams()
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: Canonical✓
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02
+channels:
+  1/stable:    2.10 2018-12-18 (1) 65kB -
+  1/candidate: ↑                        
+  1/beta:      ↑                        
+  1/edge:      ↑                        
+installed:     2.10            (1) 1kB  disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 4)
 }
 
 func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
