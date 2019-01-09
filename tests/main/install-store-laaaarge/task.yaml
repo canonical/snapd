@@ -15,7 +15,7 @@ restore: |
     systemd_stop_units snapd.service snapd.socket
     # Iterate trying to umount /tmp which could be busy
     for i in $(seq 10); do
-        if [ $i -eq 10 ]; then
+        if [ "$i" -eq 10 ]; then
             echo "Failed to umount /tmp"
             exit 1
         fi
