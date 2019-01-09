@@ -116,9 +116,11 @@ type unsquashfsStderrWriter struct {
 	strutil.MatchCounter
 }
 
+var unsquashfsStderrRegexp = regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`)
+
 func newUnsquashfsStderrWriter() *unsquashfsStderrWriter {
 	return &unsquashfsStderrWriter{strutil.MatchCounter{
-		Regexp: regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`),
+		Regexp: unsquashfsStderrRegexp,
 		N:      4, // note Err below uses this value
 	}}
 }
@@ -303,7 +305,7 @@ func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	if err != nil {
 		return err
 	}
-	cmd, err := osutilCommandFromCore("/usr/bin/mksquashfs")
+	cmd, err := osutilCommandFromCore(dirs.SnapMountDir, "/usr/bin/mksquashfs")
 	if err != nil {
 		cmd = exec.Command("mksquashfs")
 	}

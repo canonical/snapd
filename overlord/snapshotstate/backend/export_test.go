@@ -32,6 +32,14 @@ var (
 	PickUserWrapper = pickUserWrapper
 )
 
+func MockIsTesting(newIsTesting bool) func() {
+	oldIsTesting := isTesting
+	isTesting = newIsTesting
+	return func() {
+		isTesting = oldIsTesting
+	}
+}
+
 func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
 	oldLookupId := userLookupId
 	userLookupId = newLookupId

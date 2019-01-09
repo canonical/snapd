@@ -1,5 +1,10 @@
 summary: Ensure catalog update works
 
+prepare: |
+    echo "Remove cached catalog files from disk"
+    rm -f /var/cache/snapd/names
+    rm -f /var/cache/snapd/sections
+
 execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"

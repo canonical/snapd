@@ -43,7 +43,7 @@ func (s *ValidateSuite) TearDownTest(c *C) {
 
 func (s *ValidateSuite) TestValidateName(c *C) {
 	validNames := []string{
-		"a", "aa", "aaa", "aaaa",
+		"aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2",
@@ -57,6 +57,8 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	invalidNames := []string{
 		// name cannot be empty
 		"",
+		// too short (min 2 chars)
+		"a",
 		// names cannot be too long
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
@@ -87,7 +89,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 	validNames := []string{
 		// plain names are also valid instance names
-		"a", "aa", "aaa", "aaaa",
+		"aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		// snap instance
 		"foo_bar",
@@ -103,6 +105,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		// invalid names are also invalid instance names, just a few
 		// samples
 		"",
+		"a",
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
 		"a--a",

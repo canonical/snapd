@@ -1,6 +1,6 @@
 summary: Ensure that the locale-control interface works.
 
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 summary: |
     The locale-control interface allows a snap to access the locale configuration.
@@ -71,7 +71,7 @@ execute: |
         snap disconnect locale-control-consumer:locale-control
 
         echo "Then the snap is not able to read the locale configuration"
-        if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
+        if su -l -c "locale-control-consumer.get LANG" test 2>"${PWD}/locale-read.error"; then
             echo "Expected permission error accessing locale configuration with disconnected plug"
             exit 1
         fi

@@ -61,7 +61,7 @@ backends:
             - ubuntu-18.04-64:
                 workers: 6
             - ubuntu-18.10-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1810-cosmic-v20181002
+                image: ubuntu-1810
                 workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
@@ -76,17 +76,15 @@ backends:
                 workers: 6
                 manual: true
 
-            - fedora-26-64:
-                workers: 4
-                manual: true
-            - fedora-27-64:
-                workers: 4
-                manual: true
             - fedora-28-64:
                 workers: 4
-
+                manual: true
+            - fedora-29-64:
+                workers: 4
             - opensuse-42.3-64:
                 workers: 4
+                # golang stack cannot compile anything, needs investigation
+                manual: true
             - arch-linux-64:
                 workers: 4
 
@@ -94,10 +92,47 @@ backends:
                 workers: 4
                 storage: preserve-size
 
+            - centos-7-64:
+                workers: 4
+                image: centos-7-64
+
+    google-upgrade:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-14.04-64:
+                workers: 1
+            - ubuntu-16.04-32:
+                workers: 1
+            - ubuntu-16.04-64:
+                workers: 1
+            - ubuntu-18.04-64:
+                workers: 1
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
+                workers: 1
+            - debian-9-64:
+                workers: 1
+            - fedora-29-64:
+                workers: 1
+                # https://twitter.com/zygoon/status/1073629342884864000
+                manual: true
+            - arch-linux-64:
+                workers: 1
+            - amazon-linux-2-64:
+                workers: 1
+                storage: preserve-size
+            - centos-7-64:
+                workers: 1
+
+
     google-sru:
         type: google
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
+        halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
                 workers: 4
@@ -108,22 +143,19 @@ backends:
             - ubuntu-18.04-64:
                 workers: 4
 
-    linode:
-        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        plan: 4GB
-        location: Fremont
+    google-nested:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        plan: n1-standard-2
         halt-timeout: 2h
-        environment:
-            # Using proxy can help to accelerate testing in local conditions
-            # but it is unlikely anyone has a proxy that is addressable from
-            # Linode network. As such, don't honor host's SPREAD_HTTP_PROXY
-            # that was set globally above.
-            HTTP_PROXY: null
-            HTTPS_PROXY: null
         systems:
-            - fedora-25-64:
-                workers: 4
-                manual: true
+            - ubuntu-16.04-64:
+                image: ubuntu-1604-64-virt-enabled
+                workers: 1
+            - ubuntu-18.04-64:
+                image: ubuntu-1804-64-virt-enabled
+                workers: 1
 
     qemu:
         systems:
@@ -162,6 +194,24 @@ backends:
             - ubuntu-18.10-32:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-19.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-32:
+                username: ubuntu
+                password: ubuntu
             - debian-sid-64:
                 username: debian
                 password: debian
@@ -171,10 +221,10 @@ backends:
             - debian-sid-64:
                 username: debian
                 password: debian
-            - fedora-26-64:
+            - fedora-27-64:
                 username: fedora
                 password: fedora
-            - fedora-27-64:
+            - fedora-28-64:
                 username: fedora
                 password: fedora
     autopkgtest:
@@ -267,6 +317,64 @@ backends:
             - ubuntu-18.10-arm64:
                 username: ubuntu
                 password: ubuntu
+            # Disco
+            - ubuntu-19.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Eccentric Eel (not final name!)
+            - ubuntu-19.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Flaming Falcon (not final name!)
+            - ubuntu-20.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-arm64:
+                username: ubuntu
+                password: ubuntu
+
     external:
         type: adhoc
         environment:
@@ -322,14 +430,27 @@ debug-each: |
 
         echo '# journal messages for snapd'
         get_journalctl_log -u snapd
-        echo '# apparmor denials '
-        dmesg --ctime | grep DENIED || true
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*|amazon-*)
+                if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
+                    ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
+                else
+                    ausearch -m AVC || true
+                fi
+                ;;
+            *)
+               echo '# apparmor denials '
+               dmesg --ctime | grep DENIED || true
+               ;;
+        esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
         echo '# snap interfaces'
         snap interfaces || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
+        echo '# free space'
+        df -h || true
     fi
 
 rename:
@@ -383,6 +504,9 @@ prepare: |
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
         dnf --refresh -y makecache
+
+        # enable audit daemon
+        systemctl enable --now auditd.service
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
         # We seem to be hitting a flaky openSUSE mirror from time to time,
@@ -421,7 +545,7 @@ prepare: |
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
-            amazon-*)
+            amazon-*|centos-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
@@ -457,8 +581,7 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
-    # XXX: something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
 
 suites:
     tests/main/:
@@ -508,6 +631,7 @@ suites:
           # _/twisted: _
           _/func: _
           _/funkyfunc: _
+          _/funcarg: _
 
     tests/regression/:
         summary: Regression tests for snapd
@@ -528,7 +652,16 @@ suites:
         systems: [-ubuntu-core-*, -opensuse-*]
         # autopkgtest runs against localhost which causes problems with
         # this test prepare
-        backends: [-autopkgtest]
+        backends: [google-upgrade]
+        prepare-each: |
+            # FIXME: this should really use prepare-restore.sh --prepare-suite-each
+            # like other suites, needs more investigation
+
+            # shellcheck source=tests/lib/state.sh
+            . "$TESTSLIB"/state.sh
+            mkdir -p "$RUNTIME_STATE_PATH"
+            # save the job which is going to be executed in the system
+            echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -543,13 +676,16 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package snapd
             distro_purge_package snapd-xdg-open || true
+    tests/cross/:
+        summary: Cross-compile tests
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -594,7 +730,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -609,23 +745,20 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -amazon-*]
+        backends: [google-nested]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
-        halt-timeout: 2h
-        kill-timeout: 2h
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass
-            snap install --classic --beta ubuntu-image
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass
-            snap remove ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
 # vim:ts=4:sw=4:et

@@ -1,0 +1,30 @@
+summary: Checks for snap sideload install w/mismatched epochs
+
+environment:
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
+
+prepare: |
+    snap pack "$TESTSLIB"/snaps/test-snapd-epoch-1
+    snap pack "$TESTSLIB"/snaps/test-snapd-epoch-2
+
+restore: |
+    rm -v test-snapd-epoch_{1,2}_all.snap
+
+execute: |
+    rx="cannot refresh \"[^ \"]*\" to local snap with epoch [^ ]*, because it can't read the current epoch"
+    snap try "$TESTSLIB"/snaps/test-snapd-epoch-1
+    ! snap try "$TESTSLIB"/snaps/test-snapd-epoch-2 2> try.err
+    tr -s "\n " "  "  < try.err      | MATCH "$rx"
+
+    ! snap install --dangerous test-snapd-epoch_2_all.snap 2>install.err
+    tr -s "\n " "  "  < install.err  | MATCH "$rx"
+
+    snap remove test-snapd-epoch
+    snap install --dangerous test-snapd-epoch_2_all.snap
+    ! snap install --dangerous test-snapd-epoch_1_all.snap 2>install1.err
+    tr -s "\n " "  "  < install1.err  | MATCH "$rx"
+
+    snap remove test-snapd-epoch
