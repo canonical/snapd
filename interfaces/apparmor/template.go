@@ -656,6 +656,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Those files are written by snap-update-ns and represent the actual
   # mount profile at a given moment.
   /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.fstab{,.*} rw,
+  /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.[0-9]*.user-fstab{,.*} rw,
 
   # NOTE: at this stage the /snap directory is stable as we have called
   # pivot_root already.
