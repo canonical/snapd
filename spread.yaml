@@ -81,8 +81,6 @@ backends:
                 manual: true
             - fedora-29-64:
                 workers: 4
-                # https://twitter.com/zygoon/status/1073629342884864000
-                manual: true
             - opensuse-42.3-64:
                 workers: 4
                 # golang stack cannot compile anything, needs investigation
@@ -451,6 +449,8 @@ debug-each: |
         snap interfaces || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
+        echo '# free space'
+        df -h || true
     fi
 
 rename:
