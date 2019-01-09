@@ -23,3 +23,6 @@ execute: |
     echo "But core can be removed again once nothing on the system needs it"
     snap remove test-snapd-tools
     snap remove core
+
+restore: |
+    snap install core
