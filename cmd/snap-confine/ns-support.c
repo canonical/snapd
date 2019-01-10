@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
-#include <linux/kdev_t.h>
 #include <sched.h>
 #include <signal.h>
 #include <string.h>
@@ -33,6 +32,7 @@
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
@@ -249,7 +249,7 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	     sc_first_mountinfo_entry(mi); mie != NULL;
 	     mie = sc_next_mountinfo_entry(mie)) {
 		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
-			base_snap_dev = MKDEV(mie->dev_major, mie->dev_minor);
+			base_snap_dev = makedev(mie->dev_major, mie->dev_minor);
 			debug("block device of snap %s, revision %s is %d:%d",
 			      base_snap_name, base_snap_rev, mie->dev_major,
 			      mie->dev_minor);
@@ -290,7 +290,7 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 		// measure.
 		debug("block device of the root filesystem is %d:%d",
 		      mie->dev_major, mie->dev_minor);
-		return base_snap_dev != MKDEV(mie->dev_major, mie->dev_minor);
+		return base_snap_dev != makedev(mie->dev_major, mie->dev_minor);
 	}
 	die("cannot find mount entry of the root filesystem");
 }
