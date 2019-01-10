@@ -125,7 +125,7 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
   "region": null
  }
 }`, "openstack", "", "nova"},
-		// but the values need to be consistent
+		// cloud_name takes precedence, if set, and other fields follow
 		{`{
  "v1": {
   "availability_zone": "us-east-2b",
@@ -136,18 +136,29 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
   "local-hostname": "b5",
   "region": null
  }
-}`, "", "", ""},
+}`, "aws", "", "us-east-2b"},
 		{`{
  "v1": {
-  "availability_zone": "us-east-2b",
-  "availability-zone": "us-east-2b",
+  "availability_zone": "nova",
+  "availability-zone": "gibberish",
   "cloud_name": "openstack",
   "cloud-name": "aws",
   "instance-id": "b5",
   "local-hostname": "b5",
   "region": null
  }
-}`, "", "", ""},
+}`, "openstack", "", "nova"},
+		{`{
+ "v1": {
+  "availability_zone": "gibberish",
+  "availability-zone": "nova",
+  "cloud_name": null,
+  "cloud-name": "openstack",
+  "instance-id": "b5",
+  "local-hostname": "b5",
+  "region": null
+ }
+}`, "openstack", "", "nova"},
 	}
 
 	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)

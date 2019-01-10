@@ -21,7 +21,6 @@ package configcore
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -57,10 +56,10 @@ func (c *cloudInitInstanceData) UnmarshalJSON(bs []byte) error {
 		V1 struct {
 			Region string `json:"region"`
 			// these fields can come with - or _ as separators
-			Name                string `json:"cloud-name"`
-			AltName             string `json:"cloud_name"`
-			AvailabilityZone    string `json:"availability-zone"`
-			AltAvailabilityZone string `json:"availability_zone"`
+			Name                string `json:"cloud_name"`
+			AltName             string `json:"cloud-name"`
+			AvailabilityZone    string `json:"availability_zone"`
+			AltAvailabilityZone string `json:"availability-zone"`
 		} `json:"v1"`
 	}
 
@@ -68,28 +67,15 @@ func (c *cloudInitInstanceData) UnmarshalJSON(bs []byte) error {
 		return err
 	}
 
-	if instanceDataJSON.V1.Name != "" && instanceDataJSON.V1.AltName != "" {
-		if instanceDataJSON.V1.Name != instanceDataJSON.V1.AltName {
-			return fmt.Errorf("inconsistent cloud-name/cloud_name setting: %q / %q",
-				instanceDataJSON.V1.Name, instanceDataJSON.V1.AltName)
-		}
-	}
-	if instanceDataJSON.V1.AvailabilityZone != "" && instanceDataJSON.V1.AltAvailabilityZone != "" {
-		if instanceDataJSON.V1.AvailabilityZone != instanceDataJSON.V1.AltAvailabilityZone {
-			return fmt.Errorf("inconsistent availability-zone/availability_zone setting: %q / %q",
-				instanceDataJSON.V1.AvailabilityZone, instanceDataJSON.V1.AltAvailabilityZone)
-		}
-	}
-
-	c.V1.Name = instanceDataJSON.V1.Name
-	if c.V1.Name == "" {
+	c.V1.Region = instanceDataJSON.V1.Region
+	switch {
+	case instanceDataJSON.V1.Name != "":
+		c.V1.Name = instanceDataJSON.V1.Name
+		c.V1.AvailabilityZone = instanceDataJSON.V1.AvailabilityZone
+	case instanceDataJSON.V1.AltName != "":
 		c.V1.Name = instanceDataJSON.V1.AltName
-	}
-	c.V1.AvailabilityZone = instanceDataJSON.V1.AvailabilityZone
-	if c.V1.AvailabilityZone == "" {
 		c.V1.AvailabilityZone = instanceDataJSON.V1.AltAvailabilityZone
 	}
-	c.V1.Region = instanceDataJSON.V1.Region
 	return nil
 }
 
