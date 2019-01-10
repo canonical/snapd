@@ -1,0 +1,45 @@
+summary: Ensure that cloud-init integration works
+
+description: |
+    snapd picks up basic cloud information from the host and makes it available
+    to the snaps. Run the test on a live backend which sets instance data
+    properly.
+
+# GCE backend sets instance data
+backends: [google]
+
+execute: |
+    if [[ ! -e /run/cloud-init/instance-data.json ]]; then
+        echo "cloud-init instance data is required to execute the test"
+        exit 0
+    fi
+
+    # GCE sets the following:
+    # {
+    #    ...
+    #    "v1": {
+    #      "availability-zone": "us-east1-b",
+    #      "availability_zone": "us-east1-b",
+    #      "cloud-name": "gce",
+    #      "cloud_name": "gce",
+    #      "region": "us-east1"
+    #      ...
+    #   }
+    # }
+
+    # keys can be queried only using underscore names
+    cloud_name=$(cloud-init query cloud_name)
+    test -n "$cloud_name"
+    # this shouldn't happend under GCE
+    test "$cloud_name" != "nocloud"
+
+    snap_cloud_name=$(snap get core cloud.name)
+    test "$cloud_name" = "$snap_cloud_name"
+
+    cloud_avzone=$(cloud-init query availability_zone)
+    snap_cloud_avzone=$(snap get core cloud.availability-zone)
+    test "$cloud_avzone" = "$snap_cloud_avzone"
+
+    cloud_region=$(cloud-init query region)
+    snap_cloud_region=$(snap get core cloud.region)
+    test "$cloud_region" = "$snap_cloud_region"
