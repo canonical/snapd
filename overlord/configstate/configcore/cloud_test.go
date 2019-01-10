@@ -104,12 +104,57 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
    "cloud-name": "none"
  }
 }`, "", "", ""},
+		// both _ and - are supported
+		{`{
+ "v1": {
+  "availability_zone": "nova",
+  "cloud_name": "openstack",
+  "instance-id": "b5",
+  "local-hostname": "b5",
+  "region": null
+ }
+}`, "openstack", "", "nova"},
+		{`{
+ "v1": {
+  "availability_zone": "nova",
+  "availability-zone": "nova",
+  "cloud_name": "openstack",
+  "cloud-name": "openstack",
+  "instance-id": "b5",
+  "local-hostname": "b5",
+  "region": null
+ }
+}`, "openstack", "", "nova"},
+		// but the values need to be consistent
+		{`{
+ "v1": {
+  "availability_zone": "us-east-2b",
+  "availability-zone": "none",
+  "cloud_name": "aws",
+  "cloud_name": "aws",
+  "instance-id": "b5",
+  "local-hostname": "b5",
+  "region": null
+ }
+}`, "", "", ""},
+		{`{
+ "v1": {
+  "availability_zone": "us-east-2b",
+  "availability-zone": "us-east-2b",
+  "cloud_name": "openstack",
+  "cloud-name": "aws",
+  "instance-id": "b5",
+  "local-hostname": "b5",
+  "region": null
+ }
+}`, "", "", ""},
 	}
 
 	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
 	c.Assert(err, IsNil)
 
-	for _, t := range tests {
+	for i, t := range tests {
+		c.Logf("tc: %v", i)
 		os.Remove(dirs.CloudInstanceDataFile)
 		if t.instData != "" {
 			err = ioutil.WriteFile(dirs.CloudInstanceDataFile, []byte(t.instData), 0600)
