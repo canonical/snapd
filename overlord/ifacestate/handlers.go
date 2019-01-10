@@ -1258,7 +1258,7 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	return nil
 }
 
-// doHotplugConnect creates task(s) to (re)create connections in response to hotplug "add" event.
+// doHotplugConnect creates task(s) to (re)create old connections or auto-connect viable slots in response to hotplug "add" event.
 func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -1274,16 +1274,19 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
+	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return err
+	}
+	if slot == nil {
+		return fmt.Errorf("cannot find hotplug slot for interface %s and hotplug key %q", ifaceName, hotplugKey)
+	}
+
 	// find old connections for slots of this device - note we can't ask the repository since we need
 	// to recreate old connections that are only remembered in the state.
 	connsForDevice := findConnsForHotplugKey(conns, ifaceName, hotplugKey)
 
-	// we see this device for the first time (or it didn't have any connected slot before)
-	if len(connsForDevice) == 0 {
-		return m.autoconnectNewDevice(task, ifaceName, hotplugKey)
-	}
-
-	// recreate old connections
+	// find old connections to recreate
 	var recreate []*interfaces.ConnRef
 	for _, id := range connsForDevice {
 		conn := conns[id]
@@ -1310,16 +1313,66 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		recreate = append(recreate, connRef)
 	}
 
-	if len(recreate) == 0 {
+	// find new auto-connections
+	autochecker, err := newAutoConnectChecker(st)
+	if err != nil {
+		return err
+	}
+
+	instanceName := slot.Snap.InstanceName()
+	candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
+
+	var newconns []*interfaces.ConnRef
+	// Auto-connect the slots
+	for _, plug := range candidates {
+		// make sure slot is the only viable
+		// connection for plug, same check as if we were
+		// considering auto-connections from plug
+		candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
+		if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
+			crefs := make([]string, len(candSlots))
+			for i, candidate := range candSlots {
+				crefs[i] = candidate.String()
+			}
+			task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
+			continue
+		}
+
+		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+			if retry, ok := err.(*state.Retry); ok {
+				task.Logf("hotplug connect will be retried: %s", retry.Reason)
+				return err // will retry
+			}
+			return fmt.Errorf("hotplug connect conflict check failed: %s", err)
+		}
+		connRef := interfaces.NewConnRef(plug, slot)
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// existing connection, already considered by connsForDevice loop
+			continue
+		}
+		newconns = append(newconns, connRef)
+	}
+
+	if len(recreate) == 0 && len(newconns) == 0 {
 		return nil
 	}
 
-	// Create connect tasks and interface hooks
+	// Create connect tasks and interface hooks for old connections
 	connectTs := state.NewTaskSet()
 	for _, conn := range recreate {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: conns[conn.ID()].Auto})
+		wasAutoconnected := conns[conn.ID()].Auto
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: wasAutoconnected})
 		if err != nil {
 			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
+		}
+		connectTs.AddAll(ts)
+	}
+	// Create connect tasks and interface hooks for new auto-connections
+	for _, conn := range newconns {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true})
+		if err != nil {
+			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
 		connectTs.AddAll(ts)
 	}
@@ -1438,67 +1491,6 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
 	task.SetStatus(state.DoneStatus)
 
-	return nil
-}
-
-func (m *InterfaceManager) autoconnectNewDevice(task *state.Task, ifaceName, hotplugKey string) error {
-	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
-	if err != nil {
-		return err
-	}
-
-	st := task.State()
-	autochecker, err := newAutoConnectChecker(st)
-	if err != nil {
-		return err
-	}
-
-	instanceName := slot.Snap.InstanceName()
-	candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
-	var newconns []*interfaces.ConnRef
-	// Auto-connect the slots
-	for _, plug := range candidates {
-		// make sure slot is the only viable
-		// connection for plug, same check as if we were
-		// considering auto-connections from plug
-		candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
-		if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
-			crefs := make([]string, len(candSlots))
-			for i, candidate := range candSlots {
-				crefs[i] = candidate.String()
-			}
-			task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
-			continue
-		}
-
-		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
-			if retry, ok := err.(*state.Retry); ok {
-				task.Logf("hotplug connect will be retried: %s", retry.Reason)
-				return err // will retry
-			}
-			return fmt.Errorf("auto-connect conflict check failed: %s", err)
-		}
-		connRef := interfaces.NewConnRef(plug, slot)
-		newconns = append(newconns, connRef)
-	}
-
-	autots := state.NewTaskSet()
-	// Create connect tasks and interface hooks
-	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true})
-		if err != nil {
-			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
-		}
-		autots.AddAll(ts)
-	}
-
-	if len(autots.Tasks()) > 0 {
-		snapstate.InjectTasks(task, autots)
-
-		st.EnsureBefore(0)
-	}
-
-	task.SetStatus(state.DoneStatus)
 	return nil
 }
 

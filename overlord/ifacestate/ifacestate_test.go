@@ -4983,13 +4983,10 @@ func (s *interfaceManagerSuite) setupHotplugConnectTestData(c *C) *state.Change 
 
 	coreInfo := s.mockSnap(c, coreSnapYaml)
 	repo := s.manager(c).Repository()
-	err := repo.AddInterface(&ifacetest.TestInterface{
-		InterfaceName: "test",
-	})
-	c.Assert(err, IsNil)
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"}), IsNil)
 
 	// mock hotplug slot in the repo and state
-	err = repo.AddSlot(&snap.SlotInfo{
+	err := repo.AddSlot(&snap.SlotInfo{
 		Snap:       coreInfo,
 		Name:       "hotplugslot",
 		Interface:  "test",
@@ -5054,6 +5051,96 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 			"hotplug-key": "1234",
 			"plug-static": map[string]interface{}{"attr1": "value1"},
 		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectIgnoresUndesired(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	// simulate a device that was known and connected before
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"undesired":   true,
+		}})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// no connect task created
+	c.Check(chg.Tasks(), HasLen, 1)
+	c.Assert(chg.Err(), IsNil)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"undesired":   true,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectSlotMissing(c *C) {
+	s.MockModel(c, nil)
+
+	repo := s.manager(c).Repository()
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"}), IsNil)
+	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "slot", Interface: "test", HotplugKey: "1"}), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "2")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot find hotplug slot for interface test and hotplug key "2".*`)
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectNothingTodo(c *C) {
+	s.MockModel(c, nil)
+
+	repo := s.manager(c).Repository()
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+
+	iface := &ifacetest.TestInterface{InterfaceName: "test", AutoConnectCallback: func(*snap.PlugInfo, *snap.SlotInfo) bool { return false }}
+	c.Assert(repo.AddInterface(iface), IsNil)
+	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "hotplugslot", Interface: "test", HotplugKey: "1"}), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1",
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "1")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// no connect tasks created
+	c.Check(chg.Tasks(), HasLen, 1)
+	c.Assert(chg.Err(), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestHotplugConnectConflictRetry(c *C) {
