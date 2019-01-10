@@ -13,7 +13,8 @@ restore: |
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service snapd.socket
-    umount /tmp || true
+    # Umount lazy to avoid busy device error
+    umount -l /tmp
     systemctl start snapd.{socket,service}
 
 execute: |
