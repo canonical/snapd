@@ -32,15 +32,25 @@ func xdgRuntimeDir(uid int) string {
 	return fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, uid)
 }
 
+// expandPrefixVariable expands variable at the beginning of a path-like string.
+func expandPrefixVariable(path, variable, value string) string {
+	if strings.HasPrefix(path, variable) {
+		if len(path) == len(variable) {
+			return value
+		}
+		if len(path) > len(variable) && path[len(variable)] == '/' {
+			return strings.Replace(path, variable, value, 1)
+		}
+	}
+	return path
+}
+
 // expandXdgRuntimeDir expands the $XDG_RUNTIME_DIR variable in the given mount profile.
 func expandXdgRuntimeDir(profile *osutil.MountProfile, uid int) {
-	dir := xdgRuntimeDir(uid)
+	variable := "$XDG_RUNTIME_DIR"
+	value := xdgRuntimeDir(uid)
 	for i := range profile.Entries {
-		if strings.HasPrefix(profile.Entries[i].Name, "$XDG_RUNTIME_DIR/") {
-			profile.Entries[i].Name = strings.Replace(profile.Entries[i].Name, "$XDG_RUNTIME_DIR", dir, 1)
-		}
-		if strings.HasPrefix(profile.Entries[i].Dir, "$XDG_RUNTIME_DIR/") {
-			profile.Entries[i].Dir = strings.Replace(profile.Entries[i].Dir, "$XDG_RUNTIME_DIR", dir, 1)
-		}
+		profile.Entries[i].Name = expandPrefixVariable(profile.Entries[i].Name, variable, value)
+		profile.Entries[i].Dir = expandPrefixVariable(profile.Entries[i].Dir, variable, value)
 	}
 }
