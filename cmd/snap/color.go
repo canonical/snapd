@@ -57,6 +57,9 @@ func canUnicode(mode string) bool {
 	case "never":
 		return false
 	}
+	if !isStdoutTTY {
+		return false
+	}
 	var lang string
 	for _, k := range []string{"LC_MESSAGES", "LC_ALL", "LANG"} {
 		lang = os.Getenv(k)
