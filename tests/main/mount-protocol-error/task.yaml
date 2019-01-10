@@ -19,10 +19,10 @@ execute: |
 
     names=(test-snapd-tools)
     for n in $(seq 9); do
-        names+=(test-snapd-tools_$n)
+        names+=("test-snapd-tools_$n")
     done
     for i in $(seq 10); do
        echo "Install $i"
-       snap install ${names[@]}
-       snap remove ${names[@]}
+       snap install "${names[@]}"
+       snap remove "${names[@]}"
     done
