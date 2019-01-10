@@ -162,6 +162,7 @@ if [ -d /run/snapd/ns ]; then
         rm -f "$mnt"
     done
     rm -f /run/snapd/ns/*.fstab
+    rm -f /run/snapd/ns/*.user-fstab
 fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
