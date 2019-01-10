@@ -49,6 +49,9 @@ var (
 	// trespassing
 	IsReadOnly                   = isReadOnly
 	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
+	// xdg
+	XdgRuntimeDir       = xdgRuntimeDir
+	ExpandXdgRuntimeDir = expandXdgRuntimeDir
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
