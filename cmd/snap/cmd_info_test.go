@@ -304,7 +304,7 @@ const mockInfoJSONNoLicense = `
       "name": "hello",
       "private": false,
       "resource": "/v2/snaps/hello",
-      "revision": "1",
+      "revision": "100",
       "status": "available",
       "summary": "The GNU Hello snap",
       "type": "app",
@@ -382,7 +382,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (1) 1kB disabled
+installed:    2.10 (100) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -419,11 +419,11 @@ snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
 channels:
-  1/stable:    2.10 2018-12-18T15:16:56Z (1) 65kB -
-  1/candidate: ↑                                  
-  1/beta:      ↑                                  
-  1/edge:      ↑                                  
-installed:     2.10                      (1) 1kB  disabled
+  1/stable:    2.10 2018-12-18T15:16:56Z   (1) 65kB -
+  1/candidate: ↑                                    
+  1/beta:      ↑                                    
+  1/edge:      ↑                                    
+installed:     2.10                      (100)  1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 
@@ -443,11 +443,11 @@ snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02
 channels:
-  1/stable:    2.10 2018-12-18 (1) 65kB -
-  1/candidate: ↑                        
-  1/beta:      ↑                        
-  1/edge:      ↑                        
-installed:     2.10            (1) 1kB  disabled
+  1/stable:    2.10 2018-12-18   (1) 65kB -
+  1/candidate: ↑                          
+  1/beta:      ↑                          
+  1/edge:      ↑                          
+installed:     2.10            (100)  1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 4)
@@ -488,7 +488,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: TOTALLY NOT A ROBOT
-installed:    2.10 (1) 1kB disabled
+installed:    2.10 (100) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
