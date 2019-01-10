@@ -129,7 +129,7 @@ apps:
 	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile -> *,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /**,`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
@@ -162,7 +162,7 @@ apps:
 	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile -> *,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile unsafe /**,`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
