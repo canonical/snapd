@@ -321,20 +321,45 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
-// displayChannels displays channels and tracks in the right order
-func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap, revLen, sizeLen int) (maxRevLen, maxSizeLen int) {
-	fmt.Fprintln(w, "channels:")
+type chInfoT struct {
+	indent                                         string
+	name, version, released, revision, size, notes string
+}
 
+func displayChannels(w io.Writer, chantpl string, chInfos []*chInfoT) {
+	if len(chInfos) == 0 {
+		return
+	}
+	// calc indent first
+	var maxRevLen, maxSizeLen int
+	for _, chInfo := range chInfos {
+		if len(chInfo.revision) > maxRevLen {
+			maxRevLen = len(chInfo.revision)
+		}
+		if len(chInfo.size) > maxSizeLen {
+			maxSizeLen = len(chInfo.size)
+		}
+	}
+	// then display
+
+	// FIXME: this check is ugly and we need to move this info
+	//        into the chInfoT somehow
+	if len(chInfos) > 1 {
+		fmt.Fprintln(w, "channels:")
+	}
+	for _, chInfo := range chInfos {
+		fmt.Fprintf(w, chInfo.indent+chantpl, chInfo.name, chInfo.version, chInfo.released, maxRevLen, chInfo.revision, maxSizeLen, chInfo.size, chInfo.notes)
+	}
+}
+
+// remoteChannels returns remote channels and tracks in the right order
+func (x *infoCmd) remoteChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap) []*chInfoT {
 	releasedfmt := "2006-01-02"
 	if x.AbsTime {
 		releasedfmt = time.RFC3339
 	}
 
-	type chInfoT struct {
-		name, version, released, revision, size, notes string
-	}
 	var chInfos []*chInfoT
-	maxRevLen, maxSizeLen = revLen, sizeLen
 
 	// order by tracks
 	for _, tr := range remote.Tracks {
@@ -345,18 +370,12 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 			if tr == "latest" {
 				chName = risk
 			}
-			chInfo := chInfoT{name: chName}
+			chInfo := &chInfoT{indent: "  ", name: chName}
 			if ok {
 				chInfo.version = ch.Version
 				chInfo.revision = fmt.Sprintf("(%s)", ch.Revision)
-				if len(chInfo.revision) > maxRevLen {
-					maxRevLen = len(chInfo.revision)
-				}
 				chInfo.released = ch.ReleasedAt.Format(releasedfmt)
 				chInfo.size = strutil.SizeToStr(ch.Size)
-				if len(chInfo.size) > maxSizeLen {
-					maxSizeLen = len(chInfo.size)
-				}
 				chInfo.notes = NotesFromChannelSnapInfo(ch).String()
 				trackHasOpenChannel = true
 			} else {
@@ -366,15 +385,11 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 					chInfo.version = esc.dash
 				}
 			}
-			chInfos = append(chInfos, &chInfo)
+			chInfos = append(chInfos, chInfo)
 		}
 	}
 
-	for _, chInfo := range chInfos {
-		fmt.Fprintf(w, "  "+chantpl, chInfo.name, chInfo.version, chInfo.released, maxRevLen, chInfo.revision, maxSizeLen, chInfo.size, chInfo.notes)
-	}
-
-	return maxRevLen, maxSizeLen
+	return chInfos
 }
 
 func formatSummary(raw string) string {
@@ -473,8 +488,6 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintBase(w, both.Base, x.Verbose)
 		maybePrintID(w, both)
-		var localRev, localSize string
-		var revLen, sizeLen int
 		if local != nil {
 			if local.TrackingChannel != "" {
 				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
@@ -482,24 +495,26 @@ func (x *infoCmd) Execute([]string) error {
 			if !local.InstallDate.IsZero() {
 				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
 			}
-			localRev = fmt.Sprintf("(%s)", local.Revision)
-			revLen = len(localRev)
-			localSize = strutil.SizeToStr(local.InstalledSize)
-			sizeLen = len(localSize)
 		}
 
+		var chInfos []*chInfoT
 		chantpl := "%s:\t%s %s%*s %*s %s\n"
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
 			chantpl = "%s:\t%s\t%s\t%*s\t%*s\t%s\n"
 
 			w.Flush()
-			revLen, sizeLen = x.displayChannels(w, chantpl, esc, remote, revLen, sizeLen)
+			chInfos = x.remoteChannels(w, chantpl, esc, remote)
 		}
 		if local != nil {
-			fmt.Fprintf(w, chantpl,
-				"installed", local.Version, "", revLen, localRev, sizeLen, localSize, notes)
+			chInfos = append(chInfos, &chInfoT{
+				name:     "installed",
+				version:  local.Version,
+				revision: fmt.Sprintf("(%s)", local.Revision),
+				size:     strutil.SizeToStr(local.InstalledSize),
+				notes:    notes.String(),
+			})
 		}
-
+		displayChannels(w, chantpl, chInfos)
 	}
 	w.Flush()
 
