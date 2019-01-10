@@ -12,6 +12,11 @@ execute: |
        echo "SKIP: need python3"
        exit 0
     fi
+    if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
+       [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]; then
+       echo "SKIP: cannot run when there is another http proxy"
+       exit 0
+    fi
 
     systemd-run --service-type=notify --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
     # shellcheck source=tests/lib/systemd.sh
