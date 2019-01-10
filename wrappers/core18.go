@@ -40,7 +40,7 @@ import (
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
-	// Not using WriteMountUnitFile() because we need
+	// Not using AddMountUnitFile() because we need
 	// "RequiredBy=snapd.service"
 	content := []byte(fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
