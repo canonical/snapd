@@ -8,6 +8,11 @@ description: |
 # GCE backend sets instance data
 backends: [google]
 
+prepare: |
+    if ! command -v jq; then
+        snap install --devmode jq
+    fi
+
 execute: |
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
         echo "cloud-init instance data is required to execute the test"
