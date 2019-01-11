@@ -103,7 +103,7 @@ func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([
 	return changePerform(change, as)
 }
 
-// LoadDesiredProfile loads the desired, per-user mount profile, expanding user-specific variables.
+// LoadDesiredProfile loads the desired mount profile.
 func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.desiredProfilePath)
 	if err != nil {
@@ -112,7 +112,7 @@ func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error
 	return profile, nil
 }
 
-// LoadCurrentProfile loads the current, per-user mount profile.
+// LoadCurrentProfile loads the current mount profile.
 func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.currentProfilePath)
 	if err != nil {
@@ -121,11 +121,7 @@ func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error
 	return profile, nil
 }
 
-// SaveCurrentProfile saves the current, per-user mount profile, if matching feature is enabled.
-//
-// The profile is really only saved to disk if PerUserMountNamespace feature is
-// enabled. This is matched by similar logic in snap-confine, that only
-// persists per-user mount namespace if the same feature is enabled.
+// SaveCurrentProfile saves the current mount profile.
 func (up *CommonProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
 	if err := profile.Save(up.currentProfilePath); err != nil {
 		return fmt.Errorf("cannot save current mount profile of snap %q: %s", up.instanceName, err)
