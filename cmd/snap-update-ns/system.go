@@ -47,6 +47,7 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
+			lock.Close()
 			return fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
 		}
 	} else {
@@ -62,6 +63,7 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// than what we expected).
 	logger.Debugf("freezing processes of snap %q", instanceName)
 	if err := freezeSnapProcesses(instanceName); err != nil {
+		lock.Close()
 		return err
 	}
 	defer func() {
