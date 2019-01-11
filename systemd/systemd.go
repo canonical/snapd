@@ -23,11 +23,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/snapcore/squashfuse"
@@ -46,7 +49,43 @@ var (
 
 	// how much time should Stop wait between notifying the user of the waiting
 	stopNotifyDelay = 20 * time.Second
+
+	// daemonReloadLock is a package level lock to ensure that we
+	// do not run any `systemd daemon-reload` while a
+	// daemon-reload is in progress or a mount unit is
+	// generated/activated.
+	//
+	// See https://github.com/systemd/systemd/issues/10872 for the
+	// upstream systemd bug
+	daemonReloadLock extMutex
 )
+
+// mu is a sync.Mutex that also supports to check if the lock is taken
+type extMutex struct {
+	lock sync.Mutex
+	muC  int32
+}
+
+// Lock acquires the mutex
+func (m *extMutex) Lock() {
+	m.lock.Lock()
+	atomic.AddInt32(&m.muC, 1)
+}
+
+// Unlock releases the mutex
+func (m *extMutex) Unlock() {
+	m.lock.Unlock()
+	atomic.AddInt32(&m.muC, -1)
+}
+
+// Taken will panic with the given error message if the lock is not
+// taken when this code runs. This is useful to internally check if
+// something is accessed without a valid lock.
+func (m *extMutex) Taken(errMsg string) {
+	if atomic.LoadInt32(&m.muC) != 1 {
+		panic("internal error: " + errMsg)
+	}
+}
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
@@ -133,7 +172,8 @@ type Systemd interface {
 	IsEnabled(service string) (bool, error)
 	IsActive(service string) (bool, error)
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
-	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	RemoveMountUnitFile(baseDir string) error
 	Mask(service string) error
 	Unmask(service string) error
 }
@@ -170,7 +210,16 @@ type systemd struct {
 }
 
 // DaemonReload reloads systemd's configuration.
-func (*systemd) DaemonReload() error {
+func (s *systemd) DaemonReload() error {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	return s.daemonReloadNoLock()
+}
+
+func (s *systemd) daemonReloadNoLock() error {
+	daemonReloadLock.Taken("cannot use daemon-reload without lock")
+
 	_, err := systemctlCmd("daemon-reload")
 	return err
 }
@@ -486,7 +535,11 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
-func (s *systemd) WriteMountUnitFile(name, revision, what, where, fstype string) (string, error) {
+// AddMountUnitFile adds/enables/starts a mount unit.
+func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
 		newFsType, newOptions, err := squashfs.FsType()
@@ -513,8 +566,67 @@ Options=%s
 
 [Install]
 WantedBy=multi-user.target
-`, name, revision, what, where, fstype, strings.Join(options, ","))
+`, snapName, revision, what, where, fstype, strings.Join(options, ","))
 
 	mu := MountUnitPath(where)
-	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	mountUnitName, err := filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	if err != nil {
+		return "", err
+	}
+
+	// we need to do a daemon-reload here to ensure that systemd really
+	// knows about this new mount unit file
+	if err := s.daemonReloadNoLock(); err != nil {
+		return "", err
+	}
+
+	if err := s.Enable(mountUnitName); err != nil {
+		return "", err
+	}
+	if err := s.Start(mountUnitName); err != nil {
+		return "", err
+	}
+
+	return mountUnitName, nil
+}
+
+func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
+	if !osutil.FileExists(unit) {
+		return nil
+	}
+
+	// use umount -d (cleanup loopback devices) -l (lazy) to ensure that even busy mount points
+	// can be unmounted.
+	// note that the long option --lazy is not supported on trusty.
+	// the explicit -d is only needed on trusty.
+	isMounted, err := osutil.IsMounted(mountedDir)
+	if err != nil {
+		return err
+	}
+	if isMounted {
+		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+
+		if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+			return err
+		}
+	}
+	if err := s.Disable(filepath.Base(unit)); err != nil {
+		return err
+	}
+	if err := os.Remove(unit); err != nil {
+		return err
+	}
+	// daemon-reload to ensure that systemd actually really
+	// forgets about this mount unit
+	if err := s.daemonReloadNoLock(); err != nil {
+		return err
+	}
+
+	return nil
 }

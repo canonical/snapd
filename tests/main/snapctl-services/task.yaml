@@ -2,6 +2,9 @@ summary: Check that own services can be controlled by snapctl
 
 kill-timeout: 5m
 
+# takes >1.5min to run
+backends: [-autopkgtest]
+
 environment:
     SERVICEOPTIONFILE: /var/snap/test-snapd-service/current/service-option
 
