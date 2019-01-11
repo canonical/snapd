@@ -79,7 +79,6 @@ type InterfaceAction struct {
 type ConnectionOptions struct {
 	Snap string
 	// Name of slot or plug
-	Name      string
 	Interface string
 	All       bool
 }
@@ -90,9 +89,6 @@ func (client *Client) Connections(opts *ConnectionOptions) (Connections, error) 
 	query := url.Values{}
 	if opts != nil && opts.Snap != "" {
 		query.Set("snap", opts.Snap)
-	}
-	if opts != nil && opts.Name != "" {
-		query.Set("name", opts.Name)
 	}
 	if opts != nil && opts.Interface != "" {
 		query.Set("interface", opts.Interface)
