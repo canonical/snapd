@@ -102,3 +102,13 @@ func MockOsGetenv(mock func(string) string) (restore func()) {
 
 	return restore
 }
+
+func MockProcCpuinfo(filename string) (restore func()) {
+	old := procCpuinfo
+	restore = func() {
+		procCpuinfo = old
+	}
+	procCpuinfo = filename
+
+	return restore
+}
