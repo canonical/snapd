@@ -62,3 +62,21 @@ type interfaceAction struct {
 	Plugs  []plugJSON `json:"plugs,omitempty"`
 	Slots  []slotJSON `json:"slots,omitempty"`
 }
+
+// connectionsJSON aids in marshalling information about a single connection
+// into JSON
+type connectionJSON struct {
+	Slot      interfaces.SlotRef `json:"slot"`
+	Plug      interfaces.PlugRef `json:"plug"`
+	Interface string             `json:"interface"`
+	Manual    bool               `json:"manual,omitempty"`
+	Gadget    bool               `json:"gadget,omitempty"`
+}
+
+// connectionsJSON aids in marshaling connections into JSON.
+type connectionsJSON struct {
+	Established []connectionJSON `json:"established,omitempty"`
+	Undesired   []connectionJSON `json:"undesired,omitempty"`
+	Plugs       []*plugJSON      `json:"plugs,omitempty"`
+	Slots       []*slotJSON      `json:"slots,omitempty"`
+}
