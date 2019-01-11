@@ -76,20 +76,10 @@ static int setns_into_snap(const char *snap_name)
 	return err;
 }
 
-// switch_to_privileged_user drops to the real user ID while retaining
+// switch_to_privileged_user drops to the specific user and group ID while retaining
 // CAP_SYS_ADMIN, for operations such as mount().
-static int switch_to_privileged_user()
+static int switch_to_specific_privileged_user(uid_t real_uid, gid_t real_gid)
 {
-	uid_t real_uid;
-	gid_t real_gid;
-
-	real_uid = getuid();
-	if (real_uid == 0) {
-		// We're running as root: no need to switch IDs
-		return 0;
-	}
-	real_gid = getgid();
-
 	// _LINUX_CAPABILITY_VERSION_3 valid for kernel >= 2.6.26. See
 	// https://github.com/torvalds/linux/blob/master/kernel/capability.c
 	struct __user_cap_header_struct hdr =
@@ -160,6 +150,23 @@ static int switch_to_privileged_user()
 	}
 
 	return 0;
+}
+
+// switch_to_privileged_user drops to the real user ID while retaining
+// CAP_SYS_ADMIN, for operations such as mount().
+static int switch_to_privileged_user()
+{
+	uid_t real_uid;
+	gid_t real_gid;
+
+	real_uid = getuid();
+	if (real_uid == 0) {
+		// We're running as root: no need to switch IDs
+		return 0;
+	}
+	real_gid = getgid();
+
+	switch_to_specific_privileged_user(real_uid, real_gid);
 }
 
 // TODO: reuse the code from snap-confine, if possible.
