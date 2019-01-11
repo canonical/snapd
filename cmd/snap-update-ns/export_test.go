@@ -151,6 +151,19 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
+func MockFreezing(freeze, thaw func(snapName string) error) (restore func()) {
+	oldFreeze := freezeSnapProcesses
+	oldThaw := thawSnapProcesses
+
+	freezeSnapProcesses = freeze
+	thawSnapProcesses = thaw
+
+	return func() {
+		freezeSnapProcesses = oldFreeze
+		thawSnapProcesses = oldThaw
+	}
+}
+
 func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
