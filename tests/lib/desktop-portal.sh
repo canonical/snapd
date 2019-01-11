@@ -31,7 +31,7 @@ EOF
     cat << EOF > /usr/share/xdg-desktop-portal/portals/spread.portal
 [portal]
 DBusName=org.freedesktop.impl.portal.spread
-Interfaces=org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.Screenshot
+Interfaces=org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.Screenshot;org.freedesktop.impl.portal.AppChooser;
 UseIn=spread
 EOF
 

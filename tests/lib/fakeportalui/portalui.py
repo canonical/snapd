@@ -10,6 +10,7 @@ from gi.repository import GLib
 BUS_NAME = "org.freedesktop.impl.portal.spread"
 OBJECT_PATH = "/org/freedesktop/portal/desktop"
 
+APP_CHOOSER_IFACE = "org.freedesktop.impl.portal.AppChooser"
 FILE_CHOOSER_IFACE = "org.freedesktop.impl.portal.FileChooser"
 SCREENSHOT_IFACE = "org.freedesktop.impl.portal.Screenshot"
 
@@ -34,6 +35,12 @@ class PortalImpl(dbus.service.Object):
                          in_signature="ossa{sv}", out_signature="ua{sv}")
     def Screenshot(self, handle, app_id, parent_window, options):
         return (0, dict(uri="file:///tmp/screenshot.txt"))
+
+    @dbus.service.method(dbus_interface=APP_CHOOSER_IFACE,
+                         in_signature="ossasa{sv}", out_signature="ua{sv}")
+    def ChooseApplication(self, handle, app_id, parent_window, choices,
+                          options):
+        return (0, dict(choice=choices[0]))
 
 
 def main(argv):
