@@ -1790,7 +1790,12 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	connsjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	if err != nil {
+		return InternalError("collecting connection information failed: %v", err)
+	}
+	connsjson.Established = nil
+	connsjson.Undesired = nil
 	return SyncResponse(connsjson, nil)
 }
 
