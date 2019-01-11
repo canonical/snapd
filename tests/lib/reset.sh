@@ -161,8 +161,7 @@ if [ -d /run/snapd/ns ]; then
         umount -l "$mnt" || true
         rm -f "$mnt"
     done
-    rm -f /run/snapd/ns/*.fstab
-    rm -f /run/snapd/ns/*.user-fstab
+    find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
 fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
