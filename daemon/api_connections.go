@@ -34,10 +34,9 @@ var connectionsCmd = &Command{
 }
 
 type collectFilter struct {
-	snapName     string
-	plugSlotName string
-	ifaceName    string
-	connected    bool
+	snapName  string
+	ifaceName string
+	connected bool
 }
 
 func (c *collectFilter) plugMatches(plug *interfaces.PlugRef, connectedSlots []interfaces.SlotRef) bool {
@@ -47,9 +46,6 @@ func (c *collectFilter) plugMatches(plug *interfaces.PlugRef, connectedSlots []i
 		}
 	}
 	if c.snapName != "" && plug.Snap != c.snapName {
-		return false
-	}
-	if c.plugSlotName != "" && plug.Name != c.plugSlotName {
 		return false
 	}
 	return true
@@ -62,9 +58,6 @@ func (c *collectFilter) slotMatches(slot *interfaces.SlotRef, connectedPlugs []i
 		}
 	}
 	if c.snapName != "" && slot.Snap != c.snapName {
-		return false
-	}
-	if c.plugSlotName != "" && slot.Name != c.plugSlotName {
 		return false
 	}
 	return true
@@ -151,7 +144,6 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 func getConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	snapName := query.Get("snap")
-	plugSlotName := query.Get("name")
 	ifaceName := query.Get("interface")
 	qselect := query.Get("select")
 	if qselect != "all" && qselect != "" {
@@ -160,10 +152,9 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	onlyConnected := qselect == ""
 
 	connsjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
-		snapName:     snapName,
-		plugSlotName: plugSlotName,
-		ifaceName:    ifaceName,
-		connected:    onlyConnected,
+		snapName:  snapName,
+		ifaceName: ifaceName,
+		connected: onlyConnected,
 	})
 	return SyncResponse(connsjson, nil)
 }
