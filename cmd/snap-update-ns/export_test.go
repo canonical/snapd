@@ -57,8 +57,9 @@ var (
 	CurrentUserProfilePath = currentUserProfilePath
 
 	// xdg
-	XdgRuntimeDir       = xdgRuntimeDir
-	ExpandXdgRuntimeDir = expandXdgRuntimeDir
+	XdgRuntimeDir        = xdgRuntimeDir
+	ExpandPrefixVariable = expandPrefixVariable
+	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
 
 	// update
 	ExecuteMountProfileUpdate = executeMountProfileUpdate

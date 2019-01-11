@@ -37,6 +37,13 @@ func (s *xdgSuite) TestXdgRuntimeDir(c *C) {
 	c.Check(update.XdgRuntimeDir(1234), Equals, "/run/user/1234")
 }
 
+func (s *xdgSuite) TestExpandPrefixVariable(c *C) {
+	c.Check(update.ExpandPrefixVariable("$FOO", "$FOO", "/foo"), Equals, "/foo")
+	c.Check(update.ExpandPrefixVariable("$FOO/", "$FOO", "/foo"), Equals, "/foo/")
+	c.Check(update.ExpandPrefixVariable("$FOO/bar", "$FOO", "/foo"), Equals, "/foo/bar")
+	c.Check(update.ExpandPrefixVariable("$FOObar", "$FOO", "/foo"), Equals, "$FOObar")
+}
+
 func (s *xdgSuite) TestExpandXdgRuntimeDir(c *C) {
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
 	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
