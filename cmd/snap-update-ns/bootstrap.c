@@ -46,13 +46,20 @@ int bootstrap_errno = 0;
 const char *bootstrap_msg = NULL;
 
 // setns_into_snap switches mount namespace into that of a given snap.
-static int setns_into_snap(const char *snap_name)
+// If the uid argument is non-zero the mount namespace of a specific user is joined.
+// Otherwise the system-wide mount namespace of the provided snap is used.
+static int setns_into_snap(const char *snap_name, int uid)
 {
 	// Construct the name of the .mnt file to open.
 	char buf[PATH_MAX] = {
 		0,
 	};
-	int n = snprintf(buf, sizeof buf, "/run/snapd/ns/%s.mnt", snap_name);
+	int n;
+	if (uid == 0) {
+		n = snprintf(buf, sizeof buf, "/run/snapd/ns/%s.mnt", snap_name);
+	} else {
+		n = snprintf(buf, sizeof buf, "/run/snapd/ns/%s.%d.mnt", snap_name, uid);
+	}
 	if (n >= sizeof buf || n < 0) {
 		bootstrap_errno = 0;
 		bootstrap_msg = "cannot format mount namespace file name";
@@ -510,14 +517,15 @@ void bootstrap(int argc, char **argv, char **envp)
 	const char *snap_name = NULL;
 	bool should_setns = false;
 	bool process_user_fstab = false;
-	unsigned long uid = 0;
+	unsigned long uid = getuid();
 	process_arguments(argc, argv, &snap_name, &should_setns,
 			  &process_user_fstab, &uid);
-	if (process_user_fstab) {
-		switch_to_privileged_user();
-		// switch_to_privileged_user sets bootstrap_{errno,msg}
-	} else if (snap_name != NULL && should_setns) {
-		setns_into_snap(snap_name);
+	if (should_setns && snap_name != NULL) {
+		setns_into_snap(snap_name, process_user_fstab ? uid : 0);
 		// setns_into_snap sets bootstrap_{errno,msg}
+	}
+	if (process_user_fstab && uid != 0) {
+		switch_to_specific_privileged_user(uid, getgid());
+		// switch_to_privileged_user sets bootstrap_{errno,msg}
 	}
 }
