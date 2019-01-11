@@ -33,7 +33,46 @@ import (
 
 // Tests for GET /v2/connections
 
+func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState map[string]interface{}, expected map[string]interface{}) {
+	c.Assert(s.d, check.NotNil, check.Commentf("call s.daemon() first"))
+
+	repo := s.d.overlord.InterfaceManager().Repository()
+	for crefStr, cstate := range connsState {
+		cref, err := interfaces.ParseConnRef(crefStr)
+		c.Assert(err, check.IsNil)
+		if undesiredRaw, ok := cstate.(map[string]interface{})["undesired"]; ok {
+			undesired, ok := undesiredRaw.(bool)
+			c.Assert(ok, check.Equals, true, check.Commentf("unexpected value for key 'undesired': %v", cstate))
+			if undesired {
+				// do not add connections that are undesired
+				continue
+			}
+		}
+		_, err = repo.Connect(cref, nil, nil, nil, nil, nil)
+		c.Assert(err, check.IsNil)
+	}
+
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Set("conns", connsState)
+	st.Unlock()
+
+	s.testConnections(c, query, expected)
+}
+
 func (s *apiSuite) testConnections(c *check.C, query string, expected map[string]interface{}) {
+	req, err := http.NewRequest("GET", query, nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	connectionsCmd.GET(connectionsCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) testConnectedConnections(c *check.C, query string, expected map[string]interface{}) {
 	req, err := http.NewRequest("GET", query, nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -123,7 +162,7 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.daemon(c)
+	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -164,16 +203,11 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 		"type":        "sync",
 	})
 
-	// connect the interface
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	s.testConnections(c, "/v2/connections?snap=producer", map[string]interface{}{
+	s.testConnectionsConnected(c, "/v2/connections?snap=producer", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	}, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -201,6 +235,14 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 					},
 				},
 			},
+			"established": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"manual":    true,
+					"interface": "test",
+				},
+			},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -214,7 +256,7 @@ func (s *apiSuite) TestConnectionsByIfaceName(c *check.C) {
 	restore = builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "different"})
 	defer restore()
 
-	d := s.daemon(c)
+	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -298,16 +340,12 @@ plugs:
 		"type":        "sync",
 	})
 
-	// connect the interface
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	s.testConnections(c, "/v2/connections?interface=test", map[string]interface{}{
+	// modifies state internally
+	s.testConnectionsConnected(c, "/v2/connections?interfaces=test", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	}, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -335,11 +373,20 @@ plugs:
 					},
 				},
 			},
+			"established": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"manual":    true,
+					"interface": "test",
+				},
+			},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
+	// use state modified by previous cal
 	s.testConnections(c, "/v2/connections?interface=different", map[string]interface{}{
 		"result":      map[string]interface{}{},
 		"status":      "OK",
@@ -348,24 +395,20 @@ plugs:
 	})
 }
 
-func (s *apiSuite) TestConnectionsDefault(c *check.C) {
+func (s *apiSuite) TestConnectionsDefaultManual(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.daemon(c)
+	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	s.testConnections(c, "/v2/connections", map[string]interface{}{
+	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	}, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -391,6 +434,276 @@ func (s *apiSuite) TestConnectionsDefault(c *check.C) {
 					"connections": []interface{}{
 						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
+				},
+			},
+			"established": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"manual":    true,
+					"interface": "test",
+				},
+			},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestConnectionsDefaultAuto(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"auto":      true,
+		},
+	}, map[string]interface{}{
+		"result": map[string]interface{}{
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "consumer",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"slot":      "slot",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					},
+				},
+			},
+			"established": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"interface": "test",
+				},
+			},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestConnectionsDefaultGadget(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+	}, map[string]interface{}{
+		"result": map[string]interface{}{
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "consumer",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"slot":      "slot",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					},
+				},
+			},
+			"established": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"gadget":    true,
+					"interface": "test",
+				},
+			},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestConnectionsAll(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.testConnectionsConnected(c, "/v2/connections?select=all", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+			"undesired": true,
+		},
+	}, map[string]interface{}{
+		"result": map[string]interface{}{
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "consumer",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"slot":      "slot",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+				},
+			},
+			"undesired": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"gadget":    true,
+					"manual":    true,
+					"interface": "test",
+				},
+			},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestConnectionsSorted(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	var anotherConsumerYaml = `
+name: another-consumer
+version: 1
+apps:
+ app:
+plugs:
+ plug:
+  interface: test
+  key: value
+  label: label
+`
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, anotherConsumerYaml)
+
+	s.mockSnap(c, producerYaml)
+
+	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+		"another-consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+	}, map[string]interface{}{
+		"result": map[string]interface{}{
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "another-consumer",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+				map[string]interface{}{
+					"snap":      "consumer",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"slot":      "slot",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "another-consumer", "plug": "plug"},
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					},
+				},
+			},
+			"established": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "another-consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"gadget":    true,
+					"interface": "test",
+				},
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"gadget":    true,
+					"interface": "test",
 				},
 			},
 		},

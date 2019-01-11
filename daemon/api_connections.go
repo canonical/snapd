@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"net/http"
+	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -70,24 +71,55 @@ func (c *collectFilter) ifaceMatches(ifaceName string) bool {
 	return true
 }
 
-func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) connectionsJSON {
+func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) (*connectionsJSON, error) {
 	repo := ifaceMgr.Repository()
 	ifaces := repo.Interfaces()
 
 	var connsjson connectionsJSON
+	var connStates map[string]ifacestate.ConnectionState
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
 
-	for _, cref := range ifaces.Connections {
+	var err error
+	connStates, err = ifaceMgr.ConnectionStates()
+	if err != nil {
+		return nil, err
+	}
+
+	connsjson.Established = make([]connectionJSON, 0, len(connStates))
+	for crefStr, cstate := range connStates {
+		cref, err := interfaces.ParseConnRef(crefStr)
+		if err != nil {
+			return nil, err
+		}
 		if !filter.plugMatches(&cref.PlugRef, nil) && !filter.slotMatches(&cref.SlotRef, nil) {
+			continue
+		}
+		if !filter.ifaceMatches(cstate.Interface) {
 			continue
 		}
 		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
 		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
 		plugID := plugRef.String()
 		slotID := slotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], slotRef)
-		slotConns[slotID] = append(slotConns[slotID], plugRef)
+
+		cj := connectionJSON{
+			Slot:      slotRef,
+			Plug:      plugRef,
+			Manual:    cstate.Auto == false,
+			Gadget:    cstate.ByGadget,
+			Interface: cstate.Interface,
+		}
+		if cstate.Undesired {
+			// explicitly disconnected are always manual
+			cj.Manual = true
+			connsjson.Undesired = append(connsjson.Undesired, cj)
+		} else {
+			plugConns[plugID] = append(plugConns[plugID], slotRef)
+			slotConns[slotID] = append(slotConns[slotID], plugRef)
+
+			connsjson.Established = append(connsjson.Established, cj)
+		}
 	}
 
 	for _, plug := range ifaces.Plugs {
@@ -138,7 +170,20 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		}
 		connsjson.Slots = append(connsjson.Slots, sj)
 	}
-	return connsjson
+	return &connsjson, nil
+}
+
+type byCrefConnJSON []connectionJSON
+
+func (b byCrefConnJSON) Len() int      { return len(b) }
+func (b byCrefConnJSON) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byCrefConnJSON) Less(i, j int) bool {
+	icj := b[i]
+	jcj := b[j]
+	iCref := interfaces.ConnRef{PlugRef: icj.Plug, SlotRef: icj.Slot}
+	jCref := interfaces.ConnRef{PlugRef: jcj.Plug, SlotRef: jcj.Slot}
+	sortsBefore := iCref.ID() < jCref.ID()
+	return sortsBefore
 }
 
 func getConnections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -151,10 +196,16 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 	onlyConnected := qselect == ""
 
-	connsjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
+	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
 		snapName:  snapName,
 		ifaceName: ifaceName,
 		connected: onlyConnected,
 	})
+	if err != nil {
+		return InternalError("collecting connection information failed: %v", err)
+	}
+	sort.Sort(byCrefConnJSON(connsjson.Established))
+	sort.Sort(byCrefConnJSON(connsjson.Undesired))
+
 	return SyncResponse(connsjson, nil)
 }
