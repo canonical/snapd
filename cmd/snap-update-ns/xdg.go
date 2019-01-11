@@ -39,7 +39,7 @@ func expandPrefixVariable(path, variable, value string) string {
 			return value
 		}
 		if len(path) > len(variable) && path[len(variable)] == '/' {
-			return strings.Replace(path, variable, value, 1)
+			return value + path[len(variable):]
 		}
 	}
 	return path
