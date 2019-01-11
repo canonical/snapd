@@ -63,7 +63,6 @@ capability fsetid,
 capability net_admin,
 capability mac_admin,
 capability kill, # multipass needs to be able to kill child processes
-capability sys_module, # checking for kvm will involve loading module
 
 # Profiles Multipass generates have a naming scheme. Need unsafe to prevent env scrubbing
 change_profile unsafe /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/usr/bin/* -> multipass.*,
