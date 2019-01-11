@@ -340,11 +340,14 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 	errno = 0;
 	char *uid_text_end = NULL;
 	unsigned long parsed_uid = strtoul(uid_text, &uid_text_end, 10);
+	char c = *uid_text;
 	if (
 			/* Reject overflow in parsed representation */
 			(parsed_uid == ULONG_MAX && errno != 0)
 			/* Reject leading whitespace allowed by strtoul. */
-			|| (isspace(*uid_text))
+			/* NOTE: This is not using isspace, for some reason that is crashing
+			 * at runtime. Reported upstream as https://github.com/golang/go/issues/29689 */
+			|| c == ' ' || c == '\t' || c == '\v' || c == '\r' || c == '\n'
 			/* Reject empty string. */
 			|| (*uid_text == '\0')
 			/* Reject partially parsed strings. */
