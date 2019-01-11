@@ -1338,18 +1338,19 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 			continue
 		}
 
+		connRef := interfaces.NewConnRef(plug, slot)
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// existing connection, already considered by connsForDevice loop
+			continue
+		}
+
 		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
 			if retry, ok := err.(*state.Retry); ok {
 				task.Logf("hotplug connect will be retried: %s", retry.Reason)
 				return err // will retry
 			}
 			return fmt.Errorf("hotplug connect conflict check failed: %s", err)
-		}
-		connRef := interfaces.NewConnRef(plug, slot)
-		key := connRef.ID()
-		if _, ok := conns[key]; ok {
-			// existing connection, already considered by connsForDevice loop
-			continue
 		}
 		newconns = append(newconns, connRef)
 	}
