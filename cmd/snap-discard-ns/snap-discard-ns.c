@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
      *
      * Applied mount profiles to unlink:
      * - "snap.$SNAP_INSTANCE_NAME.fstab"
-     * - "snap.$SNAP_INSTANCE_NAME.[0-9]+.fstab"
+     * - "snap.$SNAP_INSTANCE_NAME.[0-9]+.user-fstab"
      *
      * Use PATH_MAX as the size of each buffer since those can store any file
      * name. */
@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
     char sys_mnt_pattern[PATH_MAX];
     char usr_mnt_pattern[PATH_MAX];
     sc_must_snprintf(sys_fstab_pattern, sizeof sys_fstab_pattern, "snap\\.%s\\.fstab", snap_instance_name);
-    sc_must_snprintf(usr_fstab_pattern, sizeof usr_fstab_pattern, "snap\\.%s\\.*\\.fstab", snap_instance_name);
+    sc_must_snprintf(usr_fstab_pattern, sizeof usr_fstab_pattern, "snap\\.%s\\.*\\.user-fstab", snap_instance_name);
     sc_must_snprintf(sys_mnt_pattern, sizeof sys_mnt_pattern, "%s\\.mnt", snap_instance_name);
     sc_must_snprintf(usr_mnt_pattern, sizeof usr_mnt_pattern, "%s\\.*\\.mnt", snap_instance_name);
 
