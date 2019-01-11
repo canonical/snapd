@@ -78,7 +78,6 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	opts := client.ConnectionOptions{
 		All:  true,
 		Snap: x.Positionals.Query.Snap,
-		Name: x.Positionals.Query.Name,
 	}
 	ifaces, err := x.client.Connections(&opts)
 	if err != nil {
