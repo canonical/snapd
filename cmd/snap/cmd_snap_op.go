@@ -256,6 +256,16 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 	return nil
 }
 
+func isSnapInPath() bool {
+	paths := filepath.SplitList(os.Getenv("PATH"))
+	for _, path := range paths {
+		if filepath.Clean(path) == dirs.SnapBinariesDir {
+			return true
+		}
+	}
+	return false
+}
+
 // show what has been done
 func showDone(cli *client.Client, names []string, op string, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
@@ -276,6 +286,9 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 			} else {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
+			}
+			if !isSnapInPath() {
+				fmt.Fprintf(StdOut, i18n.G("warning:\t%s was not found in your $PATH. Please add it to ensure snaps can run correctly."))
 			}
 		case "refresh":
 			if snap.Publisher != nil {
