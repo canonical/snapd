@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type commonProfileUpdate struct {
+type CommonProfileUpdate struct {
 	// instanceName is the name of the snap or instance to update.
 	instanceName string
 
@@ -40,8 +40,13 @@ type commonProfileUpdate struct {
 	desiredProfilePath string
 }
 
+// InstanceName returns the snap instance name being updated.
+func (up *CommonProfileUpdate) InstanceName() string {
+	return up.instanceName
+}
+
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
-func (up *commonProfileUpdate) Lock() (func(), error) {
+func (up *CommonProfileUpdate) Lock() (func(), error) {
 	instanceName := up.instanceName
 
 	// Lock the mount namespace so that any concurrently attempted invocations
@@ -57,6 +62,8 @@ func (up *commonProfileUpdate) Lock() (func(), error) {
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
+			// If we managed to grab the lock we should drop it.
+			lock.Close()
 			return nil, fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
 		}
 	} else {
@@ -87,17 +94,17 @@ func (up *commonProfileUpdate) Lock() (func(), error) {
 }
 
 // NeededChanges computes the sequence of mount changes needed to transform current profile to desired profile.
-func (up *commonProfileUpdate) NeededChanges(current, desired *osutil.MountProfile) []*Change {
+func (up *CommonProfileUpdate) NeededChanges(current, desired *osutil.MountProfile) []*Change {
 	return NeededChanges(current, desired)
 }
 
 // PerformChange performs a given mount namespace change under given filesystem assumptions.
-func (up *commonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
+func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
 	return changePerform(change, as)
 }
 
-// LoadDesiredProfile loads the desired, per-user mount profile, expanding user-specific variables.
-func (up *commonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
+// LoadDesiredProfile loads the desired mount profile.
+func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.desiredProfilePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", up.instanceName, err)
@@ -105,8 +112,8 @@ func (up *commonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error
 	return profile, nil
 }
 
-// LoadCurrentProfile loads the current, per-user mount profile.
-func (up *commonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
+// LoadCurrentProfile loads the current mount profile.
+func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.currentProfilePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", up.instanceName, err)
@@ -114,12 +121,8 @@ func (up *commonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error
 	return profile, nil
 }
 
-// SaveCurrentProfile saves the current, per-user mount profile, if matching feature is enabled.
-//
-// The profile is really only saved to disk if PerUserMountNamespace feature is
-// enabled. This is matched by similar logic in snap-confine, that only
-// persists per-user mount namespace if the same feature is enabled.
-func (up *commonProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
+// SaveCurrentProfile saves the current mount profile.
+func (up *CommonProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
 	if err := profile.Save(up.currentProfilePath); err != nil {
 		return fmt.Errorf("cannot save current mount profile of snap %q: %s", up.instanceName, err)
 	}

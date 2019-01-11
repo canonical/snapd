@@ -48,6 +48,8 @@ func (s *userSuite) TestLock(c *C) {
 
 	// When the feature is disabled locking is a no-op.
 	c.Check(feature.IsEnabled(), Equals, false)
+
+	// Locking is a no-op.
 	unlock, err := up.Lock()
 	c.Assert(err, IsNil)
 	c.Check(unlock, NotNil)

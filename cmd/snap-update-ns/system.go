@@ -28,22 +28,17 @@ import (
 
 // SystemProfileUpdate contains information about update to system-wide mount namespace.
 type SystemProfileUpdate struct {
-	commonProfileUpdate
+	CommonProfileUpdate
 }
 
 // NewSystemProfileUpdate returns encapsulated information for performing a per-user mount namespace update.
 func NewSystemProfileUpdate(instanceName string, fromSnapConfine bool) *SystemProfileUpdate {
-	return &SystemProfileUpdate{commonProfileUpdate: commonProfileUpdate{
+	return &SystemProfileUpdate{CommonProfileUpdate: CommonProfileUpdate{
 		instanceName:       instanceName,
 		fromSnapConfine:    fromSnapConfine,
 		currentProfilePath: currentSystemProfilePath(instanceName),
 		desiredProfilePath: desiredSystemProfilePath(instanceName),
 	}}
-}
-
-// InstanceName returns the snap instance name being updated.
-func (up *SystemProfileUpdate) InstanceName() string {
-	return up.commonProfileUpdate.instanceName
 }
 
 // Assumptions returns information about file system mutability rules.
@@ -72,7 +67,7 @@ func (up *SystemProfileUpdate) Assumptions() *Assumptions {
 	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
 	// remapping for parallel installs only when the snap has an instance key
 	as := &Assumptions{}
-	instanceName := up.commonProfileUpdate.instanceName
+	instanceName := up.CommonProfileUpdate.instanceName
 	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)

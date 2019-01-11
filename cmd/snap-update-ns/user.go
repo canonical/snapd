@@ -29,7 +29,7 @@ import (
 
 // UserProfileUpdate contains information about update to per-user mount namespace.
 type UserProfileUpdate struct {
-	commonProfileUpdate
+	CommonProfileUpdate
 	// uid is the numeric user identifier associated with the user for which
 	// the update operation is occurring. It may be the current UID but doesn't
 	// need to be.
@@ -39,7 +39,7 @@ type UserProfileUpdate struct {
 // NewUserProfileUpdate returns encapsulated information for performing a per-user mount namespace update.
 func NewUserProfileUpdate(instanceName string, fromSnapConfine bool, uid int) *UserProfileUpdate {
 	return &UserProfileUpdate{
-		commonProfileUpdate: commonProfileUpdate{
+		CommonProfileUpdate: CommonProfileUpdate{
 			instanceName:       instanceName,
 			fromSnapConfine:    fromSnapConfine,
 			currentProfilePath: currentUserProfilePath(instanceName, uid),
@@ -47,11 +47,6 @@ func NewUserProfileUpdate(instanceName string, fromSnapConfine bool, uid int) *U
 		},
 		uid: uid,
 	}
-}
-
-// InstanceName returns the snap instance name being updated.
-func (up *UserProfileUpdate) InstanceName() string {
-	return up.commonProfileUpdate.instanceName
 }
 
 // UID returns the user ID of the mount namespace being updated.
@@ -65,7 +60,7 @@ func (up *UserProfileUpdate) Lock() (unlock func(), err error) {
 	// any locks. This is for parity with the pre-persistence behavior (to
 	// minimise impact before the feature is enabled by default).
 	if features.PerUserMountNamespace.IsEnabled() {
-		return up.commonProfileUpdate.Lock()
+		return up.CommonProfileUpdate.Lock()
 	}
 	return func() {}, nil
 }
@@ -91,7 +86,7 @@ func (up *UserProfileUpdate) Assumptions() *Assumptions {
 
 // LoadDesiredProfile loads the desired, per-user mount profile, expanding user-specific variables.
 func (up *UserProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	profile, err := up.commonProfileUpdate.LoadDesiredProfile()
+	profile, err := up.CommonProfileUpdate.LoadDesiredProfile()
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +107,7 @@ func (up *UserProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) er
 	// write the updated current mount profile because snap-confine
 	// is similarly not storing the mount namespace.
 	if features.PerUserMountNamespace.IsEnabled() {
-		return up.commonProfileUpdate.SaveCurrentProfile(profile)
+		return up.CommonProfileUpdate.SaveCurrentProfile(profile)
 	}
 	return nil
 }
