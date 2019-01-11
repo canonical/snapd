@@ -32,16 +32,14 @@ var (
 	// change
 	ValidateInstanceName = validateInstanceName
 	ProcessArguments     = processArguments
+
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
+
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
-
-	// main
-	ComputeAndSaveSystemChanges = computeAndSaveSystemChanges
-	ApplyUserFstab              = applyUserFstab
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
@@ -50,10 +48,21 @@ var (
 	IsReadOnly                   = isReadOnly
 	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
 
+	// system
+	DesiredSystemProfilePath = desiredSystemProfilePath
+	CurrentSystemProfilePath = currentSystemProfilePath
+
+	// user
+	DesiredUserProfilePath = desiredUserProfilePath
+	CurrentUserProfilePath = currentUserProfilePath
+
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+
+	// update
+	ExecuteMountProfileUpdate = executeMountProfileUpdate
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -198,4 +207,33 @@ func (as *Assumptions) PastChanges() []*Change {
 
 func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
 	return as.canWriteToDirectory(dirFd, dirName)
+}
+
+func (as *Assumptions) UnrestrictedPaths() []string {
+	return as.unrestrictedPaths
+}
+
+func (up *CommonProfileUpdate) FromSnapConfine() bool {
+	return up.fromSnapConfine
+}
+
+func (up *CommonProfileUpdate) SetFromSnapConfine(v bool) {
+	up.fromSnapConfine = v
+}
+
+func (up *CommonProfileUpdate) CurrentProfilePath() string {
+	return up.currentProfilePath
+}
+
+func (up *CommonProfileUpdate) DesiredProfilePath() string {
+	return up.desiredProfilePath
+}
+
+func NewCommonProfileUpdate(instanceName string, fromSnapConfine bool, currentProfilePath, desiredProfilePath string) *CommonProfileUpdate {
+	return &CommonProfileUpdate{
+		instanceName:       instanceName,
+		fromSnapConfine:    fromSnapConfine,
+		currentProfilePath: currentProfilePath,
+		desiredProfilePath: desiredProfilePath,
+	}
 }
