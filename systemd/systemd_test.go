@@ -486,17 +486,23 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 	c.Assert(MountUnitPath("/apps/hello/1.1"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello-1.1.mount"))
 }
 
-func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
+func makeMockFile(c *C, path string) {
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(path, nil, 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
+	rootDir := dirs.GlobalRootDir
+
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
-	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
-	c.Assert(err, IsNil)
+	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New(rootDir, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -514,15 +520,21 @@ Options=nodev,ro,x-gdu.hide
 [Install]
 WantedBy=multi-user.target
 `[1:], mockSnapPath))
+
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
+		{"start", "snap-snapname-123.mount"},
+	})
 }
 
-func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
+func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
+	mountUnitName, err := New("", nil).AddMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -540,6 +552,12 @@ Options=nodev,ro,x-gdu.hide,bind
 [Install]
 WantedBy=multi-user.target
 `[1:], snapDir))
+
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", "", "enable", "snap-snapname-x1.mount"},
+		{"start", "snap-snapname-x1.mount"},
+	})
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
@@ -564,7 +582,7 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New("", nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -602,7 +620,7 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New("", nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -672,4 +690,62 @@ func (s *SystemdTestSuite) TestIsActiveErr(c *C) {
 	active, err := New("xyzzy", s.rep).IsActive("foo")
 	c.Assert(active, Equals, false)
 	c.Assert(err, ErrorMatches, ".* failed with exit status 1: random-failure\n")
+}
+
+func makeMockMountUnit(c *C, mountDir string) string {
+	mountUnit := MountUnitPath(dirs.StripRootDir(mountDir))
+	err := ioutil.WriteFile(mountUnit, nil, 0644)
+	c.Assert(err, IsNil)
+	return mountUnit
+}
+
+// FIXME: also test for the "IsMounted" case
+func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	mountDir := rootDir + "/snap/foo/42"
+	mountUnit := makeMockMountUnit(c, mountDir)
+	err := New(rootDir, nil).RemoveMountUnitFile(mountDir)
+
+	c.Assert(err, IsNil)
+	// the file is gone
+	c.Check(osutil.FileExists(mountUnit), Equals, false)
+	// and the unit is disabled and the daemon reloaded
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", rootDir, "disable", "snap-foo-42.mount"},
+		{"daemon-reload"},
+	})
+}
+
+func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
+	rootDir := dirs.GlobalRootDir
+	sysd := New(rootDir, nil)
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	// create a go-routine that will try to daemon-reload like crazy
+	stopCh := make(chan bool, 1)
+	stoppedCh := make(chan bool, 1)
+	go func() {
+		for {
+			sysd.DaemonReload()
+			select {
+			case <-stopCh:
+				close(stoppedCh)
+				return
+			default:
+				//pass
+			}
+		}
+	}()
+
+	// And now add a mount unit file while the go-routine tries to
+	// daemon-reload. This will be serialized, if not this would
+	// panic because systemd.daemonReloadNoLock ensures the lock is
+	// taken when this happens.
+	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/foo/42", "squashfs")
+	c.Assert(err, IsNil)
+	close(stopCh)
+	<-stoppedCh
 }
