@@ -77,11 +77,11 @@ func (c *collectFilter) ifaceMatches(ifaceName string) bool {
 	return true
 }
 
-func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) interfaceJSON {
+func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) connectionsJSON {
 	repo := ifaceMgr.Repository()
 	ifaces := repo.Interfaces()
 
-	var ifjson interfaceJSON
+	var connsjson connectionsJSON
 	plugConns := map[string][]interfaces.SlotRef{}
 	slotConns := map[string][]interfaces.PlugRef{}
 
@@ -119,7 +119,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 			Label:       plug.Label,
 			Connections: connectedSlots,
 		}
-		ifjson.Plugs = append(ifjson.Plugs, pj)
+		connsjson.Plugs = append(connsjson.Plugs, pj)
 	}
 	for _, slot := range ifaces.Slots {
 		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
@@ -143,9 +143,9 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 			Label:       slot.Label,
 			Connections: connectedPlugs,
 		}
-		ifjson.Slots = append(ifjson.Slots, sj)
+		connsjson.Slots = append(connsjson.Slots, sj)
 	}
-	return ifjson
+	return connsjson
 }
 
 func getConnections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -159,11 +159,11 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 	onlyConnected := qselect == ""
 
-	ifjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
+	connsjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
 		snapName:     snapName,
 		plugSlotName: plugSlotName,
 		ifaceName:    ifaceName,
 		connected:    onlyConnected,
 	})
-	return SyncResponse(ifjson, nil)
+	return SyncResponse(connsjson, nil)
 }

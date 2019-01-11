@@ -1790,8 +1790,8 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	ifjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
-	return SyncResponse(ifjson, nil)
+	connsjson := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	return SyncResponse(connsjson, nil)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
