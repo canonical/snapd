@@ -46,7 +46,7 @@ execute: |
     echo "We can fake a current mount profile and see that it is removed too"
     test-snapd-tools.success
     touch /run/snapd/ns/snap.test-snapd-tools.fstab
-    touch /run/snapd/ns/snap.test-snapd-tools.1000.fstab
+    touch /run/snapd/ns/snap.test-snapd-tools.1000.user-fstab
     $LIBEXECDIR/snapd/snap-discard-ns test-snapd-tools
     test ! -e /run/snapd/ns/snap.test-snapd-tools.fstab
-    test ! -e /run/snapd/ns/snap.test-snapd-tools.1000.fstab
+    test ! -e /run/snapd/ns/snap.test-snapd-tools.1000.user-fstab
