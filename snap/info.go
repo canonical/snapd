@@ -319,6 +319,7 @@ type ChannelSnapInfo struct {
 	Channel     string          `json:"channel"`
 	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
+	ReleasedAt  time.Time       `json:"released-at"`
 }
 
 // InstanceName returns the blessed name of the snap decorated with instance
