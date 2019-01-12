@@ -23,6 +23,7 @@ description: |
 systems:
   - ubuntu-18.04-*
   - ubuntu-18.10-*
+  - ubuntu-19.04-*
 
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
