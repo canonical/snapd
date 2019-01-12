@@ -1,0 +1,66 @@
+summary: the desktop portal allows confined apps to open local files
+description: |
+    The xdg-desktop-portal "Open URI" interface provides a way for
+    confined applications to open local files using the associated
+    application on the host system.
+
+    The confined application proves access to the file by passing a
+    file descriptor to the desktop portal.
+
+# Only enable the test on systems we know portals to function on.
+# Expand as needed.
+systems:
+  - ubuntu-18.04-*
+  - ubuntu-18.10-*
+
+prepare: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    setup_portals
+
+    # Configure fake web browser
+    mkdir -p ~test/.local/share/applications
+    cat << EOF > ~test/.local/share/applications/test-editor.desktop
+    [Desktop Entry]
+    Type=Application
+    Name=Test Editor
+    Exec=$(pwd)/editor.sh %f
+    MimeType=text/plain;
+    EOF
+    mkdir -p ~test/.config
+    cat << EOF > ~test/.config/mimeapps.list
+    [Default Applications]
+    text/plain=test-editor.desktop
+    EOF
+    rm -f /tmp/editor-history.txt
+
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    teardown_portals
+
+    rm -f ~test/.config/mimeapps.list
+    rm -f ~test/.local/share/applications/test-editor.desktop
+    rm -f /tmp/editor-history.txt
+
+execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    echo "Install the portals test client"
+    snap install --edge test-snapd-portal-client
+
+    echo "Create a file that the test client can access"
+    commondir=~test/snap/test-snapd-portal-client/common
+    testfile="$commondir/test.txt"
+    mkdir -p "$commondir"
+    chown test:test "$commondir"
+    echo "Hello World" > "$testfile"
+    chown test:test "$testfile"
+
+    echo "The confined application can open URLs in the default browser"
+    as_user test-snapd-portal-client launch-file "$testfile"
+
+    echo "The test-browser process was invoked with the URL"
+    [ -f /tmp/editor-history.txt ]
+    MATCH "$testfile" < /tmp/editor-history.txt

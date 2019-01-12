@@ -40,7 +40,10 @@ class PortalImpl(dbus.service.Object):
                          in_signature="ossasa{sv}", out_signature="ua{sv}")
     def ChooseApplication(self, handle, app_id, parent_window, choices,
                           options):
-        return (0, dict(choice=choices[0]))
+        if options["content_type"] == "text/plain":
+            return (0, dict(choice="test-editor"))
+        else:
+            return (1, {})
 
 
 def main(argv):
