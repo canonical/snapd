@@ -66,12 +66,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	spec.(*Specification).AddLayout(snapInfo)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
-	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
+	glob1 := fmt.Sprintf("snap.%s.*fstab", snapName)
+	glob2 := fmt.Sprintf("snap.%s.user-fstab", snapName)
 	dir := dirs.SnapMountPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
 	}
-	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {
+	if _, _, err := osutil.EnsureDirStateGlobs(dir, []string{glob1, glob2}, content); err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
 	if err := UpdateSnapNamespace(snapName); err != nil {
@@ -84,8 +85,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
-	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
+	glob1 := fmt.Sprintf("snap.%s.*fstab", snapName)
+	glob2 := fmt.Sprintf("snap.%s.user-fstab", snapName)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapMountPolicyDir, []string{glob1, glob2}, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
