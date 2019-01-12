@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
