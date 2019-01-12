@@ -57,9 +57,8 @@ execute: |
     commondir=~test/snap/test-snapd-portal-client/common
     testfile="$commondir/test.txt"
     mkdir -p "$commondir"
-    chown test:test "$commondir"
     echo "Hello World" > "$testfile"
-    chown test:test "$testfile"
+    chown -R test:test ~test/snap
 
     echo "The confined application can open URLs in the default browser"
     as_user test-snapd-portal-client launch-file "$testfile"
