@@ -44,6 +44,8 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/desktop-portal.sh
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
 
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
@@ -52,5 +54,5 @@ execute: |
     as_user test-snapd-portal-client open-uri http://www.example.org
 
     echo "The test-browser process was invoked with the URL"
-    [ -f /tmp/browser-history.txt ]
+    wait_for_file /tmp/browser-history.txt 4 .5
     MATCH http://www.example.org < /tmp/browser-history.txt
