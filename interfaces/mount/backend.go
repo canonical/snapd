@@ -35,6 +35,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -125,14 +126,21 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of features supported by snapd for composing mount namespaces.
 func (b *Backend) SandboxFeatures() []string {
-	return []string{
+	f := []string{
 		"freezer-cgroup-v1",       /* Snapd creates a freezer cgroup (v1) for each snap */
 		"layouts",                 /* Mount profiles take layout data into account */
 		"mount-namespace",         /* Snapd creates a mount namespace for each snap */
-		"per-snap-persistency",    /* Per-snap profiles are persisted across invocations */
+		"per-snap-persistence",    /* Per-snap profiles are persisted across invocations */
 		"per-snap-profiles",       /* Per-snap profiles allow changing mount namespace of a given snap */
 		"per-snap-updates",        /* Changes to per-snap mount profiles are applied instantly */
-		"per-snap-user-profiles",  /* Per-snap profiles allow changing mount namespace of a given snap for a given user */
 		"stale-base-invalidation", /* Mount namespaces that go stale because base snap changes are automatically invalidated */
 	}
+	if features.PerUserMountNamespace.IsEnabled() {
+		f = append(f, "per-snap-user-persistence") /* Per-snap mount namespace is persisted across invocations, individually for each user */
+		f = append(f, "per-snap-user-profiles")    /* Per-snap profiles allow changing mount namespace of a given snap for a given user */
+		f = append(f, "per-snap-user-updates")     /* Changes to per-snap, per-user profiles are applied instantly */
+	} else {
+		f = append(f, "per-snap-user-profiles") /* Per-snap profiles allow changing mount namespace of a given snap for a given user */
+	}
+	return f
 }

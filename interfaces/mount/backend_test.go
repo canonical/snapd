@@ -208,14 +208,18 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+	// TODO: mock features, test both variants.
+
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"freezer-cgroup-v1",
 		"layouts",
 		"mount-namespace",
-		"per-snap-persistency",
+		"per-snap-persistence",
 		"per-snap-profiles",
 		"per-snap-updates",
-		"per-snap-user-profiles",
 		"stale-base-invalidation",
+		"per-snap-user-profiles",
 	})
 }
