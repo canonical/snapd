@@ -287,7 +287,7 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
 			if !isSnapInPath() {
-				fmt.Fprintf(Stdout, i18n.G("warning:\t%s was not found in your $PATH. Please add it to ensure snaps can run correctly."))
+				fmt.Fprintf(Stdout, i18n.G("warning:\t%s was not found in your $PATH. Please add it to ensure snaps can run correctly."), dirs.SnapBinariesDir)
 			}
 		case "refresh":
 			if snap.Publisher != nil {
