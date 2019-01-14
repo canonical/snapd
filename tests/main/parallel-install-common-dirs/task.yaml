@@ -1,5 +1,8 @@
 summary: Checks handling of common snap directories of parallel installed snaps
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 prepare: |
     snap set system experimental.parallel-instances=true
 
