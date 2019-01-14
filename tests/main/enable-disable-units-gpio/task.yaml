@@ -13,6 +13,11 @@ details: |
 systems: [ubuntu-core-16-64]
 
 prepare: |
+    if ! snap interfaces|grep -q gpio-pin; then
+        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
+        exit 0
+    fi
+
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     echo "Create/enable fake gpio"
@@ -27,12 +32,22 @@ prepare: |
     snap connect gpio-consumer:gpio :gpio-pin
 
 restore: |
+    if ! snap interfaces|grep -q gpio-pin; then
+        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
+        exit 0
+    fi
+
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     system_stop_and_remove_persistent_unit fake-gpio
     umount /sys/class/gpio || true
 
 execute: |
+    if ! snap interfaces|grep -q gpio-pin; then
+        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
+        exit 0
+    fi
+
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
