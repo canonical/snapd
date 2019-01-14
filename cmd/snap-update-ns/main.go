@@ -31,6 +31,7 @@ import (
 var opts struct {
 	FromSnapConfine bool `long:"from-snap-confine"`
 	UserMounts      bool `long:"user-mounts"`
+	UserID          int  `short:"u"`
 	Positionals     struct {
 		SnapName string `positional-arg-name:"SNAP_NAME" required:"yes"`
 	} `positional-args:"true"`
