@@ -345,8 +345,10 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 			/* Reject overflow in parsed representation */
 			(parsed_uid == ULONG_MAX && errno != 0)
 			/* Reject leading whitespace allowed by strtoul. */
-			/* NOTE: This is not using isspace, for some reason that is crashing
-			 * at runtime. Reported upstream as https://github.com/golang/go/issues/29689 */
+			/* NOTE: This is not using isspace, due to how we get
+			 * this C code to run we end up running before libc is
+			 * properly initialized. For context see
+			 * https://github.com/golang/go/issues/29689 */
 			|| c == ' ' || c == '\t' || c == '\v' || c == '\r' || c == '\n'
 			/* Reject empty string. */
 			|| (*uid_text == '\0')
