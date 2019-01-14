@@ -1,5 +1,8 @@
 summary: Check that revert of a snap in devmode restores devmode
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}
