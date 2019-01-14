@@ -179,7 +179,14 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	}
 	defer reader.Close()
 
-	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, task.Logf)
+	st := task.State()
+	logf := func(format string, args ...interface{}) {
+		st.Lock()
+		defer st.Unlock()
+		task.Logf(format, args...)
+	}
+
+	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf)
 	if err != nil {
 		return err
 	}
@@ -190,7 +197,6 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot marshal saved config: %v", err)
 	}
 
-	st := task.State()
 	st.Lock()
 	defer st.Unlock()
 

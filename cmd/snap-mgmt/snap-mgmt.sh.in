@@ -125,11 +125,7 @@ purge() {
                 rm -f "$mnt"
             done
         fi
-        if [ "$(find /run/snapd/ns/ -name "*.fstab" | wc -l)" -gt 0 ]; then
-            for fstab in /run/snapd/ns/*.fstab; do
-                rm -f "$fstab"
-            done
-        fi
+        find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
         umount -l /run/snapd/ns/ || true
     fi
 
