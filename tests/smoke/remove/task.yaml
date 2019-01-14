@@ -1,0 +1,20 @@
+summary: Check that install/remove works
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-tools
+
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+
+    echo "Ensure remove works"
+    snap remove test-snapd-tools
+    test ! -d "$SNAP_MOUNT_DIR/test-snapd-tools"
+
+    if snap list | grep -E ^test-snapd-tools; then
+        echo "test-snapd-tools should be removed but it is not"
+        snap list
+        exit 1
+    fi
