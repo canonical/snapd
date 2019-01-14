@@ -40,8 +40,8 @@ var (
 	ExecWritableMimic = execWritableMimic
 
 	// main
-	ComputeAndSaveChanges = computeAndSaveChanges
-	ApplyUserFstab        = applyUserFstab
+	ComputeAndSaveSystemChanges = computeAndSaveSystemChanges
+	ApplyUserFstab              = applyUserFstab
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
@@ -49,6 +49,11 @@ var (
 	// trespassing
 	IsReadOnly                   = isReadOnly
 	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
+
+	// xdg
+	XdgRuntimeDir        = xdgRuntimeDir
+	ExpandPrefixVariable = expandPrefixVariable
+	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -144,6 +149,19 @@ func MockFreezerCgroupDir(c *C) (restore func()) {
 
 func FreezerCgroupDir() string {
 	return freezerCgroupDir
+}
+
+func MockFreezing(freeze, thaw func(snapName string) error) (restore func()) {
+	oldFreeze := freezeSnapProcesses
+	oldThaw := thawSnapProcesses
+
+	freezeSnapProcesses = freeze
+	thawSnapProcesses = thaw
+
+	return func() {
+		freezeSnapProcesses = oldFreeze
+		thawSnapProcesses = oldThaw
+	}
 }
 
 func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
