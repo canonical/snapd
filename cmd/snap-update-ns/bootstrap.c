@@ -271,7 +271,11 @@ static int instance_key_validate(const char *instance_key)
 	// engine.
 	int i = 0;
 	for (i = 0; instance_key[i] != '\0'; i++) {
-		if (islower(instance_key[i]) || isdigit(instance_key[i])) {
+		char c = instance_key[i];
+		/* NOTE: We are reimplementing islower() and isdigit()
+		 * here. For context see
+		 * https://github.com/golang/go/issues/29689 */
+		if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
 			continue;
 		}
 		bootstrap_msg =
@@ -345,9 +349,8 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 			/* Reject overflow in parsed representation */
 			(parsed_uid == ULONG_MAX && errno != 0)
 			/* Reject leading whitespace allowed by strtoul. */
-			/* NOTE: This is not using isspace, due to how we get
-			 * this C code to run we end up running before libc is
-			 * properly initialized. For context see
+			/* NOTE: We are reimplementing isspace() here.
+			 * For context see
 			 * https://github.com/golang/go/issues/29689 */
 			|| c == ' ' || c == '\t' || c == '\v' || c == '\r' || c == '\n'
 			/* Reject empty string. */
