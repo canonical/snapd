@@ -1,5 +1,8 @@
 summary: when the base snap changes revision apps are not stuck on the stale one
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 details: |
     When a snap application starts running the mount namespace it inhabits is
     preserved and cached across all the applications belonging to a given snap.
