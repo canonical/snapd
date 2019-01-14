@@ -1,5 +1,8 @@
 summary: Checks for snap sideload install
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
