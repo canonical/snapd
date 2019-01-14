@@ -78,6 +78,23 @@ name#-1 dir#-1 type#-1 options#-1 1 1 # inline comment
 	})
 }
 
+func (s *profileSuite) TestLoadMountProfileText(c *C) {
+	p1, err := osutil.LoadMountProfileText("tmpfs /tmp tmpfs defaults 0 0")
+	c.Assert(err, IsNil)
+	c.Assert(p1.Entries, DeepEquals, []osutil.MountEntry{
+		{Name: "tmpfs", Dir: "/tmp", Type: "tmpfs", Options: []string{"defaults"}},
+	})
+
+	p2, err := osutil.LoadMountProfileText(
+		"tmpfs /tmp tmpfs defaults 0 0\n" +
+			"/tmp /var/tmp none bind 0 0\n")
+	c.Assert(err, IsNil)
+	c.Assert(p2.Entries, DeepEquals, []osutil.MountEntry{
+		{Name: "tmpfs", Dir: "/tmp", Type: "tmpfs", Options: []string{"defaults"}},
+		{Name: "/tmp", Dir: "/var/tmp", Type: "none", Options: []string{"bind"}},
+	})
+}
+
 // Test that saving a profile to a file works correctly.
 func (s *profileSuite) TestSaveMountProfile1(c *C) {
 	dir := c.MkDir()
