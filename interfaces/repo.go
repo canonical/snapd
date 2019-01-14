@@ -806,9 +806,9 @@ func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.Slot
 	return nil, nil
 }
 
-// UpdateStaticSlotAttrs updates static attributes of hotplug slot associated with given hotplugkey, and returns the resulting slot.
+// UpdateHotplugSlotAttrs updates static attributes of hotplug slot associated with given hotplugkey, and returns the resulting slot.
 // Slots can only be updated if not connected to any plug.
-func (r *Repository) UpdateStaticSlotAttrs(ifaceName, hotplugKey string, attrs map[string]interface{}) (*snap.SlotInfo, error) {
+func (r *Repository) UpdateHotplugSlotAttrs(ifaceName, hotplugKey string, staticAttrs map[string]interface{}) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -823,7 +823,7 @@ func (r *Repository) UpdateStaticSlotAttrs(ifaceName, hotplugKey string, attrs m
 				// slots should be updated when disconnected, and reconnected back after updating.
 				return nil, fmt.Errorf("internal error: cannot update slot %s while connected", slotInfo.Name)
 			}
-			slotInfo.Attrs = utils.CopyAttributes(attrs)
+			slotInfo.Attrs = utils.CopyAttributes(staticAttrs)
 			return slotInfo, nil
 		}
 	}

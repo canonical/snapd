@@ -2452,7 +2452,7 @@ func (s *RepositorySuite) TestHotplugMethods(c *C) {
 	c.Check(conns, HasLen, 0)
 }
 
-func (s *RepositorySuite) TestUpdateStaticSlotAttrs(c *C) {
+func (s *RepositorySuite) TestUpdateHotplugSlotAttrs(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	coreSlot := &snap.SlotInfo{
 		Snap:       s.coreSnap,
@@ -2463,18 +2463,18 @@ func (s *RepositorySuite) TestUpdateStaticSlotAttrs(c *C) {
 	}
 	c.Assert(s.testRepo.AddSlot(coreSlot), IsNil)
 
-	slot, err := s.testRepo.UpdateStaticSlotAttrs("interface", "unknownkey", nil)
+	slot, err := s.testRepo.UpdateHotplugSlotAttrs("interface", "unknownkey", nil)
 	c.Assert(err, IsNil)
 	c.Assert(slot, IsNil)
 
-	slot, err = s.testRepo.UpdateStaticSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
+	slot, err = s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
 	c.Assert(err, IsNil)
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"c": "d"})
 	c.Assert(coreSlot.Attrs, DeepEquals, map[string]interface{}{"c": "d"})
 }
 
-func (s *RepositorySuite) TestUpdateStaticSlotAttrsConnectedError(c *C) {
+func (s *RepositorySuite) TestUpdateHotplugSlotAttrsConnectedError(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	coreSlot := &snap.SlotInfo{
 		Snap:       s.coreSnap,
@@ -2487,7 +2487,7 @@ func (s *RepositorySuite) TestUpdateStaticSlotAttrsConnectedError(c *C) {
 	_, err := s.testRepo.Connect(NewConnRef(s.plug, coreSlot), nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	slot, err := s.testRepo.UpdateStaticSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
+	slot, err := s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
 	c.Assert(err, ErrorMatches, `internal error: cannot update slot dummy-slot while connected`)
 	c.Assert(slot, IsNil)
 }

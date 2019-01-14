@@ -1410,7 +1410,7 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
 	}
 
-	slot, err := m.repo.UpdateStaticSlotAttrs(ifaceName, hotplugKey, attrs)
+	slot, err := m.repo.UpdateHotplugSlotAttrs(ifaceName, hotplugKey, attrs)
 	if err != nil {
 		return err
 	}
