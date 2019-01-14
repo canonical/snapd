@@ -74,13 +74,15 @@ func (s *kvmInterfaceSuite) SetUpTest(c *C) {
 	// Need to Mock output of /proc/cpuinfo
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
 	mockCpuinfo := filepath.Join(s.tmpdir, "cpuinfo")
 	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
 processor       : 0
 flags		: cpuflags without kvm support
 
 processor	: 42
-flags		: last cpu is actually consulted, also without kvm support
+flags		: another cpu also without kvm support
 `[1:]), 0644), IsNil)
 	s.AddCleanup(builtin.MockProcCpuinfo(mockCpuinfo))
 }

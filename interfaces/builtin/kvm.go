@@ -20,13 +20,15 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const kvmSummary = `allows access to the kvm device`
@@ -54,44 +56,42 @@ type kvmInterface struct {
 
 var procCpuinfo = "/proc/cpuinfo"
 
-func getCpuFlags() (flags string, err error) {
+func getCpuFlags() (flags []string, err error) {
 	buf, err := ioutil.ReadFile(procCpuinfo)
 	if err != nil {
 		// if we can't read cpuinfo, we want to know _why_
-		return "", fmt.Errorf("error: %v", err)
+		return nil, fmt.Errorf("unable to read %v: %v", procCpuinfo, err)
 	}
 
-	pattern := []byte("\nflags\t\t:")
-	idx := bytes.LastIndex(buf, pattern)
-	if idx >= 0 {
-		offset := idx + len(pattern)
-		endidx := bytes.Index(buf[offset:], []byte("\n"))
-		return string(buf[offset : endidx+offset]), nil
+	// want to capture the text after 'flags:' entry
+	pattern := regexp.MustCompile(`(?m)^flags\s+:\s+(.*)$`)
+	match := pattern.FindSubmatch(buf)
+	if len(match) == 0 {
+		return nil, fmt.Errorf("%v does not contain a 'flags:' entry", procCpuinfo)
 	}
 
-	// if not found (which will happen on non-x86 architectures, which is ok
-	// because they'd typically not have the same info over and over again),
-	// return whole buffer; otherwise, return from just after the \n
-	return string(buf[idx+1:]), nil
+	// match[0] has whole matching line, match[1] must exist as it has the captured text after 'flags:'
+	cpu_flags := strings.Fields(string(match[1]))
+	return cpu_flags, nil
 }
 
 func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Check CPU capabilities to load suitable module
-	// TODO: this only considering x86 CPUs, but some ARM, PPC and S390 CPUs also support KVM
+	// NOTE: this only considers i386, x86_64 and amd64 CPUs, but some ARM, PPC and S390 CPUs also support KVM
 	m := "kvm"
 	cpu_flags, err := getCpuFlags()
 	if err != nil {
-		fmt.Println("kvm: fetching cpu info failed:", err)
+		logger.Debugf("kvm: fetching cpu info failed:", err)
 	}
 
-	if strings.Contains(cpu_flags, "vmx") {
+	if strutil.ListContains(cpu_flags, "vmx") {
 		m = "kvm_intel"
-	} else if strings.Contains(cpu_flags, "svm") {
+	} else if strutil.ListContains(cpu_flags, "svm") {
 		m = "kvm_amd"
 	} else {
 		// CPU appears not to support KVM extensions, fall back to bare kvm module as it appears
 		// sufficient for some architectures
-		fmt.Println("kvm: failed to detect CPU specific KVM support, will attempt to modprobe generic KVM support")
+		logger.Noticef("kvm: failed to detect CPU specific KVM support, will attempt to modprobe generic KVM support")
 	}
 
 	if err := spec.AddModule(m); err != nil {
