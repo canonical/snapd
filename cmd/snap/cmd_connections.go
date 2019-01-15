@@ -21,7 +21,9 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -29,8 +31,9 @@ import (
 
 type cmdConnections struct {
 	clientMixin
-	All         bool `short:"a"`
-	Positionals struct {
+	All          bool `long:"all"`
+	Disconnected bool `long:"disconnected"`
+	Positionals  struct {
 		Snap installedSnapName `skip-help:"true"`
 	} `positional-args:"true"`
 }
@@ -47,7 +50,8 @@ func init() {
 	addCommand("connections", shortConnectionsHelp, longConnectionsHelp, func() flags.Commander {
 		return &cmdConnections{}
 	}, map[string]string{
-		"a": i18n.G("Show all connections"),
+		"all":          i18n.G("Show all connections"),
+		"disconnected": i18n.G("Show disconnected connections"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<snap>"),
@@ -56,8 +60,12 @@ func init() {
 	}})
 }
 
+func isSystemSnap(snap string) bool {
+	return snap == "core" || snap == "snapd" || snap == "system"
+}
+
 func endpoint(snap, name string) string {
-	if snap == "core" || snap == "snapd" || snap == "system" {
+	if isSystemSnap(snap) {
 		return ":" + name
 	}
 	return snap + ":" + name
@@ -75,54 +83,139 @@ func wantedSnapMatches(name, wanted string) bool {
 	return wanted == name
 }
 
+type connectionNotes struct {
+	slot      string
+	plug      string
+	manual    bool
+	gadget    bool
+	undesired bool
+}
+
+func (cn connectionNotes) String() string {
+	opts := []string{}
+	if cn.undesired {
+		opts = append(opts, "disconnected")
+	}
+	if cn.manual {
+		opts = append(opts, "manual")
+	}
+	if cn.gadget {
+		opts = append(opts, "gadget")
+	}
+	if len(opts) == 0 {
+		return "-"
+	}
+	return strings.Join(opts, ",")
+}
+
+func connName(conn client.Connection) string {
+	return endpoint(conn.Plug.Snap, conn.Plug.Name) + " " + endpoint(conn.Slot.Snap, conn.Slot.Name)
+}
+
 func (x *cmdConnections) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	ifaces, err := x.client.Connections()
+	opts := client.ConnectionOptions{
+		All: x.All || x.Disconnected,
+	}
+	wanted := string(x.Positionals.Snap)
+	if wanted != "" {
+		// when asking for a single snap, include its disconnected plugs
+		// and slots
+		opts.Snap = wanted
+		opts.All = true
+		// print all slots, unless we were asked for disconnected ones
+		// only
+		x.All = !x.Disconnected
+	}
+
+	connections, err := x.client.Connections(&opts)
 	if err != nil {
 		return err
 	}
-	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
-		return fmt.Errorf(i18n.G("no interfaces found"))
+	if len(connections.Plugs) == 0 && len(connections.Slots) == 0 {
+		return fmt.Errorf(i18n.G("no connections found"))
 	}
-	wanted := string(x.Positionals.Snap)
 
-	matched := false
+	notes := make(map[string]connectionNotes, len(connections.Established)+len(connections.Undesired))
+	for _, conn := range connections.Established {
+		notes[connName(conn)] = connectionNotes{
+			plug:      endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:      endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual:    conn.Manual,
+			gadget:    conn.Gadget,
+			undesired: false,
+		}
+	}
+	for _, conn := range connections.Undesired {
+		notes[connName(conn)] = connectionNotes{
+			plug:      endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:      endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual:    conn.Manual,
+			gadget:    conn.Gadget,
+			undesired: true,
+		}
+	}
+
 	w := tabWriter()
 	fmt.Fprintln(w, i18n.G("Plug\tSlot\tInterface\tNotes"))
 
-	for _, plug := range ifaces.Plugs {
-		for _, slot := range plug.Connections {
-			if wanted != "" && !wantedSnapMatches(plug.Snap, wanted) && !wantedSnapMatches(slot.Snap, wanted) {
-				continue
+	for _, plug := range connections.Plugs {
+		if !x.Disconnected || x.All {
+			for _, slot := range plug.Connections {
+				// these are only established connections
+				cname := endpoint(plug.Snap, plug.Name) + " " + endpoint(slot.Snap, slot.Name)
+				cnotes := notes[cname]
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", endpoint(plug.Snap, plug.Name), endpoint(slot.Snap, slot.Name), plug.Interface, cnotes)
 			}
-			matched = true
-			fmt.Fprintf(w, "%s\t%s\t%s\t-\n", endpoint(plug.Snap, plug.Name), endpoint(slot.Snap, slot.Name), plug.Interface)
 		}
-		if len(plug.Connections) == 0 && x.All {
-			if wanted != "" && !wantedSnapMatches(plug.Snap, wanted) {
-				continue
+		if len(plug.Connections) == 0 && (x.All || x.Disconnected) {
+			// plug might be unconnected, or it was auto-connected
+			// but the user has disconnected it explicitly
+			pname := endpoint(plug.Snap, plug.Name)
+			sname := "-"
+			var pnotes connectionNotes
+			for _, note := range notes {
+				// check whether the plug is undesired and
+				// determine the corresponding slot it that is
+				// the case
+				if !note.undesired {
+					continue
+				}
+				if note.plug == pname {
+					pnotes = note
+					sname = note.slot
+					break
+				}
 			}
-			matched = true
-			fmt.Fprintf(w, "%s\t%s\t%s\t-\n", endpoint(plug.Snap, plug.Name), "-", plug.Interface)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pname, sname, plug.Interface, pnotes)
 		}
 	}
-	for _, slot := range ifaces.Slots {
-		if wanted != "" && !wantedSnapMatches(slot.Snap, wanted) {
+	for _, slot := range connections.Slots {
+		if isSystemSnap(slot.Snap) {
+			// displaying unconnected system snap slots is boring
 			continue
 		}
-		if len(slot.Connections) == 0 && x.All {
-			matched = true
-			fmt.Fprintf(w, "%s\t%s\t%s\t-\n", "-", endpoint(slot.Snap, slot.Name), slot.Interface)
+		if len(slot.Connections) == 0 && (x.All || x.Disconnected) {
+			sname := endpoint(slot.Snap, slot.Name)
+			var found bool
+			for _, note := range notes {
+				if !note.undesired {
+					continue
+				}
+				if note.slot == sname {
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "-", sname, slot.Interface, "-")
+			}
 		}
 	}
 
-	if matched {
-		w.Flush()
-	} else {
-		fmt.Fprintln(Stdout, "no interface connections found")
-	}
+	w.Flush()
 	return nil
 }

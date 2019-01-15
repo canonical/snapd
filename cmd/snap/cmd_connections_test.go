@@ -22,6 +22,7 @@ package main_test
 import (
 	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	. "gopkg.in/check.v1"
 
@@ -29,38 +30,80 @@ import (
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
+func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
+	result := client.Connections{}
+	query := url.Values{}
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
-			"type": "sync",
-			"result": client.Connections{
-				Plugs: []client.Plug{
-					{
-						Snap:      "keyboard-lights",
-						Name:      "capslock-led",
-						Interface: "leds",
-					},
-				},
-			},
+			"type":   "sync",
+			"result": result,
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"connections"})
+	_, err := Parser(Client()).ParseArgs([]string{"connections"})
+	c.Check(err, ErrorMatches, "no connections found")
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+
+	query = url.Values{
+		"select": []string{"all"},
+	}
+	_, err = Parser(Client()).ParseArgs([]string{"connections", "--all"})
+	c.Check(err, ErrorMatches, "no connections found")
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
+	query := url.Values{
+		"select": []string{"all"},
+	}
+	result := client.Connections{
+		Plugs: []client.Plug{
+			{
+				Snap:      "keyboard-lights",
+				Name:      "capslock-led",
+				Interface: "leds",
+			},
+		},
+	}
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": result,
+		})
+	})
+
+	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"no interface connections found\n"
+		"Plug                          Slot  Interface  Notes\n" +
+		"keyboard-lights:capslock-led  -     leds       -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 
 	s.ResetStdStreams()
 
-	// with -a shows unconnected plugs
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "-a"})
+	query = url.Values{
+		"select": []string{"all"},
+		"snap":   []string{"keyboard-lights"},
+	}
+
+	rest, err = Parser(Client()).ParseArgs([]string{"connections", "keyboard-lights"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout = "" +
@@ -71,232 +114,309 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 }
 
 func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
+	result := client.Connections{}
+	query := url.Values{}
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
-			"type": "sync",
-			"result": client.Connections{
-				Slots: []client.Slot{
-					{
-						Snap:      "leds-provider",
-						Name:      "capslock-led",
-						Interface: "leds",
-					},
-				},
-			},
+			"type":   "sync",
+			"result": result,
 		})
 	})
 	rest, err := Parser(Client()).ParseArgs([]string{"connections"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout := "" +
-		"no interface connections found\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Check(err, ErrorMatches, "no connections found")
+	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 
 	s.ResetStdStreams()
 
-	// with -a shows unconnected plugs
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "-a"})
+	query = url.Values{
+		"select": []string{"all"},
+	}
+	result = client.Connections{
+		Slots: []client.Slot{
+			{
+				Snap:      "leds-provider",
+				Name:      "capslock-led",
+				Interface: "leds",
+			},
+		},
+	}
+	rest, err = Parser(Client()).ParseArgs([]string{"connections", "--all"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout = "" +
+	expectedStdout := "" +
 		"Plug  Slot                        Interface  Notes\n" +
 		"-     leds-provider:capslock-led  leds       -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsSomeConnectedSystem(c *C) {
+func (s *SnapSuite) TestConnectionsSomeConnected(c *C) {
+	result := client.Connections{
+		Established: []client.Connection{
+			{
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "capslock"},
+				Slot:      client.SlotRef{Snap: "leds-provider", Name: "capslock-led"},
+				Interface: "leds",
+				Gadget:    true,
+			}, {
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "numlock"},
+				Slot:      client.SlotRef{Snap: "core", Name: "numlock-led"},
+				Interface: "leds",
+				Manual:    true,
+			}, {
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "scrolllock"},
+				Slot:      client.SlotRef{Snap: "core", Name: "scrollock-led"},
+				Interface: "leds",
+			},
+		},
+		Plugs: []client.Plug{
+			{
+				Snap:      "keyboard-lights",
+				Name:      "capslock",
+				Interface: "leds",
+				Connections: []client.SlotRef{{
+					Snap: "leds-provider",
+					Name: "capslock-led",
+				}},
+			}, {
+				Snap:      "keyboard-lights",
+				Name:      "numlock",
+				Interface: "leds",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "numlock-led",
+				}},
+			}, {
+				Snap:      "keyboard-lights",
+				Name:      "scrollock",
+				Interface: "leds",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "scrollock-led",
+				}},
+			},
+		},
+		Slots: []client.Slot{
+			{
+				Snap:      "core",
+				Name:      "numlock-led",
+				Interface: "leds",
+				Connections: []client.PlugRef{{
+					Snap: "keyuboard-lights",
+					Name: "numlock",
+				}},
+			}, {
+				Snap:      "core",
+				Name:      "scrollock-led",
+				Interface: "leds",
+				Connections: []client.PlugRef{{
+					Snap: "keyuboard-lights",
+					Name: "scrollock",
+				}},
+			}, {
+				Snap:      "leds-provider",
+				Name:      "capslock-led",
+				Interface: "leds",
+				Connections: []client.PlugRef{{
+					Snap: "keyuboard-lights",
+					Name: "capslock",
+				}},
+			},
+		},
+	}
+	query := url.Values{}
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
-			"type": "sync",
-			"result": client.Connections{
-				Plugs: []client.Plug{
-					{
-						Snap:      "keyboard-lights",
-						Name:      "capslock",
-						Interface: "leds",
-						Connections: []client.SlotRef{{
-							Snap: "leds-provider",
-							Name: "capslock-led",
-						}},
-					}, {
-						Snap:      "keyboard-lights",
-						Name:      "numlock",
-						Interface: "leds",
-						Connections: []client.SlotRef{{
-							Snap: "system",
-							Name: "numlock-led",
-						}},
-					},
-				},
-				Slots: []client.Slot{
-					{
-						Snap:      "system",
-						Name:      "capslock-led",
-						Interface: "leds",
-					},
-				},
-			},
+			"type":   "sync",
+			"result": result,
 		})
 	})
 	rest, err := Parser(Client()).ParseArgs([]string{"connections"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Plug                      Slot                        Interface  Notes\n" +
-		"keyboard-lights:capslock  leds-provider:capslock-led  leds       -\n" +
-		"keyboard-lights:numlock   :numlock-led                leds       -\n"
+		"Plug                       Slot                        Interface  Notes\n" +
+		"keyboard-lights:capslock   leds-provider:capslock-led  leds       gadget\n" +
+		"keyboard-lights:numlock    :numlock-led                leds       manual\n" +
+		"keyboard-lights:scrollock  :scrollock-led              leds       -\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
+	result := client.Connections{
+		Established: []client.Connection{
+			{
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "scrolllock"},
+				Slot:      client.SlotRef{Snap: "core", Name: "scrollock-led"},
+				Interface: "leds",
+			},
+		},
+		Undesired: []client.Connection{
+			{
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "numlock"},
+				Slot:      client.SlotRef{Snap: "core", Name: "numlock-led"},
+				Interface: "leds",
+				Manual:    true,
+			},
+		},
+		Plugs: []client.Plug{
+			{
+				Snap:      "keyboard-lights",
+				Name:      "capslock",
+				Interface: "leds",
+				Connections: []client.SlotRef{{
+					Snap: "leds-provider",
+					Name: "capslock-led",
+				}},
+			}, {
+				Snap:      "keyboard-lights",
+				Name:      "numlock",
+				Interface: "leds",
+			}, {
+				Snap:      "keyboard-lights",
+				Name:      "scrollock",
+				Interface: "leds",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "scrollock-led",
+				}},
+			},
+		},
+		Slots: []client.Slot{
+			{
+				Snap:      "core",
+				Name:      "capslock-led",
+				Interface: "leds",
+			}, {
+				Snap:      "core",
+				Name:      "numlock-led",
+				Interface: "leds",
+			}, {
+				Snap:      "core",
+				Name:      "scrollock-led",
+				Interface: "leds",
+				Connections: []client.PlugRef{{
+					Snap: "keyuboard-lights",
+					Name: "scrollock",
+				}},
+			}, {
+				Snap:      "leds-provider",
+				Name:      "capslock-led",
+				Interface: "leds",
+				Connections: []client.PlugRef{{
+					Snap: "keyuboard-lights",
+					Name: "capslock",
+				}},
+			}, {
+				Snap:      "leds-provider",
+				Name:      "numlock-led",
+				Interface: "leds",
+			},
+		},
+	}
+	query := url.Values{
+		"select": []string{"all"},
+	}
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": result,
+		})
+	})
+
+	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Plug                       Slot                        Interface  Notes\n" +
+		"keyboard-lights:capslock   leds-provider:capslock-led  leds       -\n" +
+		"keyboard-lights:numlock    :numlock-led                leds       disconnected,manual\n" +
+		"keyboard-lights:scrollock  :scrollock-led              leds       -\n" +
+		"-                          leds-provider:numlock-led   leds       -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 
 	s.ResetStdStreams()
 
-	// with -a shows unconnected plugs
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "-a"})
+	rest, err = Parser(Client()).ParseArgs([]string{"connections", "--disconnected"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout = "" +
-		"Plug                      Slot                        Interface  Notes\n" +
-		"keyboard-lights:capslock  leds-provider:capslock-led  leds       -\n" +
-		"keyboard-lights:numlock   :numlock-led                leds       -\n" +
-		"-                         :capslock-led               leds       -\n"
+		"Plug                     Slot                       Interface  Notes\n" +
+		"keyboard-lights:numlock  :numlock-led               leds       disconnected,manual\n" +
+		"-                        leds-provider:numlock-led  leds       -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestConnectionsFiltering(c *C) {
+	result := client.Connections{}
+	query := url.Values{
+		"select": []string{"all"},
+	}
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
-			"type": "sync",
-			"result": client.Connections{
-				Plugs: []client.Plug{
-					{
-						Snap:      "keyboard-lights",
-						Name:      "capslock",
-						Interface: "leds",
-						Connections: []client.SlotRef{{
-							Snap: "leds-provider",
-							Name: "capslock-led",
-						}},
-					}, {
-						Snap:      "keyboard-lights",
-						Name:      "numlock",
-						Interface: "leds",
-						Connections: []client.SlotRef{{
-							Snap: "core",
-							Name: "numlock-led",
-						}},
-					}, {
-						Snap:      "mouse-buttons",
-						Name:      "left-button",
-						Interface: "buttons",
-						Connections: []client.SlotRef{{
-							Snap: "core",
-							Name: "mouse-left-button",
-						}},
-					}, {
-						Snap:      "mouse-buttons",
-						Name:      "right-button",
-						Interface: "buttons",
-					},
-				},
-				Slots: []client.Slot{
-					{
-						Snap:      "core",
-						Name:      "capslock-led",
-						Interface: "leds",
-					},
-				},
-			},
+			"type":   "sync",
+			"result": result,
 		})
 	})
 
-	// filter by snap name, show only connected interfaces
+	query = url.Values{
+		"select": []string{"all"},
+		"snap":   []string{"mouse-buttons"},
+	}
 	rest, err := Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons"})
+	c.Assert(err, ErrorMatches, "no connections found")
+	c.Assert(rest, DeepEquals, []string{"mouse-buttons"})
+
+	result = client.Connections{
+		Plugs: []client.Plug{
+			{
+				Snap:      "mouse-buttons",
+				Name:      "left",
+				Interface: "buttons",
+			},
+		},
+	}
+	query = url.Values{
+		"select": []string{"all"},
+		"snap":   []string{"mouse-buttons"},
+	}
+	rest, err = Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "--all"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout := "" +
-		"Plug                       Slot                Interface  Notes\n" +
-		"mouse-buttons:left-button  :mouse-left-button  buttons    -\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
 
-	s.ResetStdStreams()
-
-	// filter by snap name, show all interfaces
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "-a"})
+	query = url.Values{
+		"select": []string{"all"},
+		"snap":   []string{"mouse-buttons"},
+	}
+	rest, err = Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "--disconnected"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout = "" +
-		"Plug                        Slot                Interface  Notes\n" +
-		"mouse-buttons:left-button   :mouse-left-button  buttons    -\n" +
-		"mouse-buttons:right-button  -                   buttons    -\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
-
-	s.ResetStdStreams()
-
-	// filter by snap name, snap appearing only on the slot side
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "leds-provider"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout = "" +
-		"Plug                      Slot                        Interface  Notes\n" +
-		"keyboard-lights:capslock  leds-provider:capslock-led  leds       -\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
-
-	s.ResetStdStreams()
-
-	// filter by system snap alias
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "system"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout = "" +
-		"Plug                       Slot                Interface  Notes\n" +
-		"keyboard-lights:numlock    :numlock-led        leds       -\n" +
-		"mouse-buttons:left-button  :mouse-left-button  buttons    -\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
-
-	s.ResetStdStreams()
-
-	// filter by system snap unaliased name
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "core"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
-
-	s.ResetStdStreams()
-
-	// filter by system snap alias, show all
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "system", "-a"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout = "" +
-		"Plug                       Slot                Interface  Notes\n" +
-		"keyboard-lights:numlock    :numlock-led        leds       -\n" +
-		"mouse-buttons:left-button  :mouse-left-button  buttons    -\n" +
-		"-                          :capslock-led       leds       -\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
-
-	s.ResetStdStreams()
 }
