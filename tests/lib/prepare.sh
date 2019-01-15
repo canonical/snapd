@@ -388,7 +388,7 @@ EOF
     fi
 
     EXTRA_FUNDAMENTAL=
-    IMAGE_CHANNEL=edge
+    IMAGE_CHANNEL=stable
     if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
