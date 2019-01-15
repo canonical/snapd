@@ -88,8 +88,10 @@ network packet,
 # Allow read and write access for all netplan configuration files
 # as NetworkManager will start using them to store the network
 # configuration instead of using its own internal keyfile based
-# format.
+# format. We also allow calling netplan so we can make the changes
+# effective without needing to re-start the device.
 /etc/netplan/{,**} rw,
+/usr/sbin/netplan Ux,
 
 # Allow access to configuration files generated on the fly
 # from netplan and let NetworkManager store its DHCP leases
