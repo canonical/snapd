@@ -470,6 +470,10 @@ EOF
     # ensure the setting is correct
     grep '^PermitRootLogin yes' /mnt/system-data/etc/ssh/sshd_config
 
+    # create a fake random device
+    mkdir -p /mnt/system-data/dev
+    mknod /mnt/system-data/dev/random c 1 9
+
     # build the user database - this is complicated because:
     # - spread on linode wants to login as "root"
     # - "root" login on the stock core snap is disabled
