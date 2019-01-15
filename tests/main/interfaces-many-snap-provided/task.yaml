@@ -64,7 +64,6 @@ execute: |
         plug_iface=$(echo "$plugcmd_bn" | tr '.' ':')
 
         CONNECTED_PATTERN="$slot_iface +$CONSUMER_SNAP"
-        DISCONNECTED_PATTERN="$slot_iface +-"
 
         echo "When slot $slot_iface is connected"
         snap connect "$plug_iface" "$slot_iface"
