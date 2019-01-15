@@ -4962,7 +4962,8 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(conn.Slot.Attr("number", &number), IsNil)
 	c.Check(number, Equals, int64(1))
 
-	ifacestate.UpdateConnectionInConnState(conns, conn, false, false, false)
+	var isAuto, byGadget, isUndesired bool
+	ifacestate.UpdateConnectionInConnState(conns, conn, isAuto, byGadget, isUndesired)
 	ifacestate.SetConns(st, conns)
 
 	// restore connection from conns state
@@ -5445,7 +5446,8 @@ func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undes
 }
 
 func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
-	s.testConnectionStates(c, true, false, false, map[string]ifacestate.ConnectionState{
+	var isAuto, byGadget, isUndesired bool = true, false, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
@@ -5453,7 +5455,8 @@ func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
-	s.testConnectionStates(c, true, true, false, map[string]ifacestate.ConnectionState{
+	var isAuto, byGadget, isUndesired bool = true, true, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
@@ -5462,7 +5465,8 @@ func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
-	s.testConnectionStates(c, true, false, true, map[string]ifacestate.ConnectionState{
+	var isAuto, byGadget, isUndesired bool = true, false, true
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
