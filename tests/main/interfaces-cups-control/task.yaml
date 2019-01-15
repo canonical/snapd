@@ -39,7 +39,7 @@ prepare: |
     fi
 
 restore: |
-    rm -rf "$HOME"/PDF "$TEST_FILE" print.error
+    rm -rf "$HOME"/PDF "$TEST_FILE"
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
