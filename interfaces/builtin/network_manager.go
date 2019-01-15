@@ -80,6 +80,7 @@ network packet,
 /sys/devices/virtual/net/**/phys_port_id r,
 /sys/devices/virtual/net/**/dev_id r,
 /sys/devices/**/net/**/ifindex r,
+/sys/devices/**/net/**/address r,
 
 /dev/rfkill rw,
 
