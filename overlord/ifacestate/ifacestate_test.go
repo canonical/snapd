@@ -5251,11 +5251,11 @@ func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
 	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"}), IsNil)
 
 	// mock hotplug slot in the repo and state
-	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "hotplugslot1", Interface: "test", HotplugKey: "1234"}), IsNil)
+	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "hotplugslot", Interface: "test", HotplugKey: "1234"}), IsNil)
 
 	s.state.Lock()
 	s.state.Set("hotplug-slots", map[string]interface{}{
-		"hotplugslot1": map[string]interface{}{"name": "hotplugslot1", "interface": "test", "hotplug-key": "1234"},
+		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "interface": "test", "hotplug-key": "1234"},
 	})
 
 	mockConsumer(c, s.state, repo, consumerYaml, "consumer", "plug")
@@ -5268,7 +5268,7 @@ func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
 
 	// simulate a device that was known and connected before to only one consumer, this connection will be restored
 	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:hotplugslot1": map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"hotplug-gone": true,
@@ -5284,12 +5284,12 @@ func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:hotplugslot1": map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
 			"interface":   "test",
 			"hotplug-key": "1234",
 			"plug-static": map[string]interface{}{"attr1": "value1"},
 		},
-		"consumer2:plug core:hotplugslot1": map[string]interface{}{
+		"consumer2:plug core:hotplugslot": map[string]interface{}{
 			"interface":   "test",
 			"hotplug-key": "1234",
 			"auto":        true,
