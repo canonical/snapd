@@ -37,6 +37,11 @@ type HotplugKeyHandler interface {
 	HotplugKey(di *HotplugDeviceInfo) (string, error)
 }
 
+// HandledByGadgetPredicate can be implemented by hotplug interfaces to decide whether a device is already handled by given gadget slot.
+type HandledByGadgetPredicate interface {
+	HandledByGadget(di *HotplugDeviceInfo, slot *snap.SlotInfo) bool
+}
+
 // RequestedSlotSpec is a definition of the slot to create in response to a hotplug event.
 type RequestedSlotSpec struct {
 	// Name is how the interface wants to name the slot. When left empty,
