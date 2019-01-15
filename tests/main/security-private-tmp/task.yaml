@@ -20,7 +20,7 @@ prepare: |
     snap install --dangerous not-test-snapd-tools_1.0_all.snap
 
 restore: |
-    rm -rf not-test-snapd-tools_1.0_all.snap "$SNAP_INSTALL_DIR" /tmp/foo ./*stat.error
+    rm -rf "$SNAP_INSTALL_DIR" /tmp/foo
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

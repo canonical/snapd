@@ -11,10 +11,6 @@ prepare: |
     snap pack "$TESTSLIB"/snaps/snapctl-hooks
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
-restore: |
-    rm -f basic_1.0_all.snap
-    rm -f snapctl-hooks_1.0_all.snap
-
 execute: |
     echo "Test that snap get fails on a snap without any hooks"
     if output=$(snap get basic foo); then

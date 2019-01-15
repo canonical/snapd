@@ -11,9 +11,6 @@ systems: [-ubuntu-14.04-*,-ubuntu-core-*,-fedora-*, -arch-*, -amazon-*, -opensus
 prepare: |
     snap install test-snapd-openvswitch-support
 
-restore: |
-    rm -f call.error
-
 execute: |
     echo "The interface is not connected by default"
     #shellcheck disable=SC1117

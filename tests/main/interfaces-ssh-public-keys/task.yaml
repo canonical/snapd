@@ -23,7 +23,6 @@ prepare: |
     echo "testkey.pub" > "$TESTKEY".pub
 
 restore: |
-    rm -f call.error
     rm -rf "$KEYSDIR"
     if [ -d "$KEYSDIR".old ]; then
         mv "$KEYSDIR".old "$KEYSDIR"

@@ -13,9 +13,6 @@ backends: [-autopkgtest]
 warn-timeout: 1m
 kill-timeout: 5m
 
-restore: |
-    rm -f state.json.new
-
 debug: |
     snap list || true
     snap info core || true

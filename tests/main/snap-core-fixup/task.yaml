@@ -4,7 +4,6 @@ systems: [ubuntu-core-16-*]
 
 restore: |
     umount /boot/uboot
-    rm -f test.img
 
 execute: |
     echo "Ensure we have a clean and writable /boot/uboot to mess around"

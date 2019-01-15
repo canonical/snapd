@@ -12,7 +12,6 @@ prepare: |
     fi
 
 restore: |
-    rm -f info.txt
     if [ -e /dev/ttyS4.spread ]; then
         rm -f /dev/ttyS4 /dev/ttyS4.spread
     fi

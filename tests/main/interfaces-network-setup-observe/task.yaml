@@ -9,9 +9,6 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
 
-restore: |
-    rm -f call.error
-
 execute: |
     dirs="/etc/netplan /etc/network"
 

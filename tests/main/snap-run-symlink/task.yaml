@@ -11,10 +11,6 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
-restore: |
-    rm -f orig.txt
-    rm -f new.txt
-
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh

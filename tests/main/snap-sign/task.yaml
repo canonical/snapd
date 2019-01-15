@@ -11,10 +11,6 @@ prepare: |
     . "$TESTSLIB"/random.sh
     kill_gpg_agent
 
-restore: |
-    rm -f pi3.model
-    rm -f pi3-model.json
-
 debug: |
     #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh

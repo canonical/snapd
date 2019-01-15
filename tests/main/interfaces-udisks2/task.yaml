@@ -14,7 +14,6 @@ environment:
     MMCBLK_PATH: /dev/mmcblk-fake0
 
 restore: |
-    rm -f call.error
     losetup -d "$MMCBLK_PATH" || true
     rm -f "$MMCBLK_PATH" "$FS_PATH"
 

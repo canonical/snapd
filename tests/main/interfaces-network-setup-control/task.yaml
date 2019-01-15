@@ -12,7 +12,6 @@ prepare: |
     install_local test-snapd-sh
 
 restore: |
-    rm -f call.error
     rm -f /etc/network/test001 /etc/network/test002
 
 execute: |

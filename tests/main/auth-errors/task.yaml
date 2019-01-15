@@ -8,7 +8,7 @@ prepare: |
     chown -R test:test /home/test/.snap
 
 restore: |
-    rm -rf /home/test/.snap install.output connect.output
+    rm -rf /home/test/.snap
 
 execute: |
     echo "An unauthenticated user cannot install snaps"

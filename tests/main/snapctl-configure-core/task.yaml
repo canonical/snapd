@@ -16,7 +16,6 @@ restore: |
     systemctl enable rsyslog.service
     systemctl start rsyslog.service
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
-    rm -f config.txt.save
 
 execute: |
     echo "Check that service disable works"

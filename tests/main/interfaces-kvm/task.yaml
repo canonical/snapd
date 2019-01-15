@@ -14,7 +14,6 @@ prepare: |
     touch /dev/kvm
 
 restore: |
-    rm -f call.error
     rm -f /dev/kvm
 
     if [ -e /dev/kvm.bak ]; then

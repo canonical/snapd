@@ -18,7 +18,6 @@ restore: |
     if [ -f curChg ] ; then
         snap abort "$(cat curChg)" || true
     fi
-    rm -f prevBoot nextBoot curChg
 
 prepare: |
     snap list | awk "/^core / {print(\$3)}" > nextBoot

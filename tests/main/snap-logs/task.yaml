@@ -9,9 +9,6 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-service
 
-restore: |
-    rm -f service.log
-
 execute: |
     echo "check the logs are displayed by service-name and service-name.app"
     snap logs test-snapd-service | MATCH "running"

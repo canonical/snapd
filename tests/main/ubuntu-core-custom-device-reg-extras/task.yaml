@@ -60,7 +60,6 @@ restore: |
     rm -f /var/lib/snapd/seed/assertions/developer1-pc.model
     rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
     cp model.bak /var/lib/snapd/seed/assertions/model
-    rm -f ./*.bak
     # kick first boot again
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done

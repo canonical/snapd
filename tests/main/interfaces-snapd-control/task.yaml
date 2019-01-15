@@ -18,9 +18,6 @@ prepare: |
     echo "Given a snap declaring a plug on the snapd-control interface is installed"
     snap install --edge test-snapd-control-consumer
 
-restore: |
-    rm -f snapd.error
-
 execute: |
     echo "The interface is connected by default"
     snap interfaces -i snapd-control | MATCH ":snapd-control .*test-snapd-control-consumer"

@@ -29,7 +29,6 @@ restore: |
 
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
-    rm -f conf.yaml 
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh

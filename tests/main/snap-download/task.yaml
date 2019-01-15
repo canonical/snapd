@@ -1,8 +1,6 @@
 summary: Check that snap download works
 
 restore: |
-    rm -f ./*.snap
-    rm -f ./*.assert
     rm -f ~test/*.snap
     rm -f ~test/*.assert
 

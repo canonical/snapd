@@ -5,8 +5,6 @@ prepare: |
 
 restore: |
     snap set system experimental.parallel-instances=null
-    rm -f ./*.snap
-    rm -f aliases.out
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

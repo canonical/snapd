@@ -10,9 +10,6 @@ prepare: |
     snap pack "$TESTSLIB"/snaps/test-snapd-epoch-1
     snap pack "$TESTSLIB"/snaps/test-snapd-epoch-2
 
-restore: |
-    rm -v test-snapd-epoch_{1,2}_all.snap
-
 execute: |
     rx="cannot refresh \"[^ \"]*\" to local snap with epoch [^ ]*, because it can't read the current epoch"
     snap try "$TESTSLIB"/snaps/test-snapd-epoch-1

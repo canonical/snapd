@@ -17,9 +17,6 @@ prepare: |
     echo "Given the physical-memory-observe snap is installed"
     install_local test-snapd-physical-memory-observe
 
-restore: |
-    rm -f call.error
-
 execute: |
     config="/boot/config-$(uname -r)"
     if ([ -f "$config" ] && MATCH "CONFIG_STRICT_DEVMEM=y" < "$config") || ([ -f /proc/config.gz ] && zcat /proc/config.gz | MATCH "CONFIG_STRICT_DEVMEM=y"); then
