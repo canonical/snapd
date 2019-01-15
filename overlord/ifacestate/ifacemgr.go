@@ -162,8 +162,8 @@ type ConnectionState struct {
 	ByGadget bool
 	// Interface name of the connection
 	Interface string
-	// Undesired indicates whether the connection was explicitly
-	// disconnected
+	// Undesired indicates whether the connection, otherwise established
+	// automatically, was explicitly disconnected
 	Undesired bool
 }
 
