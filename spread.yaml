@@ -29,7 +29,7 @@ environment:
     TRUST_TEST_KEYS: "$(HOST: echo ${SPREAD_TRUST_TEST_KEYS:-true})"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
-    KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-edge})"
+    KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-stable})"
     GADGET_CHANNEL: "$(HOST: echo ${SPREAD_GADGET_CHANNEL:-edge})"
     SNAPD_CHANNEL: "$(HOST: echo ${SPREAD_SNAPD_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
