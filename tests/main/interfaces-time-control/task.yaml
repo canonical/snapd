@@ -19,9 +19,7 @@ restore: |
     # Restore the initial rtc configuration
     if [ -f rtc.txt ]; then
         timedatectl set-local-rtc "$(cat rtc.txt)"
-        rm -f rtc.txt
     fi
-    rm -f call.error
 
 execute: |
     # hwclock with libaudit (ie, core 16) also needs netlink-audit connected.

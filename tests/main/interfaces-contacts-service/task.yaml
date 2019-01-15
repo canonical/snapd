@@ -23,7 +23,6 @@ environment:
 restore: |
     if [ -e dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
-        rm -f dbus-launch.pid
     fi
 
     # In case the process gvfsd-metadata does not finish by itself, it is manually stopped

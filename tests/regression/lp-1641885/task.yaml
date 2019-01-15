@@ -23,9 +23,6 @@ execute: |
     echo "Ensure that the seccomp profile doesn't use the complain mode"
     MATCH -v '@complain' < /var/lib/snapd/seccomp/bpf/snap.test-snapd-devmode.test-snapd-devmode.src
 
-restore: |
-    rm -f ./test-snapd-devmode_1.0_all.snap
-
 debug: |
     echo "Apparmor profile (first 30 lines)"
     head -n 30 /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode || true

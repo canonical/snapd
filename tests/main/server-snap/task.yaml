@@ -28,9 +28,6 @@ prepare: |
     . "$TESTSLIB"/network.sh
     wait_listen_port "$PORT"
 
-restore: |
-    rm -f request.txt
-
 execute: |
     response=$(nc -w 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
 

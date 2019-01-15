@@ -21,9 +21,6 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-event
 
-restore: |
-    rm -f call.error
-
 execute: |
     if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then

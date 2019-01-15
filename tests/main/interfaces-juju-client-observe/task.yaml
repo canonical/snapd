@@ -18,8 +18,6 @@ prepare: |
     ensure_file_exists_backup_real "$HOME"/.local/share/juju/juju.conf
 
 restore: |
-    rm -f call.error
-
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
 

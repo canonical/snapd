@@ -21,7 +21,6 @@ prepare: |
     fi
 
 restore: |
-    rm -f ./*.error
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         systemctl stop systemd-hostnamed
     fi

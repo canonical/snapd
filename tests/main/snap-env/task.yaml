@@ -17,9 +17,6 @@ prepare: |
     install_local_as test-snapd-tools "$NAME"
 
 restore: |
-    rm -f ./*.snap
-    rm -f ./*-vars.txt
-
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=null
     fi

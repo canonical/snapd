@@ -37,7 +37,6 @@ restore: |
 
     #shellcheck disable=SC2153
     systemd_stop_and_destroy_unit "$SERVICE_NAME"
-    rm -f net-query.output "$SERVICE_FILE"
 
 execute: |
     echo "The interface is disconnected by default"

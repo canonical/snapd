@@ -7,9 +7,6 @@ details: |
 
 manual: true
 
-restore: |
-    rm -f prevBoot nextBoot
-
 execute: |
     #shellcheck source=tests/lib/boot.sh
     . "$TESTSLIB"/boot.sh

@@ -1,15 +1,4 @@
 summary: Ensure that ECONNRESET is handled
-restore: |
-    echo "Stop the snap download command"
-    kill -9 "$(pgrep -f 'snap download')" || true
-
-    echo "Remove the firewall rule again"
-    iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
-    echo "Remove ingress traffic policing rule"
-    iptables -D INPUT -p tcp --match hashlimit --hashlimit-mode srcip,dstip,srcport,dstport --hashlimit-above 512kb/s \
-             --hashlimit-name 'econnreset' -j DROP
-
-    rm -f test-snapd-huge_*
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -27,6 +16,16 @@ debug: |
     cat snap-download.log
     echo "iptables rules and counters"
     iptables -L -n -v
+
+restore: |
+    echo "Stop the snap download command"
+    kill -9 "$(pgrep -f 'snap download')" || true
+
+    echo "Remove the firewall rule again"
+    iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
+    echo "Remove ingress traffic policing rule"
+    iptables -D INPUT -p tcp --match hashlimit --hashlimit-mode srcip,dstip,srcport,dstport --hashlimit-above 512kb/s \
+             --hashlimit-name 'econnreset' -j DROP
 
 execute: |
     echo "Downloading a large snap in the background"

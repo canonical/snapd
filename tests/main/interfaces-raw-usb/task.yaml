@@ -8,9 +8,6 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-restore: |
-    rm -f call.error
-
 execute: |
     echo "The interface is not connected by default"
     snap interfaces -i raw-usb | MATCH -- '^- +test-snapd-sh:raw-usb'

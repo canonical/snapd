@@ -1,8 +1,5 @@
 summary: Check that snapd failure handling works
 
-restore: |
-    rm -rf ./snapd-broken
-
 debug: |
     # dump failure data
     journalctl -u snapd.failure.service

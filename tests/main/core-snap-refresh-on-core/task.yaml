@@ -12,10 +12,6 @@ manual: true
 prepare: |
     snap install test-snapd-tools
 
-restore: |
-    rm -f prevBoot nextBoot
-    rm -f core_*.{assert,snap}
-
 execute: |
     wait_core_pre_boot() {
         chg_id="$1"
