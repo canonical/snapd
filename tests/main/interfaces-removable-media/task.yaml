@@ -28,8 +28,6 @@ prepare: |
     echo canary > /mnt/testing/data
 
 restore: |
-    rm -f call.error
-
     rm -rf /media/testdir
     if [ -f /media/fake ]; then
         #shellcheck disable=SC2114

@@ -18,9 +18,6 @@ prepare: |
         systemctl restart avahi-daemon.{socket,service}
     fi
 
-restore: |
-    rm -f ./*.error
-
 execute: |
     avahi_dbus_call() {
         generic-consumer.cmd dbus-send --system --print-reply --dest=org.freedesktop.Avahi / org.freedesktop.Avahi.Server.GetHostName

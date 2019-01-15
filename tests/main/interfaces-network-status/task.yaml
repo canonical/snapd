@@ -24,8 +24,6 @@ prepare: |
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-network-status-provider.provider
 
 restore: |
-    rm -f getstate.error
-
     #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit
