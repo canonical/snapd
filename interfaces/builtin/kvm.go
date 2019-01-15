@@ -55,6 +55,7 @@ type kvmInterface struct {
 }
 
 var procCpuinfo = "/proc/cpuinfo"
+var flagsMatcher = regexp.MustCompile(`(?m)^flags\s+:\s+(.*)$`).FindSubmatch
 
 func getCpuFlags() (flags []string, err error) {
 	buf, err := ioutil.ReadFile(procCpuinfo)
@@ -64,8 +65,7 @@ func getCpuFlags() (flags []string, err error) {
 	}
 
 	// want to capture the text after 'flags:' entry
-	pattern := regexp.MustCompile(`(?m)^flags\s+:\s+(.*)$`)
-	match := pattern.FindSubmatch(buf)
+	match := flagsMatcher(buf)
 	if len(match) == 0 {
 		return nil, fmt.Errorf("%v does not contain a 'flags:' entry", procCpuinfo)
 	}
