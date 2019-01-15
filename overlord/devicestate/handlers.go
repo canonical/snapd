@@ -57,6 +57,23 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var modelass []byte
+	if err := t.Get("new-model", &modelass); err != nil {
+		return err
+	}
+	model, err := asserts.Decode(modelass)
+	if err != nil {
+		return err
+	}
+
+	return assertstate.Add(st, model)
+}
+
 func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }

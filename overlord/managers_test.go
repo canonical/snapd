@@ -2800,13 +2800,15 @@ version: 1.0`
 	// create a new model
 	newModel := makeModelAssertion(c, brandSigning, map[string]interface{}{
 		"required-snaps": []interface{}{"foo"},
+		"revision":       "1",
 	})
 
 	tss, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
-	c.Check(tss, HasLen, 1)
+	c.Check(tss, HasLen, 2)
 	chg.AddAll(tss[0])
+	chg.AddAll(tss[1])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -2863,7 +2865,8 @@ type: base`
 
 	// create a new model
 	newModel := makeModelAssertion(c, brandSigning, map[string]interface{}{
-		"base": "core18",
+		"base":     "core18",
+		"revision": "1",
 	})
 
 	tss, err := devicestate.Remodel(st, newModel)

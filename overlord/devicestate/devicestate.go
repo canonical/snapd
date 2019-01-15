@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -361,6 +362,14 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 			return nil, err
 		}
 	}
+
+	// set the new model assertion
+	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
+	setModel.Set("new-model", asserts.Encode(new))
+	for _, tsPrev := range tss {
+		setModel.WaitAll(tsPrev)
+	}
+	tss = append(tss, state.NewTaskSet(setModel))
 
 	return tss, nil
 }

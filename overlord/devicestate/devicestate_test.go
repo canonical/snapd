@@ -2695,9 +2695,12 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	})
 	tss, err := devicestate.Remodel(s.state, new)
 	c.Assert(err, IsNil)
-	c.Assert(tss, HasLen, 2)
+	c.Assert(tss, HasLen, 3)
 	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "fake-install")
 	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Install new-required-snap-1")
 	c.Assert(tss[1].Tasks()[0].Kind(), Equals, "fake-install")
 	c.Assert(tss[1].Tasks()[0].Summary(), Equals, "Install new-required-snap-2")
+
+	c.Assert(tss[2].Tasks()[0].Kind(), Equals, "set-model")
+	c.Assert(tss[2].Tasks()[0].Summary(), Equals, "Set new model assertion")
 }
