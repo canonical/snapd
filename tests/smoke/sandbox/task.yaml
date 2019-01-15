@@ -1,0 +1,69 @@
+summary: Sandboxing of the snaps works
+
+restore: |
+    rm -f /home/test/foo
+
+execute: |
+    if [ "$(snap debug confinement)" != "strict" ]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+            echo "all ubuntu systems must have strict confinement"
+            exit 1
+        fi
+        echo "SKIP: no sandboxing"
+        exit 0
+    fi
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-sh
+
+    ############## APPARMOR
+    echo "Ensure the apparmor sandbox for snaps works for root"
+    for p in "/root/foo" "/home/foo" "/home/test/foo"; do
+        # no writing
+        ! test-snapd-sh -c "touch $p" 2>stderr.log
+        MATCH <stderr.log 'touch: .* Permission denied'
+
+        # no reading
+        touch "$p"
+        ! test-snapd-sh -c "cat $p" 2>stderr.log
+        MATCH <stderr.log 'cat: .* Permission denied'
+        rm -f "$p"
+    done
+
+    echo "Ensure the apparmor sandbox for snaps works for users"
+    ! su -l -c 'test-snapd-sh -c "touch /home/test/foo"' test 2>stderr.log
+    MATCH <stderr.log '.* Permission denied'
+
+    echo "But with the right plug the user can put files into home"
+    su -l -c  'test-snapd-sh.with-home-plug -c "echo good >/home/test/foo"' test
+    test -e /home/test/foo
+    echo "and also read them back"
+    su -l -c  'test-snapd-sh.with-home-plug -c "cat /home/test/foo"' test | MATCH good
+
+
+    ############## SECCOMP
+    echo "Ensure seccomp sandbox works"
+    cat >sec.py <<'EOF'
+    #!/usr/bin/python3
+    from ctypes import c_long, CDLL, get_errno
+    from ctypes.util import find_library
+    import errno, sys
+    if __name__ == "__main__":
+        libc_name = find_library("c")
+        libc = CDLL(libc_name, use_errno=True)
+        retval = libc.syscall(c_long(int(sys.argv[1])), c_long(0), c_long(0), c_long(0), c_long(0), c_long(0))
+        if retval < 0:
+            print(errno.errorcode[get_errno()])
+    EOF
+    echo "Running random syscall gives ENOSYS normally"
+    python3 sec.py 22082007 | MATCH ENOSYS
+    echo "But in the sandbox we get a EPERM"
+    test-snapd-sh.with-home-plug -c "python3 $(pwd)/sec.py 22082007" | MATCH EPERM
+
+    if [ "$(uname -p)" = "x86_64" ]; then
+        echo "Ensure secondary arch works for amd64 with i386 binaries"
+        snap install --edge test-snapd-hello-multi-arch
+        # this will fail if the seccomp seconardy arch handling is broken
+        test-snapd-hello-multi-arch.hello-i386 | MATCH Hello
+    fi
