@@ -54,8 +54,9 @@ type hotplugSuite struct {
 	secBackend  *ifacetest.TestSecurityBackend
 	mockSnapCmd *testutil.MockCmd
 
-	udevMon *udevMonitorMock
-	mgr     *ifacestate.InterfaceManager
+	udevMon               *udevMonitorMock
+	mgr                   *ifacestate.InterfaceManager
+	handledByGadgetCalled int
 }
 
 var _ = Suite(&hotplugSuite{})
@@ -135,6 +136,14 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 			return spec.SetSlot(&hotplug.RequestedSlotSpec{
 				Name: "hotplugslot-b",
 			})
+		},
+		HandledByGadgetCallback: func(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+			s.handledByGadgetCalled++
+			var path string
+			if err := slot.Attr("path", &path); err != nil {
+				return false
+			}
+			return di.DeviceName() == path
 		},
 	}
 	// 3rd hotplug interface doesn't create hotplug slot (to simulate a case where doesn't device is not supported)
@@ -249,6 +258,58 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 	c.Assert(slot, NotNil)
 
 	slot, err = repo.SlotForHotplugKey("test-c", "key-3")
+	c.Assert(err, IsNil)
+	c.Assert(slot, IsNil)
+
+	c.Assert(s.handledByGadgetCalled, Equals, 0)
+}
+
+func (s *hotplugSuite) TestHotplugConnectWithGadgetSlot(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	gadgetSideInfo := &snap.SideInfo{RealName: "the-gadget", SnapID: "the-gadget-id", Revision: snap.R(1)}
+	gadgetInfo := snaptest.MockSnap(c, `
+name: the-gadget
+type: gadget
+version: 1.0
+
+slots:
+  slot1:
+    interface: test-b
+    path: /dev/path
+`, gadgetSideInfo)
+	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&gadgetInfo.SideInfo},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	st.Unlock()
+
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
+		"DEVNAME":   "/dev/path",
+		"DEVPATH":   "a/path",
+		"ACTION":    "add",
+		"SUBSYSTEM": "foo",
+	})
+	c.Assert(err, IsNil)
+	s.udevMon.AddDevice(di)
+
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	st.Lock()
+
+	c.Assert(s.handledByGadgetCalled, Equals, 1)
+
+	// make sure hotplug slot has been created in the repo
+	repo := s.mgr.Repository()
+	slot, err := repo.SlotForHotplugKey("test-a", "key-1")
+	c.Assert(err, IsNil)
+	c.Assert(slot, NotNil)
+
+	// but no hotplug slot has been created for the device path defined by gadget
+	slot, err = repo.SlotForHotplugKey("test-b", "key-2")
 	c.Assert(err, IsNil)
 	c.Assert(slot, IsNil)
 }
