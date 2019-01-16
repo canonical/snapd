@@ -1414,16 +1414,13 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
-	if slot == nil {
-		return nil
-	}
 
 	if slotSpec, ok := stateSlots[slot.Name]; ok {
 		slotSpec.StaticAttrs = attrs
 		stateSlots[slot.Name] = slotSpec
 		setHotplugSlots(st, stateSlots)
 	} else {
-		return fmt.Errorf("internal error: cannot find slot %s for device %s", slot.Name, hotplugKey)
+		return fmt.Errorf("internal error: cannot find slot %s for device %q", slot.Name, hotplugKey)
 	}
 
 	return nil

@@ -2464,7 +2464,7 @@ func (s *RepositorySuite) TestUpdateHotplugSlotAttrs(c *C) {
 	c.Assert(s.testRepo.AddSlot(coreSlot), IsNil)
 
 	slot, err := s.testRepo.UpdateHotplugSlotAttrs("interface", "unknownkey", nil)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `cannot find hotplug slot for interface interface and hotplug key "unknownkey"`)
 	c.Assert(slot, IsNil)
 
 	slot, err = s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
