@@ -321,21 +321,28 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
-// displayChannels displays channels and tracks in the right order
-func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap, revLen, sizeLen int) (maxRevLen, maxSizeLen int) {
-	fmt.Fprintln(w, "channels:")
+type channelInfo struct {
+	indent, name, version, released, revision, size, notes string
+}
 
-	releasedfmt := "2006-01-02"
-	if x.AbsTime {
-		releasedfmt = time.RFC3339
+type channelInfos struct {
+	channels              []*channelInfo
+	maxRevLen, maxSizeLen int
+	releasedfmt, chantpl  string
+	needsHeader           bool
+}
+
+func (chInfos *channelInfos) addOne(chInfo *channelInfo) {
+	if len(chInfo.revision) > chInfos.maxRevLen {
+		chInfos.maxRevLen = len(chInfo.revision)
 	}
-
-	type chInfoT struct {
-		name, version, released, revision, size, notes string
+	if len(chInfo.size) > chInfos.maxSizeLen {
+		chInfos.maxSizeLen = len(chInfo.size)
 	}
-	var chInfos []*chInfoT
-	maxRevLen, maxSizeLen = revLen, sizeLen
+	chInfos.channels = append(chInfos.channels, chInfo)
+}
 
+func (chInfos *channelInfos) addFrom(remote *client.Snap, esc *escapes) {
 	// order by tracks
 	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
@@ -345,18 +352,12 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 			if tr == "latest" {
 				chName = risk
 			}
-			chInfo := chInfoT{name: chName}
+			chInfo := channelInfo{indent: "  ", name: chName}
 			if ok {
 				chInfo.version = ch.Version
 				chInfo.revision = fmt.Sprintf("(%s)", ch.Revision)
-				if len(chInfo.revision) > maxRevLen {
-					maxRevLen = len(chInfo.revision)
-				}
-				chInfo.released = ch.ReleasedAt.Format(releasedfmt)
+				chInfo.released = ch.ReleasedAt.Format(chInfos.releasedfmt)
 				chInfo.size = strutil.SizeToStr(ch.Size)
-				if len(chInfo.size) > maxSizeLen {
-					maxSizeLen = len(chInfo.size)
-				}
 				chInfo.notes = NotesFromChannelSnapInfo(ch).String()
 				trackHasOpenChannel = true
 			} else {
@@ -366,15 +367,19 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 					chInfo.version = esc.dash
 				}
 			}
-			chInfos = append(chInfos, &chInfo)
+			chInfos.addOne(&chInfo)
 		}
 	}
+	chInfos.needsHeader = len(chInfos.channels) > 0
+}
 
-	for _, chInfo := range chInfos {
-		fmt.Fprintf(w, "  "+chantpl, chInfo.name, chInfo.version, chInfo.released, maxRevLen, chInfo.revision, maxSizeLen, chInfo.size, chInfo.notes)
+func (chInfos *channelInfos) dump(w io.Writer) {
+	if chInfos.needsHeader {
+		fmt.Fprintln(w, "channels:")
 	}
-
-	return maxRevLen, maxSizeLen
+	for _, c := range chInfos.channels {
+		fmt.Fprintf(w, chInfos.chantpl, c.indent, c.name, c.version, c.released, chInfos.maxRevLen, c.revision, chInfos.maxSizeLen, c.size, c.notes)
+	}
 }
 
 func formatSummary(raw string) string {
@@ -473,8 +478,6 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintBase(w, both.Base, x.Verbose)
 		maybePrintID(w, both)
-		var localRev, localSize string
-		var revLen, sizeLen int
 		if local != nil {
 			if local.TrackingChannel != "" {
 				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
@@ -482,24 +485,30 @@ func (x *infoCmd) Execute([]string) error {
 			if !local.InstallDate.IsZero() {
 				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
 			}
-			localRev = fmt.Sprintf("(%s)", local.Revision)
-			revLen = len(localRev)
-			localSize = strutil.SizeToStr(local.InstalledSize)
-			sizeLen = len(localSize)
 		}
 
-		chantpl := "%s:\t%s %s%*s %*s %s\n"
+		chInfos := channelInfos{
+			chantpl:     "%s%s:\t%s %s%*s %*s %s\n",
+			releasedfmt: "2006-01-02",
+		}
+		if x.AbsTime {
+			chInfos.releasedfmt = time.RFC3339
+		}
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			chantpl = "%s:\t%s\t%s\t%*s\t%*s\t%s\n"
-
 			w.Flush()
-			revLen, sizeLen = x.displayChannels(w, chantpl, esc, remote, revLen, sizeLen)
+			chInfos.chantpl = "%s%s:\t%s\t%s\t%*s\t%*s\t%s\n"
+			chInfos.addFrom(remote, esc)
 		}
 		if local != nil {
-			fmt.Fprintf(w, chantpl,
-				"installed", local.Version, "", revLen, localRev, sizeLen, localSize, notes)
+			chInfos.addOne(&channelInfo{
+				name:     "installed",
+				version:  local.Version,
+				revision: fmt.Sprintf("(%s)", local.Revision),
+				size:     strutil.SizeToStr(local.InstalledSize),
+				notes:    notes.String(),
+			})
 		}
-
+		chInfos.dump(w)
 	}
 	w.Flush()
 
