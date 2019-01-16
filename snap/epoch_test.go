@@ -354,3 +354,22 @@ func (s *epochSuite) TestCanRead(c *check.C) {
 		c.Assert(test.b.CanRead(test.a), check.Equals, test.ba, check.Commentf("ba/%d", i))
 	}
 }
+
+func (s *epochSuite) TestEqual(c *check.C) {
+	tests := []struct {
+		a, b *snap.Epoch
+		eq   bool
+	}{
+		{a: &snap.Epoch{}, b: nil, eq: true},
+		{a: &snap.Epoch{Read: []uint32{}, Write: []uint32{}}, b: nil, eq: true},
+		{a: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, b: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, eq: true},
+		{a: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, b: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, eq: true},
+		{a: &snap.Epoch{Read: []uint32{0, 1}, Write: []uint32{1}}, b: &snap.Epoch{Read: []uint32{1}, Write: []uint32{1}}, eq: false},
+		{a: &snap.Epoch{Read: []uint32{1, 2, 3, 4}, Write: []uint32{7}}, b: &snap.Epoch{Read: []uint32{1, 2, 3, 7}, Write: []uint32{7}}, eq: false},
+	}
+
+	for i, test := range tests {
+		c.Check(test.a.Equal(test.b), check.Equals, test.eq, check.Commentf("ab/%d", i))
+		c.Check(test.b.Equal(test.a), check.Equals, test.eq, check.Commentf("ab/%d", i))
+	}
+}

@@ -24,9 +24,6 @@ prepare: |
         snap install upower
     fi
 
-restore: |
-    rm -f upower.error
-
 execute: |
     SLOT_PROVIDER=
     SLOT_NAME=upower-observe

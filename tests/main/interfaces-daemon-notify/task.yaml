@@ -2,6 +2,9 @@
 # https://forum.snapcraft.io/t/its-a-little-bit-hard-to-use-daemon-notify-for-sd-notify/6366
 summary: Ensure that the daemon-notify interface works.
 
+# test is timing dependant and may fail on very slow systems
+backends: [-autopkgtest]
+
 details: |
     The daemon-notify interface allows sending notification messages 
     to systemd through the notify socket
