@@ -892,6 +892,8 @@ func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
 	chg.Set("hotplug-key", hotplugKey)
 }
 
+// addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
+// and makes all existing tasks of the change wait for it.
 func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
 	st := hotplugChange.State()
 	seq, err := allocHotplugSeq(st)

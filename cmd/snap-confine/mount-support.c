@@ -699,55 +699,5 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 
 	sc_make_slave_mount_ns();
-
-	debug("calling snap-update-ns to initialize user mounts");
-	pid_t child = fork();
-	if (child < 0) {
-		die("cannot fork to run snap-update-ns");
-	}
-	if (child == 0) {
-		// We are the child, execute snap-update-ns under a dedicated profile.
-		char profile[PATH_MAX] = { 0 };
-		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
-				 snap_name);
-		debug("launching snap-update-ns under per-snap profile %s",
-		      profile);
-		sc_maybe_aa_change_onexec(apparmor, profile);
-		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = sc_strdup(snap_name);
-		char *argv[] = {
-			"snap-update-ns", "--user-mounts", snap_name_copy,
-			NULL
-		};
-		char *envp[3] = { NULL };
-		int last_env = 0;
-		if (sc_is_debug_enabled()) {
-			envp[last_env++] = "SNAPD_DEBUG=1";
-		}
-		const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-		char xdg_runtime_dir_env[PATH_MAX];
-		if (xdg_runtime_dir != NULL) {
-			sc_must_snprintf(xdg_runtime_dir_env,
-					 sizeof(xdg_runtime_dir_env),
-					 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
-			envp[last_env++] = xdg_runtime_dir_env;
-		}
-
-		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
-		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
-		fexecve(snap_update_ns_fd, argv, envp);
-		die("cannot execute snap-update-ns");
-	}
-	// We are the parent, so wait for snap-update-ns to finish.
-	int status = 0;
-	debug("waiting for snap-update-ns to finish...");
-	if (waitpid(child, &status, 0) < 0) {
-		die("waitpid() failed for snap-update-ns process");
-	}
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		die("snap-update-ns killed by signal %i", WTERMSIG(status));
-	}
-	debug("snap-update-ns finished successfully");
+	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }

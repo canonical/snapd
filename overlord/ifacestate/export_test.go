@@ -44,6 +44,7 @@ var (
 	SetHotplugAttrs              = setHotplugAttrs
 	GetHotplugSlots              = getHotplugSlots
 	SetHotplugSlots              = setHotplugSlots
+	UpdateDevice                 = updateDevice
 	FindConnsForHotplugKey       = findConnsForHotplugKey
 	CheckSystemSnapIsPresent     = checkSystemSnapIsPresent
 	SystemSnapInfo               = systemSnapInfo

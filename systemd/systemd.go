@@ -342,7 +342,7 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	// "systemctl is-enabled <name>" prints `inactive\n` to stderr and returns exit code 1 for inactive services
+	// "systemctl is-active <name>" prints `inactive\n` to stderr and returns exit code 1 for inactive services
 	sysdErr, ok := err.(*Error)
 	if ok && sysdErr.exitCode > 0 && strings.TrimSpace(string(sysdErr.msg)) == "inactive" {
 		return false, nil

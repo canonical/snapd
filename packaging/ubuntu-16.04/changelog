@@ -1,3 +1,23 @@
+snapd (2.36.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1795590
+    - wrappers: use new systemd.IsActive in core18 early boot
+    - httputil: retry on temporary net errors
+    - wrappers: only restart service in core18 when they are active
+    - systemd: start snapd.autoimport.service in --no-block mode
+    - data/selinux: fix syntax error in definition of snappy_admin
+      interfacewhen installing selinux-policy-devel package.
+    - centos: enable SELinux support on CentOS 7
+    - cmd, dirs, interfaces/apparmor: update distro identification to
+      support ID="archlinux"
+    - apparmor: allow hard link to snap-specific semaphore files
+    - overlord,apparmor: new syskey behaviour + non-ignored snap-confine
+      profile errors
+    - snap: add new `snap run --trace-exec` call
+    - interfaces/backends: detect too old apparmor_parser
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 14 Dec 2018 07:30:58 +0100
+
 snapd (2.36.2) xenial; urgency=medium
 
   * New upstream release, LP: #1795590

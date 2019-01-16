@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.36.2
+Version:        2.36.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -826,7 +826,25 @@ fi
 %endif
 
 %changelog
+* Fri Dec 14 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.36.3
+ - wrappers: use new systemd.IsActive in core18 early boot
+ - httputil: retry on temporary net errors
+ - wrappers: only restart service in core18 when they are active
+ - systemd: start snapd.autoimport.service in --no-block mode
+ - data/selinux: fix syntax error in definition of snappy_admin
+   interfacewhen installing selinux-policy-devel package.
+ - centos: enable SELinux support on CentOS 7
+ - cmd, dirs, interfaces/apparmor: update distro identification to
+   support ID="archlinux"
+ - apparmor: allow hard link to snap-specific semaphore files
+ - overlord,apparmor: new syskey behaviour + non-ignored snap-confine
+   profile errors
+ - snap: add new `snap run --trace-exec` call
+ - interfaces/backends: detect too old apparmor_parser
+
 * Thu Nov 29 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.36.2
  - daemon, vendor: bump github.com/coreos/go-systemd/activation,
    handle API changes
  - snapstate: update fontconfig caches on install
