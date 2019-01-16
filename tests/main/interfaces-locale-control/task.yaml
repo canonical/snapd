@@ -44,7 +44,6 @@ restore: |
         fi
     fi
 
-    rm -f locale-read.error locale-write.error
     mv locale.back /etc/default/locale
 
 execute: |
