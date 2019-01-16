@@ -19,9 +19,6 @@ prepare: |
     echo "Given a snap declaring a plug on the process-control interface is installed"
     install_local process-control-consumer
 
-restore: |
-    rm -f process-kill.error process-nice.error
-
 execute: |
     echo "The interface is disconnected by default"
     snap interfaces -i process-control | MATCH -- '- +process-control-consumer:process-control'

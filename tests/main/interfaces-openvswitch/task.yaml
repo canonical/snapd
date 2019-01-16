@@ -46,8 +46,6 @@ restore: |
     distro_purge_package openvswitch-switch
     distro_auto_remove_packages
 
-    rm -f ./*.error
-
     ip link delete tap1 || true
 
 execute: |
