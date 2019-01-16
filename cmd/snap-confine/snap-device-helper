@@ -25,7 +25,11 @@ NOSNAP="${APPNAME#snap_}"
 # we need to make sure we change this to:
 # - "$snap_hook.$hookname"
 # - "$snap_$instance_hook.$hookname"
-if [ -z "${NOSNAP##*_hook_*}" ]; then
+if [ -z "${NOSNAP##*_hook_hook_*}" ]; then
+    # $instance is 'hook'; $snap_hook_hook.$hookname -> $snap_hook_hook.$hookname
+    NOSNAP="${NOSNAP%_hook_*}_hook.${NOSNAP#*_hook_hook_}"
+elif [ -z "${NOSNAP##*_hook_*}" ]; then
+    # $snap_$instance_hook_$hookname -> $snap_$instance_hook.$hookname
     NOSNAP="${NOSNAP%_hook_*}_hook.${NOSNAP#*_hook_}"
 fi
 
