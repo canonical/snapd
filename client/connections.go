@@ -19,6 +19,10 @@
 
 package client
 
+import (
+	"net/url"
+)
+
 // Connection describes a connection between a plug and a slot
 type Connection struct {
 	Slot      SlotRef `json:"slot"`
@@ -39,4 +43,28 @@ type Connections struct {
 	Undesired []Connection `json:"undesired,omitempty"`
 	Plugs     []Plug       `json:"plugs"`
 	Slots     []Slot       `json:"slots"`
+}
+
+type ConnectionOptions struct {
+	Snap string
+	// Name of slot or plug
+	Interface string
+	All       bool
+}
+
+// Connections returns all plugs, slots and their connections.
+func (client *Client) Connections(opts *ConnectionOptions) (Connections, error) {
+	var conns Connections
+	query := url.Values{}
+	if opts != nil && opts.Snap != "" {
+		query.Set("snap", opts.Snap)
+	}
+	if opts != nil && opts.Interface != "" {
+		query.Set("interface", opts.Interface)
+	}
+	if opts != nil && opts.All {
+		query.Set("select", "all")
+	}
+	_, err := client.doSync("GET", "/v2/connections", query, nil, nil, &conns)
+	return conns, err
 }
