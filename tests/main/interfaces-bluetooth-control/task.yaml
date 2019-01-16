@@ -9,9 +9,6 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_generic_consumer bluetooth-control
 
-restore: |
-    rm -f ./*.error version class control
-
 execute: |
     BTDEV="$(find /sys/devices/ -type d -name bluetooth)"
 

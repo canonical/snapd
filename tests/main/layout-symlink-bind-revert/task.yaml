@@ -1,4 +1,5 @@
 summary: TBD
+
 prepare: |
     echo "Ensure feature flag is enabled"
     snap set core experimental.layouts=true
@@ -6,8 +7,7 @@ prepare: |
     snap pack ./runtime .
     snap pack ./app.v1 .
     snap pack ./app.v2 .
-restore: |
-    rm -f "*.snap"
+
 execute: |
     echo "The runtime and the application are installed and connected"
     snap install --dangerous ./runtime_1_all.snap

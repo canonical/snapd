@@ -12,7 +12,6 @@ restore: |
     . "$TESTSLIB/dirs.sh"
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
-    rm -f dbus.env
     umount -f /usr/bin/xdg-settings || true
     umount -f /usr/bin/zenity || true
 

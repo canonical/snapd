@@ -5,9 +5,6 @@ backends: [-autopkgtest]
 
 kill-timeout: 5m
 
-restore:
-    rm -f ./*.pid || true
-
 debug: |
     grep -n '' ./*.pid || true
     systemctl status snap.test-snapd-service.test-snapd-endure-service || true

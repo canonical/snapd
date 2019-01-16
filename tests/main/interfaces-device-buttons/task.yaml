@@ -19,8 +19,6 @@ prepare: |
     ensure_file_exists_backup_real /dev/input/event1
 
 restore: |
-    rm -f call.error
-
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
 

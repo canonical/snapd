@@ -99,7 +99,7 @@ func UpperCaseConnState() map[string]*connState {
 	}
 }
 
-func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget bool) {
+func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget, undesired bool) {
 	connRef := &interfaces.ConnRef{
 		PlugRef: *conn.Plug.Ref(),
 		SlotRef: *conn.Slot.Ref(),
@@ -113,6 +113,7 @@ func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.C
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
 		ByGadget:         byGadget,
+		Undesired:        undesired,
 	}
 }
 
