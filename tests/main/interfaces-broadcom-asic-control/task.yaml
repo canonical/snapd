@@ -24,8 +24,6 @@ prepare: |
     ensure_file_exists /run/udev/data/+pci:0test
 
 restore: |
-    rm -f call.error
-
     #shellcheck source=tests/lib/files.sh
     . "$TESTSLIB"/files.sh
     clean_file /dev/linux-user-bde

@@ -24,8 +24,6 @@ prepare: |
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-location-control-provider.provider
 
 restore: |
-    rm -f getprop.error
-
     #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit

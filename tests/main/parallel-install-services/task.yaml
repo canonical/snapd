@@ -1,5 +1,8 @@
 summary: Checks for parallel installation of sideloaded snaps containing services
 
+# takes >3min to run
+backends: [-autopkgtest]
+
 prepare: |
     snap set system experimental.parallel-instances=true
 

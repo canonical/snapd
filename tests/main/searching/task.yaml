@@ -7,9 +7,6 @@ systems: [-ubuntu-*-ppc64el, -ubuntu-*-s390x]
 # with the distro
 backends: [-autopkgtest]
 
-restore: |
-    rm -f featured.txt
-
 execute: |
     echo "List all featured snaps"
     expected='(?s).*Name +Version +Publisher +Notes +Summary *\n(.*?\n)?.*'
