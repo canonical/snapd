@@ -180,3 +180,29 @@ flags           : stuff svm other
 		"kvm_amd": true,
 	})
 }
+
+func (s *kvmInterfaceSuite) TestKModSpecWithEmptyCpuinfo(c *C) {
+	mockCpuinfo := filepath.Join(s.tmpdir, "cpuinfo")
+	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
+`[1:]), 0644), IsNil)
+
+	s.AddCleanup(builtin.MockProcCpuinfo(mockCpuinfo))
+
+	spec := &kmod.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+		"kvm": true,
+	})
+}
+
+func (s *kvmInterfaceSuite) TestKModSpecWithMissingCpuinfo(c *C) {
+	mockCpuinfo := filepath.Join(s.tmpdir, "non-existent-cpuinfo")
+
+	s.AddCleanup(builtin.MockProcCpuinfo(mockCpuinfo))
+
+	spec := &kmod.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+		"kvm": true,
+	})
+}
