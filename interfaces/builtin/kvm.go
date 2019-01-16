@@ -81,7 +81,7 @@ func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 	m := "kvm"
 	cpu_flags, err := getCpuFlags()
 	if err != nil {
-		logger.Debugf("kvm: fetching cpu info failed:", err)
+		logger.Debugf("kvm: fetching cpu info failed: %v", err)
 	}
 
 	if strutil.ListContains(cpu_flags, "vmx") {
