@@ -17,6 +17,11 @@ execute: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
+    # home is not auto-connected on core
+    if grep -q ID=ubuntu-core /etc/os-release; then
+        snap connect test-snapd-sh:home
+    fi
+
     ############## APPARMOR
     echo "Ensure the apparmor sandbox for snaps works for root"
     for p in "/root/foo" "/home/foo" "/home/test/foo"; do
