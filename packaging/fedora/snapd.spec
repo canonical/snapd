@@ -828,6 +828,9 @@ fi
 %changelog
 * Wed Jan 16 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.37
+ - snapd: fix race in TestSanityFailGoesIntoDegradedMode test
+ - cmd: fix snap-device-helper to deal correctly with hooks
+ - tests: various fixes for external backend
  - interface: raw-usb: Adding ttyACM[0-9]* as many serial devices
    have device node /dev/ttyACM[0-9]
  - tests: fix enable-disable-unit-gpio test on external boards
