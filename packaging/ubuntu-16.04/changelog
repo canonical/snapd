@@ -1,6 +1,21 @@
-snapd (2.37~pre1) xenial; urgency=medium
+snapd (2.37) xenial; urgency=medium
 
   * New upstream release, LP: #1811233
+    - snapd: fix race in TestSanityFailGoesIntoDegradedMode test
+    - cmd: fix snap-device-helper to deal correctly with hooks
+    - tests: various fixes for external backend
+    - interface: raw-usb: Adding ttyACM[0-9]* as many serial devices
+      have device node /dev/ttyACM[0-9]
+    - tests: fix enable-disable-unit-gpio test on external boards
+    - tests: define new "tests/smoke" suite and use that for
+      autopkgtests
+    - interfaces/builtin/opengl: allow access to NVIDIA VDPAU
+      library
+    - snapshotstate: don't task.Log without the lock
+    - overlord/configstate/configcore: support - and _ in cloud init
+      field names
+    - cmd/snap-confine: use makedev instead of MKDEV
+    - tests: review/fix the autopkgtest failures in disco
     - systemd: allow only a single daemon-reload at the same time
     - cmd/snap: only auto-enable unicode to a tty
     - cmd/snap: right-align revision and size in info's channel map
@@ -357,7 +372,7 @@ snapd (2.37~pre1) xenial; urgency=medium
     - many: cleanup remaining parallel installs TODOs
     - image: improve validation of extra snaps
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 10 Jan 2019 20:59:36 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 16 Jan 2019 17:16:56 +0100
 
 snapd (2.36.3) xenial; urgency=medium
 
