@@ -206,6 +206,8 @@ static struct sdh_test_data add_hook_data =
     { "add", "snap.foo.hook.configure", "snap_foo_hook_configure", "devices.allow", "devices.deny" };
 static struct sdh_test_data instance_add_hook_data =
     { "add", "snap.foo_bar.hook.configure", "snap_foo_bar_hook_configure", "devices.allow", "devices.deny" };
+static struct sdh_test_data instance_add_instance_name_is_hook_data =
+    { "add", "snap.foo_hook.hook.configure", "snap_foo_hook_hook_configure", "devices.allow", "devices.deny" };
 
 static void __attribute__ ((constructor)) init(void)
 {
@@ -228,4 +230,6 @@ static void __attribute__ ((constructor)) init(void)
 			     &add_hook_data, test_sdh_action);
 	g_test_add_data_func("/snap-device-helper/hook/parallel/add",
 			     &instance_add_hook_data, test_sdh_action);
+	g_test_add_data_func("/snap-device-helper/hook-name-hook/parallel/add",
+			     &instance_add_instance_name_is_hook_data, test_sdh_action);
 }
