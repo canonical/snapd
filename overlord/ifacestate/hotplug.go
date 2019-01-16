@@ -129,6 +129,10 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		logger.Noticef("internal error: cannot get hotplug feature flag: %s", err.Error())
 		return
 	}
+	if !hotplugFeature {
+		logger.Noticef("hotplug device add event ignored, enable experimental.hotplug")
+		return
+	}
 
 	gadget, err := snapstate.GadgetInfo(st)
 	if err != nil && err != state.ErrNoState {
@@ -190,11 +194,6 @@ InterfacesLoop:
 		if slotSpec.Label == "" {
 			si := interfaces.StaticInfoOf(iface)
 			slotSpec.Label = si.Summary
-		}
-
-		if !hotplugFeature {
-			logger.Noticef("hotplug device with path %s for interface %q, hotplug key %s ignored, enable experimental.hotplug", devinfo.DevicePath(), iface.Name(), key)
-			continue
 		}
 
 		logger.Debugf("adding hotplug device with path %s for interface %q, hotplug key %s", devinfo.DevicePath(), iface.Name(), key)
@@ -297,6 +296,10 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		logger.Noticef("internal error: cannot get hotplug feature flag: %s", err.Error())
 		return
 	}
+	if !hotplugFeature {
+		logger.Noticef("hotplug device remove event ignored, enable experimental.hotplug")
+		return
+	}
 
 	devPath := devinfo.DevicePath()
 	devs := m.hotplugDevicePaths[devPath]
@@ -315,10 +318,6 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 			continue
 		}
 
-		if !hotplugFeature {
-			logger.Noticef("hotplug 'remove' event for device %q (interface %q) ignored, enable experimental.hotplug", devinfo.DevicePath(), ifaceName)
-			continue
-		}
 		logger.Debugf("removing hotplug device with path %s for interface %q, hotplug key %s", devinfo.DevicePath(), ifaceName, hotplugKey)
 
 		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", ifaceName), fmt.Sprintf("Remove hotplug connections and slots of interface %s", ifaceName))
