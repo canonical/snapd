@@ -411,6 +411,9 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
+    # back test directory to be restored during the restore
+    tar cf "${PWD}.tar" "$PWD"
+
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
@@ -434,6 +437,13 @@ prepare_suite_each() {
 
 restore_suite_each() {
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
+
+    # restore test directory saved during prepare
+    if [ -f "${PWD}.tar" ]; then
+        rm -rf "$PWD"
+        tar -C/ -xf "${PWD}.tar"
+        rm -rf "${PWD}.tar"
+    fi
 }
 
 restore_suite() {

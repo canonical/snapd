@@ -40,7 +40,7 @@ restore: |
     for m in $mounts; do
         nsenter "--mount=/run/snapd/ns/$NAME.mnt" umount "$m"
     done
-    rm -rf "$MOUNT_POINT_OUTSIDE" fuse.error
+    rm -rf "$MOUNT_POINT_OUTSIDE"
 
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=null

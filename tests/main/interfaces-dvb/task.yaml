@@ -16,8 +16,6 @@ prepare: |
     ensure_file_exists_backup_real /run/udev/data/c212:9
 
 restore: |
-    rm -f call.error
-
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
 

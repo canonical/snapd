@@ -51,7 +51,7 @@ FILES
     `snap-discard-ns`. The second form is for the per-user mount namespace.
 
 `/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.fstab`:
-`/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.*.fstab`:
+`/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.*.user-fstab`:
 
     The current mount profile of a preserved mount namespace that is removed
     by `snap-discard-ns`.
