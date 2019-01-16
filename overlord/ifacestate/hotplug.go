@@ -130,6 +130,25 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		return
 	}
 
+	gadget, err := snapstate.GadgetInfo(st)
+	if err != nil && err != state.ErrNoState {
+		logger.Noticef("internal error: cannot get gadget information: %s", err)
+	}
+
+	gadgetSlotsByInterface := make(map[string][]*snap.SlotInfo)
+	if gadget != nil {
+		ifcs := make(map[string]bool)
+		for _, iface := range hotplugIfaces {
+			ifcs[iface.Name()] = true
+		}
+		for _, gadgetSlot := range gadget.Slots {
+			if _, ok := ifcs[gadgetSlot.Interface]; ok {
+				gadgetSlotsByInterface[gadgetSlot.Interface] = append(gadgetSlotsByInterface[gadgetSlot.Interface], gadgetSlot)
+			}
+		}
+	}
+
+InterfacesLoop:
 	// iterate over all hotplug interfaces
 	for _, iface := range hotplugIfaces {
 		hotplugHandler := iface.(hotplug.Definer)
@@ -139,6 +158,18 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		if err != nil {
 			logger.Noticef("cannot compute hotplug key for device with path %s: %s", devinfo.DevicePath(), err.Error())
 			continue
+		}
+
+		// ignore device that is already handled by a gadget slot
+		if gadgetSlots, ok := gadgetSlotsByInterface[iface.Name()]; ok {
+			for _, gslot := range gadgetSlots {
+				if pred, ok := iface.(hotplug.HandledByGadgetPredicate); ok {
+					if pred.HandledByGadget(devinfo, gslot) {
+						logger.Debugf("ignoring device with hotplug key %q, interface %s (handled by gadget slot %s)", key, iface.Name(), gslot.Name)
+						continue InterfacesLoop
+					}
+				}
+			}
 		}
 
 		spec := hotplug.NewSpecification()
