@@ -1,0 +1,22 @@
+--- a/advisor/backend.go
++++ b/advisor/backend.go
+@@ -25,7 +25,7 @@
+ 	"path/filepath"
+ 	"time"
+ 
+-	"github.com/snapcore/bolt"
++	"github.com/boltdb/bolt"
+ 
+ 	"github.com/snapcore/snapd/dirs"
+ 	"github.com/snapcore/snapd/osutil"
+--- a/errtracker/errtracker.go
++++ b/errtracker/errtracker.go
+@@ -33,7 +33,7 @@
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/snapcore/bolt"
++	"github.com/boltdb/bolt"
+ 	"gopkg.in/mgo.v2/bson"
+ 
+ 	"github.com/snapcore/snapd/arch"

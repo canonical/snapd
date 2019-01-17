@@ -8,9 +8,11 @@ Forwarded: not-needed
 Last-Update: 2017-08-15
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/cmd/snap-seccomp/main.go
-+++ b/cmd/snap-seccomp/main.go
-@@ -151,7 +151,7 @@
+Index: snapd.mvo/cmd/snap-seccomp/main.go
+===================================================================
+--- snapd.mvo.orig/cmd/snap-seccomp/main.go
++++ snapd.mvo/cmd/snap-seccomp/main.go
+@@ -184,7 +184,7 @@ import (
  	// FIXME: we want github.com/seccomp/libseccomp-golang but that
  	// will not work with trusty because libseccomp-golang checks
  	// for the seccomp version and errors if it find one < 2.2.0
