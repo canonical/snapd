@@ -1,3 +1,14 @@
+snapd (2.37+gbp-1~1.gbpce8cd4) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @ce8cd433c893fe943d678919304c394ad07aec25 **
+
+  * new upstream release
+  * packaging: import debian-sid packaging
+  * debian: move symlink to packageing/debian-sid
+  * debian: release new 2.37-1 debian version
+
+ -- Michael Vogt <mvo@ubuntu.com>  Thu, 17 Jan 2019 10:57:52 +0100
+
 snapd (2.30-5) unstable; urgency=medium
 
   * Team upload.
