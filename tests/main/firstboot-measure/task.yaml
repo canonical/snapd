@@ -1,0 +1,14 @@
+summary: Check that we get performance data for firstboot
+
+systems: [ubuntu-core-*]
+
+prepare: |
+    systemctl stop snapd.socket snapd
+    rm -f /var/lib/snapd/state.json
+    systemctl start snapd.socket snapd
+    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
+execute: |
+    echo "Check that we get first boot related measures"
+    snap debug measures | MATCH "Measures:"
+    snap debug measures | MATCH "populateStateFromSeed"

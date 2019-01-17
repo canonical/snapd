@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -53,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/measure"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -2526,6 +2528,12 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		sort.Strings(status.Unreachable)
 
 		return SyncResponse(status, nil)
+	case "get-measures":
+		var buf bytes.Buffer
+		measure.WriteAll(&buf)
+		return SyncResponse(map[string]interface{}{
+			"measures": buf.String(),
+		}, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
