@@ -1,8 +1,8 @@
 Source: snapd
 Section: devel
 Priority: optional
-Maintainer: Steve Langasek <vorlon@debian.org>
-Uploaders: Michael Hudson-Doyle <michael.hudson@ubuntu.com>,
+Maintainer: Michael Hudson-Doyle <mwhudson@debian.org>
+Uploaders: Steve Langasek <vorlon@debian.org>,
 	Zygmunt Krynicki <me@zygoon.pl>,
 	Luke Faraone <lfaraone@debian.org>
 Build-Depends: autoconf,
@@ -26,7 +26,9 @@ Build-Depends: autoconf,
                golang-github-coreos-go-systemd-dev,
                golang-github-gorilla-mux-dev,
                golang-github-gosexy-gettext-dev,
-               golang-github-juju-ratelimit-dev,               
+               golang-github-juju-ratelimit-dev,
+               golang-github-kr-pretty-dev,
+               golang-github-kr-text-dev,
                golang-github-mvo5-goconfigparser-dev,
                golang-github-seccomp-libseccomp-golang-dev,
                golang-go,
@@ -59,8 +61,8 @@ Build-Depends: autoconf,
                xfslibs-dev
 Standards-Version: 3.9.8
 Homepage: https://github.com/snapcore/snapd
-Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/snapd.git
-Vcs-Git: git://anonscm.debian.org/collab-maint/snapd.git
+Vcs-Browser: https://salsa.debian.org/debian/snapd
+Vcs-Git: https://salsa.debian.org/debian/snapd.git
 XS-Go-Import-Path: github.com/snapcore/snapd
 
 Package: golang-github-ubuntu-core-snappy-dev
