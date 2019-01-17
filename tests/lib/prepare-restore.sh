@@ -315,12 +315,15 @@ prepare_project() {
         # debian has its own packaging
         rm -f debian
         ln -s "packaging/debian-sid" debian
-        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version)".orig.tar.gz --exclude=./debian --exclude=./.git .
 
+        # get the build-deps
         apt build-dep -y ./
 
         # and ensure we don't take any of the vendor deps
         rm -rf vendor/*
+
+        # and create a fake upstream tarball
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version)".orig.tar.gz --exclude=./debian --exclude=./.git .
     fi
 
     # so is ubuntu-14.04
