@@ -152,7 +152,13 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 	if !(plugsOk || slotsOk) {
 		return 0, nil
 	}
+
 	formatnum = 1
+	setFormatNum := func(num int) {
+		if num > formatnum {
+			formatnum = num
+		}
+	}
 
 	plugs, err := checkMap(headers, "plugs")
 	if err != nil {
@@ -160,7 +166,10 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 	}
 	err = compilePlugRules(plugs, func(_ string, rule *PlugRule) {
 		if rule.feature(dollarAttrConstraintsFeature) {
-			formatnum = 2
+			setFormatNum(2)
+		}
+		if rule.feature(deviceScopeConstraintsFeature) {
+			setFormatNum(3)
 		}
 	})
 	if err != nil {
@@ -173,7 +182,10 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 	}
 	err = compileSlotRules(slots, func(_ string, rule *SlotRule) {
 		if rule.feature(dollarAttrConstraintsFeature) {
-			formatnum = 2
+			setFormatNum(2)
+		}
+		if rule.feature(deviceScopeConstraintsFeature) {
+			setFormatNum(3)
 		}
 	})
 	if err != nil {

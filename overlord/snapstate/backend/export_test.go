@@ -23,3 +23,11 @@ var (
 	AddMountUnit    = addMountUnit
 	RemoveMountUnit = removeMountUnit
 )
+
+func MockUpdateFontconfigCaches(f func() error) (restore func()) {
+	oldUpdateFontconfigCaches := updateFontconfigCaches
+	updateFontconfigCaches = f
+	return func() {
+		updateFontconfigCaches = oldUpdateFontconfigCaches
+	}
+}

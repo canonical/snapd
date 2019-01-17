@@ -50,7 +50,7 @@ import (
 // A Store can find metadata on snaps, download snaps and fetch assertions.
 type Store interface {
 	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
-	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error
+	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 }
@@ -265,7 +265,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 		os.Exit(1)
 	}()
 
-	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user); err != nil {
+	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, nil); err != nil {
 		return "", nil, err
 	}
 

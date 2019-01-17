@@ -13,15 +13,16 @@ prepare: |
         exit
     fi
 
-    . $TESTSLIB/store.sh
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
 
     echo "Given two snaps are installed"
     for snap in $GOOD_SNAP $BAD_SNAP; do
-        snap install $snap
+        snap install "$snap"
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_fake_store $BLOB_DIR
+    setup_fake_store "$BLOB_DIR"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -29,9 +30,10 @@ restore: |
         exit
     fi
 
-    . $TESTSLIB/store.sh
-    teardown_fake_store $BLOB_DIR
-    rm -rf $BLOB_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$BLOB_DIR"
+    rm -rf "$BLOB_DIR"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -43,15 +45,17 @@ execute: |
     snap refresh 2>&1 | MATCH "All snaps up to date"
 
     echo "When the store is configured to make them refreshable"
-    . $TESTSLIB/files.sh
-    . $TESTSLIB/store.sh
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
     init_fake_refreshes "$BLOB_DIR" "$GOOD_SNAP"
-    wait_for_file "$BLOB_DIR"/"${GOOD_SNAP}"*fake1*.snap 4 .5
+    wait_for_file "$BLOB_DIR/${GOOD_SNAP}"*fake1*.snap 4 .5
     init_fake_refreshes "$BLOB_DIR" "$BAD_SNAP"
-    wait_for_file "$BLOB_DIR"/"${BAD_SNAP}"*fake1*.snap 4 .5
+    wait_for_file "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap 4 .5
 
     echo "When a snap is broken"
-    echo "i-am-broken-now" >> $BLOB_DIR/${BAD_SNAP}*fake1*.snap
+    echo "i-am-broken-now" >> "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
 
     echo "And a refresh is performed"
     if snap refresh ; then
@@ -65,16 +69,17 @@ execute: |
     echo "But the bad snap did not get updated"
     snap list | MATCH -E "${BAD_SNAP}"| MATCH -v "fake"
 
-    . $TESTSLIB/changes.sh
+    #shellcheck source=tests/lib/changes.sh
+    . "$TESTSLIB"/changes.sh
     chg_id=$(change_id "Refresh snap" Error)
 
     echo "Verify the snap change"
-    snap change $chg_id | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
-    snap change $chg_id | MATCH "Done.*Download snap \"${GOOD_SNAP}\""
-    snap change $chg_id | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"
+    snap change "$chg_id" | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
+    snap change "$chg_id" | MATCH "Done.*Download snap \"${GOOD_SNAP}\""
+    snap change "$chg_id" | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"
 
     echo "Verify the 'snap tasks' is the same as 'snap change'"
-    snap tasks $chg_id | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
+    snap tasks "$chg_id" | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
 
     echo "Verify the 'snap tasks --last' shows last refresh change"
     snap tasks --last=refresh | MATCH "Undone.*Download snap \"${BAD_SNAP}\""

@@ -115,12 +115,12 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   GNU Hello, the "hello world" snap
-publisher: Canonical✓
+publisher: Canonical*
 license:   Proprietary
 price:     1.99GBP
 description: |
@@ -203,7 +203,8 @@ const mockInfoJSONWithChannels = `
           "revision": "1",
           "version": "2.10",
           "channel": "1/stable",
-          "size": 65536
+          "size": 65536,
+          "released-at": "2018-12-18T15:16:56.723501Z"
         }
       },
       "tracks": ["1"]
@@ -234,12 +235,12 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical✓
+publisher: Canonical*
 license:   MIT
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -303,7 +304,7 @@ const mockInfoJSONNoLicense = `
       "name": "hello",
       "private": false,
       "resource": "/v2/snaps/hello",
-      "revision": "1",
+      "revision": "100",
       "status": "available",
       "summary": "The GNU Hello snap",
       "type": "app",
@@ -332,12 +333,12 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical✓
+publisher: Canonical*
 license:   BSD-3
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -368,12 +369,12 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical✓
+publisher: Canonical*
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -381,7 +382,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (1) 1kB disabled
+installed:    2.10 (100) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -390,21 +391,71 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
-		case 0:
+		case 0, 2, 4:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			fmt.Fprintln(w, mockInfoJSONWithChannels)
-		case 1:
+		case 1, 3, 5:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
 			fmt.Fprintln(w, mockInfoJSONNoLicense)
 		default:
-			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+			c.Fatalf("expected to get 6 requests, now on %d (%v)", n+1, r)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: Canonical*
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02T22:04:07Z
+channels:
+  1/stable:    2.10 2018-12-18T15:16:56Z   (1) 65kB -
+  1/candidate: ^                                    
+  1/beta:      ^                                    
+  1/edge:      ^                                    
+installed:     2.10                      (100)  1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 2)
+
+	// now the same but without abs-time
+	s.ResetStdStreams()
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: Canonical*
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02
+channels:
+  1/stable:    2.10 2018-12-18   (1) 65kB -
+  1/candidate: ^                          
+  1/beta:      ^                          
+  1/edge:      ^                          
+installed:     2.10            (100)  1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 4)
+
+	// now the same but with unicode on
+	s.ResetStdStreams()
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "--unicode=always", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -416,15 +467,16 @@ description: |
   https://snapcraft.io/
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
-refresh-date: 2006-01-02T22:04:07Z
-channels:                    
-  1/stable:    2.10 (1) 65kB -
-  1/candidate: ↑             
-  1/beta:      ↑             
-  1/edge:      ↑             
-installed:     2.10 (1) 1kB  disabled
+refresh-date: 2006-01-02
+channels:
+  1/stable:    2.10 2018-12-18   (1) 65kB -
+  1/candidate: ↑                          
+  1/beta:      ↑                          
+  1/edge:      ↑                          
+installed:     2.10            (100)  1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 6)
 }
 
 func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
@@ -449,12 +501,12 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical✓
+publisher: Canonical*
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -462,7 +514,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: TOTALLY NOT A ROBOT
-installed:    2.10 (1) 1kB disabled
+installed:    2.10 (100) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }

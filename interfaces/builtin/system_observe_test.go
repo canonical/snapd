@@ -57,10 +57,10 @@ func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
 		Name:      "system-observe",
 		Interface: "system-observe",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, sysobsMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["system-observe"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *SystemObserveInterfaceSuite) TestName(c *C) {

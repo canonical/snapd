@@ -4,11 +4,11 @@ prepare: |
     snap install --devmode jq
 
     echo "Build basic test package (without hooks)"
-    snap pack $TESTSLIB/snaps/basic
+    snap pack "$TESTSLIB"/snaps/basic
     snap install --dangerous basic_1.0_all.snap
 
     echo "Build package with hook to run snapctl set"
-    snap pack $TESTSLIB/snaps/snapctl-hooks
+    snap pack "$TESTSLIB"/snaps/snapctl-hooks
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
 restore: |
@@ -66,14 +66,14 @@ execute: |
         exit 1
     fi
     snap get snapctl-hooks bar 2>&1 | MATCH -z "WARNING"
-    snap get snapctl-hooks -l bar 2>&1 | MATCH -z "^Key.*Value.*bar.a.*{\.\.\.}.*bar.b.*3"
+    snap get snapctl-hooks -l bar 2>&1 | MATCH -z '^Key.*Value.*bar.a.*{\.\.\.}.*bar.b.*3'
     snap get snapctl-hooks -d bar | MATCH -z "^{.*\"bar\": {.*\"a\": {.*\"aa\": 1,.*\"ab\": 2.*},.*\"b\": 3.*}.*}"
 
     snap get snapctl-hooks bar.a.aa | MATCH "^1$"
     snap get snapctl-hooks bar.a.ab | MATCH "^2$"
 
     echo "Test that root document can be obtained via snap get"
-    snap get snapctl-hooks -l 2>&1 | MATCH -z "^Key.*Value.*bar.*{\.\.\.}.*command.*test-snapctl-set-bar-doc.*foo.*bar"
+    snap get snapctl-hooks -l 2>&1 | MATCH -z '^Key.*Value.*bar.*{\.\.\.}.*command.*test-snapctl-set-bar-doc.*foo.*bar'
     snap get snapctl-hooks -d | MATCH -z "^{.*\"bar\": {.*\"a\": {.*\"aa\": 1,.*\"ab\": 2.*},.*\"b\": 3.*}.*,.*\"command\": \"test-snapctl-set-bar-doc\",.*\"foo\": \"bar\".*}"
 
     echo "Test number formats"

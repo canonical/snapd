@@ -63,6 +63,7 @@ func (s *storeSuite) TestDecodeOK(c *C) {
 	c.Check(store.URL().String(), Equals, "https://store.example.com")
 	c.Check(store.Location(), Equals, "upstairs")
 	c.Check(store.Timestamp().Equal(s.ts), Equals, true)
+	c.Check(store.FriendlyStores(), HasLen, 0)
 }
 
 var storeErrPrefix = "assertion store: "
@@ -78,6 +79,7 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 		{s.tsLine, "", `"timestamp" header is mandatory`},
 		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{"url: https://store.example.com\n", "friendly-stores: foo\n", `"friendly-stores" header must be a list of strings`},
 	}
 
 	for _, test := range tests {
@@ -185,6 +187,19 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	c.Assert(err, IsNil)
 	err = db.Check(store)
 	c.Assert(err, IsNil)
+}
+
+func (s *storeSuite) TestFriendlyStores(c *C) {
+	encoded := strings.Replace(s.validExample, "url: https://store.example.com\n", `friendly-stores:
+  - store1
+  - store2
+  - store3
+`, 1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	store := assert.(*asserts.Store)
+	c.Check(store.URL(), IsNil)
+	c.Check(store.FriendlyStores(), DeepEquals, []string{"store1", "store2", "store3"})
 }
 
 func (s *storeSuite) TestCheckOperatorAccount(c *C) {

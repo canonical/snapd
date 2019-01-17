@@ -27,12 +27,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
-
-var watchdogConfigKeys = map[string]bool{
-	"RuntimeWatchdogSec":  true,
-	"ShutdownWatchdogSec": true,
-}
 
 func init() {
 	// add supported configuration of this module
@@ -66,7 +62,7 @@ func updateWatchdogConfig(config map[string]uint) error {
 	return err
 }
 
-func handleWatchdogConfiguration(tr Conf) error {
+func handleWatchdogConfiguration(tr config.Conf) error {
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
@@ -109,7 +105,7 @@ func getSystemdConfSeconds(timeStr string) (uint, error) {
 	return uint(dur.Seconds()), nil
 }
 
-func validateWatchdogOptions(tr Conf) error {
+func validateWatchdogOptions(tr config.Conf) error {
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
 		option, err := coreCfg(tr, "watchdog."+key)
 		if err != nil {

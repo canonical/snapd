@@ -96,7 +96,7 @@ static void detach_loop(const char *src)
 		     strerror(errno));
 	} else {
 		if (ioctl(fd, LOOP_CLR_FD) < 0) {
-			kmsg("* unable to disassociate loop device %ss: %s",
+			kmsg("* unable to disassociate loop device %s: %s",
 			     src, strerror(errno));
 		}
 		close(fd);

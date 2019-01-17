@@ -24,7 +24,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -34,9 +36,10 @@ func init() {
 	supportedConfigurations["core.refresh.timer"] = true
 	supportedConfigurations["core.refresh.metered"] = true
 	supportedConfigurations["core.refresh.retain"] = true
+	supportedConfigurations["core.refresh.rate-limit"] = true
 }
 
-func validateRefreshSchedule(tr Conf) error {
+func validateRefreshSchedule(tr config.Conf) error {
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
@@ -113,4 +116,19 @@ func validateRefreshSchedule(tr Conf) error {
 
 	_, err = timeutil.ParseLegacySchedule(refreshScheduleStr)
 	return err
+}
+
+func validateRefreshRateLimit(tr config.Conf) error {
+	refreshRateLimit, err := coreCfg(tr, "refresh.rate-limit")
+	if err != nil {
+		return err
+	}
+	// reset is fine
+	if len(refreshRateLimit) == 0 {
+		return nil
+	}
+	if _, err := strutil.ParseByteSize(refreshRateLimit); err != nil {
+		return err
+	}
+	return nil
 }

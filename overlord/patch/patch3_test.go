@@ -107,7 +107,7 @@ func (s *patch3Suite) SetUpTest(c *C) {
 }
 
 func (s *patch3Suite) TestPatch3(c *C) {
-	restorer := patch.MockLevel(3)
+	restorer := patch.MockLevel(3, 1)
 	defer restorer()
 
 	r, err := os.Open(dirs.SnapStateFile)

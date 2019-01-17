@@ -23,12 +23,14 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/snapcore/snapd/i18n"
-
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdAck struct {
+	clientMixin
 	AckOptions struct {
 		AssertionFile flags.Filename
 	} `positional-args:"true" required:"true"`
@@ -50,27 +52,27 @@ func init() {
 	addCommand("ack", shortAckHelp, longAckHelp, func() flags.Commander {
 		return &cmdAck{}
 	}, nil, []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<assertion file>"),
-		// TRANSLATORS: This should probably not start with a lowercase letter.
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Assertion file"),
 	}})
 }
 
-func ackFile(assertFile string) error {
+func ackFile(cli *client.Client, assertFile string) error {
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
 		return err
 	}
 
-	return Client().Ack(assertData)
+	return cli.Ack(assertData)
 }
 
 func (x *cmdAck) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := ackFile(string(x.AckOptions.AssertionFile)); err != nil {
+	if err := ackFile(x.client, string(x.AckOptions.AssertionFile)); err != nil {
 		return fmt.Errorf("cannot assert: %v", err)
 	}
 	return nil

@@ -43,7 +43,7 @@ func (s *SnapSuite) TestCmdWaitHappy(c *C) {
 		n++
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"wait", "system", "seed.loaded"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"wait", "system", "seed.loaded"})
 	c.Assert(err, IsNil)
 
 	// ensure we retried a bit but make the check not overly precise
@@ -59,7 +59,7 @@ func (s *SnapSuite) TestCmdWaitMissingConfKey(c *C) {
 		n++
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"wait", "snapName"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"wait", "snapName"})
 	c.Assert(err, ErrorMatches, "the required argument `<key>` was not provided")
 
 	c.Check(n, Equals, 0)
@@ -161,7 +161,7 @@ func (s *SnapSuite) TestCmdWaitIntegration(c *C) {
 			testValueCh <- "42"
 		}
 
-		_, err := snap.Parser().ParseArgs([]string{"wait", "system", "test.value"})
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"wait", "system", "test.value"})
 		c.Assert(err, IsNil)
 		if t.willWait {
 			// we waited once, then got a non-wait value

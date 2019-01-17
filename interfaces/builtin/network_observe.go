@@ -64,6 +64,9 @@ dbus send
 
 #include <abstractions/ssl_certs>
 
+# see loaded kernel modules
+@{PROC}/modules r,
+
 @{PROC}/@{pid}/net/ r,
 @{PROC}/@{pid}/net/** r,
 

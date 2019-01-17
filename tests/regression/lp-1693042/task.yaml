@@ -1,6 +1,8 @@
 summary: Regression check for https://bugs.launchpad.net/snapd/+bug/1693042
+
 details: |
   When attempting to refresh to a bogus channel, detect it and fail.
+
 execute: |
   # shellcheck source=tests/lib/names.sh
   . "$TESTSLIB/names.sh"

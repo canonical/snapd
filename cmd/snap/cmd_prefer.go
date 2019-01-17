@@ -32,7 +32,7 @@ type cmdPrefer struct {
 	} `positional-args:"true"`
 }
 
-var shortPreferHelp = i18n.G("Prefer aliases from a snap and disable conflicts")
+var shortPreferHelp = i18n.G("Enable aliases from a snap, disabling any conflicting aliases")
 var longPreferHelp = i18n.G(`
 The prefer command enables all aliases of the given snap in preference
 to conflicting aliases of other snaps whose aliases will be disabled
@@ -52,12 +52,11 @@ func (x *cmdPrefer) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	cli := Client()
-	id, err := cli.Prefer(string(x.Positionals.Snap))
+	id, err := x.client.Prefer(string(x.Positionals.Snap))
 	if err != nil {
 		return err
 	}
-	chg, err := x.wait(cli, id)
+	chg, err := x.wait(id)
 	if err != nil {
 		if err == noWait {
 			return nil

@@ -72,12 +72,11 @@ network inet raw,
 network inet6 raw,
 
 # iptables (note, we don't want to allow loading modules, but
-# we can allow reading @{PROC}/sys/kernel/modprobe). Also,
-# snappy needs to have iptable_filter and ip6table_filter loaded,
-# they don't autoload.
-unix (bind) type=stream addr="@xtables",
-/{,var/}run/xtables.lock rwk,
+# we can allow reading @{PROC}/sys/kernel/modprobe).
 @{PROC}/sys/kernel/modprobe r,
+
+unix (bind, listen) type=stream addr="@xtables",
+/{,var/}run/xtables.lock rwk,
 
 @{PROC}/@{pid}/net/ r,
 @{PROC}/@{pid}/net/** r,
@@ -103,10 +102,14 @@ unix (bind) type=stream addr="@xtables",
 /sys/module/iptable_filter/initstate  r,
 /sys/module/ip6table_filter/          r,
 /sys/module/ip6table_filter/initstate r,
+/sys/module/nf_*/initstate            r,
 
 # read netfilter module parameters
 /sys/module/nf_*/                     r,
 /sys/module/nf_*/parameters/{,*}      r,
+
+# write netfilter module parameters
+/sys/module/nf_conntrack/parameters/hashsize w,
 
 # various firewall related sysctl files
 @{PROC}/sys/net/bridge/bridge-nf-call-arptables rw,
@@ -126,6 +129,9 @@ unix (bind) type=stream addr="@xtables",
 @{PROC}/sys/net/ipv4/tcp_syncookies w,
 @{PROC}/sys/net/ipv6/conf/*/forwarding w,
 @{PROC}/sys/net/netfilter/nf_conntrack_helper rw,
+@{PROC}/sys/net/netfilter/nf_conntrack_max rw,
+@{PROC}/sys/net/netfilter/nf_conntrack_tcp_timeout_close_wait rw,
+@{PROC}/sys/net/netfilter/nf_conntrack_tcp_timeout_established rw,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/firewall-control
@@ -146,6 +152,7 @@ capset
 setuid
 `
 
+// These don't auto-load via iptables, etc
 var firewallControlConnectedPlugKmod = []string{
 	"arp_tables",
 	"br_netfilter",

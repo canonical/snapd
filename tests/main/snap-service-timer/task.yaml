@@ -2,7 +2,8 @@ summary: Check that snap timer services work
 
 execute: |
     echo "When the service snap is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-timer-service
 
     echo "We can see the timers being active"
@@ -48,4 +49,4 @@ execute: |
     fi
 
     echo "No timer files are left behind"
-    test $(find /etc/systemd/system -name 'snap.test-snapd-timer-service.*.timer' | wc -l) -eq "0"
+    test "$(find /etc/systemd/system -name 'snap.test-snapd-timer-service.*.timer' | wc -l)" -eq "0"

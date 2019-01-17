@@ -1,9 +1,15 @@
 summary: "Check that refresh-modes works"
 
+# takes >1.5min to run
+backends: [-autopkgtest]
+
 kill-timeout: 5m
 
+restore:
+    rm -f ./*.pid || true
+
 debug: |
-    grep -n '' *.pid || true
+    grep -n '' ./*.pid || true
     systemctl status snap.test-snapd-service.test-snapd-endure-service || true
 
 execute: |
@@ -29,7 +35,5 @@ execute: |
 
     echo "Once the snap is removed, the service is stopped"
     snap remove test-snapd-service
+    # shellcheck disable=SC2119
     get_journalctl_log | MATCH "stop endure"
-
-restore:
-    rm -f *.pid || true

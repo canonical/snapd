@@ -53,7 +53,7 @@ capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
 # Create the Wayland socket and lock file
-owner /run/user/[0-9]*/wayland-[0-9]* rw,
+owner /run/user/[0-9]*/wayland-[0-9]* rwk,
 # Allow access to common client Wayland sockets from non-snap clients
 /run/user/[0-9]*/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,
 
@@ -124,8 +124,7 @@ func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 func (iface *waylandInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
-		// TODO parallel-install: use of proper instance/store name
-		new := "snap." + plug.Snap().InstanceName() // forms the snap-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		new := "snap." + plug.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}

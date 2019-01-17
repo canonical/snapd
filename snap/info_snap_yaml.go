@@ -53,12 +53,24 @@ type snapYaml struct {
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
+
+	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
+	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
+}
+
+type typoDetector struct {
+	Hint string
+}
+
+func (td *typoDetector) UnmarshalYAML(func(interface{}) error) error {
+	return fmt.Errorf("typo detected: %s", td.Hint)
 }
 
 type appYaml struct {
 	Aliases []string `yaml:"aliases,omitempty"`
 
-	Command string `yaml:"command"`
+	Command      string   `yaml:"command"`
+	CommandChain []string `yaml:"command-chain,omitempty"`
 
 	Daemon string `yaml:"daemon"`
 
@@ -71,9 +83,10 @@ type appYaml struct {
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 
-	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
-	SlotNames   []string         `yaml:"slots,omitempty"`
-	PlugNames   []string         `yaml:"plugs,omitempty"`
+	RestartCond  RestartCondition `yaml:"restart-condition,omitempty"`
+	RestartDelay timeout.Timeout  `yaml:"restart-delay,omitempty"`
+	SlotNames    []string         `yaml:"slots,omitempty"`
+	PlugNames    []string         `yaml:"plugs,omitempty"`
 
 	BusName  string `yaml:"bus-name,omitempty"`
 	CommonID string `yaml:"common-id,omitempty"`
@@ -91,9 +104,10 @@ type appYaml struct {
 }
 
 type hookYaml struct {
-	PlugNames   []string           `yaml:"plugs,omitempty"`
-	SlotNames   []string           `yaml:"slots,omitempty"`
-	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
+	PlugNames    []string           `yaml:"plugs,omitempty"`
+	SlotNames    []string           `yaml:"slots,omitempty"`
+	Environment  strutil.OrderedMap `yaml:"environment,omitempty"`
+	CommandChain []string           `yaml:"command-chain,omitempty"`
 }
 
 type layoutYaml struct {
@@ -114,6 +128,8 @@ type socketsYaml struct {
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
 func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
+	// Customize hints for the typo detector.
+	y.TypoLayouts.Hint = `use singular "layout" instead of plural "layouts"`
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
@@ -130,16 +146,14 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 
 	// At this point snap.Plugs and snap.Slots only contain globally-declared
-	// plugs and slots. We're about to change that, but we need to remember the
-	// global ones for later, so save their names.
-	globalPlugNames := make([]string, 0, len(snap.Plugs))
-	for plugName := range snap.Plugs {
-		globalPlugNames = append(globalPlugNames, plugName)
+	// plugs and slots, so copy them for later.
+	snap.toplevelPlugs = make([]*PlugInfo, 0, len(snap.Plugs))
+	snap.toplevelSlots = make([]*SlotInfo, 0, len(snap.Slots))
+	for _, plug := range snap.Plugs {
+		snap.toplevelPlugs = append(snap.toplevelPlugs, plug)
 	}
-
-	globalSlotNames := make([]string, 0, len(snap.Slots))
-	for slotName := range snap.Slots {
-		globalSlotNames = append(globalSlotNames, slotName)
+	for _, slot := range snap.Slots {
+		snap.toplevelSlots = append(snap.toplevelSlots, slot)
 	}
 
 	// Collect all apps, their aliases and hooks
@@ -149,10 +163,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	setHooksFromSnapYaml(y, snap)
 
 	// Bind unbound plugs to all apps and hooks
-	bindUnboundPlugs(globalPlugNames, snap)
+	bindUnboundPlugs(snap)
 
 	// Bind unbound slots to all apps and hooks
-	bindUnboundSlots(globalSlotNames, snap)
+	bindUnboundSlots(snap)
 
 	// Collect layout elements.
 	if y.Layout != nil {
@@ -204,6 +218,17 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
+	// TODO: once we have epochs transition to the snapd type for real
+	if y.Name == "snapd" {
+		typ = TypeSnapd
+	}
+
+	if len(y.Epoch.Read) == 0 {
+		// normalize
+		y.Epoch.Read = []uint32{0}
+		y.Epoch.Write = []uint32{0}
+	}
+
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
@@ -294,12 +319,14 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Name:            appName,
 			LegacyAliases:   yApp.Aliases,
 			Command:         yApp.Command,
+			CommandChain:    yApp.CommandChain,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
 			ReloadCommand:   yApp.ReloadCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
+			RestartDelay:    yApp.RestartDelay,
 			BusName:         yApp.BusName,
 			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
@@ -388,9 +415,11 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 
 		// Collect all hooks
 		hook := &HookInfo{
-			Snap:        snap,
-			Name:        hookName,
-			Environment: yHook.Environment,
+			Snap:         snap,
+			Name:         hookName,
+			Environment:  yHook.Environment,
+			CommandChain: yHook.CommandChain,
+			Explicit:     true,
 		}
 		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
 			hook.Plugs = make(map[string]*PlugInfo)
@@ -438,13 +467,8 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 	}
 }
 
-func bindUnboundPlugs(plugNames []string, snap *Info) error {
-	for _, plugName := range plugNames {
-		plug, ok := snap.Plugs[plugName]
-		if !ok {
-			return fmt.Errorf("no plug named %q", plugName)
-		}
-
+func bindUnboundPlugs(snap *Info) {
+	for plugName, plug := range snap.Plugs {
 		// A plug is considered unbound if it isn't being used by any apps
 		// or hooks. In which case we bind them to all apps and hooks.
 		if len(plug.Apps) == 0 && len(plug.Hooks) == 0 {
@@ -459,17 +483,10 @@ func bindUnboundPlugs(plugNames []string, snap *Info) error {
 			}
 		}
 	}
-
-	return nil
 }
 
-func bindUnboundSlots(slotNames []string, snap *Info) error {
-	for _, slotName := range slotNames {
-		slot, ok := snap.Slots[slotName]
-		if !ok {
-			return fmt.Errorf("no slot named %q", slotName)
-		}
-
+func bindUnboundSlots(snap *Info) {
+	for slotName, slot := range snap.Slots {
 		// A slot is considered unbound if it isn't being used by any apps
 		// or hooks. In which case we bind them to all apps and hooks.
 		if len(slot.Apps) == 0 && len(slot.Hooks) == 0 {
@@ -483,8 +500,41 @@ func bindUnboundSlots(slotNames []string, snap *Info) error {
 			}
 		}
 	}
+}
 
-	return nil
+// bindImplicitHooks binds all global plugs and slots to implicit hooks
+func bindImplicitHooks(snap *Info) {
+	for _, plug := range snap.toplevelPlugs {
+		for hookName, hook := range snap.Hooks {
+			if hook.Explicit {
+				continue
+			}
+			if hook.Plugs == nil {
+				hook.Plugs = make(map[string]*PlugInfo)
+			}
+			hook.Plugs[plug.Name] = plug
+			if plug.Hooks == nil {
+				plug.Hooks = make(map[string]*HookInfo)
+			}
+			plug.Hooks[hookName] = hook
+		}
+	}
+
+	for _, slot := range snap.toplevelSlots {
+		for hookName, hook := range snap.Hooks {
+			if hook.Explicit {
+				continue
+			}
+			if hook.Slots == nil {
+				hook.Slots = make(map[string]*SlotInfo)
+			}
+			hook.Slots[slot.Name] = slot
+			if slot.Hooks == nil {
+				slot.Hooks = make(map[string]*HookInfo)
+			}
+			slot.Hooks[hookName] = hook
+		}
+	}
 }
 
 func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, label string, attrs map[string]interface{}, err error) {

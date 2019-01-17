@@ -1,0 +1,17 @@
+name: test-snapd-udisks2
+version: 1.0
+summary: Basic udisks2 snap
+description: A basic snap which allow operating as or interacting with the UDisks2 service
+grade: stable
+confinement: strict
+
+apps:
+  udisksctl:
+    command: udisksctl
+    plugs: [udisks2]
+
+parts:
+    copy:
+        plugin: dump
+        source: .
+        stage-packages: [udisks2]

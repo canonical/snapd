@@ -9,3 +9,4 @@ apps:
     command: bin/read-evdev-device
     plugs:
     - joystick
+    - device-buttons

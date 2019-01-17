@@ -36,8 +36,10 @@ type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 // is asked to stop through its tomb. After can be used to indicate
 // how much to postpone the retry, 0 (the default) means at the next
 // ensure pass and is what should be used if stopped through its tomb.
+// Reason is an optional explanation of the conflict.
 type Retry struct {
-	After time.Duration
+	After  time.Duration
+	Reason string
 }
 
 func (r *Retry) Error() string {

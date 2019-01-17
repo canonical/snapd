@@ -1,6 +1,6 @@
 summary: Ensure the xdg-open still works in compatibility mode
 
-description: |
+details: |
     The core snap has a xdg-open binary that sends both to the
     new io.snapcraft.Launcher and the old com.canonical.SafeLauncher
     dbus session bus. This test ensures the compatibility with
@@ -16,16 +16,20 @@ environment:
     XDG_OPEN_OUTPUT: /tmp/xdg-open-output
 
 restore: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     rm -f /usr/bin/xdg-open
-    rm -f $XDG_OPEN_OUTPUT
+    rm -f "$XDG_OPEN_OUTPUT"
     dpkg -r snapd-xdg-open
     rm -f /usr/share/applications/defaults.list
     rm -f /usr/share/applications/xdg-open.desktop
 
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     # download from LP, it is not available in the archive anymore
@@ -52,6 +56,7 @@ execute: |
     EOF
     
     echo "Launch user dbus session"
+    #shellcheck disable=SC2046
     export $(dbus-launch)
 
     echo "Ensure snapd-xdg-open is available"
@@ -76,18 +81,18 @@ execute: |
     chmod +x /usr/bin/xdg-open
 
     ensure_xdg_open_output() {
-        rm -f $XDG_OPEN_OUTPUT
+        rm -f "$XDG_OPEN_OUTPUT"
         export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
         $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open "$1"
         # xdg-open is async so we need to give it a little bit of time
-        for i in $(seq 10); do
-            if [ -e $XDG_OPEN_OUTPUT ]; then
+        for _ in $(seq 10); do
+            if [ -e "$XDG_OPEN_OUTPUT" ]; then
                 break
             fi
             sleep .5
         done
-        test -e $XDG_OPEN_OUTPUT
-        test "$(cat $XDG_OPEN_OUTPUT)" = "$1"
+        test -e "$XDG_OPEN_OUTPUT"
+        test "$(cat "$XDG_OPEN_OUTPUT")" = "$1"
     }
 
     # Ensure http, https and mailto work
@@ -96,8 +101,8 @@ execute: |
     ensure_xdg_open_output "mailto:talk@snapcraft.io"
 
     # Ensure other schemes are not passed through
-    rm $XDG_OPEN_OUTPUT
+    rm "$XDG_OPEN_OUTPUT"
     ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open ftp://snapcraft.io
-    test ! -e $XDG_OPEN_OUTPUT
+    test ! -e "$XDG_OPEN_OUTPUT"
     ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
-    test ! -e $XDG_OPEN_OUTPUT
+    test ! -e "$XDG_OPEN_OUTPUT"

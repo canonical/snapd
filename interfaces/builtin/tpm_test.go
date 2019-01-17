@@ -84,7 +84,7 @@ func (s *TpmInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/tpm0")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/tpm[0-9]*")
 }
 
 func (s *TpmInterfaceSuite) TestUDevSpec(c *C) {

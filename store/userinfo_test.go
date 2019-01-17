@@ -17,7 +17,7 @@
  *
  */
 
-package store
+package store_test
 
 import (
 	"fmt"
@@ -30,12 +30,14 @@ import (
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type userInfoSuite struct {
 	testutil.BaseTest
 
+	store         *store.Store
 	restoreLogger func()
 }
 
@@ -53,10 +55,18 @@ var mockServerJSON = `{
     "openid_identifier": "xDPXBdB"
 }`
 
-func (t *userInfoSuite) SetUpTest(c *check.C) {
-	_, t.restoreLogger = logger.MockLogger()
+var mockServerNoSSHJSON = `{
+    "username": "mvo",
+    "openid_identifier": "xDPXBdB"
+}`
 
-	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
+func (t *userInfoSuite) SetUpTest(c *check.C) {
+	t.BaseTest.SetUpTest(c)
+
+	_, t.restoreLogger = logger.MockLogger()
+	t.store = store.New(nil, nil)
+
+	store.MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,
 			Factor:  1.1,
@@ -65,6 +75,8 @@ func (t *userInfoSuite) SetUpTest(c *check.C) {
 }
 
 func (t *userInfoSuite) TearDownTest(c *check.C) {
+	t.BaseTest.TearDownTest(c)
+
 	t.restoreLogger()
 }
 
@@ -73,6 +85,31 @@ func (s *userInfoSuite) redirectToTestSSO(handler func(http.ResponseWriter, *htt
 	s.BaseTest.AddCleanup(func() { server.Close() })
 	os.Setenv("SNAPPY_FORCE_SSO_URL", server.URL+"/api/v2")
 	s.BaseTest.AddCleanup(func() { os.Unsetenv("SNAPPY_FORCE_SSO_URL") })
+}
+
+func (s *userInfoSuite) TestCreateUserNoSSHKeys(c *check.C) {
+	n := 0
+	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0, 1:
+			w.WriteHeader(500) // force retry of the request
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/api/v2/keys/popper@lse.ac.uk")
+			fmt.Fprintln(w, mockServerNoSSHJSON)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	info, err := s.store.UserInfo("popper@lse.ac.uk")
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 3) // number of requests after retries
+	c.Check(info.Username, check.Equals, "mvo")
+	c.Check(info.OpenIDIdentifier, check.Equals, "xDPXBdB")
+	c.Check(info.SSHKeys, check.HasLen, 0)
 }
 
 func (s *userInfoSuite) TestCreateUser(c *check.C) {
@@ -92,7 +129,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 		n++
 	})
 
-	info, err := UserInfo("popper@lse.ac.uk")
+	info, err := s.store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 3) // number of requests after retries
 	c.Check(info.Username, check.Equals, "mvo")
@@ -108,7 +145,7 @@ func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 		n++
 	})
 
-	_, err := UserInfo("popper@lse.ac.uk")
+	_, err := s.store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `cannot look up user.*?got unexpected HTTP status code 500.*`)
 	c.Assert(n, check.Equals, 6)

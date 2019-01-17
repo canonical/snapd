@@ -24,14 +24,14 @@ var (
 	CoreSupportsReExec   = coreSupportsReExec
 )
 
-func MockCorePaths(newOldCore, newNewCore string) func() {
-	oldOldCore := oldCore
-	oldNewCore := newCore
-	newCore = newNewCore
-	oldCore = newOldCore
+func MockCoreSnapdPaths(newCoreSnap, newSnapdSnap string) func() {
+	oldOldCore := coreSnap
+	oldNewCore := snapdSnap
+	snapdSnap = newSnapdSnap
+	coreSnap = newCoreSnap
 	return func() {
-		newCore = oldNewCore
-		oldCore = oldOldCore
+		snapdSnap = oldNewCore
+		coreSnap = oldOldCore
 	}
 }
 

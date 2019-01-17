@@ -28,7 +28,7 @@ import (
 )
 
 func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"delete-key"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "the required argument `<key-name>` was not provided")
 	c.Check(s.Stdout(), Equals, "")
@@ -36,7 +36,7 @@ func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
 }
 
 func (s *SnapKeysSuite) TestDeleteKeyNonexistent(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"delete-key", "nonexistent"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "nonexistent"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot find key named \"nonexistent\" in GPG keyring")
 	c.Check(s.Stdout(), Equals, "")
@@ -44,12 +44,12 @@ func (s *SnapKeysSuite) TestDeleteKeyNonexistent(c *C) {
 }
 
 func (s *SnapKeysSuite) TestDeleteKey(c *C) {
-	rest, err := snap.Parser().ParseArgs([]string{"delete-key", "another"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "another"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
-	_, err = snap.Parser().ParseArgs([]string{"keys", "--json"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"keys", "--json"})
 	c.Assert(err, IsNil)
 	expectedResponse := []snap.Key{
 		{

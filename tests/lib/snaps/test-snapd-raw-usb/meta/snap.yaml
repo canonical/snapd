@@ -1,9 +1,0 @@
-name: test-snapd-raw-usb
-version: 1.0
-summary: Basic raw-usb snap
-description: A basic snap which access to raw usb
-
-apps:
-  sh:
-    command: bin/sh
-    plugs: [raw-usb]

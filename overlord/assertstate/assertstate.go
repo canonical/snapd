@@ -138,6 +138,11 @@ func findError(format string, ref *asserts.Ref, err error) error {
 
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
 func RefreshSnapDeclarations(s *state.State, userID int) error {
+	modelAs, err := snapstate.ModelPastSeeding(s)
+	if err != nil {
+		return err
+	}
+
 	snapStates, err := snapstate.All(s)
 	if err != nil {
 		return nil
@@ -155,6 +160,15 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)
 			}
 		}
+
+		// fetch store assertion if available
+		if modelAs.Store() != "" {
+			err := snapasserts.FetchStore(f, modelAs.Store())
+			if err != nil && !asserts.IsNotFound(err) {
+				return err
+			}
+		}
+
 		return nil
 	}
 	return doFetch(s, userID, fetching)
@@ -175,12 +189,11 @@ func (e *refreshControlError) Error() string {
 	return fmt.Sprintf("refresh control errors:%s", strings.Join(l, "\n - "))
 }
 
-// ValidateRefreshes validates the refresh candidate revisions
-// represented by the snapInfos, looking for the needed refresh
-// control validation assertions, it returns a validated subset in
-// validated and a summary error if not all candidates
-// validated. ignoreValidation is a set of snap-ids that should not be
-// gated.
+// ValidateRefreshes validates the refresh candidate revisions represented by
+// the snapInfos, looking for the needed refresh control validation assertions,
+// it returns a validated subset in validated and a summary error if not all
+// candidates validated. ignoreValidation is a set of snap-instance-names that
+// should not be gated.
 func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
@@ -192,7 +205,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 	if err != nil {
 		return nil, err
 	}
-	for snapName, snapst := range snapStates {
+	for instanceName, snapst := range snapStates {
 		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
@@ -201,12 +214,15 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			continue
 		}
 		gatingID := info.SnapID
+		if gatingNames[gatingID] != "" {
+			continue
+		}
 		a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
 			"series":  release.Series,
 			"snap-id": gatingID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", snapName, err)
+			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q: %v", instanceName, err)
 		}
 		decl := a.(*asserts.SnapDeclaration)
 		control := decl.RefreshControl()
@@ -215,14 +231,16 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 		}
 		gatingNames[gatingID] = decl.SnapName()
 		for _, gatedID := range control {
-			if !ignoreValidation[gatedID] {
-				controlled[gatedID] = append(controlled[gatedID], gatingID)
-			}
+			controlled[gatedID] = append(controlled[gatedID], gatingID)
 		}
 	}
 
 	var errs []error
 	for _, candInfo := range snapInfos {
+		if ignoreValidation[candInfo.InstanceName()] {
+			validated = append(validated, candInfo)
+			continue
+		}
 		gatedID := candInfo.SnapID
 		gating := controlled[gatedID]
 		if len(gating) == 0 { // easy case, no refresh control

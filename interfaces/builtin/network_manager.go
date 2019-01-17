@@ -79,6 +79,7 @@ network packet,
 /sys/devices/**/**/net/**/dev_id r,
 /sys/devices/virtual/net/**/phys_port_id r,
 /sys/devices/virtual/net/**/dev_id r,
+/sys/devices/**/net/**/ifindex r,
 
 /dev/rfkill rw,
 
@@ -110,6 +111,8 @@ network packet,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
 /lib/resolvconf/* ix,
+# NM peeks into ifupdown configuration
+/run/network/ifstate* r,
 # Required by resolvconf
 /bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,
@@ -197,6 +200,13 @@ dbus (receive, send)
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}",
+
 dbus(receive, send)
     bus=system
     path=/org/freedesktop/hostname1
@@ -205,12 +215,12 @@ dbus(receive, send)
     peer=(label=unconfined),
 
 # Sleep monitor inside NetworkManager needs this
+# do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
     path=/org/freedesktop/login1
     member=Inhibit
-    interface=org.freedesktop.login1.Manager
-    peer=(label=unconfined),
+    interface=org.freedesktop.login1.Manager,
 dbus (receive)
     bus=system
     path=/org/freedesktop/login1

@@ -12,5 +12,6 @@ restore: |
 execute: |
     echo "Installing snapscraft"
     apt install -y snapcraft
-    cd $PROJECT_PATH
+    # shellcheck disable=SC2164
+    cd "$PROJECT_PATH"
     snapcraft

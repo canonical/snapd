@@ -24,16 +24,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/snapcore/snapd/httputil"
-)
-
-var (
-	httpClient = httputil.NewHTTPClient(&httputil.ClientOpts{
-		Timeout:    10 * time.Second,
-		MayLogBody: true,
-	})
 )
 
 type keysReply struct {
@@ -48,12 +40,12 @@ type User struct {
 	OpenIDIdentifier string
 }
 
-func UserInfo(email string) (userinfo *User, err error) {
+func (s *Store) UserInfo(email string) (userinfo *User, err error) {
 	var v keysReply
 	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
 
 	resp, err := httputil.RetryRequest(ssourl, func() (*http.Response, error) {
-		return httpClient.Get(ssourl)
+		return s.client.Get(ssourl)
 	}, func(resp *http.Response) error {
 		if resp.StatusCode != 200 {
 			// we recheck the status

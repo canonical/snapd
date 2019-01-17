@@ -57,10 +57,10 @@ func (s *NetworkObserveInterfaceSuite) SetUpTest(c *C) {
 		Name:      "network-observe",
 		Interface: "network-observe",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, netobsMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["network-observe"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *NetworkObserveInterfaceSuite) TestName(c *C) {

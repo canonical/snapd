@@ -61,10 +61,10 @@ apps:
 
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["mpris"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	snapInfo = snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	s.slotInfo = snapInfo.Slots["mpris"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *MprisInterfaceSuite) TestName(c *C) {
@@ -97,7 +97,7 @@ slots:
 	slot := info.Slots["mpris-slot"]
 	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, IsNil)
-	c.Assert(name, Equals, "@{SNAP_NAME}")
+	c.Assert(name, Equals, "@{SNAP_INSTANCE_NAME}")
 }
 func (s *MprisInterfaceSuite) TestGetNameBadDot(c *C) {
 	const mockSnapYaml = `name: mpris-client
@@ -160,7 +160,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -182,7 +182,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -202,7 +202,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
@@ -223,7 +223,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -245,7 +245,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -265,7 +265,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 		Name:      "mpris",
 		Interface: "mpris",
 		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil)
+	}, nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
@@ -281,7 +281,7 @@ func (s *MprisInterfaceSuite) TestPermanentSlotAppArmor(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
 
 	// verify bind rule
-	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}\",\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_INSTANCE_NAME}{,.*}\",\n")
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorWithName(c *C) {

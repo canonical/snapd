@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 func init() {
@@ -34,11 +35,11 @@ func init() {
 	supportedConfigurations["core.network.disable-ipv6"] = true
 }
 
-func validateNetworkSettings(tr Conf) error {
+func validateNetworkSettings(tr config.Conf) error {
 	return validateBoolFlag(tr, "network.disable-ipv6")
 }
 
-func handleNetworkConfiguration(tr Conf) error {
+func handleNetworkConfiguration(tr config.Conf) error {
 	dir := filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d")
 	name := "10-snapd-network.conf"
 	content := bytes.NewBuffer(nil)

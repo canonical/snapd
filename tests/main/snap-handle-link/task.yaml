@@ -1,0 +1,44 @@
+summary: Ensure the "snap handle-link" command works
+
+# We don't run on ubuntu-core, since we are testing the behaviour of
+# xdg-open on the host system.
+systems: [-ubuntu-core-*]
+
+# xdg-open doesn't seem to check desktop files if it doesn't think it
+# has a display.
+environment:
+    DISPLAY: :placeholder
+
+prepare: |
+    touch /usr/bin/zenity
+
+restore: |
+    umount -f /usr/bin/zenity || :
+
+execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    echo "URI Handler fails if snap-store is not installed and user refuses to install it"
+    mount --bind /bin/false /usr/bin/zenity
+    if snap handle-link snap://package 2>errors.log; then
+        cat errors.log >&2
+        echo "Expected URI handler to fail"
+        exit 1
+    fi
+    MATCH "Snap Store required" < errors.log
+
+    echo "Now with snap-store installed"
+    install_local snap-store
+    snap handle-link snap://package | MATCH "Fake snap got snap://package"
+
+    if [[ "$SPREAD_SYSTEM" != ubuntu-1[46].04-* ]]; then
+        # Ubuntu 14.04 ships with an ancient xdg-open shell script
+        # that doesn't look up scheme handlers.  Other xdg-mime
+        # implementations on the system (e.g. GLib) should be fine
+        # though.
+        echo "The same should work with xdg-open"
+        xdg-open snap://package | MATCH "Fake snap got snap://package"
+    fi

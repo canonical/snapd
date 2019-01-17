@@ -47,12 +47,19 @@ check_journalctl_log(){
 }
 
 get_journalctl_log(){
-    cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
+    cursor=""
+    if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
+        cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
+    fi
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
 get_journalctl_log_from_cursor(){
     cursor=$1
     shift
-    journalctl "$@" --cursor "$cursor"
+    if [ -z "$cursor" ]; then
+        journalctl "$@"
+    else
+        journalctl "$@" --cursor "$cursor"
+    fi
 }

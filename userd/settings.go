@@ -208,7 +208,7 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 		i18n.G("Allow settings change?"),
 		fmt.Sprintf(i18n.G("Allow snap %q to change %q to %q ?"), snap, setting, new),
 		&ui.DialogOptions{
-			Timeout: 5 * 60 * time.Second,
+			Timeout: defaultConfirmDialogTimeout,
 			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
 		},
 	)

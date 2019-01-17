@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -108,7 +109,7 @@ func switchDisableService(serviceName, value string) error {
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(tr Conf) error {
+func handleServiceDisableConfiguration(tr config.Conf) error {
 	for _, service := range services {
 		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service.configName))
 		if err != nil {

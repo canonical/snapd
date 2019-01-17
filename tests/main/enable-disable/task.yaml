@@ -1,13 +1,15 @@
 summary: Check that enable/disable works
 
-execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
+prepare: |
     echo "Install test-snapd-tools and ensure it runs"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
-    test-snapd-tools.echo Hello|MATCH Hello
+    test-snapd-tools.echo Hello | MATCH Hello
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     echo "Disable test-snapd-tools and ensure it is listed as disabled"
     snap disable test-snapd-tools|MATCH disabled
 

@@ -28,15 +28,12 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -46,7 +43,7 @@ func snapIcon(info *snap.Info) string {
 	// XXX: copy of snap.Snap.Icon which will go away
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return info.IconURL
+		return info.Media.IconURL()
 	}
 
 	return found[0]
@@ -128,9 +125,17 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
-				info, err = snap.ReadInfo(seq.RealName, seq)
+				info, err = snap.ReadInfo(name, seq)
 				if err != nil {
-					break
+					// single revision may be broken
+					_, instanceKey := snap.SplitInstanceName(name)
+					info = &snap.Info{
+						SideInfo:    *seq,
+						InstanceKey: instanceKey,
+						Broken:      err.Error(),
+					}
+					// clear the error
+					err = nil
 				}
 				publisher, err = publisherAccount(st, info)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
@@ -269,39 +274,6 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	return appInfos, nil
 }
 
-func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
-	// TODO: pass in an actual notifier here instead of null
-	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
-
-	out := make([]client.AppInfo, len(apps))
-	for i, app := range apps {
-		out[i] = client.AppInfo{
-			Snap:     app.Snap.InstanceName(),
-			Name:     app.Name,
-			CommonID: app.CommonID,
-		}
-		if fn := app.DesktopFile(); osutil.FileExists(fn) {
-			out[i].DesktopFile = fn
-		}
-
-		out[i].Daemon = app.Daemon
-		if app.IsService() && app.Snap.IsActive() {
-			// TODO: look into making a single call to Status for all services
-			if sts, err := sysd.Status(app.ServiceName()); err != nil {
-				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
-			} else if len(sts) != 1 {
-				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
-			} else {
-				out[i].Enabled = sts[0].Enabled
-				out[i].Active = sts[0].Active
-			}
-		}
-	}
-
-	return out
-}
-
 func mapLocal(about aboutSnap) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
 	status := "installed"
@@ -315,7 +287,10 @@ func mapLocal(about aboutSnap) *client.Snap {
 	}
 	sort.Sort(bySnapApp(snapapps))
 
-	apps := clientAppInfosFromSnapAppInfos(snapapps)
+	apps, err := cmd.ClientAppInfosFromSnapAppInfos(snapapps)
+	if err != nil {
+		logger.Noticef("cannot get full app info: %v", err)
+	}
 
 	// TODO: expose aliases information and state?
 
@@ -377,15 +352,6 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		confinement = snap.StrictConfinement
 	}
 
-	screenshots := make([]client.Screenshot, len(remoteSnap.Screenshots))
-	for i, screenshot := range remoteSnap.Screenshots {
-		screenshots[i] = client.Screenshot{
-			URL:    screenshot.URL,
-			Width:  screenshot.Width,
-			Height: screenshot.Height,
-		}
-	}
-
 	publisher := remoteSnap.Publisher
 	result := &client.Snap{
 		Description:  remoteSnap.Description(),
@@ -407,7 +373,8 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Contact:      remoteSnap.Contact,
 		Title:        remoteSnap.Title(),
 		License:      remoteSnap.License,
-		Screenshots:  screenshots,
+		Screenshots:  remoteSnap.Media.Screenshots(),
+		Media:        remoteSnap.Media,
 		Prices:       remoteSnap.Prices,
 		Channels:     remoteSnap.Channels,
 		Tracks:       remoteSnap.Tracks,

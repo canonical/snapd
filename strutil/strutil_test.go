@@ -137,3 +137,88 @@ func (ts *strutilSuite) TestTruncateOutput(c *check.C) {
 	out = strutil.TruncateOutput(data, 0, 0)
 	c.Assert(out, check.HasLen, 0)
 }
+
+func (ts *strutilSuite) TestParseByteSizeHappy(c *check.C) {
+	for _, t := range []struct {
+		str      string
+		expected int64
+	}{
+		{"0B", 0},
+		{"1B", 1},
+		{"400B", 400},
+		{"1kB", 1000},
+		// note the upper-case
+		{"1KB", 1000},
+		{"900kB", 900 * 1000},
+		{"1MB", 1000 * 1000},
+		{"20MB", 20 * 1000 * 1000},
+		{"1GB", 1000 * 1000 * 1000},
+		{"31GB", 31 * 1000 * 1000 * 1000},
+		{"4TB", 4 * 1000 * 1000 * 1000 * 1000},
+		{"6PB", 6 * 1000 * 1000 * 1000 * 1000 * 1000},
+		{"8EB", 8 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
+	} {
+		val, err := strutil.ParseByteSize(t.str)
+		c.Check(err, check.IsNil)
+		c.Check(val, check.Equals, t.expected, check.Commentf("incorrect result for input %q", t.str))
+	}
+}
+
+func (ts *strutilSuite) TestParseByteSizeUnhappy(c *check.C) {
+	for _, t := range []struct {
+		str    string
+		errStr string
+	}{
+		{"", `cannot parse "": need a number with a unit as input`},
+		{"1", `cannot parse "1": need a number with a unit as input`},
+		{"11", `cannot parse "11": need a number with a unit as input`},
+		{"400x", `cannot parse "400x": try 'kB' or 'MB'`},
+		{"400xx", `cannot parse "400xx": try 'kB' or 'MB'`},
+		{"1k", `cannot parse "1k": try 'kB' or 'MB'`},
+		{"200KiB", `cannot parse "200KiB": try 'kB' or 'MB'`},
+	} {
+		_, err := strutil.ParseByteSize(t.str)
+		c.Check(err, check.ErrorMatches, t.errStr, check.Commentf("incorrect error for %q", t.str))
+	}
+}
+
+func (strutilSuite) TestCommaSeparatedList(c *check.C) {
+	table := []struct {
+		in  string
+		out []string
+	}{
+		{"", []string{}},
+		{",", []string{}},
+		{"foo,bar", []string{"foo", "bar"}},
+		{"foo , bar", []string{"foo", "bar"}},
+		{"foo ,, bar", []string{"foo", "bar"}},
+		{" foo ,, bar,baz", []string{"foo", "bar", "baz"}},
+		{" foo bar ,,,baz", []string{"foo bar", "baz"}},
+	}
+
+	for _, test := range table {
+		c.Check(strutil.CommaSeparatedList(test.in), check.DeepEquals, test.out, check.Commentf("%q", test.in))
+	}
+}
+
+func (strutilSuite) TestElliptRight(c *check.C) {
+	type T struct {
+		in  string
+		n   int
+		out string
+	}
+	for _, t := range []T{
+		{"", 10, ""},
+		{"", -1, ""},
+		{"hello", 10, "hello"},
+		{"hello", 5, "hello"},
+		{"hello", 3, "he…"},
+		{"hello", 0, "…"},
+		{"héllo", 4, "hé…"},
+		{"héllo", 3, "he…"},
+		{"he🐧lo", 4, "he🐧…"},
+		{"he🐧lo", 3, "he…"},
+	} {
+		c.Check(strutil.ElliptRight(t.in, t.n), check.Equals, t.out, check.Commentf("%q[:%d] -> %q", t.in, t.n, t.out))
+	}
+}

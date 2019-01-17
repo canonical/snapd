@@ -1,5 +1,7 @@
 summary: Ensure we have unpacked kernel.img/initrd.img on uboot systems
+
 systems: [ubuntu-core-16-arm-*]
+
 environment:
     NAME/initrdimg: initrd.img*
     NAME/kernelimg: kernel.img*

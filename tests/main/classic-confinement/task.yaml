@@ -13,12 +13,21 @@ prepare: |
     . "$TESTSLIB"/dirs.sh
     snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
 
-    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
-        # although classic snaps do not work out of the box on fedora,
-        # we still want to verify if the basics do work if the user
-        # symlinks /snap to $SNAP_MOUNT_DIR themselves
-        ln -sf $SNAP_MOUNT_DIR /snap
-    fi
+    case "$SPREAD_SYSTEM" in
+        fedora-*|arch-*|centos-*)
+            # although classic snaps do not work out of the box on fedora,
+            # we still want to verify if the basics do work if the user
+            # symlinks /snap to $SNAP_MOUNT_DIR themselves
+            ln -sf $SNAP_MOUNT_DIR /snap
+            ;;
+    esac
+
+restore: |
+    case "$SPREAD_SYSTEM" in
+        fedora-*|arch-*|centos-*)
+            rm -f /snap
+            ;;
+    esac
 
 execute: |
     echo "Check that classic snaps work only with --classic"
@@ -50,7 +59,7 @@ execute: |
     snap info "$CLASSIC_SNAP"|MATCH "installed:.* 2.0 .*classic"
     "$CLASSIC_SNAP" | MATCH lala
 
-restore: |
-    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
-        rm -f /snap
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        echo "Verify we get 'change_profile unsafe' for classic confinement"
+        MATCH "change_profile unsafe" < /var/lib/snapd/apparmor/profiles/snap.test-snapd-classic-confinement.test-snapd-classic-confinement
     fi

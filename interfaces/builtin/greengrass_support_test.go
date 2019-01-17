@@ -57,10 +57,10 @@ func (s *GreengrassSupportInterfaceSuite) SetUpTest(c *C) {
 		Name:      "greengrass-support",
 		Interface: "greengrass-support",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, ggMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["greengrass-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestName(c *C) {
@@ -92,7 +92,7 @@ func (s *GreengrassSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount fstype=overlay no_source -> /var/snap/@{SNAP_NAME}/**,\n")
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount fstype=overlay no_source -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**,\n")
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestInterfaces(c *C) {

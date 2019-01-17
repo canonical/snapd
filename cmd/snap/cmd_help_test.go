@@ -20,8 +20,13 @@
 package main_test
 
 import (
+	"bytes"
+	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
+	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -32,43 +37,140 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 	defer func() { os.Args = origArgs }()
 
 	for _, cmdLine := range [][]string{
+		{"snap"},
 		{"snap", "help"},
 		{"snap", "--help"},
 		{"snap", "-h"},
 	} {
+		s.ResetStdStreams()
+
 		os.Args = cmdLine
+		comment := check.Commentf("%q", cmdLine)
 
 		err := snap.RunMain()
-		c.Assert(err, check.IsNil)
-		c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
- +snap <command>
-
-Install, configure, refresh and remove snap packages. Snaps are
-'universal' packages that work across many different Linux systems,
-enabling secure distribution of the latest apps and utilities for
-cloud, servers, desktops and the internet of things.
-
-This is the CLI for snapd, a background service that takes care of
-snaps on the system. Start with 'snap list' to see installed snaps.
-
-Available commands:
- +abort.*
-`)
-		c.Check(s.Stderr(), check.Equals, "")
+		c.Assert(err, check.IsNil, comment)
+		c.Check(s.Stdout(), check.Matches, "(?s)"+strings.Join([]string{
+			snap.LongSnapDescription,
+			"",
+			regexp.QuoteMeta(snap.SnapUsage),
+			"", ".*", "",
+			snap.SnapHelpAllFooter,
+			snap.SnapHelpFooter,
+		}, "\n")+`\s*`, comment)
+		c.Check(s.Stderr(), check.Equals, "", comment)
 	}
+}
+
+func (s *SnapSuite) TestHelpAllPrintsLongHelp(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	os.Args = []string{"snap", "help", "--all"}
+
+	err := snap.RunMain()
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, "(?sm)"+strings.Join([]string{
+		snap.LongSnapDescription,
+		"",
+		regexp.QuoteMeta(snap.SnapUsage),
+		"",
+		snap.SnapHelpCategoriesIntro,
+		"", ".*", "",
+		snap.SnapHelpAllFooter,
+	}, "\n")+`\s*`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func nonHiddenCommands() map[string]bool {
+	parser := snap.Parser(snap.Client())
+	commands := parser.Commands()
+	names := make(map[string]bool, len(commands))
+	for _, cmd := range commands {
+		if cmd.Hidden {
+			continue
+		}
+		names[cmd.Name] = true
+	}
+	return names
+}
+
+func (s *SnapSuite) testSubCommandHelp(c *check.C, sub, expected string) {
+	parser := snap.Parser(snap.Client())
+	rest, err := parser.ParseArgs([]string{sub, "--help"})
+	c.Assert(err, check.DeepEquals, &flags.Error{Type: flags.ErrHelp})
+	c.Assert(rest, check.HasLen, 0)
+	var buf bytes.Buffer
+	parser.WriteHelp(&buf)
+	c.Check(buf.String(), check.Equals, expected)
 }
 
 func (s *SnapSuite) TestSubCommandHelpPrintsHelp(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 
-	os.Args = []string{"snap", "install", "--help"}
+	for cmd := range nonHiddenCommands() {
+		s.ResetStdStreams()
+		os.Args = []string{"snap", cmd, "--help"}
+
+		err := snap.RunMain()
+		comment := check.Commentf("%q", cmd)
+		c.Assert(err, check.IsNil, comment)
+		// regexp matches "Usage: snap <the command>" plus an arbitrary
+		// number of [<something>] plus an arbitrary number of
+		// <<something>> optionally ending in ellipsis
+		c.Check(s.Stdout(), check.Matches, fmt.Sprintf(`(?sm)Usage:\s+snap %s(?: \[[^][]+\])*(?:(?: <[^<>]+>)+(?:\.\.\.)?)?$.*`, cmd), comment)
+		c.Check(s.Stderr(), check.Equals, "", comment)
+	}
+}
+
+func (s *SnapSuite) TestHelpCategories(c *check.C) {
+	// non-hidden commands that are not expected to appear in the help summary
+	excluded := []string{
+		"help",
+	}
+	all := nonHiddenCommands()
+	categorised := make(map[string]bool, len(all)+len(excluded))
+	for _, cmd := range excluded {
+		categorised[cmd] = true
+	}
+	seen := make(map[string]string, len(all))
+	for _, categ := range snap.HelpCategories {
+		for _, cmd := range categ.Commands {
+			categorised[cmd] = true
+			if seen[cmd] != "" {
+				c.Errorf("duplicated: %q in %q and %q", cmd, seen[cmd], categ.Label)
+			}
+			seen[cmd] = categ.Label
+		}
+	}
+	for cmd := range all {
+		if !categorised[cmd] {
+			c.Errorf("uncategorised: %q", cmd)
+		}
+	}
+	for cmd := range categorised {
+		if !all[cmd] {
+			c.Errorf("unknown (hidden?): %q", cmd)
+		}
+	}
+}
+
+func (s *SnapSuite) TestHelpCommandAllFails(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap", "help", "interfaces", "--all"}
+
+	err := snap.RunMain()
+	c.Assert(err, check.ErrorMatches, "help accepts a command, or '--all', but not both.")
+}
+
+func (s *SnapSuite) TestManpageInSection8(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap", "help", "--man"}
 
 	err := snap.RunMain()
 	c.Assert(err, check.IsNil)
-	c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
- +snap install \[install-OPTIONS\] <snap>...
-.*
-`)
-	c.Check(s.Stderr(), check.Equals, "")
+
+	c.Check(s.Stdout(), check.Matches, `\.TH snap 8 (?s).*`)
 }

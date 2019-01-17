@@ -216,6 +216,8 @@ const (
 	SecuritySystemd SecuritySystem = "systemd"
 )
 
+var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString
+
 // ValidateDBusBusName checks if a string conforms to
 // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
 func ValidateDBusBusName(busName string) error {
@@ -225,8 +227,7 @@ func ValidateDBusBusName(busName string) error {
 		return fmt.Errorf("DBus bus name is too long (must be <= 255)")
 	}
 
-	validBusName := regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*(\\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$")
-	if !validBusName.MatchString(busName) {
+	if !isValidBusName(busName) {
 		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil

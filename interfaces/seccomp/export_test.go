@@ -61,14 +61,6 @@ func MockUbuntuKernelArchitecture(f func() string) (restore func()) {
 	}
 }
 
-func MockKernelVersion(f func() string) (restore func()) {
-	old := kernelVersion
-	kernelVersion = f
-	return func() {
-		kernelVersion = old
-	}
-}
-
 func MockReleaseInfoId(s string) (restore func()) {
 	old := releaseInfoId
 	releaseInfoId = s

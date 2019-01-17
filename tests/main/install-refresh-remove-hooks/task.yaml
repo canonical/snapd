@@ -1,7 +1,10 @@
 summary: Check install, remove and pre-refresh/post-refresh hooks.
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 environment:
-    REMOVE_HOOK_FILE: "$HOME/remove-hook-executed"
+    REMOVE_HOOK_FILE: "$HOME/snap/snap-hooks/common/remove-hook-executed"
 
 restore: |
     rm -f "$REMOVE_HOOK_FILE"

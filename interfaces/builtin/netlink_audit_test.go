@@ -57,10 +57,10 @@ func (s *NetlinkAuditInterfaceSuite) SetUpTest(c *C) {
 		Name:      "netlink-audit",
 		Interface: "netlink-audit",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, netlinkAuditMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["netlink-audit"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestName(c *C) {

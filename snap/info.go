@@ -38,8 +38,12 @@ import (
 
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {
-	// InstanceName returns the name of the snap.
+	// InstanceName returns the name of the snap decorated with instance
+	// key, if any.
 	InstanceName() string
+
+	// SnapName returns the name of the snap.
+	SnapName() string
 
 	// MountDir returns the base directory of the snap.
 	MountDir() string
@@ -81,9 +85,14 @@ func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
+// BaseDir returns the system level directory of given snap.
+func BaseDir(name string) string {
+	return filepath.Join(dirs.SnapMountDir, name)
+}
+
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapMountDir, name, revision.String())
+	return filepath.Join(BaseDir(name), revision.String())
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
@@ -117,10 +126,15 @@ func NoneSecurityTag(snapName, uniqueName string) string {
 	return ScopedSecurityTag(snapName, "none", uniqueName)
 }
 
-// DataDir returns the data directory for given snap name. The name can be
+// BaseDataDir returns the base directory for snap data locations.
+func BaseDataDir(name string) string {
+	return filepath.Join(dirs.SnapDataDir, name)
+}
+
+// DataDir returns the data directory for given snap name and revision. The name can be
 // either a snap name or snap instance name.
 func DataDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapDataDir, name, revision.String())
+	return filepath.Join(BaseDataDir(name), revision.String())
 }
 
 // CommonDataDir returns the common data directory for given snap name. The name
@@ -145,6 +159,12 @@ func UserDataDir(home string, name string, revision Revision) string {
 // snap name. The name can be either a snap name or snap instance name.
 func UserCommonDataDir(home string, name string) string {
 	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
+}
+
+// UserSnapDir returns the user-specific directory for given
+// snap name. The name can be either a snap name or snap instance name.
+func UserSnapDir(home string, name string) string {
+	return filepath.Join(home, dirs.UserHomeSnapDir, name)
 }
 
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
@@ -205,6 +225,9 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	toplevelPlugs []*PlugInfo
+	toplevelSlots []*SlotInfo
+
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -217,13 +240,12 @@ type Info struct {
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
 
-	IconURL string
 	Prices  map[string]float64
 	MustBuy bool
 
 	Publisher StoreAccount
 
-	Screenshots []ScreenshotInfo
+	Media MediaInfos
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -297,6 +319,7 @@ type ChannelSnapInfo struct {
 	Channel     string          `json:"channel"`
 	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
+	ReleasedAt  time.Time       `json:"released-at"`
 }
 
 // InstanceName returns the blessed name of the snap decorated with instance
@@ -415,7 +438,8 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
+// snap's mount namespace.
 func (s *Info) ExpandSnapVariables(path string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
@@ -424,12 +448,11 @@ func (s *Info) ExpandSnapVariables(path string) string {
 			// inside the mount namespace snap-confine creates and there we will
 			// always have a /snap directory available regardless if the system
 			// we're running on supports this or not.
-			// TODO parallel-install: use of proper instance/store name
-			return filepath.Join(dirs.CoreSnapMountDir, s.InstanceName(), s.Revision.String())
+			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
-			return s.DataDir()
+			return DataDir(s.SnapName(), s.Revision)
 		case "SNAP_COMMON":
-			return s.CommonDataDir()
+			return CommonDataDir(s.SnapName())
 		}
 		return ""
 	})
@@ -633,6 +656,12 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	// HotplugKey is a unique key built by the slot's interface
+	// using properties of a hotplugged device so that the same
+	// slot may be made available if the device is reinserted.
+	// It's empty for regular slots.
+	HotplugKey string
 }
 
 // SocketInfo provides information on application sockets.
@@ -685,6 +714,7 @@ type AppInfo struct {
 	Name          string
 	LegacyAliases []string // FIXME: eventually drop this
 	Command       string
+	CommandChain  []string
 	CommonID      string
 
 	Daemon          string
@@ -694,6 +724,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     RestartCondition
+	RestartDelay    timeout.Timeout
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
@@ -721,9 +752,46 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	URL    string
-	Width  int64
-	Height int64
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
+	Note   string `json:"note,omitempty"`
+}
+
+type MediaInfo struct {
+	Type   string `json:"type"`
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
+}
+
+type MediaInfos []MediaInfo
+
+const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
+
+func (mis MediaInfos) Screenshots() []ScreenshotInfo {
+	shots := make([]ScreenshotInfo, 0, len(mis))
+	for _, mi := range mis {
+		if mi.Type != "screenshot" {
+			continue
+		}
+		shots = append(shots, ScreenshotInfo{
+			URL:    mi.URL,
+			Width:  mi.Width,
+			Height: mi.Height,
+			Note:   ScreenshotsDeprecationNotice,
+		})
+	}
+	return shots
+}
+
+func (mis MediaInfos) IconURL() string {
+	for _, mi := range mis {
+		if mi.Type == "icon" {
+			return mi.URL
+		}
+	}
+	return ""
 }
 
 // HookInfo provides information about a hook.
@@ -734,7 +802,10 @@ type HookInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 
-	Environment strutil.OrderedMap
+	Environment  strutil.OrderedMap
+	CommandChain []string
+
+	Explicit bool
 }
 
 // File returns the path to the *.socket file
@@ -937,8 +1008,18 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	err = addImplicitHooks(info)
+	if err != nil {
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+	}
+
+	bindImplicitHooks(info)
+
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
 	mountFile := MountFile(name, si.Revision)
-	st, err := os.Stat(mountFile)
+	st, err := os.Lstat(mountFile)
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount
 		// is still in place (it's a bind mount, it doesn't care about the
@@ -949,15 +1030,12 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	info.Size = st.Size()
-
-	err = addImplicitHooks(info)
-	if err != nil {
-		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+	// If the file is a regular file than it must be a squashfs file that is
+	// used as the backing store for the snap. The size of that file is the
+	// size of the snap.
+	if st.Mode().IsRegular() {
+		info.Size = st.Size()
 	}
-
-	_, instanceKey := SplitInstanceName(name)
-	info.InstanceKey = instanceKey
 
 	return info, nil
 }
@@ -1000,6 +1078,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	bindImplicitHooks(info)
 
 	err = Validate(info)
 	if err != nil {
@@ -1067,4 +1147,81 @@ func InstanceName(snapName, instanceKey string) string {
 		return fmt.Sprintf("%s_%s", snapName, instanceKey)
 	}
 	return snapName
+}
+
+// ByType supports sorting the given slice of snap info by types. The most
+// important types will come first.
+type ByType []*Info
+
+func (r ByType) Len() int      { return len(r) }
+func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r ByType) Less(i, j int) bool {
+	return r[i].Type.SortsBefore(r[j].Type)
+}
+
+func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
+	nameToApp := make(map[string]*AppInfo, len(apps))
+	for _, app := range apps {
+		nameToApp[app.Name] = app
+	}
+
+	// list of successors of given app
+	successors := make(map[string][]*AppInfo, len(apps))
+	// count of predecessors (i.e. incoming edges) of given app
+	predecessors := make(map[string]int, len(apps))
+
+	for _, app := range apps {
+		for _, other := range app.After {
+			predecessors[app.Name]++
+			successors[other] = append(successors[other], app)
+		}
+		for _, other := range app.Before {
+			predecessors[other]++
+			successors[app.Name] = append(successors[app.Name], nameToApp[other])
+		}
+	}
+
+	// list of apps without predecessors (no incoming edges)
+	queue := make([]*AppInfo, 0, len(apps))
+	for _, app := range apps {
+		if predecessors[app.Name] == 0 {
+			queue = append(queue, app)
+		}
+	}
+
+	// Kahn:
+	// see https://dl.acm.org/citation.cfm?doid=368996.369025
+	//     https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+	//
+	// Apps without predecessors are 'top' nodes. On each iteration, take
+	// the next 'top' node, and decrease the predecessor count of each
+	// successor app. Once that successor app has no more predecessors, take
+	// it out of the predecessors set and add it to the queue of 'top'
+	// nodes.
+	for len(queue) > 0 {
+		app := queue[0]
+		queue = queue[1:]
+		for _, successor := range successors[app.Name] {
+			predecessors[successor.Name]--
+			if predecessors[successor.Name] == 0 {
+				delete(predecessors, successor.Name)
+				queue = append(queue, successor)
+			}
+		}
+		sorted = append(sorted, app)
+	}
+
+	if len(predecessors) != 0 {
+		// apps with predecessors unaccounted for are a part of
+		// dependency cycle
+		unsatisifed := bytes.Buffer{}
+		for name := range predecessors {
+			if unsatisifed.Len() > 0 {
+				unsatisifed.WriteString(", ")
+			}
+			unsatisifed.WriteString(name)
+		}
+		return nil, fmt.Errorf("applications are part of a before/after cycle: %s", unsatisifed.String())
+	}
+	return sorted, nil
 }

@@ -1,15 +1,20 @@
 summary: Ensure classic dimension works correctly
+
 systems: [ubuntu-core-16-*]
+
 environment:
     # We need to set the SUDO_USER here to simulate the real
     # behavior. I.e. when entering classic it happens via
     # `sudo classic` and the user gets a user shell inside
     # the classic environment that has sudo support.
     SUDO_USER: test
+
 prepare: |
     echo "test ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/create-test
+
 restore: |
     rm -f /etc/sudoers.d/create-test
+
 execute: |
     echo "Ensure classic can be installed"
     snap install --devmode --beta classic
@@ -21,7 +26,7 @@ execute: |
     echo "Ensure that after classic exits no processes are left behind"
     classic "sleep 133713371337&"
     # use "[f]oo" to search for "foo" in ps output without having to filter yourself out
-    if ps afx|grep '[1]33713371337'; then
+    if pgrep -f 133713371337; then
         echo "The sleep process was not killed when classic exited"
         echo "Something is wrong with the cleanup"
         exit 1
@@ -32,7 +37,7 @@ execute: |
     # tty reports "no tty" inside snaps (LP: #1611493)
     #
     # "script" adds extra \r into the output that we need to filter here
-    if [ "$(classic sudo id -u|tr -d "\r")" != "0" ]; then
+    if [ "$(classic sudo id -u|tr -d '\r')" != "0" ]; then
         echo "sudo inside classic did not work as expected"
         exit 1
     fi

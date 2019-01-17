@@ -139,6 +139,8 @@ func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
 		"version":           "7",
 		"revision":          float64(77),
 		"download_sha3_384": sha3_384,
+		"confinement":       "strict",
+		"type":              "app",
 	})
 }
 
@@ -164,6 +166,54 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 		"version":           "1",
 		"revision":          float64(424242),
 		"download_sha3_384": sha3_384,
+		"confinement":       "strict",
+		"type":              "app",
+	})
+
+	snapFn = s.makeTestSnap(c, "name: foo-classic\nversion: 1\nconfinement: classic")
+	resp, err = s.StoreGet(`/api/v1/snaps/details/foo-classic`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	sha3_384, _ = getSha(snapFn)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "",
+		"package_name":      "foo-classic",
+		"origin":            "canonical",
+		"developer_id":      "canonical",
+		"anon_download_url": s.store.URL() + "/download/foo-classic_1_all.snap",
+		"download_url":      s.store.URL() + "/download/foo-classic_1_all.snap",
+		"version":           "1",
+		"revision":          float64(424242),
+		"download_sha3_384": sha3_384,
+		"confinement":       "classic",
+		"type":              "app",
+	})
+
+	snapFn = s.makeTestSnap(c, "name: foo-base\nversion: 1\ntype: base")
+	resp, err = s.StoreGet(`/api/v1/snaps/details/foo-base`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	sha3_384, _ = getSha(snapFn)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "",
+		"package_name":      "foo-base",
+		"origin":            "canonical",
+		"developer_id":      "canonical",
+		"anon_download_url": s.store.URL() + "/download/foo-base_1_all.snap",
+		"download_url":      s.store.URL() + "/download/foo-base_1_all.snap",
+		"version":           "1",
+		"revision":          float64(424242),
+		"download_sha3_384": sha3_384,
+		"confinement":       "strict",
+		"type":              "base",
 	})
 }
 
@@ -197,6 +247,8 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 		"version":           "1",
 		"revision":          float64(424242),
 		"download_sha3_384": sha3_384,
+		"confinement":       "strict",
+		"type":              "app",
 	}})
 }
 
@@ -229,6 +281,8 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 		"version":           "10",
 		"revision":          float64(99),
 		"download_sha3_384": sha3_384,
+		"confinement":       "strict",
+		"type":              "app",
 	}})
 }
 
@@ -430,8 +484,10 @@ func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
 				"sha3-384": sha3_384,
 				"size":     float64(size),
 			},
-			"version":  "1",
-			"revision": float64(424242),
+			"version":     "1",
+			"revision":    float64(424242),
+			"confinement": "strict",
+			"type":        "app",
 		},
 	})
 }
@@ -472,8 +528,10 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
 				"sha3-384": sha3_384,
 				"size":     float64(size),
 			},
-			"version":  "10",
-			"revision": float64(99),
+			"version":     "10",
+			"revision":    float64(99),
+			"confinement": "strict",
+			"type":        "app",
 		},
 	})
 }
@@ -513,8 +571,10 @@ func (s *storeTestSuite) TestSnapActionEndpointRefreshAll(c *C) {
 				"sha3-384": sha3_384,
 				"size":     float64(size),
 			},
-			"version":  "1",
-			"revision": float64(424242),
+			"version":     "1",
+			"revision":    float64(424242),
+			"confinement": "strict",
+			"type":        "app",
 		},
 	})
 }
@@ -555,8 +615,10 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 				"sha3-384": sha3_384,
 				"size":     float64(size),
 			},
-			"version":  "10",
-			"revision": float64(99),
+			"version":     "10",
+			"revision":    float64(99),
+			"confinement": "strict",
+			"type":        "app",
 		},
 	})
 }

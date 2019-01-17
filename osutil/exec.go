@@ -35,12 +35,11 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
 )
 
-func parseCoreLdSoConf(confPath string) []string {
-	root := filepath.Join(dirs.SnapMountDir, "/core/current")
+func parseCoreLdSoConf(snapMountDir string, confPath string) []string {
+	root := filepath.Join(snapMountDir, "/core/current")
 
 	f, err := os.Open(filepath.Join(root, confPath))
 	if err != nil {
@@ -64,7 +63,7 @@ func parseCoreLdSoConf(confPath string) []string {
 				return nil
 			}
 			for _, f := range files {
-				out = append(out, parseCoreLdSoConf(f[len(root):])...)
+				out = append(out, parseCoreLdSoConf(snapMountDir, f[len(root):])...)
 			}
 		default:
 			out = append(out, filepath.Join(root, line))
@@ -105,8 +104,8 @@ func elfInterp(cmd string) (string, error) {
 //
 // At the moment it can only run ELF files, expects a standard ld.so
 // interpreter, and can't handle RPATH.
-func CommandFromCore(name string, cmdArgs ...string) (*exec.Cmd, error) {
-	root := filepath.Join(dirs.SnapMountDir, "/core/current")
+func CommandFromCore(snapMountDir string, name string, cmdArgs ...string) (*exec.Cmd, error) {
+	root := filepath.Join(snapMountDir, "/core/current")
 
 	cmdPath := filepath.Join(root, name)
 	interp, err := elfInterp(cmdPath)
@@ -134,7 +133,7 @@ func CommandFromCore(name string, cmdArgs ...string) (*exec.Cmd, error) {
 		seen[coreLdSo] = true
 	}
 
-	ldLibraryPathForCore := parseCoreLdSoConf("/etc/ld.so.conf")
+	ldLibraryPathForCore := parseCoreLdSoConf(snapMountDir, "/etc/ld.so.conf")
 
 	ldSoArgs := []string{"--library-path", strings.Join(ldLibraryPathForCore, ":"), cmdPath}
 	allArgs := append(ldSoArgs, cmdArgs...)

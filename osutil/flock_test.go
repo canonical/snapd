@@ -134,7 +134,7 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 		if osutil.FileExists(lockPath) {
 			break
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Millisecond)
 	}
 
 	lock, err := osutil.NewFileLock(lockPath)

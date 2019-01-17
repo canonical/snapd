@@ -116,6 +116,9 @@ execute: |
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"
 
     if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And the policy has the ptrace suppression rule"
+        MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.network-control-consumer.cmd
+
         echo "When the plug is disconnected"
         snap disconnect network-control-consumer:network-control
 

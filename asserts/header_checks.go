@@ -196,8 +196,10 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 	return b, nil
 }
 
-var anyString = regexp.MustCompile("")
-
+// checkStringListInMap returns the `name` entry in the `m` map as a (possibly nil) `[]string`
+// if `m` has an entry for `name` and it isn't a `[]string`, an error is returned
+// if pattern is not nil, all the strings must match that pattern, otherwise an error is returned
+// `what` is a descriptor, used for error messages
 func checkStringListInMap(m map[string]interface{}, name, what string, pattern *regexp.Regexp) ([]string, error) {
 	value, ok := m[name]
 	if !ok {
@@ -216,7 +218,7 @@ func checkStringListInMap(m map[string]interface{}, name, what string, pattern *
 		if !ok {
 			return nil, fmt.Errorf("%s must be a list of strings", what)
 		}
-		if !pattern.MatchString(s) {
+		if pattern != nil && !pattern.MatchString(s) {
 			return nil, fmt.Errorf("%s contains an invalid element: %q", what, s)
 		}
 		res[i] = s
@@ -225,7 +227,7 @@ func checkStringListInMap(m map[string]interface{}, name, what string, pattern *
 }
 
 func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
-	return checkStringListMatches(headers, name, anyString)
+	return checkStringListMatches(headers, name, nil)
 }
 
 func checkStringListMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) ([]string, error) {

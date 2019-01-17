@@ -62,6 +62,16 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	c.Assert(info.InstanceName(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type, Equals, snap.TypeApp)
+	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
+}
+
+func (s *InfoSnapYamlTestSuite) TestSnapdTypeAddedByMagic(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
+version: 1.0`))
+	c.Assert(err, IsNil)
+	c.Assert(info.InstanceName(), Equals, "snapd")
+	c.Assert(info.Version, Equals, "1.0")
+	c.Assert(info.Type, Equals, snap.TypeSnapd)
 }
 
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
@@ -773,6 +783,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
+		Explicit: true,
 	})
 }
 
@@ -806,6 +818,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
+		Explicit: true,
 	})
 }
 
@@ -898,6 +912,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: nil,
+
+		Explicit: true,
 	})
 }
 
@@ -946,6 +962,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: nil,
+
+		Explicit: true,
 	})
 }
 
@@ -979,6 +997,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1013,6 +1033,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1047,11 +1069,15 @@ hooks:
 		Snap:  info,
 		Name:  "with-plug",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 	c.Assert(withoutPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "without-plug",
 		Plugs: map[string]*snap.PlugInfo{},
+
+		Explicit: true,
 	})
 }
 
@@ -1087,6 +1113,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1123,6 +1151,8 @@ apps:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -1174,7 +1204,7 @@ slots:
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Epoch.String(), Equals, "1*")
+	c.Check(info.Epoch, DeepEquals, snap.E("1*"))
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Title(), Equals, "Foo")
 	c.Check(info.Summary(), Equals, "foo app")
@@ -1315,7 +1345,7 @@ version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Epoch.String(), Equals, "0")
+	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
 func (s *YamlSuite) TestSnapYamlConfinementDefault(c *C) {
@@ -1684,6 +1714,19 @@ layout:
 	})
 }
 
+func (s *YamlSuite) TestLayoutsWithTypo(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+layouts:
+  /usr/share/foo:
+    bind: $SNAP/usr/share/foo
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `cannot parse snap.yaml: typo detected: use singular "layout" instead of plural "layouts"`)
+	c.Assert(info, IsNil)
+}
+
 func (s *YamlSuite) TestSnapYamlAppTimer(c *C) {
 	y := []byte(`name: wat
 version: 42
@@ -1750,4 +1793,39 @@ apps:
 		(info.CommonIDs[1] == "org.foo" && info.CommonIDs[0] == "org.bar"),
 		Equals,
 		true)
+}
+
+func (s *YamlSuite) TestSnapYamlCommandChain(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+  command: bin/foo
+  command-chain: [chain1, chain2]
+hooks:
+ configure:
+  command-chain: [hookchain1, hookchain2]
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Check(app.CommandChain, DeepEquals, []string{"chain1", "chain2"})
+	hook := info.Hooks["configure"]
+	c.Check(hook.CommandChain, DeepEquals, []string{"hookchain1", "hookchain2"})
+}
+
+func (s *YamlSuite) TestSnapYamlRestartDelay(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+  command: bin/foo
+  daemon: simple
+  restart-delay: 12s
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Assert(app, NotNil)
+	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
 }

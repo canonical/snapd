@@ -57,10 +57,10 @@ func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
 		Name:      "network-bind",
 		Interface: "network-bind",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, netbindMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["network-bind"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 func (s *NetworkBindInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-bind")

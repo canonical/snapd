@@ -21,6 +21,7 @@
 
 #include "locking.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -84,7 +85,7 @@ void sc_disable_sanity_timeout(void)
 
 static const char *sc_lock_dir = SC_LOCK_DIR;
 
-static int sc_lock_generic(const char *scope, uid_t uid)
+static int get_lock_directory(void)
 {
 	// Create (if required) and open the lock directory.
 	debug("creating lock directory %s (if missing)", sc_lock_dir);
@@ -92,33 +93,50 @@ static int sc_lock_generic(const char *scope, uid_t uid)
 		die("cannot create lock directory %s", sc_lock_dir);
 	}
 	debug("opening lock directory %s", sc_lock_dir);
-	int dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	dir_fd =
+	int dir_fd =
 	    open(sc_lock_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (dir_fd < 0) {
 		die("cannot open lock directory");
 	}
-	// Construct the name of the lock file.
-	char lock_fname[PATH_MAX] = { 0 };
+	return dir_fd;
+}
+
+static void get_lock_name(char *lock_fname, size_t size, const char *scope,
+			  uid_t uid)
+{
 	if (uid == 0) {
 		// The root user doesn't have a per-user mount namespace.
 		// Doing so would be confusing for services which use $SNAP_DATA
 		// as home, and not in $SNAP_USER_DATA.
-		sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.lock",
-				 sc_lock_dir, scope ? : "");
+		sc_must_snprintf(lock_fname, size, "%s.lock", scope ? : "");
 	} else {
-		sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.%d.lock",
-				 sc_lock_dir, scope ? : "", uid);
+		sc_must_snprintf(lock_fname, size, "%s.%d.lock",
+				 scope ? : "", uid);
 	}
+}
+
+static int open_lock(const char *scope, uid_t uid)
+{
+	int dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	char lock_fname[PATH_MAX] = { 0 };
+	int lock_fd;
+
+	dir_fd = get_lock_directory();
+	get_lock_name(lock_fname, sizeof lock_fname, scope, uid);
 
 	// Open the lock file and acquire an exclusive lock.
-	debug("opening lock file: %s", lock_fname);
-	int lock_fd = openat(dir_fd, lock_fname,
-			     O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
+	debug("opening lock file: %s/%s", sc_lock_dir, lock_fname);
+	lock_fd = openat(dir_fd, lock_fname,
+			 O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (lock_fd < 0) {
-		die("cannot open lock file: %s", lock_fname);
+		die("cannot open lock file: %s/%s", sc_lock_dir, lock_fname);
 	}
+	return lock_fd;
+}
 
+static int sc_lock_generic(const char *scope, uid_t uid)
+{
+	int lock_fd = open_lock(scope, uid);
 	sc_enable_sanity_timeout();
 	debug("acquiring exclusive lock (scope %s, uid %d)",
 	      scope ? : "(global)", uid);
@@ -141,6 +159,28 @@ int sc_lock_global(void)
 int sc_lock_snap(const char *snap_name)
 {
 	return sc_lock_generic(snap_name, 0);
+}
+
+void sc_verify_snap_lock(const char *snap_name)
+{
+	int lock_fd, retval;
+
+	lock_fd = open_lock(snap_name, 0);
+	debug("trying to verify whether exclusive lock over snap %s is held",
+	      snap_name);
+	retval = flock(lock_fd, LOCK_EX | LOCK_NB);
+	if (retval == 0) {
+		/* We managed to grab the lock, the lock was not held! */
+		flock(lock_fd, LOCK_UN);
+		close(lock_fd);
+		errno = 0;
+		die("unexpectedly managed to acquire exclusive lock over snap %s", snap_name);
+	}
+	if (retval < 0 && errno != EWOULDBLOCK) {
+		die("cannot verify exclusive lock over snap %s", snap_name);
+	}
+	/* We tried but failed to grab the lock because the file is already locked.
+	 * Good, this is what we expected. */
 }
 
 int sc_lock_snap_user(const char *snap_name, uid_t uid)

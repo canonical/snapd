@@ -20,7 +20,6 @@
 package snapstate
 
 import (
-	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -85,6 +84,8 @@ var (
 	ValidateFeatureFlags   = validateFeatureFlags
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
+
+	HasOtherInstances = hasOtherInstances
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -142,30 +143,39 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	}
 }
 
-func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
-	sort.Sort(byKind(snaps))
-	return snaps
+func MockLocalInstallCleanupWait(d time.Duration) (restore func()) {
+	old := localInstallCleanupWait
+	localInstallCleanupWait = d
+	return func() {
+		localInstallCleanupWait = old
+	}
 }
 
-func MockModelWithBase(baseName string) (restore func()) {
-	return mockModel(map[string]string{"base": baseName})
+func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
+	old := localInstallLastCleanup
+	localInstallLastCleanup = t
+	return func() {
+		localInstallLastCleanup = old
+	}
 }
 
-func MockModelWithKernelTrack(kernelTrack string) (restore func()) {
-	return mockModel(map[string]string{"kernel": "kernel=" + kernelTrack})
+func SetModelWithBase(baseName string) {
+	setModel(map[string]string{"base": baseName})
 }
 
-func MockModelWithGadgetTrack(gadgetTrack string) (restore func()) {
-	return mockModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
+func SetModelWithKernelTrack(kernelTrack string) {
+	setModel(map[string]string{"kernel": "kernel=" + kernelTrack})
 }
 
-func MockModel() (restore func()) {
-	return mockModel(nil)
+func SetModelWithGadgetTrack(gadgetTrack string) {
+	setModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
 }
 
-func mockModel(override map[string]string) (restore func()) {
-	oldModel := Model
+func SetDefaultModel() {
+	setModel(nil)
+}
 
+func setModel(override map[string]string) {
 	model := map[string]interface{}{
 		"type":              "model",
 		"authority-id":      "brand",
@@ -189,8 +199,5 @@ func mockModel(override map[string]string) (restore func()) {
 
 	Model = func(*state.State) (*asserts.Model, error) {
 		return a.(*asserts.Model), nil
-	}
-	return func() {
-		Model = oldModel
 	}
 }

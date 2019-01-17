@@ -39,6 +39,9 @@ verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
     return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
 
+def verRelRevNotesRx(s):
+    return re.compile(r"^\w\S*\s+\d{4}-\d{2}-\d{2}\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
+
 if os.environ['SNAPPY_USE_STAGING_STORE'] == '1':
     snap_ids={
         "test-snapd-tools": "02AHdOomTzby7gTaiLX3M3SGMmXDfLJp",
@@ -72,7 +75,7 @@ check("basic-desktop", res[1],
 
 check("test-snapd-tools", res[2],
    ("name", equals, "test-snapd-tools"),
-   ("publisher", equals, "Canonical✓"),
+   ("publisher", matches, r"(Canonical✓|canonical)"),
    ("contact", equals, "snaps@canonical.com"),
    ("summary", equals, "Tools for testing the snapd application"),
    ("description", equals, "A tool to test snapd\n"),
@@ -81,10 +84,10 @@ check("test-snapd-tools", res[2],
    ("installed", matches, verRevNotesRx("-")),
    ("refresh-date", exists),
    ("channels", check,
-    ("stable", matches, verRevNotesRx("-")),
+    ("stable", matches, verRelRevNotesRx("-")),
     ("candidate", equals, "↑"),
     ("beta", equals, "↑"),
-    ("edge", matches, verRevNotesRx("-")),
+    ("edge", matches, verRelRevNotesRx("-")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-tools"]),
    ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
@@ -92,7 +95,7 @@ check("test-snapd-tools", res[2],
 
 check("test-snapd-devmode", res[3],
    ("name", equals, "test-snapd-devmode"),
-   ("publisher", equals, "Canonical✓"),
+   ("publisher", matches, r"(Canonical✓|canonical)"),
    ("contact", equals, "snaps@canonical.com"),
    ("summary", equals, "Basic snap with devmode confinement"),
    ("description", equals, "A basic buildable snap that asks for devmode confinement\n"),
@@ -102,8 +105,8 @@ check("test-snapd-devmode", res[3],
    ("channels", check,
     ("stable", equals, "–"),
     ("candidate", equals, "–"),
-    ("beta", matches, verRevNotesRx("devmode")),
-    ("edge", matches, verRevNotesRx("devmode")),
+    ("beta", matches, verRelRevNotesRx("devmode")),
+    ("edge", matches, verRelRevNotesRx("devmode")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-devmode"]),
    ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
@@ -134,7 +137,7 @@ check("error", res[5],
 # not installed snaps have "contact" information
 check("test-snapd-python-webserver", res[6],
    ("name", equals, "test-snapd-python-webserver"),
-   ("publisher", equals, "Canonical✓"),
+   ("publisher", matches, r"(Canonical✓|canonical)"),
    ("contact", equals, "snaps@canonical.com"),
    ("summary", exists),
    ("description", exists),

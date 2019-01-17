@@ -6,7 +6,7 @@ details: |
 prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-dvb
+    install_local test-snapd-sh
 
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
@@ -28,24 +28,24 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i dvb | MATCH -- '- +test-snapd-dvb:dvb'
+    snap interfaces -i dvb | MATCH -- '- +test-snapd-sh:dvb'
 
     echo "When the interface is connected"
-    snap connect test-snapd-dvb:dvb
+    snap connect test-snapd-sh:dvb
 
     echo "Then the snap is able to access the device input"
-    test-snapd-dvb.sh -c "echo test >> /dev/dvb/adapter9/video9"
-    test-snapd-dvb.sh -c "cat /run/udev/data/c212:9"
+    test-snapd-sh.with-dvb-plug -c "echo test >> /dev/dvb/adapter9/video9"
+    test-snapd-sh.with-dvb-plug -c "cat /run/udev/data/c212:9"
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-dvb:dvb
+    snap disconnect test-snapd-sh:dvb
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
     echo "Then the snap is not able to read the input device"
-    if test-snapd-dvb.sh -c 'cat /dev/dvb/adapter9/video9' 2>call.error; then
+    if test-snapd-sh.with-dvb-plug -c 'cat /dev/dvb/adapter9/video9' 2>call.error; then
         echo "Expected permission error accessing to input device"
         exit 1
     fi

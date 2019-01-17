@@ -1,0 +1,47 @@
+summary: Check that the basic snapshots functionality is ok
+
+prepare: |
+    snap install test-snapd-tools
+    snap install test-snapd-rsync
+
+execute: |
+    # use the snaps, so they create the dirs:
+    test-snapd-tools.echo
+    test-snapd-rsync.rsync --version >/dev/null
+    # drop in canaries:
+    for snap in test-snapd-tools test-snapd-rsync; do
+       echo "hello versioned $snap"  > ~/snap/$snap/current/canary.txt
+       echo "hello common $snap" > ~/snap/$snap/common/canary.txt
+    done
+    # create snapshot, grab its id
+    SET_ID=$( snap save test-snapd-tools test-snapd-rsync | cut -d\  -f1 | tail -n1 )
+
+    # check it includes both snaps
+    snap saved --id="$SET_ID" | grep test-snapd-tools
+    snap saved --id="$SET_ID" | grep test-snapd-rsync
+    # and is valid
+    snap check-snapshot "$SET_ID"
+
+    # remove the canaries
+    rm ~/snap/*/{current,common}/canary.txt
+
+    # restore one of them
+    snap restore "$SET_ID" test-snapd-tools
+    test -e ~/snap/test-snapd-tools/current/canary.txt
+    test -e ~/snap/test-snapd-tools/common/canary.txt
+    # it didn't restore the other one
+    test ! -e ~/snap/test-snapd-rsync/current/canary.txt
+    test ! -e ~/snap/test-snapd-rsync/common/canary.txt
+
+    # restore the other
+    snap restore "$SET_ID" test-snapd-rsync
+
+    # now check everything's as we expect
+    for snap in test-snapd-tools test-snapd-rsync; do
+        test "$( cat ~/snap/$snap/current/canary.txt )" = "hello versioned $snap"
+        test "$( cat ~/snap/$snap/common/canary.txt )" = "hello common $snap"
+    done
+
+    # check removal works
+    snap forget "$SET_ID"
+    snap saved --id="$SET_ID" | grep "No snapshots found"

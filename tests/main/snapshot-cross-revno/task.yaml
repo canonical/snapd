@@ -1,0 +1,59 @@
+summary: Check that cross-revision snapshot functionality is ok
+
+prepare: |
+    # clean up just in case
+    for d in {/root,/home/test}/snap/test-snapd-tools/; do
+        if [ -d "$d" ]; then
+            find "$d" -name canary.txt -delete -printf '%p deleted\n'
+        fi
+    done
+    snap install --edge test-snapd-tools
+
+execute: |
+    revno=$( snap list test-snapd-tools | awk '/^test-snapd/{print $3}' )
+
+    for u in root test; do
+        su -l -c "
+            set -e
+            # use the snap so it creates the directories
+            test-snapd-tools.echo OK
+            # drop a canary in there
+            echo 'hello revision $revno' > ~/snap/test-snapd-tools/current/canary.txt" "$u"
+    done
+
+    # sanity check :)
+    test "$revno" = "$( readlink ~/snap/test-snapd-tools/current )"
+
+    # take a snapshot
+    set_id=$( snap save test-snapd-tools | cut -d\  -f1 | tail -n1 )
+    
+    # remove the canary
+    find {/root,/home/test}/snap/test-snapd-tools/ -name canary.txt -delete -printf '%p deleted\n'
+
+    # change revision
+    snap refresh --stable test-snapd-tools
+    new_revno=$( snap list test-snapd-tools | awk '/^test-snapd/{print $3}' )
+    # confirm it changed
+    test "$revno" != "$new_revno"
+
+    for u in root test; do
+        su -l -c "
+            set -e
+            # update the current symlink
+            test-snapd-tools.echo OK
+
+            # confirm no canary
+            test ! -e ~/snap/test-snapd-tools/current/canary.txt" "$u"
+    done
+
+    # restore
+    snap restore "$set_id"
+    # revno is still new
+    test "$new_revno" = "$( readlink ~/snap/test-snapd-tools/current )"
+
+    for u in root test; do
+        su -l -c "
+            set -e
+            # canary is back
+            test -e ~/snap/test-snapd-tools/current/canary.txt" "$u"
+    done

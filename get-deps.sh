@@ -3,14 +3,14 @@
 set -e
 
 if [ "$GOPATH" = "" ]; then
-    GOPATH=$(mktemp -d)
-    export GOPATH
+    tmpdir=$(mktemp -d)
+    export GOPATH=$tmpdir
     # shellcheck disable=SC2064
-    trap "rm -rf $GOPATH" EXIT
+    trap "rm -rf $tmpdir" EXIT
 
-    mkdir -p "$GOPATH/src/github.com/snapcore/"
-    ln -s "$(pwd)" "$GOPATH/src/github.com/snapcore/snapd"
-    cd "$GOPATH/src/github.com/snapcore/snapd"
+    mkdir -p "$tmpdir/src/github.com/snapcore/"
+    ln -s "$(pwd)" "$tmpdir/src/github.com/snapcore/snapd"
+    cd "$tmpdir/src/github.com/snapcore/snapd"
 fi
 
 if ! command -v govendor >/dev/null;then

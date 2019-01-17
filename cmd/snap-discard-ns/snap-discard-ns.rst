@@ -7,16 +7,16 @@ internal tool for discarding preserved namespaces of snappy applications
 ------------------------------------------------------------------------
 
 :Author: zygmunt.krynicki@canonical.com
-:Date:   2016-10-05
+:Date:   2018-10-17
 :Copyright: Canonical Ltd.
-:Version: 1.0.43
+:Version: 2.36
 :Manual section: 5
 :Manual group: snappy
 
 SYNOPSIS
 ========
 
-	snap-discard-ns SNAP_NAME
+	snap-discard-ns [--from-snap-confine] SNAP_INSTANCE_NAME
 
 DESCRIPTION
 ===========
@@ -27,7 +27,8 @@ mount namespace of a particular snap.
 OPTIONS
 =======
 
-The `snap-discard-ns` program does not support any options.
+The --from-snap-confine option is used internally by snap-confine to tell
+snap-discard-ns that it is invoked from snap-confine and can disable locking.
 
 ENVIRONMENT
 ===========
@@ -43,11 +44,19 @@ FILES
 
 `snap-discard-ns` uses the following files:
 
-`/run/snapd/ns/$SNAP_NAME.mnt`:
+`/run/snapd/ns/$SNAP_INSTNACE_NAME.mnt`:
+`/run/snapd/ns/$SNAP_INSTNACE_NAME.*.mnt`:
 
-    The preserved mount namespace that is unmounted by `snap-discard-ns`.
+    The preserved mount namespace that is unmounted and removed by
+    `snap-discard-ns`. The second form is for the per-user mount namespace.
+
+`/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.fstab`:
+`/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.*.fstab`:
+
+    The current mount profile of a preserved mount namespace that is removed
+    by `snap-discard-ns`.
 
 BUGS
 ====
 
-Please report all bugs with https://bugs.launchpad.net/snap-confine/+filebug
+Please report all bugs with https://bugs.launchpad.net/snapd/+filebug

@@ -24,7 +24,6 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -33,14 +32,8 @@ var (
 	Stderr = os.Stderr
 )
 
-type Conf interface {
-	Get(snapName, key string, result interface{}) error
-	Set(snapName, key string, value interface{}) error
-	Changes() []string
-	State() *state.State
-}
-
-func coreCfg(tr Conf, key string) (result string, err error) {
+// coreCfg returns the configuration value for the core snap.
+func coreCfg(tr config.Conf, key string) (result string, err error) {
 	var v interface{} = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
@@ -51,15 +44,11 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
-// supportedConfigurations will be filled in by the files (like proxy.go)
-// that handle this configuration.
-var supportedConfigurations = map[string]bool{
-	"core.experimental.layouts":            true,
-	"core.experimental.parallel-instances": true,
-	"core.experimental.hotplug":            true,
-}
+// supportedConfigurations contains a set of handled configuration keys.
+// The actual values are populated by `init()` functions in each module.
+var supportedConfigurations = make(map[string]bool, 32)
 
-func validateBoolFlag(tr Conf, flag string) error {
+func validateBoolFlag(tr config.Conf, flag string) error {
 	value, err := coreCfg(tr, flag)
 	if err != nil {
 		return err
@@ -73,20 +62,7 @@ func validateBoolFlag(tr Conf, flag string) error {
 	return nil
 }
 
-func validateExperimentalSettings(tr Conf) error {
-	if err := validateBoolFlag(tr, "experimental.layouts"); err != nil {
-		return err
-	}
-	if err := validateBoolFlag(tr, "experimental.parallel-instances"); err != nil {
-		return err
-	}
-	if err := validateBoolFlag(tr, "experimental.hotplug"); err != nil {
-		return err
-	}
-	return nil
-}
-
-func Run(tr Conf) error {
+func Run(tr config.Conf) error {
 	// check if the changes
 	for _, k := range tr.Changes() {
 		if !supportedConfigurations[k] {
@@ -98,6 +74,9 @@ func Run(tr Conf) error {
 		return err
 	}
 	if err := validateRefreshSchedule(tr); err != nil {
+		return err
+	}
+	if err := validateRefreshRateLimit(tr); err != nil {
 		return err
 	}
 	if err := validateExperimentalSettings(tr); err != nil {
@@ -113,6 +92,11 @@ func Run(tr Conf) error {
 
 	// capture cloud information
 	if err := setCloudInfoWhenSeeding(tr); err != nil {
+		return err
+	}
+
+	// Export experimental.* flags to a place easily accessible from snapd helpers.
+	if err := handleExperimentalFlags(tr); err != nil {
 		return err
 	}
 

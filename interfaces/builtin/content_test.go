@@ -225,13 +225,19 @@ apps:
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
-	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info), Equals, "/var/snap/name/common/foo")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info), Equals, "/var/snap/name/42")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info), Equals, "/var/snap/name/42/")
+	// automatically prefixed with $SNAP
+	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info), Equals, "/snap/name/42/foo/snap/bar")
+	// contain invalid variables
+	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info), Equals, "/snap/name/42//bar")
+	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info), Equals, "/snap/name/42/bar//foo")
 }
 
 // Check that legacy syntax works and allows sharing read-only snap content
@@ -243,7 +249,7 @@ plugs:
   target: import
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -252,7 +258,7 @@ slots:
    - export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -276,7 +282,7 @@ apps:
   command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -285,7 +291,7 @@ slots:
    - $SNAP/export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -314,35 +320,209 @@ slots:
   remount options=(bind, ro) /snap/consumer/7/import/,
   umount /snap/consumer/7/import/,
   # Writable mimic /snap/producer/5
-  mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/5/** -> /snap/producer/5/**,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/5/* -> /snap/producer/5/*,
-  umount /tmp/.snap/snap/producer/5/,
-  umount /snap/producer/5{,/**},
-  /snap/producer/5/** rw,
-  /snap/producer/5/ rw,
-  /snap/producer/ rw,
-  /tmp/.snap/snap/producer/5/** rw,
-  /tmp/.snap/snap/producer/5/ rw,
+  # .. permissions for traversing the prefix that is assumed to exist
+  # .. variant with mimic at /
+  # Allow reading the mimic directory, it must exist in the first place.
+  / r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/ rw,
+  mount options=(rbind, rw) / -> /tmp/.snap/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/*/ rw,
+  /*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/*/ -> /*/,
+  /tmp/.snap/* rw,
+  /* rw,
+  mount options=(bind, rw) /tmp/.snap/* -> /*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /,
+  umount /*,
+  umount /*/,
+  # .. variant with mimic at /snap/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/ rw,
+  mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/*/ rw,
+  /snap/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
+  /tmp/.snap/snap/* rw,
+  /snap/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/,
+  umount /snap/*,
+  umount /snap/*/,
+  # .. variant with mimic at /snap/producer/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/producer/ r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/ rw,
-  /tmp/.snap/snap/ rw,
-  /tmp/.snap/ rw,
+  mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/producer/*/ rw,
+  /snap/producer/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/producer/*/ -> /snap/producer/*/,
+  /tmp/.snap/snap/producer/* rw,
+  /snap/producer/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/producer/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/producer/,
+  umount /snap/producer/*,
+  umount /snap/producer/*/,
+  # .. variant with mimic at /snap/producer/5/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/producer/5/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/producer/5/ rw,
+  mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/producer/5/*/ rw,
+  /snap/producer/5/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/producer/5/*/ -> /snap/producer/5/*/,
+  /tmp/.snap/snap/producer/5/* rw,
+  /snap/producer/5/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/producer/5/* -> /snap/producer/5/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/producer/5/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/producer/5/,
+  umount /snap/producer/5/*,
+  umount /snap/producer/5/*/,
   # Writable mimic /snap/consumer/7
-  mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
-  mount options=(rbind, rw) /tmp/.snap/snap/consumer/7/** -> /snap/consumer/7/**,
-  mount options=(bind, rw) /tmp/.snap/snap/consumer/7/* -> /snap/consumer/7/*,
-  umount /tmp/.snap/snap/consumer/7/,
-  umount /snap/consumer/7{,/**},
-  /snap/consumer/7/** rw,
-  /snap/consumer/7/ rw,
-  /snap/consumer/ rw,
-  /tmp/.snap/snap/consumer/7/** rw,
-  /tmp/.snap/snap/consumer/7/ rw,
-  /tmp/.snap/snap/consumer/ rw,
-  /tmp/.snap/snap/ rw,
+  # .. permissions for traversing the prefix that is assumed to exist
+  # .. variant with mimic at /
+  # Allow reading the mimic directory, it must exist in the first place.
+  / r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/ rw,
+  mount options=(rbind, rw) / -> /tmp/.snap/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/*/ rw,
+  /*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/*/ -> /*/,
+  /tmp/.snap/* rw,
+  /* rw,
+  mount options=(bind, rw) /tmp/.snap/* -> /*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /,
+  umount /*,
+  umount /*/,
+  # .. variant with mimic at /snap/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/ rw,
+  mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/*/ rw,
+  /snap/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
+  /tmp/.snap/snap/* rw,
+  /snap/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/,
+  umount /snap/*,
+  umount /snap/*/,
+  # .. variant with mimic at /snap/consumer/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/consumer/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/consumer/ rw,
+  mount options=(rbind, rw) /snap/consumer/ -> /tmp/.snap/snap/consumer/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/consumer/*/ rw,
+  /snap/consumer/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/consumer/*/ -> /snap/consumer/*/,
+  /tmp/.snap/snap/consumer/* rw,
+  /snap/consumer/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/consumer/* -> /snap/consumer/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/consumer/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/consumer/,
+  umount /snap/consumer/*,
+  umount /snap/consumer/*/,
+  # .. variant with mimic at /snap/consumer/7/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/consumer/7/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/consumer/7/ rw,
+  mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/consumer/7/*/ rw,
+  /snap/consumer/7/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/consumer/7/*/ -> /snap/consumer/7/*/,
+  /tmp/.snap/snap/consumer/7/* rw,
+  /snap/consumer/7/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/consumer/7/* -> /snap/consumer/7/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/consumer/7/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/consumer/7/,
+  umount /snap/consumer/7/*,
+  umount /snap/consumer/7/*/,
 `
 	c.Assert(updateNS[0], Equals, profile0)
 	c.Assert(updateNS, DeepEquals, []string{profile0})
@@ -360,7 +540,7 @@ apps:
   command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -369,7 +549,7 @@ slots:
    - $SNAP_DATA/export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -423,7 +603,7 @@ apps:
   command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -432,7 +612,7 @@ slots:
    - $SNAP_COMMON/export
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
@@ -488,7 +668,7 @@ apps:
  app:
   command: foo
 `, &snap.SideInfo{Revision: snap.R(1)}, "content")
-	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
+	connectedPlug := interfaces.NewConnectedPlug(plug, nil, nil)
 
 	slot := MockSlot(c, `name: producer
 version: 0
@@ -503,7 +683,7 @@ slots:
      - $SNAP_COMMON/write-common
      - $SNAP_DATA/write-data
 `, &snap.SideInfo{Revision: snap.R(2)}, "content")
-	connectedSlot := interfaces.NewConnectedSlot(slot, nil)
+	connectedSlot := interfaces.NewConnectedSlot(slot, nil, nil)
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
@@ -623,20 +803,107 @@ slots:
   remount options=(bind, ro) /var/snap/consumer/common/import/read-snap/,
   umount /var/snap/consumer/common/import/read-snap/,
   # Writable mimic /snap/producer/2
-  mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/2/** -> /snap/producer/2/**,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/2/* -> /snap/producer/2/*,
-  umount /tmp/.snap/snap/producer/2/,
-  umount /snap/producer/2{,/**},
-  /snap/producer/2/** rw,
-  /snap/producer/2/ rw,
-  /snap/producer/ rw,
-  /tmp/.snap/snap/producer/2/** rw,
-  /tmp/.snap/snap/producer/2/ rw,
-  /tmp/.snap/snap/producer/ rw,
-  /tmp/.snap/snap/ rw,
+  # .. permissions for traversing the prefix that is assumed to exist
+  # .. variant with mimic at /
+  # Allow reading the mimic directory, it must exist in the first place.
+  / r,
+  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/ rw,
+  mount options=(rbind, rw) / -> /tmp/.snap/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/*/ rw,
+  /*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/*/ -> /*/,
+  /tmp/.snap/* rw,
+  /* rw,
+  mount options=(bind, rw) /tmp/.snap/* -> /*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /,
+  umount /*,
+  umount /*/,
+  # .. variant with mimic at /snap/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/ rw,
+  mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/*/ rw,
+  /snap/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
+  /tmp/.snap/snap/* rw,
+  /snap/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/,
+  umount /snap/*,
+  umount /snap/*/,
+  # .. variant with mimic at /snap/producer/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/producer/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/producer/ rw,
+  mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/producer/*/ rw,
+  /snap/producer/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/producer/*/ -> /snap/producer/*/,
+  /tmp/.snap/snap/producer/* rw,
+  /snap/producer/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/producer/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/producer/,
+  umount /snap/producer/*,
+  umount /snap/producer/*/,
+  # .. variant with mimic at /snap/producer/2/
+  # Allow reading the mimic directory, it must exist in the first place.
+  /snap/producer/2/ r,
+  # Allow setting the read-only directory aside via a bind mount.
+  /tmp/.snap/snap/producer/2/ rw,
+  mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
+  # Allow mounting tmpfs over the read-only directory.
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
+  # Allow creating empty files and directories for bind mounting things
+  # to reconstruct the now-writable parent directory.
+  /tmp/.snap/snap/producer/2/*/ rw,
+  /snap/producer/2/*/ rw,
+  mount options=(rbind, rw) /tmp/.snap/snap/producer/2/*/ -> /snap/producer/2/*/,
+  /tmp/.snap/snap/producer/2/* rw,
+  /snap/producer/2/* rw,
+  mount options=(bind, rw) /tmp/.snap/snap/producer/2/* -> /snap/producer/2/*,
+  # Allow unmounting the auxiliary directory.
+  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  umount /tmp/.snap/snap/producer/2/,
+  # Allow unmounting the destination directory as well as anything
+  # inside.  This lets us perform the undo plan in case the writable
+  # mimic fails.
+  umount /snap/producer/2/,
+  umount /snap/producer/2/*,
+  umount /snap/producer/2/*/,
   # Writable directory /var/snap/consumer/common/import/read-snap
   /var/snap/consumer/common/import/read-snap/ rw,
   /var/snap/consumer/common/import/ rw,
@@ -661,7 +928,7 @@ apps:
   command: foo
 
 `, &snap.SideInfo{Revision: snap.R(1)}, "plugins")
-	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
+	connectedPlug := interfaces.NewConnectedPlug(plug, nil, nil)
 
 	// XXX: realistically the plugin may be a single file and we don't support
 	// those very well.
@@ -673,7 +940,7 @@ slots:
   source:
     read: [$SNAP/plugin]
 `, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
-	connectedSlotOne := interfaces.NewConnectedSlot(slotOne, nil)
+	connectedSlotOne := interfaces.NewConnectedSlot(slotOne, nil, nil)
 
 	slotTwo := MockSlot(c, `name: plugin-two
 version: 0
@@ -683,7 +950,7 @@ slots:
   source:
     read: [$SNAP/plugin]
 `, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
-	connectedSlotTwo := interfaces.NewConnectedSlot(slotTwo, nil)
+	connectedSlotTwo := interfaces.NewConnectedSlot(slotTwo, nil, nil)
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
@@ -736,7 +1003,7 @@ apps:
  app:
   command: foo
 `, &snap.SideInfo{Revision: snap.R(1)}, "content")
-	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
+	connectedPlug := interfaces.NewConnectedPlug(plug, nil, nil)
 
 	slot := MockSlot(c, `name: producer
 version: 0
@@ -748,7 +1015,7 @@ slots:
     write:
      - $SNAP_DATA/directory
 `, &snap.SideInfo{Revision: snap.R(2)}, "content")
-	connectedSlot := interfaces.NewConnectedSlot(slot, nil)
+	connectedSlot := interfaces.NewConnectedSlot(slot, nil, nil)
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
@@ -798,7 +1065,7 @@ plugs:
   target: $SNAP_COMMON/import
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
-	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil, nil)
 	const producerYaml = `name: producer
 version: 0
 slots:
@@ -810,7 +1077,7 @@ apps:
     command: bar
 `
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
-	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)

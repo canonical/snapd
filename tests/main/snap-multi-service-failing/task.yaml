@@ -2,7 +2,8 @@ summary: |
   Check that `snap install` doesn't leave a service running when the install fails.
 
 execute: |
-  . $TESTSLIB/snaps.sh
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
   echo "when a snap install fails"
   ! install_local test-snapd-multi-service
 

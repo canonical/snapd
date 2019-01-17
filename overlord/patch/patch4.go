@@ -29,7 +29,7 @@ import (
 )
 
 func init() {
-	patches[4] = patch4
+	patches[4] = []PatchFunc{patch4}
 }
 
 type patch4Flags int

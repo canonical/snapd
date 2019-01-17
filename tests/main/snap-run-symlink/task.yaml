@@ -2,30 +2,32 @@ summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
 systems: [-ubuntu-core-*]
 
-prepare: |
-    . $TESTSLIB/snaps.sh
-    install_local test-snapd-tools
-
 environment:
     APP/testsnapdtoolsecho: test-snapd-tools.echo
     APP/testsnapdtoolscat: test-snapd-tools.cat
 
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-tools
+
+restore: |
+    rm -f orig.txt
+    rm -f new.txt
+
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
     SNAP=$SNAP_MOUNT_DIR/test-snapd-tools/current
 
     echo Testing that replacing the wrapper with a symlink works
     $APP $SNAP/bin/cat
     $APP $SNAP/bin/cat > orig.txt 2>&1
 
-    rm $SNAP_MOUNT_DIR/bin/$APP
-    ln -s /usr/bin/snap $SNAP_MOUNT_DIR/bin/$APP
+    rm "$SNAP_MOUNT_DIR/bin/$APP"
+    ln -s /usr/bin/snap "$SNAP_MOUNT_DIR/bin/$APP"
 
     $APP $SNAP/bin/cat
     $APP $SNAP/bin/cat > new.txt 2>&1
 
     diff -u orig.txt new.txt
-
-restore: |
-    rm -f orig.txt
-    rm -f new.txt

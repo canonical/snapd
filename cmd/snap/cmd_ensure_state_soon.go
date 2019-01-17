@@ -23,7 +23,9 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdEnsureStateSoon struct{}
+type cmdEnsureStateSoon struct {
+	clientMixin
+}
 
 func init() {
 	cmd := addDebugCommand("ensure-state-soon",
@@ -40,5 +42,5 @@ func (x *cmdEnsureStateSoon) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return Client().Debug("ensure-state-soon", nil, nil)
+	return x.client.Debug("ensure-state-soon", nil, nil)
 }

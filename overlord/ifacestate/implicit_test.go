@@ -21,6 +21,7 @@ package ifacestate_test
 
 import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/snaptest"
 
@@ -35,8 +36,20 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	st := state.New(nil)
+	hotplugSlots := map[string]*ifacestate.HotplugSlotInfo{
+		"foo": {
+			Name:        "foo",
+			Interface:   "dummy",
+			StaticAttrs: map[string]interface{}{"attr": "value"},
+			HotplugKey:  "1234",
+		}}
+	st.Lock()
+	defer st.Unlock()
+	st.Set("hotplug-slots", hotplugSlots)
+
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+	c.Assert(ifacestate.AddImplicitSlots(st, info), IsNil)
 	// Ensure that some slots that exist in core systems are present.
 	for _, name := range []string{"network"} {
 		slot := info.Slots[name]
@@ -51,6 +64,13 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 
 	// Ensure that we have *some* implicit slots
 	c.Assert(len(info.Slots) > 10, Equals, true)
+
+	// Ensure hotplug slots were added
+	slot := info.Slots["foo"]
+	c.Assert(slot, NotNil)
+	c.Assert(slot.Interface, Equals, "dummy")
+	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"attr": "value"})
+	c.Assert(slot.HotplugKey, Equals, "1234")
 }
 
 func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
@@ -58,7 +78,12 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	defer restore()
 
 	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
-	ifacestate.AddImplicitSlots(info)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(ifacestate.AddImplicitSlots(st, info), IsNil)
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]
@@ -68,4 +93,24 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	}
 	// Ensure that we have *some* implicit slots
 	c.Assert(len(info.Slots) > 10, Equals, true)
+}
+
+func (implicitSuite) TestAddImplicitSlotsErrorSlotExists(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	info := snaptest.MockInfo(c, "{name: core, type: os, version: 0}", nil)
+
+	st := state.New(nil)
+	hotplugSlots := map[string]*ifacestate.HotplugSlotInfo{
+		"unity7": {
+			Name:       "unity7",
+			Interface:  "unity7",
+			HotplugKey: "1234",
+		}}
+	st.Lock()
+	defer st.Unlock()
+	st.Set("hotplug-slots", hotplugSlots)
+
+	c.Assert(ifacestate.AddImplicitSlots(st, info), ErrorMatches, `cannot add hotplug slot unity7: slot already exists`)
 }

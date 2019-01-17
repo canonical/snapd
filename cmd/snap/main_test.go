@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -77,17 +79,22 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 
-	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {})
+	s.AddCleanup(snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {}))
 
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
 	err = interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
-	interfaces.MockSystemKey(`
-{
-"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor-features": ["caps", "dbus"]
-}`)
+
+	s.AddCleanup(snap.MockIsStdoutTTY(false))
+	s.AddCleanup(snap.MockIsStdinTTY(false))
+
+	s.AddCleanup(snap.MockSELinuxIsEnabled(func() (bool, error) { return false, nil }))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
@@ -291,4 +298,103 @@ func (s *SnapSuite) TestResolveApp(c *C) {
 
 	_, err = snap.ResolveApp("baz")
 	c.Check(err, NotNil)
+}
+
+func (s *SnapSuite) TestFirstNonOptionIsRun(c *C) {
+	osArgs := os.Args
+	defer func() {
+		os.Args = osArgs
+	}()
+	for _, negative := range []string{
+		"",
+		"snap",
+		"snap verb",
+		"snap verb --flag arg",
+		"snap verb arg --flag",
+		"snap --global verb --flag arg",
+	} {
+		os.Args = strings.Fields(negative)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, false)
+	}
+
+	for _, positive := range []string{
+		"snap run",
+		"snap run --flag",
+		"snap run --flag arg",
+		"snap run arg --flag",
+		"snap --global run",
+		"snap --global run --flag",
+		"snap --global run --flag arg",
+		"snap --global run arg --flag",
+	} {
+		os.Args = strings.Fields(positive)
+		c.Check(snap.FirstNonOptionIsRun(), Equals, true)
+	}
+}
+
+func (s *SnapSuite) TestLintDesc(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// LintDesc is happy about capitalized description.
+	snap.LintDesc("command", "<option>", "Description ...", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintDesc complains about lowercase description.
+	snap.LintDesc("command", "<option>", "description", "")
+	c.Check(log.String(), testutil.Contains, `description of command's "<option>" is lowercase: "description"`)
+	log.Reset()
+
+	// LintDesc does not complain about lowercase description starting with login.ubuntu.com
+	snap.LintDesc("command", "<option>", "login.ubuntu.com description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintDesc panics when original description is present.
+	fn := func() {
+		snap.LintDesc("command", "<option>", "description", "original description")
+	}
+	c.Check(fn, PanicMatches, `description of command's "<option>" of "original description" set from tag \(=> no i18n\)`)
+	log.Reset()
+
+	// LintDesc panics when option name is empty.
+	fn = func() {
+		snap.LintDesc("command", "", "description", "")
+	}
+	c.Check(fn, PanicMatches, `option on "command" has no name`)
+	log.Reset()
+}
+
+func (s *SnapSuite) TestLintArg(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// LintArg is happy when option is enclosed with < >.
+	snap.LintArg("command", "<option>", "Description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintArg complains about when option is not properly enclosed with < >.
+	snap.LintArg("command", "option", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "option" should begin with < and end with >`)
+	log.Reset()
+	snap.LintArg("command", "<option", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "<option" should begin with < and end with >`)
+	log.Reset()
+	snap.LintArg("command", "option>", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "option>" should begin with < and end with >`)
+	log.Reset()
+
+	// LintArg ignores the special case of <option>s.
+	snap.LintArg("command", "<option>s", "Description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+}
+
+func (s *SnapSuite) TestFixupArg(c *C) {
+	c.Check(snap.FixupArg("option"), Equals, "option")
+	c.Check(snap.FixupArg("<option>"), Equals, "<option>")
+	// Trailing ">s" is fixed to just >.
+	c.Check(snap.FixupArg("<option>s"), Equals, "<option>")
 }

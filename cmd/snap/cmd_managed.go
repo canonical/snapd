@@ -33,7 +33,9 @@ The managed command will print true or false informing whether
 snapd has registered users.
 `)
 
-type cmdIsManaged struct{}
+type cmdIsManaged struct {
+	clientMixin
+}
 
 func init() {
 	cmd := addCommand("managed", shortIsManagedHelp, longIsManagedHelp, func() flags.Commander { return &cmdIsManaged{} }, nil, nil)
@@ -45,7 +47,7 @@ func (cmd cmdIsManaged) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	sysinfo, err := Client().SysInfo()
+	sysinfo, err := cmd.client.SysInfo()
 	if err != nil {
 		return err
 	}

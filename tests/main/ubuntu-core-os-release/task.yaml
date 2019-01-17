@@ -1,5 +1,7 @@
 summary: check that os-release is correct
+
 systems: [ubuntu-core-16-*]
+
 execute: |
     MATCH "ID=ubuntu-core" < /etc/os-release
     MATCH "DISTRIB_RELEASE=16" < /etc/lsb-release

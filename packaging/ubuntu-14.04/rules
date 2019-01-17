@@ -178,6 +178,8 @@ override_dh_install:
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
+	# chrorder generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the

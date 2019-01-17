@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -53,15 +52,25 @@ func (s *cacheSuite) SetUpTest(c *C) {
 }
 
 func (s *cacheSuite) makeTestFile(c *C, name, content string) string {
-	p := filepath.Join(c.MkDir(), name)
+	return s.makeTestFileInDir(c, c.MkDir(), name, content)
+}
+func (s *cacheSuite) makeTestFileInDir(c *C, dir, name, content string) string {
+	p := filepath.Join(dir, name)
 	err := ioutil.WriteFile(p, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	return p
 }
 
 func (s *cacheSuite) TestPutMany(c *C) {
+	dataDir, err := os.Open(c.MkDir())
+	c.Assert(err, IsNil)
+	defer dataDir.Close()
+	cacheDir, err := os.Open(s.cm.CacheDir())
+	c.Assert(err, IsNil)
+	defer cacheDir.Close()
+
 	for i := 1; i < s.maxItems+10; i++ {
-		p := s.makeTestFile(c, fmt.Sprintf("f%d", i), fmt.Sprintf("%d", i))
+		p := s.makeTestFileInDir(c, dataDir.Name(), fmt.Sprintf("f%d", i), fmt.Sprintf("%d", i))
 		err := s.cm.Put(fmt.Sprintf("cacheKey-%d", i), p)
 		c.Check(err, IsNil)
 
@@ -69,7 +78,8 @@ func (s *cacheSuite) TestPutMany(c *C) {
 		err = os.Remove(p)
 		c.Assert(err, IsNil)
 		// We need to sync the (meta)data here or the test is racy
-		syscall.Sync()
+		c.Assert(dataDir.Sync(), IsNil)
+		c.Assert(cacheDir.Sync(), IsNil)
 
 		if i <= s.maxItems {
 			c.Check(s.cm.Count(), Equals, i)

@@ -1,0 +1,26 @@
+summary: system key is not written if security setup fails
+details: |
+    When snapd is started up and the system key needs regeneration errors from
+    establishing the new security profiles should not stop snapd from running
+    but should prevent snapd from writing the system key.
+prepare: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    mount --bind /bin/false "$LIBEXECDIR/snapd/snap-seccomp"
+    test -d "$SNAP_MOUNT_DIR/core" && mount --bind /bin/false "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp"
+    test -d "$SNAP_MOUNT_DIR/snapd" && mount --bind /bin/false "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp"
+    mv /var/lib/snapd/system-key /var/lib/snapd/system-key.orig
+    echo '{}' > /var/lib/snapd/system-key
+restore: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    umount "$LIBEXECDIR/snapd/snap-seccomp" || true
+    test -d "$SNAP_MOUNT_DIR/core" && ( umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp" || true )
+    test -d "$SNAP_MOUNT_DIR/snapd" && ( umount "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp" || true )
+    mv /var/lib/snapd/system-key.orig /var/lib/snapd/system-key || true
+execute: |
+    systemctl stop snapd.socket snapd.service
+    systemctl start snapd.socket snapd.service
+    journalctl -u snapd | MATCH 'cannot regenerate seccomp profile for snap "(core|snapd|test-snapd-rsync-core18)"'
+    snap list | MATCH "(core|snapd)"
+    test ! -e /var/lib/snapd/system-key

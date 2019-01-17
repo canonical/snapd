@@ -57,10 +57,10 @@ func (s *HardwareObserveInterfaceSuite) SetUpTest(c *C) {
 		Name:      "hardware-observe",
 		Interface: "hardware-observe",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, hwobserveMockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["hardware-observe"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *HardwareObserveInterfaceSuite) TestName(c *C) {

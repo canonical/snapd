@@ -174,10 +174,10 @@ type Logf func(format string, args ...interface{})
 
 // Restore the data from the snapshot.
 //
-// If successful this will replace the existing data (for the revision in the
-// snapshot) with that contained in the snapshot.  It keeps track of the old
-// data in the task so it can be undone (or cleaned up).
-func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs *RestoreState, e error) {
+// If successful this will replace the existing data (for the given revision,
+// or the one in the snapshot) with that contained in the snapshot. It keeps
+// track of the old data in the task so it can be undone (or cleaned up).
+func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames []string, logf Logf) (rs *RestoreState, e error) {
 	rs = &RestoreState{}
 	defer func() {
 		if e != nil {
@@ -192,6 +192,11 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 	si := snap.MinimalPlaceInfo(r.Snap, r.Revision)
 	hasher := crypto.SHA3_384.New()
 	var sz sizer
+
+	var curdir string
+	if !current.Unset() {
+		curdir = current.String()
+	}
 
 	for entry := range r.SHA3_384 {
 		if err := ctx.Err(); err != nil {
@@ -268,10 +273,15 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 			return rs, fmt.Errorf("Cannot restore snapshot into %q: not a directory.", parent)
 		}
 
+		// TODO: have something more atomic in osutil
 		tempdir, err := ioutil.TempDir(parent, ".snapshot")
 		if err != nil {
 			return rs, err
 		}
+		if err := sys.ChownPath(tempdir, uid, gid); err != nil {
+			return rs, err
+		}
+
 		// one way or another we want tempdir gone
 		defer func() {
 			if err := os.RemoveAll(tempdir); err != nil {
@@ -293,18 +303,26 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 		// resist the temptation of using archive/tar unless it's proven
 		// that calling out to tar has issues -- there are a lot of
 		// special cases we'd need to consider otherwise
-		cmd := maybeRunuserCommand(username,
-			"tar",
+		cmd := tarAsUser(username,
 			"--extract",
 			"--preserve-permissions", "--preserve-order", "--gunzip",
 			"--directory", tempdir)
 		cmd.Env = []string{}
 		cmd.Stdin = tr
-		cmd.Stderr = os.Stderr
+		matchCounter := &strutil.MatchCounter{N: 1}
+		cmd.Stderr = matchCounter
 		cmd.Stdout = os.Stderr
+		if isTesting {
+			matchCounter.N = -1
+			cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
+		}
 
 		if err = osutil.RunWithContext(ctx, cmd); err != nil {
-			return rs, err
+			matches, count := matchCounter.Matches()
+			if count > 0 {
+				return rs, fmt.Errorf("cannot unpack archive: %s (and %d more)", matches[0], count-1)
+			}
+			return rs, fmt.Errorf("tar failed: %v", err)
 		}
 
 		if sz.size != expectedSize {
@@ -317,7 +335,14 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 				r.Name(), entry, expectedHash, actualHash)
 		}
 
-		// TODO: something with Config
+		if curdir != "" && curdir != revdir {
+			// rename it in tempdir
+			// this is where we assume the current revision can read the snapshot revision's data
+			if err := os.Rename(filepath.Join(tempdir, revdir), filepath.Join(tempdir, curdir)); err != nil {
+				return rs, err
+			}
+			revdir = curdir
+		}
 
 		for _, dir := range []string{"common", revdir} {
 			source := filepath.Join(tempdir, dir)

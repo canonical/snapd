@@ -66,6 +66,10 @@ type Config struct {
 
 	// Socket is the path to the unix socket to use
 	Socket string
+
+	// DisableKeepAlive indicates whether the connections should not be kept
+	// alive for later reuse
+	DisableKeepAlive bool
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -77,6 +81,9 @@ type Client struct {
 	interactive bool
 
 	maintenance error
+
+	warningCount     int
+	warningTimestamp time.Time
 }
 
 // New returns a new instance of Client
@@ -87,14 +94,13 @@ func New(config *Config) *Client {
 
 	// By default talk over an UNIX socket.
 	if config.BaseURL == "" {
+		transport := &http.Transport{Dial: unixDialer(config.Socket), DisableKeepAlives: config.DisableKeepAlive}
 		return &Client{
 			baseURL: url.URL{
 				Scheme: "http",
 				Host:   "localhost",
 			},
-			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer(config.Socket)},
-			},
+			doer:        &http.Client{Transport: transport},
 			disableAuth: config.DisableAuth,
 			interactive: config.Interactive,
 		}
@@ -106,7 +112,7 @@ func New(config *Config) *Client {
 	}
 	return &Client{
 		baseURL:     *baseURL,
-		doer:        &http.Client{},
+		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 	}
@@ -115,6 +121,13 @@ func New(config *Config) *Client {
 // Maintenance returns an error reflecting the daemon maintenance status or nil.
 func (client *Client) Maintenance() error {
 	return client.maintenance
+}
+
+// WarningsSummary returns the number of warnings that are ready to be shown to
+// the user, and the timestamp of the most recently added warning (useful for
+// silencing the warning alerts, and OKing the returned warnings).
+func (client *Client) WarningsSummary() (count int, timestamp time.Time) {
+	return client.warningCount, client.warningTimestamp
 }
 
 func (client *Client) WhoAmI() (string, error) {
@@ -223,6 +236,19 @@ func MockDoRetry(retry, timeout time.Duration) (restore func()) {
 	}
 }
 
+type hijacked struct {
+	do func(*http.Request) (*http.Response, error)
+}
+
+func (h hijacked) Do(req *http.Request) (*http.Response, error) {
+	return h.do(req)
+}
+
+// Hijack lets the caller take over the raw http request
+func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
+	client.doer = hijacked{f}
+}
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
@@ -250,17 +276,24 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	defer rsp.Body.Close()
 
 	if v != nil {
-		dec := json.NewDecoder(rsp.Body)
-		if err := dec.Decode(v); err != nil {
-			r := dec.Buffered()
-			buf, err1 := ioutil.ReadAll(r)
-			if err1 != nil {
-				buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
-			}
-			return fmt.Errorf("cannot decode %q: %s", buf, err)
+		if err := decodeInto(rsp.Body, v); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func decodeInto(reader io.Reader, v interface{}) error {
+	dec := json.NewDecoder(reader)
+	if err := dec.Decode(v); err != nil {
+		r := dec.Buffered()
+		buf, err1 := ioutil.ReadAll(r)
+		if err1 != nil {
+			buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
+		}
+		return fmt.Errorf("cannot decode %q: %s", buf, err)
+	}
 	return nil
 }
 
@@ -285,6 +318,9 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 			return nil, fmt.Errorf("cannot unmarshal: %v", err)
 		}
 	}
+
+	client.warningCount = rsp.WarningCount
+	client.warningTimestamp = rsp.WarningTimestamp
 
 	return &rsp.ResultInfo, nil
 }
@@ -352,6 +388,9 @@ type response struct {
 	Type       string          `json:"type"`
 	Change     string          `json:"change"`
 
+	WarningCount     int       `json:"warning-count"`
+	WarningTimestamp time.Time `json:"warning-timestamp"`
+
 	ResultInfo
 
 	Maintenance *Error `json:"maintenance"`
@@ -388,6 +427,7 @@ const (
 	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
+	ErrorKindSnapNotClassic         = "snap-not-classic"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
 
 	ErrorKindRevisionNotAvailable     = "snap-revision-not-available"
@@ -399,6 +439,7 @@ const (
 	ErrorKindNotSnap = "snap-not-a-snap"
 
 	ErrorKindNetworkTimeout = "network-timeout"
+	ErrorKindDNSFailure     = "dns-failure"
 
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
 
@@ -408,6 +449,16 @@ const (
 	ErrorKindSystemRestart = "system-restart"
 	ErrorKindDaemonRestart = "daemon-restart"
 )
+
+// IsRetryable returns true if the given error is an error
+// that can be retried later.
+func IsRetryable(err error) bool {
+	switch e := err.(type) {
+	case *Error:
+		return e.Kind == ErrorKindChangeConflict
+	}
+	return false
+}
 
 // IsTwoFactorError returns whether the given error is due to problems
 // in two-factor authentication.

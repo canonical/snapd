@@ -42,9 +42,9 @@ the given name.
 		func() flags.Commander {
 			return &cmdDeleteKey{}
 		}, nil, []argDesc{{
-			// TRANSLATORS: This needs to be wrapped in <>s.
+			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<key-name>"),
-			// TRANSLATORS: This should probably not start with a lowercase letter.
+			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Name of key to delete"),
 		}})
 	cmd.hidden = true

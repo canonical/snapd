@@ -1,11 +1,14 @@
 summary: Ensure security profile re-generation works with system-key
+
 prepare: |
     echo "Make backup of fstab"
     cp /etc/fstab /tmp/fstab.save
+
 restore: |
     echo "Restore fstab copy"
     cp /tmp/fstab.save /etc/fstab
     rm -f /tmp/fstab.save
+
 execute: |
     stop_snapd() {
         systemctl stop snapd.service snapd.socket
@@ -27,9 +30,8 @@ execute: |
     }
 
     echo "Ensure a valid system-key file is on-disk"
-    cat /var/lib/snapd/system-key | MATCH '"build-id":"[0-9a-z]+"'
+    MATCH '"build-id":"[0-9a-z]+"' < /var/lib/snapd/system-key
     buf="$(stat /var/lib/snapd/system-key)"
-    system_key_content="$(cat /var/lib/snapd/system-key)"
 
     echo "Ensure that the system-key is not rewritten if system-key is unchanged"
     restart_snapd

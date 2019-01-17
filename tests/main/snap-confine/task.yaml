@@ -9,21 +9,23 @@ prepare: |
     snap install test-snapd-tools
 
 restore: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Restore current symlink"
     mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current ||  true
     rm -f snap-confine.stderr
 
 execute: |
-    . $TESTSLIB/dirs.sh
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
 
     echo "Simulating broken current symlink for core"
     mv $SNAP_MOUNT_DIR/core/current $SNAP_MOUNT_DIR/core/current.renamed
     if test-snapd-tools.echo hello 2>snap-confine.stderr; then
         echo "test-snapd-tools.echo should fail to run, test broken"
     fi
-    cat snap-confine.stderr | MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):'
+    MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):' < snap-confine.stderr
     mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
 
     echo "Test nvidia device fix"
@@ -42,11 +44,11 @@ execute: |
 
     echo "Ensure apparmor profile for snap-confine is parsable"
     for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
-        if which apparmor_parser 2>/dev/null; then
-            apparmor_parser -QTK $f
+        if command -v apparmor_parser 2>/dev/null; then
+            apparmor_parser -QTK "$f"
         fi
-        if which aa-enforce 2>/dev/null; then
-            aa-enforce $f
+        if command -v aa-enforce 2>/dev/null; then
+            aa-enforce "$f"
         fi
     done
 

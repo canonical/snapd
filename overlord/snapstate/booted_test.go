@@ -85,12 +85,13 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
-	snapstate.MockModel()
+	snapstate.SetDefaultModel()
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
 	bs.BaseTest.TearDownTest(c)
 	snapstate.AutoAliases = nil
+	snapstate.Model = nil
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
@@ -344,8 +345,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 }
 
 func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
-	restore := snapstate.MockModelWithBase("core18")
-	defer restore()
+	snapstate.SetModelWithBase("core18")
 
 	st := bs.state
 	st.Lock()
