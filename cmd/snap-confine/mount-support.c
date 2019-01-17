@@ -343,7 +343,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
-			die("cannot use result from readlink: %s", src);
+			die("cannot use result from readlink: %s", self);
 		}
 		src = dirname(self);
 		// dirname(path) might return '.' depending on path.

@@ -1,0 +1,55 @@
+summary: Check that snap run automatically restores SELinux context
+
+description: |
+    Verify that snap run automatically restores the SELinux context of $HOME/snap.
+
+systems: [fedora-*, centos-*]
+prepare: |
+    snap install test-snapd-tools
+    if [ -d /home/test/snap ]; then
+        mv /home/test/snap /home/test/snap.old
+    fi
+
+restore: |
+    if [ -d /home/test/snap.old ]; then
+        rm -rf /home/test/snap
+        mv /home/test/snap.old /home/test/snap
+    fi
+
+execute: |
+    # TODO: extend the test to work for root when the policy is fixed for admin_home_t
+    # TODO: use snap debug sandbox-features once selinux backend is added
+
+    test ! -d /home/test/snap
+    su -c "test-snapd-tools.cmd sh -c 'touch \$SNAP_USER_DATA/foo'" test
+    test -d /home/test/snap
+
+    echo "The snap user directory and data inside has the right context"
+
+    ls -dZ /home/test/snap /home/test/snap/test-snapd-tools /home/test/snap/test-snapd-tools/current/foo > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                              < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools$'             < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo$' < test-labels
+
+    echo "When the context of \$HOME/snap is changed"
+    chcon -t unlabeled_t -R /home/test/snap
+    chcon -t unlabeled_t -R /home/test/snap/test-snapd-tools/current/foo
+    #shellcheck disable=SC2012
+    ls -dZ /home/test/snap | MATCH ':unlabeled_t:'
+
+    echo "It gets restored recursively"
+    su -c 'test-snapd-tools.cmd id -Z' test
+
+    ls -dZ /home/test/snap /home/test/snap/test-snapd-tools /home/test/snap/test-snapd-tools/current/foo > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                              < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools$'             < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo$' < test-labels
+
+    echo "Restoring happens only when the context of \$HOME/snap is incorrect"
+    chcon -t unlabeled_t -R /home/test/snap/test-snapd-tools/current/foo
+    su -c 'test-snapd-tools.cmd id -Z' test
+
+    ls -dZ /home/test/snap /home/test/snap/test-snapd-tools /home/test/snap/test-snapd-tools/current/foo > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                            < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools$'           < test-labels
+    MATCH '^.*:unlabeled_t:.*/home/test/snap/test-snapd-tools/current/foo$' < test-labels

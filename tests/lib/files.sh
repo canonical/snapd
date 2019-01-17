@@ -45,8 +45,8 @@ clean_dir() {
 ensure_file_exists() {
     file="$1"
     if ! [ -e "$file" ]; then
-        touch "$file"
-        touch "$file.fake"
+        echo "content for $file" > "$file"
+        echo "content for fake $file" > "$file.fake"
     fi
 }
 
@@ -59,8 +59,7 @@ ensure_file_exists_backup_real() {
     if [ ! -d "$(dirname "$file")" ]; then
         mkdir -p "$(dirname "$file")"
     fi
-    touch "$file"
-    touch "$file.fake"
+    ensure_file_exists "$file"
 }
 
 clean_file() {

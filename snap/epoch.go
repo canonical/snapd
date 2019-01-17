@@ -159,6 +159,25 @@ func (e *Epoch) IsZero() bool {
 	return rZero && wZero
 }
 
+func epochListEq(a, b []uint32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *Epoch) Equal(other *Epoch) bool {
+	if e.IsZero() {
+		return other.IsZero()
+	}
+	return epochListEq(e.Read, other.Read) && epochListEq(e.Write, other.Write)
+}
+
 // Validate checks that the epoch makes sense.
 func (e *Epoch) Validate() error {
 	if (e.Read != nil && len(e.Read) == 0) || (e.Write != nil && len(e.Write) == 0) {

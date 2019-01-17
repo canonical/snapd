@@ -1,0 +1,96 @@
+summary: Ensure that the personal-files interface works.
+
+details: |
+    The personal-files interface allows access specific personal files or directories.
+
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-sh
+
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    # Fist layer of dirs and files
+    ensure_file_exists_backup_real /root/.testfile1
+    ensure_file_exists_backup_real /root/testfile1
+    ensure_dir_exists_backup_real /root/.testdir1
+    ensure_dir_exists_backup_real /root/testdir1
+
+    # Second layer of dirs and files
+    ensure_file_exists_backup_real /root/.testdir1/.testfilé2
+    ensure_file_exists_backup_real "/root/.testdir1/test file2"
+    ensure_dir_exists_backup_real /root/.testdir1/.testdir2
+
+    # Not accessible dirs and files
+    ensure_dir_exists_backup_real /var/tmp/.testdir1
+    ensure_file_exists_backup_real /var/tmp/.testfile1
+    ensure_dir_exists_backup_real /var/tmp/root/
+    ensure_file_exists_backup_real /var/tmp/root/testfile2
+    ensure_file_exists_backup_real /var/tmp/root/.testfile2
+
+restore: |
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    clean_file /root/.testfile1
+    clean_file /root/testfile1
+    clean_dir /root/.testdir1
+    clean_dir /root/testdir1
+    clean_dir /var/tmp/root
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i personal-files | MATCH "\\- +test-snapd-sh:personal-files"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-sh:personal-files
+
+    echo "And not other interfaces are connected"
+    snap disconnect test-snapd-sh:home
+
+    echo "Then the snap is able to access all the files and dirs in $HOME"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "content for /root/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "content for /root/testfile1"
+    test-snapd-sh.with-personal-files-plug -c "ls /root/.testdir1"
+    test-snapd-sh.with-personal-files-plug -c "ls /root/testdir1"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2" | MATCH "content for /root/.testdir1/.testfilé2"
+    test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'" | MATCH "content for /root/.testdir1/test file2"
+    test-snapd-sh.with-personal-files-plug -c "ls  /root/.testdir1/.testdir2/"
+
+    echo "Then the snap is able to write on /root/.testdir1 and /root/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "echo test >> /root/.testfile1"
+    test-snapd-sh.with-personal-files-plug -c "touch /root/.testdir1/testfilé2"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "Then the snap is no able to write outside /root/.testdir1 and /root/.testfile1"
+    if test-snapd-sh.with-personal-files-plug -c "echo test >> /root/testfile1" 2> call.error; then
+        echo "Expected permission error writing the personal file"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+
+    echo "Then the snap is not able to to access files and dirs outside $HOME"
+    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/.testdir1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/.testfile1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/root/" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/testfile2" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/.testfile2" 2>&1| MATCH "Permission denied"
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:personal-files
+
+    echo "Then the snap is not able to read files and dirs in $HOME"
+    if test-snapd-sh.with-personal-files-plug -c "ls /root/.testdir1" 2> call.error; then
+        echo "Expected permission error accessing the personal dir"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+    if test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" 2> call.error; then
+        echo "Expected permission error accessing the personal file"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

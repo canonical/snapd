@@ -37,8 +37,6 @@ set -o pipefail
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
 
-# shellcheck source=tests/lib/reset.sh
-. "$TESTSLIB/reset.sh"
 
 ###
 ### Utility functions reused below.
@@ -413,8 +411,13 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
+    # back test directory to be restored during the restore
+    tar cf "${PWD}.tar" "$PWD"
+
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
     # Reset systemd journal cursor.
     start_new_journalctl_log
     # shellcheck source=tests/lib/prepare.sh
@@ -433,12 +436,19 @@ prepare_suite_each() {
 }
 
 restore_suite_each() {
-    reset_snapd --reuse-core
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
+
+    # restore test directory saved during prepare
+    if [ -f "${PWD}.tar" ]; then
+        rm -rf "$PWD"
+        tar -C/ -xf "${PWD}.tar"
+        rm -rf "${PWD}.tar"
+    fi
 }
 
 restore_suite() {
-    reset_snapd --store
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --store
     if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
