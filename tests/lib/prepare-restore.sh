@@ -318,6 +318,9 @@ prepare_project() {
         tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version)".orig.tar.gz --exclude=./debian --exclude=./.git .
 
         apt build-dep -y ./
+
+        # and ensure we don't take any of the vendor deps
+        rm -rf vendor/*
     fi
 
     # so is ubuntu-14.04
