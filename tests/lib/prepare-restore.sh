@@ -304,6 +304,23 @@ prepare_project() {
         fi
     fi
 
+    # debian packaing is special
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        if [ ! -d packaging/ubuntu-14.04 ]; then
+            echo "no packaging/ubuntu-14.04/ directory "
+            echo "broken test setup"
+            exit 1
+        fi
+
+        # debian has its own packaging
+        rm -f debian
+        ln -s "packaging/debian-sid" debian
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version)".orig.tar.gz --exclude=./debian --exclude=./.git .
+
+        apt build-dep -y ./
+    fi
+
+    # so is ubuntu-14.04
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
