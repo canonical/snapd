@@ -70,3 +70,65 @@ func (s *SortingSuite) TestByConnRef(c *C) {
 		newConnRef("name-1_instance", "plug-1", "name-2", "slot-1"),
 	})
 }
+
+func newSlotRef(snap, name string) *interfaces.SlotRef {
+	return &interfaces.SlotRef{Snap: snap, Name: name}
+}
+
+type bySlotRef []*interfaces.SlotRef
+
+func (b bySlotRef) Len() int      { return len(b) }
+func (b bySlotRef) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b bySlotRef) Less(i, j int) bool {
+	return b[i].SortsBefore(*b[j])
+}
+
+func (s *SortingSuite) TestSortSlotRef(c *C) {
+	list := []*interfaces.SlotRef{
+		newSlotRef("name-2", "slot-3"),
+		newSlotRef("name-2_instance", "slot-1"),
+		newSlotRef("name-2", "slot-2"),
+		newSlotRef("name-2", "slot-4"),
+		newSlotRef("name-2", "slot-1"),
+	}
+	sort.Sort(bySlotRef(list))
+
+	c.Assert(list, DeepEquals, []*interfaces.SlotRef{
+		newSlotRef("name-2", "slot-1"),
+		newSlotRef("name-2", "slot-2"),
+		newSlotRef("name-2", "slot-3"),
+		newSlotRef("name-2", "slot-4"),
+		newSlotRef("name-2_instance", "slot-1"),
+	})
+}
+
+type byPlugRef []*interfaces.PlugRef
+
+func (b byPlugRef) Len() int      { return len(b) }
+func (b byPlugRef) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byPlugRef) Less(i, j int) bool {
+	return b[i].SortsBefore(*b[j])
+}
+
+func newPlugRef(snap, name string) *interfaces.PlugRef {
+	return &interfaces.PlugRef{Snap: snap, Name: name}
+}
+
+func (s *SortingSuite) TestSortPlugRef(c *C) {
+	list := []*interfaces.PlugRef{
+		newPlugRef("name-2", "plug-3"),
+		newPlugRef("name-2_instance", "plug-1"),
+		newPlugRef("name-2", "plug-4"),
+		newPlugRef("name-2", "plug-2"),
+		newPlugRef("name-2", "plug-1"),
+	}
+	sort.Sort(byPlugRef(list))
+
+	c.Assert(list, DeepEquals, []*interfaces.PlugRef{
+		newPlugRef("name-2", "plug-1"),
+		newPlugRef("name-2", "plug-2"),
+		newPlugRef("name-2", "plug-3"),
+		newPlugRef("name-2", "plug-4"),
+		newPlugRef("name-2_instance", "plug-1"),
+	})
+}
