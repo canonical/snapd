@@ -602,6 +602,7 @@ suites:
     # tests there without running into timeouts.
     tests/smoke/:
         summary: Essenial system level tests for snapd
+        backends: [autopkgtest]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
