@@ -1,7 +1,7 @@
 --- a/systemd/systemd.go
 +++ b/systemd/systemd.go
-@@ -30,8 +30,6 @@
- 	"strings"
+@@ -33,8 +33,6 @@
+ 	"sync/atomic"
  	"time"
  
 -	_ "github.com/snapcore/squashfuse"
