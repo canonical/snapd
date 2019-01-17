@@ -331,7 +331,13 @@ distro_purge_package() {
 distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get update
+            # retry if package lists are locked
+            for _ in $(seq 10); do
+                if quiet apt-get update; then
+                    break
+                fi
+                sleep 30
+            done
             ;;
         fedora-*)
             quiet dnf clean all
