@@ -190,31 +190,11 @@ Index: snapd.mvo/tests/main/i18n/task.yaml
 Index: snapd.mvo/i18n/i18n.go
 ===================================================================
 --- snapd.mvo.orig/i18n/i18n.go
-+++ /dev/null
-@@ -1,119 +0,0 @@
--// -*- Mode: Go; indent-tabs-mode: t -*-
--
--/*
-- * Copyright (C) 2014-2015 Canonical Ltd
-- *
-- * This program is free software: you can redistribute it and/or modify
-- * it under the terms of the GNU General Public License version 3 as
-- * published by the Free Software Foundation.
-- *
-- * This program is distributed in the hope that it will be useful,
-- * but WITHOUT ANY WARRANTY; without even the implied warranty of
-- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-- * GNU General Public License for more details.
-- *
-- * You should have received a copy of the GNU General Public License
-- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
-- *
-- */
--
--package i18n
--
--//go:generate update-pot
--
++++ snapd.mvo/i18n/i18n.go
+@@ -21,83 +21,9 @@ package i18n
+ 
+ //go:generate update-pot
+ 
 -import (
 -	"fmt"
 -	"os"
@@ -289,25 +269,21 @@ Index: snapd.mvo/i18n/i18n.go
 -	locale = translations.Locale(loc)
 -}
 -
--// G is the shorthand for Gettext
--func G(msgid string) string {
+ // G is the shorthand for Gettext
+ func G(msgid string) string {
 -	return locale.Gettext(msgid)
--}
--
--// https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html
--// (search for 1000)
--func ngn(d int) uint32 {
--	const max = 1000000
--	if d < 0 {
--		d = -d
--	}
--	if d > max {
--		return uint32((d % max) + max)
--	}
--	return uint32(d)
--}
--
--// NG is the shorthand for NGettext
--func NG(msgid string, msgidPlural string, n int) string {
++	return msgid
+ }
+ 
+ // https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html
+@@ -115,5 +41,9 @@ func ngn(d int) uint32 {
+ 
+ // NG is the shorthand for NGettext
+ func NG(msgid string, msgidPlural string, n int) string {
 -	return locale.NGettext(msgid, msgidPlural, ngn(n))
--}
++	if ngn(n) == 1 {
++		return msgid
++	} else {
++		return msgidPlural
++	}
+ }
