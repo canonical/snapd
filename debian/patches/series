@@ -5,3 +5,4 @@ no-snapfuse.patch
 upstream-bolt.patch
 
 skip-squashfs-test-depending-on-package-fixes.patch
+skip-tests-depending-on-wrapping-logic.patch
