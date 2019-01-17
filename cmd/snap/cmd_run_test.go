@@ -50,7 +50,20 @@ hooks:
  configure:
 `)
 
-func (s *SnapSuite) TestInvalidParameters(c *check.C) {
+type RunSuite struct {
+	fakeHome string
+	SnapSuite
+}
+
+func (s *RunSuite) SetUpTest(c *check.C) {
+	s.SnapSuite.SetUpTest(c)
+	s.fakeHome = c.MkDir()
+	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{HomeDir: s.fakeHome}, nil
+	}))
+}
+
+func (s *RunSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "--", "snap-name"}
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
@@ -76,7 +89,7 @@ func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"configure\": bar.*")
 }
 
-func (s *SnapSuite) TestSnapRunWhenMissingConfine(c *check.C) {
+func (s *RunSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 	_, r := logger.MockLogger()
 	defer r()
 
@@ -105,7 +118,7 @@ func (s *SnapSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 	c.Check(execs, check.IsNil)
 }
 
-func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -138,7 +151,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
-func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -172,7 +185,7 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 
 }
 
-func (s *SnapSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
+func (s *RunSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
 	mountedCorePath := filepath.Join(dirs.SnapMountDir, "core/current")
 	mountedCoreLibExecPath := filepath.Join(mountedCorePath, dirs.CoreLibExecDir)
 
@@ -205,7 +218,7 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
 		"snapname.app", "--arg1", "arg2"})
 }
 
-func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -237,48 +250,36 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
-func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
+func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
-	fakeHome := c.MkDir()
-	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{HomeDir: fakeHome}, nil
-	})
-	defer restorer()
-
 	err = snaprun.CreateUserDataDirs(info)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/common")), check.Equals, true)
 }
 
-func (s *SnapSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
+func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 	info.InstanceKey = "foo"
 
-	fakeHome := c.MkDir()
-	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{HomeDir: fakeHome}, nil
-	})
-	defer restorer()
-
 	err = snaprun.CreateUserDataDirs(info)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
 	// mount point for snap instance mapping has been created
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname")), check.Equals, true)
 	// and it's empty inside
-	m, err := filepath.Glob(filepath.Join(fakeHome, "/snap/snapname/*"))
+	m, err := filepath.Glob(filepath.Join(s.fakeHome, "/snap/snapname/*"))
 	c.Assert(err, check.IsNil)
 	c.Assert(m, check.HasLen, 0)
 }
 
-func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -310,7 +311,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
-func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -342,7 +343,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
-func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -378,7 +379,7 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=41")
 }
 
-func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	// Only create revision 42
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -396,13 +397,13 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	c.Check(err, check.ErrorMatches, "cannot find .*")
 }
 
-func (s *SnapSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "-r=invalid", "--", "snapname"})
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "invalid snap revision: \"invalid\"")
 }
 
-func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	// Only create revision 42
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
@@ -421,22 +422,22 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	c.Check(called, check.Equals, false)
 }
 
-func (s *SnapSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
+func (s *RunSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--unknown", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.ErrorMatches, "unknown flag `unknown'")
 }
 
-func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
+func (s *RunSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--command=shell"})
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
 
-func (s *SnapSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
+func (s *RunSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "not-there"})
 	c.Assert(err, check.ErrorMatches, fmt.Sprintf("cannot find current revision for snap not-there: readlink %s/not-there/current: no such file or directory", dirs.SnapMountDir))
 }
 
-func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
+func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -471,7 +472,7 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }
 
-func (s *SnapSuite) TestSnapRunIsReexeced(c *check.C) {
+func (s *RunSuite) TestSnapRunIsReexeced(c *check.C) {
 	var osReadlinkResult string
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		return osReadlinkResult, nil
@@ -490,7 +491,7 @@ func (s *SnapSuite) TestSnapRunIsReexeced(c *check.C) {
 	}
 }
 
-func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
+func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))()
 
 	// mock installed snap
@@ -529,7 +530,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
-func (s *SnapSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
+func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "snapd", "222", dirs.CoreLibExecDir))()
 
 	// mock installed snap
@@ -568,7 +569,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
-func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
+func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	u, err := user.Current()
@@ -644,7 +645,7 @@ func mkCompArgs(compPoint string, argv ...string) []string {
 	return out
 }
 
-func (s *SnapSuite) TestAntialiasHappy(c *check.C) {
+func (s *RunSuite) TestAntialiasHappy(c *check.C) {
 	c.Assert(os.MkdirAll(dirs.SnapBinariesDir, 0755), check.IsNil)
 
 	inArgs := mkCompArgs("10", "alias", "alias", "bo-alias")
@@ -672,7 +673,7 @@ func (s *SnapSuite) TestAntialiasHappy(c *check.C) {
 	})
 }
 
-func (s *SnapSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
+func (s *RunSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
 	// alias exists but args are somehow wonky
 	c.Assert(os.MkdirAll(dirs.SnapBinariesDir, 0755), check.IsNil)
 	c.Assert(os.Symlink("an-app", filepath.Join(dirs.SnapBinariesDir, "alias")), check.IsNil)
@@ -701,7 +702,7 @@ func (s *SnapSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
 	}
 }
 
-func (s *SnapSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -781,7 +782,7 @@ and more
 	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
 }
 
-func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
+func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -822,7 +823,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	})
 }
 
-func (s *SnapSuite) TestSnapRunShellIntegration(c *check.C) {
+func (s *RunSuite) TestSnapRunShellIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -855,7 +856,7 @@ func (s *SnapSuite) TestSnapRunShellIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
-func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
+func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -910,7 +911,7 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 		"snapname.app", "--arg1", "arg2"})
 }
 
-func (s *SnapSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
+func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -933,7 +934,7 @@ func (s *SnapSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
+func (s *RunSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	logbuf, restorer := logger.MockLogger()
 	defer restorer()
 
@@ -943,12 +944,6 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
-
-	fakeHome := c.MkDir()
-	restorer = snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{HomeDir: fakeHome}, nil
-	})
-	defer restorer()
 
 	// redirect exec
 	execCalled := 0
@@ -964,7 +959,7 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	enabled := false
 	verify := true
 
-	snapUserDir := filepath.Join(fakeHome, dirs.UserHomeSnapDir)
+	snapUserDir := filepath.Join(s.fakeHome, dirs.UserHomeSnapDir)
 
 	restorer = snaprun.MockSELinuxVerifyPathContext(func(what string) (bool, error) {
 		c.Check(what, check.Equals, snapUserDir)
@@ -1020,7 +1015,7 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("restoring default SELinux context of %s", snapUserDir))
 }
 
-func (s *SnapSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
+func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	logbuf, restorer := logger.MockLogger()
 	defer restorer()
 
@@ -1030,12 +1025,6 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
-
-	fakeHome := c.MkDir()
-	restorer = snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{HomeDir: fakeHome}, nil
-	})
-	defer restorer()
 
 	// redirect exec
 	execCalled := 0
@@ -1052,7 +1041,7 @@ func (s *SnapSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	verifyErr := errors.New("verify failed")
 	restoreErr := errors.New("restore failed")
 
-	snapUserDir := filepath.Join(fakeHome, dirs.UserHomeSnapDir)
+	snapUserDir := filepath.Join(s.fakeHome, dirs.UserHomeSnapDir)
 
 	restorer = snaprun.MockSELinuxVerifyPathContext(func(what string) (bool, error) {
 		c.Check(what, check.Equals, snapUserDir)
