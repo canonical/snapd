@@ -30,7 +30,7 @@ execute: |
 
     echo "Instance snap plug can be connected as well"
     snap connect home-consumer_foo:home
-    snap interfaces | MATCH ':home .*[,]?home-consumer_foo(,.*)?$'
+    snap interfaces | MATCH ':home .*home-consumer_foo$'
     snap tasks --last=connect| MATCH "Connect home-consumer_foo:home to (core|snapd):home"
 
     echo "When non-instance snap plug is disconnected"
