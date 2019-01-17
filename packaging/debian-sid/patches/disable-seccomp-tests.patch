@@ -1,0 +1,29 @@
+Description: disable cmd/snap-seccomp tests
+ The snap-seccomp tests require a fork of the golang/x/net library to run.
+ Disable the tests until the necessary changes are upstream.
+Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
+Origin: vendor
+Forwarded: not-needed
+Last-Update: 2017-08-15
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/cmd/snap-seccomp/export_test.go
++++ b/cmd/snap-seccomp/export_test.go
+@@ -1,5 +1,7 @@
+ // -*- Mode: Go; indent-tabs-mode: t -*-
+ 
++// +build ignore
++
+ /*
+  * Copyright (C) 2017 Canonical Ltd
+  *
+--- a/cmd/snap-seccomp/main_test.go
++++ b/cmd/snap-seccomp/main_test.go
+@@ -1,5 +1,7 @@
+ // -*- Mode: Go; indent-tabs-mode: t -*-
+ 
++// +build ignore
++
+ /*
+  * Copyright (C) 2017 Canonical Ltd
+  *
