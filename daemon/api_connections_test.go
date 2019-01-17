@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 
 	"gopkg.in/check.v1"
 
@@ -644,18 +643,7 @@ plugs:
 
 	s.mockSnap(c, producerYaml)
 
-	repo := s.d.overlord.InterfaceManager().Repository()
-	mockedConnections := []string{"consumer:plug producer:slot", "another-consumer-def:plug producer:slot", "another-consumer-abc:plug producer:slot"}
-	for _, crefStr := range mockedConnections {
-		cref, err := interfaces.ParseConnRef(crefStr)
-		c.Assert(err, check.IsNil)
-		_, err = repo.Connect(cref, nil, nil, nil, nil, nil)
-		c.Assert(err, check.IsNil)
-	}
-
-	st := s.d.overlord.State()
-	st.Lock()
-	st.Set("conns", map[string]interface{}{
+	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"by-gadget": true,
@@ -671,25 +659,81 @@ plugs:
 			"by-gadget": true,
 			"auto":      true,
 		},
+	}, map[string]interface{}{
+		"result": map[string]interface{}{
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "another-consumer-abc",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+				map[string]interface{}{
+					"snap":      "another-consumer-def",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+				map[string]interface{}{
+					"snap":      "consumer",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"slot":      "slot",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
+						map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					},
+				},
+			},
+			"established": []interface{}{
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"interface": "test",
+					"gadget":    true,
+				},
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"interface": "test",
+					"gadget":    true,
+				},
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"interface": "test",
+					"gadget":    true,
+				},
+			},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
 	})
-	st.Unlock()
-
-	req, err := http.NewRequest("GET", "/v2/connections", nil)
-	c.Assert(err, check.IsNil)
-	rsp := getConnections(connectionsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, &connectionsJSON{})
-
-	conns := rsp.Result.(*connectionsJSON)
-	c.Assert(conns.Established, check.HasLen, 3)
-	c.Assert(conns.Undesired, check.HasLen, 0)
-
-	var establishedCrefs []string
-	for _, established := range conns.Established {
-		cref := interfaces.ConnRef{PlugRef: established.Plug, SlotRef: established.Slot}
-		establishedCrefs = append(establishedCrefs, cref.ID())
-	}
-
-	c.Check(sort.StringsAreSorted(establishedCrefs), check.Equals, true)
 }
