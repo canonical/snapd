@@ -21,9 +21,6 @@ prepare: |
     echo "Given a snap declaring a plug on the hardware-random-control interface is installed"
     install_local test-snapd-hardware-random-control
 
-restore: |
-    rm -f hw.error
-
 execute: |
     echo "The interface is not connected by default"
     snap interfaces -i hardware-random-control | MATCH '^- +test-snapd-hardware-random-control:hardware-random-control'

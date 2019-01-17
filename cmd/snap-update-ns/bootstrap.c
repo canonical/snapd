@@ -419,7 +419,7 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out,
 				// called from snap-confine.
 				should_setns = false;
 			} else if (!strcmp(arg, "-u")) {
-				if (parse_arg_u(argc, argv, &i, uid_out)) {
+				if (parse_arg_u(argc, argv, &i, uid_out) < 0) {
 					return;
 				}
 				// Providing an user identifier implies we are performing an

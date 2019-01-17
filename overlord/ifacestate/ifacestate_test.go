@@ -4962,7 +4962,8 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(conn.Slot.Attr("number", &number), IsNil)
 	c.Check(number, Equals, int64(1))
 
-	ifacestate.UpdateConnectionInConnState(conns, conn, false, false)
+	var isAuto, byGadget, isUndesired bool
+	ifacestate.UpdateConnectionInConnState(conns, conn, isAuto, byGadget, isUndesired)
 	ifacestate.SetConns(st, conns)
 
 	// restore connection from conns state
@@ -5785,4 +5786,67 @@ func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
 	for _, chg := range s.st.Changes() {
 		c.Assert(chg.Status(), Equals, state.DoneStatus)
 	}
+}
+
+func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undesired bool, expected map[string]ifacestate.ConnectionState) {
+	slotSnap := s.mockSnap(c, producerYaml)
+	plugSnap := s.mockSnap(c, consumerYaml)
+
+	mgr := s.manager(c)
+
+	conns, err := mgr.ConnectionStates()
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 0)
+
+	st := s.state
+	st.Lock()
+	sc, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	slot := slotSnap.Slots["slot"]
+	c.Assert(slot, NotNil)
+	plug := plugSnap.Plugs["plug"]
+	c.Assert(plug, NotNil)
+	// create connection in conns state
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(plug, nil, nil),
+		Slot: interfaces.NewConnectedSlot(slot, nil, nil),
+	}
+	ifacestate.UpdateConnectionInConnState(sc, conn, auto, byGadget, undesired)
+	ifacestate.SetConns(st, sc)
+	st.Unlock()
+
+	conns, err = mgr.ConnectionStates()
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, expected)
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
+	var isAuto, byGadget, isUndesired bool = true, false, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface: "test",
+			Auto:      true,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
+	var isAuto, byGadget, isUndesired bool = true, true, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface: "test",
+			Auto:      true,
+			ByGadget:  true,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
+	var isAuto, byGadget, isUndesired bool = true, false, true
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface: "test",
+			Auto:      true,
+			Undesired: true,
+		}})
 }
