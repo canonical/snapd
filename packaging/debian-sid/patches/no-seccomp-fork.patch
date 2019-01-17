@@ -1,0 +1,21 @@
+Description: Do not use a fork of github.com/seccomp/libseccomp-golang
+ Upstream uses a fork of this library so it can work on Ubuntu 14.04. The
+ Debian package does not have to care about this so we can just use the
+ version from the archive.
+Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
+Origin: vendor
+Forwarded: not-needed
+Last-Update: 2017-08-15
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/cmd/snap-seccomp/main.go
++++ b/cmd/snap-seccomp/main.go
+@@ -151,7 +151,7 @@
+ 	// FIXME: we want github.com/seccomp/libseccomp-golang but that
+ 	// will not work with trusty because libseccomp-golang checks
+ 	// for the seccomp version and errors if it find one < 2.2.0
+-	"github.com/mvo5/libseccomp-golang"
++	"github.com/seccomp/libseccomp-golang"
+ 
+ 	"github.com/snapcore/snapd/arch"
+ 	"github.com/snapcore/snapd/osutil"

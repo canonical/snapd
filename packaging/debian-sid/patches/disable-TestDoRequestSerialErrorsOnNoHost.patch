@@ -1,0 +1,10 @@
+--- a/overlord/devicestate/devicestate_test.go
++++ b/overlord/devicestate/devicestate_test.go
+@@ -764,6 +764,7 @@
+ }
+ 
+ func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
++	c.Skip("test is flaky, see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=887067")
+ 	privKey, _ := assertstest.GenerateKey(testKeyLength)
+ 
+ 	nowhere := "http://nowhere.nowhere.test"
