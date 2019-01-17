@@ -71,6 +71,22 @@ func (c *collectFilter) ifaceMatches(ifaceName string) bool {
 	return true
 }
 
+type bySlotRef []interfaces.SlotRef
+
+func (b bySlotRef) Len() int      { return len(b) }
+func (b bySlotRef) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b bySlotRef) Less(i, j int) bool {
+	return b[i].SortsBefore(b[j])
+}
+
+type byPlugRef []interfaces.PlugRef
+
+func (b byPlugRef) Len() int      { return len(b) }
+func (b byPlugRef) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byPlugRef) Less(i, j int) bool {
+	return b[i].SortsBefore(b[j])
+}
+
 func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) (*connectionsJSON, error) {
 	repo := ifaceMgr.Repository()
 	ifaces := repo.Interfaces()
@@ -135,6 +151,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		for _, app := range plug.Apps {
 			apps = append(apps, app.Name)
 		}
+		sort.Sort(bySlotRef(connectedSlots))
 		pj := &plugJSON{
 			Snap:        plugRef.Snap,
 			Name:        plugRef.Name,
@@ -159,6 +176,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		for _, app := range slot.Apps {
 			apps = append(apps, app.Name)
 		}
+		sort.Sort(byPlugRef(connectedPlugs))
 		sj := &slotJSON{
 			Snap:        slotRef.Snap,
 			Name:        slotRef.Name,
@@ -182,7 +200,7 @@ func (b byCrefConnJSON) Less(i, j int) bool {
 	jcj := b[j]
 	iCref := interfaces.ConnRef{PlugRef: icj.Plug, SlotRef: icj.Slot}
 	jCref := interfaces.ConnRef{PlugRef: jcj.Plug, SlotRef: jcj.Slot}
-	sortsBefore := iCref.ID() < jCref.ID()
+	sortsBefore := iCref.SortsBefore(&jCref)
 	return sortsBefore
 }
 
