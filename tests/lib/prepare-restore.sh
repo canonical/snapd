@@ -305,9 +305,9 @@ prepare_project() {
     fi
 
     # debian packaing is special
-    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
-        if [ ! -d packaging/ubuntu-14.04 ]; then
-            echo "no packaging/ubuntu-14.04/ directory "
+    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
+        if [ ! -d packaging/debian-sid ]; then
+            echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
             exit 1
         fi
