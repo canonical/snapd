@@ -4,4 +4,3 @@ no-seccomp-fork.patch
 #disable-TestDoRequestSerialErrorsOnNoHost.patch
 upstream-bolt.patch
 no-snapfuse.patch
-systemd-activation-compat.patch

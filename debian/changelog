@@ -1,4 +1,4 @@
-snapd (2.35.5-1) UNRELEASED; urgency=medium
+snapd (2.37-1) UNRELEASED; urgency=medium
 
   [ Michael Hudson-Doyle ]
   * New upstream version.
@@ -9,8 +9,6 @@ snapd (2.35.5-1) UNRELEASED; urgency=medium
   * d/patches: refresh/drop.
   * d/patches/no-snapfuse.patch: do not depend on snapfuse fork of squashfuse.
   * d/patches/upstram-bolt.patch: use upstream version of boltdb.
-  * d/patches/systemd-activation-compat.patch: compatibility for the
-    newer go-systemd in debian
 
   [ Ondřej Nový ]
   * d/copyright: Use https protocol in Format field
