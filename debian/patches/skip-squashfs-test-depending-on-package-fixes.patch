@@ -1,0 +1,64 @@
+Description: Skip a test that depends on fixed squashfs-tools
+ TODO: Put a short summary on the line above and replace this paragraph
+ with a longer explanation of this change. Complete the meta-information
+ with other relevant fields (see below for details). To make it easier, the
+ information below has been extracted from the changelog. Adjust it or drop
+ it.
+ .
+ snapd (2.37-1) UNRELEASED; urgency=medium
+ .
+   [ Michael Hudson-Doyle ]
+   * New upstream version.
+   * d/control: make myself Maintainer, use my Debian address, update Vcs-* to
+     point to salsa.
+   * Add new build-dependencies.
+   * d/watch: update to download new upstream-provided no-vendor tarballs.
+   * d/patches: refresh/drop.
+   * d/patches/no-snapfuse.patch: do not depend on snapfuse fork of squashfuse.
+   * d/patches/upstram-bolt.patch: use upstream version of boltdb.
+   * d/patches/systemd-activation-compat.patch: compatibility for the
+     newer go-systemd in debian
+ .
+   [ Ondřej Nový ]
+   * d/copyright: Use https protocol in Format field
+   * d/changelog: Remove trailing whitespaces
+ .
+   [ Zygmunt Bazyli Krynicki ]
+   * Update unreleased package to 2.37
+   * Drop obsolete patches
+Author: Zygmunt Bazyli Krynicki <me@zygoon.pl>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: https://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: 2019-01-17
+
+--- snapd-2.37.orig/snap/squashfs/squashfs_test.go
++++ snapd-2.37/snap/squashfs/squashfs_test.go
+@@ -35,6 +35,7 @@ import (
+ 
+ 	"github.com/snapcore/snapd/dirs"
+ 	"github.com/snapcore/snapd/osutil"
++	"github.com/snapcore/snapd/release"
+ 	"github.com/snapcore/snapd/snap/snapdir"
+ 	"github.com/snapcore/snapd/snap/squashfs"
+ 	"github.com/snapcore/snapd/testutil"
+@@ -590,6 +591,10 @@ func (s *SquashfsTestSuite) TestUnsquash
+ }
+ 
+ func (s *SquashfsTestSuite) TestBuildDate(c *C) {
++	if release.ReleaseInfo.ID == "debian" {
++		c.Skip("squashfstools is not fixed on Debian")
++		return
++	}
+ 	// make a directory
+ 	d := c.MkDir()
+ 	// set its time waaay back
