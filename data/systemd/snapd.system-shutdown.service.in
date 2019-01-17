@@ -10,7 +10,9 @@ ConditionPathExists=@libexecdir@/snapd/system-shutdown
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -euc 'mount /run -o remount,exec; mkdir -p /run/initramfs; cp @libexecdir@/snapd/system-shutdown /run/initramfs/shutdown'
+ExecStart=/bin/mount /run -o remount,exec
+ExecStart=/bin/mkdir -p /run/initramfs
+ExecStart=/bin/cp @libexecdir@/snapd/system-shutdown /run/initramfs/shutdown
 
 [Install]
 WantedBy=final.target

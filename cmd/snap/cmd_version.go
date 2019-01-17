@@ -22,11 +22,11 @@ package main
 import (
 	"fmt"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 var shortVersionHelp = i18n.G("Show version details")
@@ -35,7 +35,9 @@ The version command displays the versions of the running client, server,
 and operating system.
 `)
 
-type cmdVersion struct{}
+type cmdVersion struct {
+	clientMixin
+}
 
 func init() {
 	addCommand("version", shortVersionHelp, longVersionHelp, func() flags.Commander { return &cmdVersion{} }, nil, nil)
@@ -46,21 +48,12 @@ func (cmd cmdVersion) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	printVersions()
+	printVersions(cmd.client)
 	return nil
 }
 
-func printVersions() error {
-	sv, err := Client().ServerVersion()
-	if err != nil {
-		sv = &client.ServerVersion{
-			Version:     i18n.G("unavailable"),
-			Series:      "-",
-			OSID:        "-",
-			OSVersionID: "-",
-		}
-	}
-
+func printVersions(cli *client.Client) error {
+	sv := serverVersion(cli)
 	w := tabWriter()
 
 	fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
@@ -77,5 +70,5 @@ func printVersions() error {
 	}
 	w.Flush()
 
-	return err
+	return nil
 }

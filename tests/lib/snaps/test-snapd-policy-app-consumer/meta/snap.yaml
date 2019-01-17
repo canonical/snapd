@@ -8,6 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
+  adb-support:
+    command: bin/run
+    plugs: [ adb-support ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
@@ -41,6 +44,9 @@ apps:
   camera:
     command: bin/run
     plugs: [ camera ]
+  cifs-mount:
+    command: bin/run
+    plugs: [ cifs-mount ]
   classic-support:
     command: bin/run
     plugs: [ classic-support ]
@@ -74,12 +80,21 @@ apps:
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
+  device-buttons:
+    command: bin/run
+    plugs: [ device-buttons ]
   docker:
     command: bin/run
     plugs: [ docker ]
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  system-files:
+    command: bin/run
+    plugs: [ system-files ]
+  personal-files:
+    command: bin/run
+    plugs: [ personal-files ]
   dvb:
     command: bin/run
     plugs: [ dvb ]
@@ -140,6 +155,9 @@ apps:
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
+  kernel-module-observe:
+    command: bin/run
+    plugs: [ kernel-module-observe ]
   kubernetes-support:
     command: bin/run
     plugs: [ kubernetes-support ]
@@ -260,6 +278,9 @@ apps:
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
+  screencast-legacy:
+    command: bin/run
+    plugs: [ screencast-legacy ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
@@ -352,5 +373,13 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  system-files:
+    interface: system-files
+    read: [/file1]
+    write: [/dir1]
+  personal-files:
+    interface: personal-files
+    read: [$HOME/file1]
+    write: [$HOME/dir1]
   dummy:
     interface: dummy

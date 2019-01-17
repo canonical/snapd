@@ -1,6 +1,6 @@
 summary: check that avahi-observe interface works
 
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
     echo "Given a snap with an avahi-observe interface plug is installed"

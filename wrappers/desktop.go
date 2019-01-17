@@ -190,6 +190,21 @@ func updateDesktopDatabase(desktopFiles []string) error {
 	return nil
 }
 
+// desktopPrefix returns the prefix string for the desktop files that
+// belongs to the given snapInstance. We need to do something custom
+// here because a) we need to be compatible with the world before we had
+// parallel installs b) we can't just use the usual "_" parallel installs
+// separator because that is already used as the separator between snap
+// and desktop filename.
+func desktopPrefix(s *snap.Info) string {
+	if s.SnapName() == s.InstanceName() {
+		return s.SnapName()
+	}
+	// we cannot use the usual "_" separator because that is also used
+	// to separate "$snap_$desktopfile"
+	return fmt.Sprintf("%s+%s", s.SnapName(), s.InstanceKey)
+}
+
 // AddSnapDesktopFiles puts in place the desktop files for the applications from the snap.
 func AddSnapDesktopFiles(s *snap.Info) (err error) {
 	var created []string
@@ -220,7 +235,11 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 			return err
 		}
 
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.InstanceName(), filepath.Base(df)))
+		// FIXME: don't blindly use the snap desktop filename, mangle it
+		// but we can't just use the app name because a desktop file
+		// may call the same app with multiple parameters, e.g.
+		// --create-new, --open-existing etc
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", desktopPrefix(s), filepath.Base(df)))
 		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
@@ -238,20 +257,24 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 
 // RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
 func RemoveSnapDesktopFiles(s *snap.Info) error {
-	activeDesktopFiles := make([]string, 0, len(s.Apps))
-	for _, app := range s.Apps {
-		df := app.DesktopFile()
+	removedDesktopFiles := make([]string, 0, len(s.Apps))
+
+	desktopFiles, err := filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_*.desktop", desktopPrefix(s))))
+	if err != nil {
+		return nil
+	}
+	for _, df := range desktopFiles {
 		if err := os.Remove(df); err != nil {
 			if !os.IsNotExist(err) {
 				return err
 			}
 		} else {
-			activeDesktopFiles = append(activeDesktopFiles, df)
+			removedDesktopFiles = append(removedDesktopFiles, df)
 		}
 	}
 
 	// updates mime info etc
-	if err := updateDesktopDatabase(activeDesktopFiles); err != nil {
+	if err := updateDesktopDatabase(removedDesktopFiles); err != nil {
 		return err
 	}
 

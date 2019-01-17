@@ -278,6 +278,29 @@ func (r *Repository) Plug(snapName, plugName string) *snap.PlugInfo {
 	return r.plugs[snapName][plugName]
 }
 
+// Connection returns the specified Connection object or an error.
+func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
+	// Ensure that such plug exists
+	plug := r.plugs[connRef.PlugRef.Snap][connRef.PlugRef.Name]
+	if plug == nil {
+		return nil, fmt.Errorf("snap %q has no plug named %q", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	// Ensure that such slot exists
+	slot := r.slots[connRef.SlotRef.Snap][connRef.SlotRef.Name]
+	if slot == nil {
+		return nil, fmt.Errorf("snap %q has no slot named %q", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+	// Ensure that slot and plug are connected
+	conn, ok := r.slotPlugs[slot][plug]
+	if !ok {
+		return nil, fmt.Errorf("no connection from %s:%s to %s:%s",
+			connRef.PlugRef.Snap, connRef.PlugRef.Name,
+			connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+
+	return conn, nil
+}
+
 // AddPlug adds a plug to the repository.
 // Plug names must be valid snap names, as defined by ValidateName.
 // Plug name must be unique within a particular snap.
@@ -288,7 +311,7 @@ func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
 	snapName := plug.Snap.InstanceName()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(snapName); err != nil {
+	if err := snap.ValidateInstanceName(snapName); err != nil {
 		return err
 	}
 	// Reject plugs with invalid names
@@ -383,7 +406,7 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	snapName := slot.Snap.InstanceName()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(snapName); err != nil {
+	if err := snap.ValidateInstanceName(snapName); err != nil {
 		return err
 	}
 	// Reject slots with invalid names
@@ -589,7 +612,7 @@ type PolicyFunc func(*ConnectedPlug, *ConnectedSlot) (bool, error)
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
 // When connections are reloaded policyCheck is null (we don't check policy again).
-func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
+func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, slotStaticAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -619,8 +642,8 @@ func (r *Repository) Connect(ref *ConnRef, plugDynamicAttrs, slotDynamicAttrs ma
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
-	cplug := NewConnectedPlug(plug, plugDynamicAttrs)
-	cslot := NewConnectedSlot(slot, slotDynamicAttrs)
+	cplug := NewConnectedPlug(plug, plugStaticAttrs, plugDynamicAttrs)
+	cslot := NewConnectedSlot(slot, slotStaticAttrs, slotDynamicAttrs)
 
 	// policyCheck is null when reloading connections
 	if policyCheck != nil {
@@ -741,6 +764,47 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 	return conns, nil
 }
 
+// ConnectionsForHotplugKey returns all hotplug connections for given interface name and hotplug key.
+func (r *Repository) ConnectionsForHotplugKey(ifaceName, hotplugKey string) ([]*ConnRef, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	snapName, err := r.guessSystemSnapName()
+	if err != nil {
+		return nil, err
+	}
+	var conns []*ConnRef
+	for _, slotInfo := range r.slots[snapName] {
+		if slotInfo.Interface == ifaceName && slotInfo.HotplugKey == hotplugKey {
+			for plugInfo := range r.slotPlugs[slotInfo] {
+				connRef := NewConnRef(plugInfo, slotInfo)
+				conns = append(conns, connRef)
+			}
+		}
+	}
+
+	return conns, nil
+}
+
+// SlotForHotplugKey returns a hotplug slot for given interface name and hotplug key or nil
+// if there is no slot.
+func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.SlotInfo, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	snapName, err := r.guessSystemSnapName()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, slotInfo := range r.slots[snapName] {
+		if slotInfo.Interface == ifaceName && slotInfo.HotplugKey == hotplugKey {
+			return slotInfo, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -761,6 +825,10 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	}
 	for _, slotInfo := range r.slots[snapName] {
 		for plugInfo := range r.slotPlugs[slotInfo] {
+			// self-connection, ignore here as we got it already in the plugs loop above
+			if plugInfo.Snap == slotInfo.Snap {
+				continue
+			}
 			connRef := NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}
@@ -1037,7 +1105,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			iface := slotInfo.Interface
 
 			// declaration based checks disallow
-			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
+			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
 			if !ok || err != nil {
 				continue
 			}
@@ -1070,7 +1138,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			iface := slotInfo.Interface
 
 			// declaration based checks disallow
-			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
+			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil, nil), NewConnectedSlot(slotInfo, nil, nil))
 			if !ok || err != nil {
 				continue
 			}

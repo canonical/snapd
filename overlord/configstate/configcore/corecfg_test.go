@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/systemd"
@@ -104,7 +105,12 @@ func (s *configcoreSuite) TearDownSuite(c *C) {
 }
 
 func (s *configcoreSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
+}
+
+func (s *configcoreSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
 }
 
 // runCfgSuite tests configcore.Run()
@@ -113,40 +119,6 @@ type runCfgSuite struct {
 }
 
 var _ = Suite(&runCfgSuite{})
-
-func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
-	for setting, value := range map[string]interface{}{
-		"experimental.layouts":            "foo",
-		"experimental.parallel-instances": "foo",
-		"experimental.hotplug":            "foo",
-	} {
-		conf := &mockConf{
-			state: r.state,
-			changes: map[string]interface{}{
-				setting: value,
-			},
-		}
-
-		err := configcore.Run(conf)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, setting))
-	}
-}
-
-func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
-	for _, setting := range []string{"experimental.layouts", "experimental.parallel-instances", "experimental.hotplug"} {
-		for _, t := range []string{"true", "false"} {
-			conf := &mockConf{
-				state: r.state,
-				conf: map[string]interface{}{
-					setting: t,
-				},
-			}
-
-			err := configcore.Run(conf)
-			c.Check(err, IsNil)
-		}
-	}
-}
 
 func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 	conf := &mockConf{
@@ -158,21 +130,4 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 
 	err := configcore.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
-}
-
-func (r *runCfgSuite) TestConfigureKnownOption(c *C) {
-	for setting, value := range map[string]interface{}{
-		"experimental.layouts":            true,
-		"experimental.parallel-instances": false,
-	} {
-		conf := &mockConf{
-			state: r.state,
-			changes: map[string]interface{}{
-				setting: value,
-			},
-		}
-
-		err := configcore.Run(conf)
-		c.Check(err, IsNil)
-	}
 }

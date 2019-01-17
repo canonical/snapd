@@ -85,15 +85,15 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 	return nil, nil
 }
 
-// CheckChangeConflictMany ensures that for the given snapNames no other
+// CheckChangeConflictMany ensures that for the given instanceNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
 //
 // It's like CheckChangeConflict, but for multiple snaps, and does not
 // check snapst.
-func CheckChangeConflictMany(st *state.State, snapNames []string, ignoreChangeID string) error {
-	snapMap := make(map[string]bool, len(snapNames))
-	for _, k := range snapNames {
+func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChangeID string) error {
+	snapMap := make(map[string]bool, len(instanceNames))
+	for _, k := range instanceNames {
 		snapMap[k] = true
 	}
 
@@ -138,12 +138,12 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, ignoreChangeID
 	return nil
 }
 
-// CheckChangeConflict ensures that for the given snapName no other
+// CheckChangeConflict ensures that for the given instanceName no other
 // changes that alters the snap (like remove, install, refresh) are in
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
-func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
-	if err := CheckChangeConflictMany(st, []string{snapName}, ""); err != nil {
+func CheckChangeConflict(st *state.State, instanceName string, snapst *SnapState) error {
+	if err := CheckChangeConflictMany(st, []string{instanceName}, ""); err != nil {
 		return err
 	}
 
@@ -155,13 +155,13 @@ func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 		// install, while getting the snap info; for refresh, when
 		// getting what needs refreshing).
 		var cursnapst SnapState
-		if err := Get(st, snapName, &cursnapst); err != nil && err != state.ErrNoState {
+		if err := Get(st, instanceName, &cursnapst); err != nil && err != state.ErrNoState {
 			return err
 		}
 
 		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
 		if !reflect.DeepEqual(snapst, &cursnapst) {
-			return &ChangeConflictError{Snap: snapName}
+			return &ChangeConflictError{Snap: instanceName}
 		}
 	}
 

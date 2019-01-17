@@ -22,8 +22,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -39,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -88,6 +91,7 @@ type cmdInfo struct {
 	optDescs                  map[string]string
 	argDescs                  []argDesc
 	alias                     string
+	extra                     func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -154,29 +158,69 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 
 func lintArg(cmdName, optName, desc, origDesc string) {
 	lintDesc(cmdName, optName, desc, origDesc)
-	if optName[0] != '<' || optName[len(optName)-1] != '>' {
-		noticef("argument %q's %q should be wrapped in <>s", cmdName, optName)
+	if len(optName) > 0 && optName[0] == '<' && optName[len(optName)-1] == '>' {
+		return
 	}
+	if len(optName) > 0 && optName[0] == '<' && strings.HasSuffix(optName, ">s") {
+		// see comment in fixupArg about the >s case
+		return
+	}
+	noticef("argument %q's %q should begin with < and end with >", cmdName, optName)
+}
+
+func fixupArg(optName string) string {
+	// Due to misunderstanding some localized versions of option name are
+	// literally "<option>s" instead of "<option>". While translators can
+	// improve this over time we can be smarter and avoid silly messages
+	// logged whenever "snap" command is used.
+	//
+	// See: https://bugs.launchpad.net/snapd/+bug/1806761
+	if strings.HasSuffix(optName, ">s") {
+		return optName[:len(optName)-1]
+	}
+	return optName
+}
+
+type clientSetter interface {
+	setClient(*client.Client)
+}
+
+type clientMixin struct {
+	client *client.Client
+}
+
+func (ch *clientMixin) setClient(cli *client.Client) {
+	ch.client = cli
+}
+
+func firstNonOptionIsRun() bool {
+	if len(os.Args) < 2 {
+		return false
+	}
+	for _, arg := range os.Args[1:] {
+		if len(arg) == 0 || arg[0] == '-' {
+			continue
+		}
+		return arg == "run"
+	}
+	return false
 }
 
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
-func Parser() *flags.Parser {
+func Parser(cli *client.Client) *flags.Parser {
 	optionsData.Version = func() {
-		printVersions()
+		printVersions(cli)
 		panic(&exitStatus{0})
 	}
-	parser := flags.NewParser(&optionsData, flags.PassDoubleDash|flags.PassAfterNonOption)
+	flagopts := flags.Options(flags.PassDoubleDash)
+	if firstNonOptionIsRun() {
+		flagopts |= flags.PassAfterNonOption
+	}
+	parser := flags.NewParser(&optionsData, flagopts)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
-	parser.LongDescription = i18n.G(`
-Install, configure, refresh and remove snap packages. Snaps are
-'universal' packages that work across many different Linux systems,
-enabling secure distribution of the latest apps and utilities for
-cloud, servers, desktops and the internet of things.
-
-This is the CLI for snapd, a background service that takes care of
-snaps on the system. Start with 'snap list' to see installed snaps.`)
+	parser.LongDescription = longSnapDescription
 	// hide the unhelpful "[OPTIONS]" from help output
 	parser.Usage = ""
 	if version := parser.FindOptionByLongName("version"); version != nil {
@@ -189,6 +233,9 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	// Add all regular commands
 	for _, c := range commands {
 		obj := c.builder()
+		if x, ok := obj.(clientSetter); ok {
+			x.setClient(cli)
+		}
 		if x, ok := obj.(parserSetter); ok {
 			x.setParser(parser)
 		}
@@ -232,8 +279,12 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 				desc = c.argDescs[i].desc
 			}
 			lintArg(c.name, name, desc, arg.Description)
+			name = fixupArg(name)
 			arg.Name = name
 			arg.Description = desc
+		}
+		if c.extra != nil {
+			c.extra(cmd)
 		}
 	}
 	// Add the debug command
@@ -244,7 +295,11 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	}
 	// Add all the sub-commands of the debug command
 	for _, c := range debugCommands {
-		cmd, err := debugCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		obj := c.builder()
+		if x, ok := obj.(clientSetter); ok {
+			x.setClient(cli)
+		}
+		cmd, err := debugCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
 			logger.Panicf("cannot add debug command %q: %v", c.name, err)
 		}
@@ -279,6 +334,7 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 				desc = c.argDescs[i].desc
 			}
 			lintArg(c.name, name, desc, arg.Description)
+			name = fixupArg(name)
 			arg.Name = name
 			arg.Description = desc
 		}
@@ -286,17 +342,34 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 	return parser
 }
 
+var isStdinTTY = terminal.IsTerminal(0)
+
 // ClientConfig is the configuration of the Client used by all commands.
 var ClientConfig = client.Config{
 	// we need the powerful snapd socket
 	Socket: dirs.SnapdSocket,
 	// Allow interactivity if we have a terminal
-	Interactive: terminal.IsTerminal(0),
+	Interactive: isStdinTTY,
 }
 
 // Client returns a new client using ClientConfig as configuration.
-func Client() *client.Client {
-	return client.New(&ClientConfig)
+// commands should (in general) not use this, and instead use clientMixin.
+func mkClient() *client.Client {
+	cli := client.New(&ClientConfig)
+	goos := runtime.GOOS
+	if release.OnWSL {
+		goos = "Windows Subsystem for Linux"
+	}
+	if goos != "linux" {
+		cli.Hijack(func(*http.Request) (*http.Response, error) {
+			fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
+This command has been left available for documentation purposes only.
+`), goos)
+			os.Exit(1)
+			panic("execution continued past call to exit")
+		})
+	}
+	return cli
 }
 
 func init() {
@@ -318,7 +391,7 @@ func resolveApp(snapApp string) (string, error) {
 }
 
 func main() {
-	cmd.ExecInCoreSnap()
+	cmd.ExecInSnapdOrCoreSnap()
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
@@ -352,12 +425,12 @@ func main() {
 			os.Exit(46)
 		}
 		cmd := &cmdRun{}
-		args := []string{snapApp}
-		args = append(args, os.Args[1:]...)
+		cmd.client = mkClient()
+		os.Args[0] = snapApp
 		// this will call syscall.Exec() so it does not return
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
-		err = cmd.Execute(args)
+		err = cmd.Execute(os.Args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
 	}
@@ -374,6 +447,9 @@ func main() {
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
+		if client.IsRetryable(err) {
+			os.Exit(10)
+		}
 		os.Exit(1)
 	}
 }
@@ -400,18 +476,19 @@ var wrongDashes = string([]rune{
 })
 
 func run() error {
-	parser := Parser()
+	cli := mkClient()
+	parser := Parser(cli)
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
-			if e.Type == flags.ErrHelp || e.Type == flags.ErrCommandRequired {
-				if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
-					parser.Command.Active = nil
-				}
+			switch e.Type {
+			case flags.ErrCommandRequired:
+				printShortHelp()
+				return nil
+			case flags.ErrHelp:
 				parser.WriteHelp(Stdout)
 				return nil
-			}
-			if e.Type == flags.ErrUnknownCommand {
+			case flags.ErrUnknownCommand:
 				return fmt.Errorf(i18n.G(`unknown command %q, see 'snap help'`), os.Args[1])
 			}
 		}
@@ -435,7 +512,10 @@ fixed-width fonts, so it can be hard to tell.
 		}
 
 		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
+
+	maybePresentWarnings(cli.WarningsSummary())
 
 	return nil
 }

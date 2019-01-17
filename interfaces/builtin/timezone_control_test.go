@@ -55,10 +55,10 @@ apps:
 		Name:      "timezone-control",
 		Interface: "timezone-control",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["timezone-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *TimezoneControlInterfaceSuite) TestName(c *C) {

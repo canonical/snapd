@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -62,8 +63,8 @@ var _ = Suite(&TestInterfaceSuite{
 // TestInterface has a working Name() function
 func (s *TestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "test")
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *TestInterfaceSuite) TestStaticInfo(c *C) {
@@ -167,4 +168,75 @@ func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
 	iface := &ifacetest.TestInterface{AutoConnectCallback: func(*snap.PlugInfo, *snap.SlotInfo) bool { return false }}
 
 	c.Check(iface.AutoConnect(nil, nil), Equals, false)
+}
+
+func (s *TestInterfaceSuite) TestHotplugKeyError(c *C) {
+	iface := &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName: "test",
+		},
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+			return "", fmt.Errorf("error")
+		},
+	}
+
+	c.Assert(iface.Name(), Equals, "test")
+
+	dev := &hotplug.HotplugDeviceInfo{}
+	key, err := iface.HotplugKey(dev)
+	c.Assert(err, ErrorMatches, "error")
+	c.Assert(key, Equals, "")
+}
+
+func (s *TestInterfaceSuite) TestHotplugKeyOK(c *C) {
+	var iface interfaces.Interface
+	iface = &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName: "test",
+		},
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+			return "key", nil
+		},
+	}
+
+	hotplugIface, ok := iface.(hotplug.HotplugKeyHandler)
+	c.Assert(ok, Equals, true)
+
+	dev := &hotplug.HotplugDeviceInfo{}
+	key, err := hotplugIface.HotplugKey(dev)
+	c.Assert(err, IsNil)
+	c.Assert(key, Equals, "key")
+}
+
+func (s *TestInterfaceSuite) TestHotplugDeviceDetectedOK(c *C) {
+	iface := &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName: "test",
+		},
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+			spec.SetSlot(&hotplug.RequestedSlotSpec{
+				Name: "slot",
+			})
+			return nil
+		},
+	}
+
+	dev := &hotplug.HotplugDeviceInfo{}
+	spec := hotplug.NewSpecification()
+	c.Assert(iface.HotplugDeviceDetected(dev, spec), IsNil)
+	c.Assert(spec.Slot().Name, Equals, "slot")
+}
+
+func (s *TestInterfaceSuite) TestHotplugDeviceDetectedError(c *C) {
+	iface := &ifacetest.TestHotplugInterface{
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName: "test",
+		},
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+			return fmt.Errorf("error")
+		},
+	}
+	dev := &hotplug.HotplugDeviceInfo{}
+	spec := hotplug.NewSpecification()
+	c.Assert(iface.HotplugDeviceDetected(dev, spec), ErrorMatches, "error")
 }

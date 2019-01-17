@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 func init() {
@@ -110,4 +112,89 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 		bytes--
 	}
 	return data
+}
+
+// splitUnit takes a string of the form "123unit" and splits
+// it into the number and non-number parts (123,"unit").
+func splitUnit(inp string) (number int64, unit string, err error) {
+	// go after the number first, break on first non-digit
+	var nonDigit int
+	for i, c := range inp {
+		if !unicode.IsDigit(c) {
+			number, err = strconv.ParseInt(inp[0:i], 10, 64)
+			if err != nil {
+				return 0, "", err
+			}
+			nonDigit = i
+			break
+		}
+	}
+	if nonDigit == 0 {
+		return 0, "", fmt.Errorf("need a number with a unit as input")
+	}
+
+	return number, inp[nonDigit:], nil
+}
+
+// ParseByteSize parses a value like 500kB and returns the number
+// in bytes. The case of the unit will be ignored for user convenience.
+func ParseByteSize(inp string) (int64, error) {
+	unitMultiplier := map[string]int64{
+		"B": 1,
+		// strictly speaking this is "kB" but we ignore cases
+		"KB": 1000,
+		"MB": 1000 * 1000,
+		"GB": 1000 * 1000 * 1000,
+		"TB": 1000 * 1000 * 1000 * 1000,
+		"PB": 1000 * 1000 * 1000 * 1000 * 1000,
+		"EB": 1000 * 1000 * 1000 * 1000 * 1000 * 1000,
+	}
+
+	errPrefix := fmt.Sprintf("cannot parse %q: ", inp)
+
+	val, unit, err := splitUnit(inp)
+	if err != nil {
+		return 0, fmt.Errorf(errPrefix+"%s", err)
+	}
+	if unit == "" {
+		return 0, fmt.Errorf(errPrefix + "need a number with a unit as input")
+	}
+
+	mul, ok := unitMultiplier[strings.ToUpper(unit)]
+	if !ok {
+		return 0, fmt.Errorf(errPrefix + "try 'kB' or 'MB'")
+	}
+
+	return val * mul, nil
+}
+
+// CommaSeparatedList takes a comman-separated series of identifiers,
+// and returns a slice of the space-trimmed identifiers, without empty
+// entries.
+// So " foo ,, bar,baz" -> {"foo", "bar", "baz"}
+func CommaSeparatedList(str string) []string {
+	fields := strings.FieldsFunc(str, func(r rune) bool { return r == ',' })
+	filtered := fields[:0]
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field != "" {
+			filtered = append(filtered, field)
+		}
+	}
+	return filtered
+}
+
+// ElliptRight returns a string that is at most n runes long,
+// replacing the last rune with an ellipsis if necessary. If N is less
+// than 1 it's treated as a 1.
+func ElliptRight(str string, n int) string {
+	if n < 1 {
+		n = 1
+	}
+	if utf8.RuneCountInString(str) <= n {
+		return str
+	}
+
+	// this is expensive; look into a cheaper way maybe sometime
+	return string([]rune(str)[:n-1]) + "…"
 }

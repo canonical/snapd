@@ -50,7 +50,7 @@ execute: |
 
     echo "When the mir plug is disconnected"
     snap disconnect test-snapd-udev-input-subsystem:mir-plug test-snapd-udev-input-subsystem:mir-slot
-    snap interfaces -i mir | MATCH "\- +test-snapd-udev-input-subsystem:mir-plug"
+    snap interfaces -i mir | MATCH -- '- +test-snapd-udev-input-subsystem:mir-plug'
 
     echo "The snap's plug still cannot access an evdev keyboard"
     if test-snapd-udev-input-subsystem.plug 2>"${PWD}"/call.error; then
@@ -61,7 +61,7 @@ execute: |
     MATCH "Permission denied" < call.error
 
     echo "When the time-control plug is disconnected"
-    snap interfaces -i time-control | MATCH ":time-control +\-"
+    snap interfaces -i time-control | MATCH ':time-control +-'
 
     echo "The snap's time-control plug cannot access an evdev keyboard when disconnected"
     if test-snapd-udev-input-subsystem.plug-with-time-control 2>"${PWD}"/call.error; then

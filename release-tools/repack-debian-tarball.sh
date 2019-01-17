@@ -1,28 +1,31 @@
 #!/bin/sh
-# This script is used to re-pack the "orig" tarball from the Debian package
-# into a suitable upstream release. There are two changes applied: The Debian
-# tarball contains the directory snapd.upstream/ which needs to become
-# snapd-$VERSION. The Debian tarball contains the vendor/ directory which must
-# be removed from one of those.
-#
-# Example usage, using tarball from the archive or from the image ppa:
-#
-# $ wget https://launchpad.net/ubuntu/+archive/primary/+files/snapd_2.31.2.tar.xz 
-# $ wget https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+files/snapd_2.32.1.tar.xz
-#
-# $ repack-debian-tarball.sh snapd_2.31.2.tar.xz
-#
-# This will produce three files that need to be added to the github release page:
-#
-# - snapd_2.31.2.no-vendor.tar.xz
-# - snapd_2.31.2.vendor.tar.xz
-# - snapd_2.31.2.only-vendor.xz
+#doc# This script is used to re-pack the "orig" tarball from the Debian package
+#doc# into a suitable upstream release. There are two changes applied: The Debian
+#doc# tarball contains the directory snapd.upstream/ which needs to become
+#doc# snapd-$VERSION. The Debian tarball contains the vendor/ directory which must
+#doc# be removed from one of those.
+#doc#
+#doc# Example usage, using tarball from the archive or from the image ppa:
+#doc#
+#doc# $ wget https://launchpad.net/ubuntu/+archive/primary/+files/snapd_2.31.2.tar.xz
+#doc# $ wget https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+files/snapd_2.32.1.tar.xz
+#doc#
+#doc# $ repack-debian-tarball.sh snapd_2.31.2.tar.xz
+#doc#
+#doc# This will produce three files that need to be added to the github release page:
+#doc#
+#doc# - snapd_2.31.2.no-vendor.tar.xz
+#doc# - snapd_2.31.2.vendor.tar.xz
+#doc# - snapd_2.31.2.only-vendor.xz
+
 set -ue
 
 # Get the filename from argv[1]
 debian_tarball="${1:-}"
 if [ "$debian_tarball" = "" ]; then
 	echo "Usage: repack-debian-tarball.sh <snapd-debian-tarball>"
+	echo
+	grep -e '^#doc#' "$0" | cut -b 7-
 	exit 1
 fi
 

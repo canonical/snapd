@@ -39,7 +39,7 @@ func (s *SnapSuite) TestPackCheckSkeletonNoAppFiles(c *check.C) {
 	snapDir := makeSnapDirForPack(c, packSnapYaml)
 
 	// check-skeleton does not fail due to missing files
-	_, err := snaprun.Parser().ParseArgs([]string{"pack", "--check-skeleton", snapDir})
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--check-skeleton", snapDir})
 	c.Assert(err, check.IsNil)
 }
 
@@ -51,8 +51,8 @@ apps:
 `
 	snapDir := makeSnapDirForPack(c, snapYaml)
 
-	_, err := snaprun.Parser().ParseArgs([]string{"pack", "--check-skeleton", snapDir})
-	c.Assert(err, check.ErrorMatches, "snap name cannot be empty")
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--check-skeleton", snapDir})
+	c.Assert(err, check.ErrorMatches, `cannot validate snap "": snap name cannot be empty`)
 }
 
 func (s *SnapSuite) TestPackCheckSkeletonConflictingCommonID(c *check.C) {
@@ -67,8 +67,8 @@ apps:
 `
 	snapDir := makeSnapDirForPack(c, snapYaml)
 
-	_, err := snaprun.Parser().ParseArgs([]string{"pack", "--check-skeleton", snapDir})
-	c.Assert(err, check.ErrorMatches, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`)
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--check-skeleton", snapDir})
+	c.Assert(err, check.ErrorMatches, `cannot validate snap "foo": application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`)
 }
 
 func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
@@ -77,7 +77,7 @@ func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
 
 	snapDir := makeSnapDirForPack(c, packSnapYaml)
 
-	_, err := snaprun.Parser().ParseArgs([]string{"pack", snapDir, snapDir})
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir, snapDir})
 	c.Assert(err, check.ErrorMatches, ".* snap is unusable due to missing files")
 }
 
@@ -94,7 +94,7 @@ printf "hello world"
 	err = ioutil.WriteFile(filepath.Join(binDir, "hello"), []byte(helloBinContent), 0755)
 	c.Assert(err, check.IsNil)
 
-	_, err = snaprun.Parser().ParseArgs([]string{"pack", snapDir, snapDir})
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir, snapDir})
 	c.Assert(err, check.IsNil)
 
 	matches, err := filepath.Glob(snapDir + "/hello*.snap")

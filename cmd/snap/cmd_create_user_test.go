@@ -71,7 +71,7 @@ func (s *SnapSuite) TestCreateUserNoSudoer(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "one@email.com", false, false))
 
-	rest, err := snap.Parser().ParseArgs([]string{"create-user", "one@email.com"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-user", "one@email.com"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
@@ -83,7 +83,7 @@ func (s *SnapSuite) TestCreateUserSudoer(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "one@email.com", true, false))
 
-	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--sudoer", "one@email.com"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-user", "--sudoer", "one@email.com"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
@@ -101,7 +101,7 @@ func (s *SnapSuite) TestCreateUserJSON(c *check.C) {
 	}
 	actualResponse := &client.CreateUserResult{}
 
-	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--json", "one@email.com"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-user", "--json", "one@email.com"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
@@ -120,7 +120,7 @@ func (s *SnapSuite) TestCreateUserNoEmailJSON(c *check.C) {
 	}}
 	var actualResponse []*client.CreateUserResult
 
-	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--json", "--known"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-user", "--json", "--known"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
@@ -133,7 +133,7 @@ func (s *SnapSuite) TestCreateUserKnown(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "one@email.com", false, true))
 
-	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--known", "one@email.com"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-user", "--known", "one@email.com"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
@@ -143,7 +143,7 @@ func (s *SnapSuite) TestCreateUserKnownNoEmail(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "", false, true))
 
-	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--known"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-user", "--known"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)

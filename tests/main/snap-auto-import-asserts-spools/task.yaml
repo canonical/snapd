@@ -14,11 +14,12 @@ prepare: |
             exit 1
     fi
     echo "Create a ramdisk with the testrootorg-store.account-key assertion"
+    #shellcheck source=tests/lib/ramdisk.sh
     . "$TESTSLIB/ramdisk.sh"
     setup_ramdisk
     mkfs.vfat /dev/ram0
     mount /dev/ram0 /mnt
-    cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /mnt/auto-import.assert
     sync
 
 restore: |
@@ -36,17 +37,17 @@ execute: |
     echo "Simulate a not running snapd (happens on e.g. early boot)"
     systemctl stop snapd.service snapd.socket
 
-    echo "`snap auto-import` spooled assertions if it can not talk to snapd"
+    echo "'snap auto-import' spooled assertions if it can not talk to snapd"
     snap auto-import
     ls /run/snapd/auto-import
     umount /mnt
     systemctl start snapd.service snapd.socket
 
-    echo "`snap auto-import` reads from the auto-import dir"
+    echo "'snap auto-import' reads from the auto-import dir"
     snap auto-import
     snap known account-key | MATCH "name: test-store"
 
-    nr=$(ls /run/snapd/auto-import|wc -l)
+    nr=$(find /run/snapd/auto-import -maxdepth 1 -mindepth 1 |wc -l)
     if [ "$nr" != "0" ]; then
         echo "Expected an empty /run/snapd/auto-import got:"
         ls /run/snapd/auto-import

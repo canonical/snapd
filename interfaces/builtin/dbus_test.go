@@ -120,22 +120,22 @@ apps:
 
 func (s *DbusInterfaceSuite) SetUpTest(c *C) {
 	s.sessionSlotInfo = s.snapInfo.Slots["test-session-slot"]
-	s.sessionSlot = interfaces.NewConnectedSlot(s.sessionSlotInfo, nil)
+	s.sessionSlot = interfaces.NewConnectedSlot(s.sessionSlotInfo, nil, nil)
 	s.systemSlotInfo = s.snapInfo.Slots["test-system-slot"]
-	s.systemSlot = interfaces.NewConnectedSlot(s.systemSlotInfo, nil)
+	s.systemSlot = interfaces.NewConnectedSlot(s.systemSlotInfo, nil, nil)
 	s.connectedSessionSlotInfo = s.snapInfo.Slots["test-session-connected-slot"]
-	s.connectedSessionSlot = interfaces.NewConnectedSlot(s.connectedSessionSlotInfo, nil)
+	s.connectedSessionSlot = interfaces.NewConnectedSlot(s.connectedSessionSlotInfo, nil, nil)
 	s.connectedSystemSlotInfo = s.snapInfo.Slots["test-system-connected-slot"]
-	s.connectedSystemSlot = interfaces.NewConnectedSlot(s.connectedSystemSlotInfo, nil)
+	s.connectedSystemSlot = interfaces.NewConnectedSlot(s.connectedSystemSlotInfo, nil, nil)
 
 	s.sessionPlugInfo = s.snapInfo.Plugs["test-session-plug"]
-	s.sessionPlug = interfaces.NewConnectedPlug(s.sessionPlugInfo, nil)
+	s.sessionPlug = interfaces.NewConnectedPlug(s.sessionPlugInfo, nil, nil)
 	s.systemPlugInfo = s.snapInfo.Plugs["test-system-plug"]
-	s.systemPlug = interfaces.NewConnectedPlug(s.systemPlugInfo, nil)
+	s.systemPlug = interfaces.NewConnectedPlug(s.systemPlugInfo, nil, nil)
 	s.connectedSessionPlugInfo = s.snapInfo.Plugs["test-session-connected-plug"]
-	s.connectedSessionPlug = interfaces.NewConnectedPlug(s.connectedSessionPlugInfo, nil)
+	s.connectedSessionPlug = interfaces.NewConnectedPlug(s.connectedSessionPlugInfo, nil, nil)
 	s.connectedSystemPlugInfo = s.snapInfo.Plugs["test-system-connected-plug"]
-	s.connectedSystemPlug = interfaces.NewConnectedPlug(s.connectedSystemPlugInfo, nil)
+	s.connectedSystemPlug = interfaces.NewConnectedPlug(s.connectedSystemPlugInfo, nil, nil)
 }
 
 func (s *DbusInterfaceSuite) TestName(c *C) {
@@ -509,11 +509,11 @@ slots:
 `
 
 	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
-	matchingPlug := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil)
+	matchingPlug := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil, nil)
 
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
-	matchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil)
-	nonmatchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil)
+	matchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
+	nonmatchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, matchingSlot)
@@ -558,11 +558,11 @@ slots:
 `
 
 	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
-	matchingPlug := interfaces.NewConnectedPlug(plugInfo.Plugs["that"], nil)
+	matchingPlug := interfaces.NewConnectedPlug(plugInfo.Plugs["that"], nil, nil)
 
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
-	matchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil)
-	nonmatchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil)
+	matchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil, nil)
+	nonmatchingSlot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, matchingPlug, matchingSlot)
@@ -611,12 +611,12 @@ slots:
 `
 
 	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
-	matchingPlug1 := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil)
-	matchingPlug2 := interfaces.NewConnectedPlug(plugInfo.Plugs["that"], nil)
+	matchingPlug1 := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil, nil)
+	matchingPlug2 := interfaces.NewConnectedPlug(plugInfo.Plugs["that"], nil, nil)
 
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
-	matchingSlot1 := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil)
-	matchingSlot2 := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil)
+	matchingSlot1 := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
+	matchingSlot2 := interfaces.NewConnectedSlot(slotInfo.Slots["that"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, matchingPlug1, matchingSlot1)
@@ -654,10 +654,10 @@ slots:
 `
 
 	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
-	plug := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil)
+	plug := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil, nil)
 
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
-	slot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil)
+	slot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
@@ -684,10 +684,10 @@ slots:
 `
 
 	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
-	plug := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil)
+	plug := interfaces.NewConnectedPlug(plugInfo.Plugs["this"], nil, nil)
 
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
-	slot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil)
+	slot := interfaces.NewConnectedSlot(slotInfo.Slots["this"], nil, nil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)

@@ -51,7 +51,7 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 
 	context.OnDone(func() error {
 		tr.Commit()
-		if context.SnapName() == "core" {
+		if context.InstanceName() == "core" {
 			// make sure the Ensure logic can process
 			// system configuration changes as soon as possible
 			context.State().EnsureBefore(0)
@@ -83,22 +83,22 @@ func (h *configureHandler) Before() error {
 		return err
 	}
 
-	snapName := h.context.SnapName()
+	instanceName := h.context.InstanceName()
 	st := h.context.State()
 	if useDefaults {
 		var err error
-		patch, err = snapstate.ConfigDefaults(st, snapName)
+		patch, err = snapstate.ConfigDefaults(st, instanceName)
 		if err != nil && err != state.ErrNoState {
 			return err
 		}
 		if len(patch) != 0 {
 			// TODO: helper on context?
-			info, err := snapstate.CurrentInfo(st, snapName)
+			info, err := snapstate.CurrentInfo(st, instanceName)
 			if err != nil {
 				return err
 			}
 			if info.Hooks["configure"] == nil {
-				return fmt.Errorf("cannot apply gadget config defaults for snap %q, no configure hook", snapName)
+				return fmt.Errorf("cannot apply gadget config defaults for snap %q, no configure hook", instanceName)
 			}
 		}
 	} else {
@@ -108,7 +108,7 @@ func (h *configureHandler) Before() error {
 	}
 
 	for key, value := range patch {
-		if err := tr.Set(snapName, key, value); err != nil {
+		if err := tr.Set(instanceName, key, value); err != nil {
 			return err
 		}
 	}

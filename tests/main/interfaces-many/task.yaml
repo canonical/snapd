@@ -1,16 +1,5 @@
 summary: Ensure that commands run when their interfaces are connected
 
-# Start early as it takes a long time.
-priority: 100
-
-debug: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
-    # get the full journal to see any out-of-memory errors
-    # shellcheck disable=SC2119
-    get_journalctl_log
-
 details: |
     Install a test snap that plugs as many interfaces as is possible and
     verify the command can run (ie, don't test the interface functionality
@@ -31,6 +20,17 @@ systems: [ubuntu-core-16-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, 
 
 # memory issue inside the adt environment
 backends: [-autopkgtest]
+
+# Start early as it takes a long time.
+priority: 100
+
+debug: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
+    # get the full journal to see any out-of-memory errors
+    # shellcheck disable=SC2119
+    get_journalctl_log
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

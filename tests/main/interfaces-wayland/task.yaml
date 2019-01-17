@@ -4,7 +4,8 @@ summary: Ensure that the wayland interface works
 systems: [ ubuntu-1*-*64 ]
 
 prepare: |
-    . $TESTSLIB/pkgdb.sh
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-wayland
 
 restore: |

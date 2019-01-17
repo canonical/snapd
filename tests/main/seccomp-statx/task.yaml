@@ -1,0 +1,16 @@
+summary: the statx system call is not blocked by seccomp
+details: |
+    The statx(2) system call is a relatively new addition and is not
+    available on each kernel but should not be blocked by seccomp
+    when the kernel implements it
+# This test will only pass on Ubuntu 18.10 and on other systems with seccomp
+# 2.3.3 or newer. Eventually with some tricks we should be able to support all
+# systems but for the purpose of snapd 2.36 this is the best we can do.
+systems: [ubuntu-18.10-*]
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-statx
+execute: |
+    # Notably, this doesn't print statx: blocked anymore
+    test-snapd-statx | MATCH 'statx: (supported|missing)'

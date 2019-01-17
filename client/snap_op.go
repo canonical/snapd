@@ -43,6 +43,13 @@ type SnapOptions struct {
 	Users []string `json:"users,omitempty"`
 }
 
+func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
+	if !val {
+		return nil
+	}
+	return mw.WriteField(key, "true")
+}
+
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 	fields := []struct {
 		f string
@@ -54,16 +61,16 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 		{"dangerous", opts.Dangerous},
 	}
 	for _, o := range fields {
-		if !o.b {
-			continue
-		}
-		err := mw.WriteField(o.f, "true")
-		if err != nil {
+		if err := writeFieldBool(mw, o.f, o.b); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
+	return writeFieldBool(mw, "unaliased", opts.Unaliased)
 }
 
 type actionData struct {
@@ -271,6 +278,11 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 	}
 
 	if err := action.writeModeFields(mw); err != nil {
+		pw.CloseWithError(err)
+		return
+	}
+
+	if err := action.writeOptionFields(mw); err != nil {
 		pw.CloseWithError(err)
 		return
 	}

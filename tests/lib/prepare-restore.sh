@@ -54,7 +54,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*|arch-*|amazon-*)
+            debian-*|fedora-*|opensuse-*|arch-*|amazon-*|centos-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -102,7 +102,7 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
 
     case "$SPREAD_SYSTEM" in
-        fedora-*|amazon-*)
+        fedora-*|amazon-*|centos-*)
             extra_tar_args="$extra_tar_args --exclude=vendor/*"
             ;;
         opensuse-*)
@@ -122,7 +122,7 @@ build_rpm() {
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
     (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* || "$SPREAD_SYSTEM" == centos-* ]]; then
         # need to build the vendor tree
         (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
     fi
@@ -152,11 +152,7 @@ build_rpm() {
         -ba \
         "$packaging_path/snapd.spec"
 
-    cp "$rpm_dir"/RPMS/$arch/snap*.rpm "$GOPATH"
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
-        # On Fedora we have an additional package for SELinux
-        cp "$rpm_dir"/RPMS/noarch/snap*.rpm "$GOPATH"
-    fi
+    find "$rpm_dir"/RPMS -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
 }
 
 build_arch_pkg() {
@@ -198,7 +194,7 @@ build_arch_pkg() {
     chown -R test:test /tmp/pkg
     su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
-    cp /tmp/pkg/snapd*.pkg.tar.xz "$GOPATH"
+    cp /tmp/pkg/snapd*.pkg.tar.xz "${GOPATH%%:*}"
 }
 
 download_from_published(){
@@ -342,7 +338,7 @@ prepare_project() {
 
     # update vendoring
     if [ -z "$(command -v govendor)" ]; then
-        rm -rf "$GOPATH/src/github.com/kardianos/govendor"
+        rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
     quiet govendor sync
@@ -354,7 +350,7 @@ prepare_project() {
             ubuntu-*|debian-*)
                 build_deb
                 ;;
-            fedora-*|opensuse-*|amazon-*)
+            fedora-*|opensuse-*|amazon-*|centos-*)
                 build_rpm
                 ;;
             arch-*)
@@ -415,7 +411,7 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
-    # save the job which is going to be exeuted in the system
+    # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
@@ -428,10 +424,16 @@ prepare_suite_each() {
     fi
     # Check if journalctl is ready to run the test
     check_journalctl_ready
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
+            ;;
+    esac
 }
 
 restore_suite_each() {
-    true
+    rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 }
 
 restore_suite() {
@@ -488,6 +490,9 @@ restore_project_each() {
         dmesg
         exit 1
     fi
+
+    # Something is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {

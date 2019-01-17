@@ -106,18 +106,18 @@ func (t *Transaction) Changes() []string {
 //
 // The provided value must marshal properly by encoding/json.
 // Changes are not persisted until Commit is called.
-func (t *Transaction) Set(snapName, key string, value interface{}) error {
+func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	config, ok := t.changes[snapName]
+	config, ok := t.changes[instanceName]
 	if !ok {
 		config = make(map[string]interface{})
 	}
 
 	data, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("cannot marshal snap %q option %q: %s", snapName, key, err)
+		return fmt.Errorf("cannot marshal snap %q option %q: %s", instanceName, key, err)
 	}
 	raw := json.RawMessage(data)
 
@@ -130,17 +130,17 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 	// would go unperceived by the configuration patching below.
 	if len(subkeys) > 1 {
 		var result interface{}
-		err = getFromPristine(snapName, subkeys, 0, t.pristine[snapName], &result)
+		err = getFromPristine(instanceName, subkeys, 0, t.pristine[instanceName], &result)
 		if err != nil && !IsNoOption(err) {
 			return err
 		}
 	}
-	_, err = PatchConfig(snapName, subkeys, 0, config, &raw)
+	_, err = PatchConfig(instanceName, subkeys, 0, config, &raw)
 	if err != nil {
 		return err
 	}
 
-	t.changes[snapName] = config
+	t.changes[instanceName] = config
 	return nil
 }
 
@@ -171,30 +171,30 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 // If the key does not exist, no error is returned.
 //
 // Transactions do not see updates from the current state or from other transactions.
-func (t *Transaction) GetMaybe(snapName, key string, result interface{}) error {
-	err := t.Get(snapName, key, result)
+func (t *Transaction) GetMaybe(instanceName, key string, result interface{}) error {
+	err := t.Get(instanceName, key, result)
 	if err != nil && !IsNoOption(err) {
 		return err
 	}
 	return nil
 }
 
-func getFromPristine(snapName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
+func getFromPristine(instanceName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
 	// special case - get root document
 	if len(subkeys) == 0 {
 		if len(config) == 0 {
-			return &NoOptionError{SnapName: snapName}
+			return &NoOptionError{SnapName: instanceName}
 		}
 		raw := jsonRaw(config)
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
+			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", instanceName, err)
 		}
 		return nil
 	}
 
 	raw, ok := config[subkeys[pos]]
 	if !ok {
-		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
+		return &NoOptionError{SnapName: instanceName, Key: strings.Join(subkeys[:pos+1], ".")}
 	}
 
 	// There is a known problem with json raw messages representing nulls when they are stored in nested structures, such as
@@ -207,16 +207,16 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	if pos+1 == len(subkeys) {
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
 			key := strings.Join(subkeys, ".")
-			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
+			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", instanceName, key, result, err, *raw)
 		}
 		return nil
 	}
 
 	var configm map[string]*json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
-		return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
+		return fmt.Errorf("snap %q option %q is not a map", instanceName, strings.Join(subkeys[:pos+1], "."))
 	}
-	return getFromPristine(snapName, subkeys, pos+1, configm, result)
+	return getFromPristine(instanceName, subkeys, pos+1, configm, result)
 }
 
 // Commit applies to the state the configuration changes made in the transaction
@@ -240,15 +240,15 @@ func (t *Transaction) Commit() {
 	}
 
 	// Iterate through the write cache and save each item.
-	for snapName, snapChanges := range t.changes {
-		config, ok := t.pristine[snapName]
+	for instanceName, snapChanges := range t.changes {
+		config, ok := t.pristine[instanceName]
 		if !ok {
 			config = make(map[string]*json.RawMessage)
 		}
 		for k, v := range snapChanges {
 			config[k] = commitChange(config[k], v)
 		}
-		t.pristine[snapName] = config
+		t.pristine[instanceName] = config
 	}
 
 	t.state.Set("config", t.pristine)

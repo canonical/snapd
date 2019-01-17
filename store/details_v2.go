@@ -22,9 +22,11 @@ package store
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // storeSnap holds the information sent as JSON by the store for a snap.
@@ -83,10 +85,11 @@ type storeSnapMedia struct {
 
 // storeInfoChannel is the channel description included in info results
 type storeInfoChannel struct {
-	Architecture string `json:"architecture"`
-	Name         string `json:"name"`
-	Risk         string `json:"risk"`
-	Track        string `json:"track"`
+	Architecture string    `json:"architecture"`
+	Name         string    `json:"name"`
+	Risk         string    `json:"risk"`
+	Track        string    `json:"track"`
+	ReleasedAt   time.Time `json:"released-at"`
 }
 
 // storeInfoChannelSnap is the snap-in-a-channel of which the channel map is made
@@ -135,6 +138,7 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 			Channel:     ch.Name,
 			Epoch:       s.Epoch,
 			Size:        s.Download.Size,
+			ReleasedAt:  ch.ReleasedAt.UTC(),
 		}
 		if !seen[ch.Track] {
 			seen[ch.Track] = true
@@ -220,7 +224,10 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.RealName = d.Name
 	info.Revision = snap.R(d.Revision)
 	info.SnapID = d.SnapID
-	info.EditedTitle = d.Title.Clean()
+
+	// https://forum.snapcraft.io/t/title-length-in-snapcraft-yaml-snap-yaml/8625/10
+	info.EditedTitle = strutil.ElliptRight(d.Title.Clean(), 40)
+
 	info.EditedSummary = d.Summary.Clean()
 	info.EditedDescription = d.Description.Clean()
 	info.Private = d.Private
@@ -285,24 +292,20 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	}
 
 	// media
-	screenshots := make([]snap.ScreenshotInfo, 0, len(d.Media))
-	for _, mediaObj := range d.Media {
-		switch mediaObj.Type {
-		case "icon":
-			if info.IconURL == "" {
-				info.IconURL = mediaObj.URL
-			}
-		case "screenshot":
-			screenshots = append(screenshots, snap.ScreenshotInfo{
-				URL:    mediaObj.URL,
-				Width:  mediaObj.Width,
-				Height: mediaObj.Height,
-			})
-		}
-	}
-	if len(screenshots) > 0 {
-		info.Screenshots = screenshots
-	}
+	addMedia(info, d.Media)
 
 	return info, nil
+}
+
+func addMedia(info *snap.Info, media []storeSnapMedia) {
+	if len(media) == 0 {
+		return
+	}
+	info.Media = make(snap.MediaInfos, len(media))
+	for i, mediaObj := range media {
+		info.Media[i].Type = mediaObj.Type
+		info.Media[i].URL = mediaObj.URL
+		info.Media[i].Width = mediaObj.Width
+		info.Media[i].Height = mediaObj.Height
+	}
 }

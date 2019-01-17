@@ -228,7 +228,9 @@ dbus (send)
 # This leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
-/var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
+# parallel-installs: this leaks read access to desktop files owned by keyed
+# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
+/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
 `
 
 const desktopLegacyConnectedPlugSecComp = `

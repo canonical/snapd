@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -124,7 +123,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 
 		context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
 		c.Check(err, IsNil)
-		c.Check(context.SnapName(), Equals, "test-snap")
+		c.Check(context.InstanceName(), Equals, "test-snap")
 		c.Check(context.SnapRevision(), Equals, snap.Revision{})
 		c.Check(context.HookName(), Equals, "configure")
 
@@ -249,7 +248,7 @@ func (wm *witnessManager) Ensure() error {
 func (s *configcoreHijackSuite) TestHijack(c *C) {
 	configcoreRan := false
 	witnessCfg := false
-	witnessConfigcoreRun := func(conf configcore.Conf) error {
+	witnessConfigcoreRun := func(conf config.Conf) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()

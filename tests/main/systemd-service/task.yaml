@@ -3,18 +3,19 @@ summary: Check that a service installed by a snap is reported as active by syste
 environment:
     SERVICE_NAME: snap.test-snapd-service.test-snapd-service.service
 
+restore: |
+    rm -f ./*.snap
+
 execute: |
+    # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     echo "Given a service snap is installed"
     install_local test-snapd-service
 
     echo "When the service state is reported as active"
-    while ! systemctl show -p ActiveState $SERVICE_NAME | grep -Pq "ActiveState=active"; do sleep 0.5; done
+    while ! systemctl show -p ActiveState "$SERVICE_NAME" | grep -Pq "ActiveState=active"; do sleep 0.5; done
 
     echo "Then systemctl reports the status of the service as loaded, active and running"
-    expected="(?s).*?Loaded: loaded .*?Active: active \(running\)"
-    systemctl status $SERVICE_NAME | grep -Pqz "$expected"
-
-restore: |
-    rm -f *.snap
+    expected='(?s).*?Loaded: loaded .*?Active: active \(running\)'
+    systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"

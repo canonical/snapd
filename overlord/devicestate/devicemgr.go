@@ -82,6 +82,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+func (m *DeviceManager) CanStandby() bool {
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil {
+		return false
+	}
+	return seeded
+}
+
 func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -168,6 +176,19 @@ func (m *DeviceManager) ensureOperationalShouldBackoff(now time.Time) bool {
 	return false
 }
 
+func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
+	err := assertstate.Add(st, sysdb.GenericClassicModel())
+	if err != nil && !asserts.IsUnaccceptedUpdate(err) {
+		return fmt.Errorf(`cannot install "generic-classic" fallback model assertion: %v`, err)
+	}
+	device.Brand = "generic"
+	device.Model = "generic-classic"
+	if err := auth.SetDevice(st, device); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -207,13 +228,8 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		// we are on classic and seeded but there is no model:
 		// use a fallback model!
-		err = assertstate.Add(m.state, sysdb.GenericClassicModel())
-		if err != nil && !asserts.IsUnaccceptedUpdate(err) {
-			return fmt.Errorf(`cannot install "generic-classic" fallback model assertion: %v`, err)
-		}
-		device.Brand = "generic"
-		device.Model = "generic-classic"
-		if err := auth.SetDevice(m.state, device); err != nil {
+		err := setClassicFallbackModel(m.state, device)
+		if err != nil {
 			return err
 		}
 	}

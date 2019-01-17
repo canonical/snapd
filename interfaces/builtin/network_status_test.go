@@ -53,7 +53,7 @@ apps:
 `
 	providerInfo := snaptest.MockInfo(c, providerYaml, nil)
 	s.slotInfo = providerInfo.Slots["network-status"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 
 	const consumerYaml = `name: consumer
 version: 1.0
@@ -64,7 +64,7 @@ apps:
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
 	s.plugInfo = consumerInfo.Plugs["network-status"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *NetworkStatusSuite) TestName(c *C) {

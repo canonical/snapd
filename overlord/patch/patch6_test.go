@@ -137,7 +137,7 @@ func (s *patch6Suite) SetUpTest(c *C) {
 }
 
 func (s *patch6Suite) TestPatch6(c *C) {
-	restorer := patch.MockLevel(6)
+	restorer := patch.MockLevel(6, 1)
 	defer restorer()
 
 	r, err := os.Open(dirs.SnapStateFile)

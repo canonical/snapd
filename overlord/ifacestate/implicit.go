@@ -20,8 +20,11 @@
 package ifacestate
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -31,24 +34,29 @@ func shouldSnapdHostImplicitSlots(mapper SnapMapper) bool {
 	return ok
 }
 
-// addImplicitSlots adds implicitly defined slots to a given snap.
+// addImplicitSlots adds implicitly defined slots and hotplug slots to a given snap.
 //
-// Only the OS snap has implicit slots.
+// Only the OS snap has implicit and hotplug slots.
 //
 // It is assumed that slots have names matching the interface name. Existing
 // slots are not changed, only missing slots are added.
-func addImplicitSlots(snapInfo *snap.Info) {
+func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 	// Implicit slots can be added to the special "snapd" snap or to snaps with
 	// type "os". Currently there are no other snaps that gain implicit
 	// interfaces.
 	if snapInfo.Type != snap.TypeOS && snapInfo.InstanceName() != "snapd" {
-		return
+		return nil
 	}
 
 	// If the manager has chosen to put implicit slots on the "snapd" snap
 	// then stop adding them to any other core snaps.
 	if shouldSnapdHostImplicitSlots(mapper) && snapInfo.InstanceName() != "snapd" {
-		return
+		return nil
+	}
+
+	hotplugSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return err
 	}
 
 	// Ask each interface if it wants to be implicitly added.
@@ -61,6 +69,22 @@ func addImplicitSlots(snapInfo *snap.Info) {
 			}
 		}
 	}
+
+	// Add hotplug slots
+	for _, hslotInfo := range hotplugSlots {
+		if _, ok := snapInfo.Slots[hslotInfo.Name]; ok {
+			return fmt.Errorf("cannot add hotplug slot %s: slot already exists", hslotInfo.Name)
+		}
+		snapInfo.Slots[hslotInfo.Name] = &snap.SlotInfo{
+			Name:       hslotInfo.Name,
+			Snap:       snapInfo,
+			Interface:  hslotInfo.Interface,
+			Attrs:      hslotInfo.StaticAttrs,
+			HotplugKey: hslotInfo.HotplugKey,
+		}
+	}
+
+	return nil
 }
 
 func makeImplicitSlot(snapInfo *snap.Info, ifaceName string) *snap.SlotInfo {

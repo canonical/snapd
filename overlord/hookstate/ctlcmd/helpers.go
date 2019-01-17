@@ -46,6 +46,10 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	if err != nil {
 		return nil, err
 	}
+	if len(serviceNames) == 0 {
+		// all services
+		return info.Services(), nil
+	}
 
 	var svcs []*snap.AppInfo
 	for _, svcName := range serviceNames {
@@ -112,7 +116,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	st := context.State()
-	appInfos, err := getServiceInfos(st, context.SnapName(), serviceNames)
+	appInfos, err := getServiceInfos(st, context.InstanceName(), serviceNames)
 	if err != nil {
 		return err
 	}
@@ -128,7 +132,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	st.Lock()
-	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.SnapName()))
+	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.InstanceName()))
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}

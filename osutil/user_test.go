@@ -40,6 +40,7 @@ type createUserSuite struct {
 
 	mockAddUser *testutil.MockCmd
 	mockUserMod *testutil.MockCmd
+	mockPasswd  *testutil.MockCmd
 }
 
 var _ = check.Suite(&createUserSuite{})
@@ -59,12 +60,14 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 	})
 	s.mockAddUser = testutil.MockCommand(c, "adduser", "")
 	s.mockUserMod = testutil.MockCommand(c, "usermod", "")
+	s.mockPasswd = testutil.MockCommand(c, "passwd", "")
 }
 
 func (s *createUserSuite) TearDownTest(c *check.C) {
 	s.restorer()
 	s.mockAddUser.Restore()
 	s.mockUserMod.Restore()
+	s.mockPasswd.Restore()
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
@@ -149,7 +152,41 @@ func (s *createUserSuite) TestAddUserWithPassword(c *check.C) {
 	c.Check(s.mockUserMod.Calls(), check.DeepEquals, [][]string{
 		{"usermod", "--password", "$6$salt$hash", "karl.sagan"},
 	})
+}
 
+func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
+	mockSudoers := c.MkDir()
+	restorer := osutil.MockSudoersDotD(mockSudoers)
+	defer restorer()
+
+	err := osutil.AddUser("karl.popper", &osutil.AddUserOptions{
+		Gecos:               "my gecos",
+		Password:            "$6$salt$hash",
+		ForcePasswordChange: true,
+	})
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
+		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "karl.popper"},
+	})
+	c.Check(s.mockUserMod.Calls(), check.DeepEquals, [][]string{
+		{"usermod", "--password", "$6$salt$hash", "karl.popper"},
+	})
+	c.Check(s.mockPasswd.Calls(), check.DeepEquals, [][]string{
+		{"passwd", "--expire", "karl.popper"},
+	})
+}
+
+func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
+	mockSudoers := c.MkDir()
+	restorer := osutil.MockSudoersDotD(mockSudoers)
+	defer restorer()
+
+	err := osutil.AddUser("karl.popper", &osutil.AddUserOptions{
+		Gecos:               "my gecos",
+		ForcePasswordChange: true,
+	})
+	c.Assert(err, check.ErrorMatches, `cannot force password change when no password is provided`)
 }
 
 func (s *createUserSuite) TestRealUser(c *check.C) {
@@ -204,4 +241,13 @@ func (s *createUserSuite) TestUidGid(c *check.C) {
 			c.Check(err, check.ErrorMatches, ".*"+t.Err+".*", check.Commentf(k))
 		}
 	}
+}
+
+func (s *createUserSuite) TestAddUserUnhappy(c *check.C) {
+	mockAddUser := testutil.MockCommand(c, "adduser", "echo some error; exit 1")
+	defer mockAddUser.Restore()
+
+	err := osutil.AddUser("lakatos", nil)
+	c.Assert(err, check.ErrorMatches, "adduser failed with: some error")
+
 }

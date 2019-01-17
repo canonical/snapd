@@ -143,3 +143,13 @@ func FetchSnapDeclaration(f asserts.Fetcher, snapID string) error {
 
 	return f.Fetch(ref)
 }
+
+// FetchStore fetches the store assertion and its prerequisites for the given store id using the given fetcher.
+func FetchStore(f asserts.Fetcher, storeID string) error {
+	ref := &asserts.Ref{
+		Type:       asserts.StoreType,
+		PrimaryKey: []string{storeID},
+	}
+
+	return f.Fetch(ref)
+}

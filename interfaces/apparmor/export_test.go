@@ -26,10 +26,13 @@ import (
 )
 
 var (
-	ChopTree                   = chopTree
 	NsProfile                  = nsProfile
 	ProfileGlobs               = profileGlobs
 	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
+	DowngradeConfinement       = downgradeConfinement
+	LoadProfiles               = loadProfiles
+	UnloadProfiles             = unloadProfiles
+	SetupSnapConfineReexec     = setupSnapConfineReexec
 )
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
@@ -90,10 +93,18 @@ func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
 	return spec.setScope(securityTags)
 }
 
-func MockKernelFeatures(f func() []string) (resture func()) {
+func MockKernelFeatures(f func() ([]string, error)) (resture func()) {
 	old := kernelFeatures
 	kernelFeatures = f
 	return func() {
 		kernelFeatures = old
+	}
+}
+
+func MockParserFeatures(f func() ([]string, error)) (resture func()) {
+	old := parserFeatures
+	parserFeatures = f
+	return func() {
+		parserFeatures = old
 	}
 }

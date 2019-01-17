@@ -21,7 +21,7 @@ execute: |
 
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
         echo "Checking successful login"
-        expect -d -f $TESTSLIB/successful_login.exp
+        expect -d -f "$TESTSLIB"/successful_login.exp
 
         output=$(snap managed)
         if [ "$output" != "true" ]; then

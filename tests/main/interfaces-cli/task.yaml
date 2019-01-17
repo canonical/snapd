@@ -23,3 +23,8 @@ execute: |
     echo "When the interfaces list is restricted by slot and snap"
     echo "Then only the requested slots are shown"
     snap interfaces -i "$PLUG" "$SNAP_NAME" | grep -Pzq "$expected"
+
+    echo "Implicit slots are exposed by a snap holding the nickname 'system'"
+    echo "but for compatibility they can also be listed when asking for 'core'"
+    snap interfaces -i network system | MATCH '^:network .*'
+    snap interfaces -i network core | MATCH '^:network .*'

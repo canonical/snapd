@@ -136,6 +136,9 @@ purge() {
     echo "Removing downloaded snaps"
     rm -rf /var/lib/snapd/snaps/*
 
+    echo "Removing features exported from snapd to helper tools"
+    rm -rf /var/lib/snapd/features
+
     echo "Final directory cleanup"
     rm -rf "${SNAP_MOUNT_DIR}"
     rm -rf /var/snap
@@ -147,6 +150,9 @@ purge() {
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/cookie/*
     rm -rf /var/lib/snapd/cache/*
+    rm -rf /var/lib/snapd/mount/*
+    rm -rf /var/lib/snapd/sequence/*
+    rm -rf /var/lib/snapd/apparmor/*
     rm -f /var/lib/snapd/state.json
     rm -f /var/lib/snapd/system-key
 

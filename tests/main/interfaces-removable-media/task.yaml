@@ -6,7 +6,7 @@ details: |
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-removable-media
+    install_local test-snapd-sh
 
     if ! [ -d /media ]; then
         mkdir -p /media
@@ -46,26 +46,26 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i removable-media | MATCH -- '- +test-snapd-removable-media:removable-media'
+    snap interfaces -i removable-media | MATCH -- '- +test-snapd-sh:removable-media'
 
     echo "When the interface is connected"
-    snap connect test-snapd-removable-media:removable-media
+    snap connect test-snapd-sh:removable-media
 
     echo "Then the snap is able to read inside /run"
-    test-snapd-removable-media.sh -c "ls /run"
+    test-snapd-sh.with-removable-media-plug -c "ls /run"
 
     echo "And the snap is able to access to read/write removable storage filesystems"
-    test-snapd-removable-media.sh -c "ls /media"
-    test-snapd-removable-media.sh -c "ls /media/testdir"
-    test-snapd-removable-media.sh -c "echo test >> /media/testdir/testfile"
+    test-snapd-sh.with-removable-media-plug -c "ls /media"
+    test-snapd-sh.with-removable-media-plug -c "ls /media/testdir"
+    test-snapd-sh.with-removable-media-plug -c "echo test >> /media/testdir/testfile"
 
-    test-snapd-removable-media.sh -c "ls /run/media"
-    test-snapd-removable-media.sh -c "ls /run/media/testdir"
-    test-snapd-removable-media.sh -c "echo test >> /run/media/testdir/testfile"
+    test-snapd-sh.with-removable-media-plug -c "ls /run/media"
+    test-snapd-sh.with-removable-media-plug -c "ls /run/media/testdir"
+    test-snapd-sh.with-removable-media-plug -c "echo test >> /run/media/testdir/testfile"
 
     echo "And the snap has read-write access to /mnt/testing/data"
-    test-snapd-removable-media.sh -c 'cat /mnt/testing/data' | MATCH canary
-    test-snapd-removable-media.sh -c 'echo modified > /mnt/testing/data'
+    test-snapd-sh.with-removable-media-plug -c 'cat /mnt/testing/data' | MATCH canary
+    test-snapd-sh.with-removable-media-plug -c 'echo modified > /mnt/testing/data'
     MATCH modified < /mnt/testing/data
 
     if [ "$(snap debug confinement)" = partial ]; then
@@ -73,16 +73,16 @@ execute: |
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-removable-media:removable-media
+    snap disconnect test-snapd-sh:removable-media
 
     echo "Then the snap is not able to access read the test media file"
-    if test-snapd-removable-media.sh -c "ls /run" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-removable-media-plug -c "ls /run" 2>"${PWD}"/call.error; then
         echo "Expected permission error accessing to removable storage filesystems"
         exit 1
     fi
     MATCH "Permission denied" < call.error
 
     echo "Then /mnt/testing/data is no longer readable"
-    if test-snapd-removable-media.sh -c 'cat /mnt/testing/data'; then
+    if test-snapd-sh.with-removable-media-plug -c 'cat /mnt/testing/data'; then
         echo "/mnt/testing/data should no longer be readable" && exit 1
     fi

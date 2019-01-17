@@ -57,10 +57,10 @@ func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
 		Name:      "unity7",
 		Interface: "unity7",
 	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	plugSnap := snaptest.MockInfo(c, unity7mockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["unity7"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *Unity7InterfaceSuite) TestName(c *C) {

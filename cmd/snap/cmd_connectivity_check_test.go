@@ -47,7 +47,7 @@ func (s *SnapSuite) TestConnectivityHappy(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"debug", "connectivity"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "connectivity"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `Connectivity status:
@@ -74,7 +74,7 @@ func (s *SnapSuite) TestConnectivityUnhappy(c *check.C) {
 
 		n++
 	})
-	_, err := snap.Parser().ParseArgs([]string{"debug", "connectivity"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "connectivity"})
 	c.Assert(err, check.ErrorMatches, "1 servers unreachable")
 	// note that only the unreachable hosts are displayed
 	c.Check(s.Stdout(), check.Equals, `Connectivity status:

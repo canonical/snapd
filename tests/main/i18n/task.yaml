@@ -17,10 +17,9 @@ execute: |
 
     echo "Basic smoke test to ensure no locale causes crashes nor warnings"
     for p in /usr/share/locale/*; do
-        out=$( LANG=$(basename "$p") snap 2>&1 >/dev/null )
-        if [ -n "$out" ]; then
-            echo "$p"
-            echo "$out"
-            exit 1
+        b=$( basename "$p" )
+        if ! SNAPPY_TESTING=1 LANG="$b" snap >/dev/null 2>&1; then
+            SNAPPY_TESTING=0 LANG="$b" snap 2>&1 >/dev/null | sed -e "s/[^ ]* [^ ]* /${b^^}: /" >> bad
         fi
     done
+    ! cat bad

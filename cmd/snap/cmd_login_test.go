@@ -54,7 +54,7 @@ func (s *SnapSuite) TestLoginSimple(c *C) {
 
 	// send the password
 	s.password = "some-password\n"
-	rest, err := snap.Parser().ParseArgs([]string{"login", "foo@example.com"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"login", "foo@example.com"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `Personal information is handled as per our privacy notice at
@@ -76,7 +76,7 @@ func (s *SnapSuite) TestLoginAskEmail(c *C) {
 	// send the password
 	s.password = "some-password"
 
-	rest, err := snap.Parser().ParseArgs([]string{"login"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"login"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	// test slightly ugly, on a real system STDOUT will be:

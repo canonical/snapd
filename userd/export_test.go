@@ -28,8 +28,8 @@ import (
 var (
 	SnapFromPid = snapFromPid
 
-	FindExec     = findExec
-	AutostartCmd = autostartCmd
+	LoadAutostartDesktopFile = loadAutostartDesktopFile
+	AutostartCmd             = autostartCmd
 )
 
 func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
@@ -45,5 +45,13 @@ func MockUserCurrent(f func() (*user.User, error)) func() {
 	userCurrent = f
 	return func() {
 		userCurrent = origUserCurrent
+	}
+}
+
+func MockCurrentDesktop(current string) func() {
+	old := currentDesktop
+	currentDesktop = splitSkippingEmpty(current, ':')
+	return func() {
+		currentDesktop = old
 	}
 }

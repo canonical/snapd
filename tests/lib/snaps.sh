@@ -8,7 +8,7 @@ make_snap() {
     # assigned in a separate step to avoid hiding a failure
     SNAP_DIR="$(dirname "$SNAP_FILE")"
     if [ ! -f "$SNAP_FILE" ]; then
-        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
     fi
     # echo the snap name
     if [ -f "$SNAP_FILE" ]; then
@@ -24,6 +24,13 @@ install_local() {
     SNAP_FILE=$(make_snap "$SNAP_NAME")
 
     snap install --dangerous "$@" "$SNAP_FILE"
+}
+
+install_local_as() {
+    local snap="$1"
+    local name="$2"
+    shift 2
+    install_local "$snap" --name "$name" "$@"
 }
 
 install_local_devmode() {
@@ -45,8 +52,8 @@ mksnap_fast() {
     snap="$2"
 
     case "$SPREAD_SYSTEM" in
-        ubuntu-14.04-*|amazon-*)
-            # trusty and AMZN2 do not support  -Xcompression-level 1
+        ubuntu-14.04-*|amazon-*|centos-*)
+            # trusty, AMZN2 and CentOS 7 do not support -Xcompression-level 1
             mksquashfs "$dir" "$snap" -comp gzip -no-fragments -no-progress
             ;;
         *)
@@ -66,13 +73,13 @@ install_generic_consumer() {
 
 is_classic_confinement_supported() {
     case "$SPREAD_SYSTEM" in
-        ubuntu-core-16-*)
+        ubuntu-core-*)
             return 1
             ;;
         ubuntu-*|debian-*)
             return 0
             ;;
-        fedora-*)
+        fedora-*|centos-*)
             return 1
             ;;
         opensuse-*)

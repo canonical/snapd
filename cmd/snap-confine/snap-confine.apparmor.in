@@ -25,6 +25,9 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
     # normal libs in order
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -118,9 +121,6 @@
 
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
-
-    # ensuring correct permissions in sc_quirk_create_writable_mimic
-    /{tmp/snap.rootfs_*/,}var/lib/ rw,
 
     # LP: #1668659
     mount options=(rw rbind) /snap/ -> /snap/,
@@ -220,6 +220,7 @@
     # pivot_root preparation and execution
     mount options=(rw bind) /tmp/snap.rootfs_*/var/lib/snapd/hostfs/ -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
     mount options=(rw private) -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
+    # pivot_root mediation in AppArmor is not complete. See LP: #1791711
     pivot_root,
     # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
@@ -234,9 +235,12 @@
     # Allow reading the os-release file (possibly a symlink to /usr/lib).
     /{etc/,usr/lib/}os-release r,
 
+    # Allow creating /var/lib/snapd/hostfs, if missing
+    /var/lib/snapd/hostfs/ rw,
+
     # set up snap-specific private /tmp dir
     capability chown,
-    /tmp/ w,
+    /tmp/ rw,
     /tmp/snap.*/ w,
     /tmp/snap.*/tmp/ w,
     mount options=(rw private) ->  /tmp/,
@@ -335,34 +339,10 @@
 
     # Allow snap-confine to unmount stale mount namespaces.
     umount /run/snapd/ns/*.mnt,
+    /run/snapd/ns/snap.*.fstab w,
     # Required to correctly unmount bound mount namespace.
     # See LP: #1735459 for details.
     umount /,
-
-    # Support for the quirk system
-    /var/ r,
-    /var/lib/ r,
-    /var/lib/** rw,
-    /tmp/ r,
-    /tmp/snapd.quirks_*/ rw,
-    mount options=(move) /var/lib/snapd/ -> /tmp/snapd.quirks_*/,
-    mount fstype=tmpfs options=(rw nodev nosuid) none -> /var/lib/,
-    mount options=(ro rbind) /snap/{,ubuntu-}core/*/var/lib/** -> /var/lib/**,
-    umount /var/lib/snapd/,
-    mount options=(move) /tmp/snapd.quirks_*/ -> /var/lib/snapd/,
-    # On classic systems with a setuid root snap-confine when run by non-root
-    # user, the mimic_dir is created with the gid of the calling user (ie,
-    # not '0') so when setting the permissions (chmod) of the mimicked
-    # directory to that of the reference directory, a CAP_FSETID is triggered.
-    # snap-confine sets the directory up correctly, so simply silence the
-    # denial since we don't want to grant the capability as a whole to
-    # snap-confine.
-    deny capability fsetid,
-
-    # support for the LXD quirk
-    mount options=(rw rbind nodev nosuid noexec) /var/lib/snapd/hostfs/var/lib/lxd/ -> /var/lib/lxd/,
-    /var/lib/lxd/ w,
-    /var/lib/snapd/hostfs/var/lib/lxd r,
 
     # support for locking
     /run/snapd/lock/ rw,
@@ -396,6 +376,9 @@
     # https://forum.snapcraft.io/t/snapd-2-27-6-2-in-debian-sid-blocked-on-apparmor-in-kernel-4-13-0-1/2813/3
     ptrace (trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
 
+    # Allow reading snap cookies.
+    /var/lib/snapd/cookie/snap.* r,
+
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
 
@@ -414,6 +397,9 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
         # normal libs in order
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -498,4 +484,14 @@
     # reported as (LP: #1716339). The variants here represent different
     # locations of snap mount directory across distributions.
     /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+
+    # Allow executing snap-discard-ns, just like the set for snap-update-ns
+    # above but with the key difference that snap-discard-ns does not
+    # have a dedicated profile so we need to inherit snap-confine's profile.
+
+    /usr/lib{,exec,64}/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-discard-ns rix,
+    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+
 }

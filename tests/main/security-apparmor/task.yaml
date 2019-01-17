@@ -2,8 +2,13 @@ summary: Check basic apparmor confinement rules.
 
 prepare: |
     echo "Given a basic snap is installed"
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
+
+restore: |
+    rm -f touch.error
+
 execute: |
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -18,5 +23,3 @@ execute: |
         exit 1
     fi
     [ "$(cat touch.error)" = "touch: cannot touch '/dev/shm/snap.not-test-snapd-tools.foo': Permission denied" ]
-restore: |
-    rm -f touch.error

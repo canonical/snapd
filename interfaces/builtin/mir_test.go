@@ -75,15 +75,15 @@ apps:
 	// mir snap with mir-server slot on an core/all-snap install.
 	snapInfo := snaptest.MockInfo(c, mirMockSlotSnapInfoYaml, nil)
 	s.coreSlotInfo = snapInfo.Slots["mir"]
-	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil)
+	s.coreSlot = interfaces.NewConnectedSlot(s.coreSlotInfo, nil, nil)
 	// mir slot on a core snap in a classic install.
 	snapInfo = snaptest.MockInfo(c, mirMockClassicSlotSnapInfoYaml, nil)
 	s.classicSlotInfo = snapInfo.Slots["mir"]
-	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil)
+	s.classicSlot = interfaces.NewConnectedSlot(s.classicSlotInfo, nil, nil)
 	// snap with the mir plug
 	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.plugInfo = snapInfo.Plugs["mir"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *MirInterfaceSuite) TestName(c *C) {

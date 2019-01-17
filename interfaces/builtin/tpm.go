@@ -30,11 +30,11 @@ const tpmBaseDeclarationSlots = `
 `
 
 const tpmConnectedPlugAppArmor = `
-# Description: for those who need to talk to the system TPM chip over /dev/tpm0
-# and kernel TPM resource manager /dev/tpmrm0 (4.12+)
+# Description: for those who need to talk to the system TPM chip over
+# /dev/tpm[0-9]* and kernel TPM resource manager /dev/tpmrm[0-0]* (4.12+)
 
-/dev/tpm0 rw,
-/dev/tpmrm0 rw,
+/dev/tpm[0-9]* rw,
+/dev/tpmrm[0-9]* rw,
 `
 
 var tpmConnectedPlugUDev = []string{

@@ -233,7 +233,7 @@ func (s *patch4Suite) SetUpTest(c *C) {
 }
 
 func (s *patch4Suite) TestPatch4OnReverts(c *C) {
-	restorer := patch.MockLevel(4)
+	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
 	r, err := os.Open(dirs.SnapStateFile)
@@ -287,7 +287,7 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 }
 
 func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
-	restorer := patch.MockLevel(4)
+	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
 	r, err := os.Open(dirs.SnapStateFile)
@@ -340,7 +340,7 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 }
 
 func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
-	restorer := patch.MockLevel(4)
+	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
 	r, err := os.Open(dirs.SnapStateFile)
@@ -397,7 +397,7 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 // This test simulates a link-snap task that is scheduled but has not
 // run yet. It has no "had-candidate" data set yet.
 func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
-	restorer := patch.MockLevel(4)
+	restorer := patch.MockLevel(4, 1)
 	defer restorer()
 
 	r, err := os.Open(dirs.SnapStateFile)

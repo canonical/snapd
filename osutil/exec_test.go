@@ -77,7 +77,7 @@ func (s *execSuite) TestCommandFromCore(c *C) {
 
 	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
-	cmd, err := osutil.CommandFromCore("/usr/bin/xdelta3", "--some-xdelta-arg")
+	cmd, err := osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, IsNil)
 
 	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
@@ -108,7 +108,7 @@ func (s *execSuite) TestCommandFromCoreSymlinkCycle(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(coreInterp), 0755), IsNil)
 	c.Assert(os.Symlink(filepath.Base(coreInterp), coreInterp), IsNil)
 
-	_, err = osutil.CommandFromCore("/usr/bin/xdelta3", "--some-xdelta-arg")
+	_, err = osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, ErrorMatches, "cannot run command from core: symlink cycle found")
 
 }

@@ -1,30 +1,35 @@
 summary: Ensure snap userd allows settings via xdg-settings
 
-systems:
-    # Not supposed to work on Ubuntu Core systems as we don't have
-    # a user session environment there
-    - -ubuntu-core-*
+# Not supposed to work on Ubuntu Core systems as we don't have
+# a user session environment there
+systems: [-ubuntu-core-*]
 
 environment:
     DISPLAY: :0
 
 restore: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     rm -f dbus.env
     umount -f /usr/bin/xdg-settings || true
     umount -f /usr/bin/zenity || true
 
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     install_local test-snapd-xdg-settings
 
     # setup dbus
     dbus-launch > dbus.env
-    export $(cat dbus.env | xargs)
+    #shellcheck disable=SC2046
+    export $(xargs < dbus.env)
 
     # wait for session to be ready
     ping_settings() {

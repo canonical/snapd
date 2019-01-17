@@ -90,22 +90,26 @@ capability dac_override,  # for various overlayfs accesses
 @{PROC}/filesystems r,
 
 # setup the overlay so we may pivot_root into it
-mount fstype=overlay no_source -> /var/snap/@{SNAP_NAME}/**,
-mount options=(rw, bind) /var/snap/@{SNAP_NAME}/*/rootfs/ -> /var/snap/@{SNAP_NAME}/*/rootfs/,
-mount options=(rw, rbind) /var/snap/@{SNAP_NAME}/*/rootfs/ -> /var/snap/@{SNAP_NAME}/*/rootfs/,
-mount fstype=proc proc -> /var/snap/@{SNAP_NAME}/*/rootfs/proc/,
-mount options=(rw, nosuid, strictatime) fstype=tmpfs tmpfs -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/,
-mount options=(rw, nosuid, nodev, noexec) fstype=mqueue mqueue -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/mqueue/,
-mount options=(rw, nosuid, noexec) fstype=devpts devpts -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/pts/,
-mount options=(rw, nosuid, nodev, noexec) fstype=tmpfs shm -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/shm/,
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
+# completeness allow SNAP_INSTANCE_NAME too
+mount fstype=overlay no_source -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**,
+mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/,
+mount options=(rw, rbind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/,
+mount fstype=proc proc -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/proc/,
+mount options=(rw, nosuid, strictatime) fstype=tmpfs tmpfs -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/,
+mount options=(rw, nosuid, nodev, noexec) fstype=mqueue mqueue -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/mqueue/,
+mount options=(rw, nosuid, noexec) fstype=devpts devpts -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/pts/,
+mount options=(rw, nosuid, nodev, noexec) fstype=tmpfs shm -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/shm/,
 
 # add a few common devices
-mount options=(rw, bind) /dev/full -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/full,
-mount options=(rw, bind) /dev/null -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/null,
-mount options=(rw, bind) /dev/random -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/random,
-mount options=(rw, bind) /dev/tty -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/tty,
-mount options=(rw, bind) /dev/urandom -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/urandom,
-mount options=(rw, bind) /dev/zero -> /var/snap/@{SNAP_NAME}/*/rootfs/dev/zero,
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
+# completeness allow SNAP_INSTANCE_NAME too
+mount options=(rw, bind) /dev/full -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/full,
+mount options=(rw, bind) /dev/null -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/null,
+mount options=(rw, bind) /dev/random -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/random,
+mount options=(rw, bind) /dev/tty -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/tty,
+mount options=(rw, bind) /dev/urandom -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/urandom,
+mount options=(rw, bind) /dev/zero -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/zero,
 
 # allow mounting lambda, runtime and whatever else in SNAP_DATA into the
 # pivot_root

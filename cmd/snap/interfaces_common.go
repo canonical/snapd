@@ -26,36 +26,6 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-// AttributePair contains a pair of key-value strings
-type AttributePair struct {
-	// The key
-	Key string
-	// The value
-	Value string
-}
-
-// UnmarshalFlag parses a string into an AttributePair
-func (ap *AttributePair) UnmarshalFlag(value string) error {
-	parts := strings.SplitN(value, "=", 2)
-	if len(parts) < 2 || parts[0] == "" {
-		ap.Key = ""
-		ap.Value = ""
-		return fmt.Errorf(i18n.G("invalid attribute: %q (want key=value)"), value)
-	}
-	ap.Key = parts[0]
-	ap.Value = parts[1]
-	return nil
-}
-
-// AttributePairSliceToMap converts a slice of AttributePair into a map
-func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
-	result := make(map[string]string)
-	for _, attr := range attrs {
-		result[attr.Key] = attr.Value
-	}
-	return result
-}
-
 // SnapAndName holds a snap name and a plug or slot name.
 type SnapAndName struct {
 	Snap string

@@ -39,7 +39,7 @@ hooks:
 
 func (s *SnapSuite) TestInvalidSetParameters(c *check.C) {
 	invalidParameters := []string{"set", "snap-name", "key", "value"}
-	_, err := snapset.Parser().ParseArgs(invalidParameters)
+	_, err := snapset.Parser(snapset.Client()).ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*invalid configuration:.*(want key=value).*")
 }
 
@@ -53,7 +53,7 @@ func (s *SnapSuite) TestSnapSetIntegrationString(c *check.C) {
 	s.mockSetConfigServer(c, "value")
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", "key=value"})
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=value"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -67,7 +67,7 @@ func (s *SnapSuite) TestSnapSetIntegrationNumber(c *check.C) {
 	s.mockSetConfigServer(c, json.Number("1.2"))
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", "key=1.2"})
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=1.2"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -80,7 +80,7 @@ func (s *SnapSuite) TestSnapSetIntegrationBigInt(c *check.C) {
 	s.mockSetConfigServer(c, json.Number("1234567890"))
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", "key=1234567890"})
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=1234567890"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -94,7 +94,7 @@ func (s *SnapSuite) TestSnapSetIntegrationJson(c *check.C) {
 	s.mockSetConfigServer(c, map[string]interface{}{"subkey": "value"})
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", `key={"subkey":"value"}`})
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", `key={"subkey":"value"}`})
 	c.Assert(err, check.IsNil)
 }
 

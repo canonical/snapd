@@ -37,6 +37,8 @@ var All []interfaces.SecurityBackend = backends()
 
 func backends() []interfaces.SecurityBackend {
 	all := []interfaces.SecurityBackend{
+		// Because of how the GPIO interface is implemented the systemd backend
+		// must be earlier in the sequence than the apparmor backend.
 		&systemd.Backend{},
 		&seccomp.Backend{},
 		&dbus.Backend{},
@@ -65,7 +67,7 @@ func backends() []interfaces.SecurityBackend {
 	// When some features are missing the backend will generate more permissive
 	// profiles that keep applications operational, in forced-devmode.
 	switch release.AppArmorLevel() {
-	case release.FullAppArmor, release.PartialAppArmor:
+	case release.PartialAppArmor, release.FullAppArmor:
 		all = append(all, &apparmor.Backend{})
 	}
 	return all

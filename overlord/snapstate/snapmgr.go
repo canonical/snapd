@@ -22,7 +22,9 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -31,11 +33,13 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // overridden in the tests
@@ -243,9 +247,11 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
+		_, instanceKey := snap.SplitInstanceName(name)
 		info := &snap.Info{
 			SuggestedName: name,
 			Broken:        bse.Broken(),
+			InstanceKey:   instanceKey,
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
@@ -327,6 +333,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
 
+	if err := genRefreshRequestSalt(st); err != nil {
+		return nil, fmt.Errorf("cannot generate request salt: %v", err)
+	}
+
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
@@ -380,6 +390,33 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	writeSnapReadme()
 
 	return m, nil
+}
+
+func (m *SnapManager) CanStandby() bool {
+	if n, err := NumSnaps(m.state); err == nil && n == 0 {
+		return true
+	}
+	return false
+}
+
+func genRefreshRequestSalt(st *state.State) error {
+	var refreshPrivacyKey string
+
+	st.Lock()
+	defer st.Unlock()
+
+	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if refreshPrivacyKey != "" {
+		// nothing to do
+		return nil
+	}
+
+	refreshPrivacyKey = strutil.MakeRandomString(16)
+	st.Set("refresh-privacy-key", refreshPrivacyKey)
+
+	return nil
 }
 
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
@@ -513,7 +550,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
+	msg := i18n.G("Transition ubuntu-core to core")
 	chg := m.state.NewChange("transition-ubuntu-core", msg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -541,6 +578,62 @@ func (m *SnapManager) atSeed() error {
 	return nil
 }
 
+var (
+	localInstallCleanupWait = time.Duration(24 * time.Hour)
+	localInstallLastCleanup time.Time
+)
+
+// localInstallCleanup removes files that might've been left behind by an
+// old aborted local install.
+//
+// They're usually cleaned up, but if they're created and then snapd
+// stops before writing the change to disk (killed, light cut, etc)
+// it'll be left behind.
+//
+// The code that creates the files is in daemon/api.go's postSnaps
+func (m *SnapManager) localInstallCleanup() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	now := time.Now()
+	cutoff := now.Add(-localInstallCleanupWait)
+	if localInstallLastCleanup.After(cutoff) {
+		return nil
+	}
+	localInstallLastCleanup = now
+
+	d, err := os.Open(dirs.SnapBlobDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer d.Close()
+
+	var filenames []string
+	var fis []os.FileInfo
+	for err == nil {
+		// TODO: if we had fstatat we could avoid a bunch of stats
+		fis, err = d.Readdir(100)
+		// fis is nil if err isn't
+		for _, fi := range fis {
+			name := fi.Name()
+			if !strings.HasPrefix(name, dirs.LocalInstallBlobTempPrefix) {
+				continue
+			}
+			if fi.ModTime().After(cutoff) {
+				continue
+			}
+			filenames = append(filenames, name)
+		}
+	}
+	if err != io.EOF {
+		return err
+	}
+	return osutil.UnlinkManyAt(d, filenames)
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
@@ -554,6 +647,7 @@ func (m *SnapManager) Ensure() error {
 		m.autoRefresh.Ensure(),
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
+		m.localInstallCleanup(),
 	}
 
 	//FIXME: use firstErr helper

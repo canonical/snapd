@@ -151,7 +151,38 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	// have a store assertion.
+	// have a store assertion
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "foo",
+		"operator-id": operatorAcct.AccountID(),
+		"url":         "http://store.interal:9943",
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	err = assertstate.Add(s.state, stoAs)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	err = configcore.Run(conf)
+	c.Check(err, IsNil)
+}
+
+func (s *proxySuite) TestConfigureProxyStoreNoURL(c *C) {
+	conf := &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"proxy.store": "foo",
+		},
+	}
+
+	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
+	s.state.Lock()
+	err := assertstate.Add(s.state, operatorAcct)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	// have a store assertion but no url
 	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
@@ -164,5 +195,5 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	c.Assert(err, IsNil)
 
 	err = configcore.Run(conf)
-	c.Check(err, IsNil)
+	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" with a matching store assertion with url unset`)
 }

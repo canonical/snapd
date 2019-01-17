@@ -68,7 +68,7 @@ func (s *autostartSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *autostartSuite) TestFindExec(c *C) {
+func (s *autostartSuite) TestLoadAutostartDesktopFile(c *C) {
 	allGood := `[Desktop Entry]
 Exec=foo --bar
 `
@@ -84,10 +84,40 @@ Exec=
 	onlySpacesExec := `[Desktop Entry]
 Exec=
 `
+	hidden := `[Desktop Entry]
+Exec=foo --bar
+Hidden=true
+`
+	hiddenFalse := `[Desktop Entry]
+Exec=foo --bar
+Hidden=false
+`
+	justGNOME := `[Desktop Entry]
+Exec=foo --bar
+OnlyShowIn=GNOME;
+`
+	notInGNOME := `[Desktop Entry]
+Exec=foo --bar
+NotShownIn=GNOME;
+`
+	notInGNOMEAndKDE := `[Desktop Entry]
+Exec=foo --bar
+NotShownIn=GNOME;KDE;
+`
+	hiddenGNOMEextension := `[Desktop Entry]
+Exec=foo --bar
+X-GNOME-Autostart-enabled=false
+`
+	GNOMEextension := `[Desktop Entry]
+Exec=foo --bar
+X-GNOME-Autostart-enabled=true
+`
+
 	for i, tc := range []struct {
-		in  string
-		out string
-		err string
+		in      string
+		out     string
+		err     string
+		current string
 	}{{
 		in:  allGood,
 		out: "foo --bar",
@@ -103,17 +133,68 @@ Exec=
 	}, {
 		in:  allGoodWithFlags,
 		out: `foo --bar "%p"   + %`,
+	}, {
+		in:  hidden,
+		err: `desktop file is hidden`,
+	}, {
+		in:  hiddenFalse,
+		out: `foo --bar`,
+	}, {
+		in:      justGNOME,
+		out:     "foo --bar",
+		current: "GNOME",
+	}, {
+		in:      justGNOME,
+		current: "KDE",
+		err:     `current desktop \["KDE"\] not included in \["GNOME"\]`,
+	}, {
+		in:      notInGNOME,
+		current: "GNOME",
+		err:     `current desktop \["GNOME"\] excluded by \["GNOME"\]`,
+	}, {
+		in:      notInGNOME,
+		current: "KDE",
+		out:     "foo --bar",
+	}, {
+		in:      notInGNOMEAndKDE,
+		current: "XFCE",
+		out:     "foo --bar",
+	}, {
+		in:      hiddenGNOMEextension,
+		current: "KDE",
+		out:     "foo --bar",
+	}, {
+		in:      hiddenGNOMEextension,
+		current: "GNOME",
+		err:     `desktop file is hidden by X-GNOME-Autostart-enabled extension`,
+	}, {
+		in:      GNOMEextension,
+		current: "GNOME",
+		out:     "foo --bar",
+	}, {
+		in:      GNOMEextension,
+		current: "KDE",
+		out:     "foo --bar",
 	}} {
 		c.Logf("tc %d", i)
 
-		cmd, err := userd.FindExec([]byte(tc.in))
-		if tc.err != "" {
-			c.Check(cmd, Equals, "")
-			c.Check(err, ErrorMatches, tc.err)
-		} else {
-			c.Check(err, IsNil)
-			c.Check(cmd, Equals, tc.out)
+		path := filepath.Join(c.MkDir(), "foo.desktop")
+		err := ioutil.WriteFile(path, []byte(tc.in), 0644)
+		c.Assert(err, IsNil)
+
+		run := func() {
+			defer userd.MockCurrentDesktop(tc.current)()
+
+			cmd, err := userd.LoadAutostartDesktopFile(path)
+			if tc.err != "" {
+				c.Check(cmd, Equals, "")
+				c.Check(err, ErrorMatches, tc.err)
+			} else {
+				c.Check(err, IsNil)
+				c.Check(cmd, Equals, tc.out)
+			}
 		}
+		run()
 	}
 }
 

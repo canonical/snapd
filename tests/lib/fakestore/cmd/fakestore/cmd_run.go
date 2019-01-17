@@ -62,7 +62,7 @@ func runServer(topDir, addr string, assertFallback bool) error {
 		return err
 	}
 
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 

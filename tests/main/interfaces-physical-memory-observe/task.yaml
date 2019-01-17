@@ -11,8 +11,11 @@ details: |
 systems: [-ubuntu-*]
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given the physical-memory-observe snap is installed"
-    snap try "$TESTSLIB"/snaps/test-snapd-physical-memory-observe
+    install_local test-snapd-physical-memory-observe
 
 restore: |
     rm -f call.error

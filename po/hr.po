@@ -1,21 +1,21 @@
 # Croatian translation for snapd
-# Copyright (c) 2017 Rosetta Contributors and Canonical Ltd 2017
+# Copyright (c) 2018 Rosetta Contributors and Canonical Ltd 2018
 # This file is distributed under the same license as the snapd package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2017.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2017-10-14 00:51+0000\n"
-"PO-Revision-Date: 2017-10-16 16:20+0000\n"
-"Last-Translator: Ante Karamatić <ante.karamatic@canonical.com>\n"
+"POT-Creation-Date: 2018-04-03 12:06+0200\n"
+"PO-Revision-Date: 2018-09-27 14:02+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Croatian <hr@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2017-10-18 08:37+0000\n"
-"X-Generator: Launchpad (build 18476)\n"
+"X-Launchpad-Export-Date: 2018-10-05 14:20+0000\n"
+"X-Generator: Launchpad (build 18785)\n"
 
 #, c-format
 msgid ""
@@ -30,7 +30,7 @@ msgstr ""
 
 #, c-format
 msgid "%q switched to the %q channel\n"
-msgstr ""
+msgstr "%q prebačen na %q kanal\n"
 
 #. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
 #, c-format
@@ -71,90 +71,126 @@ msgstr "%s nije instaliran\n"
 msgid "%s removed\n"
 msgstr "%s uklonjen\n"
 
+#. TRANSLATORS: first %s is a snap name, second %s is a revision
 #, c-format
 msgid "%s reverted to %s\n"
 msgstr "%s je vraćen na %s\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
 #, c-format
 msgid "%s%s %s from '%s' installed\n"
 msgstr "%s%s %s sa '%s' instaliran\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
 #, c-format
 msgid "%s%s %s from '%s' refreshed\n"
 msgstr "%s%s %s sa '%s' osvježen\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 #, c-format
 msgid "%s%s %s installed\n"
 msgstr "%s%s %s instairan\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 #, c-format
 msgid "%s%s %s refreshed\n"
 msgstr "%s%s %s osvježeno\n"
 
 msgid "--list does not take mode nor channel flags"
-msgstr "--list ne uzima načni ni oznake kanala"
+msgstr ""
 
 msgid "--time does not take mode nor channel flags"
-msgstr ""
+msgstr "--time ne uzima način ni oznake kanala"
 
 msgid "-r can only be used with --hook"
 msgstr "-r se može samo koristiti s --hook"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<alias-or-snap>"
-msgstr ""
+msgstr "<pseudonim-ili-snap paket>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<alias>"
 msgstr "<pseudonim>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion file>"
 msgstr "<datoteka potvrde>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion type>"
 msgstr "<naziv potvrde>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<change-id>"
 msgstr "<id-promjene>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<conf value>"
 msgstr "<vrijednost podešavanja>"
 
-#. TRANSLATORS: noun
-#. TRANSLATORS: noun
+#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
+#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 msgid "<email>"
 msgstr "<e-pošta>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<filename>"
 msgstr "<naziv datoteke>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<header filter>"
 msgstr "<filter zaglavlja>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<interface>"
-msgstr ""
+msgstr "<sučelje>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<key-name>"
 msgstr "<naziv-ključa>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<key>"
 msgstr "<ključ>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<model-assertion>"
 msgstr "<potvrda-modela>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<query>"
 msgstr "<zahtjev>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<root-dir>"
 msgstr "<korijenski-dir>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+msgid "<service>"
+msgstr ""
+
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<plug>"
 msgstr "<snap>:<priključak>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<slot or plug>"
 msgstr "<snap>:<priključnica ili priključak>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<slot>"
 msgstr "<snap>:<priključnica>"
+
+msgid ""
+"A service specification, which can be just a snap name (for all services in "
+"the snap), or <snap>.<app> for a single service."
+msgstr ""
 
 msgid "Abort a pending change"
 msgstr "Prekini očekivanu promjenu"
@@ -165,11 +201,34 @@ msgstr "Dodano"
 msgid "Adds an assertion to the system"
 msgstr "Dodaj potvrde u sustav"
 
+msgid "Advise on available snaps."
+msgstr ""
+
+msgid "Advise on snaps that provide the given command"
+msgstr ""
+
 msgid "Alias for --dangerous (DEPRECATED)"
 msgstr "Pseudonim za --dangerous (DEPRECATED)"
 
 msgid "All snaps up to date."
 msgstr "Svi snap paketi su nadopunjeni."
+
+msgid "Allow opening file?"
+msgstr ""
+
+msgid "Allow refresh attempt on snap unknown to the store"
+msgstr ""
+
+msgid "Allow settings change?"
+msgstr ""
+
+#, c-format
+msgid "Allow snap %q to change %q to %q ?"
+msgstr ""
+
+#, c-format
+msgid "Allow snap %q to open file %q?"
+msgstr ""
 
 msgid "Alternative command to run"
 msgstr "Zamjenska naredba za pokretanje"
@@ -177,15 +236,29 @@ msgstr "Zamjenska naredba za pokretanje"
 msgid "Always return document, even with single key"
 msgstr "Uvijek vrati dokument, čak i s jednim ključem"
 
-#. TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+msgid "Always return list, even with single key"
+msgstr "Uvijek vrati popis, čak i s jednim ključem"
+
+#. TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
 msgid "An email of a user on login.ubuntu.com"
 msgstr ""
 "Adresa e-pošte korisnika na login.ubuntu.com može sadržvati više adresa e-"
 "pošte"
 
+msgid ""
+"As well as starting the service now, arrange for it to be started on boot."
+msgstr ""
+
+msgid ""
+"As well as stopping the service now, arrange for it to no longer be started "
+"on boot."
+msgstr ""
+
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Assertion file"
 msgstr "Datoteka potvrde"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Assertion type name"
 msgstr "Naziv vrste potvrde"
 
@@ -205,30 +278,27 @@ msgstr "Automatski osvježi %q snap paket"
 msgid "Auto-refresh snaps %s"
 msgstr "Automatski osvježi snap pakete %s"
 
+#, c-format
+msgid "Automatically connect eligible plugs and slots of snap %q"
+msgstr ""
+
 msgid "Bad code. Try again: "
 msgstr "Netočan kôd. Pokušajte ponovno: "
 
 msgid "Buys a snap"
 msgstr "Kupovanje snap paketa"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Change ID"
 msgstr "ID promjene"
 
 msgid "Changes configuration options"
 msgstr "Promjene mogućnosti podešavanja"
 
-msgid ""
-"Classic dimension disabled on this system.\n"
-"Use \"sudo snap install --devmode classic && sudo classic.create\" to enable "
-"it."
-msgstr ""
-"Klasične dimenzije su onemogućene na ovom sustavu.\n"
-"Koristite \"sudo snap install --devmode classic && sudo classic.create\" "
-"kako bi ih omogućili."
-
 msgid "Command\tAlias\tNotes"
-msgstr ""
+msgstr "Naredba\tPseudonim\tBilješke"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Configuration value (key=value)"
 msgstr "Vrijednost podešavanja (ključ=vrijednost)"
 
@@ -242,12 +312,14 @@ msgstr "Povezivanje %s:%s s %s:%s"
 msgid "Connects a plug to a slot"
 msgstr "Povezuje priključak u priključnicu"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Constrain listing to a specific snap or snap:name"
 msgstr "Ograniči prikazivanje na određeni snap paket ili snap:naziv"
 
 msgid "Constrain listing to specific interfaces"
 msgstr "Ograniči prikazivanje na određeno sučelje"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Constrain listing to those matching header=value"
 msgstr "Ograniči prikazivanje onima koji odgovaraju zaglavlje=vrijednost"
 
@@ -289,7 +361,7 @@ msgstr "Onemogući pseudonime za snap paket %q"
 
 #, c-format
 msgid "Disable all aliases for snap %q"
-msgstr ""
+msgstr "Onemogući sve pseudonime za snap paket %q"
 
 msgid "Disables a snap in the system"
 msgstr "Onemogućuje snap pakete na sustavu"
@@ -332,8 +404,9 @@ msgstr "Omogući %q snap paket"
 msgid "Enables a snap in the system"
 msgstr "Omogući snap pakete u sustavu"
 
-msgid "Entering classic dimension"
-msgstr "Ulaz u klasičnu dimenziju"
+#, c-format
+msgid "Ensure prerequisites for %q are available"
+msgstr "Osiguraj da su preduvjeti za %q dostupni"
 
 msgid ""
 "Export a public key assertion body that may be imported by other systems."
@@ -356,6 +429,7 @@ msgstr "Preuzimanje potvrde za %q\n"
 msgid "Fetching snap %q\n"
 msgstr "Preuzimanje snap paketa %q\n"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Filename of the snap you want to assert a build for"
 msgstr "Naziv datoteke snap paketa za koji želite potvrditi izgradnju"
 
@@ -391,7 +465,7 @@ msgid "Help"
 msgstr "Pomoć"
 
 msgid "Hook to run"
-msgstr "Zakači za pokretanje"
+msgstr ""
 
 msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
 msgstr ""
@@ -401,6 +475,9 @@ msgstr "Identifikator potpisnika"
 
 msgid "Identifier of the snap package associated with the build"
 msgstr "Identifikator snap paketa pridružen u izgradnji"
+
+msgid "If the service has a reload command, use it instead of restarting."
+msgstr ""
 
 msgid "Ignore validation by other snaps blocking the refresh"
 msgstr "Zanemari provjeru od blokiranja osvježvanja drugih snap paketa"
@@ -423,7 +500,7 @@ msgstr ""
 "Uključi opširan popis bilješki snap paketa (u suprotnome, sažmi bilješke)"
 
 msgid "Include unused interfaces"
-msgstr ""
+msgstr "Uključi nekorištena sučelja"
 
 msgid "Initialize device"
 msgstr "Pokreni uređaj"
@@ -485,10 +562,20 @@ msgstr ""
 
 msgid "Install the given snap without enabling its automatic aliases"
 msgstr ""
+"Instaliraj zadan snap paket bez omogućavanja njegovih automatskih pseudonima"
+
+#, c-format
+msgid ""
+"Install the snap with:\n"
+"   snap ack %s\n"
+"   snap install %s\n"
+msgstr ""
 
 msgid "Installs a snap to the system"
 msgstr "Instalira snap paket na sustav"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Key of interest within the configuration"
 msgstr "Ključ interesa s podešavanjem"
 
@@ -511,11 +598,14 @@ msgstr "Popis promjena sustava"
 msgid "Lists aliases in the system"
 msgstr "Popis pseudonima u sustavu"
 
+msgid "Lists all repairs"
+msgstr "Popis svih popravka"
+
 msgid "Lists interfaces in the system"
 msgstr "Popis sučelja u sustavu"
 
 msgid "Lists snap interfaces"
-msgstr ""
+msgstr "Popis snap sučelja"
 
 msgid "Log out of the store"
 msgstr "Odjavi se iz trgovine"
@@ -550,12 +640,15 @@ msgstr "Označi sustav zasijanim"
 msgid "Mount snap %q%s"
 msgstr "Montiram snap paket %q%s"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to create; defaults to 'default'"
 msgstr "Naziv ključa za stvaranje; zadano je 'default'"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to delete"
 msgstr "Naziv ključa za brisanje"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to export"
 msgstr "Naziv ključa za izvoz"
 
@@ -570,7 +663,7 @@ msgid "Name\tSHA3-384"
 msgstr "Naziv\tSHA3-384"
 
 msgid "Name\tSummary"
-msgstr ""
+msgstr "Naziv\tSažetak"
 
 msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
 msgstr "Naziv\tInačica\tRazvijatelj\tBilješke\tSažetak"
@@ -578,15 +671,61 @@ msgstr "Naziv\tInačica\tRazvijatelj\tBilješke\tSažetak"
 msgid "Name\tVersion\tRev\tDeveloper\tNotes"
 msgstr "Naziv\tInačica\tRevizija\tRazvijatelj\tBilješke"
 
+msgid "Name\tVersion\tRev\tTracking\tDeveloper\tNotes"
+msgstr ""
+
+#, c-format
+msgid "No aliases are currently defined for snap %q.\n"
+msgstr ""
+
+msgid "No aliases are currently defined."
+msgstr ""
+
+#, c-format
+msgid "No command %q found, did you mean:\n"
+msgstr ""
+
+msgid "No connections to disconnect"
+msgstr ""
+
+#. TRANSLATORS: the %q is the (quoted) name of the section the user entered
+#, c-format
+msgid "No matching section %q, use --section to list existing sections"
+msgstr ""
+
+#. TRANSLATORS: the first %q is the (quoted) query, the
+#. second %q is the (quoted) name of the section the
+#. user entered
+#, c-format
+msgid "No matching snaps for %q in section %q\n"
+msgstr ""
+
+#. TRANSLATORS: the %q is the (quoted) query the user entered
+#, c-format
+msgid "No matching snaps for %q\n"
+msgstr ""
+
+msgid ""
+"No search term specified. Here are some interesting snaps:\n"
+"\n"
+msgstr ""
+
+msgid "No section specified. Available sections:\n"
+msgstr ""
+
 msgid "No snaps are installed yet. Try \"snap install hello-world\"."
 msgstr ""
 "Još nema instaliranih snap paketa. Pokušajte \"snap install hello-world\"."
 
-msgid "No snaps to auto-refresh found"
-msgstr "Nema pronađenog automatskog osvježvanja snap paketa"
-
 msgid "Output results in JSON format"
 msgstr "Izlazni rezultati u JSON formatu"
+
+msgid "Pack the given target dir as a snap"
+msgstr ""
+
+#, c-format
+msgid "Packages matching %q:\n"
+msgstr ""
 
 msgid "Passphrase: "
 msgstr "Lozinka: "
@@ -604,16 +743,19 @@ msgstr ""
 "Ponovno upišite vašu Ubuntu One lozinku za kupnju %q od %q\n"
 "za %s. Pritisnite ctrl-c za odustajanje."
 
-#, c-format
-msgid "Prefer aliases for snap %q"
+msgid "Please try: snap find --section=<selected section>\n"
 msgstr ""
 
+#, c-format
+msgid "Prefer aliases for snap %q"
+msgstr "Preferiraj pseudonime za snap pakete %q"
+
 msgid "Prefer aliases from a snap and disable conflicts"
-msgstr ""
+msgstr "Preferiraj pseudonime iz snap paketa i onemogući sukobe"
 
 #, c-format
 msgid "Prefer aliases of snap %q"
-msgstr ""
+msgstr "Preferiraj pseudonime iz snap paketa %q"
 
 msgid "Prepare a snappy image"
 msgstr "Pripremi snappy sliku"
@@ -630,12 +772,12 @@ msgid "Print the version and exit"
 msgstr "Prikaži inačicu i zatvori"
 
 msgid "Prints configuration options"
-msgstr "Prikazuje mogućnosti podešavanja"
-
-msgid "Prints the confinement mode the system operates in"
 msgstr ""
 
-msgid "Prints the email the user is logged in with."
+msgid "Prints the confinement mode the system operates in"
+msgstr "Prikaži način ograničenja u kojem sustav radi"
+
+msgid "Prints the email the user is logged in with"
 msgstr ""
 
 msgid "Prints whether system is managed"
@@ -655,7 +797,7 @@ msgid "Put snap in enforced confinement mode"
 msgstr "Postavi snap u način prisilne izolacije"
 
 msgid "Query the status of services"
-msgstr ""
+msgstr "Upit o stanju usluga"
 
 #, c-format
 msgid "Refresh %q snap"
@@ -667,7 +809,7 @@ msgstr "Osvježavam %q snap paket iz %q kanala"
 
 #, c-format
 msgid "Refresh aliases for snap %q"
-msgstr ""
+msgstr "Osvježi pseudonime za snap pakete %q"
 
 msgid "Refresh all snaps: no updates"
 msgstr "Osvježi sve snap pakete: bez nadopuna"
@@ -706,7 +848,7 @@ msgstr "Uklanjam podatke za snap paket %q (%s)"
 
 #, c-format
 msgid "Remove manual alias %q for snap %q"
-msgstr ""
+msgstr "Ukloni ručno pseudonim %q za snap paket %q"
 
 msgid "Remove only the given revision"
 msgstr "Uklanjam samo zadanu reviziju"
@@ -742,16 +884,16 @@ msgid "Request device serial"
 msgstr "Zahtjevam serijski uređaj"
 
 msgid "Restart services"
-msgstr ""
+msgstr "Ponovno pokreni usluge"
 
 msgid "Restarted.\n"
-msgstr ""
+msgstr "Ponovno pokrenuto.\n"
 
 msgid "Restrict the search to a given section"
 msgstr "Ograniči pretragu u zadanom odjeljku"
 
 msgid "Retrieve logs of services"
-msgstr ""
+msgstr "Preuzmi zapise usluga"
 
 #, c-format
 msgid "Revert %q snap"
@@ -763,31 +905,47 @@ msgstr "Vraća zadani snap paket na prijašnje stanje"
 msgid "Run a shell instead of the command (useful for debugging)"
 msgstr "Pokreni ljusku umjesto naredbe (korisno za otklanjanje grešaka)"
 
+msgid "Run as a timer service with given schedule"
+msgstr ""
+
 #, c-format
 msgid "Run configure hook of %q snap"
-msgstr "Pokreni podešavanje za %q snap paket"
+msgstr ""
 
 #, c-format
 msgid "Run configure hook of %q snap if present"
-msgstr "Pokreni podešavanje za %q snap paket ako je prisutan"
+msgstr ""
 
 #, c-format
 msgid "Run hook %s of snap %q"
-msgstr "Pokreni podešavanje %s za snap paket %q"
+msgstr ""
 
 #, c-format
 msgid "Run install hook of %q snap if present"
-msgstr ""
+msgstr "Pokreni instalaciju kvačenja %q snap paketa ako je dostupan"
 
 #, c-format
 msgid "Run post-refresh hook of %q snap if present"
 msgstr ""
+"Pokreni naknadno osvježavanje kvačenja %q snap paketa ako je dostupan"
+
+#, c-format
+msgid "Run pre-refresh hook of %q snap if present"
+msgstr ""
 
 msgid "Run prepare-device hook"
-msgstr "Pokreni pripremanj uređaja"
+msgstr ""
 
 #, c-format
 msgid "Run remove hook of %q snap if present"
+msgstr "Pokreni uklanjanje kvačenja %q snap paketa ako je dostupan"
+
+msgid ""
+"Run the command under strace (useful for debugging). Extra strace options "
+"can be specified as well here."
+msgstr ""
+
+msgid "Run the command with gdb"
 msgstr ""
 
 msgid "Run the given snap command"
@@ -807,21 +965,26 @@ msgid ""
 "Select last change of given type (install, refresh, remove, try, auto-"
 "refresh etc.)"
 msgstr ""
+"Odaberi posljednju promjenu zadane vrste (install, refresh, remove, try, "
+"auto-refresh, itd.)"
+
+msgid "Service\tStartup\tCurrent"
+msgstr ""
 
 #, c-format
 msgid "Set automatic aliases for snap %q"
 msgstr "Postavljanje privatnih pseudonima za snap paket %q"
 
 msgid "Sets up a manual alias"
-msgstr ""
+msgstr "Postavlja ručni pseudonim"
 
 #, c-format
 msgid "Setup alias %q => %q for snap %q"
-msgstr ""
+msgstr "Postavi pseudonim %q => %q za snap paket %q"
 
 #, c-format
 msgid "Setup manual alias %q => %q for snap %q"
-msgstr ""
+msgstr "Postavi ručno pseudonim %q => %q za snap paket %q"
 
 #, c-format
 msgid "Setup snap %q (%s) security profiles"
@@ -844,18 +1007,30 @@ msgstr "Prikaži sve revizije"
 
 msgid "Show auto refresh information but do not perform a refresh"
 msgstr ""
+"Prikaži informacije automatskog osvježavanja ali ne pokreći osvježavanje"
 
 msgid "Show available snaps for refresh but do not perform a refresh"
 msgstr ""
+"Prikaži dostupne snap pakete za osvježavanje ali ne pokreći osvježavanje"
 
-msgid "Show details of a specific interface"
+msgid "Show detailed information about a snap"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+msgid "Show details of a specific interface"
+msgstr "Prikaži pojedinosti određenog sučelja"
+
 msgid "Show interface attributes"
+msgstr "Prikaži svojstva sučelja"
+
+msgid "Show only the given number of lines, or 'all'."
 msgstr ""
 
 msgid "Shows known assertions of the provided type"
 msgstr "Prikazuje poznate potvrde pružanih vrsta"
+
+msgid "Shows specific repairs"
+msgstr "Prikaži određne popravke"
 
 msgid "Shows version details"
 msgstr "Prikazuje pojedinosti inačice"
@@ -875,11 +1050,15 @@ msgstr ""
 msgid "Slot\tPlug"
 msgstr "Priključak\tPriključnica"
 
+#. TRANSLATORS: first %s is a snap name, following %s is a channel name
+#, c-format
+msgid "Snap %s is no longer tracking %s.\n"
+msgstr ""
+
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Snap name"
 msgstr "Naziv snap paketa"
-
-msgid "Snap\tService\tStartup\tCurrent"
-msgstr ""
 
 msgid ""
 "Sorry, your payment method has been declined by the issuer. Please review "
@@ -891,7 +1070,7 @@ msgstr ""
 "plaćanja na https://my.ubuntu.com/payment/edit i pokušajte ponovno."
 
 msgid "Start services"
-msgstr ""
+msgstr "Pokreni usluge"
 
 #, c-format
 msgid "Start snap %q (%s) services"
@@ -905,16 +1084,16 @@ msgid "Start snap services"
 msgstr "Pokrećem snap usluge"
 
 msgid "Start the userd service"
-msgstr ""
+msgstr "Pokreni userd uslugu"
 
 msgid "Started.\n"
-msgstr ""
+msgstr "Pokrenuto.\n"
 
 msgid "Status\tSpawn\tReady\tSummary\n"
 msgstr ""
 
 msgid "Stop services"
-msgstr ""
+msgstr "Zaustavi usluge"
 
 #, c-format
 msgid "Stop snap %q (%s) services"
@@ -928,14 +1107,14 @@ msgid "Stop snap services"
 msgstr "Zaustavljam snap usluge"
 
 msgid "Stopped.\n"
-msgstr ""
+msgstr "Zaustavljeno.\n"
 
 msgid "Strict typing with nulls and quoted strings"
 msgstr "Ograniči upisivanje nula i znakova navoda"
 
 #, c-format
 msgid "Switch %q snap to %s"
-msgstr ""
+msgstr "Prebaci %q snap paket na %s"
 
 #, c-format
 msgid "Switch snap %q from %s to %s"
@@ -943,10 +1122,10 @@ msgstr "Prebacivam snap paket %q iz %s na %s"
 
 #, c-format
 msgid "Switch snap %q to %s"
-msgstr ""
+msgstr "Prebaci snap paket %q na %s"
 
 msgid "Switches snap to a different channel"
-msgstr ""
+msgstr "Prebaci snap paket na drugi kanal"
 
 msgid "Temporarily mount device before inspecting"
 msgstr "Privremeno montiram uređaj prije provjere"
@@ -969,31 +1148,42 @@ msgid ""
 msgstr ""
 "Za dobivanje podešavanje naredbi prikaza i postavki sučelja povezivanja."
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The login.ubuntu.com email to login as"
 msgstr "Adresa e-pošte pri login.ubuntu.com"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The model assertion name"
 msgstr "Naziv modela potvrđivanja"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The output directory"
 msgstr "Izlazni direktorij"
 
-#. TRANSLATORS: the %q is the (quoted) query the user entered
 #, c-format
-msgid "The search %q returned 0 snaps\n"
-msgstr "Pretraga %q je vratila 0 snap paketa\n"
+msgid "The program %q can be found in the following snaps:\n"
+msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The snap to configure (e.g. hello-world)"
 msgstr "Snap paket za podešavanje (npr. hello-world)"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The snap whose conf is being requested"
 msgstr "Snap paket čije je podešavanje zatraženo"
 
 msgid "The userd command starts the snap user session service."
-msgstr ""
+msgstr "userd naredba pokreće uslugu sesije snap korisnika."
 
 msgid "This command logs the current user out of the store"
 msgstr "Ova naredba prijavljuje trenutnog korisnika izvan trgovine"
+
+msgid "This dialog will close automatically after 5 minutes of inactivity."
+msgstr ""
+
+#, c-format
+msgid "Toggle snap %q flags"
+msgstr ""
 
 msgid "Tool to interact with snaps"
 msgstr "Alat za interakciju sa snap paketima"
@@ -1009,11 +1199,14 @@ msgstr "Tranzicija ubuntu-core u core"
 msgid "Try %q snap from %s"
 msgstr "Pokušavam %q snap paket iz %s"
 
+msgid "Try: snap install <selected snap>\n"
+msgstr ""
+
 msgid "Two-factor code: "
 msgstr "Dvofaktorni kôd: "
 
 msgid "Unalias a manual alias or an entire snap"
-msgstr ""
+msgstr "Ukloni ručni pseudonim ili cjelokupan snap paket"
 
 msgid "Use a specific snap revision when running hook"
 msgstr "Koristi određenu snap reviziju pri pokretanju kvačenja"
@@ -1021,12 +1214,25 @@ msgstr "Koristi određenu snap reviziju pri pokretanju kvačenja"
 msgid "Use known assertions for user creation"
 msgstr "Koristi poznate potvrde za stvaranje korisnika"
 
+msgid "Use the given output format (pretty or json)"
+msgstr ""
+
 msgid "Use this channel instead of stable"
 msgstr "Koristi ovaj kanal umjesto stabilnog"
+
+msgid ""
+"WARNING: The output of \"snap get\" will become a list with columns - use -d "
+"or -l to force the output format.\n"
+msgstr ""
+"UPOZORENJE: Izlaz \"snap get\" postati će popis sa stupcima - koristite -d "
+"ili -l za prisilu izlaznog formata.\n"
 
 #, c-format
 msgid "WARNING: failed to activate logging: %v\n"
 msgstr "UPOZORENJE: neuspješno aktiviranje zapisivanje: %v\n"
+
+msgid "Wait for new lines and print them as they come in."
+msgstr ""
 
 msgid "Waiting for server to restart"
 msgstr "Čekanje ponovnog pokretanja poslužitelja"
@@ -1039,7 +1245,7 @@ msgstr "Ponovno pogrešno. Još jednom: "
 
 #, c-format
 msgid "Xauthority file isn't owned by the current user %s"
-msgstr ""
+msgstr "Xauthority nije u vlasništvu trenutnog korisnika %s"
 
 msgid "Yes, yes it does."
 msgstr "Da, da sada radi."
@@ -1070,6 +1276,8 @@ msgstr ""
 #, c-format
 msgid "\"snap changes\" command expects a snap name, try: \"snap tasks %s\""
 msgstr ""
+"\"snap changes\" naredba očekuje naziv snap paketa, pokušajte: \"snap tasks "
+"%s\""
 
 msgid ""
 "\n"
@@ -1091,6 +1299,11 @@ msgstr ""
 "snap\n"
 "paketima na sustavu. Pokrenite  'snap list' kako bi vidjeli instalirane snap "
 "pakete.\n"
+
+msgid ""
+"\n"
+"Provide a search term for more specific results.\n"
+msgstr ""
 
 msgid ""
 "\n"
@@ -1122,11 +1335,22 @@ msgstr ""
 
 msgid ""
 "\n"
+"The advise-snap command shows what snaps with the given command are\n"
+"available.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The alias command aliases the given snap application to the given alias.\n"
 "\n"
 "Once this manual alias is setup the respective application command can be "
 "invoked just using the alias.\n"
 msgstr ""
+"\n"
+"alias naredba dodaje zadanu snap aplikaciju zadanom pseudonimu.\n"
+"\n"
+"Jednom kada je taj ručni pseudonim postavljen određena naredba aplikacije se "
+"može pozvati samo korištenjem pseudonima.\n"
 
 msgid ""
 "\n"
@@ -1205,6 +1429,10 @@ msgid ""
 "none)\n"
 "the system operates in.\n"
 msgstr ""
+"\n"
+"confinement - naredba će prikazati načine ograničenja (strict, partial ili "
+"none)\n"
+"u kojemu sustav radi.\n"
 
 msgid ""
 "\n"
@@ -1340,6 +1568,8 @@ msgid ""
 "The find command queries the store for available packages in the stable "
 "channel.\n"
 msgstr ""
+"\n"
+"find - naredba upita trgovine za dostupne pakete u stabilnom kanalu.\n"
 
 msgid ""
 "\n"
@@ -1482,6 +1712,12 @@ msgid ""
 "If no interface name is provided, a list of interface names with at least\n"
 "one connection is shown, or a list of all interfaces if --all is provided.\n"
 msgstr ""
+"\n"
+"interface - naredba prikazuje pojedinosti snap sučelja.\n"
+"\n"
+"Ako nije dostupan naziv sučelja, popis naziva sučelja s najmanje\n"
+"jednim povezivanjem je prikazan, ili popis svih sučelja ako je --all "
+"naveden.\n"
 
 msgid ""
 "\n"
@@ -1569,6 +1805,12 @@ msgstr ""
 
 msgid ""
 "\n"
+"The logs command fetches logs of the given services and displays them in "
+"chronological order.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The managed command will print true or false informing whether\n"
 "snapd has registered users.\n"
 msgstr ""
@@ -1578,10 +1820,22 @@ msgstr ""
 
 msgid ""
 "\n"
+"The pack command packs the given snap-dir as a snap."
+msgstr ""
+"\n"
+"pack - naredba pakira zadani snap-dir kao snap paket."
+
+msgid ""
+"\n"
 "The prefer command enables all aliases of the given snap in preference\n"
 "to conflicting aliases of other snaps whose aliases will be disabled\n"
 "(removed for manual ones).\n"
 msgstr ""
+"\n"
+"prefer - naredba omogućuje sve pseudonime zadanog snap paketa u prednosti\n"
+"nad sukobljenim pseudonimima drugih snap paketa čiji će pseudonimi biti "
+"onemogućeni\n"
+"(uklonjeni za ručne).\n"
 
 #, c-format
 msgid ""
@@ -1600,6 +1854,19 @@ msgid ""
 "if instead you want to install the snap forcing it into strict confinement\n"
 "repeat the command including --jailmode."
 msgstr ""
+"\n"
+"Izdavač snap paketa %q ukazuje da ne smatra ovu reviziju\n"
+"kvalitetnim proizvodom i da je namijenjena samo za razvoj i testiranje\n"
+"na ovoj točki razvoja. Kao posljedica ovaj snap paket se neće osvježavati "
+"automatski\n"
+"i može izazvati proizvoljne promjene sustava izvan sigurnosti snap "
+"okruženja\n"
+"kojemu je namijenjeno, što može ugroziti vaš sustav.\n"
+"\n"
+"Ako ste razumjeli i želite nastaviti ponovite naredbu uključujući --"
+"devmode;\n"
+"Ako umjesto želite instalirati snap paket prisileći ga u strict ograničenje\n"
+"ponovite naredbu uključujući --jailmode."
 
 msgid ""
 "\n"
@@ -1629,6 +1896,40 @@ msgstr ""
 
 msgid ""
 "\n"
+"The repair command shows the details about one or multiple repairs.\n"
+msgstr ""
+"\n"
+"repair - naredba prikazuje pojedinosti o jednoj ili više popravci.\n"
+
+msgid ""
+"\n"
+"The repairs command lists all processed repairs for this device.\n"
+msgstr ""
+"\n"
+"repairs - naredba prikazuje sve izvršene popravke ovog uređaja.\n"
+
+msgid ""
+"\n"
+"The restart command restarts the given services of the snap. If executed "
+"from the\n"
+"\"configure\" hook, the services will be restarted after the hook finishes."
+msgstr ""
+"\n"
+"restart - naredba ponovno pokreće zadanu uslugu snap paketa. Ako je "
+"pokrenuta iz\n"
+"\"podešavanja\" kvačenja, usluga će se ponovno pokrenuti nakon što kvačenje "
+"završi."
+
+msgid ""
+"\n"
+"The restart command restarts the given services.\n"
+"\n"
+"If the --reload option is given, for each service whose app has a reload "
+"command, a reload is performed instead of a restart.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The revert command reverts the given snap to its state before\n"
 "the latest refresh. This will reactivate the previous snap revision,\n"
 "and will use the original data that was associated with that revision,\n"
@@ -1648,6 +1949,12 @@ msgstr ""
 
 msgid ""
 "\n"
+"The services command lists information about the services specified, or "
+"about the services in all currently installed snaps.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The set command changes the provided configuration options as requested.\n"
 "\n"
 "    $ snap set snap-name username=frank password=$PASSWORD\n"
@@ -1659,18 +1966,6 @@ msgid ""
 "\n"
 "    $ snap set author.name=frank\n"
 msgstr ""
-"\n"
-"set - naredba mijenja pružene mogućnosti podešavanja kao što je "
-"zahtijevano.\n"
-"\n"
-"    $ snap set snap-name username=goran password=$PASSWORD\n"
-"\n"
-"Sve promjene podešavanja su ustrajane odjednom, i to samo ako se\n"
-"postupak podešavanja vrati uspješno.\n"
-"\n"
-"Vrijednosti smještene unutar mogu se preuzeti putem točkaste putanje:\n"
-"\n"
-"    $ snap set author.name=goran\n"
 
 msgid ""
 "\n"
@@ -1691,36 +1986,52 @@ msgid ""
 "\n"
 "    $ snapctl set :myplug path=/dev/ttyS0\n"
 msgstr ""
+
+msgid ""
 "\n"
-"set - naredba mijenja pružene mogućnosti podešavanja kao što je "
-"zahtijevano.\n"
+"The start command starts the given services of the snap. If executed from "
+"the\n"
+"\"configure\" hook, the services will be started after the hook finishes."
+msgstr ""
 "\n"
-"    $ snap set snap-name username=goran password=$PASSWORD\n"
+"start - naredba pokreće zadanu uslugu snap paketa. Ako je pokrenuta iz\n"
+"\"podešavanja\" kvačenja, usluga će se pokrenuti nakon što kvačenje završi."
+
+msgid ""
 "\n"
-"Sve promjene podešavanja su ustrajane odjednom, i to samo ako se\n"
-"postupak podešavanja vrati uspješno.\n"
+"The start command starts, and optionally enables, the given services.\n"
+msgstr ""
+
+msgid ""
 "\n"
-"Vrijednosti smještene unutar mogu se preuzeti putem točkaste putanje:\n"
+"The stop command stops the given services of the snap. If executed from the\n"
+"\"configure\" hook, the services will be stopped after the hook finishes."
+msgstr ""
 "\n"
-"    $ snap set author.name=goran\n"
+"stop - naredba zaustavlja zadanu uslugu snap paketa. Ako je pokrenuta iz\n"
+"\"podešavanja\" kvačenja, usluga će se zaustaviti nakon što kvačenje završi."
+
+msgid ""
 "\n"
-"Svojstva priključka i priključnice mogu se postaviti odgovarajućom pripremom "
-"i povezivanjem zakvačiti\n"
-"imenovanjem odgovarajućeg priključka ili priključnice:\n"
-"\n"
-"    $ snapctl set :myplug path=/dev/ttyS0\n"
+"The stop command stops, and optionally disables, the given services.\n"
+msgstr ""
 
 msgid ""
 "\n"
 "The switch command switches the given snap to a different channel without\n"
 "doing a refresh.\n"
 msgstr ""
+"\n"
+"switch - naredba prebacuje zadani snap paket na drugi kanal bez\n"
+"obavljanja osvježavanja.\n"
 
 msgid ""
 "\n"
 "The tasks command displays a summary of tasks associated to an individual "
 "change."
 msgstr ""
+"\n"
+"tasks - naredba prikazuje sažetak zadataka povezanih s pojedinom promjenom."
 
 msgid ""
 "\n"
@@ -1758,6 +2069,10 @@ msgid ""
 "The unalias command tears down a manual alias when given one or disables all "
 "aliases of a snap, removing also all manual ones, when given a snap name.\n"
 msgstr ""
+"\n"
+"unalias - naredba uklanja ručne pseudonime kada je zadan jedan ili "
+"onemogućuje sve pseudonime snap paketa, uklanjajući isto sve ručne, kada je "
+"zadan naziv snap paketa.\n"
 
 msgid ""
 "\n"
@@ -1783,6 +2098,8 @@ msgid ""
 "\n"
 "The whoami command prints the email the user is logged in with.\n"
 msgstr ""
+"\n"
+"whoami - naredba prikazuje adresu e-pošte s kojom je korisnik prijavljen.\n"
 
 #, c-format
 msgid ""
@@ -1796,17 +2113,18 @@ msgid ""
 "If you understand and want to proceed repeat the command including --"
 "classic.\n"
 msgstr ""
+"\n"
+"Ova revizija snap paketa %q je objavljena koristeći klasično ograničenje i\n"
+"može izazvati proizvoljne promjene sustava izvan sigurnosti snap okruženja\n"
+"kojemu je namijenjeno, što može ugroziti vaš sustav.\n"
+"\n"
+"Ako ste razumjeli i želite nastaviti ponovite naredbu uključujući --"
+"classic.\n"
 
 msgid ""
 "\n"
-"\n"
-"The home directory is shared between snappy and the classic dimension.\n"
-"Run \"exit\" to leave the classic shell.\n"
+"Use snap alias --help to learn how to create aliases manually."
 msgstr ""
-"\n"
-"\n"
-"Osobni direktorij je dijeljen između snappy i klasične dimenzije.\n"
-"Pokrenite \"exit\" za napuštanje klasične ljuske.\n"
 
 msgid "a single snap name is needed to specify mode or channel flags"
 msgstr ""
@@ -1821,6 +2139,9 @@ msgstr ""
 "pojedinačni naziv snap paketa mora biti određen pri zanemarivanju provjere"
 
 msgid "active"
+msgstr "aktivno"
+
+msgid "auto-refresh: all snaps are up-to-date"
 msgstr ""
 
 msgid "bought"
@@ -1829,6 +2150,10 @@ msgstr "kupljeno"
 #. TRANSLATORS: if possible, a single short word
 msgid "broken"
 msgstr "slomljeno"
+
+#, c-format
+msgid "cannot %s without a context"
+msgstr "nemoguće %s biti bez sadržaja"
 
 #, c-format
 msgid "cannot buy snap: %v"
@@ -1863,7 +2188,6 @@ msgid "cannot find hook %q in %q"
 msgstr "nemoguće je pronaći kvačilo %q u %q"
 
 #. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
-#. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
 #, c-format
 msgid "cannot get data for %q: %v"
 msgstr "nemoguće je nabaviti podatak za %q: %v"
@@ -1875,7 +2199,7 @@ msgstr "nemoguće je nabaviti punu putanju za %q: %v"
 
 #, c-format
 msgid "cannot get the current user: %s"
-msgstr ""
+msgstr "nemoguće je dobiti trenutnog korisnika: %s"
 
 #, c-format
 msgid "cannot get the current user: %v"
@@ -1891,46 +2215,43 @@ msgstr "nemoguće je otvaranje baze podataka potvrda: %v"
 
 #, c-format
 msgid "cannot read assertion input: %v"
-msgstr "nemoguće čitanje ulaza potvrde: %v"
+msgstr ""
 
 #. TRANSLATORS: %v the error message
 #, c-format
 msgid "cannot read symlink: %v"
-msgstr "nemoguće čitanje simboličke poveznice: %v"
+msgstr ""
 
 #, c-format
 msgid "cannot resolve snap app %q: %v"
-msgstr "nemoguće razrješvanje snap aplikacije %q: %v"
+msgstr ""
 
 #, c-format
 msgid "cannot sign assertion: %v"
-msgstr "nemoguće potpisivanje potvrde: %v"
+msgstr ""
 
 #, c-format
 msgid "cannot update the 'current' symlink of %q: %v"
-msgstr "nemoguća nadopuna 'trenutne' simboličke poveznice za %q: %v"
+msgstr ""
 
 #. TRANSLATORS: %q is the key name, %v the error message
 #, c-format
 msgid "cannot use %q key: %v"
-msgstr "nemoguće korištenje %q ključa: %v"
-
-msgid "cannot use --hook and --command together"
-msgstr "nemoguće korištenje --hook i --command argumenta zajedno"
-
-msgid "cannot use change ID and type together"
 msgstr ""
 
+msgid "cannot use change ID and type together"
+msgstr "nemoguće je promijeniti ID i vrstu zajedno"
+
 msgid "cannot use devmode and jailmode flags together"
-msgstr "nemoguće korištenje devmode i jailmode oznaka zajedno"
+msgstr ""
 
 #, c-format
 msgid "cannot validate owner of file %s"
-msgstr ""
+msgstr "nemoguće je provjeriti vlasnika datoteke %s"
 
 #, c-format
 msgid "cannot write new Xauthority file at %s: %s"
-msgstr ""
+msgstr "nemoguće je zapisati novu Xauthority datoteku u %s: %s"
 
 #, c-format
 msgid "change finished in status %q with no error message"
@@ -1940,20 +2261,26 @@ msgstr "promjena završetka u stanju %q bez poruke greške"
 msgid ""
 "classic confinement requires snaps under /snap or symlink from /snap to %s"
 msgstr ""
+"klasično ograničenje zahtijeva snap pakete u /snap ili simboličke poveznice "
+"iz /snap u %s"
 
 #, c-format
 msgid "created user %q\n"
 msgstr "stvorio korisnik %q\n"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
+msgid "d"
+msgstr ""
 
 #. TRANSLATORS: if possible, a single short word
 msgid "disabled"
 msgstr "onemogućeno"
 
 msgid "email:"
-msgstr ""
+msgstr "e-pošta:"
 
 msgid "enabled"
-msgstr ""
+msgstr "omogućeno"
 
 #, c-format
 msgid "error: %v\n"
@@ -1966,8 +2293,15 @@ msgstr "greška: `<snap-dir>` argument nije pružan i ne može se zaključiti"
 msgid "get which option?"
 msgstr "nabaviti koju mogućnost?"
 
-msgid "inactive"
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
+msgid "h"
 msgstr ""
+
+msgid "ignore-validation"
+msgstr ""
+
+msgid "inactive"
+msgstr "neaktivno"
 
 msgid ""
 "interface attributes can only be read during the execution of interface hooks"
@@ -2000,6 +2334,8 @@ msgid ""
 "invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
 "“all”."
 msgstr ""
+"neispravan argument za oznaku ‘-n’: očekivan je pozitivan cjelobrojni "
+"argument, ili “all”."
 
 #, c-format
 msgid "invalid attribute: %q (want key=value)"
@@ -2027,6 +2363,14 @@ msgid ""
 msgstr ""
 "naziv ključa %q nije valjan; samo ASCII slova, brojevi i povlake su dopušteni"
 
+#, c-format
+msgid "local snap %q is unknown to the store, use --amend to proceed anyway"
+msgstr ""
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
+msgid "m"
+msgstr ""
+
 msgid "missing snap-confine: try updating your snapd package"
 msgstr "nedostaje snap-confine: pokušajte nadopuniti vaš snap paket"
 
@@ -2038,10 +2382,10 @@ msgstr "nema pronađenih promjena"
 
 #, c-format
 msgid "no changes of type %q found"
-msgstr ""
+msgstr "nema pronađenih promjena vrste %q"
 
 msgid "no interfaces currently connected"
-msgstr ""
+msgstr "trenutno nema povezanih sučelja"
 
 msgid "no interfaces found"
 msgstr "nema pronađenih sučelja"
@@ -2050,16 +2394,13 @@ msgid "no matching snaps installed"
 msgstr "nema odgovarajućih snap paketa instaliranih"
 
 msgid "no such interface"
-msgstr ""
+msgstr "nema takvog sučelja"
 
 msgid "no valid snaps given"
 msgstr "nema odgovarajućih snap paketa zadanih"
 
-msgid "not a valid snap"
-msgstr "nema valjanih snap paketa"
-
 msgid "please provide change ID or type with --last=<type>"
-msgstr ""
+msgstr "omogućite ID promjene ili vrstu sa --last=<vrsta>"
 
 #. TRANSLATORS: if possible, a single short word
 msgid "private"
@@ -2072,41 +2413,42 @@ msgstr ""
 "zakazano ponovno pokretanje za nadopunu sustava - privremeno se prekida sa "
 "'sudo shutdown -c'"
 
+msgid "repairs are not available on a classic system"
+msgstr "popravci nisu dopstupni na klasičnom sustavu"
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
+#. (I fully expect this to always be "s", given it's a SI unit)
+msgid "s"
+msgstr ""
+
 #, c-format
 msgid "set failed: %v"
-msgstr ""
+msgstr "postavljanje neuspjelo: %v"
 
 msgid "set which option?"
 msgstr "postaviti koju mogućnost?"
 
-msgid "show detailed information about a snap"
-msgstr "prikaži opširnije informacije o snap paketu"
-
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
 #, c-format
 msgid "snap %%q not found (at least at revision %q)"
-msgstr ""
+msgstr "snap paket %%q nije pronađen (bar pri reviziji %q)"
 
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
 #, c-format
 msgid "snap %%q not found (at least in channel %q)"
-msgstr ""
+msgstr "snap paket %%q nije pronađen (bar u kanalu %q)"
 
 #, c-format
 msgid "snap %q has no updates available"
-msgstr ""
+msgstr "snap paket %q nema dostupnih nadopuna"
 
 #, c-format
 msgid "snap %q is already installed, see \"snap refresh --help\""
-msgstr ""
-
-#, c-format
-msgid "snap %q is local"
-msgstr ""
+msgstr "snap paket %q je već instaliran, pogledajte \"snap refresh --help\""
 
 #, c-format
 msgid "snap %q not found"
-msgstr ""
+msgstr "snap paket %q nije pronađen"
 
 #. TRANSLATORS: free as in gratis
 msgid "snap is free"
@@ -2125,6 +2467,9 @@ msgstr "previše argumenata za kvačilo %q: %s"
 msgid "too many arguments: %s"
 msgstr "previše argumenata: %s"
 
+msgid "unable to contact snap store"
+msgstr ""
+
 msgid "unavailable"
 msgstr "nedostupno"
 
@@ -2141,21 +2486,31 @@ msgid "unknown plug or slot %q"
 msgstr "nepoznat priključak ili priključnica %q"
 
 #, c-format
-msgid "unsupported shell %v"
-msgstr "nepodržana ljuska %v"
+msgid "unknown service: %q"
+msgstr "nepoznata usluga: %q"
 
-#~ msgid ""
-#~ "\n"
-#~ "The change command displays a summary of tasks associated to an individual "
-#~ "change."
-#~ msgstr ""
-#~ "\n"
-#~ "change - naredba prikazuje sažetak zadataka povezanih s pojedinačnom "
-#~ "promjenom."
+#, c-format
+msgid "warning:\tno snap found for %q\n"
+msgstr ""
 
-#~ msgid ""
-#~ "\n"
-#~ "The find command queries the store for available packages.\n"
-#~ msgstr ""
-#~ "\n"
-#~ "find - naredba pretražuje dostupne pakete u trgovini.\n"
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+msgid "y"
+msgstr ""
+
+msgid "Authenticate on snap daemon"
+msgstr "Ovjeri u snap pozadinskom programu"
+
+msgid "Authorization is required to authenticate on the snap daemon"
+msgstr "Potrebna je dozvola za ovjeru u snap pozadinskom programu"
+
+msgid "Install, update, or remove packages"
+msgstr "instaliraj, nadopuni ili ukloni pakete"
+
+msgid "Authentication is required to install, update, or remove packages"
+msgstr "Potrebna je ovjera za instalaciju, nadopunu ili uklanjanje paketa"
+
+msgid "Connect, disconnect interfaces"
+msgstr "Poveži, prekini povezivanje sučelja"
+
+msgid "Authentication is required to connect or disconnect interfaces"
+msgstr "Potrebna je ovjera za povezivanje ili prekidanje povezivanja sučelja"

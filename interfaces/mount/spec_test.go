@@ -72,8 +72,8 @@ var _ = Suite(&specSuite{
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &mount.Specification{}
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 // AddMountEntry and AddUserMountEntry are not not broken
@@ -154,8 +154,25 @@ layout:
 
 func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
-	s.spec.AddSnapLayout(snapInfo)
+	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// Layout result is sorted by mount path.
+		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
+		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
+		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
+		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+	})
+}
+
+func (s *specSuite) TestParallelInstanceMountEntryFromLayout(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo.InstanceKey = "instance"
+	s.spec.AddLayout(snapInfo)
+	s.spec.AddOvername(snapInfo)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// Parallel instance mappings come first
+		{Dir: "/snap/vanguard", Name: "/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=overname"}},
+		{Dir: "/var/snap/vanguard", Name: "/var/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=overname"}},
 		// Layout result is sorted by mount path.
 		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
 		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
@@ -176,7 +193,7 @@ layout:
 	entry := osutil.MountEntry{Dir: "/foo", Type: "tmpfs", Name: "tmpfs"}
 	s.spec.AddMountEntry(entry)
 	s.spec.AddUserMountEntry(entry)
-	s.spec.AddSnapLayout(snapInfo)
+	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Dir: "/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{"x-snapd.origin=layout"}},
 		// This is the non-layout entry, it was renamed to "foo-2"
@@ -187,4 +204,23 @@ layout:
 		// /foo but there is no way to request things like that for now.
 		{Dir: "/foo", Type: "tmpfs", Name: "tmpfs"},
 	})
+}
+
+func (s *specSuite) TestParallelInstanceMountEntriesNoInstanceKey(c *C) {
+	snapInfo := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(42)}}
+	s.spec.AddOvername(snapInfo)
+	c.Assert(s.spec.MountEntries(), HasLen, 0)
+	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
+}
+
+func (s *specSuite) TestParallelInstanceMountEntriesReal(c *C) {
+	snapInfo := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(42)}, InstanceKey: "instance"}
+	s.spec.AddOvername(snapInfo)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// /snap/foo_instance -> /snap/foo
+		{Name: "/snap/foo_instance", Dir: "/snap/foo", Options: []string{"rbind", "x-snapd.origin=overname"}},
+		// /var/snap/foo_instance -> /var/snap/foo
+		{Name: "/var/snap/foo_instance", Dir: "/var/snap/foo", Options: []string{"rbind", "x-snapd.origin=overname"}},
+	})
+	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
 }

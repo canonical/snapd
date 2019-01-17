@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -40,11 +41,19 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnap(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)})
-	snapdSrv := filepath.Join(info.MountDir(), "/lib/systemd/system/snapd.service")
-	err = os.MkdirAll(filepath.Dir(snapdSrv), 0755)
+	snapdDir := filepath.Join(info.MountDir(), "lib", "systemd", "system")
+	err = os.MkdirAll(snapdDir, 0755)
 	c.Assert(err, IsNil)
+	snapdSrv := filepath.Join(snapdDir, "snapd.service")
 	err = ioutil.WriteFile(snapdSrv, []byte("[Unit]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"), 0644)
 	c.Assert(err, IsNil)
+	snapdShutdown := filepath.Join(snapdDir, "snapd.system-shutdown.service")
+	err = ioutil.WriteFile(snapdShutdown, []byte("[Unit]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start"), 0644)
+	c.Assert(err, IsNil)
+	snapdAutoimport := filepath.Join(snapdDir, "snapd.autoimport.service")
+	err = ioutil.WriteFile(snapdAutoimport, []byte("[Unit]\nExecStart=/usr/bin/snap auto-import"), 0644)
+	c.Assert(err, IsNil)
+
 	return info
 }
 
@@ -58,6 +67,16 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	// reset root dir
 	dirs.SetRootDir(s.tempdir)
 
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
+			return []byte(s), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
 	err := wrappers.AddSnapServices(info, nil)
@@ -68,6 +87,18 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	c.Assert(err, IsNil)
 	// and paths get re-written
 	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start", dirs.SnapMountDir))
+
+	// check that snapd.autoimport.service is created
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service"))
+	c.Assert(err, IsNil)
+	// and paths get re-written
+	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/bin/snap auto-import", dirs.SnapMountDir))
+
+	// check that snapd.system-shutdown.service is created
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"))
+	c.Assert(err, IsNil)
+	// and paths *do not* get re-written
+	c.Check(string(content), Equals, "[Unit]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start")
 
 	// check that usr-lib-snapd.mount is created
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"))
@@ -86,7 +117,7 @@ Options=bind
 WantedBy=snapd.service
 `, dirs.GlobalRootDir))
 
-	// check that systemd got started
+	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "usr-lib-snapd.mount"},
@@ -94,9 +125,16 @@ WantedBy=snapd.service
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.autoimport.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.system-shutdown.service"},
+		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
+		{"stop", "snapd.autoimport.service"},
+		{"show", "--property=ActiveState", "snapd.autoimport.service"},
+		{"start", "snapd.autoimport.service"},
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
+		{"start", "--no-block", "snapd.autoimport.service"},
 	})
 }
 
@@ -109,11 +147,12 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
 
-	// check that snapd.service is created
+	// check that snapd services were *not* created
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, false)
-
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, false)
 
-	// check that systemd got started
+	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
 }

@@ -57,6 +57,9 @@ func canUnicode(mode string) bool {
 	case "never":
 		return false
 	}
+	if !isStdoutTTY {
+		return false
+	}
 	var lang string
 	for _, k := range []string{"LC_MESSAGES", "LC_ALL", "LANG"} {
 		lang = os.Getenv(k)
@@ -71,8 +74,7 @@ func canUnicode(mode string) bool {
 	return strings.Contains(lang, "UTF-8") || strings.Contains(lang, "UTF8")
 }
 
-// TODO: maybe unify isTTY (~3 calls just in cmd/snap) (but note stdout vs stdin)
-var isTTY = terminal.IsTerminal(1)
+var isStdoutTTY = terminal.IsTerminal(1)
 
 func colorTable(mode string) escapes {
 	switch mode {
@@ -81,7 +83,7 @@ func colorTable(mode string) escapes {
 	case "never":
 		return noesc
 	}
-	if !isTTY {
+	if !isStdoutTTY {
 		return noesc
 	}
 	if _, ok := os.LookupEnv("NO_COLOR"); ok {
@@ -100,7 +102,9 @@ func colorTable(mode string) escapes {
 }
 
 var colorDescs = mixinDescs{
-	"color":   i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"color": i18n.G("Use a little bit of color to highlight some things."),
+	// TRANSLATORS: This should not start with a lowercase letter.
 	"unicode": i18n.G("Use a little bit of Unicode to improve legibility."),
 }
 

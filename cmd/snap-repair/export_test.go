@@ -30,7 +30,6 @@ import (
 )
 
 var (
-	Parser    = parser
 	ParseArgs = parseArgs
 	Run       = run
 )

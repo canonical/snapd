@@ -51,6 +51,7 @@ type clientSuite struct {
 	doCalls int
 	header  http.Header
 	status  int
+	restore func()
 }
 
 var _ = Suite(&clientSuite{})
@@ -70,10 +71,13 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
+
+	cs.restore = client.MockDoRetry(time.Millisecond, 10*time.Millisecond)
 }
 
 func (cs *clientSuite) TearDownTest(c *C) {
 	os.Unsetenv(client.TestAuthFileEnvKey)
+	cs.restore()
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
@@ -99,8 +103,6 @@ func (cs *clientSuite) TestNewPanics(c *C) {
 }
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
-	restore := client.MockDoRetry(10*time.Millisecond, 100*time.Millisecond)
-	defer restore()
 	cs.err = errors.New("ouchie")
 	err := cs.cli.Do("GET", "/", nil, nil, nil)
 	c.Check(err, ErrorMatches, "cannot communicate with server: ouchie")
@@ -418,6 +420,15 @@ func (cs *clientSuite) TestIsTwoFactor(c *C) {
 	c.Check(client.IsTwoFactorError(errors.New("test")), Equals, false)
 	c.Check(client.IsTwoFactorError(nil), Equals, false)
 	c.Check(client.IsTwoFactorError((*client.Error)(nil)), Equals, false)
+}
+
+func (cs *clientSuite) TestIsRetryable(c *C) {
+	// unhappy
+	c.Check(client.IsRetryable(nil), Equals, false)
+	c.Check(client.IsRetryable(errors.New("some-error")), Equals, false)
+	c.Check(client.IsRetryable(&client.Error{Kind: "something-else"}), Equals, false)
+	// happy
+	c.Check(client.IsRetryable(&client.Error{Kind: client.ErrorKindChangeConflict}), Equals, true)
 }
 
 func (cs *clientSuite) TestClientCreateUser(c *C) {

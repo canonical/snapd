@@ -22,7 +22,6 @@ package boot
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/logger"
@@ -46,13 +45,6 @@ func RemoveKernelAssets(s snap.PlaceInfo) error {
 		return err
 	}
 
-	return nil
-}
-
-func copyAll(src, dst string) error {
-	if output, err := exec.Command("cp", "-aLv", src, dst).CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot copy %q -> %q: %s (%s)", src, dst, err, output)
-	}
 	return nil
 }
 

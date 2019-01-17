@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,8 +30,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type evalSymlinksFn func(string) (string, error)
-
 // evalSymlinks is either filepath.EvalSymlinks or a mocked function for
 // applicable for testing.
 var evalSymlinks = filepath.EvalSymlinks
@@ -57,6 +55,10 @@ type commonInterface struct {
 	connectedSlotKModModules []string
 	permanentPlugKModModules []string
 	permanentSlotKModModules []string
+
+	usesPtraceTrace     bool
+	suppressPtraceTrace bool
+	suppressHomeIx      bool
 }
 
 // Name returns the interface name.
@@ -88,6 +90,14 @@ func (iface *commonInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if iface.usesPtraceTrace {
+		spec.SetUsesPtraceTrace()
+	} else if iface.suppressPtraceTrace {
+		spec.SetSuppressPtraceTrace()
+	}
+	if iface.suppressHomeIx {
+		spec.SetSuppressHomeIx()
+	}
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)
 	}

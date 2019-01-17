@@ -3,9 +3,11 @@ summary: Ensure core can be configure before being installed
 systems: [-ubuntu-core-*]
 
 warn-timeout: 1m
+
 kill-timeout: 5m
 
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 
     echo "Ensure core is gone"

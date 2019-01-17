@@ -1,18 +1,18 @@
 summary: Check that the core.watchdog settings work
 
-systems: [ubuntu-core-16-*]
-
 environment:
     WATCHDOG_FILE: /etc/systemd/system.conf.d/10-snapd-watchdog.conf
 
-restore: |
-    rm -f "$WATCHDOG_FILE"
+systems: [ubuntu-core-16-*]
 
 prepare: |
     if [ -f "$WATCHDOG_FILE" ]; then
         echo "Watchdog file already present, testbed not clean"
         exit 1
     fi
+
+restore: |
+    rm -f "$WATCHDOG_FILE"
 
 execute: |
     echo "Ensure snap service watchdog works"

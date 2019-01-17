@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 
 #include <errno.h>
 #include <glob.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,17 +29,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/feature.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
-#include "apparmor-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
-#include "quirks.h"
 #include "udev-support.h"
 #include "user-support.h"
 #include "cookie-support.h"
@@ -108,16 +109,16 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	const char *snap_name = getenv("SNAP_NAME");
-	if (snap_name == NULL) {
-		die("SNAP_NAME is not set");
+	const char *snap_instance = getenv("SNAP_INSTANCE_NAME");
+	if (snap_instance == NULL) {
+		die("SNAP_INSTANCE_NAME is not set");
 	}
-	sc_snap_name_validate(snap_name, NULL);
+	sc_instance_name_validate(snap_instance, NULL);
 
 	// Collect and validate the security tag and a few other things passed on
 	// command line.
 	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag, snap_name)) {
+	if (!verify_security_tag(security_tag, snap_instance)) {
 		die("security tag %s not allowed", security_tag);
 	}
 	const char *executable = sc_args_executable(args);
@@ -162,7 +163,7 @@ int main(int argc, char **argv)
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(security_tag)) {
 		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
+		snap_context = sc_cookie_get_from_snapd(snap_instance, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));
 		}
@@ -216,44 +217,54 @@ int main(int argc, char **argv)
 			debug("ensuring that snap mount directory is shared");
 			sc_ensure_shared_snap_mount();
 			debug("unsharing snap namespace directory");
-			sc_initialize_ns_groups();
+			sc_initialize_mount_ns();
 			sc_unlock(global_lock_fd);
 
-			// Find and open snap-update-ns from the same
-			// path as where we (snap-confine) were
-			// called.
+			// Find and open snap-update-ns and snap-discard-ns from the same
+			// path as where we (snap-confine) were called.
 			int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
 			snap_update_ns_fd = sc_open_snap_update_ns();
+			int snap_discard_ns_fd SC_CLEANUP(sc_cleanup_close) =
+			    -1;
+			snap_discard_ns_fd = sc_open_snap_discard_ns();
 
 			// Do per-snap initialization.
-			int snap_lock_fd = sc_lock_snap(snap_name);
-			debug("initializing mount namespace: %s", snap_name);
-			struct sc_ns_group *group = NULL;
-			group = sc_open_ns_group(snap_name, 0);
-			if (sc_create_or_join_ns_group(group, &apparmor,
-						       base_snap_name,
-						       snap_name) == EAGAIN) {
-				// If the namespace was stale and was discarded we just need to
-				// try again. Since this is done with the per-snap lock held
-				// there are no races here.
-				if (sc_create_or_join_ns_group(group, &apparmor,
-							       base_snap_name,
-							       snap_name) ==
-				    EAGAIN) {
-					die("unexpectedly the namespace needs to be discarded again");
+			int snap_lock_fd = sc_lock_snap(snap_instance);
+			debug("initializing mount namespace: %s",
+			      snap_instance);
+			struct sc_mount_ns *group = NULL;
+			group = sc_open_mount_ns(snap_instance);
+
+			/* Stale mount namespace discarded or no mount namespace to
+			   join. We need to construct a new mount namespace ourselves.
+			   To capture it we will need a helper process so make one. */
+			sc_fork_helper(group, &apparmor);
+			int retval = sc_join_preserved_ns(group, &apparmor,
+							  base_snap_name,
+							  snap_instance,
+							  snap_discard_ns_fd);
+			if (retval == ESRCH) {
+				/* Create and populate the mount namespace. This performs all
+				   of the bootstrapping mounts, pivots into the new root
+				   filesystem and applies the per-snap mount profile using
+				   snap-update-ns. */
+				debug
+				    ("unsharing the mount namespace (per-snap)");
+				if (unshare(CLONE_NEWNS) < 0) {
+					die("cannot unshare the mount namespace");
 				}
-			}
-			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(&apparmor,
 						     snap_update_ns_fd,
-						     base_snap_name, snap_name);
-				sc_preserve_populated_ns_group(group);
+						     base_snap_name,
+						     snap_instance);
+
+				/* Preserve the mount namespace. */
+				sc_preserve_populated_mount_ns(group);
 			}
-			sc_close_ns_group(group);
-			// older versions of snap-confine created incorrect
-			// 777 permissions for /var/lib and we need to fixup
-			// for systems that had their NS created with an
-			// old version
+
+			/* Older versions of snap-confine created incorrect 777 permissions
+			   for /var/lib and we need to fixup for systems that had their NS
+			   created with an old version. */
 			sc_maybe_fixup_permissions();
 			sc_maybe_fixup_udev();
 
@@ -269,17 +280,49 @@ int main(int argc, char **argv)
 					die("cannot set effective group id to root");
 				}
 			}
-			sc_cgroup_freezer_join(snap_name, getpid());
+			sc_cgroup_freezer_join(snap_instance, getpid());
 			if (geteuid() == 0 && real_gid != 0) {
 				if (setegid(real_gid) != 0) {
 					die("cannot set effective group id to %d", real_gid);
 				}
 			}
 
+			/* User mount profiles do not apply to non-root users. */
+			if (real_uid != 0) {
+				debug
+				    ("joining preserved per-user mount namespace");
+				retval =
+				    sc_join_preserved_per_user_ns(group,
+								  snap_instance);
+				if (retval == ESRCH) {
+					debug
+					    ("unsharing the mount namespace (per-user)");
+					if (unshare(CLONE_NEWNS) < 0) {
+						die("cannot unshare the mount namespace");
+					}
+					sc_setup_user_mounts(&apparmor,
+							     snap_update_ns_fd,
+							     snap_instance);
+					/* Preserve the mount per-user namespace. But only if the
+					 * experimental feature is enabled. This way if the feature is
+					 * disabled user mount namespaces will still exist but will be
+					 * entirely ephemeral. In addition the call
+					 * sc_join_preserved_user_ns() will never find a preserved
+					 * mount namespace and will always enter this code branch. */
+					if (sc_feature_enabled
+					    (SC_PER_USER_MOUNT_NAMESPACE)) {
+						sc_preserve_populated_per_user_mount_ns
+						    (group);
+					} else {
+						debug
+						    ("NOT preserving per-user mount namespace");
+					}
+				}
+			}
+
 			sc_unlock(snap_lock_fd);
 
-			sc_setup_user_mounts(&apparmor, snap_update_ns_fd,
-					     snap_name);
+			sc_close_mount_ns(group);
 
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes

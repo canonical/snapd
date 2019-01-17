@@ -22,9 +22,8 @@ package arch
 import (
 	"log"
 	"runtime"
-	"syscall"
 
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // ArchitectureType is the type for a supported snappy architecture
@@ -78,8 +77,7 @@ func ubuntuArchFromGoArch(goarch string) string {
 	// arch mapping. The Go arch sadly doesn't map this out
 	// for us so we have to fallback to uname here.
 	if goarch == "arm" {
-		machineName := release.Machine()
-		if machineName == "armv6l" {
+		if osutil.MachineName() == "armv6l" {
 			return "armel"
 		}
 	}
@@ -97,24 +95,7 @@ func ubuntuArchFromGoArch(goarch string) string {
 // UbuntuArchitecture - however there maybe cases that you run e.g.
 // a snapd:i386 on an amd64 kernel.
 func UbuntuKernelArchitecture() string {
-	var utsname syscall.Utsname
-	if err := syscall.Uname(&utsname); err != nil {
-		log.Panicf("cannot get kernel architecture: %v", err)
-	}
-
-	// syscall.Utsname{} is using [65]int8 for all char[] inside it,
-	// this makes converting it so awkward. The alternative would be
-	// to use a unsafe.Pointer() to cast it to a [65]byte slice.
-	// see https://github.com/golang/go/issues/20753
-	kernelArch := make([]byte, 0, len(utsname.Machine))
-	for _, c := range utsname.Machine {
-		if c == 0 {
-			break
-		}
-		kernelArch = append(kernelArch, byte(c))
-	}
-
-	return ubuntuArchFromKernelArch(string(kernelArch))
+	return ubuntuArchFromKernelArch(osutil.MachineName())
 }
 
 // ubuntuArchFromkernelArch maps the kernel architecture as reported

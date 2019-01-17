@@ -98,21 +98,21 @@ plugs:
     bad-interface-plug: other-interface
 `, &snap.SideInfo{})
 	s.gpioSlotInfo = info.Slots["gpio"]
-	s.gpioSlot = interfaces.NewConnectedSlot(s.gpioSlotInfo, nil)
+	s.gpioSlot = interfaces.NewConnectedSlot(s.gpioSlotInfo, nil, nil)
 	s.ledSlotInfo = info.Slots["led"]
-	s.ledSlot = interfaces.NewConnectedSlot(s.ledSlotInfo, nil)
+	s.ledSlot = interfaces.NewConnectedSlot(s.ledSlotInfo, nil, nil)
 	s.missingPathSlotInfo = info.Slots["missing-path"]
-	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil)
+	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil, nil)
 	s.badPathSlotInfo = info.Slots["bad-path"]
-	s.badPathSlot = interfaces.NewConnectedSlot(s.badPathSlotInfo, nil)
+	s.badPathSlot = interfaces.NewConnectedSlot(s.badPathSlotInfo, nil, nil)
 	s.parentDirPathSlotInfo = info.Slots["parent-dir-path"]
-	s.parentDirPathSlot = interfaces.NewConnectedSlot(s.parentDirPathSlotInfo, nil)
+	s.parentDirPathSlot = interfaces.NewConnectedSlot(s.parentDirPathSlotInfo, nil, nil)
 	s.badInterfaceSlotInfo = info.Slots["bad-interface-slot"]
-	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil)
+	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil, nil)
 	s.plugInfo = plugSnapinfo.Plugs["plug"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.badInterfacePlugInfo = info.Plugs["bad-interface-plug"]
-	s.badInterfacePlug = interfaces.NewConnectedPlug(s.badInterfacePlugInfo, nil)
+	s.badInterfacePlug = interfaces.NewConnectedPlug(s.badInterfacePlugInfo, nil, nil)
 }
 
 // TODO: add test for permanent slot when we have hook support.

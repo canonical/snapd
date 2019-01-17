@@ -780,6 +780,14 @@ static void test_sc_string_quote(void)
 #undef DQ
 }
 
+static void test_sc_strdup(void)
+{
+	char *s = sc_strdup("snap install everything");
+	g_assert_nonnull(s);
+	g_assert_cmpstr(s, ==, "snap install everything");
+	free(s);
+}
+
 static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
@@ -836,4 +844,5 @@ static void __attribute__ ((constructor)) init(void)
 	    ("/string-utils/sc_string_append_char_pair__uninitialized_buf",
 	     test_sc_string_append_char_pair__uninitialized_buf);
 	g_test_add_func("/string-utils/sc_string_quote", test_sc_string_quote);
+	g_test_add_func("/string-utils/sc_strdup", test_sc_strdup);
 }

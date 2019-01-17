@@ -1,7 +1,10 @@
 summary: Check that firstboot assertions are imported and snaps installed also on classic
+
 systems: [-ubuntu-core-*]
+
 environment:
     SEED_DIR: /var/lib/snapd/seed
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -33,6 +36,7 @@ prepare: |
     echo "Copy the needed snaps to $SEED_DIR/snaps"
     cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
     cp ./basic_1.0_all.snap "$SEED_DIR/snaps/basic.snap"
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -43,6 +47,7 @@ restore: |
     rm -f -- *.snap
     rm -f -- *.assert
     systemctl start snapd.socket snapd.service
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

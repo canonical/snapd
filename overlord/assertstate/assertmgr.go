@@ -82,12 +82,13 @@ func DB(s *state.State) asserts.RODatabase {
 
 // doValidateSnap fetches the relevant assertions for the snap being installed and cross checks them with the snap.
 func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	defer t.State().Unlock()
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
 
 	snapsup, err := snapstate.TaskSnapSetup(t)
 	if err != nil {
-		return nil
+		return fmt.Errorf("internal error: cannot obtain snap setup: %s", err)
 	}
 
 	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(snapsup.SnapPath)
@@ -95,8 +96,29 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = doFetch(t.State(), snapsup.UserID, func(f asserts.Fetcher) error {
-		return snapasserts.FetchSnapAssertions(f, sha3_384)
+	modelAs, err := snapstate.Model(st)
+	if err != nil {
+		return err
+	}
+
+	err = doFetch(st, snapsup.UserID, func(f asserts.Fetcher) error {
+		if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
+			return err
+		}
+
+		// fetch store assertion if available
+		if modelAs.Store() != "" {
+			err := snapasserts.FetchStore(f, modelAs.Store())
+			if notFound, ok := err.(*asserts.NotFoundError); ok {
+				if notFound.Type != asserts.StoreType {
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	})
 	if notFound, ok := err.(*asserts.NotFoundError); ok {
 		if notFound.Type == asserts.SnapRevisionType {
@@ -109,7 +131,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	db := DB(t.State())
+	db := DB(st)
 	err = snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, snapSize, snapsup.SideInfo, db)
 	if err != nil {
 		// TODO: trigger a global sanity check

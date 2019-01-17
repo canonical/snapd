@@ -23,6 +23,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"testing"
 	"time"
 
 	"golang.org/x/net/context"
@@ -74,6 +75,10 @@ func (ctxSuite) TestRun(c *check.C) {
 }
 
 func (ctxSuite) TestRunRace(c *check.C) {
+	if testing.Short() {
+		c.Skip("skippinng non-short test")
+	}
+
 	// first, time how long /bin/false takes
 	t0 := time.Now()
 	cmderr := exec.Command("/bin/false").Run()

@@ -1,13 +1,16 @@
 summary: |
    Test that device initialisation and registration can be customized
    with the prepare-device gadget hook
+
 systems: [ubuntu-core-16-64]
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    . $TESTSLIB/systemd.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -21,20 +24,22 @@ prepare: |
     mv /var/lib/snapd/seed/assertions/model model.bak
     cp /var/lib/snapd/seed/seed.yaml seed.yaml.bak
     python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml
-    cp $TESTSLIB/assertions/developer1.account /var/lib/snapd/seed/assertions
-    cp $TESTSLIB/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    cp $TESTSLIB/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
-    cp $TESTSLIB/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
     # start fake device svc
-    systemd_create_and_start_unit fakedevicesvc "$(which fakedevicesvc) localhost:11029"
+    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    . $TESTSLIB/systemd.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
     systemd_stop_and_destroy_unit fakedevicesvc
     rm -rf /var/lib/snapd/assertions/*
@@ -54,11 +59,12 @@ restore: |
     rm -f /var/lib/snapd/seed/assertions/developer1-pc.model
     rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
     cp model.bak /var/lib/snapd/seed/assertions/model
-    rm -f *.bak
+    rm -f ./*.bak
     # kick first boot again
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

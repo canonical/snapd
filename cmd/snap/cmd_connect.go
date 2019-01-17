@@ -58,9 +58,9 @@ func init() {
 	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
 		return &cmdConnect{}
 	}, waitDescs, []argDesc{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		{name: i18n.G("<snap>:<plug>")},
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		{name: i18n.G("<snap>:<slot>")},
 	})
 }
@@ -77,13 +77,12 @@ func (x *cmdConnect) Execute(args []string) error {
 		x.Positionals.PlugSpec.Snap = ""
 	}
 
-	cli := Client()
-	id, err := cli.Connect(x.Positionals.PlugSpec.Snap, x.Positionals.PlugSpec.Name, x.Positionals.SlotSpec.Snap, x.Positionals.SlotSpec.Name)
+	id, err := x.client.Connect(x.Positionals.PlugSpec.Snap, x.Positionals.PlugSpec.Name, x.Positionals.SlotSpec.Snap, x.Positionals.SlotSpec.Name)
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(cli, id); err != nil {
+	if _, err := x.wait(id); err != nil {
 		if err == noWait {
 			return nil
 		}

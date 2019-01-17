@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/sh -eu
 
-if [ "$TRAVIS_BUILD_NUMBER" ]; then
+if [ -n "${TRAVIS_BUILD_NUMBER:-}" ]; then
     echo travis_fold:start:env
     printenv | sort
     echo travis_fold:end:env
@@ -8,7 +8,6 @@ fi
 
 export LANG=C.UTF-8
 export LANGUAGE=en
-set -eu
 
 if command -v goctest >/dev/null; then
     goctest="goctest"
@@ -29,22 +28,26 @@ fi
 export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
 export PATH="$PATH:${GOPATH%%:*}/bin"
 
+short=
+
 STATIC=
 UNIT=
 SPREAD=
-DEPRECATED=
 
 case "${1:-all}" in
     all)
         STATIC=1
         UNIT=1
-        DEPRECATED=1
         ;;
     --static)
         STATIC=1
         ;;
     --unit)
         UNIT=1
+        ;;
+    --short-unit)
+        UNIT=1
+        short=1
         ;;
     --spread)
         SPREAD=1
@@ -56,12 +59,15 @@ esac
 
 CURRENTTRAP="true"
 EXIT_CODE=99
+
 store_exit_code() {
     EXIT_CODE=$?
 }
+
 exit_with_exit_code() {
     exit $EXIT_CODE
 }
+
 addtrap() {
     CURRENTTRAP="$CURRENTTRAP ; $1"
     # shellcheck disable=SC2064
@@ -133,7 +139,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking formatting
     fmt=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -s -l "$dir")"
+        s="$(gofmt -s -l "$dir" | grep -v /vendor/ || true)"
         if [ -n "$s" ]; then
             fmt="$s\\n$fmt"
         fi
@@ -141,7 +147,7 @@ if [ "$STATIC" = 1 ]; then
 
     if [ -n "$fmt" ]; then
         echo "Formatting wrong in following files:"
-        echo "$fmt"
+        echo "$fmt" | sed -e 's/\\n/\n/g'
         exit 1
     fi
 
@@ -171,10 +177,11 @@ if [ "$STATIC" = 1 ]; then
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
             xargs shellcheck
-        regexp='GOPATH(?!%%:\*)(?!:)[^=]*/'
-        if grep -qPr --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"; then
+        regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
+        if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
-            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"
+            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
+            echo "Use GOHOME, or {GOPATH%%:*}, instead."
             exit 1
         fi
         unset regexp
@@ -210,35 +217,41 @@ if [ "$STATIC" = 1 ]; then
 
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
+
+    # FIXME: re-add staticcheck with a matching version for the used go-version
 fi
 
 if [ "$UNIT" = 1 ]; then
     ./get-deps.sh
-
-    # Prepare the coverage output profile.
-    rm -rf .coverage
-    mkdir .coverage
-    echo "mode: $COVERMODE" > .coverage/coverage.out
 
     echo Building
     go build -v github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from "$PWD"
-    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
-        # shellcheck disable=SC2046
-        $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+    if [ "$short" = 1 ]; then
+            # shellcheck disable=SC2046
+            $goctest -short -v $(go list ./... | grep -v '/vendor/' )
     else
-        for pkg in $(go list ./... | grep -v '/vendor/' ); do
-            go test -i "$pkg"
-            $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
-            append_coverage .coverage/profile.out
-        done
-    fi
+        # Prepare the coverage output profile.
+        rm -rf .coverage
+        mkdir .coverage
+        echo "mode: $COVERMODE" > .coverage/coverage.out
 
-    # upload to codecov.io if on travis
-    if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
-        curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
+        if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+            # shellcheck disable=SC2046
+            $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+        else
+            for pkg in $(go list ./... | grep -v '/vendor/' ); do
+                go test -i "$pkg"
+                $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+                append_coverage .coverage/profile.out
+            done
+        fi
+        # upload to codecov.io if on travis
+        if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
+            curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
+        fi
     fi
 fi
 
@@ -249,15 +262,10 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread google: linode:
+    spread google: google-upgrade:tests/upgrade/
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
-fi
-
-if [ "$DEPRECATED" = 1 ]; then
-    ./get-deps.sh
-
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true

@@ -59,4 +59,10 @@ if snapctl set :consumer consumer-attr-4=foo; then
     exit 1
 fi
 
+output=$(snapctl get fail)
+if [ "$output" = "connect" ]; then
+    echo "Failing connect hook as requested"
+    exit 1
+fi
+
 touch "$SNAP_COMMON/connect-plug-consumer-done"
