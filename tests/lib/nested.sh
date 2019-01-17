@@ -19,6 +19,18 @@ wait_for_ssh(){
     done
 }
 
+wait_for_no_ssh(){
+    retry=150
+    while execute_remote true; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for no ssh. Aborting!"
+            return 1
+        fi
+        sleep 1
+    done
+}
+
 prepare_ssh(){
     execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
     execute_remote "echo test:ubuntu | sudo chpasswd"
@@ -186,4 +198,9 @@ del_device(){
     local DEVICE_ID=$1
     echo "device_del $DEVICE_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "device deleted"
+}
+
+get_nested_core_revision(){
+    ID=$1
+    execute_remote "snap info core" | awk "/${ID}: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }
