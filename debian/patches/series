@@ -3,3 +3,5 @@ disable-seccomp-tests.patch
 no-seccomp-fork.patch
 no-snapfuse.patch
 upstream-bolt.patch
+
+skip-squashfs-test-depending-on-package-fixes.patch
