@@ -185,8 +185,7 @@ import (
 	"strings"
 	"syscall"
 
-	// FIXME: we want github.com/seccomp/libseccomp-golang but that will not work with trusty because libseccomp-golang checks for the seccomp version and errors if it find one < 2.2.0
-	"github.com/mvo5/libseccomp-golang"
+	"github.com/seccomp/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
