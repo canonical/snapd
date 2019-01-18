@@ -141,6 +141,7 @@ backends:
             - ubuntu-18.04-64:
                 workers: 4
             - ubuntu-18.10-64:
+                image: ubuntu-1810
                 workers: 4
 
     google-nested:
