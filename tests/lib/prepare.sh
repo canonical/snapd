@@ -255,22 +255,9 @@ prepare_classic() {
         # need to be seeded to proceed with snap install
         # also make sure the captured state is seeded
         snap wait system seed.loaded
-        # Pre-cache a few heavy snaps so that they can be installed by tests
-        # quickly. This relies on a behavior of snapd where .partial files are
-        # used for resuming downloads.
-        (
-            set -x
-            cd "$TESTSLIB/cache/"
-            # Download each of the snaps we want to pre-cache. Note that `snap download`
-            # a quick no-op if the file is complete.
-            for snap_name in ${PRE_CACHE_SNAPS:-}; do
-                snap download "$snap_name"
-            done
-            # Copy all of the snaps back to the spool directory. From there we
-            # will reuse them during subsequent `snap install` operations.
-            cp -- *.snap /var/lib/snapd/snaps/
-            set +x
-        )
+
+        # Cache snaps
+        cache_snaps ${PRE_CACHE_SNAPS:-}
 
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
@@ -624,11 +611,11 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
-    echo "Ensure the core snap is available"
+    echo "Ensure the core snap is cached"
     # Install core to keep it as part of the snapd state
     if is_core18_system; then
         if ! snap list core; then
-            snap install core
+            cache_snaps core
         fi
     fi
 
@@ -643,4 +630,23 @@ prepare_ubuntu_core() {
     fi
 
     disable_kernel_rate_limiting
+}
+
+cache_snaps(){
+    # Pre-cache snaps so that they can be installed by tests quickly.
+    # This relies on a behavior of snapd where .partial files are
+    # used for resuming downloads.
+    (
+        set -x
+        cd "$TESTSLIB/cache/"
+        # Download each of the snaps we want to pre-cache. Note that `snap download`
+        # a quick no-op if the file is complete.
+        for snap_name in $@; do
+            snap download "$snap_name"
+        done
+        # Copy all of the snaps back to the spool directory. From there we
+        # will reuse them during subsequent `snap install` operations.
+        cp -- *.snap /var/lib/snapd/snaps/
+        set +x
+    )
 }
