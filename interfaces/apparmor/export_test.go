@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	ChopTree                   = chopTree
 	NsProfile                  = nsProfile
 	ProfileGlobs               = profileGlobs
 	SnapConfineFromSnapProfile = snapConfineFromSnapProfile

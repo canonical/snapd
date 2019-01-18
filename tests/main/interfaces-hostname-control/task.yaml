@@ -12,9 +12,6 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-restore: |
-    rm -f ./*.error
-
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"

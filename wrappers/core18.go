@@ -40,7 +40,7 @@ import (
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
-	// Not using WriteMountUnitFile() because we need
+	// Not using AddMountUnitFile() because we need
 	// "RequiredBy=snapd.service"
 	content := []byte(fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
@@ -167,11 +167,13 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		if bytes.Contains(snapdUnits[unit].Content, []byte("X-Snapd-Snap: do-not-start")) {
 			continue
 		}
-		// Ensure to only restart if the unit was previously active.
-		// This ensures we DTRT on firstboot and do not stop e.g.
-		// snapd.socket because doing that would mean that the
-		// snapd.seeded.service is also stopped which confuses the
-		// boot order (the unit exists before we are fully seeded)
+		// Ensure to only restart if the unit was previously
+		// active. This ensures we DTRT on firstboot and do
+		// not stop e.g. snapd.socket because doing that
+		// would mean that the snapd.seeded.service is also
+		// stopped (independently of snapd.socket being
+		// active) which confuses the boot order (the unit
+		// exists before we are fully seeded).
 		isActive, err := sysd.IsActive(unit)
 		if err != nil {
 			return err

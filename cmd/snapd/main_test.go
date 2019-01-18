@@ -61,10 +61,16 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 
 	sanityErr := fmt.Errorf("foo failed")
 	sanityCalled := make(chan bool)
-	sanityClosed := false
+	sanityRan := 0
 	restore = snapd.MockSanityCheck(func() error {
-		if !sanityClosed {
-			sanityClosed = true
+		sanityRan++
+		// Ensure this ran at least *twice* to avoid a race here:
+		// If we close the channel and this wakes up the "select"
+		// below immediately and stops this go-routine then the
+		// check that the logbuf contains the error will fail.
+		// By running this at least twice we know the error made
+		// it to the log.
+		if sanityRan == 2 {
 			close(sanityCalled)
 		}
 		return sanityErr
