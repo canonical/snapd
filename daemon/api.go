@@ -101,6 +101,7 @@ var api = []*Command{
 	warningsCmd,
 	debugCmd,
 	snapshotCmd,
+	modelCmd,
 }
 
 var (
@@ -261,6 +262,12 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getWarnings,
 		POST:     ackWarnings,
+	}
+
+	modelCmd = &Command{
+		Path: "/v2/model",
+		POST: postModel,
+		// FIXME: provide getModel here instead of via debug?
 	}
 
 	buildID = "unknown"
@@ -943,6 +950,8 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+
+	devicestateRemodel = devicestate.Remodel
 
 	snapshotList    = snapshotstate.List
 	snapshotCheck   = snapshotstate.Check
@@ -2539,6 +2548,14 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]interface{}{
 			"base-declaration": string(asserts.Encode(bd)),
 		}, nil)
+	case "get-model":
+		model, err := devicestate.Model(st)
+		if err != nil {
+			return InternalError("cannot get model: %v", err)
+		}
+		return SyncResponse(map[string]interface{}{
+			"model": string(asserts.Encode(model)),
+		}, nil)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
@@ -2913,6 +2930,43 @@ var (
 	stateAllWarnings     = (*state.State).AllWarnings
 	statePendingWarnings = (*state.State).PendingWarnings
 )
+
+type postModelData struct {
+	NewModel string `json:"new-model"`
+}
+
+func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
+	defer r.Body.Close()
+	var data postModelData
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&data); err != nil {
+		return BadRequest("cannot decode request body into remodel operation: %v", err)
+	}
+	rawNewModel, err := asserts.Decode([]byte(data.NewModel))
+	if err != nil {
+		return BadRequest("cannot decode request new model assertion: %v", err)
+	}
+	newModel, ok := rawNewModel.(*asserts.Model)
+	if !ok {
+		return BadRequest("new model is not a model assertion: %v", newModel.Type())
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tss, err := devicestateRemodel(st, newModel)
+	if err != nil {
+		return BadRequest("cannot remodel device: %v", err)
+	}
+	msg := fmt.Sprintf(i18n.G("Remodel device to %v (%v)"), newModel.Model(), newModel.Revision())
+	chg := newChange(st, "remodel", msg, tss, nil)
+
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+
+}
 
 func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	defer r.Body.Close()

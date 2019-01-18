@@ -296,6 +296,8 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	snapstateTryPath = nil
 	snapstateUpdate = nil
 	snapstateUpdateMany = nil
+
+	devicestateRemodel = nil
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
@@ -7550,4 +7552,50 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		rsp := errToResponse(t.err, []string{"foo"}, BadRequest, "%s: %v", "ERR")
 		c.Check(rsp, check.DeepEquals, t.expectedRsp, com)
 	}
+}
+
+func (s *apiSuite) TestPostRemodelUnhappy(c *check.C) {
+	data, err := json.Marshal(postModelData{NewModel: "invalid model"})
+	c.Check(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rsp := postModel(appsCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Assert(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot decode request new model assertion: .*")
+}
+
+func (s *apiSuite) TestPostRemodel(c *check.C) {
+	s.daemonWithOverlordMock(c)
+
+	var devicestateRemodelGotModel *asserts.Model
+	devicestateRemodel = func(st *state.State, nm *asserts.Model) ([]*state.TaskSet, error) {
+		devicestateRemodelGotModel = nm
+		return nil, nil
+	}
+
+	// create a valid model assertion
+	mockModel, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	mockModelEncoded := string(asserts.Encode(mockModel))
+	data, err := json.Marshal(postModelData{NewModel: mockModelEncoded})
+	c.Check(err, check.IsNil)
+
+	// set it and validate that this is what we was passed to
+	// devicestateRemodel
+	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rsp := postModel(appsCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 202)
+	c.Check(mockModel, check.DeepEquals, devicestateRemodelGotModel)
 }
