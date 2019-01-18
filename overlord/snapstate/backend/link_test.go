@@ -317,13 +317,15 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 }
 
 func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
-	for _, onClassic := range []bool{false, true} {
+	current := filepath.Join(s.info.MountDir(), "..", "current")
 
+	for _, onClassic := range []bool{false, true} {
 		restore := release.MockOnClassic(onClassic)
 		defer restore()
 
 		var updateFontconfigCaches int
 		restore = backend.MockUpdateFontconfigCaches(func() error {
+			c.Assert(osutil.FileExists(current), Equals, false)
 			updateFontconfigCaches += 1
 			return nil
 		})
@@ -336,6 +338,7 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 		} else {
 			c.Assert(updateFontconfigCaches, Equals, 0)
 		}
+		c.Assert(os.Remove(current), IsNil)
 	}
 }
 
