@@ -76,7 +76,7 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
     VENDOR_ARGS=--enable-nvidia-multiarch
-    BUILT_USING=libcap-dev
+    BUILT_USING=
 else
     VENDOR_ARGS=--disable-apparmor
 endif
