@@ -274,6 +274,11 @@ prepare_project() {
 
     create_test_user
 
+    # ensure no background apt jobs
+    if systemctl is-enabled apt-daily.timer; then
+        systemctl stop apt-daily.timer apt-daily.service
+    fi
+
     distro_update_package_db
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
