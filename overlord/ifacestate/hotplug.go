@@ -211,11 +211,13 @@ InterfacesLoop:
 		setHotplugAttrs(hotplugAdd, iface.Name(), key)
 		hotplugAdd.Set("device-info", devinfo)
 		hotplugAdd.Set("slot-spec", slotSpec)
+		chg.AddTask(hotplugAdd)
 
 		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %s, hotplug key %q", iface.Name(), key))
 		setHotplugAttrs(hotplugConnect, iface.Name(), key)
 		hotplugConnect.WaitFor(hotplugAdd)
-		chg.AddTask(hotplugAdd)
+		chg.AddTask(hotplugConnect)
+
 		if err := addHotplugSeqWaitTask(chg, key); err != nil {
 			logger.Noticef(err.Error())
 		}

@@ -5542,7 +5542,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	// hotplugslot is updated int the repository
+	// hotplugslot is updated in the repository
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
@@ -5555,6 +5555,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"hotplug-gone": false,
 		}})
 }
 
@@ -5682,9 +5683,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"otherslot": map[string]interface{}{
-			"name":        "otherslot",
-			"interface":   "test",
-			"hotplug-key": "5678",
+			"name":         "otherslot",
+			"interface":    "test",
+			"hotplug-key":  "5678",
+			"hotplug-gone": false,
 		}})
 }
 
