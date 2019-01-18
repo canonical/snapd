@@ -276,7 +276,7 @@ prepare_project() {
 
     # ensure no background apt jobs
     if systemctl is-enabled apt-daily.timer; then
-        systemctl stop apt-daily.timer
+        systemctl stop apt-daily.timer apt-daily.service
         systemctl disable apt-daily.timer
     fi
 
