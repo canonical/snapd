@@ -21,9 +21,7 @@ restore: |
     # Restore the initial timezone
     if [ -f timezone.txt ]; then
         timedatectl set-timezone "$(cat timezone.txt)" || true
-        rm -f timezone.txt
     fi
-    rm -f call.error
 
 execute: |
     echo "The interface is disconnected by default"
