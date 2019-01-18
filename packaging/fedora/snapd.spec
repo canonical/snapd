@@ -535,6 +535,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl32
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/glvnd
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/vulkan
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
@@ -723,6 +724,7 @@ popd
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/glvnd
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
