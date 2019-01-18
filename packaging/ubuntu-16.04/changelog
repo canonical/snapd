@@ -1,4 +1,4 @@
-snapd (2.37) xenial; urgency=medium
+snapd (2.37.x) xenial; urgency=medium
 
   * New upstream release, LP: #1811233
     - snapd: fix race in TestSanityFailGoesIntoDegradedMode test

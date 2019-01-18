@@ -4,6 +4,9 @@ summary: Check that the system is not in "degraded" state
 # in their images so this test is not useful there.
 backends: [-autopkgtest]
 
+# we stop the apt-daily.service which may lead to issues here
+systems: [-debian-sid-*]
+
 # run this early to ensure no test created failed units yet
 priority: 500
 
