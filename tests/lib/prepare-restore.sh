@@ -320,7 +320,7 @@ prepare_project() {
         apt build-dep -y ./
 
         # and ensure we don't take any of the vendor deps
-        rm -rf vendor/*
+        rm -rf vendor/*/
 
         # and create a fake upstream tarball
         tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version)".orig.tar.gz --exclude=./debian --exclude=./.git .
