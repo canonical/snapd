@@ -12,9 +12,6 @@ prepare: |
     echo "Given the uhid snap is installed"
     snap install test-snapd-uhid
 
-restore: |
-    rm -f call.error
-
 execute: |
     echo "The plug is not connected by default"
     snap interfaces -i uhid | MATCH -- '^- +test-snapd-uhid:uhid'

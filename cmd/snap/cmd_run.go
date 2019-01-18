@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -52,10 +53,13 @@ import (
 )
 
 var (
-	syscallExec = syscall.Exec
-	userCurrent = user.Current
-	osGetenv    = os.Getenv
-	timeNow     = time.Now
+	syscallExec              = syscall.Exec
+	userCurrent              = user.Current
+	osGetenv                 = os.Getenv
+	timeNow                  = time.Now
+	selinuxIsEnabled         = selinux.IsEnabled
+	selinuxVerifyPathContext = selinux.VerifyPathContext
+	selinuxRestoreContext    = selinux.RestoreContext
 )
 
 type cmdRun struct {
@@ -333,7 +337,39 @@ func createUserDataDirs(info *snap.Info) error {
 		}
 	}
 
-	return createOrUpdateUserDataSymlink(info, usr)
+	if err := createOrUpdateUserDataSymlink(info, usr); err != nil {
+		return err
+	}
+
+	return maybeRestoreSecurityContext(usr)
+}
+
+// maybeRestoreSecurityContext attempts to restore security context of ~/snap on
+// systems where it's applicable
+func maybeRestoreSecurityContext(usr *user.User) error {
+	snapUserHome := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	enabled, err := selinuxIsEnabled()
+	if err != nil {
+		return fmt.Errorf("cannot determine SELinux status: %v", err)
+	}
+	if !enabled {
+		logger.Debugf("SELinux not enabled")
+		return nil
+	}
+
+	match, err := selinuxVerifyPathContext(snapUserHome)
+	if err != nil {
+		return fmt.Errorf("failed to verify SELinux context of %v: %v", snapUserHome, err)
+	}
+	if match {
+		return nil
+	}
+	logger.Noticef("restoring default SELinux context of %v", snapUserHome)
+
+	if err := selinuxRestoreContext(snapUserHome, selinux.RestoreMode{Recursive: true}); err != nil {
+		return fmt.Errorf("cannot restore SELinux context of %v: %v", snapUserHome, err)
+	}
+	return nil
 }
 
 func (x *cmdRun) useStrace() bool {

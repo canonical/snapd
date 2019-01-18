@@ -180,7 +180,7 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 
 // updateDevice creates tasks to disconnect slots of given device, update the slot in the repository, then connect it back.
 func updateDevice(st *state.State, ifaceName, hotplugKey string, newAttrs map[string]interface{}) *state.TaskSet {
-	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of device %q", hotplugKey))
+	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of interface %s, hotplug key %q", ifaceName, hotplugKey))
 	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
 
 	updateSlot := st.NewTask("hotplug-update-slot", fmt.Sprintf("Update slot of interface %s, hotplug key %q", ifaceName, hotplugKey))
@@ -188,7 +188,7 @@ func updateDevice(st *state.State, ifaceName, hotplugKey string, newAttrs map[st
 	updateSlot.Set("slot-attrs", newAttrs)
 	updateSlot.WaitFor(hotplugDisconnect)
 
-	hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %s hotplug key %s", ifaceName, hotplugKey))
+	hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %s, hotplug key %q", ifaceName, hotplugKey))
 	setHotplugAttrs(hotplugConnect, ifaceName, hotplugKey)
 	hotplugConnect.WaitFor(updateSlot)
 
@@ -198,7 +198,7 @@ func updateDevice(st *state.State, ifaceName, hotplugKey string, newAttrs map[st
 // removeDevice creates tasks to disconnect slots of given device and remove affected slots.
 func removeDevice(st *state.State, ifaceName, hotplugKey string) *state.TaskSet {
 	// hotplug-disconnect task will create hooks and disconnect the slot
-	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections for interface %s, hotplug key %q", ifaceName, hotplugKey))
+	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of interface %s, hotplug key %q", ifaceName, hotplugKey))
 	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
 
 	// hotplug-remove-slot will remove this device's slot from the repository.

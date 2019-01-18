@@ -1,5 +1,8 @@
 summary: Check that snap connect with parallel installs works
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh

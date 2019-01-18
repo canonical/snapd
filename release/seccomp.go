@@ -20,37 +20,17 @@
 package release
 
 import (
-	"io/ioutil"
 	"sort"
 	"strings"
+	"sync"
 )
 
-var (
-	secCompAvailableActionsPath = "/proc/sys/kernel/seccomp/actions_avail"
-)
-
-var secCompActions []string
-
-func MockSecCompActions(actions []string) (restore func()) {
-	old := secCompActions
-	secCompActions = actions
-	return func() { secCompActions = old }
-}
+var secCompProber = &secCompProbe{}
 
 // SecCompActions returns a sorted list of seccomp actions like
 // []string{"allow", "errno", "kill", "log", "trace", "trap"}.
 func SecCompActions() []string {
-	if secCompActions == nil {
-		var actions []string
-		contents, err := ioutil.ReadFile(secCompAvailableActionsPath)
-		if err != nil {
-			return actions
-		}
-		actions = strings.Split(strings.TrimRight(string(contents), "\n"), " ")
-		sort.Strings(actions)
-		secCompActions = actions
-	}
-	return secCompActions
+	return secCompProber.actions()
 }
 
 func SecCompSupportsAction(action string) bool {
@@ -60,4 +40,42 @@ func SecCompSupportsAction(action string) bool {
 		return true
 	}
 	return false
+}
+
+// probing
+
+type secCompProbe struct {
+	probedActions []string
+
+	once sync.Once
+}
+
+func (scp *secCompProbe) actions() []string {
+	scp.once.Do(func() {
+		scp.probedActions = probeSecCompActions()
+	})
+	return scp.probedActions
+}
+
+func probeSecCompActions() []string {
+	contents, err := ioutilReadFile("/proc/sys/kernel/seccomp/actions_avail")
+	if err != nil {
+		return []string{}
+	}
+	actions := strings.Split(strings.TrimRight(string(contents), "\n"), " ")
+	sort.Strings(actions)
+	return actions
+}
+
+// mocking
+
+func MockSecCompActions(actions []string) (restore func()) {
+	old := secCompProber
+	secCompProber = &secCompProbe{
+		probedActions: actions,
+	}
+	secCompProber.once.Do(func() {})
+	return func() {
+		secCompProber = old
+	}
 }
