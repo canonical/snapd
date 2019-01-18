@@ -5,5 +5,8 @@ Depends: @builddeps@,
          ca-certificates,
          git,
          golang-golang-x-net-dev,
+         locales,
          openssh-server,
+         netcat-openbsd,
+         net-tools,
          snapd
