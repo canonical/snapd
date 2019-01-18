@@ -58,7 +58,7 @@ func updateCurrentSymlinks(info *snap.Info) error {
 	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
 }
 
-func carriesFontConfigTools(info *snap.Info) bool {
+func hasFontConfigCache(info *snap.Info) bool {
 	if info.InstanceName() == "core" || info.InstanceName() == "snapd" {
 		return true
 	}
@@ -79,7 +79,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	// 'snapd' snaps
 	// for non-core snaps, fontconfig cache needs to be updated before the
 	// snap applications are runnable
-	if release.OnClassic && !carriesFontConfigTools(info) {
+	if release.OnClassic && !hasFontConfigCache(info) {
 		if err := updateFontconfigCaches(); err != nil {
 			logger.Noticef("cannot update fontconfig cache: %v", err)
 		}
@@ -105,7 +105,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 
 	// for core snap, fontconfig cache can be updated after the snap has
 	// been made available
-	if release.OnClassic && carriesFontConfigTools(info) {
+	if release.OnClassic && hasFontConfigCache(info) {
 		if err := updateFontconfigCaches(); err != nil {
 			logger.Noticef("cannot update fontconfig cache: %v", err)
 		}
