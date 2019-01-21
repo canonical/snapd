@@ -69,24 +69,31 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
+func canInstallSnapdSnap(st *state.State) error {
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if model == nil || model.Base() == "" {
+		tr := config.NewTransaction(st)
+		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		if !experimentalAllowSnapd {
+			return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+		}
+	}
+	return nil
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
 	if snapsup.InstanceName() == "snapd" {
-		model, err := Model(st)
-		if err != nil && err != state.ErrNoState {
+		if err := canInstallSnapdSnap(st); err != nil {
 			return nil, err
-		}
-		if model == nil || model.Base() == "" {
-			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-			if err != nil && !config.IsNoOption(err) {
-				return nil, err
-			}
-			if !experimentalAllowSnapd {
-				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
-			}
 		}
 	}
 	if snapst.IsInstalled() && !snapst.Active {

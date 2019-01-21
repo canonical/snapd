@@ -34,6 +34,7 @@ import (
 	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -56,6 +57,10 @@ func TestSnapshot(t *testing.T) { check.TestingT(t) }
 
 func (snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
+
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return nil, state.ErrNoState
+	}
 }
 
 func (snapshotSuite) TearDownTest(c *check.C) {

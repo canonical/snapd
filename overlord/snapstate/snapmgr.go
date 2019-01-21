@@ -502,6 +502,80 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	return nil
 }
 
+// ensureSnapdSnapTransition will migrate systems to use the "snapd" snap
+func (m *SnapManager) ensureSnapdSnapTransition() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// check if snapd snap is installed
+	var snapst SnapState
+	err := Get(m.state, "snapd", &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	// nothing to do
+	if snapst.IsInstalled() {
+		return nil
+	}
+
+	// check if we should try the transition
+	if err := canInstallSnapdSnap(m.state); err != nil {
+		// do nothing here, if the snapd snap cannot be installed
+		return nil
+	}
+
+	// get current core snap
+	err = Get(m.state, "core", &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	// no snapd snap, no core snap: do nothing (fresh classic install)
+	if err == state.ErrNoState {
+		return nil
+	}
+	coreChannel := snapst.Channel
+	userID := snapst.UserID
+
+	// check that there is no change in flight already, this is a
+	// precaution to ensure the snapd transition is safe
+	for _, chg := range m.state.Changes() {
+		if !chg.Status().Ready() {
+			// another change already in motion
+			return nil
+		}
+	}
+
+	// ensure we limit the retries in case something goes wrong
+	var lastSnapdTransitionAttempt time.Time
+	err = m.state.Get("snapd-transition-last-retry-time", &lastSnapdTransitionAttempt)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	now := time.Now()
+	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(6*time.Hour).After(now) {
+		return nil
+	}
+	m.state.Set("snapd-transition-last-retry-time", now)
+
+	var retryCount int
+	err = m.state.Get("snapd-transition-retry", &retryCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	m.state.Set("snapd-transition-retry", retryCount+1)
+
+	ts, err := Install(m.state, "snapd", coreChannel, snap.R(0), userID, Flags{})
+	if err != nil {
+		return err
+	}
+
+	msg := i18n.G("Transition to the snapd snap")
+	chg := m.state.NewChange("transition-to-snapd-snap", msg)
+	chg.AddAll(ts)
+
+	return nil
+}
+
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
 // to the new "core" snap
 func (m *SnapManager) ensureUbuntuCoreTransition() error {
@@ -642,6 +716,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
+		m.ensureSnapdSnapTransition(),
 		// we should check for full regular refreshes before
 		// considering issuing a hint only refresh request
 		m.autoRefresh.Ensure(),

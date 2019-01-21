@@ -12,9 +12,15 @@ execute: |
         exit 0
     fi
 
-    echo "Enable installing the snapd snap"
+    echo "Enable installing the snapd snap, this happens automatically"
     snap set core experimental.snapd-snap=true
-    snap install --edge snapd
+    for _ in $(seq 20); do
+        if snap list snapd; then
+            break
+        fi
+        sleep 6
+    done
+    snap list snapd
     # We need to pretend the version of snapd in the snapd snap is the same
     # as the installed one so that it re-execs. We use a higher version in
     # the local snap and "tweak" the core snap to get re-exec but this will

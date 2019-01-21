@@ -210,6 +210,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	runner.AddHandler("validate-snap", fakeHandler, nil)
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
+	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -310,6 +311,7 @@ const (
 	cleanupAfter
 	maybeCore
 	runCoreConfigure
+	noConfigure
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -366,9 +368,11 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
-	expected = append(expected,
-		"run-hook[configure]",
-	)
+	if opts&noConfigure == 0 {
+		expected = append(expected,
+			"run-hook[configure]",
+		)
+	}
 
 	c.Assert(kinds, DeepEquals, expected)
 }
@@ -11072,6 +11076,203 @@ func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
 	_, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "ubuntu-core to core transition in progress, no other changes allowed until this is done")
+
+	// and when the transition is done, other tasks run
+	chg.SetStatus(state.DoneStatus)
+	ts, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, IsNil)
+	c.Check(ts, NotNil)
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNOTRunWhenNotEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-to-snapd-snap")
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapRunthrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
+		Current:  snap.R(1),
+		SnapType: "os",
+		UserID:   2,
+		// TrackingChannel
+		Channel: "beta",
+	})
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Assert(chg.Kind(), Equals, "transition-to-snapd-snap")
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(s.fakeStore.downloads, HasLen, 1)
+	ts := state.NewTaskSet(chg.Tasks()...)
+	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+
+	// ensure preferences from the core snap got transferred over
+	var snapst snapstate.SnapState
+	snapstate.Get(s.state, "snapd", &snapst)
+	c.Assert(snapst.Channel, Equals, "beta")
+	c.Assert(snapst.UserID, Equals, 2)
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapTimeLimitWorks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	// tried 3h ago, no retry
+	s.state.Set("snapd-transition-last-retry-time", time.Now().Add(-3*time.Hour))
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	// tried 7h ago, retry
+	s.state.Set("snapd-transition-last-retry-time", time.Now().Add(-7*time.Hour))
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 1)
+
+	var t time.Time
+	s.state.Get("snapd-transition-last-retry-time", &t)
+	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWithoutCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure core is *not* installed
+	snapstate.Set(s.state, "core", nil)
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 0)
+}
+
+type unhappyStore struct {
+	*fakeStore
+}
+
+func (s unhappyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+
+	return nil, fmt.Errorf("a grumpy store")
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, unhappyStore{fakeStore: s.fakeStore})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, ErrorMatches, `state ensure errors: \[a grumpy store\]`)
+
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	// all the attempts were recorded
+	var t time.Time
+	s.state.Get("snapd-transition-last-retry-time", &t)
+	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+
+	var cnt int
+	s.state.Get("snapd-transition-retry", &cnt)
+	c.Assert(cnt, Equals, 1)
+
+	// the transition is not tried again (because of retry time)
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
+	s.state.Lock()
+
+	s.state.Get("snapd-transition-retry", &cnt)
+	c.Assert(cnt, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapBlocksOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// if we have a snapd transition
+	chg := s.state.NewChange("transition-to-snapd-snap", "...")
+	chg.SetStatus(state.DoStatus)
+
+	// other tasks block until the transition is done
+	_, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, "transition to snapd snap in progress, no other changes allowed until this is done")
 
 	// and when the transition is done, other tasks run
 	chg.SetStatus(state.DoneStatus)
