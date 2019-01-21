@@ -1,5 +1,8 @@
 summary: check that content interface works with parallel instances
 
+# takes >1.5min to run in total
+backends: [-autopkgtest]
+
 details: |
     Use the content interface along with parallel instances of snaps. Verify
     that the content is made available to each snap instance when connected.

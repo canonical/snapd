@@ -26,13 +26,11 @@ prepare: |
     install_generic_consumer kernel-module-control
 
 restore: |
-    rm -f ./*.error
     if lsmod | MATCH "$MODULE" && [ ! -f module_present ]; then
         rmmod "$MODULE"
     elif [ -f module_present ] && ! lsmod | MATCH "$MODULE" ; then
         insmod "$MODULE_PATH"
     fi
-    rm -f module_present
 
 debug: |
     lsmod

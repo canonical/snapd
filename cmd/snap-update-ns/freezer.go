@@ -30,10 +30,15 @@ import (
 
 var freezerCgroupDir = "/sys/fs/cgroup/freezer"
 
-// freezeSnapProcesses freezes all the processes originating from the given snap.
+var (
+	freezeSnapProcesses = freezeSnapProcessesImpl
+	thawSnapProcesses   = thawSnapProcessesImpl
+)
+
+// freezeSnapProcessesImpl freezes all the processes originating from the given snap.
 // Processes are frozen regardless of which particular snap application they
 // originate from.
-func freezeSnapProcesses(snapName string) error {
+func freezeSnapProcessesImpl(snapName string) error {
 	fname := filepath.Join(freezerCgroupDir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
 	if err := ioutil.WriteFile(fname, []byte("FROZEN"), 0644); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to freeze anything.
@@ -60,7 +65,7 @@ func freezeSnapProcesses(snapName string) error {
 	return fmt.Errorf("cannot finish freezing processes of snap %q", snapName)
 }
 
-func thawSnapProcesses(snapName string) error {
+func thawSnapProcessesImpl(snapName string) error {
 	fname := filepath.Join(freezerCgroupDir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
 	if err := ioutil.WriteFile(fname, []byte("THAWED"), 0644); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to thaw anything.

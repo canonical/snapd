@@ -40,7 +40,7 @@ prepare: |
     rm -rf browser-support-consumer
 
 restore: |
-    rm -f ./*.error /var/tmp/test
+    rm -f /var/tmp/test
     for file in $OWNED_FILES $READABLE_FILES $READABLE_WITH_SANDBOX_FILES; do
         rm -f "$file"
     done

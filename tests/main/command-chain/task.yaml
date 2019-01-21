@@ -13,9 +13,6 @@ prepare: |
     snap pack "$TESTSLIB/snaps/command-chain"
     snap install --dangerous command-chain_1.0_all.snap
 
-restore: |
-    rm -f command-chain_1.0_all.snap
-
 execute: |
     echo "Test that command-chain runs for hooks"
     [ "$(cat "$BREADCRUMB")" = "chain1 chain2 configure" ]

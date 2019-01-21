@@ -20,12 +20,28 @@ description: |
 systems: [ubuntu-core-16-64]
 
 prepare: |
+    # Core image that were created using spread will have a fake "gpio-pin".
+    # Other (e.g. official) images will not have that and there we can't use
+    # this test.
+    if ! snap interfaces|grep -q gpio-pin; then
+        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
+        exit 0
+    fi
+
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     echo "Create/enable fake gpio"
     systemd_create_and_start_persistent_unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py"  '[Unit]\nBefore=snap.core.interface.gpio-100.service\n[Service]\nType=notify'
 
 restore: |
+    # Core image that were created using spread will have a fake "gpio-pin".
+    # Other (e.g. official) images will not have that and there we can't use
+    # this test.
+    if ! snap interfaces|grep -q gpio-pin; then
+        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
+        exit 0
+    fi
+
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     system_stop_and_remove_persistent_unit fake-gpio
@@ -36,6 +52,14 @@ debug: |
     journalctl -u fake-gpio.service
 
 execute: |
+    # Core image that were created using spread will have a fake "gpio-pin".
+    # Other (e.g. official) images will not have that and there we can't use
+    # this test.
+    if ! snap interfaces|grep -q gpio-pin; then
+        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
+        exit 0
+    fi
+
     echo "Install a snap that uses the gpio consumer"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh

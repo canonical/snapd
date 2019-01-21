@@ -9,9 +9,6 @@ prepare: |
     echo "Given the test-snapd-gpio-memory-control snap is installed"
     snap install test-snapd-gpio-memory-control
 
-restore: |
-    rm -f call.error
-
 execute: |
     if ! [ -c /dev/gpiomem ]; then
         echo "The /dev/gpiomem device does not exist in current system"
