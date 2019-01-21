@@ -257,6 +257,7 @@ prepare_classic() {
         snap wait system seed.loaded
 
         # Cache snaps
+        # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
         ! snap list | grep core || exit 1
