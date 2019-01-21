@@ -1,0 +1,37 @@
+summary: Ensure that the dbus interface works on the system bus.
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    echo "Install dbus system test snaps"
+    snap install --edge test-snapd-dbus-provider
+    snap install --edge test-snapd-dbus-consumer
+
+    echo "Wait for dbus service to auto-start"
+    for _ in $(seq 60); do
+        if dbus-send --system --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"; then
+            break
+        fi
+        sleep 1
+    done
+
+    echo "The dbus consumer plug is disconnected by default"
+    snap interfaces -i dbus | MATCH '^- +test-snapd-dbus-consumer:dbus-system-test'
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "And the consumer is not able to access the provided method"
+    if test-snapd-dbus-consumer.dbus-system-consumer 2> call.error; then
+        echo "Expected permission error calling dbus method with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+
+    echo "When the plug is connected"
+    snap connect test-snapd-dbus-consumer:dbus-system-test test-snapd-dbus-provider:dbus-system-test
+
+    echo "Then the consumer is able to call the provided method"
+    test-snapd-dbus-consumer.dbus-system-consumer | MATCH "hello world"

@@ -7,11 +7,19 @@ apps:
     provider:
         command: wrapper
         slots: [dbus-test]
+    system-provider:
+        command: wrapper
+        daemon: simple
+        slots: [dbus-system-test]
 
 slots:
     dbus-test:
         interface: dbus
         bus: session
+        name: com.dbustest.HelloWorld
+    dbus-system-test:
+        interface: dbus
+        bus: system
         name: com.dbustest.HelloWorld
 
 parts:
