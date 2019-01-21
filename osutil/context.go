@@ -20,12 +20,11 @@
 package osutil
 
 import (
+	"context"
 	"io"
 	"os/exec"
 	"sync/atomic"
 	"syscall"
-
-	"golang.org/x/net/context"
 )
 
 // ContextWriter returns a discarding io.Writer which Write method
