@@ -18,10 +18,10 @@ prepare: |
     . "$TESTSLIB/dirs.sh"
 
     echo "Give a snap declaring a dbus slot in installed"
-    snap install --edge test-snapd-dbus-provider
+    snap install --beta test-snapd-dbus-provider
 
     echo "And a snap declaring a matching dbus plug is installed"
-    snap install --edge test-snapd-dbus-consumer
+    snap install --beta test-snapd-dbus-consumer
 
     echo "And the provider dbus loop is started"
     #shellcheck source=tests/lib/dbus.sh
