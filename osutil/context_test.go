@@ -20,13 +20,13 @@
 package osutil_test
 
 import (
+	"context"
 	"io"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
