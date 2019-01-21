@@ -257,7 +257,7 @@ prepare_classic() {
         snap wait system seed.loaded
 
         # Cache snaps
-        cache_snaps ${PRE_CACHE_SNAPS:-}
+        cache_snaps "$PRE_CACHE_SNAPS"
 
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
