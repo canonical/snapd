@@ -257,7 +257,7 @@ prepare_classic() {
         snap wait system seed.loaded
 
         # Cache snaps
-        cache_snaps "$PRE_CACHE_SNAPS"
+        cache_snaps ${PRE_CACHE_SNAPS}
 
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
@@ -641,7 +641,7 @@ cache_snaps(){
         cd "$TESTSLIB/cache/"
         # Download each of the snaps we want to pre-cache. Note that `snap download`
         # a quick no-op if the file is complete.
-        for snap_name in $@; do
+        for snap_name in "$@"; do
             snap download "$snap_name"
         done
         # Copy all of the snaps back to the spool directory. From there we
