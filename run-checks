@@ -16,7 +16,7 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
-# ensure we use go-1.0 by default
+# ensure we use go-1.10 by default
 export PATH=/usr/lib/go-1.10/bin:${PATH}
 
 # add workaround for https://github.com/golang/go/issues/24449
