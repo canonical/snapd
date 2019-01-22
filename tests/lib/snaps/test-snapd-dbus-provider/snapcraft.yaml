@@ -11,6 +11,24 @@ apps:
         command: wrapper system
         daemon: simple
         slots: [dbus-system-test]
+    # provide an in-snap consumer as well for testing
+    consumer:
+        command: consumer.py session
+        plugs: [dbus-test-plug]
+    system-consumer:
+        command: consumer.py system
+        plugs: [dbus-system-test-plug]
+
+
+plugs:
+    dbus-test-plug:
+        interface: dbus
+        bus: session
+        name: com.dbustest.HelloWorld
+    dbus-system-test-plug:
+        interface: dbus
+        bus: system
+        name: com.dbustest.HelloWorld
 
 slots:
     dbus-test:
