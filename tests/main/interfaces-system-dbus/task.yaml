@@ -35,3 +35,12 @@ execute: |
 
     echo "Then the consumer is able to call the provided method"
     test-snapd-dbus-consumer.dbus-system-consumer | MATCH "hello world"
+
+
+
+    echo "Also check if dbus works if plug/slot come from the same snap"
+    snap connect test-snapd-dbus-provider:dbus-system-test-plug test-snapd-dbus-provider:dbus-system-test
+    test-snapd-dbus-provider.system-consumer | MATCH "hello world"
+
+    echo "And the other connection still works"
+    test-snapd-dbus-consumer.dbus-system-consumer | MATCH "hello world"
