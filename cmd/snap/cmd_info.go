@@ -266,9 +266,10 @@ func printSummary(w io.Writer, raw string, width int) error {
 	type T struct {
 		S string
 	}
-	err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{})
-	if err != nil {
-		raw = strconv.Quote(strings.TrimSpace(raw))
+	if len(raw) == 0 {
+		raw = `""`
+	} else if yaml.UnmarshalStrict([]byte("s: "+raw), &T{}) != nil {
+		raw = strconv.Quote(raw)
 	}
 
 	return wrapFlow(w, []rune(raw), "summary:\t", width)
