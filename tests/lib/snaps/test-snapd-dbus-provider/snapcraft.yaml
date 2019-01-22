@@ -8,7 +8,7 @@ apps:
         command: wrapper
         slots: [dbus-test]
     system-provider:
-        command: wrapper
+        command: wrapper system
         daemon: simple
         slots: [dbus-system-test]
 

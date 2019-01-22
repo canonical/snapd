@@ -7,7 +7,8 @@ def run(bus):
     print(obj.SayHello(dbus_interface="com.dbustest.HelloWorld"))
 
 if __name__ == "__main__":
-    bus = dbus.SessionBus()
     if sys.argv[1] == "system":
         bus = dbus.SystemBus()
+    else:
+        bus = dbus.SessionBus()
     run(bus)
