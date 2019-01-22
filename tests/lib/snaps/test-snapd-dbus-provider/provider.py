@@ -21,8 +21,11 @@ class DBusProvider(dbus.service.Object):
 if __name__ == "__main__":
     if sys.argv[1] == "system":
         bus = dbus.SystemBus()
-    else:
+    elif sys.argv[1] == "session":
         bus = dbus.SessionBus()
+    else:
+        print("unknown bus: %s", sys.argv[1:])
+        sys.exit(1)
     DBusProvider(bus)
     loop = GLib.MainLoop()
     loop.run()
