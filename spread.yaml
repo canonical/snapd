@@ -475,7 +475,7 @@ repack: |
         tar c current.delta >&4
     fi
 
-kill-timeout: 20m
+kill-timeout: 30m
 
 prepare: |
     # NOTE: This part of the code needs to be in spread.yaml as it runs before
