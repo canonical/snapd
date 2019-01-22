@@ -3,6 +3,9 @@ summary: Run project static and unit tests
 # Start before anything else as it takes a long time.
 priority: 1000
 
+# debian-sid will complain about incorrect formating (go1.11?)
+systems: [-debian-sid-*]
+
 restore: |
     rm -rf /tmp/static-unit-tests
 
