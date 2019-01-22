@@ -241,3 +241,11 @@ func MockSELinuxRestoreContext(restorecon func(string, selinux.RestoreMode) erro
 		selinuxRestoreContext = old
 	}
 }
+
+func MockGetTermSize(newGetTermSize func() (int, int)) (restore func()) {
+	old := getTermSize
+	getTermSize = newGetTermSize
+	return func() {
+		getTermSize = old
+	}
+}
