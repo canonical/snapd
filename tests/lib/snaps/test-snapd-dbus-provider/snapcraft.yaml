@@ -5,7 +5,7 @@ description: A basic snap declaring a dbus slot
 
 apps:
     provider:
-        command: wrapper
+        command: wrapper session
         slots: [dbus-test]
     system-provider:
         command: wrapper system
