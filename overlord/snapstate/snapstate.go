@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // control flags for doInstall
@@ -536,6 +537,11 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		if si.Revision.Unset() {
 			return nil, nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", path)
 		}
+	}
+
+	channel, err = withPinnedTrack(st, instanceName, channel)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	if err := canSwitchChannel(st, instanceName, channel); err != nil {
@@ -1066,6 +1072,39 @@ func canSwitchChannel(st *state.State, snapName, newChannel string) error {
 	return nil
 }
 
+// withPinnedTrack given the new channel name that only specifies the risk,
+// figures out the full track/channel name for snaps that have their tracks
+// pinned in the model assertion. Otherwise returns the requested channel name.
+func withPinnedTrack(st *state.State, snapName, newChannel string) (updatedChannel string, err error) {
+	if newChannel == "" {
+		return newChannel, nil
+	}
+
+	// for risk-only channels
+	if !strutil.ListContains(snap.ChannelRisks, newChannel) {
+		return newChannel, nil
+	}
+
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return "", err
+	}
+	if model == nil {
+		// no model, no pinned tracks
+		return newChannel, nil
+	}
+
+	switch {
+	case snapName == model.Kernel():
+		updatedChannel = model.KernelTrack() + "/" + newChannel
+	case snapName == model.Gadget():
+		updatedChannel = model.GadgetTrack() + "/" + newChannel
+	default:
+		updatedChannel = newChannel
+	}
+	return updatedChannel, nil
+}
+
 // Switch switches a snap to a new channel
 func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	var snapst SnapState
@@ -1078,6 +1117,11 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	}
 
 	if err := CheckChangeConflict(st, name, nil); err != nil {
+		return nil, err
+	}
+
+	channel, err = withPinnedTrack(st, name, channel)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1117,6 +1161,11 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 
 	// need to have a model set before trying to talk the store
 	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, err
+	}
+
+	channel, err = withPinnedTrack(st, name, channel)
+	if err != nil {
 		return nil, err
 	}
 
