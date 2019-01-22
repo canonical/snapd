@@ -39,11 +39,10 @@ import (
 var errNoSnap = errors.New("snap not installed")
 
 // snapIcon tries to find the icon inside the snap
-func snapIcon(info *snap.Info) string {
-	// XXX: copy of snap.Snap.Icon which will go away
+func snapIcon(info snap.PlaceInfo) string {
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return info.Media.IconURL()
+		return ""
 	}
 
 	return found[0]
@@ -358,7 +357,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Developer:    remoteSnap.Publisher.Username,
 		Publisher:    &publisher,
 		DownloadSize: remoteSnap.Size,
-		Icon:         snapIcon(remoteSnap),
+		Icon:         remoteSnap.Media.IconURL(),
 		ID:           remoteSnap.SnapID,
 		Name:         remoteSnap.InstanceName(),
 		Revision:     remoteSnap.Revision,
