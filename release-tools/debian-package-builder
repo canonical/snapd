@@ -1,0 +1,106 @@
+#!/usr/bin/make -f
+# This program allows one to, relatively easily, iterate on debian packaging in
+# a way that is extremely close to that occurring in the real Debian archive.
+#
+# The key aspect is that packaging is done on a machine running Debian (either
+# 9 or 10), with the real Debian kernel, with real build-packages (that is,
+# devoid of any patches potentially present only in Debian), with correct
+# pristine build environment, unspoiled by convenience packages often present on
+# workstation environments. 
+#
+# The systme is "portable", being able to execute on anything capable of
+# running Multipass and apt-cacher-ng. The workflow is as follows:
+#
+# - prepare host environment:
+#   $ snap install multipass --classic --edge
+#   $ apt install apt-cacher-ng
+# - prepare scratch build machine:
+#   $ ./debian-package-builder create-debian-10
+#   $ ./debian-package-builder prepare-debian-10
+# - prepare the source package:
+#   On appropriate branch of the git tree compatible with
+#   building the debian package, e.g. https://salsa.debian.org/zyga-guest/snapd
+#   on the "debian" branch, issue the command
+#   $ apt-get build-dep ./
+#   $ dpkg-buildpackage -S
+#   TIP: you can iterate on the packing and repeat this step!
+#   If you need to make patches to upstream snapd parts use the "debian-patches"
+#   branch from the same repository, where history is broken down. Then use
+#   $ git format-patches 2.37..HEAD
+#   ...to export any changes made and place the generated patches as files in the
+#   "debian" branch, inside the directory ./debian/patches. Make sure each
+#   patch is listed in the file ./debian/patches/series. Then re-run
+#   $ dpkg-buildpackage -S
+#   The resulting package will be placed in the parent directory of the root of
+#   the project, e.g. in $HOME/packaging/src/github.com/snapcore, assuming a
+#   setup where the GOPATH was set to $HOME/packaging
+# - build the binary package
+#   While being in the directory $HOME/packaging/src/github.com/snapcore issue
+#   ./debian-packaging-builder build-on-debian-10
+#   This step will copy the source package to an appropriate multipass virtual
+#   machine and build it there using sbuild. Any build dependencies obtained in
+#   this step are automatically cached and are quick to reuse on subsequent
+#   runs.
+#
+#   In case the build fails an interactive shell will be spawned by sbuild, still
+#   running inside the virtual machine. The package is unpacked twice, you
+#   really only care about the files in the _build directory. You can set
+#   GOPATH manually to
+#   GOPATH=/path/to/directory/called/_build:/usr/share/gocode and run tests and
+#   iterate as usual. The source tree alongside the _build directory is useful
+#   for comparison and for generating patches..
+
+# There must be an apt-cacher-ng installation on the host.
+proxy_url=http://$(shell ip -br address show dev eth0 | awk '{print $$3}' | cut -d / -f 1):3142
+
+# Packages that are not required for building snapd but are useful for interactive development.
+packages=git sbuild mc devscripts avahi-daemon ssh emacs-nox vim-nox rsync
+
+# Helpful function for running a command on the remote machine.
+# Assumes that the target name ends with machine name, like below.
+remote=multipass exec $* --
+
+PHONY: help
+help:
+	@echo "Availale targets"
+	@echo "  create-NAME: create a multipass virtual machine"
+	@echo "  prepare-NAME: prepare a virtual machine for building packages"
+	@echo "  destroy-NAME: destroy a multipass virtual machine"
+	@echo "  build-on-NAME: copy a source package and build it on a virtual machine"
+	@echo
+	@echo "Available names are: debian-9 debian-10"
+	@echo "NOTE: You must provide the source package yourself"
+	@echo "Please read the script for additional instructions."
+
+.PHONY: create-debian-9
+create-debian-9:
+	multipass launch -n debian-9 -c 8 -m 4G https://cdimage.debian.org/mirror/cdimage/openstack/current/debian-9.6.4-20190118-openstack-amd64.qcow2
+
+.PHONY: create-debian-10
+create-debian-10:
+	multipass launch -n debian-10 -c 8 -m 4G https://cdimage.debian.org/mirror/cdimage/openstack/testing/debian-testing-openstack-amd64.qcow2
+
+.PHONY: prepare-debian-9 prepare-debian-10
+prepare-debian-9 prepare-debian-10: prepare-%:
+	$(remote) sudo mkdir -p /etc/apt/apt.conf.d/
+	$(remote) sudo sh -c 'echo "Acquire::HTTP::Proxy \"$(proxy_url)\";" > /etc/apt/apt.conf.d/00proxy'
+	-$(remote) sudo apt-get update
+	$(remote) sudo apt-get dist-upgrade -y
+	$(remote) sudo apt-get install -y eatmydata $(packages)
+	$(remote) sudo apt-get autoremove -y
+	$(remote) sudo sbuild-adduser $(shell $(remote) whoami)
+	$(remote) cp /usr/share/doc/sbuild/examples/example.sbuildrc /home/multipass/.sbuildrc
+	# XXX: cloud images come with pre-made chroot?
+	$(remote) sudo rm -f /etc/schroot/chroot.d/sid-amd64-sbuild-*
+	$(remote) sudo rm -rf /srv/chroot/sid-amd64-sbuild
+	# NOTE: the chroot is always for sid, this is mainly to test the impact of the kernel.
+	$(remote) sudo eatmydata sbuild-createchroot --include=eatmydata,ccache,gnupg sid /srv/chroot/sid-amd64-sbuild $(proxy_url)/debian
+
+.PHONY: destroy-debian-9 destroy-debian-10
+destroy-debian-9 destroy-debian-10: destroy-%:
+	multipass delete -p $*
+
+build-on-debian-9 build-on-debian-10: build-on-%:
+	multipass copy-files snapd_*.debian.tar.xz snapd_*.dsc snapd_*.orig.tar.xz snapd-*.tar.gz $*:/home/multipass/
+	# NOTE: %s expands to a command that starts an interactive shell for debugging.
+	$(remote) sbuild -d sid --build-failed-commands=%s --run-autopkgtest $(shell ls snapd_*.dsc | sort -r -n | head -n 1)
