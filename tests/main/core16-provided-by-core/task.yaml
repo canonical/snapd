@@ -1,0 +1,15 @@
+summary: Ensure that the core snap is usable as an alias for core16
+
+execute: |
+    echo "Ensure core is installed"
+    if ! snap list core; then
+        snap install core
+    fi
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-sh-core16
+    test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
+
+    echo "and core16 was not pulled in"
+    ! snap list core16
