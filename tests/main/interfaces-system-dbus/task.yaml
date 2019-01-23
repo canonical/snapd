@@ -4,15 +4,12 @@ prepare: |
     echo "Install dbus system test snaps"
     snap install --edge test-snapd-dbus-provider
     snap install --edge test-snapd-dbus-consumer
-
-    echo "Wait for dbus service to auto-start"
-    for _ in $(seq 60); do
-        if dbus-send --system --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"; then
-            break
-        fi
-        sleep 1
-    done
-    dbus-send --system --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"
+    # we can only talk from an unconfied dbus-send to the service on classic,
+    # on ubuntu-core devices *all* dbus calls are mediated.
+    echo "Ensure the dbus service is up"
+    if ! grep -q ID=ubuntu-core /etc/os-release; then
+        dbus-send --system --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"
+    fi
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
