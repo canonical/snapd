@@ -897,8 +897,12 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		// are going to use
 		if isReexeced() {
 			// same rule as when choosing the location of snap-confine
-			snapExecPath = filepath.Join(dirs.SnapMountDir, "core/current",
-				dirs.CoreLibExecDir, "snap-exec")
+			exe, err := osReadlink("/proc/self/exe")
+			if err != nil {
+				return err
+			}
+			snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
+			snapExecPath = filepath.Join(snapBase, dirs.CoreLibExecDir, "snap-exec")
 		} else {
 			// there is no mount namespace where 'core' is the
 			// rootfs, hence we need to use distro's snap-exec
