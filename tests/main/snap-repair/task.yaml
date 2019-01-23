@@ -1,6 +1,6 @@
 summary: Ensure that snap-repair is available
 
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*]
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
