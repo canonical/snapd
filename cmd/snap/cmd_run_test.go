@@ -510,23 +510,35 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }
 
-func (s *RunSuite) TestSnapRunIsReexeced(c *check.C) {
+func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 	var osReadlinkResult string
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		return osReadlinkResult, nil
 	})
 	defer restore()
 
+	tool := "snap-confine"
 	for _, t := range []struct {
 		readlink string
-		expected bool
+		expected string
 	}{
-		{filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, "snapd"), true},
-		{filepath.Join(dirs.SnapMountDir, "snapd/current", dirs.CoreLibExecDir, "snapd"), true},
-		{filepath.Join(dirs.DistroLibExecDir, "snapd"), false},
+		{
+			filepath.Join(dirs.SnapMountDir, "core/current/usr/bin/snap"),
+			filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, tool),
+		},
+		{
+			filepath.Join(dirs.SnapMountDir, "snapd/current/usr/bin/snap"),
+			filepath.Join(dirs.SnapMountDir, "snapd/current", dirs.CoreLibExecDir, tool),
+		},
+		{
+			filepath.Join("/usr/bin/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
 	} {
 		osReadlinkResult = t.readlink
-		c.Check(snaprun.IsReexeced(), check.Equals, t.expected)
+		toolPath, err := snaprun.SnapdHelperPath(tool)
+		c.Assert(err, check.IsNil)
+		c.Check(toolPath, check.Equals, t.expected)
 	}
 }
 

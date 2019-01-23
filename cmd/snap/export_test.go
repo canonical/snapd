@@ -40,7 +40,7 @@ var (
 
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
-	IsReexeced         = isReexeced
+	SnapdHelperPath    = snapdHelperPath
 	MaybePrintServices = maybePrintServices
 	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
