@@ -6,4 +6,3 @@
 0006-systemd-disable-snapfuse-system.patch
 0007-i18n-use-dummy-localizations-to-avoid-dependencies.patch
 0008-snap-squashsh-skip-TestBuildDate-on-Debian.patch
-0009-interfaces-apparmor-mock-presence-of-overlayfs-root.patch
