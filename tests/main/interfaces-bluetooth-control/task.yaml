@@ -33,12 +33,12 @@ execute: |
     cat "$BTDEV"/*/power/control | tee control
     [ "$(su -l -c '/snap/bin/generic-consumer.cmd cat '"$BTDEV"'/*/power/control' test)" = "$(cat control)" ]
 
-    echo "When the plug is disconnected"
-    snap disconnect generic-consumer:bluetooth-control
-
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
+
+    echo "When the plug is disconnected"
+    snap disconnect generic-consumer:bluetooth-control
 
     echo "And the snap is not able to read usb"
     if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/bus/usb/drivers/btusb/module/version" test 2> btusb.error; then

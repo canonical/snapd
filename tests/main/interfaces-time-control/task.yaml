@@ -33,21 +33,21 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:time-control
 
-    echo "Then read/write to hwclock access should be possible"
+    echo "Then read/write hwclock access should be possible"
     test-snapd-timedate-control-consumer.hwclock-time -r -f /dev/rtc
     test-snapd-timedate-control-consumer.hwclock-time --systohc -f /dev/rtc
 
     echo "And read access should be possible"
     test-snapd-timedate-control-consumer.timedatectl-time status | MATCH "RTC in local TZ:"
 
-    echo "And save the RTC initial value should be possible"
+    echo "And writing the initial value to RTC should be possible"
     test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)' > rtc.txt
 
-    echo "And set the local rtc and check the status should be possible"
+    echo "And reading/writing local RTC status should be possible"
     test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc yes
     [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "yes" ]
 
-    echo "And re-set the local rtc and check the status should be possible"
+    echo "And resetting the local rtc status should be possible (reading the status is implied AIUI)"
     test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc no
     [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
 

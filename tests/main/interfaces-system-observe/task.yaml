@@ -61,7 +61,7 @@ execute: |
 
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         echo "And the snap is not able to introspect hostname1"
-        if su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test 2> introspect.error"; then
+        if su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test 2> introspect.error; then
             echo "Expected error with plug disconnected"
             exit 1
         fi
