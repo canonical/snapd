@@ -539,12 +539,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	channel, err = withPinnedTrack(st, instanceName, channel)
+	channel, err = switchChannel(st, instanceName, channel)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	if err := canSwitchChannel(st, instanceName, channel); err != nil {
 		return nil, nil, err
 	}
 
@@ -1033,76 +1029,55 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
-// canSwitchChannel returns an error if switching to newChannel for snap is
-// forbidden.
-func canSwitchChannel(st *state.State, snapName, newChannel string) error {
+// switchChannel returns the effective channel to use, based on the requested
+// channel and constrains set by device model, or an error if switching to
+// requested channel is forbidden.
+func switchChannel(st *state.State, snapName, newChannel string) (effectiveChannel string, err error) {
 	// nothing to do
 	if newChannel == "" {
-		return nil
+		return "", nil
 	}
 
 	// ensure we do not switch away from the kernel-track in the model
 	model, err := Model(st)
 	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	if model == nil {
-		return nil
-	}
-
-	if snapName == model.Kernel() && model.KernelTrack() != "" {
-		nch, err := snap.ParseChannel(newChannel, "")
-		if err != nil {
-			return err
-		}
-		if nch.Track != model.KernelTrack() {
-			return fmt.Errorf("cannot switch from kernel track %q as specified for the (device) model to %q", model.KernelTrack(), nch.String())
-		}
-	}
-	if snapName == model.Gadget() && model.GadgetTrack() != "" {
-		nch, err := snap.ParseChannel(newChannel, "")
-		if err != nil {
-			return err
-		}
-		if nch.Track != model.GadgetTrack() {
-			return fmt.Errorf("cannot switch from gadget track %q as specified for the (device) model to %q", model.GadgetTrack(), nch.String())
-		}
-	}
-
-	return nil
-}
-
-// withPinnedTrack given the new channel name that only specifies the risk,
-// figures out the full track/channel name for snaps that have their tracks
-// pinned in the model assertion. Otherwise returns the requested channel name.
-func withPinnedTrack(st *state.State, snapName, newChannel string) (updatedChannel string, err error) {
-	if newChannel == "" {
-		return newChannel, nil
-	}
-
-	// for risk-only channels
-	if !strutil.ListContains(snap.ChannelRisks, newChannel) {
-		return newChannel, nil
-	}
-
-	model, err := Model(st)
-	if err != nil && err != state.ErrNoState {
 		return "", err
 	}
 	if model == nil {
-		// no model, no pinned tracks
 		return newChannel, nil
 	}
 
-	switch {
-	case snapName == model.Kernel():
-		updatedChannel = model.KernelTrack() + "/" + newChannel
-	case snapName == model.Gadget():
-		updatedChannel = model.GadgetTrack() + "/" + newChannel
-	default:
-		updatedChannel = newChannel
+	var pinnedTrack, which string
+	if snapName == model.Kernel() && model.KernelTrack() != "" {
+		pinnedTrack, which = model.KernelTrack(), "kernel"
 	}
-	return updatedChannel, nil
+	if snapName == model.Gadget() && model.GadgetTrack() != "" {
+		pinnedTrack, which = model.GadgetTrack(), "gadget"
+	}
+
+	if pinnedTrack == "" {
+		// no pinned track
+		return newChannel, nil
+	}
+
+	if strutil.ListContains(snap.ChannelRisks, newChannel) {
+		// channel name is valid and consist of risk level only, do the
+		// right thing and default to risk within the pinned track
+		return pinnedTrack + "/" + newChannel, nil
+	}
+
+	nch, err := snap.ParseChannel(newChannel, "")
+	if err != nil {
+		return "", err
+	}
+
+	if nch.Track != pinnedTrack {
+		// switching to a different track is not allowed
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.String())
+
+	}
+
+	return newChannel, nil
 }
 
 // Switch switches a snap to a new channel
@@ -1120,12 +1095,8 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	channel, err = withPinnedTrack(st, name, channel)
+	channel, err = switchChannel(st, name, channel)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := canSwitchChannel(st, name, channel); err != nil {
 		return nil, err
 	}
 
@@ -1164,12 +1135,8 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return nil, err
 	}
 
-	channel, err = withPinnedTrack(st, name, channel)
+	channel, err = switchChannel(st, name, channel)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := canSwitchChannel(st, name, channel); err != nil {
 		return nil, err
 	}
 

@@ -13104,29 +13104,47 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 	c.Assert(s.snapmgr.CanStandby(), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestWithPinnedTrack(c *C) {
+func (s *snapmgrTestSuite) TestSwitchChannelPinnedTrack(c *C) {
 	for _, tc := range []struct {
 		snap        string
 		new         string
 		exp         string
 		kernelTrack string
 		gadgetTrack string
+		err         string
 	}{
 		// neither kernel nor gadget
-		{"some-snap", "", "", "", ""},
-		{"some-snap", "stable", "stable", "", ""},
-		{"some-snap", "foo/stable", "foo/stable", "", ""},
+		{snap: "some-snap"},
+		{snap: "some-snap", new: "stable", exp: "stable"},
+		{snap: "some-snap", new: "foo/stable", exp: "foo/stable"},
+		{snap: "some-snap", new: "stable/with-branch", exp: "stable/with-branch"},
+		{snap: "some-snap", new: "supertrack/stable", exp: "supertrack/stable"},
+		{snap: "some-snap", new: "supertrack/stable/with-branch", exp: "supertrack/stable/with-branch"},
+		// kernel or gadget snap set, but unrelated snap
+		{snap: "some-snap", new: "stable", exp: "stable", kernelTrack: "18"},
+		{snap: "some-snap", new: "foo/stable", exp: "foo/stable", kernelTrack: "18"},
+		{snap: "some-snap", new: "foo/stable", exp: "foo/stable", gadgetTrack: "18"},
+		// no pinned track
+		{snap: "kernel", new: "latest/stable", exp: "latest/stable"},
+		{snap: "kernel", new: "stable", exp: "stable"},
+		{snap: "brand-gadget", new: "stable", exp: "stable"},
 		// not a risk only request
-		{"kernel", "foo/stable", "foo/stable", "18", ""},
-		{"kernel", "18/stable", "18/stable", "17", ""},
-		{"brand-gadget", "foo/stable", "foo/stable", "18", ""},
-		{"brand-gadget", "18/stable", "18/stable", "17", ""},
-		// inherits gadget track
-		{"brand-gadget", "stable", "17/stable", "", "17"},
-		{"brand-gadget", "edge", "17/edge", "", "17"},
-		// inherits kernel track
-		{"kernel", "stable", "17/stable", "17", ""},
-		{"kernel", "edge", "17/edge", "17", ""},
+		{snap: "kernel", new: "latest/stable", kernelTrack: "18", err: "cannot switch from kernel track.*"},
+		{snap: "kernel", new: "foo/stable", kernelTrack: "18", err: "cannot switch from kernel track.*"},
+		{snap: "brand-gadget", new: "foo/stable", exp: "18/stable", gadgetTrack: "18", err: "cannot switch from gadget track.*"},
+		{snap: "kernel", new: "stable/hotfix-123", kernelTrack: "18", err: "cannot switch from kernel track.*"},
+		{snap: "kernel", new: "18/stable", exp: "18/stable", kernelTrack: "18"},
+		{snap: "kernel", new: "18/stable", exp: "18/stable"},
+		{snap: "brand-gadget", new: "18/stable", exp: "18/stable", gadgetTrack: "18"},
+		{snap: "brand-gadget", new: "18/stable", exp: "18/stable"},
+		// branch risk/branch within a track
+		{snap: "kernel", new: "18/stable/hotfix-123", exp: "18/stable/hotfix-123", kernelTrack: "18"},
+		// risk only defaults to pinned gadget track
+		{snap: "brand-gadget", new: "stable", exp: "17/stable", gadgetTrack: "17"},
+		{snap: "brand-gadget", new: "edge", exp: "17/edge", gadgetTrack: "17"},
+		// risk only defaults to pinned kernel track
+		{snap: "kernel", new: "stable", exp: "17/stable", kernelTrack: "17"},
+		{snap: "kernel", new: "edge", exp: "17/edge", kernelTrack: "17"},
 	} {
 		c.Logf("tc: %+v", tc)
 		if tc.kernelTrack != "" && tc.gadgetTrack != "" {
@@ -13141,10 +13159,14 @@ func (s *snapmgrTestSuite) TestWithPinnedTrack(c *C) {
 		default:
 			snapstate.SetDefaultModel()
 		}
-		ch, err := snapstate.WithPinnedTrack(s.state, tc.snap, tc.new)
+		ch, err := snapstate.SwitchChannel(s.state, tc.snap, tc.new)
 		s.state.Unlock()
-		c.Check(err, IsNil)
-		c.Check(ch, Equals, tc.exp)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(ch, Equals, tc.exp)
+		}
 	}
 }
 

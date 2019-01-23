@@ -82,7 +82,7 @@ var (
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
-	WithPinnedTrack        = withPinnedTrack
+	SwitchChannel          = switchChannel
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
