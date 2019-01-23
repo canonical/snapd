@@ -59,7 +59,7 @@ const pulseaudioConnectedPlugAppArmorDesktop = `
 # to read available client side configuration settings. On an Ubuntu Core
 # device those things will be stored inside the snap directory.
 /etc/pulse/ r,
-/etc/pulse/* r,
+/etc/pulse/** r,
 owner @{HOME}/.pulse-cookie rk,
 owner @{HOME}/.config/pulse/cookie rk,
 owner /{,var/}run/user/*/pulse/ rwk,
