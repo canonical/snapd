@@ -53,7 +53,7 @@ execute: |
     snap disconnect test-snapd-system-observe-consumer:system-observe
 
     echo "Then the snap is not able to get system information"
-    if su -l -c "test-snapd-system-observe-consumer.consumer" test 2> consumer.error"; then
+    if su -l -c "test-snapd-system-observe-consumer.consumer" test 2> consumer.error; then
         echo "Expected error with plug disconnected"
         exit 1
     fi
