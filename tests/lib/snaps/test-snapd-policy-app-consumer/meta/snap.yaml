@@ -356,6 +356,9 @@ apps:
   x11:
     command: bin/run
     plugs: [ x11 ]
+  yubikey:
+    command: bin/run
+    plugs: [ yubikey ]
 
 plugs:
   browser-sandbox:
