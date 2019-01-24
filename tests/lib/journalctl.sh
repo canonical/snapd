@@ -11,7 +11,7 @@ get_last_journalctl_cursor(){
 }
 
 start_new_journalctl_log(){
-    echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test
+    echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test -p alert
     cursor=$(get_last_journalctl_cursor)
     if [ -z "$cursor" ]; then
         echo "Empty journalctl cursor, exiting..."
@@ -24,8 +24,8 @@ start_new_journalctl_log(){
 
 check_journalctl_ready(){
     marker="test-${RANDOM}${RANDOM}"
-    echo "Running test: $marker" | systemd-cat -t snapd-test
-    if check_journalctl_log "$marker"; then
+    echo "Running test: $marker" | systemd-cat -t snapd-test -p alert
+    if check_journalctl_log "$marker" -p alert; then
         return 0
     fi
     echo "Test id not found in journalctl, exiting..."
@@ -35,7 +35,7 @@ check_journalctl_ready(){
 check_journalctl_log(){
     expression=$1
     shift
-    for _ in $(seq 20); do
+    for _ in $(seq 40); do
         log=$(get_journalctl_log "$@")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
