@@ -206,6 +206,8 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# chrorder generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	dh_install
 
 override_dh_install-arch:

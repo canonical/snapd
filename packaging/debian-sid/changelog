@@ -1,3 +1,16 @@
+snapd (2.37-3) unstable; urgency=medium
+
+  * Fix --no-arch-any build.
+
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Thu, 24 Jan 2019 16:11:17 +1300
+
+snapd (2.37-2) unstable; urgency=medium
+
+  * d/patches/0010-man-page-sections.patch: fix a couple of instances of the
+    lintian warning 'manpage-section-mismatch'.
+
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Thu, 24 Jan 2019 09:52:09 +1300
+
 snapd (2.37-1) unstable; urgency=medium
 
   [ Michael Hudson-Doyle ]
@@ -1723,7 +1736,7 @@ snapd (2.21) xenial; urgency=medium
     - snap: provide friendlier `snap find` message when no snaps are
       found
     - tests: fix mkversions.sh failure on zesty
-    - spread: install build-essential unconditionally
+    - spread: install build-essentail unconditionally
     - spread: improve qemu ubuntu-14.04-{32,64} support
     - overlord/snapstate,daemon: implement GET /v2/aliases handling
     - store: retry user info request
