@@ -4,15 +4,16 @@ git:
 jobs:
   include:
     - stage: quick
-      name: go 1.6/xenial static and unit test suites
+      name: go 1.9/xenial static and unit test suites
       dist: xenial
-      go: 1.6
+      go: 1.9
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
         - ./get-deps.sh
       script:
+        - set -e
         - ./run-checks --static
         - ./run-checks --short-unit
     - stage: quick
@@ -35,6 +36,7 @@ jobs:
         - /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp
     - stage: quick
       name: CLA check
+      dist: xenial
       if: type = pull_request
       language: bash
       addons:
@@ -45,7 +47,7 @@ jobs:
         - ./tests/lib/cla_check.py
     - stage: integration
       name: spread
-      os: linux
+      dist: xenial
       addons:
         apt:
           packages:

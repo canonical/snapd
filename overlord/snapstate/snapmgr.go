@@ -559,7 +559,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
+	msg := i18n.G("Transition ubuntu-core to core")
 	chg := m.state.NewChange("transition-ubuntu-core", msg)
 	for _, ts := range tss {
 		chg.AddAll(ts)

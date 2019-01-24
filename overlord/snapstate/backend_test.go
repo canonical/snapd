@@ -185,6 +185,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	confinement := snap.StrictConfinement
 
 	typ := snap.TypeApp
+	epoch := snap.E("1*")
 	switch spec.Name {
 	case "core", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
@@ -198,6 +199,8 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeSnapd
 	case "some-snap-now-classic":
 		confinement = "classic"
+	case "some-epoch-snap":
+		epoch = snap.E("42")
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -218,6 +221,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		},
 		Confinement: confinement,
 		Type:        typ,
+		Epoch:       epoch,
 	}
 	switch spec.Channel {
 	case "channel-for-devmode":
@@ -254,6 +258,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	var name string
 
 	typ := snap.TypeApp
+	epoch := snap.E("1*")
 	switch cand.snapID {
 	case "":
 		panic("store refresh APIs expect snap-ids")
@@ -265,6 +270,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "services-snap"
 	case "some-snap-id":
 		name = "some-snap"
+	case "some-epoch-snap-id":
+		name = "some-epoch-snap"
+		epoch = snap.E("42")
 	case "some-snap-now-classic-id":
 		name = "some-snap-now-classic"
 	case "some-snap-was-classic-id":
@@ -329,6 +337,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		},
 		Confinement:   confinement,
 		Architectures: []string{"all"},
+		Epoch:         epoch,
 	}
 	switch cand.channel {
 	case "channel-for-layout":
@@ -612,6 +621,11 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		if name == "some-snap-now-classic" {
 			info.Confinement = "classic"
 		}
+		if name == "some-epoch-snap" {
+			info.Epoch = snap.E("42")
+		} else {
+			info.Epoch = snap.E("1*")
+		}
 	} else {
 		// for snap try only
 		snapf, err := snap.Open(snapFilePath)
@@ -681,6 +695,8 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		snapName = "alias-snap"
 	}
 	switch snapName {
+	case "some-epoch-snap":
+		info.Epoch = snap.E("13")
 	case "gadget":
 		info.Type = snap.TypeGadget
 	case "core":

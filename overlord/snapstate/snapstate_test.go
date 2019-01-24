@@ -435,8 +435,8 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyRemoveTasks(c *C, opts int, ts *state.TaskSet) {
 	expected := []string{
 		"stop-snap-services",
-		"auto-disconnect",
 		"run-hook[remove]",
+		"auto-disconnect",
 		"remove-aliases",
 		"unlink-snap",
 		"remove-profiles",
@@ -567,7 +567,9 @@ func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
 	})
 
 	mockSnap := makeTestSnap(c, `name: some-snap
-version: 1.0`)
+version: 1.0
+epoch: 1*
+`)
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -1734,6 +1736,24 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 	c.Check(err, ErrorMatches, `cannot install snap of type snapd as "some-snapd_foo"`)
 }
 
+func (s *snapmgrTestSuite) TestInstallPathFailsEarlyOnEpochMismatch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have epoch 1* installed
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+	})
+
+	// try to install epoch 42
+	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0\nepoch: 42\n")
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot refresh "some-snap" to local snap with epoch 42, because it can't read the current epoch of 1\*`)
+}
+
 func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2790,7 +2810,7 @@ func (s *snapmgrTestSuite) TestInstalling(c *C) {
 func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
-		Revision: snap.R(7),
+		Revision: snap.R(-42),
 	}
 	snaptest.MockSnap(c, `name: some-snap`, &si)
 
@@ -2898,7 +2918,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
-		Revision: snap.R(7),
+		Revision: snap.R(-42),
 	})
 	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -5793,7 +5813,9 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
-version: 1.0`)
+version: 1.0
+epoch: 1*
+`)
 	chg := s.state.NewChange("install", "install a local snap")
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -5888,7 +5910,9 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
-version: 1.0`)
+version: 1.0
+epoch: 1*
+`)
 	chg := s.state.NewChange("install", "install a local snap")
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -10314,6 +10338,8 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
+
 	for i, ts := range tts {
 		verifyInstallTasks(c, 0, 0, ts, s.state)
 		// check that tasksets are in separate lanes
@@ -10321,6 +10347,18 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
 		}
 	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, 0)
+	c.Assert(err, NotNil)
+	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
+
+	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, 0)
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
 }
 
 func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
@@ -10362,8 +10400,8 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
-			"auto-disconnect",
 			"run-hook[remove]",
+			"auto-disconnect",
 			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",
@@ -11281,8 +11319,8 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 		{
 			op: "update-aliases",
 			aliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
+				{Name: "alias1", Target: "alias-snap.cmd1"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
 			},
 		},
 	}
@@ -12548,6 +12586,23 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
 
+func (s *snapmgrTestSuite) TestUpdateFailsEarlyOnEpochMismatch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-epoch-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-epoch-snap", SnapID: "some-epoch-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Update(s.state, "some-epoch-snap", "", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot refresh "some-epoch-snap" to new revision 11 with epoch 42, because it can't read the current epoch of 13`)
+}
+
 func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -12586,7 +12641,7 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	tr.Commit()
 
 	err = snapstate.ValidateFeatureFlags(s.state, info)
-	c.Assert(err, ErrorMatches, `internal error: feature flag experimental.parallel-instances has unexpected value "veryfalse" \(string\)`)
+	c.Assert(err, ErrorMatches, `parallel-instances can only be set to 'true' or 'false', got "veryfalse"`)
 
 	// enable parallel instances
 	tr = config.NewTransaction(s.state)

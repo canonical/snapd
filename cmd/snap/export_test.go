@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -71,7 +72,10 @@ var (
 	SnapHelpFooter          = snapHelpFooter
 	HelpCategories          = helpCategories
 
-	NotesForSvc = notesForSvc
+	LintArg  = lintArg
+	LintDesc = lintDesc
+
+	FixupArg = fixupArg
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -212,4 +216,28 @@ func ColorMixin(cmode, umode string) colorMixin {
 
 func CmdAdviseSnap() *cmdAdviseSnap {
 	return &cmdAdviseSnap{}
+}
+
+func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
+	old := selinuxIsEnabled
+	selinuxIsEnabled = isEnabled
+	return func() {
+		selinuxIsEnabled = old
+	}
+}
+
+func MockSELinuxVerifyPathContext(verifypathcon func(string) (bool, error)) (restore func()) {
+	old := selinuxVerifyPathContext
+	selinuxVerifyPathContext = verifypathcon
+	return func() {
+		selinuxVerifyPathContext = old
+	}
+}
+
+func MockSELinuxRestoreContext(restorecon func(string, selinux.RestoreMode) error) (restore func()) {
+	old := selinuxRestoreContext
+	selinuxRestoreContext = restorecon
+	return func() {
+		selinuxRestoreContext = old
+	}
 }

@@ -1,0 +1,32 @@
+summary: Ensure network errors are handled gracefully
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
+# no iptables on core18 yet
+systems: [-ubuntu-core-18-*]
+
+restore: |
+    echo "Restoring iptables rules"
+    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
+
+debug: |
+    echo "iptables rules:"
+    iptables -L -n -v
+
+execute: |
+    # Do a store op to avoid an unexpected device auth refresh on snap find
+    # below, which would produce different kind of error.
+    snap refresh
+
+    systemctl stop snapd.{socket,service}
+
+    echo "Disabling DNS queries"
+    iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+
+    systemctl start snapd.{socket,service}
+
+    OUT=$(snap find test 2>&1 || true)
+    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+    echo "$OUT" | MATCH "error: unable to contact snap store"

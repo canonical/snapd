@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "../libsnap-confine-private/utils.h"
+#include "../libsnap-confine-private/string-utils.h"
 
 struct sc_args {
 	// The security tag that the application is intended to run with
@@ -119,10 +120,7 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 				goto out;
 
 			}
-			args->base_snap = strdup(argv[optind + 1]);
-			if (args->base_snap == NULL) {
-				die("cannot allocate memory for base snap name");
-			}
+			args->base_snap = sc_strdup(argv[optind + 1]);
 			optind += 1;
 		} else {
 			// Report unhandled option switches
@@ -148,16 +146,10 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 				ignore_first_tag = false;
 				continue;
 			}
-			args->security_tag = strdup(argv[optind]);
-			if (args->security_tag == NULL) {
-				die("cannot allocate memory for security tag");
-			}
+			args->security_tag = sc_strdup(argv[optind]);
 		} else if (args->executable == NULL) {
 			// The second positional argument becomes the executable name.
-			args->executable = strdup(argv[optind]);
-			if (args->executable == NULL) {
-				die("cannot allocate memory for executable name");
-			}
+			args->executable = sc_strdup(argv[optind]);
 			// No more positional arguments are required.
 			// Stop the parsing process.
 			break;

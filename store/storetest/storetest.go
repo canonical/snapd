@@ -25,6 +25,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/progress"
@@ -61,7 +62,7 @@ func (Store) SuggestedCurrency() string {
 	panic("Store.SuggestedCurrency not expected")
 }
 
-func (Store) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
+func (Store) Buy(*client.BuyOptions, *auth.UserState) (*client.BuyResult, error) {
 	panic("Store.Buy not expected")
 }
 

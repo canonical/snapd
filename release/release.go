@@ -46,6 +46,7 @@ func (o *OS) ForceDevMode() bool {
 	return AppArmorLevel() != FullAppArmor
 }
 
+// DistroLike checks if the distribution ID or ID_LIKE matches one of the given names.
 func DistroLike(distros ...string) bool {
 	for _, distro := range distros {
 		if ReleaseInfo.ID == distro || strutil.ListContains(ReleaseInfo.IDLike, distro) {

@@ -1,7 +1,7 @@
 summary: Reproduce a known issue of snap try failure with hooks
 
 prepare: |
-  cp -R "$TESTSLIB"/snaps/basic ./
+  cp -a "$TESTSLIB"/snaps/basic ./
   # in case the snap is modified to have the hook
   rm -f basic/meta/hooks/pre-refresh
 

@@ -39,6 +39,7 @@ execute: |
     touch /run/user/12345/doc/by-app/snap.test-snapd-desktop/is-confined
     test-snapd-desktop.check-dirs /run/user/12345/doc
     EOF
+    chown test:test /tmp/check-doc-portal.sh
 
     if [ "$(snap debug confinement)" = strict ]; then
       echo "Without desktop interface connected"

@@ -91,7 +91,7 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 				//       replies with valid data
 				systemd.SdNotify("WATCHDOG=1")
 			case <-d.Dying():
-				break
+				return
 			}
 		}
 	}()

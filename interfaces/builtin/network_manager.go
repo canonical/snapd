@@ -79,6 +79,7 @@ network packet,
 /sys/devices/**/**/net/**/dev_id r,
 /sys/devices/virtual/net/**/phys_port_id r,
 /sys/devices/virtual/net/**/dev_id r,
+/sys/devices/**/net/**/ifindex r,
 
 /dev/rfkill rw,
 
@@ -110,6 +111,8 @@ network packet,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
 /lib/resolvconf/* ix,
+# NM peeks into ifupdown configuration
+/run/network/ifstate* r,
 # Required by resolvconf
 /bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,

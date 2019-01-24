@@ -158,9 +158,27 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 
 func lintArg(cmdName, optName, desc, origDesc string) {
 	lintDesc(cmdName, optName, desc, origDesc)
-	if optName[0] != '<' || optName[len(optName)-1] != '>' {
-		noticef("argument %q's %q should be wrapped in <>s", cmdName, optName)
+	if len(optName) > 0 && optName[0] == '<' && optName[len(optName)-1] == '>' {
+		return
 	}
+	if len(optName) > 0 && optName[0] == '<' && strings.HasSuffix(optName, ">s") {
+		// see comment in fixupArg about the >s case
+		return
+	}
+	noticef("argument %q's %q should begin with < and end with >", cmdName, optName)
+}
+
+func fixupArg(optName string) string {
+	// Due to misunderstanding some localized versions of option name are
+	// literally "<option>s" instead of "<option>". While translators can
+	// improve this over time we can be smarter and avoid silly messages
+	// logged whenever "snap" command is used.
+	//
+	// See: https://bugs.launchpad.net/snapd/+bug/1806761
+	if strings.HasSuffix(optName, ">s") {
+		return optName[:len(optName)-1]
+	}
+	return optName
 }
 
 type clientSetter interface {
@@ -261,6 +279,7 @@ func Parser(cli *client.Client) *flags.Parser {
 				desc = c.argDescs[i].desc
 			}
 			lintArg(c.name, name, desc, arg.Description)
+			name = fixupArg(name)
 			arg.Name = name
 			arg.Description = desc
 		}
@@ -315,6 +334,7 @@ func Parser(cli *client.Client) *flags.Parser {
 				desc = c.argDescs[i].desc
 			}
 			lintArg(c.name, name, desc, arg.Description)
+			name = fixupArg(name)
 			arg.Name = name
 			arg.Description = desc
 		}

@@ -37,7 +37,10 @@ def maybe(name, d):
 
 verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
-    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + r"(?:\s+<?)?$")
+    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
+
+def verRelRevNotesRx(s):
+    return re.compile(r"^\w\S*\s+\d{4}-\d{2}-\d{2}\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
 
 if os.environ['SNAPPY_USE_STAGING_STORE'] == '1':
     snap_ids={
@@ -81,10 +84,10 @@ check("test-snapd-tools", res[2],
    ("installed", matches, verRevNotesRx("-")),
    ("refresh-date", exists),
    ("channels", check,
-    ("stable", matches, verRevNotesRx("-")),
+    ("stable", matches, verRelRevNotesRx("-")),
     ("candidate", equals, "↑"),
     ("beta", equals, "↑"),
-    ("edge", matches, verRevNotesRx("-")),
+    ("edge", matches, verRelRevNotesRx("-")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-tools"]),
    ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license
@@ -102,8 +105,8 @@ check("test-snapd-devmode", res[3],
    ("channels", check,
     ("stable", equals, "–"),
     ("candidate", equals, "–"),
-    ("beta", matches, verRevNotesRx("devmode")),
-    ("edge", matches, verRevNotesRx("devmode")),
+    ("beta", matches, verRelRevNotesRx("devmode")),
+    ("edge", matches, verRelRevNotesRx("devmode")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-devmode"]),
    ("license", matches, r"(unknown|unset)"), # TODO: update once snap.yaml contains the right license

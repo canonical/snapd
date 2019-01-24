@@ -52,7 +52,7 @@ func init() {
 	addCommand("ack", shortAckHelp, longAckHelp, func() flags.Commander {
 		return &cmdAck{}
 	}, nil, []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<assertion file>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Assertion file"),

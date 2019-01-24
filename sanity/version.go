@@ -20,9 +20,13 @@
 package sanity
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -33,21 +37,65 @@ func init() {
 	checks = append(checks, checkKernelVersion)
 }
 
+// supportsMayDetachMounts checks whether a RHEL 7.4+ specific kernel knob is present
+// and set to proper value
+func supportsMayDetachMounts(kver string) error {
+	p := filepath.Join(dirs.GlobalRootDir, "/proc/sys/fs/may_detach_mounts")
+	value, err := ioutil.ReadFile(p)
+	if err != nil {
+		return fmt.Errorf("cannot read the value of fs.may_detach_mounts kernel parameter: %v", err)
+	}
+	if !bytes.Equal(value, []byte("1\n")) {
+		return fmt.Errorf("fs.may_detach_mounts kernel parameter is supported but disabled")
+	}
+	return nil
+}
+
 // checkKernelVersion looks for some unsupported configurations that users may
 // encounter and provides advice on how to resolve them.
 func checkKernelVersion() error {
-	if release.OnClassic && release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
-		kver := osutil.KernelVersion()
-		// a kernel version looks like this: "4.4.0-112-generic" and
-		// we are only interested in the bits before the "-"
-		kver = strings.SplitN(kver, "-", 2)[0]
-		cmp, err := strutil.VersionCompare(kver, "3.13.0")
+	if !release.OnClassic {
+		return nil
+	}
+
+	switch release.ReleaseInfo.ID {
+	case "ubuntu":
+		if release.ReleaseInfo.VersionID == "14.04" {
+			kver := osutil.KernelVersion()
+			// a kernel version looks like this: "4.4.0-112-generic" and
+			// we are only interested in the bits before the "-"
+			kver = strings.SplitN(kver, "-", 2)[0]
+			cmp, err := strutil.VersionCompare(kver, "3.13.0")
+			if err != nil {
+				logger.Noticef("cannot check kernel: %v", err)
+				return nil
+			}
+			if cmp <= 0 {
+				return fmt.Errorf("you need to reboot into a 4.4 kernel to start using snapd")
+			}
+		}
+	case "rhel", "centos":
+		// check for kernel tweaks on RHEL/CentOS 7.5+
+		// CentoS 7.5 has VERSION_ID="7", RHEL 7.6 has VERSION_ID="7.6"
+		if release.ReleaseInfo.VersionID == "" || release.ReleaseInfo.VersionID[0] != '7' {
+			return nil
+		}
+		fullKver := osutil.KernelVersion()
+		// kernel version looks like this: "3.10.0-957.el7.x86_64"
+		kver := strings.SplitN(fullKver, "-", 2)[0]
+		cmp, err := strutil.VersionCompare(kver, "3.18.0")
 		if err != nil {
 			logger.Noticef("cannot check kernel: %v", err)
 			return nil
 		}
-		if cmp <= 0 {
-			return fmt.Errorf("you need to reboot into a 4.4 kernel to start using snapd")
+		if cmp < 0 {
+			// pre 3.18 kernels here
+			if idx := strings.Index(fullKver, ".el7."); idx == -1 {
+				// non stock kernel, assume it's not supported
+				return fmt.Errorf("unsupported kernel version %q, you need to switch to the stock kernel", fullKver)
+			}
+			// stock kernel had bugfixes backported to it
+			return supportsMayDetachMounts(kver)
 		}
 	}
 	return nil

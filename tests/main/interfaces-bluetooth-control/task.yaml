@@ -9,9 +9,6 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_generic_consumer bluetooth-control
 
-restore: |
-    rm -f ./*.error version class control
-
 execute: |
     BTDEV="$(find /sys/devices/ -type d -name bluetooth)"
 
@@ -21,21 +18,21 @@ execute: |
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And the snap is not able to read usb"
-        if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/bus/usb/drivers/btusb/module/version 2>${PWD}/btusb.error" test; then
+        if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/bus/usb/drivers/btusb/module/version" test 2>"${PWD}/btusb.error"; then
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
         MATCH "Permission denied" < btusb.error
 
         echo "And the snap is not able to read class"
-        if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/class/bluetooth/*/name 2>${PWD}/btclass.error" test; then
+        if su -l -c "/snap/bin/generic-consumer.cmd cat /sys/class/bluetooth/*/name" test 2>"${PWD}/btclass.error"; then
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi
         MATCH "Permission denied" < btclass.error
 
         echo "And the snap is not able to read dev"
-        if su -l -c "/snap/bin/generic-consumer.cmd cat $BTDEV/*/power/control 2>${PWD}/btdev-read.error" test; then
+        if su -l -c "/snap/bin/generic-consumer.cmd cat $BTDEV/*/power/control" test 2>"${PWD}/btdev-read.error"; then
             echo "Expected error with disconnected plug didn't happen"
             exit 1
         fi

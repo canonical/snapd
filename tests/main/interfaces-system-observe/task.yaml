@@ -21,7 +21,6 @@ prepare: |
     fi
 
 restore: |
-    rm -f ./*.error
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         systemctl stop systemd-hostnamed
     fi
@@ -51,7 +50,7 @@ execute: |
         snap disconnect test-snapd-system-observe-consumer:system-observe
 
         echo "Then the snap is not able to get system information"
-        if su -l -c "test-snapd-system-observe-consumer.consumer 2>${PWD}/consumer.error" test; then
+        if su -l -c "test-snapd-system-observe-consumer.consumer" test 2>"${PWD}/consumer.error"; then
             echo "Expected error with plug disconnected"
             exit 1
         fi
@@ -59,7 +58,7 @@ execute: |
 
         if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
             echo "And the snap is not able to introspect hostname1"
-            if su -l -c "test-snapd-system-observe-consumer.dbus-introspect 2>${PWD}/introspect.error" test; then
+            if su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test 2>"${PWD}/introspect.error"; then
                 echo "Expected error with plug disconnected"
                 exit 1
             fi

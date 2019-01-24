@@ -101,7 +101,7 @@ func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
 		testutil.FileEquals, sampleYaml)
 	link, err := os.Readlink(filepath.Join(dirs.SnapMountDir, "sample", "current"))
 	c.Check(err, IsNil)
-	c.Check(link, Equals, filepath.Join(dirs.SnapMountDir, "sample", "42"))
+	c.Check(link, Equals, "42")
 }
 
 func (s *snapTestSuite) TestMockSnapInstanceCurrent(c *C) {

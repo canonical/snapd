@@ -172,7 +172,7 @@ distro_install_local_package() {
             apt install $flags "$@"
             ;;
         fedora-*)
-            quiet dnf -y install "$@"
+            quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
         amazon-*|centos-*)
             quiet yum -y localinstall "$@"
@@ -191,11 +191,26 @@ distro_install_local_package() {
 }
 
 distro_install_package() {
+    orig_xtrace=$(set -o | awk '/xtrace / { print $2 }')
+    set +x
+    echo "distro_install_package $*"
     # Parse additional arguments; once we find the first unknown
     # part we break argument parsing and process all further
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # Fedora images we use come with a number of preinstalled package, among
+        # them gtk3. Those packages are needed to run the tests. The
+        # xdg-desktop-portal-gtk package uses this in the spec:
+        #
+        #   Supplements:    (gtk3 and (flatpak or snapd))
+        #
+        # As a result, when snapd is installed, we will unintentionally pull in
+        # xdg-desktop-portal-gtk and its dependencies breaking tests. For this
+        # reason, disable weak deps altogether.
+        DNF_FLAGS="--setopt=install_weak_deps=False"
+    fi
     YUM_FLAGS=
     ZYPPER_FLAGS=
     while [ -n "$1" ]; do
@@ -272,6 +287,7 @@ distro_install_package() {
             exit 1
             ;;
     esac
+    test "$orig_xtrace" = on && set -x
 }
 
 distro_purge_package() {
@@ -628,6 +644,7 @@ pkg_dependencies_fedora(){
         udisks2
         xdg-user-dirs
         xdg-utils
+        strace
         "
 }
 

@@ -58,7 +58,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("The snap to configure (e.g. hello-world)"),
 		}, {
-			// TRANSLATORS: This needs to be wrapped in <>s.
+			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<conf value>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Configuration value (key=value)"),

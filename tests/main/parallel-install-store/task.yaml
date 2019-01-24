@@ -24,5 +24,8 @@ execute: |
     echo "And so does another one, but with different instance key"
     snap install test-snapd-tools_bar
 
+    echo "Installing more than one instance at a time works too"
+    snap install test-snapd-tools_baz test-snapd-tools_zed
+
 restore: |
     snap set system experimental.parallel-instances=

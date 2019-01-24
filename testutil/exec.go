@@ -147,3 +147,8 @@ func (cmd *MockCmd) ForgetCalls() {
 func (cmd *MockCmd) BinDir() string {
 	return cmd.binDir
 }
+
+// Exe return the full path of the mock binary
+func (cmd *MockCmd) Exe() string {
+	return filepath.Join(cmd.exeFile)
+}

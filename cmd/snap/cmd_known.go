@@ -54,12 +54,12 @@ func init() {
 		return &cmdKnown{}
 	}, nil, []argDesc{
 		{
-			// TRANSLATORS: This needs to be wrapped in <>s.
+			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<assertion type>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Assertion type name"),
 		}, {
-			// TRANSLATORS: This needs to be wrapped in <>s.
+			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<header filter>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Constrain listing to those matching header=value"),

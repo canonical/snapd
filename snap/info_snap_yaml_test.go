@@ -783,6 +783,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
+		Explicit: true,
 	})
 }
 
@@ -816,6 +818,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
+		Explicit: true,
 	})
 }
 
@@ -908,6 +912,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: nil,
+
+		Explicit: true,
 	})
 }
 
@@ -956,6 +962,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: nil,
+
+		Explicit: true,
 	})
 }
 
@@ -989,6 +997,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1023,6 +1033,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1057,11 +1069,15 @@ hooks:
 		Snap:  info,
 		Name:  "with-plug",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 	c.Assert(withoutPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "without-plug",
 		Plugs: map[string]*snap.PlugInfo{},
+
+		Explicit: true,
 	})
 }
 
@@ -1097,6 +1113,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1133,6 +1151,8 @@ apps:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,

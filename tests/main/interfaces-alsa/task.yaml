@@ -23,7 +23,7 @@ prepare: |
     install_generic_consumer alsa
 
 restore: |
-    rm -f ./*.error /dev/snd/mysnd-dev
+    rm -f /dev/snd/mysnd-dev
 
 execute: |
     echo "When the plug is connected"

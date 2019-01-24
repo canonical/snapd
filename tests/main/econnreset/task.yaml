@@ -1,15 +1,4 @@
 summary: Ensure that ECONNRESET is handled
-restore: |
-    echo "Stop the snap download command"
-    kill -9 "$(pgrep -f 'snap download')" || true
-
-    echo "Remove the firewall rule again"
-    iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
-    echo "Remove ingress traffic policing rule"
-    iptables -D INPUT -p tcp --match hashlimit --hashlimit-mode srcip,dstip,srcport,dstport --hashlimit-above 512kb/s \
-             --hashlimit-name 'econnreset' -j DROP
-
-    rm -f test-snapd-huge_*
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -28,6 +17,16 @@ debug: |
     echo "iptables rules and counters"
     iptables -L -n -v
 
+restore: |
+    echo "Stop the snap download command"
+    kill -9 "$(pgrep -f 'snap download')" || true
+
+    echo "Remove the firewall rule again"
+    iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j REJECT -p tcp --reject-with tcp-reset || true
+    echo "Remove ingress traffic policing rule"
+    iptables -D INPUT -p tcp --match hashlimit --hashlimit-mode srcip,dstip,srcport,dstport --hashlimit-above 512kb/s \
+             --hashlimit-name 'econnreset' -j DROP
+
 execute: |
     echo "Downloading a large snap in the background"
     rm -f test-snapd-huge_*
@@ -38,7 +37,7 @@ execute: |
     iptables -I INPUT -p tcp --match hashlimit --hashlimit-mode srcip,dstip,srcport,dstport --hashlimit-above 512kb/s \
              --hashlimit-name 'econnreset' -j DROP
 
-    su -c "/usr/bin/env SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 snap download --edge test-snapd-huge 2>snap-download.log" test &
+    su -c "/usr/bin/env SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 snap download --edge test-snapd-huge" test 2>snap-download.log &
 
     for _ in $(seq 120); do
         partial=$(find . -name 'test-snapd-huge_*.snap.partial' | head -1)

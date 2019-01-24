@@ -55,14 +55,14 @@ owner @{HOME}/ r,
 
 # Allow read/write access to all files in @{HOME}, except snap application
 # data in @{HOME}/snap and toplevel hidden directories in @{HOME}.
-owner @{HOME}/[^s.]**             rwklix,
-owner @{HOME}/s[^n]**             rwklix,
-owner @{HOME}/sn[^a]**            rwklix,
-owner @{HOME}/sna[^p]**           rwklix,
-owner @{HOME}/snap[^/]**          rwklix,
+owner @{HOME}/[^s.]**             rwkl###HOME_IX###,
+owner @{HOME}/s[^n]**             rwkl###HOME_IX###,
+owner @{HOME}/sn[^a]**            rwkl###HOME_IX###,
+owner @{HOME}/sna[^p]**           rwkl###HOME_IX###,
+owner @{HOME}/snap[^/]**          rwkl###HOME_IX###,
 
 # Allow creating a few files not caught above
-owner @{HOME}/{s,sn,sna}{,/} rwklix,
+owner @{HOME}/{s,sn,sna}{,/} rwkl###HOME_IX###,
 
 # Allow access to @{HOME}/snap/ to allow directory traversals from
 # @{HOME}/snap/@{SNAP_INSTANCE_NAME} through @{HOME}/snap to @{HOME}.

@@ -225,6 +225,9 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	toplevelPlugs []*PlugInfo
+	toplevelSlots []*SlotInfo
+
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -316,6 +319,7 @@ type ChannelSnapInfo struct {
 	Channel     string          `json:"channel"`
 	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
+	ReleasedAt  time.Time       `json:"released-at"`
 }
 
 // InstanceName returns the blessed name of the snap decorated with instance
@@ -800,6 +804,8 @@ type HookInfo struct {
 
 	Environment  strutil.OrderedMap
 	CommandChain []string
+
+	Explicit bool
 }
 
 // File returns the path to the *.socket file
@@ -1007,6 +1013,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	bindImplicitHooks(info)
+
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
@@ -1070,6 +1078,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	bindImplicitHooks(info)
 
 	err = Validate(info)
 	if err != nil {

@@ -67,13 +67,7 @@ type mgrsSuite struct {
 
 	restore func()
 
-	aa               *testutil.MockCmd
-	udev             *testutil.MockCmd
-	umount           *testutil.MockCmd
 	restoreSystemctl func()
-
-	snapDiscardNs *testutil.MockCmd
-	snapSeccomp   *testutil.MockCmd
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
@@ -88,6 +82,8 @@ type mgrsSuite struct {
 	hijackServeSnap func(http.ResponseWriter)
 
 	o *overlord.Overlord
+
+	restoreBackends func()
 }
 
 var (
@@ -139,12 +135,6 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 
-	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
-	ms.udev = testutil.MockCommand(c, "udevadm", "")
-	ms.umount = testutil.MockCommand(c, "umount", "")
-	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
-	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
-
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
@@ -159,10 +149,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveRevision = make(map[string]string)
 	ms.hijackServeSnap = nil
 
-	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
-	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
-	c.Assert(err, IsNil)
-	ms.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
+	ms.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -275,11 +262,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.restoreSystemctl()
 	ms.mockSnapCmd.Restore()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
-	ms.udev.Restore()
-	ms.aa.Restore()
-	ms.umount.Restore()
-	ms.snapDiscardNs.Restore()
-	ms.snapSeccomp.Restore()
+	ms.restoreBackends()
 }
 
 var settleTimeout = 15 * time.Second
@@ -388,25 +371,6 @@ func fakeSnapID(name string) string {
 }
 
 const (
-	searchHit = `{
-	"anon_download_url": "@URL@",
-	"architecture": [
-	    "all"
-	],
-	"channel": "stable",
-	"content": "application",
-	"description": "this is a description",
-        "developer_id": "devdevdev",
-	"download_url": "@URL@",
-	"icon_url": "@ICON@",
-	"origin": "bar",
-	"package_name": "@NAME@",
-	"revision": @REVISION@,
-	"snap_id": "@SNAPID@",
-	"summary": "Foo",
-	"version": "@VERSION@"
-}`
-
 	snapV2 = `{
 	"architectures": [
 	    "all"
@@ -545,39 +509,6 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			w.WriteHeader(200)
 			w.Write(asserts.Encode(a))
 			return
-		case "details":
-			w.WriteHeader(200)
-			io.WriteString(w, fillHit(searchHit, comps[1]))
-		case "metadata":
-			dec := json.NewDecoder(r.Body)
-			var input struct {
-				Snaps []struct {
-					SnapID   string `json:"snap_id"`
-					Revision int    `json:"revision"`
-				} `json:"snaps"`
-			}
-			err := dec.Decode(&input)
-			if err != nil {
-				panic(err)
-			}
-			var hits []json.RawMessage
-			for _, s := range input.Snaps {
-				name := ms.serveIDtoName[s.SnapID]
-				if snap.R(s.Revision) == snap.R(ms.serveRevision[name]) {
-					continue
-				}
-				hits = append(hits, json.RawMessage(fillHit(searchHit, name)))
-			}
-			w.WriteHeader(200)
-			output, err := json.Marshal(map[string]interface{}{
-				"_embedded": map[string]interface{}{
-					"clickindex:package": hits,
-				},
-			})
-			if err != nil {
-				panic(err)
-			}
-			w.Write(output)
 		case "download":
 			if ms.hijackServeSnap != nil {
 				ms.hijackServeSnap(w)
@@ -1988,6 +1919,8 @@ type authContextSetupSuite struct {
 
 	model  *asserts.Model
 	serial *asserts.Serial
+
+	restoreBackends func()
 }
 
 func (s *authContextSetupSuite) SetUpTest(c *C) {
@@ -2045,6 +1978,8 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.serial = serial.(*asserts.Serial)
 
+	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
@@ -2063,6 +1998,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 func (s *authContextSetupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restoreBackends()
 	s.restoreTrusted()
 }
 

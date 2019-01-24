@@ -36,7 +36,7 @@ type backendsSuite struct{}
 var _ = Suite(&backendsSuite{})
 
 func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
-	for _, level := range []release.AppArmorLevelType{release.NoAppArmor, release.PartialAppArmor, release.FullAppArmor} {
+	for _, level := range []release.AppArmorLevelType{release.NoAppArmor, release.UnusableAppArmor, release.PartialAppArmor, release.FullAppArmor} {
 		restore := release.MockAppArmorLevel(level)
 		defer restore()
 
@@ -45,12 +45,13 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 		for i, backend := range all {
 			names[i] = string(backend.Name())
 		}
-
-		if level == release.NoAppArmor {
+		switch level {
+		case release.NoAppArmor, release.UnusableAppArmor:
 			c.Assert(names, Not(testutil.Contains), "apparmor")
-		} else {
+		case release.PartialAppArmor, release.FullAppArmor:
 			c.Assert(names, testutil.Contains, "apparmor")
 		}
+
 	}
 }
 

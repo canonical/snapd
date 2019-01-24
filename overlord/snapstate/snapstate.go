@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -79,7 +80,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		if model == nil || model.Base() == "" {
 			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := GetFeatureFlagBool(tr, "experimental.snapd-snap")
+			experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
 			if err != nil && !config.IsNoOption(err) {
 				return nil, err
 			}
@@ -477,36 +478,13 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
-func GetFeatureFlagBool(tr *config.Transaction, flag string, unset ...bool) (bool, error) {
-	if len(unset) == 0 {
-		unset = []bool{false}
-	}
-	if len(unset) > 1 {
-		return false, fmt.Errorf("please specify only a single unset value")
-	}
-
-	var v interface{} = unset[0]
-	if err := tr.GetMaybe("core", flag, &v); err != nil {
-		return unset[0], err
-	}
-	switch value := v.(type) {
-	case string:
-		if value == "" {
-			return unset[0], nil
-		}
-	case bool:
-		return value, nil
-	}
-	return unset[0], fmt.Errorf("internal error: feature flag %v has unexpected value %#v (%T)", flag, v, v)
-}
-
 // validateFeatureFlags validates the given snap only uses experimental
 // features that are enabled by the user.
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := GetFeatureFlagBool(tr, "experimental.layouts", true)
+		flag, err := config.GetFeatureFlag(tr, features.Layouts)
 		if err != nil {
 			return err
 		}
@@ -516,7 +494,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := GetFeatureFlagBool(tr, "experimental.parallel-instances")
+		flag, err := config.GetFeatureFlag(tr, features.ParallelInstances)
 		if err != nil {
 			return err
 		}
@@ -525,6 +503,16 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 	}
 
+	return nil
+}
+
+func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) error {
+	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
+		return err
+	}
+	if err := validateFeatureFlags(st, info); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -587,10 +575,11 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, nil, err
 	}
-	if err := validateFeatureFlags(st, info); err != nil {
+	// this might be a refresh; check the epoch before proceeding
+	if err := earlyEpochCheck(info, &snapst); err != nil {
 		return nil, nil, err
 	}
 
@@ -645,10 +634,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
-	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
-		return nil, err
-	}
-	if err := validateFeatureFlags(st, info); err != nil {
+	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, err
 	}
 
@@ -672,24 +658,60 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-	installed := make([]string, 0, len(names))
-	tasksets := make([]*state.TaskSet, 0, len(names))
-	// TODO: this could be reorged to do one single store call
+	toInstall := make([]string, 0, len(names))
 	for _, name := range names {
-		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
-		// FIXME: is this expected behavior?
-		if _, ok := err.(*snap.AlreadyInstalledError); ok {
+		var snapst SnapState
+		err := Get(st, name, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return nil, nil, err
+		}
+		if snapst.IsInstalled() {
 			continue
 		}
+		toInstall = append(toInstall, name)
+	}
+
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	installs, err := installCandidates(st, toInstall, "stable", user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tasksets := make([]*state.TaskSet, 0, len(installs))
+	for _, info := range installs {
+		var snapst SnapState
+		var flags Flags
+
+		if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
+			return nil, nil, err
+		}
+
+		snapsup := &SnapSetup{
+			Channel:      "stable",
+			Base:         info.Base,
+			Prereq:       defaultContentPlugProviders(st, info),
+			UserID:       userID,
+			Flags:        flags.ForSnapSetup(),
+			DownloadInfo: &info.DownloadInfo,
+			SideInfo:     &info.SideInfo,
+			Type:         info.Type,
+			PlugsOnly:    len(info.Slots) == 0,
+			InstanceKey:  info.InstanceKey,
+		}
+
+		ts, err := doInstall(st, &snapst, snapsup, 0)
 		if err != nil {
 			return nil, nil, err
 		}
-		installed = append(installed, name)
 		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
 	}
 
-	return installed, tasksets, nil
+	return toInstall, tasksets, nil
 }
 
 // RefreshCandidates gets a list of candidates for update
@@ -810,14 +832,15 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
-		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
+
+		if err := checkInstallPreconditions(st, update, flags, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
 		}
-		if err := validateFeatureFlags(st, update); err != nil {
+		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -1564,12 +1587,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		chain = ts
 	}
 
-	var removeHook *state.Task
-	// only run remove hook if uninstalling the snap completely
-	if removeAll {
-		removeHook = SetupRemoveHook(st, snapsup.InstanceName())
-	}
-
 	var prev *state.Task
 	var stopSnapServices *state.Task
 	if active {
@@ -1578,6 +1595,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
 		addNext(state.NewTaskSet(stopSnapServices))
 		prev = stopSnapServices
+	}
+
+	// only run remove hook if uninstalling the snap completely
+	if removeAll {
+		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
+		addNext(state.NewTaskSet(removeHook))
+		prev = removeHook
 	}
 
 	if removeAll {
@@ -1593,11 +1617,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 	if active { // unlink
 		var tasks []*state.Task
-		if removeHook != nil {
-			tasks = append(tasks, removeHook)
-			removeHook.WaitFor(prev)
-			prev = removeHook
-		}
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
 		removeAliases.WaitFor(prev) // prev is not needed beyond here
@@ -1613,8 +1632,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 		tasks = append(tasks, removeAliases, unlink, removeSecurity)
 		addNext(state.NewTaskSet(tasks...))
-	} else if removeHook != nil {
-		addNext(state.NewTaskSet(removeHook))
 	}
 
 	if removeAll {

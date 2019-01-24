@@ -66,7 +66,7 @@ func outputJSON(keys []Key) error {
 
 func outputText(keys []Key) error {
 	if len(keys) == 0 {
-		fmt.Fprintf(Stdout, "No keys registered, see `snapcraft create-key`")
+		fmt.Fprintf(Stderr, "No keys registered, see `snapcraft create-key`\n")
 		return nil
 	}
 

@@ -113,6 +113,12 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            # RPM can rewrite shebang to #!/usr/bin/sh
+            sed -i -e '1 s;#!/usr/bin/sh;#!/bin/sh;' squashfs-root/usr/lib/snapd/snap-device-helper
+            ;;
+    esac
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -136,6 +142,19 @@ update_core_snap_for_classic_reexec() {
         ubuntu-*)
             # also load snap-confine's apparmor profile
             apparmor_parser -r squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            ;;
+    esac
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            if selinuxenabled ; then
+                # On these systems just unpacking core snap to $HOME will
+                # automatically apply user_home_t label on all the contents of the
+                # snap; since we cannot drop xattrs when calling mksquashfs, make
+                # sure that we relabel the contents in way that a squashfs image
+                # without any labels would look like: system_u:object_r:unlabeled_t
+                chcon -R -u system_u -r object_r -t unlabeled_t squashfs-root
+            fi
             ;;
     esac
 

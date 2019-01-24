@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
@@ -60,6 +61,7 @@ type daemonSuite struct {
 	err             error
 	lastPolkitFlags polkit.CheckFlags
 	notified        []string
+	restoreBackends func()
 }
 
 var _ = check.Suite(&daemonSuite{})
@@ -79,6 +81,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	}
 	s.notified = nil
 	polkitCheckAuthorization = s.checkAuthorization
+	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -87,6 +90,7 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 	s.authorized = false
 	s.err = nil
 	logger.SetLogger(logger.NullLogger)
+	s.restoreBackends()
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {

@@ -166,12 +166,9 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 		char prefix_dir[512] = { 0 };
 		const char *pathname = glob_res.gl_pathv[i];
 		char *pathname_copy1
-		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
+		    SC_CLEANUP(sc_cleanup_string) = sc_strdup(pathname);
 		char *pathname_copy2
-		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
-		if (pathname_copy1 == NULL || pathname_copy2 == NULL) {
-			die("failed to copy pathname");
-		}
+		    SC_CLEANUP(sc_cleanup_string) = sc_strdup(pathname);
 		// POSIX dirname() and basename() may modify their input arguments
 		char *filename = basename(pathname_copy1);
 		char *directory_name = dirname(pathname_copy2);

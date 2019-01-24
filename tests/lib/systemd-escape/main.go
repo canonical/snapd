@@ -43,7 +43,7 @@ func main() {
 	}
 
 	for i, arg := range args[1:] {
-		fmt.Printf(systemd.EscapeUnitNamePath(arg))
+		fmt.Print(systemd.EscapeUnitNamePath(arg))
 		if i < len(args[1:])-1 {
 			fmt.Printf(" ")
 		}

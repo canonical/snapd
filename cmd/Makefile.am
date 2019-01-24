@@ -87,6 +87,8 @@ snap-seccomp/snap-seccomp: snap-seccomp/*.go
 noinst_LIBRARIES += libsnap-confine-private.a
 
 libsnap_confine_private_a_SOURCES = \
+	libsnap-confine-private/apparmor-support.c \
+	libsnap-confine-private/apparmor-support.h \
 	libsnap-confine-private/cgroup-freezer-support.c \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/classic.c \
@@ -113,6 +115,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/snap.h \
 	libsnap-confine-private/string-utils.c \
 	libsnap-confine-private/string-utils.h \
+	libsnap-confine-private/tool.c \
+	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
 libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
@@ -201,8 +205,6 @@ EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 
 snap_confine_snap_confine_SOURCES = \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h \
 	snap-confine/cookie-support.c \
 	snap-confine/cookie-support.h \
 	snap-confine/mount-support-nvidia.c \
@@ -295,8 +297,6 @@ snap_confine_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h \
 	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
@@ -398,30 +398,11 @@ endif
 EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
 
 snap_discard_ns_snap_discard_ns_SOURCES = \
-	snap-confine/ns-support.c \
-	snap-confine/ns-support.h \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h \
 	snap-discard-ns/snap-discard-ns.c
 snap_discard_ns_snap_discard_ns_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
 snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
 snap_discard_ns_snap_discard_ns_STATIC =
-
-if APPARMOR
-snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
-if STATIC_LIBAPPARMOR
-snap_discard_ns_snap_discard_ns_STATIC += $(shell $(PKG_CONFIG) --static --libs libapparmor)
-else
-snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
-endif  # STATIC_LIBAPPARMOR
-endif  # APPARMOR
-
-if STATIC_LIBCAP
-snap_discard_ns_snap_discard_ns_STATIC += -lcap
-else
-snap_discard_ns_snap_discard_ns_LDADD += -lcap
-endif  # STATIC_LIBCAP
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_DEPENDENCIES) $(EXTRA_snap_discard_ns_snap_discard_ns_DEPENDENCIES) snap-discard-ns/$(am__dirstamp)

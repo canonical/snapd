@@ -46,6 +46,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -81,9 +82,16 @@ type RefreshOptions struct {
 
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 300 * time.Millisecond,
+		Initial: 350 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
+var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
+	retry.Exponential{
+		Initial: 500 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -1442,7 +1450,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	var finalErr error
 	var dlSize float64
 	startTime := time.Now()
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
 		reqOptions := reqOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
@@ -1581,7 +1589,7 @@ func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	case osutil.ExecutableExists("xdelta3"):
 		return exec.Command("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
+		return osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", args...)
 	}
 	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }
@@ -1742,18 +1750,6 @@ func (s *Store) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-// BuyOptions specifies parameters to buy from the store.
-type BuyOptions struct {
-	SnapID   string  `json:"snap-id"`
-	Price    float64 `json:"price"`
-	Currency string  `json:"currency"` // ISO 4217 code as string
-}
-
-// BuyResult holds the state of a buy attempt.
-type BuyResult struct {
-	State string `json:"state,omitempty"`
-}
-
 // orderInstruction holds data sent to the store for orders.
 type orderInstruction struct {
 	SnapID   string `json:"snap_id"`
@@ -1788,13 +1784,13 @@ func (s *storeErrors) Error() string {
 	return s.Errors[0].Error()
 }
 
-func buyOptionError(message string) (*BuyResult, error) {
+func buyOptionError(message string) (*client.BuyResult, error) {
 	return nil, fmt.Errorf("cannot buy snap: %s", message)
 }
 
 // Buy sends a buy request for the specified snap.
 // Returns the state of the order: Complete, Cancelled.
-func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
+func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError("snap ID missing")
 	}
@@ -1841,7 +1837,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 			return buyOptionError("payment cancelled")
 		}
 
-		return &BuyResult{
+		return &client.BuyResult{
 			State: orderDetails.State,
 		}, nil
 	case 400:
@@ -2200,7 +2196,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
-			if a.Epoch.Unset() {
+			if a.Epoch.IsZero() {
 				// Let the store know we can handle epochs, by sending the `epoch`
 				// field in the request.  A nil epoch is not an empty interface{},
 				// you'll get the null in the json. See comment in snapActionJSON.

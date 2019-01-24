@@ -44,9 +44,15 @@ var (
 	SetHotplugAttrs              = setHotplugAttrs
 	GetHotplugSlots              = getHotplugSlots
 	SetHotplugSlots              = setHotplugSlots
+	UpdateDevice                 = updateDevice
 	FindConnsForHotplugKey       = findConnsForHotplugKey
 	CheckSystemSnapIsPresent     = checkSystemSnapIsPresent
 	SystemSnapInfo               = systemSnapInfo
+	IsHotplugChange              = isHotplugChange
+	GetHotplugChangeAttrs        = getHotplugChangeAttrs
+	SetHotplugChangeAttrs        = setHotplugChangeAttrs
+	AllocHotplugSeq              = allocHotplugSeq
+	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -93,7 +99,7 @@ func UpperCaseConnState() map[string]*connState {
 	}
 }
 
-func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget bool) {
+func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget, undesired bool) {
 	connRef := &interfaces.ConnRef{
 		PlugRef: *conn.Plug.Ref(),
 		SlotRef: *conn.Slot.Ref(),
@@ -107,6 +113,7 @@ func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.C
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
 		ByGadget:         byGadget,
+		Undesired:        undesired,
 	}
 }
 
@@ -121,4 +128,18 @@ func GetConnStateAttrs(conns map[string]*connState, connID string) (plugStatic, 
 // SystemSnapName returns actual name of the system snap - reimplemented by concrete mapper.
 func (m *IdentityMapper) SystemSnapName() string {
 	return "unknown"
+}
+
+// MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
+func MockProfilesNeedRegeneration(fn func() bool) func() {
+	old := profilesNeedRegeneration
+	profilesNeedRegeneration = fn
+	return func() { profilesNeedRegeneration = old }
+}
+
+// MockWriteSystemKey mocks the function responsible for writing the system key.
+func MockWriteSystemKey(fn func() error) func() {
+	old := writeSystemKey
+	writeSystemKey = fn
+	return func() { writeSystemKey = old }
 }

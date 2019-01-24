@@ -26,6 +26,8 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
     # normal libs in order
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -396,6 +398,8 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
         # normal libs in order
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -480,4 +484,14 @@
     # reported as (LP: #1716339). The variants here represent different
     # locations of snap mount directory across distributions.
     /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+
+    # Allow executing snap-discard-ns, just like the set for snap-update-ns
+    # above but with the key difference that snap-discard-ns does not
+    # have a dedicated profile so we need to inherit snap-confine's profile.
+
+    /usr/lib{,exec,64}/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-discard-ns rix,
+    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+
 }
