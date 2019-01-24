@@ -82,7 +82,7 @@ audit deny @{HOME}/bin/{,**} wl,
 
 const homeConnectedPlugAppArmorWithAllRead = `
 # Allow non-owner read to non-hidden and non-snap files and directories
-capability dac_override,
+capability dac_read_search,
 @{HOME}/               r,
 @{HOME}/[^s.]**        r,
 @{HOME}/s[^n]**        r,
