@@ -590,7 +590,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 						 SNAP_MOUNT_DIR,
 						 base_snap_name);
 				if (access(rootfs_dir, F_OK) != 0) {
-					die("cannot locate the core16 or core core snap (current symlink missing?)");
+					die("cannot locate the core16 or core snap (current symlink missing?)");
 				}
 			}
 			if (access(rootfs_dir, F_OK) != 0)
