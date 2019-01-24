@@ -144,6 +144,9 @@ void sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 		sleep(1);
 	}
 
+	/* TODO: replace this with descending open/openat with validation callback
+	 * that returns a path descriptor to avoid TOCTOU */
+
 	// validate '/' down to profile_path are root-owned and not
 	// 'other' writable to avoid possibility of privilege
 	// escalation via bpf program load when paths are incorrectly
