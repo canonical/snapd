@@ -312,6 +312,9 @@ prepare_project() {
             exit 1
         fi
 
+        # remove etckeeper
+        apt purge -y etckeeper
+
         # debian has its own packaging
         rm -f debian
         ln -s "packaging/debian-sid" debian
