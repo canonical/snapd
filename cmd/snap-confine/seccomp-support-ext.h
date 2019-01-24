@@ -18,6 +18,9 @@
 #define SNAP_CONFINE_SECCOMP_SUPPORT_EXT_H
 
 #include <linux/filter.h>
+#include <stddef.h>
+
+size_t sc_read_seccomp_filter(const char *filename, char *buf, size_t buf_size);
 
 /**
  * Apply a given bpf program as a seccomp system call filter.
