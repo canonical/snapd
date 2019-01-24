@@ -109,7 +109,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	}
 }
 
-void sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
+bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 {
 	debug("loading bpf program for security tag %s", security_tag);
 
@@ -156,14 +156,14 @@ void sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
 	size_t num_read = sc_read_seccomp_filter(profile_path, bpf, sizeof bpf);
 	if (sc_streq(bpf, "@unrestricted\n")) {
-		return;
+		return false;
 	}
 	struct sock_fprog prog = {
 		.len = num_read / sizeof(struct sock_filter),
 		.filter = (struct sock_filter *)bpf,
 	};
 	sc_apply_seccomp_filter(&prog);
-	return;
+	return true;
 }
 
 void sc_apply_global_seccomp_profile(void)

@@ -18,6 +18,7 @@
 #define SNAP_CONFINE_SECCOMP_SUPPORT_H
 
 #include <seccomp.h>
+#include <stdbool.h>
 
 /** 
  * sc_apply_seccomp_profile_for_security_tag applies a seccomp profile to the
@@ -39,8 +40,11 @@
  * A profile may contain valid BPF program or the string "@unrestricted\n".  In
  * the former case the profile is applied to the current process using
  * sc_apply_seccomp_filter. In the latter case no action takes place.
+ *
+ * The return value indicates if the process uses confinement or runs under the
+ * special non-confining "@unrestricted" profile.
  **/
-void sc_apply_seccomp_profile_for_security_tag(const char *security_tag);
+bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag);
 
 void sc_apply_global_seccomp_profile(void);
 

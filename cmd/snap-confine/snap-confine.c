@@ -374,7 +374,7 @@ int main(int argc, char **argv)
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
-	sc_apply_seccomp_profile_for_security_tag(security_tag);
+	(void)sc_apply_seccomp_profile_for_security_tag(security_tag);
 	sc_apply_global_seccomp_profile();
 #endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
