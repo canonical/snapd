@@ -20,9 +20,8 @@
 #include <seccomp.h>
 
 /** 
- * Load and apply the given bpf program
- *
+ * Load and apply the seccomp bpf filter for the given security tag.
  **/
-int sc_apply_seccomp_bpf(const char *filter_profile);
+void sc_apply_seccomp_bpf(const char *security_tag);
 
 #endif

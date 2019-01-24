@@ -109,13 +109,13 @@ static void validate_bpfpath_is_safe(const char *path)
 	}
 }
 
-int sc_apply_seccomp_bpf(const char *filter_profile)
+void sc_apply_seccomp_bpf(const char *security_tag)
 {
-	debug("loading bpf program for security tag %s", filter_profile);
+	debug("loading bpf program for security tag %s", security_tag);
 
 	char profile_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
-			 filter_profile_dir, filter_profile);
+			 filter_profile_dir, security_tag);
 
 	// Wait some time for the security profile to show up. When
 	// the system boots snapd will created security profiles, but
@@ -168,7 +168,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	debug("read %zu bytes from %s", num_read, profile_path);
 
 	if (sc_streq(bpf, "@unrestricted\n")) {
-		return 0;
+		return;
 	}
 
 	struct sock_fprog prog = {
@@ -176,5 +176,5 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		.filter = (struct sock_filter *)bpf,
 	};
 	sc_apply_seccomp_filter(&prog);
-	return 0;
+	return;
 }
