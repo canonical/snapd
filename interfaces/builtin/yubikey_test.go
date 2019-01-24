@@ -59,8 +59,6 @@ slots:
 `
 
 func (s *yubikeyInterfaceSuite) SetUpTest(c *C) {
-	//s.BaseTest.SetUpTest(c)
-
 	s.plug, s.plugInfo = MockConnectedPlug(c, yubikeyConsumerYaml, nil, "yubikey")
 	s.slot, s.slotInfo = MockConnectedSlot(c, yubikeyCoreYaml, nil, "yubikey")
 }
