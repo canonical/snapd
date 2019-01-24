@@ -374,7 +374,7 @@ int main(int argc, char **argv)
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
-	sc_apply_seccomp_bpf(security_tag);
+	sc_apply_seccomp_profile_for_security_tag(security_tag);
 #endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);

@@ -20,8 +20,26 @@
 #include <seccomp.h>
 
 /** 
- * Load and apply the seccomp bpf filter for the given security tag.
+ * sc_apply_seccomp_profile_for_security_tag applies a seccomp profile to the
+ * current process. The filter is loaded from a pre-compiled bpf bytecode
+ * stored in "/var/lib/snap/seccomp/bpf" using the security tag and the
+ * extension ".bin". All components along that path must be owned by root and
+ * cannot be writable by UNIX _other_.
+ *
+ * The security tag is shared with other parts of snapd.
+ * For applications it is the string "snap.${SNAP_INSTANCE_NAME}.${app}".
+ * For hooks it is "snap.${SNAP_INSTANCE_NAME}.hook.{hook_name}".
+ *
+ * Profiles must be present in the file-system. If a profile is not present
+ * then several attempts are made, each coupled with a sleep period. Up 3600
+ * seconds may elapse before the function gives up. Unless
+ * $SNAP_CONFINE_MAX_PROFILE_WAIT environment variable dictates otherwise, the
+ * default wait time is 120 seconds.
+ *
+ * A profile may contain valid BPF program or the string "@unrestricted\n".  In
+ * the former case the profile is applied to the current process using
+ * sc_apply_seccomp_filter. In the latter case no action takes place.
  **/
-void sc_apply_seccomp_bpf(const char *security_tag);
+void sc_apply_seccomp_profile_for_security_tag(const char *security_tag);
 
 #endif

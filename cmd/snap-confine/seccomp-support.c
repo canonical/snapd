@@ -109,7 +109,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	}
 }
 
-void sc_apply_seccomp_bpf(const char *security_tag)
+void sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 {
 	debug("loading bpf program for security tag %s", security_tag);
 
