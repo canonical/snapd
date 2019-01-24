@@ -150,27 +150,11 @@ void sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	// set on the system.
 	validate_bpfpath_is_safe(profile_path);
 
-	// load bpf
 	char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
-	FILE *fp = fopen(profile_path, "rb");
-	if (fp == NULL) {
-		die("cannot read %s", profile_path);
-	}
-	// set 'size' to 1 to get bytes transferred
-	size_t num_read = fread(bpf, 1, sizeof(bpf), fp);
-	if (ferror(fp) != 0) {
-		die("cannot read seccomp profile %s", profile_path);
-	} else if (feof(fp) == 0) {
-		die("seccomp profile %s exceeds %zu bytes", profile_path,
-		    sizeof(bpf));
-	}
-	fclose(fp);
-	debug("read %zu bytes from %s", num_read, profile_path);
-
+	size_t num_read = sc_read_seccomp_filter(profile_path, bpf, sizeof bpf);
 	if (sc_streq(bpf, "@unrestricted\n")) {
 		return;
 	}
-
 	struct sock_fprog prog = {
 		.len = num_read / sizeof(struct sock_filter),
 		.filter = (struct sock_filter *)bpf,
