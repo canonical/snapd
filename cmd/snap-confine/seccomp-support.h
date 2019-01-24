@@ -42,4 +42,6 @@
  **/
 void sc_apply_seccomp_profile_for_security_tag(const char *security_tag);
 
+void sc_apply_global_seccomp_profile(void);
+
 #endif
