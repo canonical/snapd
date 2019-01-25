@@ -17,7 +17,7 @@
  *
  */
 
-package name
+package naming
 
 import (
 	"fmt"

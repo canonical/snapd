@@ -17,7 +17,7 @@
  *
  */
 
-package name_test
+package naming_test
 
 import (
 	"testing"
