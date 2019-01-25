@@ -987,21 +987,6 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) DeleteStoreInfoCache(snapName string) error {
-	f.appendOp(&fakeOp{
-		op:   "delete-store-info-cache",
-		name: snapName,
-	})
-	return nil
-}
-func (f *fakeSnappyBackend) CacheStoreInfo(snapName string, _ *backend.StoreInfo) error {
-	f.appendOp(&fakeOp{
-		op:   "cache-store-info",
-		name: snapName,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

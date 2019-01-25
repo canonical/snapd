@@ -9,11 +9,11 @@ prepare: |
   )
 
 restore: |
-  f=../../lib/snaps/test-snapd-complexion/test-snapd-complexion.bash-completer
-  if [ -e "${f}.orig" ]; then
-      mv "${f}.orig" "$f"
-  fi
-  snap remove test-snapd-complexion
+  (
+      cd ../../lib/snaps/test-snapd-complexion || exit 1
+      mv test-snapd-complexion.bash-completer.orig test-snapd-complexion.bash-completer
+      snap remove test-snapd-complexion
+  )
 
 execute: |
   d="$PWD"

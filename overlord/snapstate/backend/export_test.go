@@ -26,8 +26,6 @@ import (
 var (
 	AddMountUnit    = addMountUnit
 	RemoveMountUnit = removeMountUnit
-
-	SnapStoreInfoCacheFilename = snapStoreInfoCacheFilename
 )
 
 func MockUpdateFontconfigCaches(f func() error) (restore func()) {

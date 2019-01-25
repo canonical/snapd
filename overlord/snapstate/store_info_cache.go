@@ -17,7 +17,7 @@
  *
  */
 
-package backend
+package snapstate
 
 import (
 	"encoding/json"
@@ -31,10 +31,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// StoreInfo is information about a snap that is not in the snap.yaml,
-// not needed in the state, but may be cached to augment the information
+// storeInfo is information about a snap (*not* a snap revision), not
+// needed in the state, that may be cached to augment the information
 // returned for locally-installed snaps
-type StoreInfo struct {
+type storeInfo struct {
 	Media snap.MediaInfos `json:"media,omitempty"`
 }
 
@@ -42,7 +42,8 @@ func snapStoreInfoCacheFilename(snapName string) string {
 	return filepath.Join(dirs.SnapStoreInfoCacheDir, snapName) + ".json"
 }
 
-func AttachStoreInfo(info *snap.Info) error {
+// attachStoreInfo loads the stored per-snap cache info into the given *snap.Info
+func attachStoreInfo(info *snap.Info) error {
 	if info.SnapID == "" {
 		return nil
 	}
@@ -56,7 +57,7 @@ func AttachStoreInfo(info *snap.Info) error {
 	}
 	defer f.Close()
 
-	var storeInfo StoreInfo
+	var storeInfo storeInfo
 	dec := json.NewDecoder(f)
 	if err := dec.Decode(&storeInfo); err != nil {
 		return fmt.Errorf("cannot decode cached store info for snap %q: %v", snapName, err)
@@ -70,7 +71,8 @@ func AttachStoreInfo(info *snap.Info) error {
 	return nil
 }
 
-func (Backend) CacheStoreInfo(snapName string, storeInfo *StoreInfo) error {
+// cacheStoreInfo saves the given store info in the cache.
+func cacheStoreInfo(snapName string, storeInfo *storeInfo) error {
 	if snapName == "" {
 		return nil
 	}
@@ -103,7 +105,8 @@ user for locally-installed snaps.
 	return nil
 }
 
-func (Backend) DeleteStoreInfoCache(snapName string) error {
+// deleteStoreInfoCache removes the cache for the given snap
+func deleteStoreInfoCache(snapName string) error {
 	if snapName == "" {
 		return nil
 	}

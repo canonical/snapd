@@ -262,7 +262,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		err = nil
 	}
 	if err == nil && flags&loadStore != 0 {
-		if e := backend.AttachStoreInfo(info); e != nil {
+		if e := attachStoreInfo(info); e != nil {
 			logger.Debugf("cannot read cached snap store info for %q: %v", name, e)
 		}
 	}
@@ -364,7 +364,6 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
-	runner.AddHandler("cache-store-info", m.doCacheStoreInfo, m.doDeleteStoreInfoCache)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -375,7 +374,6 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
-	runner.AddHandler("delete-store-info-cache", m.doDeleteStoreInfoCache, nil) // once it's gone, it's gone
 
 	// alias related
 	// FIXME: drop the task entirely after a while

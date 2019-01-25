@@ -829,7 +829,7 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	return osutil.AtomicWriteFile(p, b, 0644, 0)
 }
 
-func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -937,6 +937,22 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-candidate-index", oldCandidateIndex)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.InstanceName(), snapst)
+
+	if cand.SnapID != "" {
+		// write the per-snap info cache for additional info
+		storeInfo := &storeInfo{Media: snapsup.Media}
+		if err := cacheStoreInfo(snapsup.InstanceName(), storeInfo); err != nil {
+			return err
+		}
+		defer func(single bool) {
+			if err != nil && single {
+				// the install is getting undone, and there are no more of this snap
+				// try to remove the cache
+				deleteStoreInfoCache(snapsup.InstanceName())
+			}
+		}(len(snapst.Sequence) == 1)
+	}
+
 	// write sequence file for failover helpers
 	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
 		return err
@@ -1064,8 +1080,13 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if len(snapst.Sequence) == 1 {
+		// XXX: shouldn't these two just log and carry on? this is an undo handler...
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
+		}
+		// try to remove the cache
+		if err := deleteStoreInfoCache(snapsup.InstanceName()); err != nil {
+			return fmt.Errorf("cannot remove store info cache: %v", err)
 		}
 	}
 
@@ -1099,6 +1120,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if len(snapst.Sequence) == 1 {
+		// XXX: why only restore when len()==1?
 		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
 			return err
 		}
@@ -1183,23 +1205,6 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil
-}
-
-func (m *SnapManager) doCacheStoreInfo(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
-
-	store := backend.StoreInfo{
-		Media: snapsup.Media,
-	}
-
-	return m.backend.CacheStoreInfo(snapsup.InstanceName(), &store)
 }
 
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
@@ -1400,25 +1405,19 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
+
+		// try to remove the store info cache
+		if err := deleteStoreInfoCache(snapsup.InstanceName()); err != nil {
+			logger.Noticef("Cannot remove store info cache for %q: %v", snapsup.InstanceName(), err)
+		}
+
+		// XXX: also remove sequence files?
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
 	}
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil
-}
-
-func (m *SnapManager) doDeleteStoreInfoCache(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
-
-	return m.backend.DeleteStoreInfoCache(snapsup.InstanceName())
 }
 
 /* aliases v2

@@ -310,7 +310,6 @@ const (
 	cleanupAfter
 	maybeCore
 	runCoreConfigure
-	hadSnapID
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -368,7 +367,6 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	expected = append(expected,
-		"cache-store-info",
 		"run-hook[configure]",
 	)
 
@@ -409,11 +407,9 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[post-refresh]",
-		"start-snap-services",
-		"cache-store-info",
-	)
+		"start-snap-services")
 
-	c.Assert(ts.Tasks()[len(expected)-3].Summary(), Matches, `Run post-refresh hook of .*`)
+	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run post-refresh hook of .*`)
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -432,8 +428,8 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	c.Assert(kinds, DeepEquals, expected)
 }
 
-func verifyRemoveTasks(c *C, opts int, ts *state.TaskSet) {
-	expected := []string{
+func verifyRemoveTasks(c *C, ts *state.TaskSet) {
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
 		"run-hook[remove]",
 		"auto-disconnect",
@@ -442,12 +438,7 @@ func verifyRemoveTasks(c *C, opts int, ts *state.TaskSet) {
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
-	}
-	if opts&hadSnapID != 0 {
-		expected = append(expected, "delete-store-info-cache")
-	}
-
-	c.Assert(taskKinds(ts.Tasks()), DeepEquals, expected)
+	})
 	verifyStopReason(c, ts, "remove")
 }
 
@@ -2070,7 +2061,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyRemoveTasks(c, 0, ts)
+	verifyRemoveTasks(c, ts)
 }
 
 func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
@@ -2116,6 +2107,9 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// we start without the cache
+	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FileAbsent)
 
 	chg := s.state.NewChange("install", "install a snap")
 	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -2213,10 +2207,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "cache-store-info",
-			name: "some-snap",
-		},
-		{
 			op:    "cleanup-trash",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -2235,9 +2225,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-8]
+	linkTask := ta[len(ta)-7]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
-	startTask := ta[len(ta)-3]
+	startTask := ta[len(ta)-2]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2278,6 +2268,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		Revision: snap.R(11),
 	})
 	c.Assert(snapst.Required, Equals, false)
+
+	// we end with the cache
+	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
@@ -2383,10 +2376,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "cache-store-info",
-			name: "some-snap_instance",
-		},
-		{
 			op:    "cleanup-trash",
 			name:  "some-snap_instance",
 			revno: snap.R(11),
@@ -2405,9 +2394,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-8]
+	linkTask := ta[len(ta)-7]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
-	startTask := ta[len(ta)-3]
+	startTask := ta[len(ta)-2]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2557,14 +2546,6 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "cache-store-info",
-			name: "some-snap",
-		},
-		{
-			op:   "delete-store-info-cache",
-			name: "some-snap",
-		},
-		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
 		},
@@ -2701,10 +2682,6 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "cache-store-info",
-			name: "some-snap",
-		},
-		{
 			op:    "cleanup-trash",
 			name:  "some-snap",
 			revno: snap.R(42),
@@ -2723,9 +2700,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-8]
+	linkTask := ta[len(ta)-7]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
-	startTask := ta[len(ta)-3]
+	startTask := ta[len(ta)-2]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
 
 	// verify snap-setup in the task state
@@ -2858,7 +2835,6 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"link-snap",
 		"auto-connect:Doing",
 		"update-aliases",
-		"cache-store-info",
 		"cleanup-trash",
 	})
 	// just check the interesting op
@@ -2929,6 +2905,9 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
+	// we start without the cache (or with an older cache)
+	c.Check(snapstate.SnapStoreInfoCacheFilename("services-snap"), testutil.FileAbsent)
+
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
 		RealName: "services-snap",
@@ -3067,10 +3046,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			services: []string{"svc1", "svc3", "svc2"},
 		},
 		{
-			op:   "cache-store-info",
-			name: "services-snap",
-		},
-		{
 			op:    "cleanup-trash",
 			name:  "services-snap",
 			revno: snap.R(11),
@@ -3144,6 +3119,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 		Revision: snap.R(11),
 	})
+
+	// we end up with the cache
+	c.Check(snapstate.SnapStoreInfoCacheFilename("services-snap"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
@@ -3287,10 +3265,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			op:       "start-snap-services",
 			path:     filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
 			services: []string{"svc1", "svc3", "svc2"},
-		},
-		{
-			op:   "cache-store-info",
-			name: "services-snap_instance",
 		},
 		{
 			op:    "cleanup-trash",
@@ -4266,15 +4240,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op: "update-aliases",
 		},
-		{
-			op:   "cache-store-info",
-			name: "some-snap",
-		},
 		// undoing everything from here down...
-		{
-			op:   "delete-store-info-cache",
-			name: "some-snap",
-		},
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
@@ -5543,7 +5509,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 18
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -6066,6 +6032,8 @@ version: 1.0`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
+	c.Assert(snapstate.CacheStoreInfo("some-snap", nil), IsNil)
+	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FilePresent)
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -6186,6 +6154,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
+	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FileAbsent)
+
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
@@ -6528,10 +6498,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
-		{
-			op:   "delete-store-info-cache",
-			name: "some-snap",
-		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -6691,6 +6657,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
+	c.Check(len(s.fakeBackend.ops), Equals, 7)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -6726,7 +6693,6 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 	}
 	// start with an easier-to-read error if this fails:
-	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -7108,10 +7074,6 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 		},
 		{
 			op: "update-aliases",
-		},
-		{
-			op:   "cache-store-info",
-			name: "some-snap",
 		},
 		{
 			op:   "remove-snap-data",
@@ -8356,7 +8318,6 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
-cache-store-info: Hold
 cleanup: Hold
 run-hook: Hold`)
 	c.Check(errSig, Matches, `(?sm)snap-install:
@@ -8373,7 +8334,6 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
-cache-store-info: Hold
 cleanup: Hold
 run-hook: Hold`)
 
@@ -9060,9 +9020,9 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	// Write a snap.yaml with fake name
-	sideInfo11 := &snap.SideInfo{RealName: "name1", Revision: snap.R(11), EditedSummary: "s11"}
-	sideInfo12 := &snap.SideInfo{RealName: "name1", Revision: snap.R(12), EditedSummary: "s12"}
-	instanceSideInfo13 := &snap.SideInfo{RealName: "name1", Revision: snap.R(13), EditedSummary: "s13 instance"}
+	sideInfo11 := &snap.SideInfo{RealName: "name1", Revision: snap.R(11), EditedSummary: "s11", SnapID: "123123123"}
+	sideInfo12 := &snap.SideInfo{RealName: "name1", Revision: snap.R(12), EditedSummary: "s12", SnapID: "123123123"}
+	instanceSideInfo13 := &snap.SideInfo{RealName: "name1", Revision: snap.R(13), EditedSummary: "s13 instance", SnapID: "123123123"}
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.1
@@ -9137,6 +9097,36 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	c.Check(info.Summary(), Equals, "s12")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Description(), Equals, "Lots of text")
+	c.Check(info.Media, IsNil)
+}
+
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsStoreInfoCache(c *C) {
+	storeInfo := snapstate.NewStoreInfo(snap.MediaInfos{
+		{
+			Type: "icon",
+			URL:  "http://example.com/favicon.ico",
+		},
+	})
+
+	c.Assert(snapstate.CacheStoreInfo("name1", storeInfo), IsNil)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "name1", &snapst)
+	c.Assert(err, IsNil)
+
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+
+	c.Check(info.InstanceName(), Equals, "name1")
+	c.Check(info.Revision, Equals, snap.R(12))
+	c.Check(info.Summary(), Equals, "s12")
+	c.Check(info.Version, Equals, "1.2")
+	c.Check(info.Description(), Equals, "Lots of text")
+	c.Check(info.Media, DeepEquals, storeInfo.Media)
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoParallelInstall(c *C) {
@@ -10396,7 +10386,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 9*2)
+	c.Assert(s.state.TaskCount(), Equals, 8*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
@@ -10407,7 +10397,6 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
-			"delete-store-info-cache",
 		})
 		verifyStopReason(c, ts, "remove")
 		// check that tasksets are in separate lanes
@@ -10747,7 +10736,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
-	verifyRemoveTasks(c, hadSnapID, tsl[2])
+	verifyRemoveTasks(c, tsl[2])
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
@@ -10774,7 +10763,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
 	// 1. transition connections
 	verifyTransitionConnectionsTasks(c, tsl[0])
 	// 2. remove ubuntu-core
-	verifyRemoveTasks(c, hadSnapID, tsl[1])
+	verifyRemoveTasks(c, tsl[1])
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
@@ -10895,10 +10884,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "cache-store-info",
-			name: "core",
-		},
-		{
 			op:   "transition-ubuntu-core:Doing",
 			name: "ubuntu-core",
 		},
@@ -10946,10 +10931,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op:   "remove-snap-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
-		},
-		{
-			op:   "delete-store-info-cache",
-			name: "ubuntu-core",
 		},
 		{
 			op:    "cleanup-trash",
@@ -11046,10 +11027,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			op:   "remove-snap-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
-		},
-		{
-			op:   "delete-store-info-cache",
-			name: "ubuntu-core",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -11580,10 +11557,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op: "update-aliases",
 		},
-		{
-			op:   "cache-store-info",
-			name: "core",
-		},
 		// after core is in place continue with the snap
 		{
 			op:   "storesvc-download",
@@ -11642,10 +11615,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op: "update-aliases",
-		},
-		{
-			op:   "cache-store-info",
-			name: "some-snap",
 		},
 		// cleanups order is random
 		{
@@ -11719,10 +11688,12 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	len1 := len(chg1.Tasks())
 	len2 := len(chg2.Tasks())
 	if len1 > len2 {
-		chg1, chg2 = chg2, chg1
+		c.Assert(chg1.Tasks(), HasLen, 26)
+		c.Assert(chg2.Tasks(), HasLen, 13)
+	} else {
+		c.Assert(chg1.Tasks(), HasLen, 13)
+		c.Assert(chg2.Tasks(), HasLen, 26)
 	}
-	c.Assert(taskKinds(chg1.Tasks()), HasLen, 14)
-	c.Assert(taskKinds(chg2.Tasks()), HasLen, 28)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
@@ -12174,12 +12145,6 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		revno: snap.R(42),
 	}, {
 		op: "update-aliases",
-	}, {
-		op:   "cache-store-info",
-		name: "snap-content-plug",
-	}, {
-		op:   "cache-store-info",
-		name: "snap-content-slot",
 	}, {
 		op:    "cleanup-trash",
 		name:  "snap-content-plug",

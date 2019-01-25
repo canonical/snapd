@@ -201,3 +201,17 @@ func setModel(override map[string]string) {
 		return a.(*asserts.Model), nil
 	}
 }
+
+// store info cache
+var (
+	SnapStoreInfoCacheFilename = snapStoreInfoCacheFilename
+	AttachStoreInfo            = attachStoreInfo
+	CacheStoreInfo             = cacheStoreInfo
+	DeleteStoreInfoCache       = deleteStoreInfoCache
+)
+
+func NewStoreInfo(media snap.MediaInfos) *storeInfo {
+	return &storeInfo{
+		Media: media,
+	}
+}

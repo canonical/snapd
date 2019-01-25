@@ -63,7 +63,6 @@ type managerBackend interface {
 	LinkSnap(info *snap.Info, model *asserts.Model) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error
-	CacheStoreInfo(snapName string, cache *backend.StoreInfo) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
@@ -79,7 +78,6 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 	RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error
 	DiscardSnapNamespace(snapName string) error
-	DeleteStoreInfoCache(snapName string) error
 
 	// alias related
 	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error

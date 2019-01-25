@@ -245,12 +245,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(startSnapServices)
 	prev = startSnapServices
 
-	if fromStore {
-		updateStoreCache := st.NewTask("cache-store-info", fmt.Sprintf(i18n.G("Update cache of store-side info for %q"), snapsup.InstanceName()))
-		addTask(updateStoreCache)
-		prev = updateStoreCache
-	}
-
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		var retain int
@@ -1640,14 +1634,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			si := seq[i]
 			addNext(removeInactiveRevision(st, name, si.Revision))
 		}
-
-		if info.SnapID != "" {
-			// remove cached store info
-			deleteStoreCache := st.NewTask("delete-store-info-cache", fmt.Sprintf(i18n.G("Remove cache of store-side info about %q"), snapsup.InstanceName()))
-			deleteStoreCache.Set("snap-setup", snapsup)
-			addNext(state.NewTaskSet(deleteStoreCache))
-		}
-
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
 	}
