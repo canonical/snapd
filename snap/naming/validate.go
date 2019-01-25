@@ -87,7 +87,7 @@ func ValidateSnap(name string) error {
 }
 
 // Regular expression describing correct plug, slot and interface names.
-var validPlugSlotIfaceName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+var validPlugSlotIface = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidatePlug checks if a string can be used as a slot name.
 //
@@ -95,7 +95,7 @@ var validPlugSlotIfaceName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 // This is not enforced by this function but is enforced by snap-level
 // validation.
 func ValidatePlug(name string) error {
-	if !validPlugSlotIfaceName.MatchString(name) {
+	if !validPlugSlotIface.MatchString(name) {
 		return fmt.Errorf("invalid plug name: %q", name)
 	}
 	return nil
@@ -107,7 +107,7 @@ func ValidatePlug(name string) error {
 // This is not enforced by this function but is enforced by snap-level
 // validation.
 func ValidateSlot(name string) error {
-	if !validPlugSlotIfaceName.MatchString(name) {
+	if !validPlugSlotIface.MatchString(name) {
 		return fmt.Errorf("invalid slot name: %q", name)
 	}
 	return nil
@@ -115,18 +115,18 @@ func ValidateSlot(name string) error {
 
 // ValidateInterface checks if a string can be used as an interface name.
 func ValidateInterface(name string) error {
-	if !validPlugSlotIfaceName.MatchString(name) {
+	if !validPlugSlotIface.MatchString(name) {
 		return fmt.Errorf("invalid interface name: %q", name)
 	}
 	return nil
 }
 
 // Regular expressions describing correct identifiers.
-var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+var validHook = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidateHook checks if a string can be used as a hook name.
 func ValidateHook(name string) error {
-	valid := validHookName.MatchString(name)
+	valid := validHook.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid hook name: %q", name)
 	}
@@ -145,12 +145,12 @@ func ValidateAlias(alias string) error {
 	return nil
 }
 
-// ValidAppName is a regular expression describing a valid application name
-var ValidAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+// ValidApp is a regular expression describing a valid application name
+var ValidApp = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
 // ValidateApp tells whether a string is a valid application name.
 func ValidateApp(n string) error {
-	if !ValidAppName.MatchString(n) {
+	if !ValidApp.MatchString(n) {
 		return fmt.Errorf("invalid app name: %q", n)
 	}
 	return nil
