@@ -939,6 +939,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -972,6 +976,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS2(c *C) {
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileFname string) {
 	// Make it appear as if NFS workaround was needed.
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -1031,6 +1039,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -1072,6 +1084,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, fmt.Errorf("broken") })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -1108,6 +1124,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -1135,6 +1155,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	// Make it appear as if NFS workaround was needed.
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
@@ -1191,6 +1215,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 
 	// Make it appear as if NFS workaround was not needed.
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.

@@ -57,6 +57,9 @@ func canUnicode(mode string) bool {
 	case "never":
 		return false
 	}
+	if !isStdoutTTY {
+		return false
+	}
 	var lang string
 	for _, k := range []string{"LC_MESSAGES", "LC_ALL", "LANG"} {
 		lang = os.Getenv(k)
@@ -107,6 +110,7 @@ var colorDescs = mixinDescs{
 
 type escapes struct {
 	green string
+	bold  string
 	end   string
 
 	tick, dash, uparrow string
@@ -115,11 +119,13 @@ type escapes struct {
 var (
 	color = escapes{
 		green: "\033[32m",
+		bold:  "\033[1m",
 		end:   "\033[0m",
 	}
 
 	mono = escapes{
 		green: "\033[1m",
+		bold:  "\033[1m",
 		end:   "\033[0m",
 	}
 

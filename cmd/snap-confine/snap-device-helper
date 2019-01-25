@@ -18,6 +18,22 @@ MAJMIN="$4"
 NOSNAP="${APPNAME#snap_}"
 [ "$NOSNAP" != "$APPNAME" ] || { echo "malformed appname $APPNAME" >&2; exit 1; }
 
+# FIXME: this will break for instances that are called "hook" :(
+# Handle hooks first, the the nosnap part looks like this:
+# - "$snap_hook_$hookname"
+# - "$snap_$instance_hook_$hookname
+# we need to make sure we change this to:
+# - "$snap_hook.$hookname"
+# - "$snap_$instance_hook.$hookname"
+if [ -z "${NOSNAP##*_hook_hook_*}" ]; then
+    # $instance is 'hook'; $snap_hook_hook.$hookname -> $snap_hook_hook.$hookname
+    NOSNAP="${NOSNAP%_hook_*}_hook.${NOSNAP#*_hook_hook_}"
+elif [ -z "${NOSNAP##*_hook_*}" ]; then
+    # $snap_$instance_hook_$hookname -> $snap_$instance_hook.$hookname
+    NOSNAP="${NOSNAP%_hook_*}_hook.${NOSNAP#*_hook_}"
+fi
+
+# Now deal with app/instance untangling
 if [ "${NOSNAP#*_*_}" = "${NOSNAP}" ]; then
     # snap_<snap>_<app> -> snap.<snap>.<app>
     SNAPAPP="snap.${NOSNAP%_*}.${NOSNAP#*_}"

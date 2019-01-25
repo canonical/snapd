@@ -333,6 +333,11 @@ prepare_project() {
         debian-*|ubuntu-*)
             # in 16.04: apt build-dep -y ./
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
+            # The go 1.10 backport is not using alternatives or anything else so
+            # we need to get it on path somehow. This is not perfect but simple.
+            if [ -z "$(command -v go)" ]; then
+                ln -s /usr/lib/go-1.10/bin/go /usr/bin/go
+            fi
             ;;
     esac
 
@@ -411,6 +416,9 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
+    # back test directory to be restored during the restore
+    tar cf "${PWD}.tar" "$PWD"
+
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
@@ -434,6 +442,13 @@ prepare_suite_each() {
 
 restore_suite_each() {
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
+
+    # restore test directory saved during prepare
+    if [ -f "${PWD}.tar" ]; then
+        rm -rf "$PWD"
+        tar -C/ -xf "${PWD}.tar"
+        rm -rf "${PWD}.tar"
+    fi
 }
 
 restore_suite() {
