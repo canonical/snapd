@@ -17,12 +17,12 @@
  *
  */
 
-package name_test
+package naming_test
 
 import (
 	. "gopkg.in/check.v1"
 
-	snapname "github.com/snapcore/snapd/snap/name"
+	"github.com/snapcore/snapd/snap/naming"
 
 	"github.com/snapcore/snapd/testutil"
 )
@@ -51,7 +51,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		"u-94903713687486543234157734673284536758",
 	}
 	for _, name := range validNames {
-		err := snapname.ValidateSnap(name)
+		err := naming.ValidateSnap(name)
 		c.Assert(err, IsNil)
 	}
 	invalidNames := []string{
@@ -81,7 +81,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		"日本語", "한글", "ру́сский язы́к",
 	}
 	for _, name := range invalidNames {
-		err := snapname.ValidateSnap(name)
+		err := naming.ValidateSnap(name)
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
 	}
 }
@@ -98,7 +98,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"foo_1", "foo_1234abcd",
 	}
 	for _, name := range validNames {
-		err := snapname.ValidateInstance(name)
+		err := naming.ValidateInstance(name)
 		c.Assert(err, IsNil)
 	}
 	invalidNames := []string{
@@ -115,7 +115,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"ру́сский_язы́к",
 	}
 	for _, name := range invalidNames {
-		err := snapname.ValidateInstance(name)
+		err := naming.ValidateInstance(name)
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
 	}
 	invalidInstanceKeys := []string{
@@ -124,7 +124,7 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"foo__bar",
 	}
 	for _, name := range invalidInstanceKeys {
-		err := snapname.ValidateInstance(name)
+		err := naming.ValidateInstance(name)
 		c.Assert(err, ErrorMatches, `invalid instance key: ".*"`)
 	}
 
@@ -141,7 +141,7 @@ func (s *ValidateSuite) TestValidateHookName(c *C) {
 		"valid",
 	}
 	for _, hook := range validHooks {
-		err := snapname.ValidateHook(hook)
+		err := naming.ValidateHook(hook)
 		c.Assert(err, IsNil)
 	}
 	invalidHooks := []string{
@@ -156,7 +156,7 @@ func (s *ValidateSuite) TestValidateHookName(c *C) {
 		"日本語",
 	}
 	for _, hook := range invalidHooks {
-		err := snapname.ValidateHook(hook)
+		err := naming.ValidateHook(hook)
 		c.Assert(err, ErrorMatches, `invalid hook name: ".*"`)
 	}
 }
@@ -167,14 +167,14 @@ func (s *ValidateSuite) TestValidateAppName(c *C) {
 		"a-a", "aa-a", "a-aa", "a-b-c", "0a-a", "a-0a",
 	}
 	for _, name := range validAppNames {
-		c.Check(snapname.ValidateApp(name), IsNil)
+		c.Check(naming.ValidateApp(name), IsNil)
 	}
 	invalidAppNames := []string{
 		"", "-", "--", "a--a", "a-", "a ", " a", "a a", "日本語", "한글",
 		"ру́сский язы́к", "ໄຂ່​ອີ​ສ​ເຕີ້", ":a", "a:", "a:a", "_a", "a_", "a_a",
 	}
 	for _, name := range invalidAppNames {
-		err := snapname.ValidateApp(name)
+		err := naming.ValidateApp(name)
 		c.Assert(err, ErrorMatches, `invalid app name: ".*"`)
 	}
 }
@@ -190,7 +190,7 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 		"0.1game", "1_or_2",
 	}
 	for _, alias := range validAliases {
-		err := snapname.ValidateAlias(alias)
+		err := naming.ValidateAlias(alias)
 		c.Assert(err, IsNil)
 	}
 	invalidAliases := []string{
@@ -201,7 +201,7 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 		"foo$",
 	}
 	for _, alias := range invalidAliases {
-		err := snapname.ValidateAlias(alias)
+		err := naming.ValidateAlias(alias)
 		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
 	}
 }
@@ -214,7 +214,7 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		"01game", "1-or-2",
 	}
 	for _, name := range validNames {
-		err := snapname.ValidateSocket(name)
+		err := naming.ValidateSocket(name)
 		c.Assert(err, IsNil)
 	}
 	invalidNames := []string{
@@ -236,7 +236,7 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		"aa-a\000-b",
 	}
 	for _, name := range invalidNames {
-		err := snapname.ValidateSocket(name)
+		err := naming.ValidateSocket(name)
 		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
 	}
 }
@@ -253,11 +253,11 @@ func (s *ValidateSuite) TestValidateSlotPlugInterfaceName(c *C) {
 		"valid-123",
 	}
 	for _, name := range valid {
-		err := snapname.ValidateSlot(name)
+		err := naming.ValidateSlot(name)
 		c.Assert(err, IsNil)
-		err = snapname.ValidatePlug(name)
+		err = naming.ValidatePlug(name)
 		c.Assert(err, IsNil)
-		err = snapname.ValidateInterface(name)
+		err = naming.ValidateInterface(name)
 		c.Assert(err, IsNil)
 	}
 	invalid := []string{
@@ -272,11 +272,11 @@ func (s *ValidateSuite) TestValidateSlotPlugInterfaceName(c *C) {
 		"日本語",
 	}
 	for _, name := range invalid {
-		err := snapname.ValidateSlot(name)
+		err := naming.ValidateSlot(name)
 		c.Assert(err, ErrorMatches, `invalid slot name: ".*"`)
-		err = snapname.ValidatePlug(name)
+		err = naming.ValidatePlug(name)
 		c.Assert(err, ErrorMatches, `invalid plug name: ".*"`)
-		err = snapname.ValidateInterface(name)
+		err = naming.ValidateInterface(name)
 		c.Assert(err, ErrorMatches, `invalid interface name: ".*"`)
 	}
 }
