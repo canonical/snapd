@@ -29,7 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	snapname "github.com/snapcore/snapd/snap/name"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // SnapDeclaration holds a snap-declaration assertion, declaring a
@@ -216,13 +216,13 @@ func checkAliases(headers map[string]interface{}) (map[string]string, error) {
 		}
 
 		what := fmt.Sprintf(`in "aliases" item %d`, i+1)
-		name, err := checkStringMatchesWhat(aliasItem, "name", what, snapname.ValidAlias)
+		name, err := checkStringMatchesWhat(aliasItem, "name", what, naming.ValidAlias)
 		if err != nil {
 			return nil, err
 		}
 
 		what = fmt.Sprintf(`for alias %q`, name)
-		target, err := checkStringMatchesWhat(aliasItem, "target", what, snapname.ValidAppName)
+		target, err := checkStringMatchesWhat(aliasItem, "target", what, naming.ValidAppName)
 		if err != nil {
 			return nil, err
 		}
@@ -291,7 +291,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	}
 
 	// XXX: depracated, will go away later
-	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", snapname.ValidAlias)
+	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", naming.ValidAlias)
 	if err != nil {
 		return nil, err
 	}
