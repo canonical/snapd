@@ -35,7 +35,7 @@ check_journalctl_ready(){
 check_journalctl_log(){
     expression=$1
     shift
-    for _ in $(seq 40); do
+    for _ in $(seq 20); do
         log=$(get_journalctl_log "$@")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
