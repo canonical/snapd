@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -321,8 +322,19 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
 // displayChannels displays channels and tracks in the right order
-func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap) {
-	fmt.Fprintf(w, "channels:"+strings.Repeat("\t", strings.Count(chantpl, "\t"))+"\n")
+func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap, revLen, sizeLen int) (maxRevLen, maxSizeLen int) {
+	fmt.Fprintln(w, "channels:")
+
+	releasedfmt := "2006-01-02"
+	if x.AbsTime {
+		releasedfmt = time.RFC3339
+	}
+
+	type chInfoT struct {
+		name, version, released, revision, size, notes string
+	}
+	var chInfos []*chInfoT
+	maxRevLen, maxSizeLen = revLen, sizeLen
 
 	// order by tracks
 	for _, tr := range remote.Tracks {
@@ -333,23 +345,36 @@ func displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.S
 			if tr == "latest" {
 				chName = risk
 			}
-			var version, revision, size, notes string
+			chInfo := chInfoT{name: chName}
 			if ok {
-				version = ch.Version
-				revision = fmt.Sprintf("(%s)", ch.Revision)
-				size = strutil.SizeToStr(ch.Size)
-				notes = NotesFromChannelSnapInfo(ch).String()
+				chInfo.version = ch.Version
+				chInfo.revision = fmt.Sprintf("(%s)", ch.Revision)
+				if len(chInfo.revision) > maxRevLen {
+					maxRevLen = len(chInfo.revision)
+				}
+				chInfo.released = ch.ReleasedAt.Format(releasedfmt)
+				chInfo.size = strutil.SizeToStr(ch.Size)
+				if len(chInfo.size) > maxSizeLen {
+					maxSizeLen = len(chInfo.size)
+				}
+				chInfo.notes = NotesFromChannelSnapInfo(ch).String()
 				trackHasOpenChannel = true
 			} else {
 				if trackHasOpenChannel {
-					version = esc.uparrow
+					chInfo.version = esc.uparrow
 				} else {
-					version = esc.dash
+					chInfo.version = esc.dash
 				}
 			}
-			fmt.Fprintf(w, "  "+chantpl, chName, version, revision, size, notes)
+			chInfos = append(chInfos, &chInfo)
 		}
 	}
+
+	for _, chInfo := range chInfos {
+		fmt.Fprintf(w, "  "+chantpl, chInfo.name, chInfo.version, chInfo.released, maxRevLen, chInfo.revision, maxSizeLen, chInfo.size, chInfo.notes)
+	}
+
+	return maxRevLen, maxSizeLen
 }
 
 func formatSummary(raw string) string {
@@ -448,6 +473,8 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintBase(w, both.Base, x.Verbose)
 		maybePrintID(w, both)
+		var localRev, localSize string
+		var revLen, sizeLen int
 		if local != nil {
 			if local.TrackingChannel != "" {
 				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
@@ -455,19 +482,22 @@ func (x *infoCmd) Execute([]string) error {
 			if !local.InstallDate.IsZero() {
 				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
 			}
+			localRev = fmt.Sprintf("(%s)", local.Revision)
+			revLen = len(localRev)
+			localSize = strutil.SizeToStr(local.InstalledSize)
+			sizeLen = len(localSize)
 		}
 
-		chantpl := "%s:\t%s %s %s %s\n"
+		chantpl := "%s:\t%s %s%*s %*s %s\n"
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			chantpl = "%s:\t%s\t%s\t%s\t%s\n"
+			chantpl = "%s:\t%s\t%s\t%*s\t%*s\t%s\n"
 
 			w.Flush()
-			displayChannels(w, chantpl, esc, remote)
+			revLen, sizeLen = x.displayChannels(w, chantpl, esc, remote, revLen, sizeLen)
 		}
 		if local != nil {
-			revstr := fmt.Sprintf("(%s)", local.Revision)
 			fmt.Fprintf(w, chantpl,
-				"installed", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
+				"installed", local.Version, "", revLen, localRev, sizeLen, localSize, notes)
 		}
 
 	}

@@ -76,7 +76,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.36.3
+Version:        2.37
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -274,7 +274,7 @@ rm -f %{buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
 install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,cookie,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 
-install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/vulkan}
+install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/glvnd,lib/vulkan}
 install -d %{buildroot}%{_localstatedir}/cache/snapd
 install -d %{buildroot}%{_datadir}/polkit-1/actions
 install -d %{buildroot}%{snap_mount_dir}/bin
@@ -372,6 +372,7 @@ fi
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/glvnd
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_localstatedir}/cache/snapd
 %dir %{_environmentdir}
