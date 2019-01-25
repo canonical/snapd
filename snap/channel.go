@@ -44,41 +44,56 @@ func ParseChannel(s string, architecture string) (Channel, error) {
 		return Channel{}, fmt.Errorf("channel name cannot be empty")
 	}
 	p := strings.Split(s, "/")
-	var risk, track, branch string
+	var risk, track, branch *string
+	stableRisk := "stable"
 	switch len(p) {
 	default:
 		return Channel{}, fmt.Errorf("channel name has too many components: %s", s)
 	case 3:
-		track, risk, branch = p[0], p[1], p[2]
+		track, risk, branch = &p[0], &p[1], &p[2]
 	case 2:
 		if strutil.ListContains(channelRisks, p[0]) {
-			risk, branch = p[0], p[1]
+			risk, branch = &p[0], &p[1]
 		} else {
-			track, risk = p[0], p[1]
+			track, risk = &p[0], &p[1]
 		}
 	case 1:
 		if strutil.ListContains(channelRisks, p[0]) {
-			risk = p[0]
+			risk = &p[0]
 		} else {
-			track = p[0]
-			risk = "stable"
+			track = &p[0]
+			risk = &stableRisk
 		}
-	}
-
-	if !strutil.ListContains(channelRisks, risk) {
-		return Channel{}, fmt.Errorf("invalid risk in channel name: %s", s)
 	}
 
 	if architecture == "" {
 		architecture = arch.UbuntuArchitecture()
 	}
 
-	return Channel{
+	ch := Channel{
 		Architecture: architecture,
-		Track:        track,
-		Risk:         risk,
-		Branch:       branch,
-	}.Clean(), nil
+	}
+
+	if risk != nil {
+		if !strutil.ListContains(channelRisks, *risk) {
+			return Channel{}, fmt.Errorf("invalid risk in channel name: %s", s)
+		}
+		ch.Risk = *risk
+	}
+	if track != nil {
+		if *track == "" {
+			return Channel{}, fmt.Errorf("invalid track in channel name: %s", s)
+		}
+		ch.Track = *track
+	}
+	if branch != nil {
+		if *branch == "" {
+			return Channel{}, fmt.Errorf("invalid branch in channel name: %s", s)
+		}
+		ch.Branch = *branch
+	}
+
+	return ch.Clean(), nil
 }
 
 // Clean returns a Channel with a normalized track and name.
