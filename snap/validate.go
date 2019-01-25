@@ -30,7 +30,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	snapname "github.com/snapcore/snapd/snap/name"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -41,12 +41,12 @@ const validSnapIDLength = 32
 
 // ValidateInstanceName checks if a string can be used as a snap instance name.
 func ValidateInstanceName(instanceName string) error {
-	return snapname.ValidateInstance(instanceName)
+	return naming.ValidateInstance(instanceName)
 }
 
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
-	return snapname.ValidateSnap(name)
+	return naming.ValidateSnap(name)
 }
 
 // ValidatePlugName checks if a string can be used as a slot name.
@@ -55,7 +55,7 @@ func ValidateName(name string) error {
 // This is not enforced by this function but is enforced by snap-level
 // validation.
 func ValidatePlugName(name string) error {
-	return snapname.ValidatePlug(name)
+	return naming.ValidatePlug(name)
 }
 
 // ValidateSlotName checks if a string can be used as a slot name.
@@ -64,12 +64,12 @@ func ValidatePlugName(name string) error {
 // This is not enforced by this function but is enforced by snap-level
 // validation.
 func ValidateSlotName(name string) error {
-	return snapname.ValidateSlot(name)
+	return naming.ValidateSlot(name)
 }
 
 // ValidateInterfaceName checks if a string can be used as an interface name.
 func ValidateInterfaceName(name string) error {
-	return snapname.ValidateInterface(name)
+	return naming.ValidateInterface(name)
 }
 
 // NB keep this in sync with snapcraft and the review tools :-)
@@ -144,7 +144,7 @@ func ValidateLicense(license string) error {
 
 // ValidateHook validates the content of the given HookInfo
 func ValidateHook(hook *HookInfo) error {
-	if err := snapname.ValidateHook(hook.Name); err != nil {
+	if err := naming.ValidateHook(hook.Name); err != nil {
 		return err
 	}
 
@@ -160,13 +160,13 @@ func ValidateHook(hook *HookInfo) error {
 
 // ValidateAlias checks if a string can be used as an alias name.
 func ValidateAlias(alias string) error {
-	return snapname.ValidateAlias(alias)
+	return naming.ValidateAlias(alias)
 }
 
 // validateSocketName checks if a string ca be used as a name for a socket (for
 // socket activation).
 func validateSocketName(name string) error {
-	return snapname.ValidateSocket(name)
+	return naming.ValidateSocket(name)
 }
 
 // validateSocketmode checks that the socket mode is a valid file mode.
@@ -318,7 +318,7 @@ func Validate(info *Info) error {
 
 	// validate aliases
 	for alias, app := range info.LegacyAliases {
-		if err := snapname.ValidateAlias(alias); err != nil {
+		if err := naming.ValidateAlias(alias); err != nil {
 			return fmt.Errorf("cannot have %q as alias name for app %q - use only letters, digits, dash, underscore and dot characters", alias, app.Name)
 		}
 	}
@@ -544,7 +544,7 @@ var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
-	return snapname.ValidateApp(n) == nil
+	return naming.ValidateApp(n) == nil
 }
 
 // ValidateApp verifies the content in the app info.
