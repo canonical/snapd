@@ -32,7 +32,7 @@ execute: |
     snap start test-snapd-daemon-notify.notify
     for _ in $(seq 10); do
         denials_after="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
-        if [ "$denials_before" -eq "$denials_after" ]; then
+        if [ "$denials_before" -ne "$denials_after" ]; then
             break
         fi
         sleep 1
