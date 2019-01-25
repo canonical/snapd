@@ -102,6 +102,49 @@ func (s storeChannelSuite) TestParseChannel(c *C) {
 	})
 }
 
+func mustParseChannel(c *C, channel string) snap.Channel {
+	ch, err := snap.ParseChannel(channel, "")
+	c.Assert(err, IsNil)
+	return ch
+}
+
+func (s storeChannelSuite) TestParseChannelVerbatim(c *C) {
+	ch, err := snap.ParseChannelVerbatim("sometrack", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "sometrack",
+	})
+	c.Check(mustParseChannel(c, "sometrack"), DeepEquals, ch.Clean())
+
+	ch, err = snap.ParseChannelVerbatim("latest", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "latest",
+	})
+	c.Check(mustParseChannel(c, "latest"), DeepEquals, ch.Clean())
+
+	ch, err = snap.ParseChannelVerbatim("latest/stable", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "latest",
+		Risk:         "stable",
+	})
+	c.Check(mustParseChannel(c, "latest/stable"), DeepEquals, ch.Clean())
+
+	ch, err = snap.ParseChannelVerbatim("latest/stable/foo", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "latest",
+		Risk:         "stable",
+		Branch:       "foo",
+	})
+	c.Check(mustParseChannel(c, "latest/stable/foo"), DeepEquals, ch.Clean())
+}
+
 func (s storeChannelSuite) TestClean(c *C) {
 	ch := snap.Channel{
 		Architecture: "arm64",
