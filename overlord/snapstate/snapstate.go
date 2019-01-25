@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // control flags for doInstall
@@ -1060,20 +1059,20 @@ func resolveChannel(st *state.State, snapName, newChannel string) (effectiveChan
 		return newChannel, nil
 	}
 
-	if strutil.ListContains(snap.ChannelRisks, newChannel) {
-		// channel name is valid and consist of risk level only, do the
-		// right thing and default to risk within the pinned track
-		return pinnedTrack + "/" + newChannel, nil
-	}
-
-	nch, err := snap.ParseChannel(newChannel, "")
+	nch, err := snap.ParseChannelVerbatim(newChannel, "")
 	if err != nil {
 		return "", err
 	}
 
-	if nch.Track != pinnedTrack {
+	if nch.Track == "" {
+		// channel name is valid and consist of risk level or
+		// risk/branch only, do the right thing and default to risk (or
+		// risk/branch) within the pinned track
+		return pinnedTrack + "/" + newChannel, nil
+	}
+	if nch.Track != "" && nch.Track != pinnedTrack {
 		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.String())
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
 
 	}
 
