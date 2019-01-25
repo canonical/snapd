@@ -36,49 +36,75 @@ const u2fDevicesBaseDeclarationSlots = `
 `
 
 type u2fDevice struct {
-	VendorId, ProductId string
+	Name, VendorIDPattern, ProductIDPattern string
 }
 
 // https://github.com/Yubico/libu2f-host/blob/master/70-u2f.rules
-var u2fDevices = map[string]u2fDevice{
-	"Yubico YubiKey": {VendorId: "1050",
-		ProductId: "0113|0114|0115|0116|0120|0200|0402|0403|0406|0407|0410",
+var u2fDevices = []u2fDevice{
+	{
+		Name:             "Yubico YubiKey",
+		VendorIDPattern:  "1050",
+		ProductIDPattern: "0113|0114|0115|0116|0120|0200|0402|0403|0406|0407|0410",
 	},
-	"Happlink (formerly Plug-Up) Security KEY": {VendorId: "2581",
-		ProductId: "f1d0",
+	{
+		Name:             "Happlink (formerly Plug-Up) Security KEY",
+		VendorIDPattern:  "2581",
+		ProductIDPattern: "f1d0",
 	},
-	"Neowave Keydo and Keydo AES": {VendorId: "1e0d",
-		ProductId: "f1d0|f1ae",
+	{
+		Name:             "Neowave Keydo and Keydo AES",
+		VendorIDPattern:  "1e0d",
+		ProductIDPattern: "f1d0|f1ae",
 	},
-	"HyperSecu HyperFIDO": {VendorId: "096e|2ccf",
-		ProductId: "0880",
+	{
+		Name:             "HyperSecu HyperFIDO",
+		VendorIDPattern:  "096e|2ccf",
+		ProductIDPattern: "0880",
 	},
-	"Feitian ePass FIDO, BioPass FIDO2": {VendorId: "096e",
-		ProductId: "0850|0852|0853|0854|0856|0858|085a|085b|085d",
+	{
+		Name:             "Feitian ePass FIDO, BioPass FIDO2",
+		VendorIDPattern:  "096e",
+		ProductIDPattern: "0850|0852|0853|0854|0856|0858|085a|085b|085d",
 	},
-	"JaCarta U2F": {VendorId: "24dc",
-		ProductId: "0101",
+	{
+		Name:             "JaCarta U2F",
+		VendorIDPattern:  "24dc",
+		ProductIDPattern: "0101",
 	},
-	"U2F Zero": {VendorId: "10c4",
-		ProductId: "8acf",
+	{
+		Name:             "U2F Zero",
+		VendorIDPattern:  "10c4",
+		ProductIDPattern: "8acf",
 	},
-	"VASCO SeccureClick": {VendorId: "1a44",
-		ProductId: "00bb",
+	{
+		Name:             "VASCO SeccureClick",
+		VendorIDPattern:  "1a44",
+		ProductIDPattern: "00bb",
 	},
-	"Bluink Key": {VendorId: "2abe",
-		ProductId: "1002",
+	{
+		Name:             "Bluink Key",
+		VendorIDPattern:  "2abe",
+		ProductIDPattern: "1002",
 	},
-	"Thetis Key": {VendorId: "1ea8",
-		ProductId: "f025",
+	{
+		Name:             "Thetis Key",
+		VendorIDPattern:  "1ea8",
+		ProductIDPattern: "f025",
 	},
-	"Nitrokey FIDO U2F": {VendorId: "20a0",
-		ProductId: "4287",
+	{
+		Name:             "Nitrokey FIDO U2F",
+		VendorIDPattern:  "20a0",
+		ProductIDPattern: "4287",
 	},
-	"Google Titan U2F": {VendorId: "18d1",
-		ProductId: "5026",
+	{
+		Name:             "Google Titan U2F",
+		VendorIDPattern:  "18d1",
+		ProductIDPattern: "5026",
 	},
-	"Tomu board + chopstx U2F": {VendorId: "0483",
-		ProductId: "cdab",
+	{
+		Name:             "Tomu board + chopstx U2F",
+		VendorIDPattern:  "0483",
+		ProductIDPattern: "cdab",
 	},
 }
 
@@ -104,8 +130,8 @@ type u2fDevicesInterface struct {
 }
 
 func (iface *u2fDevicesInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	for name := range u2fDevices {
-		spec.TagDevice(fmt.Sprintf("# %s\nSUBSYSTEM==\"hidraw\", KERNEL==\"hidraw*\", ATTRS{idVendor}==\"%s\", ATTRS{idProduct}==\"%s\"", name, u2fDevices[name].VendorId, u2fDevices[name].ProductId))
+	for _, d := range u2fDevices {
+		spec.TagDevice(fmt.Sprintf("# %s\nSUBSYSTEM==\"hidraw\", KERNEL==\"hidraw*\", ATTRS{idVendor}==\"%s\", ATTRS{idProduct}==\"%s\"", d.Name, d.VendorIDPattern, d.ProductIDPattern))
 	}
 	return nil
 }
