@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var ChannelRisks = []string{"stable", "candidate", "beta", "edge"}
+var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
 // Channel identifies and describes completely a store channel.
 type Channel struct {
@@ -54,20 +54,20 @@ func ParseChannelVerbatim(s string, architecture string) (Channel, error) {
 	case 3:
 		track, risk, branch = p[0], p[1], p[2]
 	case 2:
-		if strutil.ListContains(ChannelRisks, p[0]) {
+		if strutil.ListContains(channelRisks, p[0]) {
 			risk, branch = p[0], p[1]
 		} else {
 			track, risk = p[0], p[1]
 		}
 	case 1:
-		if strutil.ListContains(ChannelRisks, p[0]) {
+		if strutil.ListContains(channelRisks, p[0]) {
 			risk = p[0]
 		} else {
 			track = p[0]
 		}
 	}
 
-	if risk != "" && !strutil.ListContains(ChannelRisks, risk) {
+	if risk != "" && !strutil.ListContains(channelRisks, risk) {
 		return Channel{}, fmt.Errorf("invalid risk in channel name: %s", s)
 	}
 
@@ -138,7 +138,7 @@ func (c *Channel) Full() string {
 }
 
 func riskLevel(risk string) int {
-	for i, r := range ChannelRisks {
+	for i, r := range channelRisks {
 		if r == risk {
 			return i
 		}
