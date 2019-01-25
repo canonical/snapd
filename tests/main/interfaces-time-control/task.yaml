@@ -30,24 +30,24 @@ execute: |
     echo "The interface is disconnected by default"
     snap interfaces -i time-control | MATCH -- '^- +test-snapd-timedate-control-consumer:time-control'
 
-    # When the interface is connected
+    echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:time-control
 
-    # Read/write to hwclock access should be possible
+    echo "Then read/write hwclock access should be possible"
     test-snapd-timedate-control-consumer.hwclock-time -r -f /dev/rtc
     test-snapd-timedate-control-consumer.hwclock-time --systohc -f /dev/rtc
 
-    # Read access should be possible
+    echo "And read access should be possible"
     test-snapd-timedate-control-consumer.timedatectl-time status | MATCH "RTC in local TZ:"
 
-    # Save the RTC initial value
+    echo "And writing the initial value to RTC should be possible"
     test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)' > rtc.txt
 
-    # Set the local rtc and check the status
+    echo "And reading/writing local RTC status should be possible"
     test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc yes
     [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "yes" ]
 
-    # Re-set the local rtc and check the status
+    echo "And resetting the local rtc status should be possible (reading the status is implied AIUI)"
     test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc no
     [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
 
@@ -55,9 +55,11 @@ execute: |
         exit 0
     fi
 
-    # Disconnect the interface and check access to timedatectl status
+    echo "When the plug is disconnected"
     snap disconnect test-snapd-timedate-control-consumer:time-control
-    if test-snapd-timedate-control-consumer.timedatectl-time status 2>"${PWD}"/call.error; then
+
+    echo "The timedatectl status cannot be retrieved"
+    if test-snapd-timedate-control-consumer.timedatectl-time status 2> call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1
     fi
