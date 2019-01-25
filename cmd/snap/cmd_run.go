@@ -463,9 +463,10 @@ func snapdHelperPath(toolName string) (string, error) {
 	// snapBase will be "/snap/{core,snapd}/$rev/" because
 	// the snap binary is always at $root/usr/bin/snap
 	snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
-	// Run snap-confine from the core/snapd snap. That
-	// will work because snap-confine on the core/snapd snap is
-	// mostly statically linked (except libudev and libc)
+	// Run snap-confine from the core/snapd snap.  The tools in
+	// core/snapd snap are statically linked, or mostly
+	// statically, with the exception of libraries such as libudev
+	// and libc.
 	return filepath.Join(snapBase, dirs.CoreLibExecDir, toolName), nil
 }
 
