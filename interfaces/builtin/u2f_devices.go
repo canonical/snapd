@@ -25,22 +25,22 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
-const yubikeySummary = `allows access to yubikey devices`
+const u2fDevicesSummary = `allows access to u2f devices`
 
-const yubikeyBaseDeclarationSlots = `
-  yubikey:
+const u2fDevicesBaseDeclarationSlots = `
+  u2f-devices:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-type yubikeyDevice struct {
+type u2fDevice struct {
 	VendorId, ProductId string
 }
 
 // https://github.com/Yubico/libu2f-host/blob/master/70-u2f.rules
-var yubikeyDevices = map[string]yubikeyDevice{
+var u2fDevices = map[string]u2fDevice{
 	"Yubico YubiKey": {VendorId: "1050",
 		ProductId: "0113|0114|0115|0116|0120|0200|0402|0403|0406|0407|0410",
 	},
@@ -82,13 +82,13 @@ var yubikeyDevices = map[string]yubikeyDevice{
 	},
 }
 
-const yubikeyConnectedPlugAppArmor = `
-# Description: Allow write access to yubikey hidraw devices.
+const u2fDevicesConnectedPlugAppArmor = `
+# Description: Allow write access to u2f hidraw devices.
 
 # Use a glob rule and rely on device cgroup for mediation.
 /dev/hidraw* rw,
 
-# char 234-254 are used for dynamic assignment, which yubikeys are
+# char 234-254 are used for dynamic assignment, which u2f devices are
 /run/udev/data/c23[4-9]:* r,
 /run/udev/data/c24[0-9]:* r,
 /run/udev/data/c25[0-4]:* r,
@@ -99,25 +99,25 @@ const yubikeyConnectedPlugAppArmor = `
 /sys/devices/**/usb*/**/report_descriptor r,
 `
 
-type yubikeyInterface struct {
+type u2fDevicesInterface struct {
 	commonInterface
 }
 
-func (iface *yubikeyInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	for name := range yubikeyDevices {
-		spec.TagDevice(fmt.Sprintf("# %s\nSUBSYSTEM==\"hidraw\", KERNEL==\"hidraw*\", ATTRS{idVendor}==\"%s\", ATTRS{idProduct}==\"%s\"", name, yubikeyDevices[name].VendorId, yubikeyDevices[name].ProductId))
+func (iface *u2fDevicesInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	for name := range u2fDevices {
+		spec.TagDevice(fmt.Sprintf("# %s\nSUBSYSTEM==\"hidraw\", KERNEL==\"hidraw*\", ATTRS{idVendor}==\"%s\", ATTRS{idProduct}==\"%s\"", name, u2fDevices[name].VendorId, u2fDevices[name].ProductId))
 	}
 	return nil
 }
 
 func init() {
-	registerIface(&yubikeyInterface{commonInterface{
-		name:                  "yubikey",
-		summary:               yubikeySummary,
+	registerIface(&u2fDevicesInterface{commonInterface{
+		name:                  "u2f-devices",
+		summary:               u2fDevicesSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  yubikeyBaseDeclarationSlots,
-		connectedPlugAppArmor: yubikeyConnectedPlugAppArmor,
+		baseDeclarationSlots:  u2fDevicesBaseDeclarationSlots,
+		connectedPlugAppArmor: u2fDevicesConnectedPlugAppArmor,
 		reservedForOS:         true,
 	}})
 }
