@@ -23,6 +23,9 @@ apps:
   avahi-observe:
     command: bin/run
     plugs: [ avahi-observe ]
+  block-devices:
+    command: bin/run
+    plugs: [ block-devices ]
   bluetooth-control:
     command: bin/run
     plugs: [ bluetooth-control ]
