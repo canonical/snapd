@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	snapname "github.com/snapcore/snapd/snap/name"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -224,7 +224,7 @@ var (
 )
 
 func validateSnapName(name string, headerName string) error {
-	if err := snapname.ValidateSnap(name); err != nil {
+	if err := naming.ValidateSnap(name); err != nil {
 		return fmt.Errorf("invalid snap name in %q header: %s", headerName, name)
 	}
 	return nil
