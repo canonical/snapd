@@ -28,7 +28,7 @@ execute: |
     snap stop test-snapd-daemon-notify.notify
 
     denials_before="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
-    echo "Then after we restart the servive there is not denials"
+    echo "Then after we restart the service there are no denials"
     snap start test-snapd-daemon-notify.notify
     for _ in $(seq 10); do
         denials_after="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
