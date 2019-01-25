@@ -13104,7 +13104,7 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 	c.Assert(s.snapmgr.CanStandby(), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestSwitchChannelPinnedTrack(c *C) {
+func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 	for _, tc := range []struct {
 		snap        string
 		new         string
@@ -13159,7 +13159,7 @@ func (s *snapmgrTestSuite) TestSwitchChannelPinnedTrack(c *C) {
 		default:
 			snapstate.SetDefaultModel()
 		}
-		ch, err := snapstate.SwitchChannel(s.state, tc.snap, tc.new)
+		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new)
 		s.state.Unlock()
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
