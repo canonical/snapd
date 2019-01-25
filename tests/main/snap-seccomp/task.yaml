@@ -101,7 +101,7 @@ execute: |
         echo "test-snapd-tools.echo should fail with big seccomp profile"
         exit 1
     fi
-    echo "$output" | MATCH "profile .* exceeds .* bytes"
+    echo "$output" | MATCH "cannot fit .* to memory buffer"
 
     
     echo "Ensure the code cannot not run with a missing .bin profile"
