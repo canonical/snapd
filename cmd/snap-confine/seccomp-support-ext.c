@@ -36,9 +36,9 @@
 
 #ifndef seccomp
 // prototype because we build with -Wstrict-prototypes
-int sys_seccomp(unsigned int operation, unsigned int flags, void *args);
+int seccomp(unsigned int operation, unsigned int flags, void *args);
 
-int sys_seccomp(unsigned int operation, unsigned int flags, void *args) {
+int seccomp(unsigned int operation, unsigned int flags, void *args) {
     errno = 0;
     return syscall(__NR_seccomp, operation, flags, args);
 }
@@ -89,7 +89,7 @@ void sc_apply_seccomp_filter(struct sock_fprog *prog) {
     // adjust their sandbox if they have CAP_SYS_ADMIN or, if running on < 4.8
     // kernels, break out of the seccomp via ptrace. Both CAP_SYS_ADMIN and
     // 'ptrace (trace)' are blocked by AppArmor with typical snappy interfaces.
-    err = sys_seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_LOG, prog);
+    err = seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_LOG, prog);
     if (err != 0) {
         /* The profile may fail to load using the "modern" interface.
          * In such case use the older prctl-based interface instead. */
