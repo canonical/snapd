@@ -102,7 +102,7 @@ void sc_apply_seccomp_filter(struct sock_fprog *prog) {
                 break;
         }
         debug("falling back to prctl(2) syscall to load seccomp filter");
-        err = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+        err = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, prog);
         if (err != 0) {
             die("cannot apply seccomp profile");
         }
