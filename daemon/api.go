@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
