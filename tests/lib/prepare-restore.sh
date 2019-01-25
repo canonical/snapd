@@ -317,7 +317,9 @@ prepare_project() {
 
         # debian has its own packaging
         rm -f debian
-        ln -s "packaging/debian-sid" debian
+        # the debian dir must be a real dir, a symlink will make
+        # dpkg-buildpackage choke later.
+        mv packaging/debian-sid debian
 
         # get the build-deps
         apt build-dep -y ./
@@ -326,7 +328,10 @@ prepare_project() {
         rm -rf vendor/*/
 
         # and create a fake upstream tarball
-        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version)".orig.tar.gz --exclude=./debian --exclude=./.git .
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
+
+        # and build a source package - this will be used during the sbuild test
+        dpkg-buildpackage -S --no-sign
     fi
 
     # so is ubuntu-14.04
