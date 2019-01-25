@@ -416,6 +416,11 @@ prepare_suite_each() {
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
 
+    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
+    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
+        systemctl restart systemd-journald
+    fi
+
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
