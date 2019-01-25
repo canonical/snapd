@@ -22,6 +22,10 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -37,6 +41,8 @@ type displayControlInterfaceSuite struct {
 	slot     *interfaces.ConnectedSlot
 	plugInfo *snap.PlugInfo
 	plug     *interfaces.ConnectedPlug
+
+	tmpdir string
 }
 
 var _ = Suite(&displayControlInterfaceSuite{
@@ -60,6 +66,8 @@ slots:
 func (s *displayControlInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, displayControlConsumerYaml, nil, "display-control")
 	s.slot, s.slotInfo = MockConnectedSlot(c, displayControlCoreYaml, nil, "display-control")
+
+	s.tmpdir = c.MkDir()
 }
 
 func (s *displayControlInterfaceSuite) TestName(c *C) {
@@ -82,10 +90,22 @@ func (s *displayControlInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *displayControlInterfaceSuite) TestAppArmorSpec(c *C) {
+	c.Assert(os.MkdirAll(filepath.Join(s.tmpdir, "foo_backlight"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.tmpdir, "bar_backlight"), 0755), IsNil)
+	builtin.MockReadDir(&s.BaseTest, func(path string) ([]os.FileInfo, error) {
+		return ioutil.ReadDir(s.tmpdir)
+	})
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return "(dereferenced)" + path, nil
+	})
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/class/backlight/ r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "autodetected backlight: bar_backlight\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "(dereferenced)/sys/class/backlight/bar_backlight/{,**} r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "autodetected backlight: foo_backlight\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "(dereferenced)/sys/class/backlight/foo_backlight/{,**} r,\n")
 }
 
 func (s *displayControlInterfaceSuite) TestStaticInfo(c *C) {
