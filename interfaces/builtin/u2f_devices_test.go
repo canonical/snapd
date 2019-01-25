@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type yubikeyInterfaceSuite struct {
+type u2fDevicesInterfaceSuite struct {
 	testutil.BaseTest
 
 	iface    interfaces.Interface
@@ -40,77 +40,77 @@ type yubikeyInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&yubikeyInterfaceSuite{
-	iface: builtin.MustInterface("yubikey"),
+var _ = Suite(&u2fDevicesInterfaceSuite{
+	iface: builtin.MustInterface("u2f-devices"),
 })
 
-const yubikeyConsumerYaml = `name: consumer
+const u2fDevicesConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [yubikey]
+  plugs: [u2f-devices]
 `
 
-const yubikeyCoreYaml = `name: core
+const u2fDevicesCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  yubikey:
+  u2f-devices:
 `
 
-func (s *yubikeyInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, yubikeyConsumerYaml, nil, "yubikey")
-	s.slot, s.slotInfo = MockConnectedSlot(c, yubikeyCoreYaml, nil, "yubikey")
+func (s *u2fDevicesInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, u2fDevicesConsumerYaml, nil, "u2f-devices")
+	s.slot, s.slotInfo = MockConnectedSlot(c, u2fDevicesCoreYaml, nil, "u2f-devices")
 }
 
-func (s *yubikeyInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "yubikey")
+func (s *u2fDevicesInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "u2f-devices")
 }
 
-func (s *yubikeyInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *u2fDevicesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "yubikey",
-		Interface: "yubikey",
+		Name:      "u2f-devices",
+		Interface: "u2f-devices",
 	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "yubikey slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "u2f-devices slots are reserved for the core snap")
 }
 
-func (s *yubikeyInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *u2fDevicesInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *yubikeyInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to yubikey hidraw devices.`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to u2f hidraw devices.`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/hidraw* rw,`)
 }
 
-func (s *yubikeyInterfaceSuite) TestUDevSpec(c *C) {
+func (s *u2fDevicesInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 14)
-	c.Assert(spec.Snippets(), testutil.Contains, `# yubikey
+	c.Assert(spec.Snippets(), testutil.Contains, `# u2f-devices
 # Yubico YubiKey
 SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="1050", ATTRS{idProduct}=="0113|0114|0115|0116|0120|0200|0402|0403|0406|0407|0410", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
-func (s *yubikeyInterfaceSuite) TestStaticInfo(c *C) {
+func (s *u2fDevicesInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to yubikey devices`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "yubikey")
+	c.Assert(si.Summary, Equals, `allows access to u2f devices`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "u2f-devices")
 }
 
-func (s *yubikeyInterfaceSuite) TestAutoConnect(c *C) {
+func (s *u2fDevicesInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
-func (s *yubikeyInterfaceSuite) TestInterfaces(c *C) {
+func (s *u2fDevicesInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
