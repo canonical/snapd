@@ -98,7 +98,7 @@ func (s *infoSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
 }
 
 func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {
-	defer snap.MockGetTermSize(func() (int, int) { return 44, 25 })()
+	defer snap.MockTermSize(func() (int, int) { return 44, 25 })()
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {

@@ -272,7 +272,7 @@ func printSummary(w io.Writer, raw string, termWidth int) error {
 	}
 	if len(raw) == 0 {
 		raw = `""`
-	} else if yaml.UnmarshalStrict([]byte("s: "+raw), &T{}) != nil {
+	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
 		raw = strconv.Quote(raw)
 	}
 
@@ -414,10 +414,8 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 	return maxRevLen, maxSizeLen
 }
 
-var getTermSize = termSize
-
 func (x *infoCmd) Execute([]string) error {
-	termWidth, _ := getTermSize()
+	termWidth, _ := termSize()
 	termWidth -= 3
 	if termWidth > 100 {
 		// any wider than this and it gets hard to read
