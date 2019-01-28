@@ -55,11 +55,16 @@ type RunSuite struct {
 	SnapSuite
 }
 
+var _ = check.Suite(&RunSuite{})
+
 func (s *RunSuite) SetUpTest(c *check.C) {
 	s.SnapSuite.SetUpTest(c)
 	s.fakeHome = c.MkDir()
+
+	u, err := user.Current()
+	c.Assert(err, check.IsNil)
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{HomeDir: s.fakeHome}, nil
+		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
 	}))
 }
 
