@@ -329,7 +329,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             # in 16.04: apt build-dep -y ./
-            if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+            if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
                 best_golang="$(python3 ./tests/lib/best_golang.py)"
                 test -n "$best_golang"
                 sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
