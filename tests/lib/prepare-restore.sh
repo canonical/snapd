@@ -306,7 +306,7 @@ prepare_project() {
 
     if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
 	# Manually install the latest golang from -backports
-        cat best_golang.py <<'EOF'
+        cat > best_golang.py <<'EOF'
 import apt
 import re
 best_golang=None
