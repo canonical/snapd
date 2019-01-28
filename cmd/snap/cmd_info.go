@@ -330,9 +330,21 @@ type channelInfos struct {
 	maxRevLen, maxSizeLen int
 	releasedfmt, chantpl  string
 	needsHeader           bool
+	esc                   *escapes
 }
 
-func (chInfos *channelInfos) addOne(chInfo *channelInfo) {
+func (chInfos *channelInfos) add(indent, name, version string, revision snap.Revision, released time.Time, size int64, notes *Notes) {
+	chInfo := &channelInfo{
+		indent:   indent,
+		name:     name,
+		version:  version,
+		revision: fmt.Sprintf("(%s)", revision),
+		size:     strutil.SizeToStr(size),
+		notes:    notes.String(),
+	}
+	if !released.IsZero() {
+		chInfo.released = released.Format(chInfos.releasedfmt)
+	}
 	if len(chInfo.revision) > chInfos.maxRevLen {
 		chInfos.maxRevLen = len(chInfo.revision)
 	}
@@ -342,7 +354,26 @@ func (chInfos *channelInfos) addOne(chInfo *channelInfo) {
 	chInfos.channels = append(chInfos.channels, chInfo)
 }
 
-func (chInfos *channelInfos) addFrom(remote *client.Snap, esc *escapes) {
+func (chInfos *channelInfos) addFromLocal(local *client.Snap) {
+	chInfos.add("", "installed", local.Version, local.Revision, time.Time{}, local.InstalledSize, NotesFromLocal(local))
+}
+
+func (chInfos *channelInfos) addOpenChannel(name, version string, revision snap.Revision, released time.Time, size int64, notes *Notes) {
+	chInfos.add("  ", name, version, revision, released, size, notes)
+}
+
+func (chInfos *channelInfos) addClosedChannel(name string, trackHasOpenChannel bool) {
+	chInfo := &channelInfo{indent: "  ", name: name}
+	if trackHasOpenChannel {
+		chInfo.version = chInfos.esc.uparrow
+	} else {
+		chInfo.version = chInfos.esc.dash
+	}
+
+	chInfos.channels = append(chInfos.channels, chInfo)
+}
+
+func (chInfos *channelInfos) addFromRemote(remote *client.Snap) {
 	// order by tracks
 	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
@@ -352,22 +383,12 @@ func (chInfos *channelInfos) addFrom(remote *client.Snap, esc *escapes) {
 			if tr == "latest" {
 				chName = risk
 			}
-			chInfo := channelInfo{indent: "  ", name: chName}
 			if ok {
-				chInfo.version = ch.Version
-				chInfo.revision = fmt.Sprintf("(%s)", ch.Revision)
-				chInfo.released = ch.ReleasedAt.Format(chInfos.releasedfmt)
-				chInfo.size = strutil.SizeToStr(ch.Size)
-				chInfo.notes = NotesFromChannelSnapInfo(ch).String()
+				chInfos.addOpenChannel(chName, ch.Version, ch.Revision, ch.ReleasedAt, ch.Size, NotesFromChannelSnapInfo(ch))
 				trackHasOpenChannel = true
 			} else {
-				if trackHasOpenChannel {
-					chInfo.version = esc.uparrow
-				} else {
-					chInfo.version = esc.dash
-				}
+				chInfos.addClosedChannel(chName, trackHasOpenChannel)
 			}
-			chInfos.addOne(&chInfo)
 		}
 	}
 	chInfos.needsHeader = len(chInfos.channels) > 0
@@ -454,7 +475,6 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "  confinement:\t%s\n", both.Confinement)
 		}
 
-		var notes *Notes
 		if local != nil {
 			if x.Verbose {
 				jailMode := local.Confinement == client.DevModeConfinement && !local.DevMode
@@ -469,8 +489,6 @@ func (x *infoCmd) Execute([]string) error {
 				}
 
 				fmt.Fprintf(w, "  ignore-validation:\t%t\n", local.IgnoreValidation)
-			} else {
-				notes = NotesFromLocal(local)
 			}
 		}
 		// stops the notes etc trying to be aligned with channels
@@ -490,6 +508,7 @@ func (x *infoCmd) Execute([]string) error {
 		chInfos := channelInfos{
 			chantpl:     "%s%s:\t%s %s%*s %*s %s\n",
 			releasedfmt: "2006-01-02",
+			esc:         esc,
 		}
 		if x.AbsTime {
 			chInfos.releasedfmt = time.RFC3339
@@ -497,16 +516,10 @@ func (x *infoCmd) Execute([]string) error {
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
 			w.Flush()
 			chInfos.chantpl = "%s%s:\t%s\t%s\t%*s\t%*s\t%s\n"
-			chInfos.addFrom(remote, esc)
+			chInfos.addFromRemote(remote)
 		}
 		if local != nil {
-			chInfos.addOne(&channelInfo{
-				name:     "installed",
-				version:  local.Version,
-				revision: fmt.Sprintf("(%s)", local.Revision),
-				size:     strutil.SizeToStr(local.InstalledSize),
-				notes:    notes.String(),
-			})
+			chInfos.addFromLocal(local)
 		}
 		chInfos.dump(w)
 	}
