@@ -59,7 +59,7 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
+%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service snapd.hold-after-wakeup.service
 
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} >= 26
