@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -88,7 +88,7 @@ func (s *MultipassSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.multipass.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.multipass.app"), testutil.Contains, "/usr/sbin/aa-exec ixr,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.multipass.app"), testutil.Contains, "/sbin/apparmor_parser ixr,\n")
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)

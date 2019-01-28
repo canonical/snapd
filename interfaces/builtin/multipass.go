@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,12 +28,6 @@ const multipassBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const multipassConnectedPlugAppArmor = `
-# Description: allow access to the Multipass daemon socket.
-
-/run/multipass_socket rw,
-`
-
 const multipassConnectedPlugSecComp = `
 # Description: allow access to the Multipass daemon socket.
 bind
@@ -41,10 +35,9 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "multipass",
-		summary:               multipassSummary,
-		baseDeclarationSlots:  multipassBaseDeclarationSlots,
-		connectedPlugAppArmor: multipassConnectedPlugAppArmor,
-		connectedPlugSecComp:  multipassConnectedPlugSecComp,
+		name:                 "multipass",
+		summary:              multipassSummary,
+		baseDeclarationSlots: multipassBaseDeclarationSlots,
+		connectedPlugSecComp: multipassConnectedPlugSecComp,
 	})
 }
