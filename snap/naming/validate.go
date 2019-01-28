@@ -17,6 +17,7 @@
  *
  */
 
+// Package naming implements naming constraints for snaps and their elements.
 package naming
 
 import (
@@ -39,10 +40,10 @@ import (
 //   validators.
 var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
 
-// validInstanceKey is a regular expression describing valid snap instance key
+// validInstanceKey is a regular expression describing a valid snap instance key
 var validInstanceKey = regexp.MustCompile("^[a-z0-9]{1,10}$")
 
-// isValidName checks snap and socket socket identifiers.
+// isValidName checks snap and socket identifiers.
 func isValidName(name string) bool {
 	if !almostValidName.MatchString(name) {
 		return false
@@ -69,8 +70,6 @@ func ValidateInstance(instanceName string) error {
 		return err
 	}
 	if !validInstanceKey.MatchString(instanceKey) {
-		// TODO parallel-install: extend the error message once snap
-		// install help has been updated
 		return fmt.Errorf("invalid instance key: %q", instanceKey)
 	}
 	return nil
