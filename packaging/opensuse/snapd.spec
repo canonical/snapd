@@ -71,7 +71,7 @@
 %global with_multilib 1
 %endif
 
-%global systemd_services_list snapd.socket snapd.service snapd.seeded.service %{?with_apparmor:snapd.apparmor.service}
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.hold-after-wakeup.service %{?with_apparmor:snapd.apparmor.service}
 
 %global snap_mount_dir /snap
 
