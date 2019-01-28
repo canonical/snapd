@@ -1,0 +1,10 @@
+[Unit]
+Description=Hold snapd refresh when resuming from sleep
+After=systemd-suspend.service systemd-hybrid-sleep.service systemd-hibernate.service
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '@bindir@/snap set system refresh.hold=$(date --iso-8601=seconds -d "10 minutes")'
+
+[Install]
+WantedBy=sleep.target
