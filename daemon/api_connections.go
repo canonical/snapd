@@ -40,9 +40,9 @@ type collectFilter struct {
 	connected bool
 }
 
-func (c *collectFilter) plugMatches(plug *interfaces.PlugRef, connectedSlots []interfaces.SlotRef) bool {
+func (c *collectFilter) plugOrConnectedSlotMatches(plug *interfaces.PlugRef, connectedSlots []interfaces.SlotRef) bool {
 	for _, slot := range connectedSlots {
-		if c.slotMatches(&slot, nil) {
+		if c.slotOrConnectedPlugMatches(&slot, nil) {
 			return true
 		}
 	}
@@ -52,9 +52,9 @@ func (c *collectFilter) plugMatches(plug *interfaces.PlugRef, connectedSlots []i
 	return true
 }
 
-func (c *collectFilter) slotMatches(slot *interfaces.SlotRef, connectedPlugs []interfaces.PlugRef) bool {
+func (c *collectFilter) slotOrConnectedPlugMatches(slot *interfaces.SlotRef, connectedPlugs []interfaces.PlugRef) bool {
 	for _, plug := range connectedPlugs {
-		if c.plugMatches(&plug, nil) {
+		if c.plugOrConnectedSlotMatches(&plug, nil) {
 			return true
 		}
 	}
@@ -103,12 +103,18 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 	}
 
 	connsjson.Established = make([]connectionJSON, 0, len(connStates))
+	connsjson.Plugs = make([]*plugJSON, 0, len(ifaces.Plugs))
+	connsjson.Slots = make([]*slotJSON, 0, len(ifaces.Slots))
+
 	for crefStr, cstate := range connStates {
+		if cstate.Undesired && filter.connected {
+			continue
+		}
 		cref, err := interfaces.ParseConnRef(crefStr)
 		if err != nil {
 			return nil, err
 		}
-		if !filter.plugMatches(&cref.PlugRef, nil) && !filter.slotMatches(&cref.SlotRef, nil) {
+		if !filter.plugOrConnectedSlotMatches(&cref.PlugRef, nil) && !filter.slotOrConnectedPlugMatches(&cref.SlotRef, nil) {
 			continue
 		}
 		if !filter.ifaceMatches(cstate.Interface) {
@@ -144,7 +150,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		if !connected && filter.connected {
 			continue
 		}
-		if !filter.ifaceMatches(plug.Interface) || !filter.plugMatches(&plugRef, connectedSlots) {
+		if !filter.ifaceMatches(plug.Interface) || !filter.plugOrConnectedSlotMatches(&plugRef, connectedSlots) {
 			continue
 		}
 		var apps []string
@@ -169,7 +175,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		if !connected && filter.connected {
 			continue
 		}
-		if !filter.ifaceMatches(slot.Interface) || !filter.slotMatches(&slotRef, connectedPlugs) {
+		if !filter.ifaceMatches(slot.Interface) || !filter.slotOrConnectedPlugMatches(&slotRef, connectedPlugs) {
 			continue
 		}
 		var apps []string

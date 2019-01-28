@@ -108,13 +108,21 @@ func (s *apiSuite) TestConnectionsUnhappy(c *check.C) {
 func (s *apiSuite) TestConnectionsEmpty(c *check.C) {
 	s.daemon(c)
 	s.testConnections(c, "/v2/connections", map[string]interface{}{
-		"result":      map[string]interface{}{},
+		"result": map[string]interface{}{
+			"established": []interface{}{},
+			"plugs":       []interface{}{},
+			"slots":       []interface{}{},
+		},
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
 	})
 	s.testConnections(c, "/v2/connections?select=all", map[string]interface{}{
-		"result":      map[string]interface{}{},
+		"result": map[string]interface{}{
+			"established": []interface{}{},
+			"plugs":       []interface{}{},
+			"slots":       []interface{}{},
+		},
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
@@ -132,6 +140,7 @@ func (s *apiSuite) TestConnectionsUnconnected(c *check.C) {
 
 	s.testConnections(c, "/v2/connections?select=all", map[string]interface{}{
 		"result": map[string]interface{}{
+			"established": []interface{}{},
 			"plugs": []interface{}{
 				map[string]interface{}{
 					"snap":      "consumer",
@@ -170,6 +179,7 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 
 	s.testConnections(c, "/v2/connections?select=all&snap=producer", map[string]interface{}{
 		"result": map[string]interface{}{
+			"established": []interface{}{},
 			"slots": []interface{}{
 				map[string]interface{}{
 					"snap":      "producer",
@@ -180,6 +190,7 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 					"label":     "label",
 				},
 			},
+			"plugs": []interface{}{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -188,6 +199,7 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 
 	s.testConnections(c, "/v2/connections?select=all&snap=consumer", map[string]interface{}{
 		"result": map[string]interface{}{
+			"established": []interface{}{},
 			"plugs": []interface{}{
 				map[string]interface{}{
 					"snap":      "consumer",
@@ -198,6 +210,7 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 					"label":     "label",
 				},
 			},
+			"slots": []interface{}{},
 		},
 		"status":      "OK",
 		"status-code": 200.0,
@@ -288,6 +301,7 @@ plugs:
 
 	s.testConnections(c, "/v2/connections?select=all&interface=test", map[string]interface{}{
 		"result": map[string]interface{}{
+			"established": []interface{}{},
 			"plugs": []interface{}{
 				map[string]interface{}{
 					"snap":      "consumer",
@@ -315,6 +329,7 @@ plugs:
 	})
 	s.testConnections(c, "/v2/connections?select=all&interface=different", map[string]interface{}{
 		"result": map[string]interface{}{
+			"established": []interface{}{},
 			"plugs": []interface{}{
 				map[string]interface{}{
 					"snap":      "different-consumer",
@@ -389,7 +404,11 @@ plugs:
 	})
 	// use state modified by previous cal
 	s.testConnections(c, "/v2/connections?interface=different", map[string]interface{}{
-		"result":      map[string]interface{}{},
+		"result": map[string]interface{}{
+			"established": []interface{}{},
+			"slots":       []interface{}{},
+			"plugs":       []interface{}{},
+		},
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
@@ -584,6 +603,7 @@ func (s *apiSuite) TestConnectionsAll(c *check.C) {
 		},
 	}, map[string]interface{}{
 		"result": map[string]interface{}{
+			"established": []interface{}{},
 			"plugs": []interface{}{
 				map[string]interface{}{
 					"snap":      "consumer",
@@ -637,11 +657,24 @@ plugs:
   key: value
   label: label
 `
+	var anotherProducerYaml = `
+name: another-producer
+version: 1
+apps:
+ app:
+slots:
+ slot:
+  interface: test
+  key: value
+  label: label
+`
+
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
 	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
 
 	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, anotherProducerYaml)
 
 	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -655,6 +688,11 @@ plugs:
 			"auto":      true,
 		},
 		"another-consumer-abc:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+		"another-consumer-def:plug another-producer:slot": map[string]interface{}{
 			"interface": "test",
 			"by-gadget": true,
 			"auto":      true,
@@ -681,6 +719,7 @@ plugs:
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
+						map[string]interface{}{"snap": "another-producer", "slot": "slot"},
 						map[string]interface{}{"snap": "producer", "slot": "slot"},
 					},
 				},
@@ -697,6 +736,17 @@ plugs:
 				},
 			},
 			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "another-producer",
+					"slot":      "slot",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
+					},
+				},
 				map[string]interface{}{
 					"snap":      "producer",
 					"slot":      "slot",
@@ -715,6 +765,12 @@ plugs:
 				map[string]interface{}{
 					"plug":      map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
 					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+					"interface": "test",
+					"gadget":    true,
+				},
+				map[string]interface{}{
+					"plug":      map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
+					"slot":      map[string]interface{}{"snap": "another-producer", "slot": "slot"},
 					"interface": "test",
 					"gadget":    true,
 				},

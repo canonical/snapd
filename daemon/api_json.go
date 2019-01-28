@@ -73,10 +73,16 @@ type connectionJSON struct {
 	Gadget    bool               `json:"gadget,omitempty"`
 }
 
+// legacyConnectionsJSON aids in marshaling legacy connections into JSON.
+type legacyConnectionsJSON struct {
+	Plugs []*plugJSON `json:"plugs,omitempty"`
+	Slots []*slotJSON `json:"slots,omitempty"`
+}
+
 // connectionsJSON aids in marshaling connections into JSON.
 type connectionsJSON struct {
-	Established []connectionJSON `json:"established,omitempty"`
+	Established []connectionJSON `json:"established"`
 	Undesired   []connectionJSON `json:"undesired,omitempty"`
-	Plugs       []*plugJSON      `json:"plugs,omitempty"`
-	Slots       []*slotJSON      `json:"slots,omitempty"`
+	Plugs       []*plugJSON      `json:"plugs"`
+	Slots       []*slotJSON      `json:"slots"`
 }
