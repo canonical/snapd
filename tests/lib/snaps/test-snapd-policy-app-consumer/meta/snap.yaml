@@ -86,6 +86,9 @@ apps:
   device-buttons:
     command: bin/run
     plugs: [ device-buttons ]
+  display-control:
+    command: bin/run
+    plugs: [ display-control ]
   docker:
     command: bin/run
     plugs: [ docker ]
@@ -329,6 +332,9 @@ apps:
   tpm:
     command: bin/run
     plugs: [ tpm ]
+  u2f-devices:
+    command: bin/run
+    plugs: [ u2f-devices ]
   ubuntu-download-manager:
     command: bin/run
     plugs: [ ubuntu-download-manager ]

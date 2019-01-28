@@ -20,12 +20,12 @@
 package daemon_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"

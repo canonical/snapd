@@ -44,14 +44,16 @@ execute: |
     done
     test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected"
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "When the plug is disconnected"
-        snap disconnect test-snapd-upower-observe-consumer:upower-observe
-
-        echo "Then the snap is not able to dump info about the upower devices"
-        if test-snapd-upower-observe-consumer.upower --dump 2>"${PWD}"/upower.error; then
-            echo "Expected permission error accessing upower info with disconnected plug"
-            exit 1
-        fi
-        MATCH "Permission denied" < upower.error
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
     fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-upower-observe-consumer:upower-observe
+
+    echo "Then the snap is not able to dump info about the upower devices"
+    if test-snapd-upower-observe-consumer.upower --dump 2> upower.error; then
+        echo "Expected permission error accessing upower info with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < upower.error

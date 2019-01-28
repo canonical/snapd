@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"errors"
@@ -42,7 +43,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/net/context"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -3342,7 +3342,7 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
 	info := &snap.Info{SuggestedName: "notInstalledSnap", Media: []snap.MediaInfo{{Type: "icon", URL: "icon.svg"}}}
 	iconfile := snapIcon(info)
-	c.Check(iconfile, testutil.Contains, "icon.svg")
+	c.Check(iconfile, check.Equals, "")
 }
 
 func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
