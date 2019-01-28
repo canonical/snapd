@@ -301,21 +301,6 @@ prepare_project() {
         fi
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
-	# Manually install the latest golang from -backports
-        cat > best_golang.py <<'EOF'
-import apt
-import re
-best_golang=None
-for p in apt.Cache():
-    if re.match(r"golang-([0-9.]+)$", p.name):
-        if best_golang is None or apt.apt_pkg.version_compare(best_golang.candidate.version, p.candidate.version) < 0:
-            best_golang = p
-print(best_golang.name)
-EOF
-        apt install -y "$(python3 best_golang.py)"
-    fi
-
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
@@ -344,11 +329,19 @@ EOF
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             # in 16.04: apt build-dep -y ./
+            if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+                best_golang="$(python3 ./tests/lib/best_golang.py)"
+                test -n "$best_golang"
+                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
+            else
+                best_golang=golang-1.10
+            fi
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
             # The go 1.10 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                ln -s /usr/lib/go-1.10/bin/go /usr/bin/go
+                # the path filesystem path is: /usr/lib/go-1.10/bin
+                ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
     esac
