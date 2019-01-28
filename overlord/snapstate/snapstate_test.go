@@ -4346,7 +4346,7 @@ func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, Equals, snapstate.ErrStoreUnresponsive)
+	c.Assert(err, Equals, snapstate.ErrMissingExpectedResult)
 }
 
 func (s *snapmgrTestSuite) TestUpdateNoStoreResultsWithChannelChange(c *C) {
@@ -4372,7 +4372,7 @@ func (s *snapmgrTestSuite) TestUpdateNoStoreResultsWithChannelChange(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, Equals, snapstate.ErrStoreUnresponsive)
+	c.Assert(err, Equals, snapstate.ErrMissingExpectedResult)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
