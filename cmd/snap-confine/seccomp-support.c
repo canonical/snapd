@@ -144,8 +144,7 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 		sleep(1);
 	}
 
-	/* TODO: replace this with descending open/openat with validation callback
-	 * that returns a path descriptor to avoid TOCTOU */
+	// TODO: move over to open/openat as an additional hardening measure.
 
 	// validate '/' down to profile_path are root-owned and not
 	// 'other' writable to avoid possibility of privilege
@@ -173,8 +172,7 @@ void sc_apply_global_seccomp_profile(void)
 	if (access(profile_path, F_OK) != 0) {
 		return;
 	}
-	/* TODO: replace this with descending open/openat with validation callback
-	 * that returns a path descriptor to avoid TOCTOU */
+	// TODO: move over to open/openat as an additional hardening measure.
 	validate_bpfpath_is_safe(profile_path);
 
 	char bpf[MAX_BPF_SIZE + 1] = { 0 };
