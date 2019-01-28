@@ -22,11 +22,11 @@ package store
 import (
 	"io"
 
+	"context"
 	"net/http"
 	"net/url"
 
 	"github.com/juju/ratelimit"
-	"golang.org/x/net/context"
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"

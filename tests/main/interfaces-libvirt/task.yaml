@@ -62,7 +62,7 @@ execute: |
     snap disconnect test-snapd-libvirt-consumer:libvirt
 
     echo "Then the snap is not able to create a domain"
-    if su -l -c "test-snapd-libvirt-consumer.machine-up" test 2>"${PWD}/creation.error"; then
+    if su -l -c "test-snapd-libvirt-consumer.machine-up" test 2> creation.error; then
         echo "Expected permission error accessing libvirtd socket with disconnected plug"
         exit 1
     fi

@@ -22,6 +22,7 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,8 +34,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 

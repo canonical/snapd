@@ -156,6 +156,39 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 	return m.repo
 }
 
+type ConnectionState struct {
+	// Auto indicates whether the connection was established automatically
+	Auto bool
+	// ByGadget indicates whether the connection was trigged by the gadget
+	ByGadget bool
+	// Interface name of the connection
+	Interface string
+	// Undesired indicates whether the connection, otherwise established
+	// automatically, was explicitly disconnected
+	Undesired bool
+}
+
+// ConnectionStates return the state of connections tracked by the manager
+func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]ConnectionState, err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+	states, err := getConns(m.state)
+	if err != nil {
+		return nil, err
+	}
+
+	connStateByRef = make(map[string]ConnectionState, len(states))
+	for cref, cstate := range states {
+		connStateByRef[cref] = ConnectionState{
+			Auto:      cstate.Auto,
+			ByGadget:  cstate.ByGadget,
+			Interface: cstate.Interface,
+			Undesired: cstate.Undesired,
+		}
+	}
+	return connStateByRef, nil
+}
+
 // DisableUDevMonitor disables the instantiation of udev monitor, but has no effect
 // if udev is already created; it should be called after creating InterfaceManager, before
 // first Ensure.

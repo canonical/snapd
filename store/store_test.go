@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
@@ -37,7 +38,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 	"gopkg.in/retry.v1"
