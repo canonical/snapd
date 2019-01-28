@@ -197,9 +197,9 @@ func runesLastIndexSpace(text []rune) int {
 }
 
 // wrapLine wraps a line, assumed to be part of a block-style yaml
-// string, to fit into width, preserving the line's indent, and writes
-// it out prepending padding to each line.
-func wrapLine(out io.Writer, text []rune, pad string, width int) error {
+// string, to fit into termWidth, preserving the line's indent, and
+// writes it out prepending padding to each line.
+func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
 	// discard any trailing whitespace
 	text = runesTrimRightSpace(text)
 	// establish the indent of the whole block
@@ -209,19 +209,18 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) error {
 	}
 	indent := pad + string(text[:idx])
 	text = text[idx:]
-	width -= idx + utf8.RuneCountInString(pad)
-	return wrapGeneric(out, text, indent, indent, width)
+	return wrapGeneric(out, text, indent, indent, termWidth)
 }
 
 // wrapFlow wraps the text using yaml's flow style, allowing indent
 // characters for the first line.
-func wrapFlow(out io.Writer, text []rune, indent string, width int) error {
-	return wrapGeneric(out, text, indent, "  ", width-len(indent))
+func wrapFlow(out io.Writer, text []rune, indent string, termWidth int) error {
+	return wrapGeneric(out, text, indent, "  ", termWidth)
 }
 
 // wrapGeneric wraps the given text to the given width, prefixing the
 // first line with indent and the remaining lines with indent2
-func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, width int) error {
+func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth int) error {
 	// Note: this is _wrong_ for much of unicode (because the width of a rune on
 	//       the terminal is anything between 0 and 2, not always 1 as this code
 	//       assumes) but fixing that is Hard. Long story short, you can get close
@@ -233,6 +232,10 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, width int) 
 
 	// This (and possibly printDescr below) should move to strutil once
 	// we're happy with it getting wider (heh heh) use.
+
+	l1 := utf8.RuneCountInString(indent)
+	delta := l1 - utf8.RuneCountInString(indent2)
+	width := termWidth - l1
 
 	// establish the indent of the whole block
 	idx := 0
@@ -250,8 +253,9 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, width int) 
 			idx++
 		}
 		text = text[idx:]
-		width += len(indent) - len(indent2)
+		width += delta
 		indent = indent2
+		delta = 0
 	}
 	if err != nil {
 		return err
@@ -260,7 +264,7 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, width int) 
 	return err
 }
 
-func printSummary(w io.Writer, raw string, width int) error {
+func printSummary(w io.Writer, raw string, termWidth int) error {
 	// simplest way of checking to see if it needs quoting is to try
 	raw = strings.TrimSpace(raw)
 	type T struct {
@@ -272,7 +276,7 @@ func printSummary(w io.Writer, raw string, width int) error {
 		raw = strconv.Quote(raw)
 	}
 
-	return wrapFlow(w, []rune(raw), "summary:\t", width)
+	return wrapFlow(w, []rune(raw), "summary:\t", termWidth)
 }
 
 // printDescr formats a given string (typically a snap description)
@@ -282,11 +286,11 @@ func printSummary(w io.Writer, raw string, width int) error {
 // - trim trailing whitespace
 // - word wrap at "max" chars preserving line indent
 // - keep \n intact and break there
-func printDescr(w io.Writer, descr string, max int) error {
+func printDescr(w io.Writer, descr string, termWidth int) error {
 	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		err = wrapLine(w, []rune(line), "  ", max)
+		err = wrapLine(w, []rune(line), "  ", termWidth)
 		if err != nil {
 			break
 		}
