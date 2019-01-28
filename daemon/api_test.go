@@ -5451,7 +5451,7 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
 		return 100, 0, dirs.SnapdSocket, nil
 	}
 	s.mockUserHome = c.MkDir()
@@ -5858,7 +5858,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
 		return 100, 0, dirs.SnapdSocket, nil
 	}
 	defer func() {
@@ -6596,7 +6596,7 @@ func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
 func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	_ = s.daemon(c)
 
-	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
+	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
 		return 100, 9999, dirs.SnapSocket, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
