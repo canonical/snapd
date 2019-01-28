@@ -11,8 +11,6 @@ prepare: |
     create_nested_core_vm
 
 restore: |
-    rm -rf extra-snaps
-
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm

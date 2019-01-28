@@ -42,6 +42,7 @@ const systemObserveConnectedPlugAppArmor = `
 ptrace (read),
 
 # Other miscellaneous accesses for observing the system
+@{PROC}/locks r,
 @{PROC}/modules r,
 @{PROC}/stat r,
 @{PROC}/vmstat r,

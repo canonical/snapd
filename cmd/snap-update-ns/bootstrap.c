@@ -344,6 +344,7 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 	errno = 0;
 	char *uid_text_end = NULL;
 	unsigned long parsed_uid = strtoul(uid_text, &uid_text_end, 10);
+	int saved_errno = errno;
 	char c = *uid_text;
 	if (
 			/* Reject overflow in parsed representation */
@@ -359,7 +360,7 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 			|| (*uid_text != '\0' && uid_text_end != NULL
 				&& *uid_text_end != '\0')) {
 		bootstrap_msg = "cannot parse user id";
-		bootstrap_errno = errno;
+		bootstrap_errno = saved_errno;
 		return -1;
 	}
 	if ((long)parsed_uid < 0) {
@@ -419,7 +420,7 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out,
 				// called from snap-confine.
 				should_setns = false;
 			} else if (!strcmp(arg, "-u")) {
-				if (parse_arg_u(argc, argv, &i, uid_out)) {
+				if (parse_arg_u(argc, argv, &i, uid_out) < 0) {
 					return;
 				}
 				// Providing an user identifier implies we are performing an
