@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -118,7 +119,7 @@ func maybePrintBase(w io.Writer, base string, verbose bool) {
 	}
 }
 
-func tryDirect(w io.Writer, path string, verbose bool) bool {
+func tryDirect(w io.Writer, path string, verbose bool, termWidth int) bool {
 	path = norm(path)
 
 	snapf, err := snap.Open(path)
@@ -141,7 +142,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "path:\t%q\n", path)
 	fmt.Fprintf(w, "name:\t%s\n", info.InstanceName())
-	fmt.Fprintf(w, "summary:\t%s\n", formatSummary(info.Summary()))
+	printSummary(w, info.Summary(), termWidth)
 
 	var notes *Notes
 	if verbose {
@@ -195,9 +196,31 @@ func runesLastIndexSpace(text []rune) int {
 	return -1
 }
 
-// wrapLine wraps a line to fit into width, preserving the line's indent, and
+// wrapLine wraps a line, assumed to be part of a block-style yaml
+// string, to fit into termWidth, preserving the line's indent, and
 // writes it out prepending padding to each line.
-func wrapLine(out io.Writer, text []rune, pad string, width int) error {
+func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
+	// discard any trailing whitespace
+	text = runesTrimRightSpace(text)
+	// establish the indent of the whole block
+	idx := 0
+	for idx < len(text) && unicode.IsSpace(text[idx]) {
+		idx++
+	}
+	indent := pad + string(text[:idx])
+	text = text[idx:]
+	return wrapGeneric(out, text, indent, indent, termWidth)
+}
+
+// wrapFlow wraps the text using yaml's flow style, allowing indent
+// characters for the first line.
+func wrapFlow(out io.Writer, text []rune, indent string, termWidth int) error {
+	return wrapGeneric(out, text, indent, "  ", termWidth)
+}
+
+// wrapGeneric wraps the given text to the given width, prefixing the
+// first line with indent and the remaining lines with indent2
+func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth int) error {
 	// Note: this is _wrong_ for much of unicode (because the width of a rune on
 	//       the terminal is anything between 0 and 2, not always 1 as this code
 	//       assumes) but fixing that is Hard. Long story short, you can get close
@@ -210,16 +233,12 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) error {
 	// This (and possibly printDescr below) should move to strutil once
 	// we're happy with it getting wider (heh heh) use.
 
-	// discard any trailing whitespace
-	text = runesTrimRightSpace(text)
+	indentWidth := utf8.RuneCountInString(indent)
+	delta := indentWidth - utf8.RuneCountInString(indent2)
+	width := termWidth - indentWidth
+
 	// establish the indent of the whole block
 	idx := 0
-	for idx < len(text) && unicode.IsSpace(text[idx]) {
-		idx++
-	}
-	indent := pad + string(text[:idx])
-	text = text[idx:]
-	width -= idx + utf8.RuneCountInString(pad)
 	var err error
 	for len(text) > width && err == nil {
 		// find a good place to chop the text
@@ -234,12 +253,30 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) error {
 			idx++
 		}
 		text = text[idx:]
+		width += delta
+		indent = indent2
+		delta = 0
 	}
 	if err != nil {
 		return err
 	}
 	_, err = fmt.Fprint(out, indent, string(text), "\n")
 	return err
+}
+
+func printSummary(w io.Writer, raw string, termWidth int) error {
+	// simplest way of checking to see if it needs quoting is to try
+	raw = strings.TrimSpace(raw)
+	type T struct {
+		S string
+	}
+	if len(raw) == 0 {
+		raw = `""`
+	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
+		raw = strconv.Quote(raw)
+	}
+
+	return wrapFlow(w, []rune(raw), "summary:\t", termWidth)
 }
 
 // printDescr formats a given string (typically a snap description)
@@ -249,11 +286,11 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) error {
 // - trim trailing whitespace
 // - word wrap at "max" chars preserving line indent
 // - keep \n intact and break there
-func printDescr(w io.Writer, descr string, max int) error {
+func printDescr(w io.Writer, descr string, termWidth int) error {
 	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		err = wrapLine(w, []rune(line), "  ", max)
+		err = wrapLine(w, []rune(line), "  ", termWidth)
 		if err != nil {
 			break
 		}
@@ -377,14 +414,6 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 	return maxRevLen, maxSizeLen
 }
 
-func formatSummary(raw string) string {
-	s, err := yaml.Marshal(raw)
-	if err != nil {
-		return fmt.Sprintf("cannot marshal summary: %s", err)
-	}
-	return strings.TrimSpace(string(s))
-}
-
 func (x *infoCmd) Execute([]string) error {
 	termWidth, _ := termSize()
 	termWidth -= 3
@@ -407,7 +436,7 @@ func (x *infoCmd) Execute([]string) error {
 			continue
 		}
 
-		if tryDirect(w, snapName, x.Verbose) {
+		if tryDirect(w, snapName, x.Verbose, termWidth) {
 			noneOK = false
 			continue
 		}
@@ -427,7 +456,7 @@ func (x *infoCmd) Execute([]string) error {
 		noneOK = false
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
-		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
+		printSummary(w, both.Summary, termWidth)
 		fmt.Fprintf(w, "publisher:\t%s\n", longPublisher(esc, both.Publisher))
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
