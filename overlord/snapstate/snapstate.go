@@ -622,6 +622,10 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
+	if err := snap.ValidateInstanceName(name); err != nil {
+		return nil, err
+	}
+
 	info, err := installInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
@@ -660,6 +664,11 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		if snapst.IsInstalled() {
 			continue
 		}
+
+		if err := snap.ValidateInstanceName(name); err != nil {
+			return nil, nil, fmt.Errorf("invalid instance name: %q", name)
+		}
+
 		toInstall = append(toInstall, name)
 	}
 

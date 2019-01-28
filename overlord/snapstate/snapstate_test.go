@@ -12944,6 +12944,31 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 	c.Assert(s.snapmgr.CanStandby(), Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Install(s.state, "foo--invalid", "", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `invalid snap name: "foo--invalid"`)
+
+	_, err = snapstate.Install(s.state, "foo_123_456", "", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `invalid instance key: "123_456"`)
+
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo--invalid"}, 0)
+	c.Assert(err, ErrorMatches, `invalid instance name: "foo--invalid"`)
+
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo_123_456"}, 0)
+	c.Assert(err, ErrorMatches, `invalid instance name: "foo_123_456"`)
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1*
+`)
+	si := snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
+	_, _, err = snapstate.InstallPath(s.state, &si, mockSnap, "some-snap_123_456", "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `invalid instance key: "123_456"`)
+}
+
 type modelPastSeedSuite struct {
 	st *state.State
 }
