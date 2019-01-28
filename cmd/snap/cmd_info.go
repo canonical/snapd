@@ -233,9 +233,9 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth i
 	// This (and possibly printDescr below) should move to strutil once
 	// we're happy with it getting wider (heh heh) use.
 
-	l1 := utf8.RuneCountInString(indent)
-	delta := l1 - utf8.RuneCountInString(indent2)
-	width := termWidth - l1
+	indentWidth := utf8.RuneCountInString(indent)
+	delta := indentWidth - utf8.RuneCountInString(indent2)
+	width := termWidth - indentWidth
 
 	// establish the indent of the whole block
 	idx := 0
