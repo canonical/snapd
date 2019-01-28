@@ -1794,9 +1794,11 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 	if err != nil {
 		return InternalError("collecting connection information failed: %v", err)
 	}
-	connsjson.Established = nil
-	connsjson.Undesired = nil
-	return SyncResponse(connsjson, nil)
+	legacyconnsjson := legacyConnectionsJSON{
+		Plugs: connsjson.Plugs,
+		Slots: connsjson.Slots,
+	}
+	return SyncResponse(legacyconnsjson, nil)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
