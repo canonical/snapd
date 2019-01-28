@@ -303,7 +303,7 @@ prepare_project() {
 
     if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
 	# Manually install the latest golang from -backports
-        cat best.py <<'EOF'
+        cat best_golang.py <<'EOF'
 import apt
 import re
 best_golang=None
@@ -313,7 +313,7 @@ for p in apt.Cache():
             best_golang = p
 print(best_golang.name)
 EOF
-        apt install -y "$(python3 best.py)"
+        apt install -y "$(python3 best_golang.py)"
     fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
