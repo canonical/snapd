@@ -40,12 +40,12 @@ func (s *storeCacheSuite) TestStoreCacheRoundTrip(c *check.C) {
 	media := snap.MediaInfos{{Type: "1-2-3-testing"}}
 	info := &snap.Info{SuggestedName: "some-snap"}
 	info.SnapID = "some-id"
-	filename := snapstate.SnapStoreInfoCacheFilename("some-snap")
+	filename := snapstate.SnapStoreInfoCacheFilename(info.SnapID)
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
 	c.Check(snapstate.AttachStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
 
-	c.Assert(snapstate.CacheStoreInfo(info.InstanceName(), snapstate.NewStoreInfo(media)), check.IsNil)
+	c.Assert(snapstate.CacheStoreInfo(info.SnapID, snapstate.NewStoreInfo(media)), check.IsNil)
 	c.Check(osutil.FileExists(filename), check.Equals, true)
 
 	c.Assert(snapstate.AttachStoreInfo(info), check.IsNil)
@@ -53,7 +53,7 @@ func (s *storeCacheSuite) TestStoreCacheRoundTrip(c *check.C) {
 	c.Check(info.Media, check.DeepEquals, media)
 	info.Media = nil
 
-	c.Assert(snapstate.DeleteStoreInfoCache(info.InstanceName()), check.IsNil)
+	c.Assert(snapstate.DeleteStoreInfoCache(info.SnapID), check.IsNil)
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
 
 	c.Check(snapstate.AttachStoreInfo(info), check.IsNil)

@@ -941,14 +941,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if cand.SnapID != "" {
 		// write the per-snap info cache for additional info
 		storeInfo := &storeInfo{Media: snapsup.Media}
-		if err := cacheStoreInfo(snapsup.InstanceName(), storeInfo); err != nil {
+		if err := cacheStoreInfo(cand.SnapID, storeInfo); err != nil {
 			return err
 		}
 		defer func(single bool) {
 			if err != nil && single {
 				// the install is getting undone, and there are no more of this snap
 				// try to remove the cache
-				deleteStoreInfoCache(snapsup.InstanceName())
+				deleteStoreInfoCache(cand.SnapID)
 			}
 		}(len(snapst.Sequence) == 1)
 	}
@@ -1085,7 +1085,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 		// try to remove the cache
-		if err := deleteStoreInfoCache(snapsup.InstanceName()); err != nil {
+		if err := deleteStoreInfoCache(snapsup.SideInfo.SnapID); err != nil {
 			return fmt.Errorf("cannot remove store info cache: %v", err)
 		}
 	}
@@ -1407,7 +1407,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		// try to remove the store info cache
-		if err := deleteStoreInfoCache(snapsup.InstanceName()); err != nil {
+		if err := deleteStoreInfoCache(snapsup.SideInfo.SnapID); err != nil {
 			logger.Noticef("Cannot remove store info cache for %q: %v", snapsup.InstanceName(), err)
 		}
 

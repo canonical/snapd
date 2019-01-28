@@ -2270,7 +2270,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(snapst.Required, Equals, false)
 
 	// we end with the cache
-	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FilePresent)
+	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap-id"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
@@ -3121,7 +3121,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 
 	// we end up with the cache
-	c.Check(snapstate.SnapStoreInfoCacheFilename("services-snap"), testutil.FilePresent)
+	c.Check(snapstate.SnapStoreInfoCacheFilename("services-snap-id"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
@@ -6032,9 +6032,10 @@ version: 1.0`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
-	c.Assert(snapstate.CacheStoreInfo("some-snap", nil), IsNil)
-	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FilePresent)
+	c.Assert(snapstate.CacheStoreInfo("some-snap-id", nil), IsNil)
+	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap-id"), testutil.FilePresent)
 	si := snap.SideInfo{
+		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 		Revision: snap.R(7),
 	}
@@ -6132,6 +6133,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
+					SnapID:   "some-snap-id",
 					Revision: snap.R(7),
 				},
 			}
@@ -6140,6 +6142,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
 					Revision: snap.R(7),
+					SnapID:   "some-snap-id",
 				},
 				Type:      snap.TypeApp,
 				PlugsOnly: true,
@@ -6154,7 +6157,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
-	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FileAbsent)
+	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap-id"), testutil.FileAbsent)
 
 }
 
@@ -6526,6 +6529,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		case "clear-snap", "discard-snap":
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
+					SnapID:   "some-snap-id",
 					RealName: "some-snap",
 					Revision: revnos[whichRevno],
 				},
@@ -9108,7 +9112,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsStoreInfoCache(c *C) {
 		},
 	})
 
-	c.Assert(snapstate.CacheStoreInfo("name1", storeInfo), IsNil)
+	c.Assert(snapstate.CacheStoreInfo("123123123", storeInfo), IsNil)
 
 	st := s.st
 	st.Lock()
