@@ -20,6 +20,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -29,7 +30,6 @@ import (
 	"sort"
 	"strconv"
 
-	"golang.org/x/net/context"
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"

@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,8 +32,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"

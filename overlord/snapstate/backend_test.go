@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,8 +28,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"

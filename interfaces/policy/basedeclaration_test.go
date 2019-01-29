@@ -471,6 +471,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionBlockDevicesOverride(c *C) {
+	cand := s.connectCand(c, "block-devices", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"block-devices\"")
+
+	plugsSlots := `
+plugs:
+  block-devices:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -640,6 +658,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"block-devices":         true,
 		"classic-support":       true,
 		"docker-support":        true,
 		"greengrass-support":    true,
@@ -766,6 +785,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"block-devices":         true,
 		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,

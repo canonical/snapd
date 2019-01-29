@@ -20,10 +20,9 @@
 package snapstate
 
 import (
+	"context"
 	"fmt"
 	"sort"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
