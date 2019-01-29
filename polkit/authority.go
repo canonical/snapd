@@ -69,7 +69,7 @@ func CheckAuthorization(pid int32, uid uint32, actionId string, details map[stri
 		Kind:    "unix-process",
 		Details: make(map[string]dbus.Variant),
 	}
-	subject.Details["pid"] = dbus.MakeVariant(pid)
+	subject.Details["pid"] = dbus.MakeVariant(uint32(pid)) // polkit is *wrong*!
 	startTime, err := getStartTimeForPid(pid)
 	if err != nil {
 		return false, err
