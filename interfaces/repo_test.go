@@ -2467,7 +2467,10 @@ func (s *RepositorySuite) TestUpdateHotplugSlotAttrs(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find hotplug slot for interface interface and hotplug key "unknownkey"`)
 	c.Assert(slot, IsNil)
 
-	slot, err = s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
+	newAttrs := map[string]interface{}{"c": "d"}
+	slot, err = s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", newAttrs)
+	// attributes are copied, so this change shouldn't be visible
+	newAttrs["c"] = "tainted"
 	c.Assert(err, IsNil)
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"c": "d"})
