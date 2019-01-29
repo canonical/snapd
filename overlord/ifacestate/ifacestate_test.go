@@ -5233,6 +5233,74 @@ func (s *interfaceManagerSuite) TestHotplugAutoconnectConflictRetry(c *C) {
 	c.Check(hotplugConnectTask.Log()[0], Matches, `.*hotplug connect will be retried: conflicting snap core with task "link-snap"`)
 }
 
+// mockConsumer mocks a consumer snap and its single plug in the repository
+func mockConsumer(c *C, st *state.State, repo *interfaces.Repository, snapYaml, consumerSnapName, plugName string) {
+	si := &snap.SideInfo{RealName: consumerSnapName, Revision: snap.R(1)}
+	consumer := snaptest.MockSnapInstance(c, "", snapYaml, si)
+	c.Assert(consumer.Plugs[plugName], NotNil)
+	c.Assert(repo.AddPlug(consumer.Plugs[plugName]), IsNil)
+	snapstate.Set(st, consumerSnapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
+	s.MockModel(c, nil)
+
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"}), IsNil)
+
+	// mock hotplug slot in the repo and state
+	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "hotplugslot", Interface: "test", HotplugKey: "1234"}), IsNil)
+
+	s.state.Lock()
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "interface": "test", "hotplug-key": "1234"},
+	})
+
+	mockConsumer(c, s.state, repo, consumerYaml, "consumer", "plug")
+	mockConsumer(c, s.state, repo, consumer2Yaml, "consumer2", "plug")
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "1234")
+	chg.AddTask(t)
+
+	// simulate a device that was known and connected before to only one consumer, this connection will be restored
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// two connections now present (restored one for consumer, and new one for consumer2)
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+		},
+		"consumer2:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"auto":        true,
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+		}})
+}
+
 func (s *interfaceManagerSuite) TestHotplugDisconnect(c *C) {
 	coreInfo := s.mockSnap(c, coreSnapYaml)
 	repo := s.manager(c).Repository()
