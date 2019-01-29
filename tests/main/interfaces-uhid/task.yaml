@@ -35,7 +35,7 @@ execute: |
     snap disconnect test-snapd-uhid:uhid
 
     echo "Then the snap is not able to create/destroy a device on /dev/uhid"
-    if test-snapd-uhid.test-device 2>"${PWD}"/call.error; then
+    if test-snapd-uhid.test-device 2> call.error; then
         echo "Expected permission error calling uhid with disconnected plug"
         exit 1
     fi

@@ -375,6 +375,9 @@ var defaultTemplate = `
   @{PROC}/net/dev r,
   @{PROC}/@{pid}/net/dev r,
 
+  # Read-only of this snap
+  /var/lib/snapd/snaps/@{SNAP_NAME}_*.snap r,
+
   # Read-only for the install directory
   # bind mount used here (see 'parallel installs', above)
   @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/                   r,
@@ -634,6 +637,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   @{PROC}/@{pid}/fd/* r,
   # Allow reading /proc/version. For release.go WSL detection.
   @{PROC}/version r,
+
+  # Allow reading somaxconn, required in newer distro releases
+  @{PROC}/sys/net/core/somaxconn r,
 
   # Allow reading the os-release file (possibly a symlink to /usr/lib).
   /{etc/,usr/lib/}os-release r,
