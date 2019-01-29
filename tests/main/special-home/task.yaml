@@ -9,13 +9,25 @@ prepare: |
     # Install the corresponding package that brings the special user account.
     # Specialize the code as required for a particular user.
     case "$SPECIAL_USER_NAME" in
-        *) apt install "$SPECIAL_USER_NAME" ;;
+        jenkins)
+            wget -q -O - https://pkg.jenkins.io/debian/jenkins.io.key | apt-key add -
+            echo 'deb http://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list
+            apt-get update
+            apt-get install -y jenkins
+            apt install jenkins
+            ;;
     esac
 restore: |
-    snap remove test-snapd-sh 
+    snap remove test-snapd-sh
     # Remove the package we installed above.
     case "$SPECIAL_USER_NAME" in
-        *) apt remove --purge "$SPECIAL_USER_NAME" ;;
+        jenkins)
+            apt-get remove --purge -y jenkins
+            apt-get autoremove --purge -y
+            rm -f /etc/apt/sources.list.d/jenkins.list
+            apt-get update
+            # TODO: remove the apt key added above, but how?
+            ;;
     esac
 execute: |
     #shellcheck disable=SC2016
