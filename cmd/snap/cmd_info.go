@@ -358,21 +358,59 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
-// displayChannels displays channels and tracks in the right order
-func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap, revLen, sizeLen int) (maxRevLen, maxSizeLen int) {
-	fmt.Fprintln(w, "channels:")
+type channelInfo struct {
+	indent, name, version, released, revision, size, notes string
+}
 
-	releasedfmt := "2006-01-02"
-	if x.AbsTime {
-		releasedfmt = time.RFC3339
+type channelInfos struct {
+	channels              []*channelInfo
+	maxRevLen, maxSizeLen int
+	releasedfmt, chantpl  string
+	needsHeader           bool
+	esc                   *escapes
+}
+
+func (chInfos *channelInfos) add(indent, name, version string, revision snap.Revision, released time.Time, size int64, notes *Notes) {
+	chInfo := &channelInfo{
+		indent:   indent,
+		name:     name,
+		version:  version,
+		revision: fmt.Sprintf("(%s)", revision),
+		size:     strutil.SizeToStr(size),
+		notes:    notes.String(),
+	}
+	if !released.IsZero() {
+		chInfo.released = released.Format(chInfos.releasedfmt)
+	}
+	if len(chInfo.revision) > chInfos.maxRevLen {
+		chInfos.maxRevLen = len(chInfo.revision)
+	}
+	if len(chInfo.size) > chInfos.maxSizeLen {
+		chInfos.maxSizeLen = len(chInfo.size)
+	}
+	chInfos.channels = append(chInfos.channels, chInfo)
+}
+
+func (chInfos *channelInfos) addFromLocal(local *client.Snap) {
+	chInfos.add("", "installed", local.Version, local.Revision, time.Time{}, local.InstalledSize, NotesFromLocal(local))
+}
+
+func (chInfos *channelInfos) addOpenChannel(name, version string, revision snap.Revision, released time.Time, size int64, notes *Notes) {
+	chInfos.add("  ", name, version, revision, released, size, notes)
+}
+
+func (chInfos *channelInfos) addClosedChannel(name string, trackHasOpenChannel bool) {
+	chInfo := &channelInfo{indent: "  ", name: name}
+	if trackHasOpenChannel {
+		chInfo.version = chInfos.esc.uparrow
+	} else {
+		chInfo.version = chInfos.esc.dash
 	}
 
-	type chInfoT struct {
-		name, version, released, revision, size, notes string
-	}
-	var chInfos []*chInfoT
-	maxRevLen, maxSizeLen = revLen, sizeLen
+	chInfos.channels = append(chInfos.channels, chInfo)
+}
 
+func (chInfos *channelInfos) addFromRemote(remote *client.Snap) {
 	// order by tracks
 	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
@@ -382,36 +420,24 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 			if tr == "latest" {
 				chName = risk
 			}
-			chInfo := chInfoT{name: chName}
 			if ok {
-				chInfo.version = ch.Version
-				chInfo.revision = fmt.Sprintf("(%s)", ch.Revision)
-				if len(chInfo.revision) > maxRevLen {
-					maxRevLen = len(chInfo.revision)
-				}
-				chInfo.released = ch.ReleasedAt.Format(releasedfmt)
-				chInfo.size = strutil.SizeToStr(ch.Size)
-				if len(chInfo.size) > maxSizeLen {
-					maxSizeLen = len(chInfo.size)
-				}
-				chInfo.notes = NotesFromChannelSnapInfo(ch).String()
+				chInfos.addOpenChannel(chName, ch.Version, ch.Revision, ch.ReleasedAt, ch.Size, NotesFromChannelSnapInfo(ch))
 				trackHasOpenChannel = true
 			} else {
-				if trackHasOpenChannel {
-					chInfo.version = esc.uparrow
-				} else {
-					chInfo.version = esc.dash
-				}
+				chInfos.addClosedChannel(chName, trackHasOpenChannel)
 			}
-			chInfos = append(chInfos, &chInfo)
 		}
 	}
+	chInfos.needsHeader = len(chInfos.channels) > 0
+}
 
-	for _, chInfo := range chInfos {
-		fmt.Fprintf(w, "  "+chantpl, chInfo.name, chInfo.version, chInfo.released, maxRevLen, chInfo.revision, maxSizeLen, chInfo.size, chInfo.notes)
+func (chInfos *channelInfos) dump(w io.Writer) {
+	if chInfos.needsHeader {
+		fmt.Fprintln(w, "channels:")
 	}
-
-	return maxRevLen, maxSizeLen
+	for _, c := range chInfos.channels {
+		fmt.Fprintf(w, chInfos.chantpl, c.indent, c.name, c.version, c.released, chInfos.maxRevLen, c.revision, chInfos.maxSizeLen, c.size, c.notes)
+	}
 }
 
 func (x *infoCmd) Execute([]string) error {
@@ -478,7 +504,6 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "  confinement:\t%s\n", both.Confinement)
 		}
 
-		var notes *Notes
 		if local != nil {
 			if x.Verbose {
 				jailMode := local.Confinement == client.DevModeConfinement && !local.DevMode
@@ -493,8 +518,6 @@ func (x *infoCmd) Execute([]string) error {
 				}
 
 				fmt.Fprintf(w, "  ignore-validation:\t%t\n", local.IgnoreValidation)
-			} else {
-				notes = NotesFromLocal(local)
 			}
 		}
 		// stops the notes etc trying to be aligned with channels
@@ -502,8 +525,6 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintBase(w, both.Base, x.Verbose)
 		maybePrintID(w, both)
-		var localRev, localSize string
-		var revLen, sizeLen int
 		if local != nil {
 			if local.TrackingChannel != "" {
 				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
@@ -511,24 +532,25 @@ func (x *infoCmd) Execute([]string) error {
 			if !local.InstallDate.IsZero() {
 				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
 			}
-			localRev = fmt.Sprintf("(%s)", local.Revision)
-			revLen = len(localRev)
-			localSize = strutil.SizeToStr(local.InstalledSize)
-			sizeLen = len(localSize)
 		}
 
-		chantpl := "%s:\t%s %s%*s %*s %s\n"
+		chInfos := channelInfos{
+			chantpl:     "%s%s:\t%s %s%*s %*s %s\n",
+			releasedfmt: "2006-01-02",
+			esc:         esc,
+		}
+		if x.AbsTime {
+			chInfos.releasedfmt = time.RFC3339
+		}
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			chantpl = "%s:\t%s\t%s\t%*s\t%*s\t%s\n"
-
 			w.Flush()
-			revLen, sizeLen = x.displayChannels(w, chantpl, esc, remote, revLen, sizeLen)
+			chInfos.chantpl = "%s%s:\t%s\t%s\t%*s\t%*s\t%s\n"
+			chInfos.addFromRemote(remote)
 		}
 		if local != nil {
-			fmt.Fprintf(w, chantpl,
-				"installed", local.Version, "", revLen, localRev, sizeLen, localSize, notes)
+			chInfos.addFromLocal(local)
 		}
-
+		chInfos.dump(w)
 	}
 	w.Flush()
 
