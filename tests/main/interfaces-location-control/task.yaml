@@ -55,7 +55,7 @@ execute: |
     snap disconnect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
 
     echo "And the location provider props cannot be accessed"
-    if test-snapd-location-control-provider.consumer Get 2>"${PWD}"/getprop.error; then
+    if test-snapd-location-control-provider.consumer Get 2> getprop.error; then
         echo "Expected permission error trying to get props with disconnected plug"
         exit 1
     fi
