@@ -301,8 +301,8 @@ prepare_project() {
         fi
     fi
 
-    # debian packaing is special
-    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
+    # debian-sid packaging is special
+    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
         if [ ! -d packaging/debian-sid ]; then
             echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
