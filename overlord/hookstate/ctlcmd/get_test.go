@@ -105,6 +105,9 @@ var getTests = []struct {
 	args:   "get -t missing-key",
 	stdout: "null\n",
 }, {
+	args:  "get -t test-key2.sub",
+	error: "snap \"test-snap\" option \"test-key2\" is not a map",
+}, {
 	args:   "get -d test-key1",
 	stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
 }, {
@@ -340,6 +343,9 @@ var getPlugAttributesTests = []struct {
 	args:   "get :aplug aattr",
 	stdout: "foo\n",
 }, {
+	args:  "get :aplug aattr.sub",
+	error: "snap \"test-snap\" attribute \"aattr\" is not a map",
+}, {
 	args:   "get -d :aplug baz",
 	stdout: "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n",
 }, {
@@ -366,7 +372,7 @@ var getPlugAttributesTests = []struct {
 	stdout: "bar\n",
 }, {
 	args:  "get :aplug x",
-	error: `unknown attribute "x"`,
+	error: `no "x" attribute`,
 }, {
 	args:  "get :bslot x",
 	error: `unknown plug or slot "bslot"`,
@@ -407,7 +413,7 @@ var getSlotAttributesTests = []struct {
 	stdout: "foo\n",
 }, {
 	args:  "get :bslot x",
-	error: `unknown attribute "x"`,
+	error: `no "x" attribute`,
 }, {
 	args:  "get :aplug x",
 	error: `unknown plug or slot "aplug"`,

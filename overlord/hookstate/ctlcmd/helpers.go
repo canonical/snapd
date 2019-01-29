@@ -158,7 +158,7 @@ type NoAttributeError struct {
 }
 
 func (e *NoAttributeError) Error() string {
-	return fmt.Sprintf("unknown attribute %q", e.Attribute)
+	return fmt.Sprintf("no %q attribute", e.Attribute)
 }
 
 // isNoAttribute returns whether the provided error is a *NoAttributeError.
@@ -181,6 +181,9 @@ func jsonRaw(v interface{}) *json.RawMessage {
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
 func getAttribute(snapName string, subkeys []string, pos int, attrs map[string]interface{}, result interface{}) error {
+	if pos >= len(subkeys) {
+		return fmt.Errorf("internal error: invalid subkeys index %d for subkeys %q", pos, subkeys)
+	}
 	value, ok := attrs[subkeys[pos]]
 	if !ok {
 		return &NoAttributeError{Attribute: strings.Join(subkeys[:pos+1], ".")}
