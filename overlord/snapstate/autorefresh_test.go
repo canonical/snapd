@@ -20,12 +20,11 @@
 package snapstate_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 

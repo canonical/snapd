@@ -21,6 +21,7 @@ package image_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -30,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"

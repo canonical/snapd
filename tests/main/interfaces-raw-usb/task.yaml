@@ -42,7 +42,7 @@ execute: |
     snap disconnect test-snapd-sh:raw-usb
 
     echo "Then the snap is not able to check for USB devices"
-    if test-snapd-sh.with-raw-usb-plug -c "cat /sys/bus/usb/devices/usb1/serial" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-raw-usb-plug -c "cat /sys/bus/usb/devices/usb1/serial" 2> call.error; then
         echo "Expected permission error accessing to check for USB devices"
         exit 1
     fi

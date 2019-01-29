@@ -20,12 +20,12 @@
 package snapshotstate_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sort"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
