@@ -1,5 +1,8 @@
 summary: Checks for snap sideload install
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
@@ -9,11 +12,6 @@ environment:
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode; do
         snap pack "$TESTSLIB"/snaps/$snap
-    done
-
-restore: |
-    for snap in basic test-snapd-tools basic-desktop; do
-        rm -f ./${snap}_1.0_all.snap
     done
 
 execute: |

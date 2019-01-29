@@ -1,0 +1,20 @@
+summary: Check that installing and running a snap works
+
+execute: |
+    echo "Ensure install from the store works"
+    snap install test-snapd-tools
+
+    echo "Ensure that the snap can be run"
+    test-snapd-tools.echo hello > stdout.log 2> stderr.log
+    MATCH "^hello$" < stdout.log
+    if [ -s stderr.log ]; then
+        echo "stderr.log must be empty but it is not:"
+        cat stderr.log
+        exit 1
+    fi
+
+    echo "Ensure the snap is listed"
+    snap list | grep ^test-snapd-tools
+
+    echo "Ensure a change was generated for the install"
+    snap changes | MATCH 'Install "test-snapd-tools" snap'
