@@ -20,13 +20,12 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"

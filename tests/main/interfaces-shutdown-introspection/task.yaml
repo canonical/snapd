@@ -26,12 +26,12 @@ execute: |
     expected="<interface name=\"org.freedesktop.login1.Manager\">"
     su -l -c "shutdown-introspection-consumer" test | MATCH "$expected"
 
-    echo "When the plug is disconnected"
-    snap disconnect shutdown-introspection-consumer:shutdown
-
     if [ "$(snap debug confinement)" = partial ]; then
         exit
     fi
+
+    echo "When the plug is disconnected"
+    snap disconnect shutdown-introspection-consumer:shutdown
 
     echo "Then the snap is not able to get system information"
     if su -l -c "shutdown-introspection-consumer" test; then

@@ -74,7 +74,7 @@ execute: |
     snap disconnect test-snapd-sh:removable-media
 
     echo "Then the snap is not able to access read the test media file"
-    if test-snapd-sh.with-removable-media-plug -c "ls /run" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-removable-media-plug -c "ls /run" 2> call.error; then
         echo "Expected permission error accessing to removable storage filesystems"
         exit 1
     fi
