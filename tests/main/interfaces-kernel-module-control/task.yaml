@@ -64,7 +64,7 @@ execute: |
     generic-consumer.cmd ls /sys/module | MATCH "$MODULE"
 
     echo "And the snap is not able to write to /sys/module"
-    if su -l -c "generic-consumer.cmd touch /sys/module/test" test 2>"${PWD}/touch.error"; then
+    if su -l -c "generic-consumer.cmd touch /sys/module/test" test 2> touch.error; then
         echo "Expected permission error writing to /sys/module"
         exit 1
     fi
@@ -83,7 +83,7 @@ execute: |
     snap disconnect generic-consumer:kernel-module-control
 
     echo "Then the snap is not able to list modules"
-    if su -l -c "test-snapd-kernel-module-consumer.lsmod" test 2>"${PWD}/list.error"; then
+    if su -l -c "test-snapd-kernel-module-consumer.lsmod" test 2> list.error; then
         echo "Expected permission error listing modules with disconnected plug"
         exit 1
     fi
@@ -107,14 +107,14 @@ execute: |
     MATCH "Permission denied" < remove.error
 
     echo "And the snap is not able to read /sys/module"
-    if su -l -c "generic-consumer.cmd ls /sys/module" test 2>"${PWD}/read.error"; then
+    if su -l -c "generic-consumer.cmd ls /sys/module" test 2> read.error; then
         echo "Expected permission error reading /sys/module with disconnected plug"
         exit 1
     fi
     MATCH "Permission denied" < read.error
 
     echo "And the snap is not able to write to /sys/module"
-    if su -l -c "generic-consumer.cmd touch /sys/module/test" test 2>"${PWD}/touch.error"; then
+    if su -l -c "generic-consumer.cmd touch /sys/module/test" test 2> touch.error; then
         echo "Expected permission error writing to /sys/module"
         exit 1
     fi

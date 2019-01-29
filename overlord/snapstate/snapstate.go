@@ -21,14 +21,13 @@
 package snapstate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
