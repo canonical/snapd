@@ -3933,7 +3933,20 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 
 	d := s.daemon(c)
 
+	var anotherConsumerYaml = `
+name: another-consumer-%s
+version: 1
+apps:
+ app:
+plugs:
+ plug:
+  interface: test
+  key: value
+  label: label
+`
 	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
@@ -3943,6 +3956,26 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 	}
 	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
+
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"auto":      true,
+		},
+		"another-consumer-def:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+		"another-consumer-abc:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+	})
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3955,6 +3988,28 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "another-consumer-abc",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+				map[string]interface{}{
+					"snap":      "another-consumer-def",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
 				map[string]interface{}{
 					"snap":      "consumer",
 					"plug":      "plug",
@@ -3976,6 +4031,8 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
+						map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
+						map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
 						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
