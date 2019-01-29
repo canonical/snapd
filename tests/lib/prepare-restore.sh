@@ -4,9 +4,6 @@ set -x
 # statements we execute stops the build. The code is not (yet) written to
 # handle errors in general.
 set -e
-# Set pipefail option so that "foo | bar" behaves with fewer surprises by
-# failing if foo fails, not just if bar fails.
-set -o pipefail
 
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
@@ -363,11 +360,19 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             # in 16.04: apt build-dep -y ./
+            if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
+                best_golang="$(python3 ./tests/lib/best_golang.py)"
+                test -n "$best_golang"
+                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
+            else
+                best_golang=golang-1.10
+            fi
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
             # The go 1.10 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                ln -s /usr/lib/go-1.10/bin/go /usr/bin/go
+                # the path filesystem path is: /usr/lib/go-1.10/bin
+                ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
     esac

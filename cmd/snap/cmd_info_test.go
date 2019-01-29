@@ -97,6 +97,45 @@ func (s *infoSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
 	}
 }
 
+func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {
+	defer snap.MockTermSize(func() (int, int) { return 44, 25 })()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprintln(w, findPricedJSON)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, "{}")
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `
+name:    hello
+summary: GNU Hello, the "hello world"
+  snap
+publisher: Canonical*
+license:   Proprietary
+price:     1.99GBP
+description: |
+  GNU hello prints a friendly greeting.
+  This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+`[1:])
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *infoSuite) TestInfoPriced(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -549,4 +588,18 @@ func (infoSuite) TestDescr(c *check.C) {
 		snap.PrintDescr(&buf, k, 20)
 		c.Check(buf.String(), check.Equals, v, check.Commentf("%q", k))
 	}
+}
+
+func (infoSuite) TestWrapCornerCase(c *check.C) {
+	// this particular corner case isn't currently reachable from
+	// printDescr nor printSummary, but best to have it covered
+	var buf bytes.Buffer
+	const s = "This is a paragraph indented with leading spaces that are encoded as multiple bytes. All hail EN SPACE."
+	snap.WrapFlow(&buf, []rune(s), "\u2002\u2002", 30)
+	c.Check(buf.String(), check.Equals, `
+  This is a paragraph indented
+  with leading spaces that are
+  encoded as multiple bytes.
+  All hail EN SPACE.
+`[1:])
 }
