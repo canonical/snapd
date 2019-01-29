@@ -21,6 +21,7 @@ package builtin
 
 import (
 	. "gopkg.in/check.v1"
+	"os"
 
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -81,6 +82,15 @@ func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) 
 	evalSymlinks = fn
 	test.AddCleanup(func() {
 		evalSymlinks = orig
+	})
+}
+
+// MockReadDir replaces the io/ioutil.ReadDir function used inside the caps package.
+func MockReadDir(test *testutil.BaseTest, fn func(string) ([]os.FileInfo, error)) {
+	orig := readDir
+	readDir = fn
+	test.AddCleanup(func() {
+		readDir = orig
 	})
 }
 

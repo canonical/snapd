@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -1619,21 +1619,29 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	about, err := localSnapInfo(st, name)
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil {
-		if err == errNoSnap {
+		if err == state.ErrNoState {
 			return SnapNotFound(name, err)
 		}
-		return InternalError("%v", err)
+		return InternalError("cannot consult state: %v", err)
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		return NotFound("snap has no current revision")
 	}
 
-	path := filepath.Clean(snapIcon(about.info))
-	if !strings.HasPrefix(path, dirs.SnapMountDir) {
-		// XXX: how could this happen?
-		return BadRequest("requested icon is not in snap path")
+	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
+
+	if icon == "" {
+		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(path)
+	return FileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
