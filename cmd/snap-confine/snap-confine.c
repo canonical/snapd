@@ -40,6 +40,7 @@
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support.h"
 #include "ns-support.h"
+#include "quirks.h"
 #include "udev-support.h"
 #include "user-support.h"
 #include "cookie-support.h"
