@@ -8,7 +8,7 @@
 # pristine build environment, unspoiled by convenience packages often present on
 # workstation environments. 
 #
-# The systme is "portable", being able to execute on anything capable of
+# The system is "portable", being able to execute on anything capable of
 # running Multipass and apt-cacher-ng. The workflow is as follows:
 #
 # - prepare host environment:
