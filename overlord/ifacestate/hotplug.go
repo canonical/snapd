@@ -272,6 +272,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	}
 }
 
+// hotplugEnumerationDone gets called when initial enumeration on startup is finished.
 func (m *InterfaceManager) hotplugEnumerationDone() {
 	st := m.state
 	st.Lock()

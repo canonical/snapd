@@ -71,7 +71,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	s.Lock()
 	ifacerepo.Replace(s, m.repo)
-
 	s.Unlock()
 
 	taskKinds := map[string]bool{}

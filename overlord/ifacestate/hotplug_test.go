@@ -221,9 +221,7 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	seenHotplugSeqWait := 0
-	seenHotplugAddSlot := 0
-	seenHotplugConnect := 0
+	var seenHotplugSeqWait, seenHotplugAddSlot, seenHotplugConnect int
 	// verify hotplug tasks
 	seen := make(map[string]string)
 	for _, t := range st.Tasks() {
@@ -341,8 +339,7 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	seenHotplugSeqWait := 0
-	seenHotplugAddSlot := 0
+	var seenHotplugSeqWait, seenHotplugAddSlot int
 	// verify hotplug tasks
 	seen := make(map[string]string)
 	for _, t := range st.Tasks() {
@@ -413,9 +410,7 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	tasks := st.Tasks()
 	seenHooks := make(map[string]string)
 	seenKeys := make(map[string]string)
-	seenConnect := 0
-	seenHotplugSeqWait := 0
-	seenHotplugAddSlot := 0
+	var seenHotplugSeqWait, seenHotplugAddSlot, seenConnect int
 	for _, t := range tasks {
 		c.Assert(t.Status(), Equals, state.DoneStatus)
 		switch {
@@ -548,9 +543,7 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 	// verify hotplug tasks
 	seenHooks := make(map[string]string)
 	seenKeys := make(map[string]string)
-	seenDisonnect := 0
-	seenHotplugDisconnect := 0
-	seenHotplugSeqWait := 0
+	var seenDisonnect, seenHotplugDisconnect, seenHotplugSeqWait int
 
 	tasks := st.Tasks()
 	for _, t := range tasks {
@@ -793,12 +786,7 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 	tasks := st.Tasks()
 	seenHooks := make(map[string]string)
 	seenHotplugConnectKeys := make(map[string]string)
-	seenConnect := 0
-	seenDisconnect := 0
-	seenHotplugDisconnect := 0
-	seenHotplugConnect := 0
-	seenHotplugSeqWait := 0
-	seenAddSlot := 0
+	var seenConnect, seenDisconnect, seenHotplugDisconnect, seenHotplugConnect, seenHotplugSeqWait, seenAddSlot int
 	for _, t := range tasks {
 		c.Assert(t.Status(), Equals, state.DoneStatus)
 		switch {
