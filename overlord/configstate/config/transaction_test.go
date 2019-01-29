@@ -140,6 +140,23 @@ var setGetTests = [][]setGetOp{{
 	`get one.two.four=4`,
 	`get one.five=5`,
 }, {
+	// Nested partial update with full get
+	`set one={"two":2,"three":3}`,
+	`commit`,
+	// update just one subkey
+	`set one.two=0`,
+	// both subkeys are returned
+	`get one={"two":0,"three":3}`,
+	`getroot ={"one":{"two":0,"three":3}}`,
+	`get one.two=0`,
+	`get one.three=3`,
+	`getunder one={"two":2,"three":3}`,
+	`changes core.one.two`,
+	`commit`,
+	`getroot ={"one":{"two":0,"three":3}}`,
+	`get one={"two":0,"three":3}`,
+	`getunder one={"two":0,"three":3}`,
+}, {
 	// Replacement with nested mutation.
 	`set one={"two":{"three":3}}`,
 	`changes core.one.two.three`,
