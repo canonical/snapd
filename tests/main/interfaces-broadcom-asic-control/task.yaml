@@ -24,8 +24,6 @@ prepare: |
     ensure_file_exists /run/udev/data/+pci:0test
 
 restore: |
-    rm -f call.error
-
     #shellcheck source=tests/lib/files.sh
     . "$TESTSLIB"/files.sh
     clean_file /dev/linux-user-bde
@@ -79,7 +77,7 @@ execute: |
     snap disconnect test-snapd-sh:broadcom-asic-control
 
     echo "Then the snap is not able to read the device"
-    if test-snapd-sh.with-broadcom-asic-control-plug -c "cat /dev/linux-bcm-knet" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-broadcom-asic-control-plug -c "cat /dev/linux-bcm-knet" 2> call.error; then
         echo "Expected permission error accessing to device"
         exit 1
     fi

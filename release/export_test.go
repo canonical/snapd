@@ -58,6 +58,14 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
+func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
+	old := selinuxIsEnforcing
+	selinuxIsEnforcing = isEnforcing
+	return func() {
+		selinuxIsEnforcing = old
+	}
+}
+
 var (
 	ProbeAppArmorKernelFeatures = probeAppArmorKernelFeatures
 	ProbeAppArmorParserFeatures = probeAppArmorParserFeatures
@@ -68,6 +76,8 @@ var (
 	PreferredAppArmorParserFeatures = preferredAppArmorParserFeatures
 
 	IsWSL = isWSL
+
+	ProbeSELinux = probeSELinux
 )
 
 func FreshAppArmorAssessment() {

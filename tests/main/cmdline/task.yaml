@@ -7,6 +7,3 @@ execute: |
         exit 1
     fi
     MATCH "Please specify a single channel" < err.msg
-
-restore: |
-    rm -f err.msg

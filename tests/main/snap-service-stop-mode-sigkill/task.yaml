@@ -2,6 +2,9 @@ summary: "Check that refresh-modes sigkill works"
 
 kill-timeout: 5m
 
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
+
 restore: |
     # remove to ensure all services are stopped
     snap remove test-snapd-service || true
