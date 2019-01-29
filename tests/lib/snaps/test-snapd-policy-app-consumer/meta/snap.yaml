@@ -86,6 +86,9 @@ apps:
   device-buttons:
     command: bin/run
     plugs: [ device-buttons ]
+  display-control:
+    command: bin/run
+    plugs: [ display-control ]
   docker:
     command: bin/run
     plugs: [ docker ]
