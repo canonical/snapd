@@ -1,3 +1,9 @@
+snapd (2.37.1) xenial; urgency=medium
+
+  * placeholder changelog entry until the real 2.37.1 is merged
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 29 Jan 2019 22:23:05 +0100
+
 snapd (2.37) xenial; urgency=medium
 
   * New upstream release, LP: #1811233
