@@ -101,6 +101,7 @@ var api = []*Command{
 	warningsCmd,
 	debugCmd,
 	snapshotCmd,
+	connectionsCmd,
 }
 
 var (
@@ -1797,57 +1798,15 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-
-	var ifjson interfaceJSON
-	plugConns := map[string][]interfaces.SlotRef{}
-	slotConns := map[string][]interfaces.PlugRef{}
-
-	for _, cref := range ifaces.Connections {
-		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
-		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
-		plugID := plugRef.String()
-		slotID := slotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], slotRef)
-		slotConns[slotID] = append(slotConns[slotID], plugRef)
+	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	if err != nil {
+		return InternalError("collecting connection information failed: %v", err)
 	}
-
-	for _, plug := range ifaces.Plugs {
-		var apps []string
-		for _, app := range plug.Apps {
-			apps = append(apps, app.Name)
-		}
-		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
-		pj := &plugJSON{
-			Snap:        plugRef.Snap,
-			Name:        plugRef.Name,
-			Interface:   plug.Interface,
-			Attrs:       plug.Attrs,
-			Apps:        apps,
-			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
-		}
-		ifjson.Plugs = append(ifjson.Plugs, pj)
+	legacyconnsjson := legacyConnectionsJSON{
+		Plugs: connsjson.Plugs,
+		Slots: connsjson.Slots,
 	}
-	for _, slot := range ifaces.Slots {
-		var apps []string
-		for _, app := range slot.Apps {
-			apps = append(apps, app.Name)
-		}
-		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
-		sj := &slotJSON{
-			Snap:        slotRef.Snap,
-			Name:        slotRef.Name,
-			Interface:   slot.Interface,
-			Attrs:       slot.Attrs,
-			Apps:        apps,
-			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
-		}
-		ifjson.Slots = append(ifjson.Slots, sj)
-	}
-	return SyncResponse(ifjson, nil)
+	return SyncResponse(legacyconnsjson, nil)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
