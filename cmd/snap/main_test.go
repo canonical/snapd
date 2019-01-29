@@ -67,6 +67,12 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
+	path := os.Getenv("PATH")
+	s.AddCleanup(func() {
+		os.Setenv("PATH", path)
+	})
+	os.Setenv("PATH", path+":"+dirs.SnapBinariesDir)
+
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)

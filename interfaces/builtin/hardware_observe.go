@@ -57,6 +57,7 @@ capability sys_admin,
 
 # power information
 /sys/power/{,**} r,
+/run/udev/data/+power_supply:* r,
 
 # interrupts
 @{PROC}/interrupts r,

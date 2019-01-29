@@ -457,7 +457,10 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
 	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
 	if (mnt_fd < 0) {
 		die("cannot open preserved mount namespace %s", group->name);
 	}
@@ -527,7 +530,10 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
 	if (mnt_fd < 0) {
 		die("cannot open preserved mount namespace %s", group->name);
 	}
@@ -683,6 +689,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 		die("cannot create file %s", dst);
 	}
 	close(fd);
+
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve mount namespace of process %d as %s",
 		    (int)parent, dst);
@@ -700,6 +707,14 @@ static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent)
 	debug("capturing per-snap, per-user mount namespace");
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
 	sc_must_snprintf(dst, sizeof dst, "%s.%d.mnt", group->name, (int)uid);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
+	}
+	close(fd);
+
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve per-user mount namespace of process %d as %s", (int)parent, dst);
 	}

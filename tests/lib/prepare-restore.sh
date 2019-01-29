@@ -4,9 +4,6 @@ set -x
 # statements we execute stops the build. The code is not (yet) written to
 # handle errors in general.
 set -e
-# Set pipefail option so that "foo | bar" behaves with fewer surprises by
-# failing if foo fails, not just if bar fails.
-set -o pipefail
 
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
@@ -424,6 +421,9 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
+    # back test directory to be restored during the restore
+    tar cf "${PWD}.tar" "$PWD"
+
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
@@ -447,6 +447,13 @@ prepare_suite_each() {
 
 restore_suite_each() {
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
+
+    # restore test directory saved during prepare
+    if [ -f "${PWD}.tar" ]; then
+        rm -rf "$PWD"
+        tar -C/ -xf "${PWD}.tar"
+        rm -rf "${PWD}.tar"
+    fi
 }
 
 restore_suite() {
