@@ -74,15 +74,18 @@ func canInstallSnapdSnap(st *state.State) error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if model == nil || model.Base() == "" {
-		tr := config.NewTransaction(st)
-		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-		if !experimentalAllowSnapd {
-			return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
-		}
+	// any model that uses a base caninstall the snapd snap
+	if model != nil && model.Base() != "" {
+		return nil
+	}
+	// for any other model the snapd snap is experimental
+	tr := config.NewTransaction(st)
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !experimentalAllowSnapd {
+		return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 	}
 	return nil
 }
