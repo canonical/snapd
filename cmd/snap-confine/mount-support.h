@@ -45,6 +45,7 @@ int sc_open_snap_discard_ns(void);
  * - prepares and chroots into the core snap (on classic systems)
  * - creates private /tmp
  * - creates private /dev/pts
+ * - applies quirks for specific snaps (like LXD)
  * - processes mount profiles
  *
  * The function will also try to preserve the current working directory but if

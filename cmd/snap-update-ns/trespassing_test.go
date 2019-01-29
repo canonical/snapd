@@ -426,3 +426,13 @@ func (s *trespassingSuite) TestIsPrivateTmpfsCreatedBySnapdDeeper(c *C) {
 	})
 	c.Assert(result, Equals, false)
 }
+
+func (s *trespassingSuite) TestIsPrivateTmpfsCreatedBySnapdViaVarLib(c *C) {
+	path := "/var/lib"
+	// A tmpfs in /var/lib is private because it is a special
+	// quirk applied by snap-confine, without having a change record.
+	statfs := &syscall.Statfs_t{Type: update.TmpfsMagic}
+	stat := &syscall.Stat_t{}
+	result := update.IsPrivateTmpfsCreatedBySnapd(path, statfs, stat, nil)
+	c.Assert(result, Equals, true)
+}

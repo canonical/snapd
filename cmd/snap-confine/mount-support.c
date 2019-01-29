@@ -47,6 +47,7 @@
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
+#include "quirks.h"
 
 #define MAX_BUF 1000
 
@@ -617,6 +618,10 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
+	// setup quirks for specific snaps *only* for the old core snap
+	if (distro == SC_DISTRO_CLASSIC && sc_streq(base_snap_name, "core")) {
+		sc_setup_quirks();
+	}
 	// setup the security backend bind mounts
 	sc_call_snap_update_ns(snap_update_ns_fd, snap_name, apparmor);
 
