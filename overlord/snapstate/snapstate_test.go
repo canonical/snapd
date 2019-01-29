@@ -13164,7 +13164,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		{snap: "kernel", new: "18/stable", exp: "18/stable"},
 		{snap: "brand-gadget", new: "18/stable", exp: "18/stable", gadgetTrack: "18"},
 		{snap: "brand-gadget", new: "18/stable", exp: "18/stable"},
-		// branch risk/branch within a track
+		// risk/branch within a track
 		{snap: "kernel", new: "stable/hotfix-123", exp: "18/stable/hotfix-123", kernelTrack: "18"},
 		{snap: "kernel", new: "18/stable/hotfix-123", exp: "18/stable/hotfix-123", kernelTrack: "18"},
 		// risk only defaults to pinned gadget track
