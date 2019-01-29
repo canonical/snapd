@@ -16,6 +16,9 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
+# ensure we use go-1.10 by default
+export PATH=/usr/lib/go-1.10/bin:${PATH}
+
 # add workaround for https://github.com/golang/go/issues/24449
 if [ "$(uname -m)" = "s390x" ]; then
     if go version | grep -q go1.10; then

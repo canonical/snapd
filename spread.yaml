@@ -80,7 +80,7 @@ backends:
                 workers: 4
                 manual: true
             - fedora-29-64:
-                workers: 4
+                workers: 6
             - opensuse-42.3-64:
                 workers: 4
                 # golang stack cannot compile anything, needs investigation
@@ -117,8 +117,6 @@ backends:
                 workers: 1
             - fedora-29-64:
                 workers: 1
-                # https://twitter.com/zygoon/status/1073629342884864000
-                manual: true
             - arch-linux-64:
                 workers: 1
             - amazon-linux-2-64:
@@ -138,9 +136,10 @@ backends:
                 workers: 4
             - ubuntu-16.04-64:
                 workers: 4
-            - ubuntu-17.10-64:
-                workers: 4
             - ubuntu-18.04-64:
+                workers: 4
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
                 workers: 4
 
     google-nested:
@@ -474,7 +473,7 @@ repack: |
         tar c current.delta >&4
     fi
 
-kill-timeout: 20m
+kill-timeout: 30m
 
 prepare: |
     # NOTE: This part of the code needs to be in spread.yaml as it runs before
@@ -588,6 +587,9 @@ suites:
         summary: Full-system tests for snapd
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        debug: |
+            systemctl status snapd.socket || true
+            journalctl -xe
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
@@ -753,16 +755,32 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
-    tests/nested/:
+    tests/nested/classic/:
         summary: Tests for nested images
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
         backends: [google-nested]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
-            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+    tests/nested/core/:
+        summary: Tests for nested images
+        backends: [google-nested]
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
