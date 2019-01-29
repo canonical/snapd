@@ -48,7 +48,6 @@ func ParseChannelVerbatim(s string, architecture string) (Channel, error) {
 	}
 	p := strings.Split(s, "/")
 	var risk, track, branch *string
-	stableRisk := "stable"
 	switch len(p) {
 	default:
 		return Channel{}, fmt.Errorf("channel name has too many components: %s", s)
@@ -65,7 +64,6 @@ func ParseChannelVerbatim(s string, architecture string) (Channel, error) {
 			risk = &p[0]
 		} else {
 			track = &p[0]
-			risk = &stableRisk
 		}
 	}
 
