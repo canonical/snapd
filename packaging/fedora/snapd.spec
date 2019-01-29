@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.37
+Version:        2.37.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -828,6 +828,28 @@ fi
 %endif
 
 %changelog
+* Tue Jan 29 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.37.1
+ - cmd/snap-confine: add special case for Jenkins
+ - tests: workaround missing go dependencies in debian-9
+ - daemon, polkit: pid_t is signed
+ - interfaces: add display-control interface
+ - interfaces: add block-devices interface
+ - tests/main/searching: video section got renamed to photo-and-video
+ - interfaces/camera: allow reading vendor/etc info from
+   /run/udev/data/+usb
+ - interfaces/dbus: be less strict about alternations for well-known
+   names
+ - interfaces/home: allow dac_read_search with 'read: all'
+ - interfaces/pulseaudio: allow reading subdirectories of
+   /etc/pulse
+ - interfaces/system-observe: allow read on
+   /proc/locks
+ - tests: get test-snapd-dbus-{provider,consumer} from the beta
+   channel
+ - interfaces/apparmor: mock presence of overlayfs root
+ - packaging/{fedora,opensuse,ubuntu}: add /var/lib/snapd/lib/glvnd
+
 * Wed Jan 16 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.37
  - snapd: fix race in TestSanityFailGoesIntoDegradedMode test
