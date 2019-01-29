@@ -29,18 +29,18 @@ type Connection struct {
 	Plug      PlugRef `json:"plug"`
 	Interface string  `json:"interface"`
 	// Manual is set for connections that were established manually
-	Manual bool `json:"manual,omitempty"`
+	Manual bool `json:"manual"`
 	// Gadget is set for connections that were enabled by the gadget snap
-	Gadget bool `json:"gadget,omitempty"`
+	Gadget bool `json:"gadget"`
 }
 
 // Connections contains information about connections, as well as related plugs
 // and slots
 type Connections struct {
 	// Established is the list of connections that are currently present
-	Established []Connection `json:"established,omitempty"`
+	Established []Connection `json:"established"`
 	// Undersired is a list of connections that are explicitly denied
-	Undesired []Connection `json:"undesired,omitempty"`
+	Undesired []Connection `json:"undesired"`
 	Plugs     []Plug       `json:"plugs"`
 	Slots     []Slot       `json:"slots"`
 }
