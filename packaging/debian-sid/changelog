@@ -1,6 +1,8 @@
 snapd (2.37.1-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * d/patches/0009-interfaces-apparmor-mock-presence-of-overlayfs-root.patch:
+    applied upstream
 
  -- Zygmunt Krynicki <me@zygoon.pl>  Tue, 29 Jan 2019 19:24:35 +0100
 
