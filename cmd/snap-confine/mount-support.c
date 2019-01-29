@@ -538,6 +538,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
 			{"/home"},	// to support /home/*/snap and home interface
+			{"/var/lib/jenkins", .is_optional=true}, // to support jenkins's HOME directory
 			{"/root"},	// because that is $HOME for services
 			{"/proc"},	// fundamental filesystem
 			{"/sys"},	// fundamental filesystem
