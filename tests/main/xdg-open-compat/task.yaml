@@ -15,6 +15,11 @@ environment:
     DISPLAY: :0
     XDG_OPEN_OUTPUT: /tmp/xdg-open-output
 
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-desktop
+
 restore: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
@@ -56,8 +61,9 @@ execute: |
     EOF
     
     echo "Launch user dbus session"
+    dbus-launch > dbus.env
     #shellcheck disable=SC2046
-    export $(dbus-launch)
+    export $(xargs < dbus.env)
 
     echo "Ensure snapd-xdg-open is available"
     ping_launcher() {
@@ -80,10 +86,19 @@ execute: |
     EOF
     chmod +x /usr/bin/xdg-open
 
+    xdg_open_url() {
+        test-snapd-desktop.cmd /usr/bin/dbus-send --session \
+            --dest=com.canonical.SafeLauncher               \
+            --type=method_call                              \
+            --print-reply                                   \
+            /                                               \
+            com.canonical.SafeLauncher.OpenURL              \
+            "string:$1"
+    }
     ensure_xdg_open_output() {
         rm -f "$XDG_OPEN_OUTPUT"
         export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
-        $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open "$1"
+        xdg_open_url "$1"
         # xdg-open is async so we need to give it a little bit of time
         for _ in $(seq 10); do
             if [ -e "$XDG_OPEN_OUTPUT" ]; then
@@ -102,7 +117,10 @@ execute: |
 
     # Ensure other schemes are not passed through
     rm "$XDG_OPEN_OUTPUT"
-    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open ftp://snapcraft.io
+    ! xdg_open_url ftp://snapcraft.io
     test ! -e "$XDG_OPEN_OUTPUT"
-    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open aabbcc
+    ! xdg_open_url aabbcc
+    test ! -e "$XDG_OPEN_OUTPUT"
+    # help is blocked by snapd-xdg-open
+    ! xdg_open_url help:snapcraft
     test ! -e "$XDG_OPEN_OUTPUT"
