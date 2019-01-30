@@ -14,6 +14,9 @@ systems:
   - ubuntu-18.10-*
   - ubuntu-19.04-*
 
+environment:
+    EDITOR_HISTORY: /tmp/editor-history.txt
+
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
@@ -25,7 +28,7 @@ prepare: |
     [Desktop Entry]
     Type=Application
     Name=Test Editor
-    Exec=$(pwd)/editor.sh %f
+    Exec=$(pwd)/editor.sh %f $EDITOR_HISTORY
     MimeType=text/plain;
     EOF
     mkdir -p ~test/.config
@@ -33,19 +36,18 @@ prepare: |
     [Default Applications]
     text/plain=test-editor.desktop
     EOF
-    rm -f /tmp/editor-history.txt
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
+    #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
 
     rm -f ~test/.config/mimeapps.list
     rm -f ~test/.local/share/applications/test-editor.desktop
-    rm -f /tmp/editor-history.txt
+    rm -f "$EDITOR_HISTORY"
 
 execute: |
-    #shellcheck source=tests/lib/pkgdb.sh
+    #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     #shellcheck source=tests/lib/files.sh
     . "$TESTSLIB"/files.sh
@@ -64,5 +66,5 @@ execute: |
     as_user test-snapd-portal-client launch-file "$testfile"
 
     echo "The test-browser process was invoked with the URL"
-    wait_for_file /tmp/editor-history.txt 4 .5
-    MATCH "$testfile" < /tmp/editor-history.txt
+    wait_for_file "$EDITOR_HISTORY" 4 .5
+    MATCH "$testfile" < "$EDITOR_HISTORY"

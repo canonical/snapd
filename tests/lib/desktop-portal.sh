@@ -7,12 +7,7 @@ TEST_UID="$(id -u test)"
 USER_RUNTIME_DIR="/run/user/${TEST_UID}"
 
 setup_portals() {
-    # Clean up any stale configuration
-    teardown_portals
-
-    # Install dependencies and configure service activation for fake
-    # portal UI.
-    distro_install_package python3-dbus python3-gi xdg-desktop-portal
+    # Configure service activation for fake portal UI.
     cat << EOF > /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
 [D-BUS Service]
 Name=org.freedesktop.impl.portal.spread
@@ -51,17 +46,10 @@ teardown_portals() {
     rm -f /usr/lib/systemd/user/spread-portal-ui.service
     rm -f /usr/share/xdg-desktop-portal/portals/spread.portal
 
-    distro_purge_package python3-dbus python3-gi xdg-desktop-portal
-    distro_auto_remove_packages
-
     if [ -d "${USER_RUNTIME_DIR}" ]; then 
         umount --lazy "${USER_RUNTIME_DIR}/doc" || :
         rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
     fi
-
-    rm -f /tmp/file-to-read.txt
-    rm -f /tmp/file-to-write.txt
-    rm -f /tmp/screenshot.txt
 }
 
 DBUS_SESSION_BUS_ADDRESS=

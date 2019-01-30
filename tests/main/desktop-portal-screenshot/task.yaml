@@ -31,12 +31,13 @@ prepare: |
     setup_portals
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
+    #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
+    rm -f /tmp/screenshot.txt
 
 execute: |
-    #shellcheck source=tests/lib/pkgdb.sh
+    #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
 
     echo "Install the portals test client"
