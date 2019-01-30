@@ -64,7 +64,7 @@ execute: |
     mount --bind /tmp/xdg-open /usr/bin/xdg-open
 
     ensure_xdg_open_output() {
-        rm -f /tmp/xdg-open-output /tmp/xdg-open-output
+        rm -f /tmp/xdg-open-output
         export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
         test-snapd-desktop.cmd /usr/bin/xdg-open "$1"
         test -e /tmp/xdg-open-output
