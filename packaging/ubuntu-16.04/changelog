@@ -1,8 +1,27 @@
 snapd (2.37.1) xenial; urgency=medium
 
-  * placeholder changelog entry until the real 2.37.1 is merged
+  * New upstream release, LP: #1811233
+    - cmd/snap-confine: add special case for Jenkins
+    - tests: workaround missing go dependencies in debian-9
+    - daemon, polkit: pid_t is signed
+    - interfaces: add display-control interface
+    - interfaces: add block-devices interface
+    - tests/main/searching: video section got renamed to photo-and-video
+    - interfaces/camera: allow reading vendor/etc info from
+      /run/udev/data/+usb
+    - interfaces/dbus: be less strict about alternations for well-known
+      names
+    - interfaces/home: allow dac_read_search with 'read: all'
+    - interfaces/pulseaudio: allow reading subdirectories of
+      /etc/pulse
+    - interfaces/system-observe: allow read on
+      /proc/locks
+    - tests: get test-snapd-dbus-{provider,consumer} from the beta
+      channel
+    - interfaces/apparmor: mock presence of overlayfs root
+    - packaging/{fedora,opensuse,ubuntu}: add /var/lib/snapd/lib/glvnd
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 29 Jan 2019 22:23:05 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 29 Jan 2019 18:35:36 +0100
 
 snapd (2.37) xenial; urgency=medium
 
