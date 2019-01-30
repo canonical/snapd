@@ -127,10 +127,6 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		logger.Noticef("internal error: cannot get hotplug feature flag: %s", err.Error())
 		return
 	}
-	if !hotplugFeature {
-		logger.Noticef("hotplug device add event ignored, enable experimental.hotplug")
-		return
-	}
 
 	gadget, err := snapstate.GadgetInfo(st)
 	if err != nil && err != state.ErrNoState {
@@ -194,6 +190,11 @@ InterfacesLoop:
 			slotSpec.Label = si.Summary
 		}
 
+		if !hotplugFeature {
+			logger.Noticef("hotplug device add event ignored, enable experimental.hotplug")
+			return
+		}
+
 		logger.Debugf("adding hotplug device with path %s for interface %q, hotplug key %s", devinfo.DevicePath(), iface.Name(), key)
 
 		// enumeratedDeviceKeys is only available when enumerating devices
@@ -236,10 +237,6 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		logger.Noticef("internal error: cannot get hotplug feature flag: %s", err.Error())
 		return
 	}
-	if !hotplugFeature {
-		logger.Noticef("hotplug device remove event ignored, enable experimental.hotplug")
-		return
-	}
 
 	devPath := devinfo.DevicePath()
 	devs := m.hotplugDevicePaths[devPath]
@@ -256,6 +253,11 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		}
 		if slot == nil {
 			continue
+		}
+
+		if !hotplugFeature {
+			logger.Noticef("hotplug device remove event ignored, enable experimental.hotplug")
+			return
 		}
 
 		logger.Debugf("removing hotplug device with path %s for interface %q, hotplug key %s", devinfo.DevicePath(), ifaceName, hotplugKey)
