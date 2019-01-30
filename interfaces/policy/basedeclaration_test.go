@@ -567,6 +567,7 @@ var (
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
 		"network-manager":         {"app", "core"},
+		"network-manager-observe": {"app", "core"},
 		"network-status":          {"app"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},

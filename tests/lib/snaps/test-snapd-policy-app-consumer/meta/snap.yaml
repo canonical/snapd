@@ -224,6 +224,9 @@ apps:
   network-manager:
     command: bin/run
     plugs: [ network-manager ]
+  network-manager-observe:
+    command: bin/run
+    plugs: [ network-manager-observe ]
   network-observe:
     command: bin/run
     plugs: [ network-observe ]
