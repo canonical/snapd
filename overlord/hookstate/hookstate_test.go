@@ -59,36 +59,6 @@ type baseHookManagerSuite struct {
 	command     *testutil.MockCmd
 }
 
-type hookManagerSuite struct {
-	baseHookManagerSuite
-}
-
-var _ = Suite(&hookManagerSuite{})
-
-var snapYaml = `
-name: test-snap
-version: 1.0
-hooks:
-    configure:
-    prepare-device:
-    do-something:
-    undo-something:
-`
-
-var snapYaml1 = `
-name: test-snap-1
-version: 1.0
-hooks:
-    prepare-device:
-`
-
-var snapYaml2 = `
-name: test-snap-2
-version: 1.0
-hooks:
-    prepare-device:
-`
-
 func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -160,6 +130,36 @@ func (s *baseHookManagerSuite) setUpSnap(c *C, instanceName string, yaml string)
 		InstanceKey: instanceKey,
 	})
 }
+
+type hookManagerSuite struct {
+	baseHookManagerSuite
+}
+
+var _ = Suite(&hookManagerSuite{})
+
+var snapYaml = `
+name: test-snap
+version: 1.0
+hooks:
+    configure:
+    prepare-device:
+    do-something:
+    undo-something:
+`
+
+var snapYaml1 = `
+name: test-snap-1
+version: 1.0
+hooks:
+    prepare-device:
+`
+
+var snapYaml2 = `
+name: test-snap-2
+version: 1.0
+hooks:
+    prepare-device:
+`
 
 func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.commonSetUpTest(c)
