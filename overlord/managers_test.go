@@ -105,6 +105,12 @@ const (
 	connectRetryTimeout     = 70 * time.Millisecond
 )
 
+func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
+	ts := tts[len(tts)-1]
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Check(ts.Tasks()[0].Kind(), Equals, "rerefresh")
+}
+
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
 	dirs.SetRootDir(ms.tempdir)
@@ -1118,7 +1124,8 @@ version: @VERSION@
 	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 1)
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -1665,7 +1672,8 @@ apps:
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 1)
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -1912,7 +1920,8 @@ apps:
 	c.Assert(err, IsNil)
 	sort.Strings(updated)
 	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
-	c.Assert(tss, HasLen, 3)
+	c.Assert(tss, HasLen, 4)
+	verifyLastTasksetIsRerefresh(c, tss)
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 	chg.AddAll(tss[1])
@@ -2442,11 +2451,12 @@ version: @VERSION@`
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 3)
-	c.Assert(tts, HasLen, 3)
+	c.Assert(tts, HasLen, 4)
+	verifyLastTasksetIsRerefresh(c, tts)
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
-	for _, ts := range tts {
+	for _, ts := range tts[:len(tts)-1] {
 		chg.AddAll(ts)
 	}
 
@@ -2543,13 +2553,12 @@ version: 1`
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
-	c.Assert(tts, HasLen, 1)
+	c.Assert(tts, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tts)
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
-	for _, ts := range tts {
-		chg.AddAll(ts)
-	}
+	chg.AddAll(tts[0])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)

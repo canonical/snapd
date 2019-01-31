@@ -20,9 +20,8 @@
 package snapstate
 
 import (
+	"context"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
@@ -204,10 +203,20 @@ func setModel(override map[string]string) {
 	}
 }
 
-func MockReRefreshUpdater(f func(context.Context, *state.State, string, []string, int, *Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+type UpdateFilter = updateFilter
+
+func MockReRefreshUpdater(f func(context.Context, *state.State, string, []string, int, UpdateFilter, *Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	old := reRefreshUpdater
 	reRefreshUpdater = f
 	return func() {
 		reRefreshUpdater = old
+	}
+}
+
+func MockReRefreshRetryTimeout(d time.Duration) (restore func()) {
+	old := reRefreshRetryTimeout
+	reRefreshRetryTimeout = d
+	return func() {
+		reRefreshRetryTimeout = old
 	}
 }

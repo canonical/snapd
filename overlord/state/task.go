@@ -393,6 +393,11 @@ func (t *Task) HaltTasks() []*Task {
 	return t.state.tasksIn(t.haltTasks)
 }
 
+// NumHaltTasks returns the number of tasks registered to wait for t.
+func (t *Task) NumHaltTasks() int {
+	return len(t.haltTasks)
+}
+
 // Lanes returns the lanes the task is in.
 func (t *Task) Lanes() []int {
 	t.state.reading()

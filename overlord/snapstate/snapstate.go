@@ -573,7 +573,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 	// this might be a refresh; check the epoch before proceeding
-	if _, err := earlyEpochCheck(info, &snapst); err != nil {
+	if err := earlyEpochCheck(info, &snapst); err != nil {
 		return nil, nil, err
 	}
 
@@ -730,10 +730,18 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
 func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	return updateManyFromChange(ctx, st, "", names, userID, flags)
+	return updateManyFromChange(ctx, st, "", names, userID, nil, flags)
 }
 
-func updateManyFromChange(ctx context.Context, st *state.State, fromChange string, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+// updateFilter is the type of function that can be passed to
+// updateManyFromChange so it filters the updates.
+//
+// If the filter returns true, the update for that snap proceeds. If
+// it returns false, the snap is removed from the list of updates to
+// consider.
+type updateFilter func(*snap.Info, *SnapState) bool
+
+func updateManyFromChange(ctx context.Context, st *state.State, fromChange string, names []string, userID int, filter updateFilter, flags *Flags) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -750,6 +758,16 @@ func updateManyFromChange(ctx context.Context, st *state.State, fromChange strin
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if filter != nil {
+		actual := updates[:0]
+		for _, update := range updates {
+			if filter(update, stateByInstanceName[update.InstanceName()]) {
+				actual = append(actual, update)
+			}
+		}
+		updates = actual
 	}
 
 	if ValidateRefreshes != nil && len(updates) != 0 {
@@ -833,7 +851,6 @@ func doUpdate(ctx context.Context, st *state.State, fromChange string, names []s
 		}
 	}
 
-	var rerefreshes []string
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, update := range updates {
@@ -848,14 +865,12 @@ func doUpdate(ctx context.Context, st *state.State, fromChange string, names []s
 			return nil, nil, err
 		}
 
-		if needsRe, err := earlyEpochCheck(update, snapst); err != nil {
+		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
-		} else if needsRe {
-			rerefreshes = append(rerefreshes, update.InstanceName())
 		}
 
 		snapUserID, err := userIDForSnap(st, snapst, userID)
@@ -918,22 +933,21 @@ func doUpdate(ctx context.Context, st *state.State, fromChange string, names []s
 		tasksets = append(tasksets, addAutoAliasesTs)
 	}
 
-	if len(rerefreshes) > 0 {
-		rerefresh := st.NewTask("rerefresh", fmt.Sprintf("Re-refresh %s due to epoch change", strutil.Quoted(rerefreshes)))
-		rerefresh.Set("rerefresh-setup", reRefreshSetup{
-			Snaps:  rerefreshes,
-			UserID: userID,
-			Flags:  globalFlags,
-		})
-		for _, taskset := range tasksets {
-			rerefresh.WaitAll(taskset)
-		}
-		tasksets = append(tasksets, state.NewTaskSet(rerefresh))
-	}
-
 	updated := make([]string, 0, len(reportUpdated))
 	for name := range reportUpdated {
 		updated = append(updated, name)
+	}
+
+	if len(updated) > 0 {
+		// re-refresh will check the lanes to decide what to
+		// _actually_ re-refresh, but it'll be a subset of updated
+		// (and equal to updated if nothing goes wrong)
+		rerefresh := st.NewTask("rerefresh", fmt.Sprintf("Re-refresh of %s", strutil.Quoted(updated)))
+		rerefresh.Set("rerefresh-setup", reRefreshSetup{
+			UserID: userID,
+			Flags:  globalFlags,
+		})
+		tasksets = append(tasksets, state.NewTaskSet(rerefresh))
 	}
 
 	return updated, tasksets, nil
@@ -1191,6 +1205,9 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 
 	// see if we need to update the channel or toggle ignore-validation
 	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != channel || snapst.IgnoreValidation != flags.IgnoreValidation) {
+		// NOTE: if we are in here, len(updates) == 0
+		//       (so we're free to add tasks because there's no rerefresh)
+
 		if err := CheckChangeConflict(st, name, nil); err != nil {
 			return nil, err
 		}
