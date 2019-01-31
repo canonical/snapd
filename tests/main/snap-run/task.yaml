@@ -10,9 +10,6 @@ prepare: |
     install_local basic-run
     install_local test-snapd-tools
 
-restore: |
-    rm -f stdout stderr
-    
 debug:
     cat stderr
 

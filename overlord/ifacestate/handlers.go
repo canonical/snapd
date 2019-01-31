@@ -1258,6 +1258,174 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	return nil
 }
 
+// doHotplugConnect creates task(s) to (re)create old connections or auto-connect viable slots in response to hotplug "add" event.
+func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	if err != nil {
+		return err
+	}
+	if slot == nil {
+		return fmt.Errorf("cannot find hotplug slot for interface %s and hotplug key %q", ifaceName, hotplugKey)
+	}
+
+	// find old connections for slots of this device - note we can't ask the repository since we need
+	// to recreate old connections that are only remembered in the state.
+	connsForDevice := findConnsForHotplugKey(conns, ifaceName, hotplugKey)
+
+	// find old connections to recreate
+	var recreate []*interfaces.ConnRef
+	for _, id := range connsForDevice {
+		conn := conns[id]
+		// device was not unplugged, this is the case if snapd is restarted and we enumerate devices.
+		// note, the situation where device was not unplugged but has changed is handled
+		// by hotlugDeviceAdded handler - updateDevice.
+		if !conn.HotplugGone || conn.Undesired {
+			continue
+		}
+
+		// the device was unplugged while connected, so it had disconnect hooks run; recreate the connection
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+
+		if err := checkAutoconnectConflicts(st, task, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+			if retry, ok := err.(*state.Retry); ok {
+				task.Logf("hotplug connect will be retried: %s", retry.Reason)
+				return err // will retry
+			}
+			return fmt.Errorf("hotplug connect conflict check failed: %s", err)
+		}
+		recreate = append(recreate, connRef)
+	}
+
+	// find new auto-connections
+	autochecker, err := newAutoConnectChecker(st)
+	if err != nil {
+		return err
+	}
+
+	instanceName := slot.Snap.InstanceName()
+	candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
+
+	var newconns []*interfaces.ConnRef
+	// Auto-connect the slots
+	for _, plug := range candidates {
+		// make sure slot is the only viable
+		// connection for plug, same check as if we were
+		// considering auto-connections from plug
+		candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, autochecker.check)
+		if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
+			crefs := make([]string, len(candSlots))
+			for i, candidate := range candSlots {
+				crefs[i] = candidate.String()
+			}
+			task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
+			continue
+		}
+
+		connRef := interfaces.NewConnRef(plug, slot)
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// existing connection, already considered by connsForDevice loop
+			continue
+		}
+
+		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+			if retry, ok := err.(*state.Retry); ok {
+				task.Logf("hotplug connect will be retried: %s", retry.Reason)
+				return err // will retry
+			}
+			return fmt.Errorf("hotplug connect conflict check failed: %s", err)
+		}
+		newconns = append(newconns, connRef)
+	}
+
+	if len(recreate) == 0 && len(newconns) == 0 {
+		return nil
+	}
+
+	// Create connect tasks and interface hooks for old connections
+	connectTs := state.NewTaskSet()
+	for _, conn := range recreate {
+		wasAutoconnected := conns[conn.ID()].Auto
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: wasAutoconnected})
+		if err != nil {
+			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
+		}
+		connectTs.AddAll(ts)
+	}
+	// Create connect tasks and interface hooks for new auto-connections
+	for _, conn := range newconns {
+		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true})
+		if err != nil {
+			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
+		}
+		connectTs.AddAll(ts)
+	}
+
+	if len(connectTs.Tasks()) > 0 {
+		snapstate.InjectTasks(task, connectTs)
+		st.EnsureBefore(0)
+	}
+
+	// make sure that we add tasks and mark this task done in the same atomic write, otherwise there is a risk of re-adding tasks again
+	task.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+// doHotplugUpdateSlot updates static attributes of a hotplug slot for given device.
+func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	var attrs map[string]interface{}
+	if err := task.Get("slot-attrs", &attrs); err != nil {
+		return fmt.Errorf("internal error: cannot get slot-attrs attribute for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
+	}
+
+	slot, err := m.repo.UpdateHotplugSlotAttrs(ifaceName, hotplugKey, attrs)
+	if err != nil {
+		return err
+	}
+
+	if slotSpec, ok := stateSlots[slot.Name]; ok {
+		slotSpec.StaticAttrs = attrs
+		stateSlots[slot.Name] = slotSpec
+		setHotplugSlots(st, stateSlots)
+	} else {
+		return fmt.Errorf("internal error: cannot find slot %s for device %q", slot.Name, hotplugKey)
+	}
+
+	return nil
+}
+
 // doHotplugRemoveSlot removes hotplug slot for given device from the repository in response to udev "remove" event.
 // This task must necessarily be run after all affected slot gets disconnected in the repo.
 func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {

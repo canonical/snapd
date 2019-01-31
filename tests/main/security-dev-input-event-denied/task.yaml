@@ -21,9 +21,6 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-event
 
-restore: |
-    rm -f call.error
-
 execute: |
     if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
@@ -50,7 +47,7 @@ execute: |
     # 1. Joystick
 
     echo "Then the snap is not able to access an evdev keyboard"
-    if test-snapd-event "-event-kbd" 2>"${PWD}"/call.error; then
+    if test-snapd-event "-event-kbd" 2> call.error; then
         echo "Expected permission error calling evtest with disconnected plug"
         exit 1
     fi
@@ -65,7 +62,7 @@ execute: |
     # (evdev event*) and -joystick (js*)) and therefore shouldn't be added to
     # the device cgroup when the joystick interface is plugged.
     echo "Then the snap is still not able to access an evdev keyboard"
-    if test-snapd-event "-event-kbd" 2>"${PWD}"/call.error; then
+    if test-snapd-event "-event-kbd" 2> call.error; then
         echo "Expected permission error calling evtest with connected joystick plug"
         exit 1
     fi
@@ -83,7 +80,7 @@ execute: |
     # 2. Device Buttons
 
     echo "Then the snap is not able to access an evdev keyboard"
-    if test-snapd-event "-event-kbd" 2>"${PWD}"/call.error; then
+    if test-snapd-event "-event-kbd" 2> call.error; then
         echo "Expected permission error calling evtest with disconnected plug"
         exit 1
     fi
@@ -98,7 +95,7 @@ execute: |
     # -gpio-keys-event (evdev event*) and therefore shouldn't be added to
     # the device cgroup when the device-buttons interface is plugged.
     echo "Then the snap is still not able to access an evdev keyboard"
-    if test-snapd-event "-event-kbd" 2>"${PWD}"/call.error; then
+    if test-snapd-event "-event-kbd" 2> call.error; then
         echo "Expected permission error calling evtest with connected device-buttons plug"
         exit 1
     fi

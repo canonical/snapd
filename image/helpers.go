@@ -23,6 +23,7 @@ package image
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
@@ -34,7 +35,6 @@ import (
 	"syscall"
 
 	"github.com/mvo5/goconfigparser"
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"

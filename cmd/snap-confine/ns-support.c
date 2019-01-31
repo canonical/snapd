@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
-#include <linux/kdev_t.h>
 #include <sched.h>
 #include <signal.h>
 #include <string.h>
@@ -33,6 +32,7 @@
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
@@ -249,7 +249,7 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	     sc_first_mountinfo_entry(mi); mie != NULL;
 	     mie = sc_next_mountinfo_entry(mie)) {
 		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
-			base_snap_dev = MKDEV(mie->dev_major, mie->dev_minor);
+			base_snap_dev = makedev(mie->dev_major, mie->dev_minor);
 			debug("block device of snap %s, revision %s is %d:%d",
 			      base_snap_name, base_snap_rev, mie->dev_major,
 			      mie->dev_minor);
@@ -290,7 +290,7 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 		// measure.
 		debug("block device of the root filesystem is %d:%d",
 		      mie->dev_major, mie->dev_minor);
-		return base_snap_dev != MKDEV(mie->dev_major, mie->dev_minor);
+		return base_snap_dev != makedev(mie->dev_major, mie->dev_minor);
 	}
 	die("cannot find mount entry of the root filesystem");
 }
@@ -457,7 +457,10 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
 	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
 	if (mnt_fd < 0) {
 		die("cannot open preserved mount namespace %s", group->name);
 	}
@@ -527,7 +530,10 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
 	if (mnt_fd < 0) {
 		die("cannot open preserved mount namespace %s", group->name);
 	}
@@ -645,6 +651,12 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 		debug("helper process waiting for command");
 		sc_enable_sanity_timeout();
 		if (read(group->pipe_master[0], &command, sizeof command) < 0) {
+			int saved_errno = errno;
+			// This will ensure we get the correct error message
+			// if there is a read error because the timeout
+			// expired.
+			sc_disable_sanity_timeout();
+			errno = saved_errno;
 			die("cannot read command from the pipe");
 		}
 		sc_disable_sanity_timeout();
@@ -683,6 +695,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 		die("cannot create file %s", dst);
 	}
 	close(fd);
+
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve mount namespace of process %d as %s",
 		    (int)parent, dst);
@@ -700,6 +713,14 @@ static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent)
 	debug("capturing per-snap, per-user mount namespace");
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
 	sc_must_snprintf(dst, sizeof dst, "%s.%d.mnt", group->name, (int)uid);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
+	}
+	close(fd);
+
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve per-user mount namespace of process %d as %s", (int)parent, dst);
 	}

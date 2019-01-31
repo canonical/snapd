@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,6 +18,18 @@
  */
 
 package builtin
+
+import (
+	"fmt"
+	"io/ioutil"
+	"regexp"
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/strutil"
+)
 
 const kvmSummary = `allows access to the kvm device`
 
@@ -38,8 +50,58 @@ const kvmConnectedPlugAppArmor = `
 
 var kvmConnectedPlugUDev = []string{`KERNEL=="kvm"`}
 
+type kvmInterface struct {
+	commonInterface
+}
+
+var procCpuinfo = "/proc/cpuinfo"
+var flagsMatcher = regexp.MustCompile(`(?m)^flags\s+:\s+(.*)$`).FindSubmatch
+
+func getCpuFlags() (flags []string, err error) {
+	buf, err := ioutil.ReadFile(procCpuinfo)
+	if err != nil {
+		// if we can't read cpuinfo, we want to know _why_
+		return nil, fmt.Errorf("unable to read %v: %v", procCpuinfo, err)
+	}
+
+	// want to capture the text after 'flags:' entry
+	match := flagsMatcher(buf)
+	if len(match) == 0 {
+		return nil, fmt.Errorf("%v does not contain a 'flags:' entry", procCpuinfo)
+	}
+
+	// match[0] has whole matching line, match[1] must exist as it has the captured text after 'flags:'
+	cpu_flags := strings.Fields(string(match[1]))
+	return cpu_flags, nil
+}
+
+func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Check CPU capabilities to load suitable module
+	// NOTE: this only considers i386, x86_64 and amd64 CPUs, but some ARM, PPC and S390 CPUs also support KVM
+	m := "kvm"
+	cpu_flags, err := getCpuFlags()
+	if err != nil {
+		logger.Debugf("kvm: fetching cpu info failed: %v", err)
+	}
+
+	if strutil.ListContains(cpu_flags, "vmx") {
+		m = "kvm_intel"
+	} else if strutil.ListContains(cpu_flags, "svm") {
+		m = "kvm_amd"
+	} else {
+		// CPU appears not to support KVM extensions, fall back to bare kvm module as it appears
+		// sufficient for some architectures
+		logger.Noticef("kvm: failed to detect CPU specific KVM support, will attempt to modprobe generic KVM support")
+	}
+
+	if err := spec.AddModule(m); err != nil {
+		return nil
+	}
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
+	registerIface(&kvmInterface{commonInterface{
 		name:                  "kvm",
 		summary:               kvmSummary,
 		implicitOnCore:        true,
@@ -48,5 +110,5 @@ func init() {
 		connectedPlugAppArmor: kvmConnectedPlugAppArmor,
 		connectedPlugUDev:     kvmConnectedPlugUDev,
 		reservedForOS:         true,
-	})
+	}})
 }

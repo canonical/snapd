@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,8 +32,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -2433,6 +2432,17 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	})
 	c.Assert(snapst.Required, Equals, false)
 	c.Assert(snapst.InstanceKey, Equals, "instance")
+
+	runHooks := tasksWithKind(ts, "run-hook")
+	// install and configure hooks
+	c.Assert(runHooks, HasLen, 2)
+	for _, hookTask := range runHooks {
+		c.Assert(hookTask.Kind(), Equals, "run-hook")
+		var hooksup hookstate.HookSetup
+		err = hookTask.Get("hook-setup", &hooksup)
+		c.Assert(err, IsNil)
+		c.Assert(hooksup.Snap, Equals, "some-snap_instance")
+	}
 }
 
 func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
@@ -4400,7 +4410,33 @@ func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
+	c.Assert(err, Equals, snapstate.ErrMissingExpectedResult)
+}
+
+func (s *snapmgrTestSuite) TestUpdateNoStoreResultsWithChannelChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, noResultsStore{fakeStore: s.fakeStore})
+
+	// this is an atypical case in which the store didn't return
+	// an error nor a result, we are defensive and return
+	// a reasonable error
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-9",
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, Equals, snapstate.ErrMissingExpectedResult)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
@@ -12997,6 +13033,31 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 		SnapType: "os",
 	})
 	c.Assert(s.snapmgr.CanStandby(), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Install(s.state, "foo--invalid", "", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid snap name: "foo--invalid"`)
+
+	_, err = snapstate.Install(s.state, "foo_123_456", "", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
+
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo--invalid"}, 0)
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid snap name: "foo--invalid"`)
+
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo_123_456"}, 0)
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1*
+`)
+	si := snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
+	_, _, err = snapstate.InstallPath(s.state, &si, mockSnap, "some-snap_123_456", "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
 }
 
 type modelPastSeedSuite struct {

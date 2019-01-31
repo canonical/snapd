@@ -19,7 +19,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
-#include <linux/kdev_t.h>
+#include <sys/sysmacros.h>
 #include <sched.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -108,9 +108,7 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
-	unsigned major = MAJOR(devnum);
-	unsigned minor = MINOR(devnum);
-	_run_snappy_app_dev_add_majmin(udev_s, path, major, minor);
+	_run_snappy_app_dev_add_majmin(udev_s, path, major(devnum), minor(devnum));
 }
 
 /*
@@ -264,34 +262,34 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 			break;
 		}
 		_run_snappy_app_dev_add_majmin(udev_s, nv_path,
-					       MAJOR(sbuf.st_rdev),
-					       MINOR(sbuf.st_rdev));
+					       major(sbuf.st_rdev),
+					       minor(sbuf.st_rdev));
 	}
 
 	// /dev/nvidiactl
 	if (stat(nvctl_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvctl_path,
-					       MAJOR(sbuf.st_rdev),
-					       MINOR(sbuf.st_rdev));
+					       major(sbuf.st_rdev),
+					       minor(sbuf.st_rdev));
 	}
 	// /dev/nvidia-uvm
 	if (stat(nvuvm_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvuvm_path,
-					       MAJOR(sbuf.st_rdev),
-					       MINOR(sbuf.st_rdev));
+					       major(sbuf.st_rdev),
+					       minor(sbuf.st_rdev));
 	}
 	// /dev/nvidia-modeset
 	if (stat(nvidia_modeset_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvidia_modeset_path,
-					       MAJOR(sbuf.st_rdev),
-					       MINOR(sbuf.st_rdev));
+					       major(sbuf.st_rdev),
+					       minor(sbuf.st_rdev));
 	}
 	// /dev/uhid isn't represented in sysfs, so add it to the device cgroup
 	// if it exists and let AppArmor handle the mediation
 	if (stat("/dev/uhid", &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, "/dev/uhid",
-					       MAJOR(sbuf.st_rdev),
-					       MINOR(sbuf.st_rdev));
+					       major(sbuf.st_rdev),
+					       minor(sbuf.st_rdev));
 	}
 	// add the assigned devices
 	while (udev_s->assigned != NULL) {

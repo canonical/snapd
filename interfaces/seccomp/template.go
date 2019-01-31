@@ -337,6 +337,8 @@ _newselect
 pselect
 pselect6
 
+# Allow use of SysV semaphores. Note that allocated resources are not freed by
+# OOM which can lead to global kernel resource leakage.
 semctl
 semget
 semop

@@ -19,8 +19,6 @@ prepare: |
     ensure_file_exists_backup_real /dev/input/event1
 
 restore: |
-    rm -f call.error
-
     # shellcheck source=tests/lib/files.sh
     . "$TESTSLIB/files.sh"
 
@@ -51,7 +49,7 @@ execute: |
     snap disconnect test-snapd-sh:device-buttons
 
     echo "Then the snap is not able to read the input device"
-    if test-snapd-sh.with-device-buttons-plug -c "cat /dev/input/event1" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-device-buttons-plug -c "cat /dev/input/event1" 2> call.error; then
         echo "Expected permission error accessing to input device"
         exit 1
     fi
