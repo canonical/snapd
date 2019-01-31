@@ -339,11 +339,7 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
 		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
-			sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel)
-			if err != nil {
-				return err
-			}
-			if !sameRisk {
+			if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
 				// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
 				fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
 			}
