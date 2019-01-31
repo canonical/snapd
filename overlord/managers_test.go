@@ -835,7 +835,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_invalid_instance_name", "", snapstate.Flags{DevMode: true})
-	c.Assert(err, ErrorMatches, `invalid instance key: "invalid_instance_name"`)
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "invalid_instance_name"`)
 }
 
 func (ms *mgrsSuite) TestCheckInterfaces(c *C) {

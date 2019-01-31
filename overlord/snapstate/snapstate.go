@@ -559,7 +559,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 	if err := snap.ValidateInstanceName(instanceName); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
@@ -622,6 +622,10 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
+	if err := snap.ValidateInstanceName(name); err != nil {
+		return nil, fmt.Errorf("invalid instance name: %v", err)
+	}
+
 	info, err := installInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
@@ -660,6 +664,11 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		if snapst.IsInstalled() {
 			continue
 		}
+
+		if err := snap.ValidateInstanceName(name); err != nil {
+			return nil, nil, fmt.Errorf("invalid instance name: %v", err)
+		}
+
 		toInstall = append(toInstall, name)
 	}
 

@@ -129,6 +129,21 @@ func (s storeChannelSuite) TestParseChannelErrors(c *C) {
 
 	_, err = snap.ParseChannel("1.0/cand", "invalid risk in channel name: 1.0/cand")
 	c.Check(err, ErrorMatches, "invalid risk in channel name: 1.0/cand")
+
+	_, err = snap.ParseChannel("fix//hotfix", "")
+	c.Check(err, ErrorMatches, "invalid risk in channel name: fix//hotfix")
+
+	_, err = snap.ParseChannel("/stable/", "")
+	c.Check(err, ErrorMatches, "invalid track in channel name: /stable/")
+
+	_, err = snap.ParseChannel("//stable", "")
+	c.Check(err, ErrorMatches, "invalid risk in channel name: //stable")
+
+	_, err = snap.ParseChannel("stable/", "")
+	c.Check(err, ErrorMatches, "invalid branch in channel name: stable/")
+
+	_, err = snap.ParseChannel("/stable", "")
+	c.Check(err, ErrorMatches, "invalid track in channel name: /stable")
 }
 
 func (s *storeChannelSuite) TestString(c *C) {

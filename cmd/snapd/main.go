@@ -64,7 +64,7 @@ func main() {
 			// data/systemd/snapd.service.in:SuccessExitStatus=
 			os.Exit(42)
 		}
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "cannot run daemon: %v\n", err)
 		os.Exit(1)
 	}
 }

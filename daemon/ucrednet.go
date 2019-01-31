@@ -31,22 +31,23 @@ import (
 var errNoID = errors.New("no pid/uid found")
 
 const (
-	ucrednetNoProcess = uint32(0)
+	ucrednetNoProcess = int32(0)
 	ucrednetNobody    = uint32((1 << 32) - 1)
 )
 
-func ucrednetGet(remoteAddr string) (pid uint32, uid uint32, socket string, err error) {
+func ucrednetGet(remoteAddr string) (pid int32, uid uint32, socket string, err error) {
 	pid = ucrednetNoProcess
 	uid = ucrednetNobody
 	for _, token := range strings.Split(remoteAddr, ";") {
-		var v uint64
 		if strings.HasPrefix(token, "pid=") {
-			if v, err = strconv.ParseUint(token[4:], 10, 32); err == nil {
-				pid = uint32(v)
+			var v int64
+			if v, err = strconv.ParseInt(token[4:], 10, 32); err == nil {
+				pid = int32(v)
 			} else {
 				break
 			}
 		} else if strings.HasPrefix(token, "uid=") {
+			var v uint64
 			if v, err = strconv.ParseUint(token[4:], 10, 32); err == nil {
 				uid = uint32(v)
 			} else {
@@ -65,26 +66,35 @@ func ucrednetGet(remoteAddr string) (pid uint32, uid uint32, socket string, err 
 	return pid, uid, socket, err
 }
 
-type ucrednetAddr struct {
-	net.Addr
-	pid    string
-	uid    string
+type ucrednet struct {
+	pid    int32
+	uid    uint32
 	socket string
 }
 
+func (un *ucrednet) String() string {
+	if un == nil {
+		return "pid=;uid=;socket=;"
+	}
+	return fmt.Sprintf("pid=%d;uid=%d;socket=%s;", un.pid, un.uid, un.socket)
+}
+
+type ucrednetAddr struct {
+	net.Addr
+	*ucrednet
+}
+
 func (wa *ucrednetAddr) String() string {
-	return fmt.Sprintf("pid=%s;uid=%s;socket=%s;%s", wa.pid, wa.uid, wa.socket, wa.Addr)
+	return wa.ucrednet.String()
 }
 
 type ucrednetConn struct {
 	net.Conn
-	pid    string
-	uid    string
-	socket string
+	*ucrednet
 }
 
 func (wc *ucrednetConn) RemoteAddr() net.Addr {
-	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.pid, wc.uid, wc.socket}
+	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.ucrednet}
 }
 
 type ucrednetListener struct{ net.Listener }
@@ -97,7 +107,7 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	var pid, uid, socket string
+	var unet *ucrednet
 	if ucon, ok := con.(*net.UnixConn); ok {
 		f, err := ucon.File()
 		if err != nil {
@@ -111,10 +121,12 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 			return nil, err
 		}
 
-		pid = strconv.FormatUint(uint64(ucred.Pid), 10)
-		uid = strconv.FormatUint(uint64(ucred.Uid), 10)
-		socket = ucon.LocalAddr().String()
+		unet = &ucrednet{
+			pid:    ucred.Pid,
+			uid:    ucred.Uid,
+			socket: ucon.LocalAddr().String(),
+		}
 	}
 
-	return &ucrednetConn{con, pid, uid, socket}, err
+	return &ucrednetConn{con, unet}, nil
 }

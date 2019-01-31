@@ -42,12 +42,13 @@ class XBuildDeb(snapcraft.BasePlugin):
     def build(self):
         super().build()
         self.run(["sudo", "apt-get", "build-dep", "-y", "./"])
-        # XXX: get this from "debian/gbp.conf:postexport"
-        self.run(["./get-deps.sh", "--skip-unused-check"])
+        # ensure we have go in our PATH
         env=os.environ.copy()
         # ensure build with go-1.10 if available
         if os.path.exists("/usr/lib/go-1.10/bin"):
             env["PATH"] = "/usr/lib/go-1.10/bin:{}".format(env["PATH"])
+        # XXX: get this from "debian/gbp.conf:postexport"
+        self.run(["./get-deps.sh", "--skip-unused-check"], env=env)
         if os.getuid() == 0:
             # disable running the tests during the build when run as root
             # because quite a few of them will break
