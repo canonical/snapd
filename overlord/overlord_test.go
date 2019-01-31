@@ -161,7 +161,7 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = overlord.New()
-	c.Assert(err, ErrorMatches, "cannot decode state: EOF")
+	c.Assert(err, ErrorMatches, "cannot read state: EOF")
 }
 
 func (ovs *overlordSuite) TestNewWithPatches(c *C) {
