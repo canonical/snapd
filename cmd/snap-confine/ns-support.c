@@ -651,6 +651,12 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 		debug("helper process waiting for command");
 		sc_enable_sanity_timeout();
 		if (read(group->pipe_master[0], &command, sizeof command) < 0) {
+			int saved_errno = errno;
+			// This will ensure we get the correct error message
+			// if there is a read error because the timeout
+			// expired.
+			sc_disable_sanity_timeout();
+			errno = saved_errno;
 			die("cannot read command from the pipe");
 		}
 		sc_disable_sanity_timeout();
