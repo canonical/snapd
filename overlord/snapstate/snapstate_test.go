@@ -2433,6 +2433,17 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	})
 	c.Assert(snapst.Required, Equals, false)
 	c.Assert(snapst.InstanceKey, Equals, "instance")
+
+	runHooks := tasksWithKind(ts, "run-hook")
+	// install and configure hooks
+	c.Assert(runHooks, HasLen, 2)
+	for _, hookTask := range runHooks {
+		c.Assert(hookTask.Kind(), Equals, "run-hook")
+		var hooksup hookstate.HookSetup
+		err = hookTask.Get("hook-setup", &hooksup)
+		c.Assert(err, IsNil)
+		c.Assert(hooksup.Snap, Equals, "some-snap_instance")
+	}
 }
 
 func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
