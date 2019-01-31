@@ -366,3 +366,24 @@ func (s *transactionSuite) TestState(c *C) {
 	tr := config.NewTransaction(s.state)
 	c.Check(tr.State(), DeepEquals, s.state)
 }
+
+func (s *transactionSuite) TestPristineIsNotTainted(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Check(tr.Set("test-snap", "foo.a.a", "a"), IsNil)
+	tr.Commit()
+
+	var data interface{}
+	var result interface{}
+	tr = config.NewTransaction(s.state)
+	c.Check(tr.Set("test-snap", "foo.b", "b"), IsNil)
+	c.Check(tr.Set("test-snap", "foo.a.a", "b"), IsNil)
+	c.Assert(tr.Get("test-snap", "foo", &result), IsNil)
+	c.Check(result, DeepEquals, map[string]interface{}{"a": map[string]interface{}{"a": "b"}, "b": "b"})
+
+	pristine := tr.PristineConfig()
+	c.Assert(json.Unmarshal([]byte(*pristine["test-snap"]["foo"]), &data), IsNil)
+	c.Assert(data, DeepEquals, map[string]interface{}{"a": map[string]interface{}{"a": "a"}})
+}
