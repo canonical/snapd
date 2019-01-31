@@ -52,7 +52,7 @@ dbus (receive)
     bus=system
     path="/org/freedesktop/NetworkManager"
     interface="org.freedesktop.NetworkManager"
-    member="GetDevices"
+    member="Get{,All}Devices"
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive)
     bus=system
@@ -62,10 +62,42 @@ dbus (receive)
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive)
     bus=system
-    path="/org/freedesktop/NetworkManager/Settings{,/*}"
-    interface="org.freedesktop.NetworkManager.Settings{,.Connection}"
+    path="/org/freedesktop/NetworkManager/Settings/*"
+    interface="org.freedesktop.NetworkManager.Settings.Connection"
     member="GetSettings"
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# send signals for updated settings and properties from above
+dbus (send)
+    bus=system
+    path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=system
+    path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
+    interface="org.freedesktop.NetworkManger{,.*}"
+    member=StateChanged
+    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=system
+    path="/org/freedesktop/NetworkManager"
+    interface=org.freedesktop.NetworkManger
+    member="Device{Added,Removed}"
+    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=system
+    path="/org/freedesktop/NetworkManager/Settings"
+    interface=org.freedesktop.NetworkManger.Settings
+    member=PropertiesChanged
+    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=system
+    path="/org/freedesktop/NetworkManager/Settings/*"
+    interface="org.freedesktop.NetworkManager.Settings.Connection"
+    member=PropertiesChanged
+    peer=(name=org.freedesktop.NetworkManger,label=###PLUG_SECURITY_TAGS###),
 `
 
 const networkManagerObserveConnectedPlugAppArmor = `
@@ -94,6 +126,38 @@ dbus (send)
     path="/org/freedesktop/NetworkManager/Settings{,/*}"
     interface="org.freedesktop.NetworkManager.Settings{,.Connection}"
     member="GetSettings"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# receive signals for updated settings and properties
+dbus (receive)
+    bus=system
+    path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=system
+    path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
+    interface="org.freedesktop.NetworkManger{,.*}"
+    member=StateChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=system
+    path="/org/freedesktop/NetworkManager"
+    interface=org.freedesktop.NetworkManger
+    member="Device{Added,Removed}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=system
+    path="/org/freedesktop/NetworkManager/Settings"
+    interface=org.freedesktop.NetworkManger.Settings
+    member=PropertiesChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=system
+    path="/org/freedesktop/NetworkManager/Settings/*"
+    interface="org.freedesktop.NetworkManager.Settings.Connection"
+    member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
