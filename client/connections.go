@@ -23,36 +23,43 @@ import (
 	"net/url"
 )
 
-// Connection describes a connection between a plug and a slot
+// Connection describes a connection between a plug and a slot.
 type Connection struct {
 	Slot      SlotRef `json:"slot"`
 	Plug      PlugRef `json:"plug"`
 	Interface string  `json:"interface"`
-	// Manual is set for connections that were established manually
+	// Manual is set for connections that were established manually.
 	Manual bool `json:"manual"`
-	// Gadget is set for connections that were enabled by the gadget snap
+	// Gadget is set for connections that were enabled by the gadget snap.
 	Gadget bool `json:"gadget"`
 }
 
 // Connections contains information about connections, as well as related plugs
-// and slots
+// and slots.
 type Connections struct {
-	// Established is the list of connections that are currently present
+	// Established is the list of connections that are currently present.
 	Established []Connection `json:"established"`
-	// Undersired is a list of connections that are explicitly denied
+	// Undersired is a list of connections that are manually denied.
 	Undesired []Connection `json:"undesired"`
 	Plugs     []Plug       `json:"plugs"`
 	Slots     []Slot       `json:"slots"`
 }
 
+// ConnectionOptions contains criteria for selecting matching connections, plugs
+// and slots.
 type ConnectionOptions struct {
+	// Snap selects connections with the snap on one of the sides, as well
+	// as plugs and slots of a given snap.
 	Snap string
-	// Name of slot or plug
+	// Interface selects connections, plugs or slots using given interface.
 	Interface string
-	All       bool
+	// All when true, selects established and undesired connections as well
+	// as all disconnected plugs and slots.
+	All bool
 }
 
-// Connections returns all plugs, slots and their connections.
+// Connections returns matching plugs, slots and their connections. Unless
+// specified by matching options, returns established connections.
 func (client *Client) Connections(opts *ConnectionOptions) (Connections, error) {
 	var conns Connections
 	query := url.Values{}
