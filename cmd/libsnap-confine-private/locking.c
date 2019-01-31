@@ -36,7 +36,7 @@
 
 // SANITY_TIMEOUT is the timeout in seconds that is used when
 // "sc_enable_sanity_timeout()" is called
-static const int SANITY_TIMEOUT=30;
+static const int SANITY_TIMEOUT = 30;
 
 /**
  * Flag indicating that a sanity timeout has expired.
@@ -66,7 +66,8 @@ void sc_enable_sanity_timeout(void)
 		die("cannot install signal handler for SIGALRM");
 	}
 	alarm(SANITY_TIMEOUT);
-	debug("sanity timeout initialized and set for %i seconds", SANITY_TIMEOUT);
+	debug("sanity timeout initialized and set for %i seconds",
+	      SANITY_TIMEOUT);
 }
 
 void sc_disable_sanity_timeout(void)
