@@ -36,7 +36,7 @@
 
 // SANITY_TIMEOUT is the timeout in seconds that is used when
 // "sc_enable_sanity_timeout()" is called
-static const int SANITY_TIMEOUT=6;
+static const int SANITY_TIMEOUT=30;
 
 /**
  * Flag indicating that a sanity timeout has expired.
