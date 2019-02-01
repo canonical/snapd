@@ -1553,13 +1553,9 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 	if err := task.Get("slot-spec", &slotSpec); err != nil {
 		return fmt.Errorf("internal error: cannot get hotplug slot specification from task attributes: %s", err)
 	}
-	var devinfoData map[string]string
-	if err := task.Get("device-info", &devinfoData); err != nil {
+	var devinfo hotplug.HotplugDeviceInfo
+	if err := task.Get("device-info", &devinfo); err != nil {
 		return fmt.Errorf("internal error: cannot get hotplug device info from task attributes: %s", err)
-	}
-	devinfo, err := hotplug.NewHotplugDeviceInfo(devinfoData)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot create hotplug device info: %v", err.Error())
 	}
 
 	stateSlots, err := getHotplugSlots(st)
@@ -1616,7 +1612,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 	// New slot. Determine the name: use name provided by slot spec if set, otherwise use auto-generated name
 	proposedName := slotSpec.Name
 	if proposedName == "" {
-		proposedName = suggestedSlotName(devinfo, ifaceName)
+		proposedName = suggestedSlotName(&devinfo, ifaceName)
 	}
 	proposedName = ensureUniqueName(proposedName, func(name string) bool {
 		if slot, ok := stateSlots[name]; ok {
