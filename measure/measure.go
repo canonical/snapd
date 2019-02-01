@@ -22,6 +22,7 @@ package measure
 import (
 	"fmt"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -55,8 +56,13 @@ const maxSize = 100
 // for some nice work in this area
 var allMeasures []string
 
+var mu sync.Mutex
+
 // addMeasure is an internal helper
 func addMeasure(m *Measure) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	msg := fmt.Sprintf("%s took %v", m.action, m.end.Sub(m.start))
 	allMeasures = append(allMeasures, msg)
 	if len(allMeasures) > maxSize {
