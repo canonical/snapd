@@ -1,10 +1,26 @@
-summary: Check install, remove and pre-refresh/post-refresh hooks.
+summary: Check install, configure, remove and pre-refresh/post-refresh hooks.
 
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
 environment:
-    REMOVE_HOOK_FILE: "$HOME/snap/snap-hooks/common/remove-hook-executed"
+    REMOVE_HOOK_FILE/regular: "$HOME/snap/snap-hooks/common/remove-hook-executed"
+    REMOVE_HOOK_FILE/parallel: "$HOME/snap/snap-hooks_instance/common/remove-hook-executed"
+    NAME/regular: snap-hooks
+    NAME/parallel: snap-hooks_instance
+
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
+        snap set system experimental.parallel-instances=true
+    fi
+
+restore: |
+    if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
+        snap set system experimental.parallel-instances=null
+    fi
 
 restore: |
     rm -f "$REMOVE_HOOK_FILE"
@@ -12,11 +28,12 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local snap-hooks
+    # shellcheck disable=SC2153
+    install_local_as snap-hooks "$NAME"
 
     echo "Verify configuration value with snap get"
-    snap get snap-hooks installed | MATCH 1
-    snap get snap-hooks foo | MATCH bar
+    snap get "$NAME" installed | MATCH 1
+    snap get "$NAME" foo | MATCH bar
 
     echo "Verify that pre-refresh hook was not executed"
     if snap get snap-install-hooks prerefreshed; then
@@ -31,29 +48,29 @@ execute: |
     fi
 
     echo "Verify that install hook is run only once"
-    snap set snap-hooks installed=2
-    install_local snap-hooks
-    snap get snap-hooks installed | MATCH 2
+    snap set "$NAME" installed=2
+    install_local_as snap-hooks "$NAME"
+    snap get "$NAME" installed | MATCH 2
 
     echo "Verify that pre-refresh hook was executed"
-    snap get snap-hooks prerefreshed | MATCH "pre-refresh at revision x1"
+    snap get "$NAME" prerefreshed | MATCH "pre-refresh at revision x1"
 
     echo "Verify that post-refresh hook was executed"
-    snap get snap-hooks postrefreshed | MATCH "post-refresh at revision x2"
+    snap get "$NAME" postrefreshed | MATCH "post-refresh at revision x2"
 
-    snap connect snap-hooks:home
+    snap connect "$NAME:home"
 
     echo "Verify that remove hook is not executed when removing single revision"
-    snap set snap-hooks exitcode=0
-    snap remove --revision=x1 snap-hooks
+    snap set "$NAME" exitcode=0
+    snap remove --revision=x1 "$NAME"
     if test -f "$REMOVE_HOOK_FILE"; then
         echo "Remove hook was executed. It shouldn't."
         exit 1
     fi
 
     echo "Verify that remove hook is executed"
-    snap set snap-hooks exitcode=0
-    snap remove snap-hooks
+    snap set "$NAME" exitcode=0
+    snap remove "$NAME"
     if ! test -f "$REMOVE_HOOK_FILE"; then
         echo "Remove hook was not executed"
         exit 1
@@ -61,12 +78,12 @@ execute: |
 
     echo "Installing a snap with hooks again"
     rm -f "$REMOVE_HOOK_FILE" > /dev/null 2>&1
-    install_local snap-hooks
-    snap connect snap-hooks:home
+    install_local_as snap-hooks "$NAME"
+    snap connect "$NAME:home"
 
     echo "Forcing remove script to fail"
-    snap set snap-hooks exitcode=1
-    snap remove snap-hooks
+    snap set "$NAME" exitcode=1
+    snap remove "$NAME"
     EXITCODE_VALUE=$(cat "$REMOVE_HOOK_FILE")
     if test "x$EXITCODE_VALUE" != "x1"; then
         echo "Remove hook was not executed"
