@@ -237,6 +237,7 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 			"interface":    "iface",
 			"static-attrs": map[string]interface{}{"attr": "value"},
 			"hotplug-key":  "key",
+			"hotplug-gone": false,
 		}})
 
 	slots, err = ifacestate.GetHotplugSlots(s.st)

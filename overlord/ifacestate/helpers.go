@@ -909,6 +909,9 @@ type HotplugSlotInfo struct {
 	Interface   string                 `json:"interface"`
 	StaticAttrs map[string]interface{} `json:"static-attrs,omitempty"`
 	HotplugKey  string                 `json:"hotplug-key"`
+
+	// device was unplugged but has connections, so slot is remembered
+	HotplugGone bool `json:"hotplug-gone"`
 }
 
 func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
@@ -925,6 +928,15 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 
 func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
+}
+
+func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName, hotplugKey string) *HotplugSlotInfo {
+	for _, slot := range stateSlots {
+		if slot.HotplugKey == hotplugKey && slot.Interface == ifaceName {
+			return slot
+		}
+	}
+	return nil
 }
 
 func findConnsForHotplugKey(conns map[string]*connState, ifaceName, hotplugKey string) []string {
