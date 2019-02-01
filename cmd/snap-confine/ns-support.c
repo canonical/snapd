@@ -574,8 +574,28 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 	return ESRCH;
 }
 
+static void setup_signals_for_helper(void)
+{
+	/* Ignore the SIGPIPE signal so that we get EPIPE on the read / write
+	 * operations attempting to work with a closed pipe. This ensures that we
+	 * are not killed by the default disposition (terminate) and can return a
+	 * non-signal-death return code to the program invoking snap-confine. */
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+		die("cannot install ignore handler for SIGPIPE");
+	}
+}
+
+static void teardown_signals_for_helper(void)
+{
+	/* Undo operations done by setup_signals_for_helper. */
+	if (signal(SIGPIPE, SIG_DFL) == SIG_ERR) {
+		die("cannot restore default handler for SIGPIPE");
+	}
+}
+
 static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 {
+	setup_signals_for_helper();
 	// Create a pipe for sending commands to the helper process.
 	if (pipe2(group->pipe_master, O_CLOEXEC | O_DIRECT) < 0) {
 		die("cannot create pipes for commanding the helper process");
@@ -767,6 +787,7 @@ static void sc_wait_for_capture_helper(struct sc_mount_ns *group)
 	}
 	debug("helper process exited normally");
 	group->child = 0;
+	teardown_signals_for_helper();
 }
 
 void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
