@@ -1539,7 +1539,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 	st.Lock()
 	defer st.Unlock()
 
-	coreSnapInfo, err := snapstate.CoreInfo(st)
+	systemSnap, err := systemSnapInfo(st)
 	if err != nil {
 		return fmt.Errorf("core snap not available")
 	}
@@ -1582,7 +1582,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 			newSlot := &snap.SlotInfo{
 				Name:       slot.Name,
 				Label:      slotSpec.Label,
-				Snap:       coreSnapInfo,
+				Snap:       systemSnap,
 				Interface:  ifaceName,
 				Attrs:      slotSpec.Attrs,
 				HotplugKey: hotplugKey,
@@ -1622,12 +1622,12 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 		if slot, ok := stateSlots[name]; ok {
 			return slot.HotplugKey == hotplugKey
 		}
-		return m.repo.Slot(coreSnapInfo.InstanceName(), name) == nil
+		return m.repo.Slot(systemSnap.InstanceName(), name) == nil
 	})
 	newSlot := &snap.SlotInfo{
 		Name:       proposedName,
 		Label:      slotSpec.Label,
-		Snap:       coreSnapInfo,
+		Snap:       systemSnap,
 		Interface:  iface.Name(),
 		Attrs:      slotSpec.Attrs,
 		HotplugKey: hotplugKey,
