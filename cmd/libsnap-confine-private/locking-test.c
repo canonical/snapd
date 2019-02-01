@@ -125,7 +125,7 @@ static void test_sc_enable_sanity_timeout(void)
 		sc_disable_sanity_timeout();
 		return;
 	}
-	g_test_trap_subprocess(NULL, 5 * G_USEC_PER_SEC,
+	g_test_trap_subprocess(NULL, 1 * G_USEC_PER_SEC,
 			       G_TEST_SUBPROCESS_INHERIT_STDERR);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr ("sanity timeout expired: Interrupted system call\n");
