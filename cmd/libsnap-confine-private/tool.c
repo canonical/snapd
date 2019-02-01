@@ -167,7 +167,10 @@ static int sc_open_snapd_tool(const char *tool_name)
 		die("cannot open path %s", dir_name);
 	}
 	int tool_fd = -1;
-	tool_fd = openat(dir_fd, tool_name, O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	/* Use O_CLOEXEC but not O_PATH. This allows us to determine if the file is
+	 * a binary or a script just prior to passing it to fexecve. This way we
+	 * can still undo the use of O_CLOEXEC which is a safe default. */
+	tool_fd = openat(dir_fd, tool_name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (tool_fd < 0) {
 		die("cannot open path %s/%s", dir_name, tool_name);
 	}
@@ -210,6 +213,23 @@ static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name,
 		if (apparmor != NULL && aa_profile != NULL) {
 			sc_maybe_aa_change_onexec(apparmor, aa_profile);
 		}
+		/* As a special exception, allow the tool to be a script. */
+		char buf[2] = { 0 };
+		ssize_t num_read = pread(tool_fd, buf, sizeof buf, 0);
+		if (num_read < 0) {
+			die("cannot read program header");
+		}
+		if (buf[0] == '#' && buf[1] == '!') {
+			int flags = fcntl(tool_fd, F_GETFD);
+			if (flags < 0) {
+				die("cannot get file descriptor flags");
+			}
+			flags &= ~FD_CLOEXEC;
+			if (fcntl(tool_fd, F_SETFD, flags) < 0) {
+				die("cannot set file descriptor flags");
+			}
+		}
+		/* Execute the tool. */
 		fexecve(tool_fd, argv, envp);
 		die("cannot execute snapd tool %s", tool_name);
 	} else {
