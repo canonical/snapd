@@ -372,7 +372,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	c.Assert(tts[0].Tasks(), HasLen, 18)
 	c.Assert(tts[1].Tasks(), HasLen, 18)
 	c.Assert(tts[2].Tasks(), HasLen, 1)
-	c.Assert(tts[2].Tasks()[0].Kind(), Equals, "rerefresh")
+	c.Assert(tts[2].Tasks()[0].Kind(), Equals, "check-rerefresh")
 	chg.AddAll(tts[0])
 	chg.AddAll(tts[1])
 

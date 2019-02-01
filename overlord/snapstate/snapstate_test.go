@@ -145,7 +145,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	})
 
 	s.BaseTest.AddCleanup(snapstate.MockReRefreshRetryTimeout(time.Second / 200))
-	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdater(func(context.Context, *state.State, string, []string, int, snapstate.UpdateFilter, *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, []*state.TaskSet, error) {
 		return nil, nil, nil
 	}))
 
@@ -430,7 +430,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"run-hook[configure]",
 	)
 	if opts&doesReRefresh != 0 {
-		expected = append(expected, "rerefresh")
+		expected = append(expected, "check-rerefresh")
 	}
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -439,7 +439,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyLastTasksetIsReRefresh(c *C, tts []*state.TaskSet) {
 	ts := tts[len(tts)-1]
 	c.Assert(ts.Tasks(), HasLen, 1)
-	c.Check(ts.Tasks()[0].Kind(), Equals, "rerefresh")
+	c.Check(ts.Tasks()[0].Kind(), Equals, "check-rerefresh")
 }
 
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
@@ -733,14 +733,14 @@ func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 		SnapType: "app",
 	}
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, "", snapst, snapsup, 0)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
 func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, "", nil, snapsup, 0)
+	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0, "")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
 }
@@ -5549,7 +5549,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 		tasks := ts.Tasks()
 		// make sure the last task from Update is the rerefresh
-		c.Assert(tasks[len(tasks)-1].Kind(), Equals, "rerefresh")
+		c.Assert(tasks[len(tasks)-1].Kind(), Equals, "check-rerefresh")
 		tasks = tasks[:len(tasks)-1] // and now forget about it
 
 		var expectedPruned map[string]map[string]bool
@@ -9934,7 +9934,7 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 		// don't make a task wait on rerefresh, that's bad
 		for i := len(tasks) - 1; i > 0; i-- {
 			last = tasks[i]
-			if last.Kind() != "rerefresh" {
+			if last.Kind() != "check-rerefresh" {
 				break
 			}
 		}

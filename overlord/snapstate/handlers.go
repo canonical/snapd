@@ -1956,39 +1956,44 @@ func nearlyReady(me string, change *state.Change) bool {
 	return true
 }
 
-// laneSnapSetups returns the instance names from the first SnapSetup in each
+// laneSnaps returns the instance names from the first SnapSetup in each
 // non-zero lane that is Done
-func laneSnaps(change *state.Change) []string {
+func laneSnaps(tid string, tasks []*state.Task) []string {
+	laneSnaps := map[int]string{}
 	// change.Tasks() preserves the order tasks were added, otherwise it all falls apart
-	tasks := change.Tasks()
-	sadLanes := map[int]bool{}
 	for _, task := range tasks {
-		if task.Status() == state.DoneStatus {
-			continue
+		if task.ID() == tid {
+			break
+		}
+		if task.Kind() == "check-rerefresh" {
+			// reset and start over
+			laneSnaps = map[int]string{}
 		}
 		lanes := task.Lanes()
-		if len(lanes) != 1 {
-			// just ignore the task for now
+		if len(lanes) != 1 || lanes[0] == 0 {
 			continue
 		}
-		sadLanes[lanes[0]] = true
-	}
-
-	seenLanes := map[int]bool{}
-	var snapNames []string
-	for _, task := range change.Tasks() {
-		lanes := task.Lanes()
-		if len(lanes) != 1 || lanes[0] == 0 || sadLanes[lanes[0]] || seenLanes[lanes[0]] {
+		if task.Status() != state.DoneStatus {
+			laneSnaps[lanes[0]] = ""
+			continue
+		}
+		if _, ok := laneSnaps[lanes[0]]; ok {
 			continue
 		}
 		var snapsup SnapSetup
 		if err := task.Get("snap-setup", &snapsup); err != nil {
 			continue
 		}
-		snapNames = append(snapNames, snapsup.InstanceName())
-		seenLanes[lanes[0]] = true
+		laneSnaps[lanes[0]] = snapsup.InstanceName()
 	}
 
+	snapNames := make([]string, 0, len(laneSnaps))
+	for _, name := range laneSnaps {
+		if name == "" {
+			continue
+		}
+		snapNames = append(snapNames, name)
+	}
 	return snapNames
 }
 
@@ -1998,7 +2003,7 @@ type reRefreshSetup struct {
 	*Flags
 }
 
-var reRefreshUpdater = updateManyFromChange
+var reRefreshUpdateMany = updateManyFiltered
 
 func reRefreshFilter(update *snap.Info, snapst *SnapState) bool {
 	cur, err := snapst.CurrentInfo()
@@ -2010,19 +2015,20 @@ func reRefreshFilter(update *snap.Info, snapst *SnapState) bool {
 
 var reRefreshRetryTimeout = time.Second / 10
 
-func (m *SnapManager) doReRefresh(t *state.Task, tomb *tomb.Tomb) error {
+func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
-	chg := t.Change()
 	if numHaltTasks := t.NumHaltTasks(); numHaltTasks > 0 {
 		logger.Panicf("rerefresh task has %d tasks waiting for it", numHaltTasks)
 	}
+
+	chg := t.Change()
 	if !nearlyReady(t.ID(), chg) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
-	snaps := laneSnaps(chg)
+	snaps := laneSnaps(t.ID(), chg.Tasks())
 	if len(snaps) == 0 {
 		// nothing to do (maybe everything failed)
 		return nil
@@ -2032,7 +2038,7 @@ func (m *SnapManager) doReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	if err := t.Get("rerefresh-setup", &re); err != nil {
 		return err
 	}
-	updated, tasksets, err := reRefreshUpdater(tomb.Context(nil), st, chg.ID(), snaps, re.UserID, reRefreshFilter, re.Flags)
+	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}
@@ -2047,6 +2053,7 @@ func (m *SnapManager) doReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 		st.EnsureBefore(0)
 	}
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }

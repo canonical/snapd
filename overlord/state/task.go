@@ -22,9 +22,9 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"time"
 )
 
 type progress struct {

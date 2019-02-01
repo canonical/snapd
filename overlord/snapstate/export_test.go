@@ -203,13 +203,19 @@ func setModel(override map[string]string) {
 	}
 }
 
+// re-refresh related
+var (
+	LaneSnaps       = laneSnaps
+	ReRefreshFilter = reRefreshFilter
+)
+
 type UpdateFilter = updateFilter
 
-func MockReRefreshUpdater(f func(context.Context, *state.State, string, []string, int, UpdateFilter, *Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
-	old := reRefreshUpdater
-	reRefreshUpdater = f
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+	old := reRefreshUpdateMany
+	reRefreshUpdateMany = f
 	return func() {
-		reRefreshUpdater = old
+		reRefreshUpdateMany = old
 	}
 }
 

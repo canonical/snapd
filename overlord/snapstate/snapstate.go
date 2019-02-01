@@ -69,7 +69,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
-func doInstall(st *state.State, fromChange string, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
@@ -589,7 +589,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		InstanceKey: info.InstanceKey,
 	}
 
-	ts, err := doInstall(st, "", &snapst, snapsup, instFlags)
+	ts, err := doInstall(st, &snapst, snapsup, instFlags, "")
 	return ts, info, err
 }
 
@@ -649,7 +649,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		InstanceKey:  info.InstanceKey,
 	}
 
-	return doInstall(st, "", &snapst, snapsup, 0)
+	return doInstall(st, &snapst, snapsup, 0, "")
 }
 
 // InstallMany installs everything from the given list of names.
@@ -705,7 +705,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			InstanceKey:  info.InstanceKey,
 		}
 
-		ts, err := doInstall(st, "", &snapst, snapsup, 0)
+		ts, err := doInstall(st, &snapst, snapsup, 0, "")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -730,7 +730,7 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
 func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	return updateManyFromChange(ctx, st, "", names, userID, nil, flags)
+	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
 }
 
 // updateFilter is the type of function that can be passed to
@@ -741,7 +741,7 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 // consider.
 type updateFilter func(*snap.Info, *SnapState) bool
 
-func updateManyFromChange(ctx context.Context, st *state.State, fromChange string, names []string, userID int, filter updateFilter, flags *Flags) ([]string, []*state.TaskSet, error) {
+func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -793,10 +793,10 @@ func updateManyFromChange(ctx context.Context, st *state.State, fromChange strin
 
 	}
 
-	return doUpdate(ctx, st, fromChange, names, updates, params, userID, flags)
+	return doUpdate(ctx, st, names, updates, params, userID, flags, fromChange)
 }
 
-func doUpdate(ctx context.Context, st *state.State, fromChange string, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
@@ -891,7 +891,7 @@ func doUpdate(ctx context.Context, st *state.State, fromChange string, names []s
 			InstanceKey:  update.InstanceKey,
 		}
 
-		ts, err := doInstall(st, fromChange, snapst, snapsup, 0)
+		ts, err := doInstall(st, snapst, snapsup, 0, fromChange)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -942,7 +942,7 @@ func doUpdate(ctx context.Context, st *state.State, fromChange string, names []s
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
-		rerefresh := st.NewTask("rerefresh", fmt.Sprintf("Re-refresh of %s", strutil.Quoted(updated)))
+		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Re-refresh of %s", strutil.Quoted(updated)))
 		rerefresh.Set("rerefresh-setup", reRefreshSetup{
 			UserID: userID,
 			Flags:  globalFlags,
@@ -1198,7 +1198,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return channel, updateFlags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, "", []string{name}, updates, params, userID, &flags)
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1789,7 +1789,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, "", &snapst, snapsup, 0)
+	return doInstall(st, &snapst, snapsup, 0, "")
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1825,12 +1825,12 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		}
 
 		// start by instaling the new snap
-		tsInst, err := doInstall(st, "", &newSnapst, &SnapSetup{
+		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type,
-		}, 0)
+		}, 0, "")
 		if err != nil {
 			return nil, err
 		}
