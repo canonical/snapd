@@ -1893,7 +1893,7 @@ func (s *imageSuite) TestBootstrapToRootDirClassic(c *C) {
 		"snap_kernel": "",
 	})
 
-	c.Check(s.stderr.String(), Equals, "")
+	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image`)
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
@@ -2015,8 +2015,6 @@ func (s *imageSuite) TestBootstrapToRootDirClassicNoSnaps(c *C) {
 		"snap_core":   "",
 		"snap_kernel": "",
 	})
-
-	c.Check(s.stderr.String(), Equals, "")
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")

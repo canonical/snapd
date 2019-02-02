@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -626,6 +627,19 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
 	if err := seedYaml.Write(seedFn); err != nil {
 		return fmt.Errorf("cannot write seed.yaml: %s", err)
+	}
+
+	if opts.Classic {
+		// warn about ownership if not root:root
+		fi, err := os.Stat(seedFn)
+		if err != nil {
+			return fmt.Errorf("cannot stat seed.yaml: %s", err)
+		}
+		if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+			if st.Uid != 0 || st.Gid != 0 {
+				fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image", dirs.SnapSeedDir)
+			}
+		}
 	}
 
 	if !opts.Classic {
