@@ -227,7 +227,7 @@ func Prepare(opts *Options) error {
 		}
 	}
 
-	return bootstrapToRootDir(tsto, model, opts, local)
+	return setupSeed(tsto, model, opts, local)
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -372,7 +372,7 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 	return cps
 }
 
-func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
+func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
