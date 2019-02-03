@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
@@ -248,5 +249,13 @@ func MockTermSize(newTermSize func() (int, int)) (restore func()) {
 	termSize = newTermSize
 	return func() {
 		termSize = old
+	}
+}
+
+func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func()) {
+	old := imagePrepare
+	imagePrepare = newImagePrepare
+	return func() {
+		imagePrepare = old
 	}
 }

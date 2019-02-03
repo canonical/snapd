@@ -33,6 +33,7 @@ var (
 	DownloadUnpackGadget = downloadUnpackGadget
 	SetupSeed            = setupSeed
 	InstallCloudConfig   = installCloudConfig
+	SnapChannel          = snapChannel
 )
 
 func (tsto *ToolingStore) User() *auth.UserState {
