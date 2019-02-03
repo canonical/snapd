@@ -385,7 +385,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 	// sanity check target
 	if osutil.FileExists(dirs.SnapStateFile) {
-		return fmt.Errorf("cannot bootstrap over existing system or an already booted image")
+		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFile)
 	}
 	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap")); len(snaps) > 0 {
 		return fmt.Errorf("need an empty snap dir in rootdir, got: %v", snaps)
