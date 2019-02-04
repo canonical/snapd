@@ -21,7 +21,6 @@ prepare: |
     fi
 
 restore: |
-    rm -f ./*.error
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         systemctl stop systemd-hostnamed
     fi
@@ -43,26 +42,29 @@ execute: |
         su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test | MATCH "$expected"
     fi
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "And the policy has the ptrace suppression rule"
-        MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-system-observe-consumer.consumer
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
 
-        echo "When the plug is disconnected"
-        snap disconnect test-snapd-system-observe-consumer:system-observe
+    echo "And the policy has the ptrace suppression rule"
+    MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-system-observe-consumer.consumer
 
-        echo "Then the snap is not able to get system information"
-        if su -l -c "test-snapd-system-observe-consumer.consumer 2>${PWD}/consumer.error" test; then
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-system-observe-consumer:system-observe
+
+    echo "Then the snap is not able to get system information"
+    if su -l -c "test-snapd-system-observe-consumer.consumer" test 2> consumer.error; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi
+    MATCH "Permission denied" < consumer.error
+
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        echo "And the snap is not able to introspect hostname1"
+        if su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test 2> introspect.error; then
             echo "Expected error with plug disconnected"
             exit 1
         fi
-        MATCH "Permission denied" < consumer.error
-
-        if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-            echo "And the snap is not able to introspect hostname1"
-            if su -l -c "test-snapd-system-observe-consumer.dbus-introspect 2>${PWD}/introspect.error" test; then
-                echo "Expected error with plug disconnected"
-                exit 1
-            fi
-            MATCH "Permission denied" < introspect.error
-        fi
+        MATCH "Permission denied" < introspect.error
     fi
+

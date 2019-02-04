@@ -12,6 +12,19 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
 
+    if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
+        # RHEL/Centos 7.4+ set this to 0 by default
+        # see: https://access.redhat.com/solutions/3188102
+        cat /proc/sys/user/max_user_namespaces > old_max_user_ns
+        echo 1500 > /proc/sys/user/max_user_namespaces
+    fi
+
+restore: |
+    if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
+        # RHEL/Centos 7.4+ set this to 0 by default
+        cat old_max_user_ns > /proc/sys/user/max_user_namespaces
+    fi
+
 execute: |
     echo "We can run unshare -U as a regular user and expect it to work"
     test-snapd-tools.cmd unshare -U true

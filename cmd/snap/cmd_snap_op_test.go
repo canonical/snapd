@@ -205,6 +205,28 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
+	// PATH restored by test tear down
+	os.Setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin")
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "candidate",
+		})
+		s.srv.channel = "candidate"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
+	c.Check(s.Stderr(), testutil.MatchesWrapped, `Warning: \S+/bin was not found in your \$PATH.*`)
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
@@ -1323,6 +1345,25 @@ func (s *SnapOpSuite) TestTryMissingOpt(c *check.C) {
 		kind = test.kind
 		c.Check(snap.RunMain(), testutil.ContainsWrapped, test.expected, check.Commentf("%q", kind))
 	}
+}
+
+func (s *SnapOpSuite) TestInstallConfinedAsClassic(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "value": "some-snap",
+    "kind": "snap-not-classic"
+  },
+  "status-code": 400
+}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "some-snap"})
+	c.Assert(err, check.ErrorMatches, `snap "some-snap" is not compatible with --classic`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {

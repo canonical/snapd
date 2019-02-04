@@ -200,3 +200,25 @@ func (strutilSuite) TestCommaSeparatedList(c *check.C) {
 		c.Check(strutil.CommaSeparatedList(test.in), check.DeepEquals, test.out, check.Commentf("%q", test.in))
 	}
 }
+
+func (strutilSuite) TestElliptRight(c *check.C) {
+	type T struct {
+		in  string
+		n   int
+		out string
+	}
+	for _, t := range []T{
+		{"", 10, ""},
+		{"", -1, ""},
+		{"hello", 10, "hello"},
+		{"hello", 5, "hello"},
+		{"hello", 3, "he…"},
+		{"hello", 0, "…"},
+		{"héllo", 4, "hé…"},
+		{"héllo", 3, "he…"},
+		{"he🐧lo", 4, "he🐧…"},
+		{"he🐧lo", 3, "he…"},
+	} {
+		c.Check(strutil.ElliptRight(t.in, t.n), check.Equals, t.out, check.Commentf("%q[:%d] -> %q", t.in, t.n, t.out))
+	}
+}

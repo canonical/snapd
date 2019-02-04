@@ -239,6 +239,10 @@ int validate_snap_name(const char *snap_name)
 		bootstrap_msg = "snap name must contain at least one letter";
 		return -1;
 	}
+	if (n < 2) {
+		bootstrap_msg = "snap name must be longer than 1 character";
+		return -1;
+	}
 	if (n > 40) {
 		bootstrap_msg = "snap name must be shorter than 40 characters";
 		return -1;
@@ -267,7 +271,11 @@ static int instance_key_validate(const char *instance_key)
 	// engine.
 	int i = 0;
 	for (i = 0; instance_key[i] != '\0'; i++) {
-		if (islower(instance_key[i]) || isdigit(instance_key[i])) {
+		char c = instance_key[i];
+		/* NOTE: We are reimplementing islower() and isdigit()
+		 * here. For context see
+		 * https://github.com/golang/go/issues/29689 */
+		if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
 			continue;
 		}
 		bootstrap_msg =
@@ -336,18 +344,23 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 	errno = 0;
 	char *uid_text_end = NULL;
 	unsigned long parsed_uid = strtoul(uid_text, &uid_text_end, 10);
+	int saved_errno = errno;
+	char c = *uid_text;
 	if (
 			/* Reject overflow in parsed representation */
 			(parsed_uid == ULONG_MAX && errno != 0)
 			/* Reject leading whitespace allowed by strtoul. */
-			|| (isspace(*uid_text))
+			/* NOTE: We are reimplementing isspace() here.
+			 * For context see
+			 * https://github.com/golang/go/issues/29689 */
+			|| c == ' ' || c == '\t' || c == '\v' || c == '\r' || c == '\n'
 			/* Reject empty string. */
 			|| (*uid_text == '\0')
 			/* Reject partially parsed strings. */
 			|| (*uid_text != '\0' && uid_text_end != NULL
 				&& *uid_text_end != '\0')) {
 		bootstrap_msg = "cannot parse user id";
-		bootstrap_errno = errno;
+		bootstrap_errno = saved_errno;
 		return -1;
 	}
 	if ((long)parsed_uid < 0) {
@@ -407,7 +420,7 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out,
 				// called from snap-confine.
 				should_setns = false;
 			} else if (!strcmp(arg, "-u")) {
-				if (parse_arg_u(argc, argv, &i, uid_out)) {
+				if (parse_arg_u(argc, argv, &i, uid_out) < 0) {
 					return;
 				}
 				// Providing an user identifier implies we are performing an

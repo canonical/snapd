@@ -20,7 +20,7 @@
 
 #include <stdbool.h>
 
-#include "apparmor-support.h"
+#include "../libsnap-confine-private/apparmor-support.h"
 
 /**
  * Re-associate the current process with the mount namespace of pid 1.
@@ -70,7 +70,6 @@ struct sc_mount_ns;
  * that specific snap namespace:
  * - sc_create_or_join_mount_ns()
  * - sc_preserve_populated_mount_ns()
- * - sc_discard_preserved_mount_ns()
  */
 struct sc_mount_ns *sc_open_mount_ns(const char *group_name);
 
@@ -93,7 +92,19 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
  **/
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
-			 const char *snap_name);
+			 const char *snap_name, int snap_discard_ns_fd);
+
+/**
+ * Join a preserved, per-user, mount namespace if one exists.
+ *
+ * Technically the function opens /run/snapd/ns/snap.$SNAP_NAME.$UID.mnt and
+ * tries to use setns() with the obtained file descriptor.
+ *
+ * The return is ESRCH if a preserved per-user mount namespace does not exist
+ * and cannot be joined or zero otherwise.
+**/
+int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
+				  const char *snap_name);
 
 /**
  * Fork off a helper process for mount namespace capture.
@@ -122,6 +133,8 @@ void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor);
  **/
 void sc_preserve_populated_mount_ns(struct sc_mount_ns *group);
 
+void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
+
 /**
  * Ask the helper process to terminate and wait for it to finish.
  *
@@ -131,13 +144,5 @@ void sc_preserve_populated_mount_ns(struct sc_mount_ns *group);
  * terminate cleanly.
  **/
 void sc_wait_for_helper(struct sc_mount_ns *group);
-
-/**
- * Discard the preserved namespace group.
- *
- * This function unmounts the bind-mounted files representing the kernel mount
- * namespace.
- **/
-void sc_discard_preserved_mount_ns(struct sc_mount_ns *group);
 
 #endif

@@ -43,14 +43,47 @@ func MockAppArmorFeaturesSysPath(path string) (restorer func()) {
 }
 
 func MockAppArmorParserSearchPath(new string) (restore func()) {
-	oldParserSearchPath := parserSearchPath
-	parserSearchPath = new
+	oldAppArmorParserSearchPath := appArmorParserSearchPath
+	appArmorParserSearchPath = new
 	return func() {
-		parserSearchPath = oldParserSearchPath
+		appArmorParserSearchPath = oldAppArmorParserSearchPath
+	}
+}
+
+func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
+	old := ioutilReadFile
+	ioutilReadFile = newReadfile
+	return func() {
+		ioutilReadFile = old
+	}
+}
+
+func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
+	old := selinuxIsEnforcing
+	selinuxIsEnforcing = isEnforcing
+	return func() {
+		selinuxIsEnforcing = old
 	}
 }
 
 var (
-	ProbeAppArmor            = probeAppArmor
-	RequiredAppArmorFeatures = requiredAppArmorFeatures
+	ProbeAppArmorKernelFeatures = probeAppArmorKernelFeatures
+	ProbeAppArmorParserFeatures = probeAppArmorParserFeatures
+
+	RequiredAppArmorKernelFeatures  = requiredAppArmorKernelFeatures
+	RequiredAppArmorParserFeatures  = requiredAppArmorParserFeatures
+	PreferredAppArmorKernelFeatures = preferredAppArmorKernelFeatures
+	PreferredAppArmorParserFeatures = preferredAppArmorParserFeatures
+
+	IsWSL = isWSL
+
+	ProbeSELinux = probeSELinux
 )
+
+func FreshAppArmorAssessment() {
+	appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
+}
+
+func FreshSecCompProbe() {
+	secCompProber = &secCompProbe{}
+}

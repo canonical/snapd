@@ -62,6 +62,7 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	c.Assert(info.InstanceName(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type, Equals, snap.TypeApp)
+	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
 func (s *InfoSnapYamlTestSuite) TestSnapdTypeAddedByMagic(c *C) {
@@ -782,6 +783,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
+		Explicit: true,
 	})
 }
 
@@ -815,6 +818,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+
+		Explicit: true,
 	})
 }
 
@@ -907,6 +912,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: nil,
+
+		Explicit: true,
 	})
 }
 
@@ -955,6 +962,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: nil,
+
+		Explicit: true,
 	})
 }
 
@@ -988,6 +997,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1022,6 +1033,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1056,11 +1069,15 @@ hooks:
 		Snap:  info,
 		Name:  "with-plug",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 	c.Assert(withoutPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
 		Name:  "without-plug",
 		Plugs: map[string]*snap.PlugInfo{},
+
+		Explicit: true,
 	})
 }
 
@@ -1096,6 +1113,8 @@ hooks:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 }
 
@@ -1132,6 +1151,8 @@ apps:
 		Snap:  info,
 		Name:  "test-hook",
 		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+
+		Explicit: true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -1183,7 +1204,7 @@ slots:
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Epoch.String(), Equals, "1*")
+	c.Check(info.Epoch, DeepEquals, snap.E("1*"))
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Title(), Equals, "Foo")
 	c.Check(info.Summary(), Equals, "foo app")
@@ -1324,7 +1345,7 @@ version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Epoch.String(), Equals, "0")
+	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
 func (s *YamlSuite) TestSnapYamlConfinementDefault(c *C) {

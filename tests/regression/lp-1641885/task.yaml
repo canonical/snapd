@@ -1,7 +1,7 @@
 summary: snaps installed with --jailmode are not in devmode
 
 # No confinement (AppArmor, Seccomp) available on these systems
-systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 details: |
     Users found that a snap that uses "confinement: devmode", even when
@@ -22,9 +22,6 @@ execute: |
     grep attach_disconnected /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode | MATCH -v complain
     echo "Ensure that the seccomp profile doesn't use the complain mode"
     MATCH -v '@complain' < /var/lib/snapd/seccomp/bpf/snap.test-snapd-devmode.test-snapd-devmode.src
-
-restore: |
-    rm -f ./test-snapd-devmode_1.0_all.snap
 
 debug: |
     echo "Apparmor profile (first 30 lines)"

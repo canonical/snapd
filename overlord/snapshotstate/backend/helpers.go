@@ -94,6 +94,15 @@ var (
 	userLookupId = user.LookupId
 )
 
+func isUnknownUser(err error) bool {
+	switch err.(type) {
+	case user.UnknownUserError, user.UnknownUserIdError:
+		return true
+	default:
+		return false
+	}
+}
+
 func usersForUsernames(usernames []string) ([]*user.User, error) {
 	if len(usernames) == 0 {
 		return allUsers()
@@ -102,7 +111,7 @@ func usersForUsernames(usernames []string) ([]*user.User, error) {
 	for _, username := range usernames {
 		usr, err := userLookup(username)
 		if err != nil {
-			if _, ok := err.(*user.UnknownUserError); !ok {
+			if !isUnknownUser(err) {
 				return nil, err
 			}
 			u, e := userLookupId(username)
@@ -143,11 +152,14 @@ func allUsers() ([]*user.User, error) {
 			continue
 		}
 		seen[st.Uid] = true
-		usr, err := user.LookupId(strconv.FormatUint(uint64(st.Uid), 10))
+		usr, err := userLookupId(strconv.FormatUint(uint64(st.Uid), 10))
 		if err != nil {
-			return nil, err
+			if !isUnknownUser(err) {
+				return nil, err
+			}
+		} else {
+			users = append(users, usr)
 		}
-		users = append(users, usr)
 	}
 
 	return users, nil

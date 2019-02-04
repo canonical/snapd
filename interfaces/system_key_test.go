@@ -79,13 +79,16 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
-	apparmorFeaturesStr, err := json.Marshal(release.AppArmorFeatures())
+	kernelFeatures, _ := release.AppArmorKernelFeatures()
+
+	apparmorFeaturesStr, err := json.Marshal(kernelFeatures)
 	c.Assert(err, IsNil)
 
 	apparmorParserMtime, err := json.Marshal(release.AppArmorParserMtime())
 	c.Assert(err, IsNil)
 
-	apparmorParserFeaturesStr, err := json.Marshal(release.AppArmorParserFeatures())
+	parserFeatures, _ := release.AppArmorParserFeatures()
+	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
 	c.Assert(err, IsNil)
 
 	seccompActionsStr, err := json.Marshal(release.SecCompActions())

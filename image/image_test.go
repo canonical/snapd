@@ -21,6 +21,7 @@ package image_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -30,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -990,7 +990,7 @@ func (s *imageSuite) TestInstallCloudConfigNoConfig(c *C) {
 	dirs.SetRootDir(targetDir)
 	err := image.InstallCloudConfig(emptyGadgetDir)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud")), Equals, false)
 }
 
 func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {

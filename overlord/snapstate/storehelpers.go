@@ -20,10 +20,9 @@
 package snapstate
 
 import (
+	"context"
 	"fmt"
 	"sort"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -167,6 +166,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	if curInfo.SnapID == "" { // amend
 		action.Action = "install"
+		action.Epoch = curInfo.Epoch
 	}
 
 	theStore := Store(st)
@@ -197,6 +197,8 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 	return curInfo, user, nil
 }
 
+var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
+
 func singleActionResult(name, action string, results []*snap.Info, e error) (info *snap.Info, err error) {
 	if len(results) > 1 {
 		return nil, fmt.Errorf("internal error: multiple store results for a single snap op")
@@ -224,12 +226,7 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 
 		// no result, atypical case
 		if saErr.NoResults {
-			switch action {
-			case "refresh":
-				return nil, store.ErrNoUpdateAvailable
-			case "install":
-				return nil, store.ErrSnapNotFound
-			}
+			return nil, ErrMissingExpectedResult
 		}
 	}
 
@@ -315,6 +312,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			Revision:         snapInfo.Revision,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
+			Epoch:            snapInfo.Epoch,
 		}
 		curSnaps = append(curSnaps, installed)
 
@@ -447,4 +445,31 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	}
 
 	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
+}
+
+func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]*snap.Info, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	actions := make([]*store.SnapAction, len(names))
+	for i, name := range names {
+		actions[i] = &store.SnapAction{
+			Action:       "install",
+			InstanceName: name,
+			// the desired channel
+			Channel: channel,
+		}
+	}
+
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	defer st.Lock()
+	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, opts)
 }

@@ -89,3 +89,16 @@ func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*
 	}
 	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.InstanceName()))
 }
+
+func MockHotplugSlot(c *C, yaml string, si *snap.SideInfo, hotplugKey, ifaceName, slotName string, staticAttrs map[string]interface{}) *snap.SlotInfo {
+	info := snaptest.MockInfo(c, yaml, si)
+	if _, ok := info.Slots[slotName]; ok {
+		panic(fmt.Sprintf("slot %q already present in the snap yaml", slotName))
+	}
+	return &snap.SlotInfo{
+		Snap:       info,
+		Name:       slotName,
+		Attrs:      staticAttrs,
+		HotplugKey: hotplugKey,
+	}
+}

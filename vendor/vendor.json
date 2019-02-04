@@ -7,10 +7,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "RBwpnMpfQt7Jo7YWrRph0Vwe+f0=",
+			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
 			"path": "github.com/coreos/go-systemd/activation",
-			"revision": "48702e0da86bd25e76cfef347e2adeb434a0d0a6",
-			"revisionTime": "2016-11-14T12:22:54Z"
+			"revision": "39ca1b05acc7ad1220e09f133283b8859a8b71ab",
+			"revisionTime": "2018-05-11T13:34:05Z"
 		},
 		{
 			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
@@ -167,12 +167,6 @@
 		{
 			"checksumSHA1": "Y+HGqEkYM15ir+J93MEaHdyFy0c=",
 			"path": "golang.org/x/net/context",
-			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
-			"revisionTime": "2017-06-28T23:42:41Z"
-		},
-		{
-			"checksumSHA1": "WHc3uByvGaMcnSoI21fhzYgbOgg=",
-			"path": "golang.org/x/net/context/ctxhttp",
 			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},

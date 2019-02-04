@@ -1,7 +1,7 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1599891
 
 # No confinement (AppArmor, Seccomp) available on these systems
-systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 execute: |
     snap_confine=/usr/lib/snapd/snap-confine

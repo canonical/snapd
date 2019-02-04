@@ -45,7 +45,7 @@ const avahiObserveBaseDeclarationSlots = `
 const avahiObservePermanentSlotAppArmor = `
 network netlink,
 
-# Allow access to deamon to create socket
+# Allow access to daemon to create socket
 /{,var/}run/avahi-daemon/  w,
 /{,var/}run/avahi-daemon/{pid,socket} rw,
 

@@ -120,59 +120,6 @@ static void test_sc_open_mount_ns(void)
 		      (ns_dir, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR));
 }
 
-static void unmount_dir(void *dir)
-{
-	umount(dir);
-}
-
-static void test_sc_is_mount_ns_dir_private(void)
-{
-	if (geteuid() != 0) {
-		g_test_skip("this test needs to run as root");
-		return;
-	}
-	const char *ns_dir = sc_test_use_fake_ns_dir();
-	g_test_queue_destroy(unmount_dir, (char *)ns_dir);
-
-	if (g_test_subprocess()) {
-		// The temporary directory should not be private initially
-		g_assert_false(sc_is_mount_ns_dir_private());
-
-		/// do what "mount --bind /foo /foo; mount --make-private /foo" does.
-		int err;
-		err = mount(ns_dir, ns_dir, NULL, MS_BIND, NULL);
-		g_assert_cmpint(err, ==, 0);
-		err = mount(NULL, ns_dir, NULL, MS_PRIVATE, NULL);
-		g_assert_cmpint(err, ==, 0);
-
-		// The temporary directory should now be private
-		g_assert_true(sc_is_mount_ns_dir_private());
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_INHERIT_STDERR);
-	g_test_trap_assert_passed();
-}
-
-static void test_sc_initialize_mount_ns(void)
-{
-	if (geteuid() != 0) {
-		g_test_skip("this test needs to run as root");
-		return;
-	}
-	// NOTE: this is g_test_subprocess aware!
-	const char *ns_dir = sc_test_use_fake_ns_dir();
-	g_test_queue_destroy(unmount_dir, (char *)ns_dir);
-	if (g_test_subprocess()) {
-		// Initialize namespace groups using a fake directory.
-		sc_initialize_mount_ns();
-		// Check that the fake directory is now a private mount.
-		g_assert_true(sc_is_mount_ns_dir_private());
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_INHERIT_STDERR);
-	g_test_trap_assert_passed();
-}
-
 // Sanity check, ensure that the namespace filesystem identifier is what we
 // expect, aka NSFS_MAGIC.
 static void test_nsfs_fs_id(void)
@@ -204,8 +151,4 @@ static void __attribute__ ((constructor)) init(void)
 	g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
 	g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
 	g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
-	g_test_add_func("/system/ns/sc_is_mount_ns_dir_private",
-			test_sc_is_mount_ns_dir_private);
-	g_test_add_func("/system/ns/sc_initialize_mount_ns",
-			test_sc_initialize_mount_ns);
 }

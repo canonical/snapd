@@ -58,7 +58,7 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"all": i18n.G("Include unused interfaces"),
 	}, []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<interface>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Show details of a specific interface"),

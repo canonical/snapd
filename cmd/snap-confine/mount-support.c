@@ -14,7 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
 #include "mount-support.h"
 
 #include <errno.h>
@@ -33,18 +36,17 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <libgen.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
-#include "apparmor-support.h"
-#include "quirks.h"
 
 #define MAX_BUF 1000
 
@@ -76,10 +78,7 @@ static void setup_private_mount(const char *snap_name)
 	}
 	// now we create a 1777 /tmp inside our private dir
 	mode_t old_mask = umask(0);
-	char *d = strdup(tmpdir);
-	if (!d) {
-		die("cannot allocate memory for string copy");
-	}
+	char *d = sc_strdup(tmpdir);
 	sc_must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
 	free(d);
 
@@ -138,62 +137,6 @@ static void setup_private_pts(void)
 	sc_do_mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
 		    "newinstance,ptmxmode=0666,mode=0620,gid=5");
 	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
-}
-
-/**
- * Setup mount profiles by running snap-update-ns.
- *
- * The first argument is an open file descriptor (though opened with O_PATH, so
- * not as powerful), to a copy of snap-update-ns. The program is opened before
- * the root filesystem is pivoted so that it is easier to pick the right copy.
- **/
-static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
-				    int snap_update_ns_fd,
-				    const char *snap_name)
-{
-	debug("calling snap-update-ns to initialize mount namespace");
-	pid_t child = fork();
-	if (child < 0) {
-		die("cannot fork to run snap-update-ns");
-	}
-	if (child == 0) {
-		// We are the child, execute snap-update-ns under a dedicated profile.
-		char profile[PATH_MAX] = { 0 };
-		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
-				 snap_name);
-		debug("launching snap-update-ns under per-snap profile %s",
-		      profile);
-		sc_maybe_aa_change_onexec(apparmor, profile);
-		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot copy snap name");
-		}
-		char *argv[] = {
-			"snap-update-ns", "--from-snap-confine", snap_name_copy,
-			NULL
-		};
-		char *envp[3] = { NULL };
-		if (sc_is_debug_enabled()) {
-			envp[0] = "SNAPD_DEBUG=1";
-		}
-		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
-		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
-		fexecve(snap_update_ns_fd, argv, envp);
-		die("cannot execute snap-update-ns");
-	}
-	// We are the parent, so wait for snap-update-ns to finish.
-	int status = 0;
-	debug("waiting for snap-update-ns to finish...");
-	if (waitpid(child, &status, 0) < 0) {
-		die("waitpid() failed for snap-update-ns process");
-	}
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		die("snap-update-ns killed by signal %i", WTERMSIG(status));
-	}
-	debug("snap-update-ns finished successfully");
 }
 
 struct sc_mount {
@@ -400,7 +343,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
-			die("cannot use result from readlink: %s", src);
+			die("cannot use result from readlink: %s", self);
 		}
 		src = dirname(self);
 		// dirname(path) might return '.' depending on path.
@@ -575,34 +518,6 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-int sc_open_snap_update_ns(void)
-{
-	// +1 is for the case where the link is exactly PATH_MAX long but we also
-	// want to store the terminating '\0'. The readlink system call doesn't add
-	// terminating null, but our initialization of buf handles this for us.
-	char buf[PATH_MAX + 1] = { 0 };
-	if (readlink("/proc/self/exe", buf, sizeof buf) < 0) {
-		die("cannot readlink /proc/self/exe");
-	}
-	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
-		die("readlink /proc/self/exe returned relative path");
-	}
-	char *bufcopy SC_CLEANUP(sc_cleanup_string) = NULL;
-	bufcopy = strdup(buf);
-	if (bufcopy == NULL) {
-		die("cannot copy buffer");
-	}
-	char *dname = dirname(bufcopy);
-	sc_must_snprintf(buf, sizeof buf, "%s/%s", dname, "snap-update-ns");
-	debug("snap-update-ns executable: %s", buf);
-	int fd = open(buf, O_PATH | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-	if (fd < 0) {
-		die("cannot open snap-update-ns executable");
-	}
-	debug("opened snap-update-ns executable as file descriptor %d", fd);
-	return fd;
-}
-
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const char *base_snap_name, const char *snap_name)
 {
@@ -623,6 +538,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
 			{"/home"},	// to support /home/*/snap and home interface
+			{"/var/lib/jenkins", .is_optional=true}, // to support jenkins's HOME directory
 			{"/root"},	// because that is $HOME for services
 			{"/proc"},	// fundamental filesystem
 			{"/sys"},	// fundamental filesystem
@@ -702,12 +618,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
-	// setup quirks for specific snaps
-	if (distro == SC_DISTRO_CLASSIC) {
-		sc_setup_quirks();
-	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(apparmor, snap_update_ns_fd, snap_name);
+	sc_call_snap_update_ns(snap_update_ns_fd, snap_name, apparmor);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
@@ -788,58 +700,5 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 
 	sc_make_slave_mount_ns();
-
-	debug("calling snap-update-ns to initialize user mounts");
-	pid_t child = fork();
-	if (child < 0) {
-		die("cannot fork to run snap-update-ns");
-	}
-	if (child == 0) {
-		// We are the child, execute snap-update-ns under a dedicated profile.
-		char profile[PATH_MAX] = { 0 };
-		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
-				 snap_name);
-		debug("launching snap-update-ns under per-snap profile %s",
-		      profile);
-		sc_maybe_aa_change_onexec(apparmor, profile);
-		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot allocate memory for snap name");
-		}
-		char *argv[] = {
-			"snap-update-ns", "--user-mounts", snap_name_copy,
-			NULL
-		};
-		char *envp[3] = { NULL };
-		int last_env = 0;
-		if (sc_is_debug_enabled()) {
-			envp[last_env++] = "SNAPD_DEBUG=1";
-		}
-		const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-		char xdg_runtime_dir_env[PATH_MAX];
-		if (xdg_runtime_dir != NULL) {
-			sc_must_snprintf(xdg_runtime_dir_env,
-					 sizeof(xdg_runtime_dir_env),
-					 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
-			envp[last_env++] = xdg_runtime_dir_env;
-		}
-
-		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
-		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
-		fexecve(snap_update_ns_fd, argv, envp);
-		die("cannot execute snap-update-ns");
-	}
-	// We are the parent, so wait for snap-update-ns to finish.
-	int status = 0;
-	debug("waiting for snap-update-ns to finish...");
-	if (waitpid(child, &status, 0) < 0) {
-		die("waitpid() failed for snap-update-ns process");
-	}
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		die("snap-update-ns killed by signal %i", WTERMSIG(status));
-	}
-	debug("snap-update-ns finished successfully");
+	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }

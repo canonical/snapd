@@ -171,7 +171,7 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"section": i18n.G("Restrict the search to a given section"),
 	}), []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<query>"),
 	}}).alias = "search"
 
@@ -234,7 +234,7 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	snaps, resInfo, err := x.client.Find(opts)
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
+	if e, ok := err.(*client.Error); ok && (e.Kind == client.ErrorKindNetworkTimeout || e.Kind == client.ErrorKindDNSFailure) {
 		logger.Debugf("cannot list snaps: %v", e)
 		return fmt.Errorf("unable to contact snap store")
 	}

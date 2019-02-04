@@ -68,7 +68,7 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"format": i18n.G("Use the given output format"),
 	}, []argDesc{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		{name: i18n.G("<command or pkg>")},
 	})
 	cmd.hidden = true
@@ -197,10 +197,10 @@ func adviseViaAptHook() error {
 		}
 
 	}
-	if rpc.Method == "org.debian.apt.hooks.search.post" {
-		// FIXME: do a snap search here
-		// FIXME2: figure out why apt does not tell us the search results
-	}
+	// if rpc.Method == "org.debian.apt.hooks.search.post" {
+	// 	// FIXME: do a snap search here
+	// 	// FIXME2: figure out why apt does not tell us the search results
+	// }
 
 	// bye
 	rpc, err = readRpc(r)

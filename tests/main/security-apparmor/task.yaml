@@ -6,9 +6,6 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
 
-restore: |
-    rm -f touch.error
-
 execute: |
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

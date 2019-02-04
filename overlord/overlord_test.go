@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -45,7 +46,9 @@ import (
 
 func TestOverlord(t *testing.T) { TestingT(t) }
 
-type overlordSuite struct{}
+type overlordSuite struct {
+	restoreBackends func()
+}
 
 var _ = Suite(&overlordSuite{})
 
@@ -54,10 +57,12 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
+	ovs.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	ovs.restoreBackends()
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
@@ -156,7 +161,7 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = overlord.New()
-	c.Assert(err, ErrorMatches, "EOF")
+	c.Assert(err, ErrorMatches, "cannot read state: EOF")
 }
 
 func (ovs *overlordSuite) TestNewWithPatches(c *C) {

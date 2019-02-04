@@ -10,7 +10,7 @@ pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
 optdepends=('bash-completion: bash completion support')
-pkgver=2.36
+pkgver=2.37.1
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/snapcore/snapd"
@@ -120,7 +120,7 @@ package() {
 
   # Install bash completion
   install -Dm644 data/completion/snap \
-    "$pkgdir/usr/share/bash-completion/completion/snap"
+    "$pkgdir/usr/share/bash-completion/completions/snap"
   install -Dm644 data/completion/complete.sh \
     "$pkgdir/usr/lib/snapd/complete.sh"
   install -Dm644 data/completion/etelpmoc.sh \

@@ -54,6 +54,14 @@ int sc_lock_global(void);
 int sc_lock_snap(const char *snap_name);
 
 /**
+ * Verify that a flock-based, exclusive, snap-scoped, lock is held.
+ *
+ * If the lock is not held the process dies. The details about the lock
+ * are exactly the same as for sc_lock_snap().
+ **/
+void sc_verify_snap_lock(const char *snap_name);
+
+/**
  * Obtain a flock-based, exclusive, snap-scoped, lock.
  *
  * The actual lock is placed in "/run/snapd/ns/$SNAP_NAME.$UID.lock"

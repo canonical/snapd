@@ -41,22 +41,39 @@
 #endif
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        printf("Usage: snap-discard-ns <SNAP-INSTANCE-NAME>\n");
+    if (argc != 2 && argc != 3) {
+        printf("Usage: snap-discard-ns [--from-snap-confine] <SNAP-INSTANCE-NAME>\n");
         return 0;
     }
+    const char* snap_instance_name;
+    bool from_snap_confine;
 
-    const char* snap_instance_name = argv[1];
+    if (argc == 3) {
+        if (!sc_streq(argv[1], "--from-snap-confine")) {
+            die("unexpected argument %s", argv[1]);
+        }
+        from_snap_confine = true;
+        snap_instance_name = argv[2];
+    } else {
+        from_snap_confine = false;
+        snap_instance_name = argv[1];
+    }
+
     struct sc_error* err = NULL;
     sc_instance_name_validate(snap_instance_name, &err);
     sc_die_on_error(err);
 
-    /* Grab the lock holding the snap instance. This prevents races from
-     * concurrently executing snap-confine. The lock is explicitly released
-     * during normal operation but it is not preserved across the life-cycle of
-     * the process anyway so no attempt is made to unlock it ahead of any call
-     * to die() */
-    int snap_lock_fd = sc_lock_snap(snap_instance_name);
+    int snap_lock_fd = -1;
+    if (from_snap_confine) {
+        sc_verify_snap_lock(snap_instance_name);
+    } else {
+        /* Grab the lock holding the snap instance. This prevents races from
+         * concurrently executing snap-confine. The lock is explicitly released
+         * during normal operation but it is not preserved across the life-cycle of
+         * the process anyway so no attempt is made to unlock it ahead of any call
+         * to die() */
+        snap_lock_fd = sc_lock_snap(snap_instance_name);
+    }
     debug("discarding mount namespaces of snap %s", snap_instance_name);
 
     const char* ns_dir_path = "/run/snapd/ns";
@@ -71,7 +88,7 @@ int main(int argc, char** argv) {
     }
 
     /* Move to the namespace directory. This is used so that we don't need to
-     * traverse the path over and over in our upcoming unmount2(2) calls. */
+     * traverse the path over and over in our upcoming umount2(2) calls. */
     if (fchdir(ns_dir_fd) < 0) {
         die("cannot move to directory %s", ns_dir_path);
     }
@@ -84,7 +101,7 @@ int main(int argc, char** argv) {
      *
      * Applied mount profiles to unlink:
      * - "snap.$SNAP_INSTANCE_NAME.fstab"
-     * - "snap.$SNAP_INSTANCE_NAME.[0-9]+.fstab"
+     * - "snap.$SNAP_INSTANCE_NAME.[0-9]+.user-fstab"
      *
      * Use PATH_MAX as the size of each buffer since those can store any file
      * name. */
@@ -93,7 +110,7 @@ int main(int argc, char** argv) {
     char sys_mnt_pattern[PATH_MAX];
     char usr_mnt_pattern[PATH_MAX];
     sc_must_snprintf(sys_fstab_pattern, sizeof sys_fstab_pattern, "snap\\.%s\\.fstab", snap_instance_name);
-    sc_must_snprintf(usr_fstab_pattern, sizeof usr_fstab_pattern, "snap\\.%s\\.*\\.fstab", snap_instance_name);
+    sc_must_snprintf(usr_fstab_pattern, sizeof usr_fstab_pattern, "snap\\.%s\\.*\\.user-fstab", snap_instance_name);
     sc_must_snprintf(sys_mnt_pattern, sizeof sys_mnt_pattern, "%s\\.mnt", snap_instance_name);
     sc_must_snprintf(usr_mnt_pattern, sizeof usr_mnt_pattern, "%s\\.*\\.mnt", snap_instance_name);
 
@@ -198,6 +215,8 @@ int main(int argc, char** argv) {
     if (closedir(ns_dir) < 0) {
         die("cannot close directory");
     }
-    sc_unlock(snap_lock_fd);
+    if (snap_lock_fd != -1) {
+        sc_unlock(snap_lock_fd);
+    }
     return 0;
 }

@@ -43,6 +43,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -51,10 +53,13 @@ import (
 )
 
 var (
-	syscallExec = syscall.Exec
-	userCurrent = user.Current
-	osGetenv    = os.Getenv
-	timeNow     = time.Now
+	syscallExec              = syscall.Exec
+	userCurrent              = user.Current
+	osGetenv                 = os.Getenv
+	timeNow                  = time.Now
+	selinuxIsEnabled         = selinux.IsEnabled
+	selinuxVerifyPathContext = selinux.VerifyPathContext
+	selinuxRestoreContext    = selinux.RestoreContext
 )
 
 type cmdRun struct {
@@ -67,8 +72,9 @@ type cmdRun struct {
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
 	// "default" and "optional-value" to distinguish this.
-	Strace string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
-	Gdb    bool   `long:"gdb"`
+	Strace    string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
+	Gdb       bool   `long:"gdb"`
+	TraceExec bool   `long:"trace-exec"`
 
 	// not a real option, used to check if cmdRun is initialized by
 	// the parser
@@ -99,7 +105,9 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdb": i18n.G("Run the command with gdb"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"timer":      i18n.G("Run as a timer service with given schedule"),
+			"timer": i18n.G("Run as a timer service with given schedule"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"trace-exec": i18n.G("Display exec calls timing data"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -329,7 +337,39 @@ func createUserDataDirs(info *snap.Info) error {
 		}
 	}
 
-	return createOrUpdateUserDataSymlink(info, usr)
+	if err := createOrUpdateUserDataSymlink(info, usr); err != nil {
+		return err
+	}
+
+	return maybeRestoreSecurityContext(usr)
+}
+
+// maybeRestoreSecurityContext attempts to restore security context of ~/snap on
+// systems where it's applicable
+func maybeRestoreSecurityContext(usr *user.User) error {
+	snapUserHome := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	enabled, err := selinuxIsEnabled()
+	if err != nil {
+		return fmt.Errorf("cannot determine SELinux status: %v", err)
+	}
+	if !enabled {
+		logger.Debugf("SELinux not enabled")
+		return nil
+	}
+
+	match, err := selinuxVerifyPathContext(snapUserHome)
+	if err != nil {
+		return fmt.Errorf("failed to verify SELinux context of %v: %v", snapUserHome, err)
+	}
+	if match {
+		return nil
+	}
+	logger.Noticef("restoring default SELinux context of %v", snapUserHome)
+
+	if err := selinuxRestoreContext(snapUserHome, selinux.RestoreMode{Recursive: true}); err != nil {
+		return fmt.Errorf("cannot restore SELinux context of %v: %v", snapUserHome, err)
+	}
+	return nil
 }
 
 func (x *cmdRun) useStrace() bool {
@@ -408,13 +448,32 @@ func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
 
 var osReadlink = os.Readlink
 
-func isReexeced() bool {
+// snapdHelperPath return the path of a helper like "snap-confine" or
+// "snap-exec" based on if snapd is re-execed or not
+func snapdHelperPath(toolName string) (string, error) {
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v", err)
-		return false
+		return "", fmt.Errorf("cannot read /proc/self/exe: %v", err)
 	}
-	return strings.HasPrefix(exe, dirs.SnapMountDir)
+	// no re-exec
+	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
+	}
+	// The logic below only works if the last two path components
+	// are /usr/bin
+	// FIXME: use a snap warning?
+	if !strings.HasSuffix(exe, "/usr/bin/"+filepath.Base(exe)) {
+		logger.Noticef("(internal error): unexpected exe input in snapdHelperPath: %v", exe)
+		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
+	}
+	// snapBase will be "/snap/{core,snapd}/$rev/" because
+	// the snap binary is always at $root/usr/bin/snap
+	snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
+	// Run snap-confine from the core/snapd snap.  The tools in
+	// core/snapd snap are statically linked, or mostly
+	// statically, with the exception of libraries such as libudev
+	// and libc.
+	return filepath.Join(snapBase, dirs.CoreLibExecDir, toolName), nil
 }
 
 func migrateXauthority(info *snap.Info) (string, error) {
@@ -645,49 +704,6 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	return nil
 }
 
-func straceCmd() ([]string, error) {
-	current, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
-	sudoPath, err := exec.LookPath("sudo")
-	if err != nil {
-		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
-	}
-
-	// Try strace from the snap first, we use new syscalls like
-	// "_newselect" that are known to not work with the strace of e.g.
-	// ubuntu 14.04.
-	//
-	// TODO: some architectures do not have some syscalls (e.g.
-	// s390x does not have _newselect). In
-	// https://github.com/strace/strace/issues/57 options are
-	// discussed.  We could use "-e trace=?syscall" but that is
-	// only available since strace 4.17 which is not even in
-	// ubutnu 17.10.
-	var stracePath string
-	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
-	if osutil.FileExists(cand) {
-		stracePath = cand
-	}
-	if stracePath == "" {
-		stracePath, err = exec.LookPath("strace")
-		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
-		}
-	}
-
-	return []string{
-		sudoPath, "-E",
-		stracePath,
-		"-u", current.Username,
-		"-f",
-		// these syscalls are excluded because they make strace hang
-		// on all or some architectures (gettimeofday on arm64)
-		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
-	}, nil
-}
-
 func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	env = append(env, "SNAP_CONFINE_RUN_UNDER_GDB=1")
 
@@ -702,25 +718,76 @@ func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	return gcmd.Run()
 }
 
+func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
+	// setup private tmp dir with strace fifo
+	straceTmp, err := ioutil.TempDir("", "exec-trace")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(straceTmp)
+	straceLog := filepath.Join(straceTmp, "strace.fifo")
+	if err := syscall.Mkfifo(straceLog, 0640); err != nil {
+		return err
+	}
+	// ensure we have one writer on the fifo so that if strace fails
+	// nothing blocks
+	fw, err := os.OpenFile(straceLog, os.O_RDWR, 0640)
+	if err != nil {
+		return err
+	}
+	defer fw.Close()
+
+	// read strace data from fifo async
+	var slg *strace.ExecveTiming
+	var straceErr error
+	doneCh := make(chan bool, 1)
+	go func() {
+		// FIXME: make this configurable?
+		nSlowest := 10
+		slg, straceErr = strace.TraceExecveTimings(straceLog, nSlowest)
+		close(doneCh)
+	}()
+
+	cmd, err := strace.TraceExecCommand(straceLog, origCmd...)
+	if err != nil {
+		return err
+	}
+	// run
+	cmd.Env = env
+	cmd.Stdin = Stdin
+	cmd.Stdout = Stdout
+	cmd.Stderr = Stderr
+	err = cmd.Run()
+	// ensure we close the fifo here so that the strace.TraceExecCommand()
+	// helper gets a EOF from the fifo (i.e. all writers must be closed
+	// for this)
+	fw.Close()
+
+	// wait for strace reader
+	<-doneCh
+	if straceErr == nil {
+		slg.Display(Stderr)
+	} else {
+		logger.Noticef("cannot extract runtime data: %v", straceErr)
+	}
+	return err
+}
+
 func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
-	// prepend strace magic
-	cmd, err := straceCmd()
+	extraStraceOpts, raw, err := x.straceOpts()
 	if err != nil {
 		return err
 	}
-	straceOpts, raw, err := x.straceOpts()
+	cmd, err := strace.Command(extraStraceOpts, origCmd...)
 	if err != nil {
 		return err
 	}
-	cmd = append(cmd, straceOpts...)
-	cmd = append(cmd, origCmd...)
 
 	// run with filter
-	gcmd := exec.Command(cmd[0], cmd[1:]...)
-	gcmd.Env = env
-	gcmd.Stdin = Stdin
-	gcmd.Stdout = Stdout
-	stderr, err := gcmd.StderrPipe()
+	cmd.Env = env
+	cmd.Stdin = Stdin
+	cmd.Stdout = Stdout
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
@@ -784,33 +851,19 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 		}
 		io.Copy(Stderr, r)
 	}()
-	if err := gcmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return err
 	}
 	<-filterDone
-	err = gcmd.Wait()
+	err = cmd.Wait()
 	return err
 }
 
 func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
-	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
-	// if we re-exec, we must run the snap-confine from the core/snapd snap
-	// as well, if they get out of sync, havoc will happen
-	if isReexeced() {
-		// exe is something like /snap/{snapd,core}/123/usr/bin/snap
-		exe, err := osReadlink("/proc/self/exe")
-		if err != nil {
-			return err
-		}
-		// snapBase will be "/snap/{core,snapd}/$rev/" because
-		// the snap binary is always at $root/usr/bin/snap
-		snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
-		// Run snap-confine from the core/snapd snap. That
-		// will work because snap-confine on the core/snapd snap is
-		// mostly statically linked (except libudev and libc)
-		snapConfine = filepath.Join(snapBase, dirs.CoreLibExecDir, "snap-confine")
+	snapConfine, err := snapdHelperPath("snap-confine")
+	if err != nil {
+		return err
 	}
-
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
 			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.InstanceName())
@@ -847,14 +900,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if info.NeedsClassic() {
 		// running with classic confinement, carefully pick snap-exec we
 		// are going to use
-		if isReexeced() {
-			// same rule as when choosing the location of snap-confine
-			snapExecPath = filepath.Join(dirs.SnapMountDir, "core/current",
-				dirs.CoreLibExecDir, "snap-exec")
-		} else {
-			// there is no mount namespace where 'core' is the
-			// rootfs, hence we need to use distro's snap-exec
-			snapExecPath = filepath.Join(dirs.DistroLibExecDir, "snap-exec")
+		snapExecPath, err = snapdHelperPath("snap-exec")
+		if err != nil {
+			return err
 		}
 	}
 	cmd = append(cmd, snapExecPath)
@@ -883,7 +931,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	if x.Gdb {
+	if x.TraceExec {
+		return x.runCmdWithTraceExec(cmd, env)
+	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, env)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, env)

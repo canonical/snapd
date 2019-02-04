@@ -112,12 +112,10 @@ func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Match
 	}
 
 	go func() {
-		loop := true
-		for loop {
+		for {
 			select {
 			case <-quit:
-				loop = false
-				break
+				return
 			default:
 				uevent, err := c.ReadUEvent()
 				if err != nil {

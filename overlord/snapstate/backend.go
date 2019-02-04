@@ -20,11 +20,11 @@
 package snapstate
 
 import (
+	"context"
 	"io"
 
-	"golang.org/x/net/context"
-
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
@@ -47,9 +47,12 @@ type StoreService interface {
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 
 	SuggestedCurrency() string
-	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
+	Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
 	ConnectivityCheck() (map[string]bool, error)
+
+	LoginUser(username, password, otp string) (string, string, error)
+	UserInfo(email string) (userinfo *store.User, err error)
 }
 
 type managerBackend interface {

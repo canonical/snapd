@@ -32,17 +32,6 @@ execute: |
     expected="$SNAP_MOUNT_DIR/mount-observe-consumer"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "When the plug is disconnected"
-        snap disconnect mount-observe-consumer:mount-observe
-
-        echo "Then the mount info is not reachable"
-        if su -l -c "mount-observe-consumer" test; then
-            echo "Expected error accessing mount info with disconnected plug"
-            exit 1
-        fi
-    fi
-
     echo "When the plug is connected"
     snap connect mount-observe-consumer:mount-observe
 
@@ -54,3 +43,16 @@ execute: |
     echo "Then the new mount info is reachable"
     expected="$SNAP_MOUNT_DIR/test-snapd-tools"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect mount-observe-consumer:mount-observe
+
+    echo "Then the mount info is not reachable"
+    if su -l -c "mount-observe-consumer" test; then
+        echo "Expected error accessing mount info with disconnected plug"
+        exit 1
+    fi

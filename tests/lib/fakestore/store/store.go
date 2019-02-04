@@ -171,6 +171,8 @@ type essentialInfo struct {
 	Version     string
 	Size        uint64
 	Digest      string
+	Confinement string
+	Type        string
 }
 
 var errInfo = errors.New("cannot get info")
@@ -226,6 +228,8 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 		Version:     info.Version,
 		Digest:      snapDigest,
 		Size:        size,
+		Confinement: string(info.Confinement),
+		Type:        string(info.Type),
 	}, nil
 }
 
@@ -244,6 +248,8 @@ type detailsReplyJSON struct {
 	Version         string   `json:"version"`
 	Revision        int      `json:"revision"`
 	DownloadDigest  string   `json:"download_sha3_384"`
+	Confinement     string   `json:"confinement"`
+	Type            string   `json:"type"`
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -293,6 +299,8 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		Version:         essInfo.Version,
 		Revision:        essInfo.Revision,
 		DownloadDigest:  hexify(essInfo.Digest),
+		Confinement:     essInfo.Confinement,
+		Type:            essInfo.Type,
 	}
 
 	// use indent because this is a development tool, output
@@ -429,6 +437,8 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				Version:         essInfo.Version,
 				Revision:        essInfo.Revision,
 				DownloadDigest:  hexify(essInfo.Digest),
+				Confinement:     essInfo.Confinement,
+				Type:            essInfo.Type,
 			})
 		}
 	}
@@ -523,8 +533,10 @@ type detailsResultV2 struct {
 		Sha3_384 string `json:"sha3-384"`
 		Size     uint64 `json:"size"`
 	} `json:"download"`
-	Version  string `json:"version"`
-	Revision int    `json:"revision"`
+	Version     string `json:"version"`
+	Revision    int    `json:"revision"`
+	Confinement string `json:"confinement"`
+	Type        string `json:"type"`
 }
 
 func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -606,6 +618,8 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 					Name:          essInfo.Name,
 					Version:       essInfo.Version,
 					Revision:      essInfo.Revision,
+					Confinement:   essInfo.Confinement,
+					Type:          essInfo.Type,
 				},
 			}
 			res.Snap.Publisher.ID = essInfo.DeveloperID

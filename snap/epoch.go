@@ -22,7 +22,6 @@ package snap
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strconv"
 
 	"github.com/snapcore/snapd/logger"
@@ -54,7 +53,7 @@ import (
 // the read attribute defaults to the value of the write attribute, and the
 // write attribute defaults to the last item in the read attribute. If both are
 // unset, it's the same as not specifying an epoch at all (i.e. epoch: 0). The
-// lists must not have more than 10 elements, they must be in ascending order,
+// lists must not have more than 10 elements, they must be strictly increasing,
 // and there must be a non-empty intersection between them.
 //
 // Epoch numbers must be written in base 10, with no zero padding.
@@ -65,12 +64,12 @@ type Epoch struct {
 
 // E returns the epoch represented by the expression s. It's meant for use in
 // testing, as it panics at the first sign of trouble.
-func E(s string) *Epoch {
+func E(s string) Epoch {
 	var e Epoch
 	if err := e.fromString(s); err != nil {
 		panic(fmt.Errorf("%q: %v", s, err))
 	}
-	return &e
+	return e
 }
 
 func (e *Epoch) fromString(s string) error {
@@ -146,20 +145,55 @@ func (e *Epoch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return e.fromStructured(structured)
 }
 
+// IsZero checks whether a snap's epoch is not set (or is set to the default
+// value of "0").  Also zero are some epochs that would be normalized to "0",
+// such as {"read": 0}, as well as some invalid ones like {"read": []}.
+func (e *Epoch) IsZero() bool {
+	if e == nil {
+		return true
+	}
+
+	rZero := len(e.Read) == 0 || (len(e.Read) == 1 && e.Read[0] == 0)
+	wZero := len(e.Write) == 0 || (len(e.Write) == 1 && e.Write[0] == 0)
+
+	return rZero && wZero
+}
+
+func epochListEq(a, b []uint32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *Epoch) Equal(other *Epoch) bool {
+	if e.IsZero() {
+		return other.IsZero()
+	}
+	return epochListEq(e.Read, other.Read) && epochListEq(e.Write, other.Write)
+}
+
 // Validate checks that the epoch makes sense.
 func (e *Epoch) Validate() error {
-	if e == nil || (e.Read == nil && e.Write == nil) {
-		// (*Epoch)(nil) and &Epoch{} are valid epochs, equivalent to "0"
-		return nil
-	}
-	if len(e.Read) == 0 || len(e.Write) == 0 {
+	if (e.Read != nil && len(e.Read) == 0) || (e.Write != nil && len(e.Write) == 0) {
+		// these are invalid, but if both are true then IsZero will be true.
+		// In practice this check is redundant because it's caught in deserialise.
+		// Belts-and-suspenders all the way down.
 		return &EpochError{Message: emptyEpochList}
+	}
+	if e.IsZero() {
+		return nil
 	}
 	if len(e.Read) > 10 || len(e.Write) > 10 {
 		return &EpochError{Message: epochListJustRidiculouslyLong}
 	}
-	if !sort.IsSorted(uint32slice(e.Read)) || !sort.IsSorted(uint32slice(e.Write)) {
-		return &EpochError{Message: epochListNotSorted}
+	if !isIncreasing(e.Read) || !isIncreasing(e.Write) {
+		return &EpochError{Message: epochListNotIncreasing}
 	}
 
 	if intersect(e.Read, e.Write) {
@@ -169,7 +203,7 @@ func (e *Epoch) Validate() error {
 }
 
 func (e *Epoch) simplify() interface{} {
-	if e == nil || (e.Read == nil && e.Write == nil) {
+	if e.IsZero() {
 		return "0"
 	}
 	if len(e.Write) == 1 && len(e.Read) == 1 && e.Read[0] == e.Write[0] {
@@ -181,15 +215,22 @@ func (e *Epoch) simplify() interface{} {
 	return &structuredEpoch{Read: e.Read, Write: e.Write}
 }
 
-func (e *Epoch) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.simplify())
+func (e Epoch) MarshalJSON() ([]byte, error) {
+	se := &structuredEpoch{Read: e.Read, Write: e.Write}
+	if len(se.Read) == 0 {
+		se.Read = uint32slice{0}
+	}
+	if len(se.Write) == 0 {
+		se.Write = uint32slice{0}
+	}
+	return json.Marshal(se)
 }
 
 func (Epoch) MarshalYAML() (interface{}, error) {
 	panic("unexpected attempt to marshal an Epoch to YAML")
 }
 
-func (e *Epoch) String() string {
+func (e Epoch) String() string {
 	i := e.simplify()
 	if s, ok := i.(string); ok {
 		return s
@@ -206,7 +247,7 @@ func (e *Epoch) String() string {
 
 // CanRead checks whether this epoch can read the data written by the
 // other one.
-func (e *Epoch) CanRead(other *Epoch) bool {
+func (e *Epoch) CanRead(other Epoch) bool {
 	// the intersection between e.Read and other.Write needs to be non-empty
 
 	// normalize (empty epoch should be treated like "0" here)
@@ -214,9 +255,7 @@ func (e *Epoch) CanRead(other *Epoch) bool {
 	if e != nil {
 		rs = e.Read
 	}
-	if other != nil {
-		ws = other.Write
-	}
+	ws = other.Write
 	if len(rs) == 0 {
 		rs = []uint32{0}
 	}
@@ -257,7 +296,7 @@ const (
 	badEpochNumber                = "epoch numbers must be base 10 with no zero padding, but got %q"
 	badEpochList                  = "epoch read/write attributes must be lists of epoch numbers"
 	emptyEpochList                = "epoch list cannot be explicitly empty"
-	epochListNotSorted            = "epoch list must be in ascending order"
+	epochListNotIncreasing        = "epoch list must be a strictly increasing sequence"
 	epochListJustRidiculouslyLong = "epoch list must not have more than 10 entries"
 	noEpochIntersection           = "epoch read and write lists must have a non-empty intersection"
 )
@@ -282,10 +321,6 @@ func parseInt(s string) (uint32, error) {
 }
 
 type uint32slice []uint32
-
-func (ns uint32slice) Len() int           { return len(ns) }
-func (ns uint32slice) Less(i, j int) bool { return ns[i] < ns[j] }
-func (ns uint32slice) Swap(i, j int)      { panic("no reordering") }
 
 func (z *uint32slice) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var ss []string
@@ -319,6 +354,18 @@ func (z *uint32slice) UnmarshalJSON(bs []byte) error {
 	}
 	*z = x
 	return nil
+}
+
+func isIncreasing(z []uint32) bool {
+	if len(z) < 2 {
+		return true
+	}
+	for i := range z[1:] {
+		if z[i] >= z[i+1] {
+			return false
+		}
+	}
+	return true
 }
 
 type structuredEpoch struct {

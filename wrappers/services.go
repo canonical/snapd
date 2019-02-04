@@ -397,9 +397,9 @@ func genServiceFile(appInfo *snap.AppInfo) []byte {
 Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
-After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}{{if .After}} {{ stringsJoin .After " " }}{{end}}
 {{- if .Before}}
-Before={{ range .Before -}}{{.}} {{- end}}
+Before={{ stringsJoin .Before " "}}
 {{- end}}
 X-Snappy=yes
 
@@ -446,7 +446,11 @@ WantedBy={{.ServicesTarget}}
 {{- end}}
 `
 	var templateOut bytes.Buffer
-	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
+	tmpl := template.New("service-wrapper")
+	tmpl.Funcs(template.FuncMap{
+		"stringsJoin": strings.Join,
+	})
+	t := template.Must(tmpl.Parse(serviceTemplate))
 
 	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {

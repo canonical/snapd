@@ -350,24 +350,24 @@ func (s *RepositorySuite) TestPlug(c *C) {
 
 func (s *RepositorySuite) TestPlugSearch(c *C) {
 	addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
-		{Name: "x", Yaml: `
-name: x
+		{Name: "xx", Yaml: `
+name: xx
 version: 0
 plugs:
     a: interface
     b: interface
     c: interface
 `},
-		{Name: "y", Yaml: `
-name: y
+		{Name: "yy", Yaml: `
+name: yy
 version: 0
 plugs:
     a: interface
     b: interface
     c: interface
 `},
-		{Name: "z_instance", Yaml: `
-name: z
+		{Name: "zz_instance", Yaml: `
+name: zz
 version: 0
 plugs:
     a: interface
@@ -376,15 +376,15 @@ plugs:
 `},
 	})
 	// Plug() correctly finds plugs
-	c.Assert(s.testRepo.Plug("x", "a"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("x", "b"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("x", "c"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("y", "a"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("y", "b"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("y", "c"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("z_instance", "a"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("z_instance", "b"), Not(IsNil))
-	c.Assert(s.testRepo.Plug("z_instance", "c"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("xx", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("xx", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("xx", "c"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("yy", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("yy", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("yy", "c"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("zz_instance", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("zz_instance", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Plug("zz_instance", "c"), Not(IsNil))
 }
 
 // Tests for Repository.RemovePlug()
@@ -2450,4 +2450,47 @@ func (s *RepositorySuite) TestHotplugMethods(c *C) {
 	conns, err = s.testRepo.ConnectionsForHotplugKey("interface", "9999")
 	c.Assert(err, IsNil)
 	c.Check(conns, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestUpdateHotplugSlotAttrs(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	coreSlot := &snap.SlotInfo{
+		Snap:       s.coreSnap,
+		Name:       "dummy-slot",
+		Interface:  "interface",
+		HotplugKey: "1234",
+		Attrs:      map[string]interface{}{"a": "b"},
+	}
+	c.Assert(s.testRepo.AddSlot(coreSlot), IsNil)
+
+	slot, err := s.testRepo.UpdateHotplugSlotAttrs("interface", "unknownkey", nil)
+	c.Assert(err, ErrorMatches, `cannot find hotplug slot for interface interface and hotplug key "unknownkey"`)
+	c.Assert(slot, IsNil)
+
+	newAttrs := map[string]interface{}{"c": "d"}
+	slot, err = s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", newAttrs)
+	// attributes are copied, so this change shouldn't be visible
+	newAttrs["c"] = "tainted"
+	c.Assert(err, IsNil)
+	c.Assert(slot, NotNil)
+	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"c": "d"})
+	c.Assert(coreSlot.Attrs, DeepEquals, map[string]interface{}{"c": "d"})
+}
+
+func (s *RepositorySuite) TestUpdateHotplugSlotAttrsConnectedError(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	coreSlot := &snap.SlotInfo{
+		Snap:       s.coreSnap,
+		Name:       "dummy-slot",
+		Interface:  "interface",
+		HotplugKey: "1234",
+	}
+	c.Assert(s.testRepo.AddSlot(coreSlot), IsNil)
+
+	_, err := s.testRepo.Connect(NewConnRef(s.plug, coreSlot), nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	slot, err := s.testRepo.UpdateHotplugSlotAttrs("interface", "1234", map[string]interface{}{"c": "d"})
+	c.Assert(err, ErrorMatches, `internal error: cannot update slot dummy-slot while connected`)
+	c.Assert(slot, IsNil)
 }

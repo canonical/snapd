@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,8 +28,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"
@@ -185,6 +184,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	confinement := snap.StrictConfinement
 
 	typ := snap.TypeApp
+	epoch := snap.E("1*")
 	switch spec.Name {
 	case "core", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
@@ -196,6 +196,10 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeGadget
 	case "some-snapd":
 		typ = snap.TypeSnapd
+	case "some-snap-now-classic":
+		confinement = "classic"
+	case "some-epoch-snap":
+		epoch = snap.E("42")
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -216,6 +220,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		},
 		Confinement: confinement,
 		Type:        typ,
+		Epoch:       epoch,
 	}
 	switch spec.Channel {
 	case "channel-for-devmode":
@@ -252,6 +257,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	var name string
 
 	typ := snap.TypeApp
+	epoch := snap.E("1*")
 	switch cand.snapID {
 	case "":
 		panic("store refresh APIs expect snap-ids")
@@ -263,6 +269,13 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "services-snap"
 	case "some-snap-id":
 		name = "some-snap"
+	case "some-epoch-snap-id":
+		name = "some-epoch-snap"
+		epoch = snap.E("42")
+	case "some-snap-now-classic-id":
+		name = "some-snap-now-classic"
+	case "some-snap-was-classic-id":
+		name = "some-snap-was-classic"
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
@@ -305,6 +318,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "channel-for-devmode":
 		confinement = snap.DevModeConfinement
 	}
+	if name == "some-snap-now-classic" {
+		confinement = "classic"
+	}
 
 	info := &snap.Info{
 		Type: typ,
@@ -320,6 +336,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		},
 		Confinement:   confinement,
 		Architectures: []string{"all"},
+		Epoch:         epoch,
 	}
 	switch cand.channel {
 	case "channel-for-layout":
@@ -589,14 +606,24 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		op.sinfo = *si
 	}
 
-	var name string
+	var info *snap.Info
 	if !osutil.IsDirectory(snapFilePath) {
-		name = filepath.Base(snapFilePath)
+		name := filepath.Base(snapFilePath)
 		split := strings.Split(name, "_")
 		if len(split) >= 2 {
 			// <snap>_<rev>.snap
 			// <snap>_<instance-key>_<rev>.snap
 			name = split[0]
+		}
+
+		info = &snap.Info{SuggestedName: name, Architectures: []string{"all"}}
+		if name == "some-snap-now-classic" {
+			info.Confinement = "classic"
+		}
+		if name == "some-epoch-snap" {
+			info.Epoch = snap.E("42")
+		} else {
+			info.Epoch = snap.E("1*")
 		}
 	} else {
 		// for snap try only
@@ -605,15 +632,17 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 			return nil, nil, err
 		}
 
-		info, err := snap.ReadInfoFromSnapFile(snapf, si)
+		info, err = snap.ReadInfoFromSnapFile(snapf, si)
 		if err != nil {
 			return nil, nil, err
 		}
-		name = info.SuggestedName
 	}
 
+	if info == nil {
+		return nil, nil, fmt.Errorf("internal error: no mocked snap for %q", snapFilePath)
+	}
 	f.appendOp(&op)
-	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
+	return info, f.emptyContainer, nil
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
@@ -658,12 +687,15 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		Type:          snap.TypeApp,
+		Epoch:         snap.E("1*"),
 	}
 	if strings.Contains(snapName, "alias-snap") {
 		// only for the switch below
 		snapName = "alias-snap"
 	}
 	switch snapName {
+	case "some-epoch-snap":
+		info.Epoch = snap.E("13")
 	case "gadget":
 		info.Type = snap.TypeGadget
 	case "core":

@@ -16,7 +16,7 @@ internal tool for discarding preserved namespaces of snappy applications
 SYNOPSIS
 ========
 
-	snap-discard-ns SNAP_INSTANCE_NAME
+	snap-discard-ns [--from-snap-confine] SNAP_INSTANCE_NAME
 
 DESCRIPTION
 ===========
@@ -27,7 +27,8 @@ mount namespace of a particular snap.
 OPTIONS
 =======
 
-The `snap-discard-ns` program does not support any options.
+The --from-snap-confine option is used internally by snap-confine to tell
+snap-discard-ns that it is invoked from snap-confine and can disable locking.
 
 ENVIRONMENT
 ===========
@@ -50,7 +51,7 @@ FILES
     `snap-discard-ns`. The second form is for the per-user mount namespace.
 
 `/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.fstab`:
-`/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.*.fstab`:
+`/run/snapd/ns/snap.$SNAP_INSTNACE_NAME.*.user-fstab`:
 
     The current mount profile of a preserved mount namespace that is removed
     by `snap-discard-ns`.

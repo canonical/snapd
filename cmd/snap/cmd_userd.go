@@ -69,7 +69,7 @@ func (x *cmdUserd) Execute(args []string) error {
 	}
 	x.userd.Start()
 
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 3)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 	select {
 	case sig := <-ch:

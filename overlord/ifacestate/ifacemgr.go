@@ -71,7 +71,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	s.Lock()
 	ifacerepo.Replace(s, m.repo)
-
 	s.Unlock()
 
 	taskKinds := map[string]bool{}
@@ -88,10 +87,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("gadget-connect", m.doGadgetConnect, nil)
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
+	addHandler("hotplug-add-slot", m.doHotplugAddSlot, nil)
 	addHandler("hotplug-connect", m.doHotplugConnect, nil)
-	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 	addHandler("hotplug-update-slot", m.doHotplugUpdateSlot, nil)
 	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
+	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
+
+	// don't block on hotplug-seq-wait task
+	runner.AddHandler("hotplug-seq-wait", m.doHotplugSeqWait, nil)
 
 	// helper for ubuntu-core -> core
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
@@ -121,8 +124,8 @@ func (m *InterfaceManager) Ensure() error {
 	}
 
 	// don't initialize udev monitor until we have a system snap so that we
-	// can attach the hotplug interfaces to the core/snapd snap.
-	if err := ensureSystemSnapIsPresent(m.state); err != nil {
+	// can attach hotplug interfaces to it.
+	if !checkSystemSnapIsPresent(m.state) {
 		return nil
 	}
 
@@ -159,6 +162,39 @@ func (m *InterfaceManager) Stop() {
 // locks to ensure consistency.
 func (m *InterfaceManager) Repository() *interfaces.Repository {
 	return m.repo
+}
+
+type ConnectionState struct {
+	// Auto indicates whether the connection was established automatically
+	Auto bool
+	// ByGadget indicates whether the connection was trigged by the gadget
+	ByGadget bool
+	// Interface name of the connection
+	Interface string
+	// Undesired indicates whether the connection, otherwise established
+	// automatically, was explicitly disconnected
+	Undesired bool
+}
+
+// ConnectionStates return the state of connections tracked by the manager
+func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]ConnectionState, err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+	states, err := getConns(m.state)
+	if err != nil {
+		return nil, err
+	}
+
+	connStateByRef = make(map[string]ConnectionState, len(states))
+	for cref, cstate := range states {
+		connStateByRef[cref] = ConnectionState{
+			Auto:      cstate.Auto,
+			ByGadget:  cstate.ByGadget,
+			Interface: cstate.Interface,
+			Undesired: cstate.Undesired,
+		}
+	}
+	return connStateByRef, nil
 }
 
 // DisableUDevMonitor disables the instantiation of udev monitor, but has no effect

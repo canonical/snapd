@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,17 +29,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/feature.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
-#include "apparmor-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
-#include "quirks.h"
 #include "udev-support.h"
 #include "user-support.h"
 #include "cookie-support.h"
@@ -220,11 +220,13 @@ int main(int argc, char **argv)
 			sc_initialize_mount_ns();
 			sc_unlock(global_lock_fd);
 
-			// Find and open snap-update-ns from the same
-			// path as where we (snap-confine) were
-			// called.
+			// Find and open snap-update-ns and snap-discard-ns from the same
+			// path as where we (snap-confine) were called.
 			int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
 			snap_update_ns_fd = sc_open_snap_update_ns();
+			int snap_discard_ns_fd SC_CLEANUP(sc_cleanup_close) =
+			    -1;
+			snap_discard_ns_fd = sc_open_snap_discard_ns();
 
 			// Do per-snap initialization.
 			int snap_lock_fd = sc_lock_snap(snap_instance);
@@ -232,20 +234,22 @@ int main(int argc, char **argv)
 			      snap_instance);
 			struct sc_mount_ns *group = NULL;
 			group = sc_open_mount_ns(snap_instance);
+
+			/* Stale mount namespace discarded or no mount namespace to
+			   join. We need to construct a new mount namespace ourselves.
+			   To capture it we will need a helper process so make one. */
+			sc_fork_helper(group, &apparmor);
 			int retval = sc_join_preserved_ns(group, &apparmor,
 							  base_snap_name,
-							  snap_instance);
+							  snap_instance,
+							  snap_discard_ns_fd);
 			if (retval == ESRCH) {
-				/* Stale mount namespace discarded or no mount namespace to
-				   join. We need to construct a new mount namespace ourselves.
-				   To capture it we will need a helper process so make one. */
-				sc_fork_helper(group, &apparmor);
-
-				/* Create and Populate the mount namespace. This performs all
+				/* Create and populate the mount namespace. This performs all
 				   of the bootstrapping mounts, pivots into the new root
 				   filesystem and applies the per-snap mount profile using
 				   snap-update-ns. */
-				debug("unsharing the mount namespace");
+				debug
+				    ("unsharing the mount namespace (per-snap)");
 				if (unshare(CLONE_NEWNS) < 0) {
 					die("cannot unshare the mount namespace");
 				}
@@ -264,11 +268,43 @@ int main(int argc, char **argv)
 			sc_maybe_fixup_permissions();
 			sc_maybe_fixup_udev();
 
+			/* User mount profiles do not apply to non-root users. */
+			if (real_uid != 0) {
+				debug
+				    ("joining preserved per-user mount namespace");
+				retval =
+				    sc_join_preserved_per_user_ns(group,
+								  snap_instance);
+				if (retval == ESRCH) {
+					debug
+					    ("unsharing the mount namespace (per-user)");
+					if (unshare(CLONE_NEWNS) < 0) {
+						die("cannot unshare the mount namespace");
+					}
+					sc_setup_user_mounts(&apparmor,
+							     snap_update_ns_fd,
+							     snap_instance);
+					/* Preserve the mount per-user namespace. But only if the
+					 * experimental feature is enabled. This way if the feature is
+					 * disabled user mount namespaces will still exist but will be
+					 * entirely ephemeral. In addition the call
+					 * sc_join_preserved_user_ns() will never find a preserved
+					 * mount namespace and will always enter this code branch. */
+					if (sc_feature_enabled
+					    (SC_PER_USER_MOUNT_NAMESPACE)) {
+						sc_preserve_populated_per_user_mount_ns
+						    (group);
+					} else {
+						debug
+						    ("NOT preserving per-user mount namespace");
+					}
+				}
+			}
+
 			// Associate each snap process with a dedicated snap freezer
 			// control group. This simplifies testing if any processes
 			// belonging to a given snap are still alive.
 			// See the documentation of the function for details.
-
 			if (getegid() != 0 && saved_gid == 0) {
 				// Temporarily raise egid so we can chown the freezer cgroup
 				// under LXD.
@@ -283,10 +319,9 @@ int main(int argc, char **argv)
 				}
 			}
 
+
 			sc_unlock(snap_lock_fd);
 
-			sc_setup_user_mounts(&apparmor, snap_update_ns_fd,
-					     snap_instance);
 			sc_close_mount_ns(group);
 
 			// Reset path as we cannot rely on the path from the host OS to

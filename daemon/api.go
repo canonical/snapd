@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,6 +30,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -40,12 +42,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -55,6 +58,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -97,6 +101,7 @@ var api = []*Command{
 	warningsCmd,
 	debugCmd,
 	snapshotCmd,
+	connectionsCmd,
 }
 
 var (
@@ -416,7 +421,10 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	macaroon, discharge, err := store.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
+	overlord := c.d.overlord
+	st := overlord.State()
+	theStore := getStore(c)
+	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -463,20 +471,18 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// continue
 	}
-	overlord := c.d.overlord
-	state := overlord.State()
-	state.Lock()
+	st.Lock()
 	if user != nil {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
 		user.StoreDischarges = []string{discharge}
 		// user's email address authenticated by the store
 		user.Email = loginData.Email
-		err = auth.UpdateUser(state, user)
+		err = auth.UpdateUser(st, user)
 	} else {
-		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(st, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
-	state.Unlock()
+	st.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
@@ -684,6 +690,17 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
+		if e, ok := err.(*url.Error); ok {
+			if neterr, ok := e.Err.(*net.OpError); ok {
+				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
+					return SyncResponse(&resp{
+						Type:   ResponseTypeError,
+						Result: &errorResult{Message: dnserr.Error(), Kind: errorKindDNSFailure},
+						Status: 400,
+					}, nil)
+				}
+			}
+		}
 		if e, ok := err.(net.Error); ok && e.Timeout() {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
@@ -986,7 +1003,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 			msg = fmt.Sprintf(i18n.G("Refresh snaps %s: no updates"), strutil.Quoted(inst.Snaps))
 		} else {
-			msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
+			msg = i18n.G("Refresh all snaps: no updates")
 		}
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
@@ -1487,7 +1504,8 @@ out:
 	// we are in charge of the tempfile life cycle until we hand it off to the change
 	changeTriggered := false
 	// if you change this prefix, look for it in the tests
-	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
+	// also see localInstallCleanup in snapstate/snapmgr.go
+	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
@@ -1601,21 +1619,29 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	about, err := localSnapInfo(st, name)
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil {
-		if err == errNoSnap {
+		if err == state.ErrNoState {
 			return SnapNotFound(name, err)
 		}
-		return InternalError("%v", err)
+		return InternalError("cannot consult state: %v", err)
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		return NotFound("snap has no current revision")
 	}
 
-	path := filepath.Clean(snapIcon(about.info))
-	if !strings.HasPrefix(path, dirs.SnapMountDir) {
-		// XXX: how could this happen?
-		return BadRequest("requested icon is not in snap path")
+	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
+
+	if icon == "" {
+		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(path)
+	return FileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1772,57 +1798,15 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-
-	var ifjson interfaceJSON
-	plugConns := map[string][]interfaces.SlotRef{}
-	slotConns := map[string][]interfaces.PlugRef{}
-
-	for _, cref := range ifaces.Connections {
-		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
-		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
-		plugID := plugRef.String()
-		slotID := slotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], slotRef)
-		slotConns[slotID] = append(slotConns[slotID], plugRef)
+	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	if err != nil {
+		return InternalError("collecting connection information failed: %v", err)
 	}
-
-	for _, plug := range ifaces.Plugs {
-		var apps []string
-		for _, app := range plug.Apps {
-			apps = append(apps, app.Name)
-		}
-		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
-		pj := &plugJSON{
-			Snap:        plugRef.Snap,
-			Name:        plugRef.Name,
-			Interface:   plug.Interface,
-			Attrs:       plug.Attrs,
-			Apps:        apps,
-			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
-		}
-		ifjson.Plugs = append(ifjson.Plugs, pj)
+	legacyconnsjson := legacyConnectionsJSON{
+		Plugs: connsjson.Plugs,
+		Slots: connsjson.Slots,
 	}
-	for _, slot := range ifaces.Slots {
-		var apps []string
-		for _, app := range slot.Apps {
-			apps = append(apps, app.Name)
-		}
-		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
-		sj := &slotJSON{
-			Snap:        slotRef.Snap,
-			Name:        slotRef.Name,
-			Interface:   slot.Interface,
-			Attrs:       slot.Attrs,
-			Apps:        apps,
-			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
-		}
-		ifjson.Slots = append(ifjson.Slots, sj)
-	}
-	return SyncResponse(ifjson, nil)
+	return SyncResponse(legacyconnsjson, nil)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
@@ -1841,8 +1825,6 @@ func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 
 // changeInterfaces controls the interfaces system.
 // Plugs can be connected to and disconnected from slots.
-// When enableInternalInterfaceActions is true plugs and slots can also be
-// explicitly added and removed.
 func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
@@ -1851,9 +1833,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 	if a.Action == "" {
 		return BadRequest("interface action not specified")
-	}
-	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
-		return BadRequest("internal interface actions are disabled")
 	}
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
@@ -2181,12 +2160,20 @@ var (
 	postCreateUserUcrednetGet = ucrednetGet
 	runSnapctlUcrednetGet     = ucrednetGet
 	ctlcmdRun                 = ctlcmd.Run
-	storeUserInfo             = store.UserInfo
 	osutilAddUser             = osutil.AddUser
 )
 
-func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
-	v, err := storeUserInfo(email)
+func makeHttpClient(st *state.State) *http.Client {
+	proxyConf := proxyconf.New(st)
+	return httputil.NewHTTPClient(&httputil.ClientOptions{
+		Timeout:    10 * time.Second,
+		MayLogBody: true,
+		Proxy:      proxyConf.Conf,
+	})
+}
+
+func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
+	v, err := theStore.UserInfo(email)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
 	}
@@ -2409,7 +2396,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if createData.Known {
 		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(createData.Email)
+		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
@@ -2545,7 +2532,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts store.BuyOptions
+	var opts client.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&opts)
@@ -2796,7 +2783,12 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	return SyncResponse(clientAppInfosFromSnapAppInfos(appInfos), nil)
+	clientAppInfos, err := cmd.ClientAppInfosFromSnapAppInfos(appInfos)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(clientAppInfos, nil)
 }
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {

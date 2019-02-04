@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // Assumptions track the assumptions about the state of the filesystem.
@@ -178,7 +180,12 @@ func (rs *Restrictions) Check(dirFd int, dirName string) error {
 		// kind of base snap.
 		return fmt.Errorf("cannot recover from trespassing over /")
 	}
-	return &TrespassingError{ViolatedPath: dirName, DesiredPath: rs.desiredPath}
+	logger.Debugf("trespassing violated %q while striving to %q", dirName, rs.desiredPath)
+	logger.Debugf("restricted mode: %#v", rs.restricted)
+	logger.Debugf("unrestricted paths: %q", rs.assumptions.unrestrictedPaths)
+	logger.Debugf("verified devices: %v", rs.assumptions.verifiedDevices)
+	logger.Debugf("past changes: %v", rs.assumptions.pastChanges)
+	return &TrespassingError{ViolatedPath: filepath.Clean(dirName), DesiredPath: rs.desiredPath}
 }
 
 // Lift lifts write restrictions for the desired path.
@@ -244,10 +251,5 @@ func isPrivateTmpfsCreatedBySnapd(dirName string, fsData *syscall.Statfs_t, file
 			return change.Action == Mount
 		}
 	}
-	// TODO: As a special exception, assume that a tmpfs over /var/lib is
-	// trusted. This tmpfs is created by snap-confine as a "quirk" to support
-	// a particular behavior of LXD.  Once the quirk is migrated to a mount
-	// profile (or removed entirely if no longer necessary) the following code
-	// fragment can go away.
-	return dirName == "/var/lib"
+	return false
 }

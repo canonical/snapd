@@ -61,7 +61,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"force-managed": i18n.G("Force adding the user, even if the device is already managed"),
 		}, []argDesc{{
-			// TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
+			// TRANSLATORS: This is a noun and it needs to begin with < and end with >
 			name: i18n.G("<email>"),
 			// TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
 			desc: i18n.G("An email of a user on login.ubuntu.com"),

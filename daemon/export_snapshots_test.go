@@ -20,10 +20,10 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -33,10 +33,7 @@ import (
 )
 
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{
-		overlord:                       o,
-		enableInternalInterfaceActions: true,
-	}
+	d := &Daemon{overlord: o}
 	d.addRoutes()
 	return d
 }

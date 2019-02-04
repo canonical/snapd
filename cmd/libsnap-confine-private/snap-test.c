@@ -188,7 +188,7 @@ static void test_sc_snap_or_instance_name_validate(gconstpointer data)
 	sc_error_free(err);
 
 	const char *valid_names[] = {
-		"a", "aa", "aaa", "aaaa",
+		"aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2"
@@ -201,6 +201,8 @@ static void test_sc_snap_or_instance_name_validate(gconstpointer data)
 	const char *invalid_names[] = {
 		// name cannot be empty
 		"",
+		// too short
+		"a",
 		// names cannot be too long
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
@@ -317,8 +319,8 @@ static void test_sc_instance_name_validate(void)
 	sc_error_free(err);
 
 	const char *valid_names[] = {
-		"a", "aa", "aaa", "aaaa",
-		"a_a", "aa_1", "a_123", "a_0123456789",
+		"aa", "aaa", "aaaa",
+		"aa_a", "aa_1", "aa_123", "aa_0123456789",
 	};
 	for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
 		g_test_message("checking valid instance name: %s",
@@ -327,6 +329,8 @@ static void test_sc_instance_name_validate(void)
 		g_assert_null(err);
 	}
 	const char *invalid_names[] = {
+		// too short
+		"a",
 		// only letters and digits in the instance key
 		"a_--23))", "a_ ", "a_091234#", "a_123_456",
 		// up to 10 characters for the instance key

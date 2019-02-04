@@ -20,10 +20,12 @@
 package snapstate_test
 
 import (
+	"context"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -120,4 +122,29 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {
 	c.Check(s.store.ops, HasLen, 0)
 	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
+	// write a fake sections file just to have it
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSectionsFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapSectionsFile, nil, 0644), IsNil)
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	err := cr7.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 0)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {
+	// write a fake sections file just to have it
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSectionsFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapSectionsFile, nil, 0644), IsNil)
+	// but set the timestamp in the future
+	t := time.Now().Add(time.Hour)
+	c.Assert(os.Chtimes(dirs.SnapSectionsFile, t, t), IsNil)
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	err := cr7.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 }

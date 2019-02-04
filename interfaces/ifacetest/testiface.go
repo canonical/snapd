@@ -105,14 +105,16 @@ type TestInterface struct {
 	SystemdPermanentSlotCallback func(spec *systemd.Specification, slot *snap.SlotInfo) error
 }
 
-// TestHotplugInterface is a interface for various kind of tests needing hotplug-aware interface.
-// It is public so that it can be consumed from other packages.
+// TestHotplugInterface is an interface for various kinds of tests
+// needing a hotplug-aware interface.  It is public so that it can be
+// consumed from other packages.
 type TestHotplugInterface struct {
 	TestInterface
 
 	// Support for interacting with hotplug subsystem.
 	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error)
 	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error
+	HandledByGadgetCallback       func(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool
 }
 
 // String() returns the same value as Name().
@@ -424,4 +426,11 @@ func (t *TestHotplugInterface) HotplugDeviceDetected(deviceInfo *hotplug.Hotplug
 		return t.HotplugDeviceDetectedCallback(deviceInfo, spec)
 	}
 	return nil
+}
+
+func (t *TestHotplugInterface) HandledByGadget(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+	if t.HandledByGadgetCallback != nil {
+		return t.HandledByGadgetCallback(deviceInfo, slot)
+	}
+	return false
 }

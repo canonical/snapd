@@ -54,12 +54,12 @@ core device images.
 			"channel": i18n.G("The channel to use"),
 		}, []argDesc{
 			{
-				// TRANSLATORS: This needs to be wrapped in <>s.
+				// TRANSLATORS: This needs to begin with < and end with >
 				name: i18n.G("<model-assertion>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The model assertion name"),
 			}, {
-				// TRANSLATORS: This needs to be wrapped in <>s.
+				// TRANSLATORS: This needs to begin with < and end with >
 				name: i18n.G("<root-dir>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The output directory"),

@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -38,7 +39,7 @@ func init() {
 	supportedConfigurations["core.refresh.rate-limit"] = true
 }
 
-func validateRefreshSchedule(tr Conf) error {
+func validateRefreshSchedule(tr config.Conf) error {
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
@@ -117,7 +118,7 @@ func validateRefreshSchedule(tr Conf) error {
 	return err
 }
 
-func validateRefreshRateLimit(tr Conf) error {
+func validateRefreshRateLimit(tr config.Conf) error {
 	refreshRateLimit, err := coreCfg(tr, "refresh.rate-limit")
 	if err != nil {
 		return err

@@ -40,7 +40,7 @@ import (
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
-	// Not using WriteMountUnitFile() because we need
+	// Not using AddMountUnitFile() because we need
 	// "RequiredBy=snapd.service"
 	content := []byte(fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
@@ -167,8 +167,25 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		if bytes.Contains(snapdUnits[unit].Content, []byte("X-Snapd-Snap: do-not-start")) {
 			continue
 		}
-		if err := sysd.Restart(unit, 5*time.Second); err != nil {
+		// Ensure to only restart if the unit was previously
+		// active. This ensures we DTRT on firstboot and do
+		// not stop e.g. snapd.socket because doing that
+		// would mean that the snapd.seeded.service is also
+		// stopped (independently of snapd.socket being
+		// active) which confuses the boot order (the unit
+		// exists before we are fully seeded).
+		isActive, err := sysd.IsActive(unit)
+		if err != nil {
 			return err
+		}
+		if isActive {
+			if err := sysd.Restart(unit, 5*time.Second); err != nil {
+				return err
+			}
+		} else {
+			if err := sysd.Start(unit); err != nil {
+				return err
+			}
 		}
 	}
 	// and finally start snapd.service (it will stop by itself and gets
@@ -177,6 +194,13 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 	if err := sysd.StartNoBlock("snapd.seeded.service"); err != nil {
+		return err
+	}
+	// we cannot start snapd.autoimport in blocking mode because
+	// it has a "After=snapd.seeded.service" which means that on
+	// seeding a "systemctl start" that blocks would hang forever
+	// and we deadlock.
+	if err := sysd.StartNoBlock("snapd.autoimport.service"); err != nil {
 		return err
 	}
 

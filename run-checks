@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/sh -eu
 
-if [ "$TRAVIS_BUILD_NUMBER" ]; then
+if [ -n "${TRAVIS_BUILD_NUMBER:-}" ]; then
     echo travis_fold:start:env
     printenv | sort
     echo travis_fold:end:env
@@ -8,7 +8,6 @@ fi
 
 export LANG=C.UTF-8
 export LANGUAGE=en
-set -eu
 
 if command -v goctest >/dev/null; then
     goctest="goctest"
@@ -16,6 +15,9 @@ else
     goctest="go test"
 fi
 COVERMODE=${COVERMODE:-atomic}
+
+# ensure we use go-1.10 by default
+export PATH=/usr/lib/go-1.10/bin:${PATH}
 
 # add workaround for https://github.com/golang/go/issues/24449
 if [ "$(uname -m)" = "s390x" ]; then
@@ -34,13 +36,11 @@ short=
 STATIC=
 UNIT=
 SPREAD=
-DEPRECATED=
 
 case "${1:-all}" in
     all)
         STATIC=1
         UNIT=1
-        DEPRECATED=1
         ;;
     --static)
         STATIC=1
@@ -62,12 +62,15 @@ esac
 
 CURRENTTRAP="true"
 EXIT_CODE=99
+
 store_exit_code() {
     EXIT_CODE=$?
 }
+
 exit_with_exit_code() {
     exit $EXIT_CODE
 }
+
 addtrap() {
     CURRENTTRAP="$CURRENTTRAP ; $1"
     # shellcheck disable=SC2064
@@ -147,7 +150,7 @@ if [ "$STATIC" = 1 ]; then
 
     if [ -n "$fmt" ]; then
         echo "Formatting wrong in following files:"
-        echo "$fmt"
+        echo "$fmt" | sed -e 's/\\n/\n/g'
         exit 1
     fi
 
@@ -177,10 +180,10 @@ if [ "$STATIC" = 1 ]; then
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
             xargs shellcheck
-        regexp='GOPATH(?!%%:\*)(?!:)[^=]*/'
-        if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
+        regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
+        if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
-            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude-dir .git --exclude-dir vendor "$regexp"
+            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
             echo "Use GOHOME, or {GOPATH%%:*}, instead."
             exit 1
         fi
@@ -217,6 +220,8 @@ if [ "$STATIC" = 1 ]; then
 
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
+
+    # FIXME: re-add staticcheck with a matching version for the used go-version
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -260,15 +265,10 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread google:
+    spread google: google-upgrade:tests/upgrade/
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
-fi
-
-if [ "$DEPRECATED" = 1 ]; then
-    ./get-deps.sh
-
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true

@@ -337,8 +337,8 @@ func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target snap.snap.bar.service snap.snap.zed.service
-Before=snap.snap.foo.service
+After=%s-snap-44.mount network.target %s
+Before=%s
 X-Snappy=yes
 
 [Service]
@@ -353,7 +353,6 @@ Type=%s
 WantedBy=multi-user.target
 `
 
-	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SuggestedName: "snap",
@@ -375,21 +374,46 @@ WantedBy=multi-user.target
 					Snap:   &snap.Info{SuggestedName: "snap"},
 					Daemon: "forking",
 				},
+				"baz": {
+					Name:   "baz",
+					Snap:   &snap.Info{SuggestedName: "snap"},
+					Daemon: "forking",
+				},
 			},
 		},
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		Before:      []string{"foo"},
-		After:       []string{"bar", "zed"},
 		StopTimeout: timeout.DefaultTimeout,
 	}
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
-	c.Assert(err, IsNil)
+	for _, tc := range []struct {
+		after           []string
+		before          []string
+		generatedAfter  string
+		generatedBefore string
+	}{{
+		after:           []string{"bar", "zed"},
+		generatedAfter:  "snap.snap.bar.service snap.snap.zed.service",
+		before:          []string{"foo", "baz"},
+		generatedBefore: "snap.snap.foo.service snap.snap.baz.service",
+	}, {
+		after:           []string{"bar"},
+		generatedAfter:  "snap.snap.bar.service",
+		before:          []string{"foo"},
+		generatedBefore: "snap.snap.foo.service",
+	},
+	} {
+		c.Logf("tc: %v", tc)
+		service.After = tc.after
+		service.Before = tc.before
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+		c.Assert(err, IsNil)
 
-	c.Logf("service: \n%v\n", string(generatedWrapper))
-	c.Assert(string(generatedWrapper), Equals, expectedService)
+		expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix,
+			tc.generatedAfter, tc.generatedBefore, "on-failure", "simple")
+		c.Assert(string(generatedWrapper), Equals, expectedService)
+	}
 }
 
 func (s *servicesWrapperGenSuite) TestServiceTimerUnit(c *C) {

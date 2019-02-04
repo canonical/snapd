@@ -27,10 +27,12 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -45,7 +47,10 @@ var (
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs the named snaps in the system.
+The install command installs the named snaps on the system.
+
+To install multiple instances of the same snap, append an underscore and a
+unique identifier (for each instance) to a snap's name.
 
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement.
@@ -56,10 +61,12 @@ store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override, taking the snap
 back to the current revision of the channel it's tracking.
+
+Use --name to set the instance name when installing from snap file.
 `)
 
 var longRemoveHelp = i18n.G(`
-The remove command removes the named snap from the system.
+The remove command removes the named snap instance from the system.
 
 By default all the snap revisions are removed, including their data and the
 common data directory. When a --revision option is passed only the specified
@@ -251,6 +258,20 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 	return nil
 }
 
+// isSnapInPath checks whether the snap binaries dir (e.g. /snap/bin)
+// is in $PATH.
+//
+// TODO: consider symlinks
+func isSnapInPath() bool {
+	paths := filepath.SplitList(os.Getenv("PATH"))
+	for _, path := range paths {
+		if filepath.Clean(path) == dirs.SnapBinariesDir {
+			return true
+		}
+	}
+	return false
+}
+
 // show what has been done
 func showDone(cli *client.Client, names []string, op string, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
@@ -258,6 +279,7 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 		return err
 	}
 
+	needsPathWarning := !isSnapInPath()
 	for _, snap := range snaps {
 		channelStr := ""
 		if snap.Channel != "" && snap.Channel != "stable" {
@@ -265,6 +287,13 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 		}
 		switch op {
 		case "install":
+			if needsPathWarning {
+				head := i18n.G("Warning:")
+				warn := fill(fmt.Sprintf(i18n.G("%s was not found in your $PATH. If you've not restarted your session since you installed snapd, try doing that. Please see https://forum.snapcraft.io/t/9469 for more details."), dirs.SnapBinariesDir), utf8.RuneCountInString(head)+1) // +1 for the space
+				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
+				needsPathWarning = false
+			}
+
 			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
@@ -348,7 +377,7 @@ type cmdInstall struct {
 
 	Unaliased bool `long:"unaliased"`
 
-	Name string `long:"name" hidden:"yes"`
+	Name string `long:"name"`
 
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
@@ -941,7 +970,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unaliased": i18n.G("Install the given snap without enabling its automatic aliases"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"name": i18n.G("Install the snap file under given snap name"),
+			"name": i18n.G("Install the snap file under the given instance name"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{

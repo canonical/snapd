@@ -56,6 +56,22 @@ bool sc_endswith(const char *str, const char *suffix)
 	return strncmp(str - xlen + slen, suffix, xlen) == 0;
 }
 
+char *sc_strdup(const char *str)
+{
+	size_t len;
+	char *copy;
+	if (str == NULL) {
+		die("cannot duplicate NULL string");
+	}
+	len = strlen(str);
+	copy = malloc(len + 1);
+	if (copy == NULL) {
+		die("cannot allocate string copy (len: %zd)", len);
+	}
+	memcpy(copy, str, len + 1);
+	return copy;
+}
+
 int sc_must_snprintf(char *str, size_t size, const char *format, ...)
 {
 	int n;

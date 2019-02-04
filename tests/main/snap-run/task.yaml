@@ -10,9 +10,6 @@ prepare: |
     install_local basic-run
     install_local test-snapd-tools
 
-restore: |
-    rm -f stdout stderr
-    
 debug:
     cat stderr
 
@@ -62,3 +59,8 @@ execute: |
        MATCH hello < stdout
     fi
 
+    snap run --trace-exec test-snapd-tools.echo hello 2> stderr
+    MATCH "Slowest [0-9]+ exec calls during snap run" < stderr
+    MATCH "  [0-9.]+s .*/snap-exec" < stderr
+    MATCH "  [0-9.]+s .*/snap-confine" < stderr
+    MATCH "Total time: [0-9.]+s" < stderr

@@ -51,7 +51,7 @@ func main() {
 	s := &http.Server{Handler: http.HandlerFunc(handle)}
 	go s.Serve(l)
 
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -539,7 +539,7 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 	}}
 
 	for i, scenario := range changeProfileScenarios {
-		restore = apparmor.MockParserFeatures(func() []string { return scenario.features })
+		restore = apparmor.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
 		defer restore()
 
 		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, "", ifacetest.SambaYamlV1, 1)
@@ -673,10 +673,45 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
 	c.Check(profile, testutil.FileEquals, "\n#classic"+commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n")
 }
 
+func (s *backendSuite) TestCombineSnippetsArchOldIDSufficientHardened(c *C) {
+	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "arch", IDLike: []string{"archlinux"}})
+	defer restore()
+	restore = osutil.MockKernelVersion("4.18.2.a-1-hardened")
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
+		"#classic\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreClassicTemplate()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("snippet")
+		return nil
+	}
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
+}
+
 func (s *backendSuite) TestCombineSnippetsArchSufficientHardened(c *C) {
 	restore := release.MockAppArmorLevel(release.PartialAppArmor)
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "arch"})
+	restore = release.MockReleaseInfo(&release.OS{ID: "archlinux"})
 	defer restore()
 	restore = osutil.MockKernelVersion("4.18.2.a-1-hardened")
 	defer restore()
@@ -904,6 +939,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -937,6 +976,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS2(c *C) {
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileFname string) {
 	// Make it appear as if NFS workaround was needed.
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -996,6 +1039,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -1037,6 +1084,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, fmt.Errorf("broken") })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -1073,6 +1124,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
 	// Intercept interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
@@ -1100,6 +1155,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	// Make it appear as if NFS workaround was needed.
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
@@ -1156,6 +1215,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 
 	// Make it appear as if NFS workaround was not needed.
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
@@ -1442,9 +1505,9 @@ func (s *backendSuite) TestNsProfile(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:full", "policy:default"})
@@ -1457,9 +1520,9 @@ func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
 	defer restore()
 	restore = osutil.MockKernelVersion("4.16.10-1-default")
 	defer restore()
-	restore = apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
-	restore = apparmor.MockParserFeatures(func() []string { return []string{"baz", "norf"} })
+	restore = apparmor.MockParserFeatures(func() ([]string, error) { return []string{"baz", "norf"}, nil })
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:partial", "policy:default"})
@@ -1506,6 +1569,7 @@ func (s *backendSuite) TestDowngradeConfinement(c *C) {
 		{"opensuse-tumbleweed", "4.14.1-default", true},
 		{"arch", "4.18.2.a-1-hardened", false},
 		{"arch", "4.18.8-arch1-1-ARCH", false},
+		{"archlinux", "4.18.2.a-1-hardened", false},
 	} {
 		c.Logf("trying: %+v", tc)
 		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})
@@ -1657,6 +1721,48 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 		} else {
 			c.Assert(string(data), Not(testutil.Contains), needle)
 		}
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestHomeIxRule(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\nneedle rwkl###HOME_IX###,\n")
+	defer restoreTemplate()
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	for _, tc := range []struct {
+		opts     interfaces.ConfinementOptions
+		suppress bool
+		expected string
+	}{
+		{
+			opts:     interfaces.ConfinementOptions{},
+			suppress: true,
+			expected: "needle rwkl,",
+		},
+		{
+			opts:     interfaces.ConfinementOptions{},
+			suppress: false,
+			expected: "needle rwklix,",
+		},
+	} {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+			if tc.suppress {
+				spec.SetSuppressHomeIx()
+			}
+			spec.AddSnippet("needle rwkl###HOME_IX###,")
+			return nil
+		}
+
+		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := ioutil.ReadFile(profile)
+		c.Assert(err, IsNil)
+
+		c.Assert(string(data), testutil.Contains, tc.expected)
 		s.RemoveSnap(c, snapInfo)
 	}
 }

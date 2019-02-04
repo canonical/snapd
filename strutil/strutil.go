@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 func init() {
@@ -181,4 +182,19 @@ func CommaSeparatedList(str string) []string {
 		}
 	}
 	return filtered
+}
+
+// ElliptRight returns a string that is at most n runes long,
+// replacing the last rune with an ellipsis if necessary. If N is less
+// than 1 it's treated as a 1.
+func ElliptRight(str string, n int) string {
+	if n < 1 {
+		n = 1
+	}
+	if utf8.RuneCountInString(str) <= n {
+		return str
+	}
+
+	// this is expensive; look into a cheaper way maybe sometime
+	return string([]rune(str)[:n-1]) + "…"
 }

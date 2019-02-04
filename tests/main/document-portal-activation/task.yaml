@@ -17,7 +17,7 @@ description: |
 # Disabled on Ubuntu Core because it doesn't provide the "desktop"
 # slot, and Amazon Linux because it doesn't have the required Python 3
 # packages to run the test.
-systems: [ "-ubuntu-core-*", "-amazon-linux-2-*" ]
+systems: [ -ubuntu-core-*, -amazon-linux-2-*, -centos-* ]
 
 environment:
     XDG_RUNTIME_DIR: /run/user/$(id -u)
@@ -38,8 +38,6 @@ restore: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     [ -f dbus-launch.pid ] && kill "$(cat dbus-launch.pid)"
-    rm -f dbus-launch.pid
-    rm -f stderr.log doc-portal.log report-error.txt
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     distro_purge_package python3-dbus python3-gi
     distro_auto_remove_packages

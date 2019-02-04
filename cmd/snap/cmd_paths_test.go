@@ -58,12 +58,29 @@ func (s *SnapSuite) TestPathsFedora(c *C) {
 }
 
 func (s *SnapSuite) TestPathsArch(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{IDLike: []string{"arch"}})
-	defer restore()
 	defer dirs.SetRootDir("/")
+
+	// old /etc/os-release contents
+	restore := release.MockReleaseInfo(&release.OS{ID: "arch", IDLike: []string{"archlinux"}})
+	defer restore()
 
 	dirs.SetRootDir("/")
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, ""+
+		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
+		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+
+		"SNAPD_LIBEXEC=/usr/lib/snapd\n")
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+
+	// new contents, as set by filesystem-2018.12-1
+	restore = release.MockReleaseInfo(&release.OS{ID: "archlinux"})
+	defer restore()
+
+	dirs.SetRootDir("/")
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+

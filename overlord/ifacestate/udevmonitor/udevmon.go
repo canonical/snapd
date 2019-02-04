@@ -40,7 +40,7 @@ type DeviceAddedFunc func(device *hotplug.HotplugDeviceInfo)
 type DeviceRemovedFunc func(device *hotplug.HotplugDeviceInfo)
 type EnumerationDoneFunc func()
 
-// Monitor monitors kernel uevents making it possible to find USB devices.
+// Monitor monitors kernel uevents making it possible to find hotpluggable devices.
 type Monitor struct {
 	tomb            tomb.Tomb
 	deviceAdded     DeviceAddedFunc

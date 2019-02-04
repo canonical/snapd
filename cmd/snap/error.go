@@ -41,7 +41,9 @@ import (
 
 var errorPrefix = i18n.G("error: %v\n")
 
-func termSize() (width, height int) {
+var termSize = termSizeImpl
+
+func termSizeImpl() (width, height int) {
 	if f, ok := Stdout.(*os.File); ok {
 		width, height, _ = terminal.GetSize(int(f.Fd()))
 	}
@@ -191,6 +193,8 @@ usually confined to, which may put your system at risk.
 
 If you understand and want to proceed repeat the command including --classic.
 `)
+	case client.ErrorKindSnapNotClassic:
+		msg = i18n.G(`snap %q is not compatible with --classic`)
 	case client.ErrorKindLoginRequired:
 		usesSnapName = false
 		u, _ := user.Current()

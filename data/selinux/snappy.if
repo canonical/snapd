@@ -256,18 +256,18 @@ interface(`snappy_stream_connect',`
 ## <rolecap/>
 #
 
-interface(`snappy_admin',
-         gen_require(`
-                 type snappy_t, snappy_config_t; 
-                 type snappy_var_run_t;
-         ')
+interface(`snappy_admin',`
+	gen_require(`
+		type snappy_t, snappy_config_t;
+		type snappy_var_run_t;
+	')
 
-         allow $1 snappy_t:process signal_perms;
+	allow $1 snappy_t:process signal_perms;
 
-         ps_process_pattern($1, snappy_t);
+	ps_process_pattern($1, snappy_t);
 
-         admin_pattern($1, snappy_config_t);
+	admin_pattern($1, snappy_config_t);
 
-         files_list_pids($1, snappy_var_run_t);
-         admin_pattern($1, snappy_var_run_t);
+	files_list_pids($1, snappy_var_run_t);
+	admin_pattern($1, snappy_var_run_t);
 ')
