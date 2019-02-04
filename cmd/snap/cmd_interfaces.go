@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -74,7 +75,11 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	ifaces, err := x.client.Connections()
+	opts := client.ConnectionOptions{
+		All:  true,
+		Snap: x.Positionals.Query.Snap,
+	}
+	ifaces, err := x.client.Connections(&opts)
 	if err != nil {
 		return err
 	}
@@ -86,7 +91,6 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	fmt.Fprintln(w, i18n.G("Slot\tPlug"))
 
 	wantedSnap := x.Positionals.Query.Snap
-
 	for _, slot := range ifaces.Slots {
 		if wantedSnap != "" {
 			var ok bool

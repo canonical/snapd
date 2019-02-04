@@ -38,14 +38,16 @@ type Channel struct {
 	Branch       string `json:"branch,omitempty"`
 }
 
-// ParseChannel parses a string representing a store channel and includes the given architecture, if architecture is "" the system architecture is included.
-func ParseChannel(s string, architecture string) (Channel, error) {
+// ParseChannelVerbatim parses a string representing a store channel and
+// includes the given architecture, if architecture is "" the system
+// architecture is included. The channel representation is not normalized.
+// ParseChannel() should be used in most cases.
+func ParseChannelVerbatim(s string, architecture string) (Channel, error) {
 	if s == "" {
 		return Channel{}, fmt.Errorf("channel name cannot be empty")
 	}
 	p := strings.Split(s, "/")
 	var risk, track, branch *string
-	stableRisk := "stable"
 	switch len(p) {
 	default:
 		return Channel{}, fmt.Errorf("channel name has too many components: %s", s)
@@ -62,7 +64,6 @@ func ParseChannel(s string, architecture string) (Channel, error) {
 			risk = &p[0]
 		} else {
 			track = &p[0]
-			risk = &stableRisk
 		}
 	}
 
@@ -93,19 +94,34 @@ func ParseChannel(s string, architecture string) (Channel, error) {
 		ch.Branch = *branch
 	}
 
-	return ch.Clean(), nil
+	return ch, nil
 }
 
-// Clean returns a Channel with a normalized track and name.
+// ParseChannel parses a string representing a store channel and includes given
+// architecture, , if architecture is "" the system architecture is included.
+// The returned channel's track, risk and name are normalized.
+func ParseChannel(s string, architecture string) (Channel, error) {
+	channel, err := ParseChannelVerbatim(s, architecture)
+	if err != nil {
+		return Channel{}, err
+	}
+	return channel.Clean(), nil
+}
+
+// Clean returns a Channel with a normalized track, risk and name.
 func (c Channel) Clean() Channel {
 	track := c.Track
+	risk := c.Risk
 
 	if track == "latest" {
 		track = ""
 	}
+	if risk == "" {
+		risk = "stable"
+	}
 
 	// normalized name
-	name := c.Risk
+	name := risk
 	if track != "" {
 		name = track + "/" + name
 	}
@@ -117,7 +133,7 @@ func (c Channel) Clean() Channel {
 		Architecture: c.Architecture,
 		Name:         name,
 		Track:        track,
-		Risk:         c.Risk,
+		Risk:         risk,
 		Branch:       c.Branch,
 	}
 }
