@@ -40,18 +40,19 @@ type cmdConnections struct {
 
 var shortConnectionsHelp = i18n.G("List interface connections")
 var longConnectionsHelp = i18n.G(`
-List connections between slots and plugs. When passed an optional
-snap name, lists connection only for that snap.
+List connections between plugs and slots. When passed an optional
+snap name, lists connected and unconnected plugs and slots for
+that snap only.
 
-Pass -a to list unconnected slots/plugs as well.
+Pass --all to list connected and unconnected plugs and slots.
 `)
 
 func init() {
 	addCommand("connections", shortConnectionsHelp, longConnectionsHelp, func() flags.Commander {
 		return &cmdConnections{}
 	}, map[string]string{
-		"all":          i18n.G("Show all connections"),
-		"disconnected": i18n.G("Show disconnected connections"),
+		"all":          i18n.G("Show connected and unconnected plugs and slots"),
+		"disconnected": i18n.G("Show disconnected plugs and slots"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: i18n.G("<snap>"),
