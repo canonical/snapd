@@ -151,7 +151,7 @@ func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string, publisher st
 		"publisher-id": publisher,
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
-	c.Assert(err, IsNil)
+	c.Assert(err, IsNil, Commentf("%s %s", snapName, publisher))
 	err = s.storeSigning.Add(decl)
 	c.Assert(err, IsNil)
 
@@ -223,6 +223,11 @@ version: 1.0
 type: gadget
 base: core18
 `
+const packageClassicGadget = `
+name: classic-gadget
+version: 1.0
+type: gadget
+`
 
 const packageKernel = `
 name: pc-kernel
@@ -259,6 +264,13 @@ name: devmode-snap
 version: 1.0
 type: app
 confinement: devmode
+`
+
+const classicSnap = `
+name: classic-snap
+version: 1.0
+type: app
+confinement: classic
 `
 
 const requiredSnap1 = `
@@ -545,10 +557,12 @@ func (s *imageSuite) TestDownloadUnpackGadgetFromTrack(c *C) {
 }
 
 func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[string]string) {
-	err := os.MkdirAll(gadgetUnpackDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+	if gadgetUnpackDir != "" {
+		err := os.MkdirAll(gadgetUnpackDir, 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
+		c.Assert(err, IsNil)
+	}
 
 	if _, ok := publishers["pc"]; ok {
 		s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, [][]string{{"grub.cfg", "I'm a grub.cfg"}})
@@ -561,9 +575,17 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 		s.addSystemSnapAssertions(c, "pc18", publishers["pc18"])
 	}
 
-	s.downloadedSnaps["pc-kernel"] = snaptest.MakeTestSnapWithFiles(c, packageKernel, nil)
-	s.storeSnapInfo["pc-kernel"] = infoFromSnapYaml(c, packageKernel, snap.R(2))
-	s.addSystemSnapAssertions(c, "pc-kernel", publishers["pc-kernel"])
+	if _, ok := publishers["classic-gadget"]; ok {
+		s.downloadedSnaps["classic-gadget"] = snaptest.MakeTestSnapWithFiles(c, packageClassicGadget, [][]string{{"some-file", "Some file"}})
+		s.storeSnapInfo["classic-gadget"] = infoFromSnapYaml(c, packageClassicGadget, snap.R(5))
+		s.addSystemSnapAssertions(c, "classic-gadget", publishers["classic-gadget"])
+	}
+
+	if _, ok := publishers["pc-kernel"]; ok {
+		s.downloadedSnaps["pc-kernel"] = snaptest.MakeTestSnapWithFiles(c, packageKernel, nil)
+		s.storeSnapInfo["pc-kernel"] = infoFromSnapYaml(c, packageKernel, snap.R(2))
+		s.addSystemSnapAssertions(c, "pc-kernel", publishers["pc-kernel"])
+	}
 
 	s.downloadedSnaps["core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
 	s.storeSnapInfo["core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
@@ -869,6 +891,34 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		DevMode:    true,
 		Unasserted: true,
 	})
+}
+
+func (s *imageSuite) TestBootstrapToRootDirWithClassicSnapFails(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	s.downloadedSnaps["classic-snap"] = snaptest.MakeTestSnapWithFiles(c, classicSnap, nil)
+	s.storeSnapInfo["classic-snap"] = infoFromSnapYaml(c, classicSnap, snap.R(0))
+
+	opts := &image.Options{
+		Snaps: []string{s.downloadedSnaps["classic-snap"]},
+
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+		Channel:         "beta",
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot use classic snap "classic-snap" in a core system`)
 }
 
 func (s *imageSuite) TestBootstrapWithBase(c *C) {
@@ -1186,6 +1236,95 @@ func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 		Channel:   "x/x/x/x",
 	})
 	c.Assert(err, ErrorMatches, `cannot use channel: channel name has too many components: x/x/x/x`)
+}
+
+func (s *imageSuite) TestPrepareClassicModeNoClassicModel(c *C) {
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		Classic:   true,
+		ModelFile: fn,
+	})
+	c.Assert(err, ErrorMatches, "cannot prepare the image for a core model with --classic mode specified")
+}
+
+func (s *imageSuite) TestPrepareClassicModelNoClassicMode(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"classic":      "true",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+	})
+	c.Assert(err, ErrorMatches, "--classic mode is required to prepare the image for a classic model")
+}
+
+func (s *imageSuite) TestPrepareClassicModelArchOverrideFails(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"classic":      "true",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		Classic:             true,
+		ModelFile:           fn,
+		ClassicArchitecture: "i386",
+	})
+	c.Assert(err, ErrorMatches, "cannot override model architecture: amd64")
+}
+
+func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"classic":      "true",
+		"gadget":       "classic-gadget",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		Classic:   true,
+		ModelFile: fn,
+	})
+	c.Assert(err, ErrorMatches, "cannot have snaps for a classic image without an architecture in the model or from --classic-arch")
 }
 
 func (s *imageSuite) TestBootstrapWithKernelAndGadgetTrack(c *C) {
@@ -1682,6 +1821,204 @@ func (s *imageSuite) TestMissingLocalSnaps(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, ErrorMatches, "local snap i-am-missing.snap not found")
 	c.Assert(local, IsNil)
+}
+
+func (s *imageSuite) TestBootstrapToRootDirClassic(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// classic model with gadget etc
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"classic":        "true",
+		"architecture":   "amd64",
+		"gadget":         "classic-gadget",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	s.setupSnaps(c, "", map[string]string{
+		"classic-gadget": "my-brand",
+	})
+
+	opts := &image.Options{
+		Classic: true,
+		RootDir: rootdir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 3)
+
+	// check the files are in place
+	for i, name := range []string{"core", "classic-gadget", "required-snap1"} {
+		unasserted := false
+		info := s.storeSnapInfo[name]
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
+			Name:       info.InstanceName(),
+			SnapID:     info.SnapID,
+			File:       fn,
+			Contact:    info.Contact,
+			Unasserted: unasserted,
+		})
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 3)
+
+	// check that the  bootloader is unset
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snap_core":   "",
+		"snap_kernel": "",
+	})
+
+	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image`)
+
+	// no blob dir created
+	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
+	c.Check(osutil.FileExists(blobdir), Equals, false)
+}
+
+func (s *imageSuite) TestBootstrapToRootDirClassicWithClassicSnap(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// classic model
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"classic":      "true",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	s.setupSnaps(c, "", nil)
+
+	s.downloadedSnaps["classic-snap"] = snaptest.MakeTestSnapWithFiles(c, classicSnap, nil)
+	s.storeSnapInfo["classic-snap"] = infoFromSnapYaml(c, classicSnap, snap.R(0))
+
+	opts := &image.Options{
+		Classic: true,
+		Snaps:   []string{s.downloadedSnaps["classic-snap"]},
+		RootDir: rootdir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 2)
+
+	p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", "core_3.snap")
+	c.Check(osutil.FileExists(p), Equals, true)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:   "core",
+		SnapID: "core-Id",
+		File:   "core_3.snap",
+	})
+
+	p = filepath.Join(rootdir, "var/lib/snapd/seed/snaps", "classic-snap_x1.snap")
+	c.Check(osutil.FileExists(p), Equals, true)
+	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		Name:       "classic-snap",
+		File:       "classic-snap_x1.snap",
+		Classic:    true,
+		Unasserted: true,
+	})
+
+	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+
+	// check that the  bootloader is unset
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snap_core":   "",
+		"snap_kernel": "",
+	})
+}
+
+func (s *imageSuite) TestBootstrapToRootDirClassicNoSnaps(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// classic model with gadget etc
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"classic":      "true",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+
+	opts := &image.Options{
+		Classic: true,
+		RootDir: rootdir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 0)
+
+	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+
+	// check that the  bootloader is unset
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snap_core":   "",
+		"snap_kernel": "",
+	})
+
+	// no blob dir created
+	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
+	c.Check(osutil.FileExists(blobdir), Equals, false)
 }
 
 type toolingAuthContextSuite struct {
