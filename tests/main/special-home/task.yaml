@@ -1,4 +1,4 @@
-summary: Check that Jenkins user can run snaps
+summary: Check that Jenkins user can run confined and classic snaps
 systems: [ubuntu-16.04-64]
 environment:
     SPECIAL_USER_NAME/jenkins: jenkins
@@ -6,6 +6,7 @@ prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
+    install_local test-snapd-classic-confinement
     # Install the corresponding package that brings the special user account.
     # Specialize the code as required for a particular user.
     case "$SPECIAL_USER_NAME" in
@@ -24,8 +25,7 @@ restore: |
     # Remove the package we installed above.
     case "$SPECIAL_USER_NAME" in
         jenkins)
-            apt-get remove --purge -y jenkins default-jre-headless
-            apt-get autoremove --purge -y
+            apt autoremove --purge -y jenkins default-jre-headless
             rm -f /etc/apt/sources.list.d/jenkins.list
             apt-get update
             # TODO: remove the apt key added above, but how?
@@ -35,3 +35,4 @@ execute: |
     #shellcheck disable=SC2016
     su -c sh -c 'echo $HOME' "$SPECIAL_USER_NAME" | MATCH "/var/lib/$SPECIAL_USER_NAME"
     su -c 'snap run test-snapd-sh -c /bin/true' "$SPECIAL_USER_NAME"
+    su -c 'snap run test-snapd-classic-confinement.sh -c /bin/true' "$SPECIAL_USER_NAME"
