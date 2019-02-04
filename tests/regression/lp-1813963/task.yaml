@@ -1,4 +1,9 @@
 summary: "regression test for LP: #1813963"
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+
+backends: [-external]
+
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
@@ -23,35 +28,8 @@ prepare: |
     # Nothing should have been denied yet.
     test "$(dmesg | grep -c DENIED)" -eq 0
 
-    # Check if we have apparmor support. When there is no apparmor we don't
-    # need special profile changes below.
-    if snap debug sandbox-features | grep -q apparmor; then
-        apparmor=yes
-    else
-        apparmor=no
-    fi
-
     systemctl stop snapd.service
     echo "snapd has been stopped" | systemd-cat
-
-    if [ "$apparmor" = yes ]; then
-        # Because we are about to replace snap-update-ns with a script we also need
-        # to adjust the per-snap apparmor profile of snap-update-ns to convey
-        # additional permissions about executing as a script.
-        for SUN_AA in /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-sh /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-simple-service; do
-            truncate --size=-2 "$SUN_AA"  # chop trailing }
-            profile="$(basename "$SUN_AA")"
-            {
-                echo '  /bin/dash mrix,'
-                echo '  /bin/sleep mrix,'
-                echo "  $(pwd)"'/real-snap-update-ns mrix,'
-                echo '  signal (send, receive) set=(int, pipe) peer='"$profile"','
-                echo '}'
-            } >> "$SUN_AA"
-            apparmor_parser -r "$SUN_AA"
-        done
-        echo "snap-update-ns profiles have been replaced" | systemd-cat
-    fi
 
     # Replace snap-update-ns with a fake version that waits for the given
     # amount of time before doing its real work. Since snap-update-ns doesn't
@@ -59,11 +37,17 @@ prepare: |
     # baked-in from the outside.
     cp "$LIBEXECDIR/snapd/snap-update-ns" ./real-snap-update-ns
 
-    echo '#!/bin/sh -x' > fake-snap-update-ns
-    # 31 seconds is one second longer than the sanity timeout.
-    echo 'sleep 31' >> fake-snap-update-ns
-    echo 'exec "'"$(pwd)/real-snap-update-ns"'" "$@"' >> fake-snap-update-ns
-    chmod 0755 fake-snap-update-ns
+    # We could install our own go here via `snap install go --classic`
+    # but instead we just run this on systems (via systems above) that
+    # already have go. Doing this as a shell script is tricky and requires
+    # modifying sc_call_snapd_tool_with_apparmor() so that ~FDCLOEXEC is
+    # cleaned which is not what we want.
+    cat >fake-snap-update-ns.go <<EOF
+    package main
+    import "time"
+    func main() { time.Sleep(31*time.Second) }
+    EOF
+    go build fake-snap-update-ns.go
 
     # Replace snap-update-ns in all the places it might exist in.
     mount --bind ./fake-snap-update-ns "$LIBEXECDIR/snapd/snap-update-ns"
