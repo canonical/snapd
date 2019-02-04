@@ -18,15 +18,17 @@ execute: |
     . /etc/os-release
     # ensure /usr/local/{,s}bin is still part of the PATH, LP: 1814355
     systemd-run --pty --wait '/usr/bin/env' | MATCH 'PATH=.*/local/.*'
-    # Only 18.10+ is fully working with the systemd generator so fo
-    # 18.04 we need to stop here until LP: #1771858 is fixed.
+    systemd-run --pty --wait '/usr/bin/env' > env.out
     if [ "$VERSION_ID" = "18.04" ];then
-        # FIXME: remove this check once LP: #1771858 is fixed
+        # Only 18.10+ is fully working with the systemd generator, so for 18.04
+        # we account for /snap/bin not being in the PATH, until LP: #1771858 is
+        # fixed.
+        ! MATCH 'PATH=.*/snap/bin' < env.out
         exit 0
+    else
+        # ensure /snap/bin is part of the PATH
+        MATCH 'PATH=.*:/snap/bin.*' < env.out
     fi
-    # ensure /snap/bin is part of the PATH
-    systemd-run --pty --wait '/usr/bin/env' | MATCH 'PATH=.*:/snap/bin.*'
-
 
     # some unit tests
     SENV=/usr/lib/systemd/system-environment-generators/snapd-env-generator
