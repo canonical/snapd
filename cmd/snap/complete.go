@@ -296,7 +296,10 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	parts := strings.SplitN(match, ":", 2)
 
 	// Ask snapd about available interfaces.
-	ifaces, err := mkClient().Connections()
+	opts := client.ConnectionOptions{
+		All: true,
+	}
+	ifaces, err := mkClient().Connections(&opts)
 	if err != nil {
 		return nil
 	}
