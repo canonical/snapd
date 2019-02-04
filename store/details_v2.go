@@ -22,6 +22,7 @@ package store
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
@@ -84,10 +85,11 @@ type storeSnapMedia struct {
 
 // storeInfoChannel is the channel description included in info results
 type storeInfoChannel struct {
-	Architecture string `json:"architecture"`
-	Name         string `json:"name"`
-	Risk         string `json:"risk"`
-	Track        string `json:"track"`
+	Architecture string    `json:"architecture"`
+	Name         string    `json:"name"`
+	Risk         string    `json:"risk"`
+	Track        string    `json:"track"`
+	ReleasedAt   time.Time `json:"released-at"`
 }
 
 // storeInfoChannelSnap is the snap-in-a-channel of which the channel map is made
@@ -136,6 +138,7 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 			Channel:     ch.Name,
 			Epoch:       s.Epoch,
 			Size:        s.Download.Size,
+			ReleasedAt:  ch.ReleasedAt.UTC(),
 		}
 		if !seen[ch.Track] {
 			seen[ch.Track] = true

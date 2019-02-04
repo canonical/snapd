@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"errors"
 	"fmt"
@@ -33,7 +34,6 @@ import (
 	"time"
 
 	"github.com/juju/ratelimit"
-	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 

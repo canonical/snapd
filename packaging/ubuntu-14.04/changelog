@@ -1,3 +1,404 @@
+snapd (2.37.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1811233
+    - cmd/snap-confine: add special case for Jenkins
+    - tests: workaround missing go dependencies in debian-9
+    - daemon, polkit: pid_t is signed
+    - interfaces: add display-control interface
+    - interfaces: add block-devices interface
+    - tests/main/searching: video section got renamed to photo-and-video
+    - interfaces/camera: allow reading vendor/etc info from
+      /run/udev/data/+usb
+    - interfaces/dbus: be less strict about alternations for well-known
+      names
+    - interfaces/home: allow dac_read_search with 'read: all'
+    - interfaces/pulseaudio: allow reading subdirectories of
+      /etc/pulse
+    - interfaces/system-observe: allow read on
+      /proc/locks
+    - tests: get test-snapd-dbus-{provider,consumer} from the beta
+      channel
+    - interfaces/apparmor: mock presence of overlayfs root
+    - packaging/{fedora,opensuse,ubuntu}: add /var/lib/snapd/lib/glvnd
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 29 Jan 2019 18:35:36 +0100
+
+snapd (2.37~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1811233
+    - snapd: fix race in TestSanityFailGoesIntoDegradedMode test
+    - cmd: fix snap-device-helper to deal correctly with hooks
+    - tests: various fixes for external backend
+    - interface: raw-usb: Adding ttyACM[0-9]* as many serial devices
+      have device node /dev/ttyACM[0-9]
+    - tests: fix enable-disable-unit-gpio test on external boards
+    - tests: define new "tests/smoke" suite and use that for
+      autopkgtests
+    - interfaces/builtin/opengl: allow access to NVIDIA VDPAU
+      library
+    - snapshotstate: don't task.Log without the lock
+    - overlord/configstate/configcore: support - and _ in cloud init
+      field names
+    - cmd/snap-confine: use makedev instead of MKDEV
+    - tests: review/fix the autopkgtest failures in disco
+    - systemd: allow only a single daemon-reload at the same time
+    - cmd/snap: only auto-enable unicode to a tty
+    - cmd/snap: right-align revision and size in info's channel map
+    - dirs, interfaces/builtin/desktop: system fontconfig cache path is
+      different on Fedora
+    - tests: fix "No space left on device" issue on amazon-linux
+    - store: undo workaround for timezone-less released-at
+    - store, snap, cmd/snap: channels have released-at
+    - snap-confine: fix incorrect use "src" var in mount-support.c
+    - release: support probing SELinux state
+    - release-tools: display self-help
+    - interface: add new `{personal,system}-files` interface
+    - snap: give Epoch an Equal method
+    - many: remove unused interface code
+    - interfaces/many: use 'unsafe' with docker-support change_profile
+      rules
+    - run-checks: stop running HEAD of staticcheck
+    - release: use sync.Once around lazy intialized state
+    - overlord/ifacestate: include interface name in the hotplug-
+      disconnect task summary
+    - spread: show free space in debug output
+    - cmd/snap: attempt to restore SELinux context of snap user
+      directories
+    - image: do not write empty etc/cloud
+    - tests: skip snapd snap on reset for core systems
+    - cmd/snap-discard-ns: fix umount(2) typo
+    - overlord/ifacestate: hotplug-remove-slot task handler
+    - overlord/ifacestate: handler for hotplug-disconnect task
+    - ifacestate/hotplug: updateDevice helper
+    - tests: reset snapd state on tests restore
+    - interfaces: return security setup errors
+    - overlord: make InstallMany work like UpdateMany, issuing a single
+      request to get candidates
+    - systemd/systemd.go: add missing tests for systemd.IsActive
+    - overlord/ifacestate: addHotplugSeqWaitTask helper
+    - cmd/snap-confine: refactor call to snap-update-ns --user-mounts
+    - tests: new backend used to run upgrade test suite
+    - travis: short circuit failures in static and unit tests travis job
+    - cmd: automatically fix localized <option>s to <option>
+    - overlord/configstate,features: expose features to snapd tools
+    - selinux: package to query SELinux status and verify/restore file
+      contexts
+    - wrappers: use new systemd.IsActive in core18 early boot
+    - cmd: add tests for lintArg and lintDesc
+    - httputil: retry on temporary net errors
+    - cmd/snap-confine: remove unused sc_discard_preserved_mount_ns
+    - wrappers: only restart service in core18 when they are active
+    - overlord/ifacestate: helpers for serializing hotplug changes
+    - packaging/{fedora,opensuse}: own /var/lib/snapd/cookie
+    - systemd: start snapd.autoimport.service in --no-block mode
+    - data/selinux: fix syntax error in definition of snappy_admin
+      interface
+    - snap/info: bind global plugs/slots to implicit hooks
+    - cmd/snap-confine: remove SC_NS_MNT_FILE
+    - spread: record each tests/upgrade job
+    - osutil: do not import dirs
+    - cmd/snap-confine: fix typo "a pipe"
+    - tests: make security-device-cgroups-{devmode,jailmode} work on arm
+      devices
+    - tests: force test-snapd-daemon-notify exit 0 when the interface is
+      not connected
+    - overlord/snapstate: run 'remove' hook before 'auto-disconnect'
+    - centos: enable SELinux support on CentOS 7
+    - apparmor: allow hard link to snap-specific semaphore files
+    - tests/lib/pkgdb: disable weak deps on Fedora
+    - release: detect too old apparmor_parser
+    - tests: improve how the log is checked to see if the system is
+      waiting for a reboot
+    - cmd, dirs, interfaces/apparmor: update distro identification to
+      support ID="archlinux"
+    - spread, tests: add Fedora 29
+    - cmd/snap-confine: refactor calling snapd tools into helper module
+    - apparmor: allow snap-update-ns access to common devices
+    - cmd/snap-confine: capture initialized per-user mount ns
+    - tests: reduce verbosity around package installation
+    - data: set KillMode=process for snapd
+    - cmd/snap: handle DNS error gracefully
+    - spread, tests: use checkpoints when dumping audit log
+    - tests/lib/prepare: make sure that SELinux context of repacked core
+      snap is controlled
+    - testutils: split checkers, tweak tests
+    - tests: fix for tests test-*-cgroup
+    - spread: show AVC audits when debugging, start auditd on Fedora
+    - spread: drop Fedora 27, add Fedora 29
+    - tests/lib/reset: restore context of removed snapd directories
+    - testutil: add File{Present,Absent} checkers
+    - snap: add new `snap run --trace-exec`
+    - tests: fix for failover test on how logs are checked
+    - snapctl: add "services"
+    - overlord/snapstate: use file timestamp to initialize timer
+    - cmd/libsnap: introduce and use sc_strdup
+    - interfaces: let NM access ifindex/ifupdown files
+    - overlord/snapstate: on refresh, check new rev can read current
+    - client, store: don't use store from client (use client from store)
+    - tests/main/parallel-install-store: verify installation of more
+      than one instance at a time
+    - overlord: don't write system key if security setup fails
+    - packaging/fedora/snapd.spec: fix bogus date in changelog
+    - snapstate: update fontconfig caches on install
+    - interfaces/apparmor/backend.go:411:38: regular expression does not
+      contain any meta characters (SA6004)
+    - asserts/header_checks.go:199:35: regular expression does not
+      contain any meta characters (SA6004)
+    - run staticcheck every time :-)
+    - tests/lib/systemd-escape/main.go:46:14: printf-style function with
+      dynamic first argument and no further arguments should use print-
+      style function instead (SA1006)
+    - tests/lib/fakestore/cmd/fakestore/cmd_run.go:66:15: the channel
+      used with signal.Notify should be buffered (SA1017)
+    - tests/lib/fakedevicesvc/main.go:55:15: the channel used with
+      signal.Notify should be buffered (SA1017)
+    - spdx/parser.go:30:1: only the first constant has an explicit type
+      (SA9004)
+    - overlord/snapstate/snapmgr.go:553:21: printf-style function with
+      dynamic first argument and no further arguments should use print-
+      style function instead (SA1006)
+    - overlord/patch/patch3.go:44:70: printf-style function with dynamic
+      first argument and no further arguments should use print-style
+      function instead (SA1006)
+    - cmd/snap/cmd_advise.go:200:2: empty branch (SA9003)
+    - osutil/udev/netlink/conn.go:120:5: ineffective break statement.
+      Did you mean to break out of the outer loop? (SA4011)
+    - daemon/api.go:992:22: printf-style function with dynamic first
+      argument and no further arguments should use print-style function
+      instead (SA1006)
+    - cmd/snapd/main.go:94:5: ineffective break statement. Did you mean
+      to break out of the outer loop? (SA4011)
+    - cmd/snap/cmd_userd.go:73:15: the channel used with signal.Notify
+      should be buffered (SA1017)
+    - cmd/snap/cmd_help.go:102:7: io.Writer.Write must not modify the
+      provided buffer, not even temporarily (SA1023)
+    - release: probe apparmor features lazily
+    - overlord,daemon: mock security backends for testing
+    - cmd/libsnap: move apparmor-support to libsnap
+    - cmd: drop cruft from snap-discard-ns build rules
+    - cmd/snap-confine: use snap-discard-ns ns to discard stale
+      namespaces
+    - cmd/snap-confine: handle mounted shared /run/snapd/ns
+    - many: fix composite literals with unkeyed fields
+    - dirs, wrappers, overlord/snapstate: make completion + bases work
+    - tests: revert "tests: restore in restore, not prepare"
+    - many: validate title
+    - snap: make description maximum in runes, not bytes
+    - tests: discard mount namespaces in reset.sh
+    - tests/lib: sync cla check back from snapcraft
+    - Revert "cmd/snap, tests/main/snap-info: highlight the current
+      channel"
+    - daemon: remove enableInternalInterfaceActions
+    - mkversion: use "test -n" rather than "! test -z"
+    - run-checks: assorted fixes
+    - tests: restore in restore, not in prepare
+    - cmd/snap: fix missing newline in "snap keys" error message
+    - snap: epoch lists must contain no duplicate entries
+    - interfaces/avahi_observe: Fix typo in comment
+    - tests: add SPREAD_JOB to the description of
+      systemd_create_and_start_unit
+    - daemon, vendor: bump github.com/coreos/go-systemd/activation,
+      handle API changes
+    - Revert "cmd/snap-confine: don't allow mapping lib{uuid,blkid}"
+    - packaging/fedora: use %_sysctldir macro
+    - cmd/snap-confine: remove unneeded unshare
+    - sanity: extend the kernel version check to cover CentOS/RHEL
+      kernels
+    - wrappers: remove all desktop files from a snap on removal
+    - snap: add an explicit check for `epoch: null` loading
+    - snap: check max description length in validate
+    - spread, tests: add CentOS support
+    - cmd/snap-confine: allow mapping more libc shards
+    - cmd/snap-discard-ns: add support for --from-snap-confine
+    - tests: make tinyproxy support systemd notify
+    - tests: fix shellcheck
+    - snap, store: rename `snap.Epoch`'s `Unset` to `IsZero`
+    - store: add a test for a non-zero epoch refresh (with epoch bump)
+    - store: v1 search doesn't send epoch, stop pretending it does
+    - snap: make any "0" epoch be Unset, and marshalled to {[0],[0]}
+    - overlord/snapstate: amend test should send local revision
+    - tests: use mock-gpio.py in enable-disable-units-gpio test
+    - snap: enforce minimal snap name len of 2
+    - cmd/libsnap: add sc_verify_snap_lock
+    - cmd/snap-update-ns: extra debugging of trespassing events
+    - userd: force zenity width if the text displayed is long
+    - overlord/snapstate, store: always send epochs
+    - cmd/snap-confine,snap-update-ns: discard quirks
+    - cmd/snap: add nanosleep to blacklisted syscalls when running with
+      --strace
+    - cmd/snap-update-ns, tests: clean trespassing paths
+    - nvidia, interfaces/builtin: OpenCL fixes
+    - ifacestate/hotplug: removeDevice helper
+    - cmd: install snap-discard-ns in "make hack"
+    - overlord/ifacestate: setup security backends phased by backends
+      first
+    - ifacestate/helpers: added SystemSnapName mapper helper method
+    - overlord/ifacestate: set hotplug-key of the connection when
+      connecting hotplug slots
+    - snapd: allow snap-update-ns to read /proc/version
+    - cmd: handle tumbleweed and leap in autogen.sh
+    - interfaces/tests: MockHotplugSlot test helper
+    - store,daemon: make UserInfo,LoginUser part of the store interface
+    - overlord/ifacestate: use remapper when checking if system snap is
+      installed
+    - tests: fix how pinentry is prepared for new gpg v 2.1 and 2.2
+    - packaging/arch: fix bash completions path
+    - interfaces/builtin: add device-buttons interface for accessing
+      events
+    - tests, fakestore: extend refresh tests with parallel installed
+      snaps
+    - snap, store, overlord/snapshotstate: drop epoch pointers
+    - snap: make Epoch default to {[0],[0]} on load from yaml
+    - data/completion: pass documented arguments to completion functions
+    - tests: skip opensuse from interfaces-openvswitch-support test
+    - tests: simple reproducer for snap try and hooks bug
+    - snapstate: do not allow classic mode for strict snaps
+    - snap: make Epoch's MarshalJSON not simplify
+    - store: remove unused currentSnap and currentSnapJSON
+    - many: some small doc comment fixes in recent hotplug code
+    - ifacestate/udevmonitor: added callback to signal end of
+      enumeration
+    - cmd/libsnap: add simplified feature flag checker
+    - interfaces/opengl: add additional accesses for cuda
+    - tests: add core18 only hooks test and fix running core18 only on
+      classic
+    - sanity, release, cmd/snap: refuse to try to do things on WSL.
+    - cmd: make coreSupportsReExec faster
+    - overlord/ifacestate: don't remove the dash when generating unique
+      slot name
+    - cmd/snap-seccomp: add full complement of ptrace constants
+    - cmd: update autogen.sh for opensuse
+    - interfaces/apparmor: allow access to /run/snap.$SNAP_INSTANCE_NAME
+    - spread.yaml: add more systems to the autopkgtest and qemu backends
+    - daemon: spool sideloaded snap into blob dir
+      overlord/snapstate: address review feedback
+    - packaging/opensuse: stop using golang-packaging
+    - overlord/snapshots: survive an unknown user
+    - wrappers: fix generating of service units with multiple `before`
+      dependencies
+    - data: run snapd.autoimport.service only after seeding
+    - cmd/snap: unhide --name parameter to snap install, tweak help
+      message
+    - packaging/fedora: Merge changes from Fedora Dist-Git
+    - tests/main/snap-service-after-before-install: verify after/before
+      in snap install
+    - overlord/ifacestate: mark connections disconnected by hotplug with
+      hotplug-gone
+    - ifacestate/ifacemgr: don't reload hotplug-gone connections on
+      startup
+    - tests: install dependencies during prepare
+    - tests,store,daemon: ensure proxy settings are honored in
+      auth/userinfo too
+    - tests: core 18 does not support classic confinement
+    - tests: add debug output for degraded test
+    - strutil: make VersionCompare faster
+    - overlord/snapshotstate/backend: survive missing directories
+    - overlord/ifacestate: use map[string]*connState when passing conns
+      around
+    - tests: move fedora 28 to manual
+    - overlord/snapshotstate/backend: be more verbose when
+      SNAPPY_TESTING=1
+    - tests: removing fedora 26 system from spread.yaml
+    - tests: linode execution is not needed anymore
+    - tests/lib: adjust to changed systemctl behaviour on debian-9
+    - tests: fixes and new backend for tests on nested suite
+    - strutil: let MatchCounter work with a nil regexp
+    - ifacestate/helpers: findConnsForHotplugKey helper
+    - many: move regexp.(Must)Compile out of non-init functions into
+      variables
+    - store: also make snaps downloaded via deltas 0600
+    - snap: use Lstat to determine snap size, remove
+      ReadSnapInfoExceptSize
+    - interfaces/builtin: add adb-support interface
+    - tests: fail if install_snap_local fails
+    - strutil: add extra test to CommaSeparatedList as suggested by
+      mborzecki
+    - cmd/snap, daemon, strutil: use CommaSeparatedList to split a CSL
+    - ifacestate: optimize disconnect hooks
+    - cmd/snap-update-ns: parse the -u <uid> command line option
+    - cmd/snap, tests: snapshots for all
+    - client, cmd/daemon: allow disabling keepalive, improve degraded
+      mode unit tests
+    - snap: only show "next" refresh time if its after the hold time
+    - overlord/snapstate: run tests for classic snaps even on systems
+      that don't support classic
+    - overlord/standby: fix a race between standby goroutine and stop
+    - cmd/snap-exec: don't fail on some try mode snaps
+    - cmd/snap, userd, testutil: tweak DBus tests to use private session
+      bus connection
+    - cmd: remove remnants of sc_should_populate_mount_ns
+    - client, daemon, cmd/snap: indicate that services are socket/timer
+      activated
+    - cmd/snap-seccomp: only look for PTRACE_GETFPX?REGS where available
+    - cmd/snap-confine: remove SC_NS_FAIL_GRACEFULLY
+    - snap/pack, cmd/snap: allow specifying the filename of 'snap pack'
+    - cmd/snap-discard-ns: add support for per-user mount namespaces
+    - cmd/snap-confine: remove stale mount profile along stale namespace
+    - data/apt: close stderr when calling snap in the apt install hook.
+    - tests/main: fixes for the new shellcheck
+    - testutil, cmd/snap: introduce and use testutil.EqualsWrapped and
+      fly
+    - tests: initial setup for testing current branch on nested vm and
+      hotplug management
+    - cmd: refactor IPC and lifecycle of the helper process
+    - tests/main/parallel-install-store: the store has caught up, do not
+      expect failures
+    - overlord/snapstate, snap, wrappers: start services in the right
+      order during install
+    - interfaces/browser-support, cmd/snap-seccomp: Allow read-only
+      ptrace, for the Breakpad crash reporter
+    - snap,client: use a different exit code for retryable errors
+    - overlord/ifacestate: don't conflict on own discard-snap tasks when
+      refreshing & doing garbage collection
+    - cmd/snap: tweak `snap services` output when there is no services
+    - interfaces/many: updates to support k8s worker nodes
+    - cmd/snap: gnome-software install via snap:// handler
+    - overlord/many: cleanup use of snapName vs. instanceName
+    - snapstate: add command-chain to supported featureset
+    - daemon, snap: mark screenshots as deprecated
+    - interfaces: fix decoding of json numbers for static/dynamic
+      attributes* ifstate: fix decoding of json numbers
+    - cmd/snap: try not to panic on error from "snap try"
+    - tests: new cosmic image for spread tests on gce
+    - interfaces/system-key: add parser mtime and only discover features
+      on write
+    - overlord/snapshotstate/backend: detect path to tar in unit tests
+    - tests/unit/gccgo: drop gccgo unit tests
+    - cmd: use relative file names in locking APIs
+    - interfaces: fix NormalizeInterfaceAttributes, add tests
+    - overlord/snapshotstate/backend: fall back on sudo when no runuser
+    - cmd/snap-confine: reduce verbosity of debug and error messages
+    - systemd: extend Status() to work for socket and timer units
+    - interfaces: typo 'allows' for consistency with other ifaces
+    - systemd,wrappers: don't start disabled services
+    - ifacestate: simplify task chaining in ifacestate.Connect
+    - tests: ensure that goa-daemon is off
+    - snap/pack, snap/squashfs: remove extra copy before mksquashfs
+    - cmd/snap: block 'snap help <cmd> --all'
+    - asserts, image: ensure kernel, gadget, base and required-snaps use
+      valid snap names
+    - apparmor: add unit test for probeAppArmorParser and simplify code
+    - interfaces/apparmor: conditionally add explicit deny rules for
+      ptrace
+    - po: sync translations from launchpad
+    - osutil: tweak handling of error adduser errors
+    - cmd: rename ns_group to mount_ns
+    - tests/main/interfaces-accounts-service: more debugging
+    - snap/pack, snap/squashfs: use type to determine mksquashfs args
+    - data/systemd, wrappers: tweak system-shutdown helper for core18
+    - tests: show list of processes when ifaces-accounts-service fails
+    - tests: do not run degraded test in autopkgtest env
+    - snap: overhaul validation error messages
+    - ifacestate/hooks: only create interface hook tasks if hooks exist
+    - osutil: workaround overlayfs on ubuntu 18.10
+    - interfaces/home: don't allow snaps to write to $HOME/bin
+    - interfaces: improve Attr error further
+    - snapstate: tweak GetFeatureFlagBool() to have a default argument
+    - many: cleanup remaining parallel installs TODOs
+    - image: improve validation of extra snaps
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 16 Jan 2019 17:17:17 +0100
+
 snapd (2.36.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1795590

@@ -50,7 +50,7 @@ restore: |
     . "$TESTSLIB/systemd.sh"
     #shellcheck disable=SC2153
     systemd_stop_and_destroy_unit "$SERVICE_NAME"
-    rm -f firewall-create.error "$SERVICE_FILE" "$REQUEST_FILE"
+    rm -f "$SERVICE_FILE" "$REQUEST_FILE"
 
 execute: |
     echo "Then the plug is disconnected by default"

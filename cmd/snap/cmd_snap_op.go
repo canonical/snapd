@@ -27,12 +27,15 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -256,6 +259,42 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 	return nil
 }
 
+// isSnapInPath checks whether the snap binaries dir (e.g. /snap/bin)
+// is in $PATH.
+//
+// TODO: consider symlinks
+func isSnapInPath() bool {
+	paths := filepath.SplitList(os.Getenv("PATH"))
+	for _, path := range paths {
+		if filepath.Clean(path) == dirs.SnapBinariesDir {
+			return true
+		}
+	}
+	return false
+}
+
+func isSameRisk(tracking, current string) (bool, error) {
+	if tracking == current {
+		return true, nil
+	}
+	var trackingRisk, currentRisk string
+	if tracking != "" {
+		traCh, err := snap.ParseChannel(tracking, "")
+		if err != nil {
+			return false, err
+		}
+		trackingRisk = traCh.Risk
+	}
+	if current != "" {
+		curCh, err := snap.ParseChannel(current, "")
+		if err != nil {
+			return false, err
+		}
+		currentRisk = curCh.Risk
+	}
+	return trackingRisk == currentRisk, nil
+}
+
 // show what has been done
 func showDone(cli *client.Client, names []string, op string, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
@@ -263,6 +302,7 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 		return err
 	}
 
+	needsPathWarning := !isSnapInPath()
 	for _, snap := range snaps {
 		channelStr := ""
 		if snap.Channel != "" && snap.Channel != "stable" {
@@ -270,6 +310,13 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 		}
 		switch op {
 		case "install":
+			if needsPathWarning {
+				head := i18n.G("Warning:")
+				warn := fill(fmt.Sprintf(i18n.G("%s was not found in your $PATH. If you've not restarted your session since you installed snapd, try doing that. Please see https://forum.snapcraft.io/t/9469 for more details."), dirs.SnapBinariesDir), utf8.RuneCountInString(head)+1) // +1 for the space
+				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
+				needsPathWarning = false
+			}
+
 			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
@@ -292,8 +339,10 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
 		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
-			// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
-			fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+			if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
+				// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
+				fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+			}
 		}
 	}
 

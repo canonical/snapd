@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -803,6 +804,31 @@ func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.Slot
 		}
 	}
 	return nil, nil
+}
+
+// UpdateHotplugSlotAttrs updates static attributes of hotplug slot associated with given hotplugkey, and returns the resulting
+// slot. Slots can only be updated if not connected to any plug.
+func (r *Repository) UpdateHotplugSlotAttrs(ifaceName, hotplugKey string, staticAttrs map[string]interface{}) (*snap.SlotInfo, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	snapName, err := r.guessSystemSnapName()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, slotInfo := range r.slots[snapName] {
+		if slotInfo.Interface == ifaceName && slotInfo.HotplugKey == hotplugKey {
+			if len(r.slotPlugs[slotInfo]) > 0 {
+				// slots should be updated when disconnected, and reconnected back after updating.
+				return nil, fmt.Errorf("internal error: cannot update slot %s while connected", slotInfo.Name)
+			}
+			slotInfo.Attrs = utils.CopyAttributes(staticAttrs)
+			return slotInfo, nil
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find hotplug slot for interface %s and hotplug key %q", ifaceName, hotplugKey)
 }
 
 func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
