@@ -1,7 +1,7 @@
 summary: Ensure systemd environment generator works
 
 # systemd environment generators are only supported on 17.10+
-systems: [ubuntu-18.04-*]
+systems: [ubuntu-18.04-*, ubuntu-18.10-*, ubuntu-19.04-*]
 
 execute: |
     # integration test to ensure it works on the real system
@@ -15,14 +15,17 @@ execute: |
     fi
 
     echo "Ensure PATH is correct in systemd system units"
-    systemd-run --unit testenv env
-    for _ in $(seq 30); do
-        if journalctl -u testenv | grep -E 'PATH=.*:/snap/bin.*'; then
-            break
-        fi
-        sleep 1
-    done
-    journalctl -u testenv | MATCH 'PATH=.*:/snap/bin.*'
+    . /etc/os-release
+    # ensure /usr/local/{,s}bin is still part of the PATH, LP: 1814355
+    systemd-run --pty --wait '/usr/bin/env' | MATCH 'PATH=.*/local/.*'
+    # Only 18.10+ is fully working with the systemd generator so fo
+    # 18.04 we need to stop here until LP: #1771858 is fixed.
+    if [ "$VERSION_ID" = "18.04" ];then
+        # FIXME: remove this check once LP: #1771858 is fixed
+        exit 0
+    fi
+    # ensure /snap/bin is part of the PATH
+    systemd-run --pty --wait '/usr/bin/env' | MATCH 'PATH=.*:/snap/bin.*'
 
 
     # some unit tests
