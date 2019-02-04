@@ -617,7 +617,7 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	s.addSystemSnapAssertions(c, "snap-req-content-provider", "other")
 }
 
-func (s *imageSuite) TestBootstrapToRootDir(c *C) {
+func (s *imageSuite) TestSetupSeed(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -639,7 +639,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
+	err = image.SetupSeed(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -698,7 +698,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Check(s.stderr.String(), Equals, "")
 }
 
-func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
+func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -722,7 +722,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 	local, err := image.LocalSnaps(emptyToolingStore, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
+	err = image.SetupSeed(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -805,7 +805,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 	c.Check(s.stderr.String(), Equals, "WARNING: \"core\", \"required-snap1\" were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n")
 }
 
-func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
+func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -829,7 +829,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
+	err = image.SetupSeed(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -893,7 +893,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	})
 }
 
-func (s *imageSuite) TestBootstrapToRootDirWithClassicSnapFails(c *C) {
+func (s *imageSuite) TestSetupSeedWithClassicSnapFails(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -917,11 +917,11 @@ func (s *imageSuite) TestBootstrapToRootDirWithClassicSnapFails(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
+	err = image.SetupSeed(s.tsto, s.model, opts, local)
 	c.Assert(err, ErrorMatches, `cannot use classic snap "classic-snap" in a core system`)
 }
 
-func (s *imageSuite) TestBootstrapWithBase(c *C) {
+func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -958,7 +958,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1011,7 +1011,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 
 }
 
-func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
+func (s *imageSuite) TestSetupSeedKernelPublisherMismatch(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1029,7 +1029,7 @@ func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
+	err = image.SetupSeed(s.tsto, s.model, opts, local)
 	c.Assert(err, ErrorMatches, `cannot use kernel "pc-kernel" published by "other" for model by "my-brand"`)
 }
 
@@ -1096,7 +1096,7 @@ unbound_discharge = DISCHARGE
 	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
 }
 
-func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
+func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1119,7 +1119,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
+	err = image.SetupSeed(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1327,7 +1327,7 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 	c.Assert(err, ErrorMatches, "cannot have snaps for a classic image without an architecture in the model or from --classic-arch")
 }
 
-func (s *imageSuite) TestBootstrapWithKernelAndGadgetTrack(c *C) {
+func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1360,7 +1360,7 @@ func (s *imageSuite) TestBootstrapWithKernelAndGadgetTrack(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1387,7 +1387,7 @@ func (s *imageSuite) TestBootstrapWithKernelAndGadgetTrack(c *C) {
 	})
 }
 
-func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
+func (s *imageSuite) TestSetupSeedWithKernelTrackWithDefaultChannel(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1421,7 +1421,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1449,7 +1449,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackWithDefaultChannel(c *C) {
 	})
 }
 
-func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
+func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1488,7 +1488,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(local.NameToPath(), HasLen, 2)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1510,7 +1510,7 @@ func (s *imageSuite) TestBootstrapWithKernelTrackOnLocalSnap(c *C) {
 	})
 }
 
-func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
+func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1547,7 +1547,7 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1587,7 +1587,7 @@ func (s *imageSuite) TestBootstrapWithBaseAndLegacyCoreOrdering(c *C) {
 		Contact: "foo@example.com",
 	})
 }
-func (s *imageSuite) TestBootstrapGadgetBaseModelBaseMismatch(c *C) {
+func (s *imageSuite) TestSetupSeedGadgetBaseModelBaseMismatch(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 	// replace model with a model that uses core18 and a gadget
@@ -1619,11 +1619,11 @@ func (s *imageSuite) TestBootstrapGadgetBaseModelBaseMismatch(c *C) {
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 }
 
-func (s *imageSuite) TestBootstrapToRootDirSnapReqBase(c *C) {
+func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
@@ -1653,11 +1653,11 @@ func (s *imageSuite) TestBootstrapToRootDirSnapReqBase(c *C) {
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
 }
 
-func (s *imageSuite) TestBootstrapToRootDirStoreAssertionMissing(c *C) {
+func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
@@ -1686,11 +1686,11 @@ func (s *imageSuite) TestBootstrapToRootDirStoreAssertionMissing(c *C) {
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 }
 
-func (s *imageSuite) TestBootstrapToRootDirStoreAssertionFetched(c *C) {
+func (s *imageSuite) TestSetupSeedStoreAssertionFetched(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1733,7 +1733,7 @@ func (s *imageSuite) TestBootstrapToRootDirStoreAssertionFetched(c *C) {
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check the store assertion was fetched
@@ -1741,7 +1741,7 @@ func (s *imageSuite) TestBootstrapToRootDirStoreAssertionFetched(c *C) {
 	c.Check(osutil.FileExists(p), Equals, true)
 }
 
-func (s *imageSuite) TestBootstrapToRootDirSnapReqBaseFromLocal(c *C) {
+func (s *imageSuite) TestSetupSeedSnapReqBaseFromLocal(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
@@ -1774,11 +1774,11 @@ func (s *imageSuite) TestBootstrapToRootDirSnapReqBaseFromLocal(c *C) {
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 }
 
-func (s *imageSuite) TestBootstrapToRootDirMissingContentProvider(c *C) {
+func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
@@ -1808,7 +1808,7 @@ func (s *imageSuite) TestBootstrapToRootDirMissingContentProvider(c *C) {
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	c.Check(s.stderr.String(), Equals, `WARNING: the default content provider "gtk-common-themes" requested by snap "snap-req-content-provider" is not getting installed.`)
@@ -1823,7 +1823,7 @@ func (s *imageSuite) TestMissingLocalSnaps(c *C) {
 	c.Assert(local, IsNil)
 }
 
-func (s *imageSuite) TestBootstrapToRootDirClassic(c *C) {
+func (s *imageSuite) TestSetupSeedClassic(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1854,7 +1854,7 @@ func (s *imageSuite) TestBootstrapToRootDirClassic(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1900,7 +1900,7 @@ func (s *imageSuite) TestBootstrapToRootDirClassic(c *C) {
 	c.Check(osutil.FileExists(blobdir), Equals, false)
 }
 
-func (s *imageSuite) TestBootstrapToRootDirClassicWithClassicSnap(c *C) {
+func (s *imageSuite) TestSetupSeedClassicWithClassicSnap(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1931,7 +1931,7 @@ func (s *imageSuite) TestBootstrapToRootDirClassicWithClassicSnap(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1970,7 +1970,7 @@ func (s *imageSuite) TestBootstrapToRootDirClassicWithClassicSnap(c *C) {
 	})
 }
 
-func (s *imageSuite) TestBootstrapToRootDirClassicNoSnaps(c *C) {
+func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1995,7 +1995,7 @@ func (s *imageSuite) TestBootstrapToRootDirClassicNoSnaps(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
