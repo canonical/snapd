@@ -130,6 +130,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 	})
 	rest, err := Parser(Client()).ParseArgs([]string{"connections"})
 	c.Check(err, ErrorMatches, "no connections found")
+	c.Assert(rest, DeepEquals, []string{"connections"})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 
