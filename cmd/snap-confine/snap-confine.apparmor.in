@@ -313,8 +313,8 @@
     @{HOME}/ r,
     @{HOME}/snap/{,*/,*/*/} rw,
 
-    # Special case for *classic* snaps that are used by users with home dirs
-    # in /var/lib/. Like jenkins, postgresql, mysql, pupett, ...
+    # Special case for *classic* snaps that are used by users with existing dirs
+    # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...
     # (see https://forum.snapcraft.io/t/9717)
     # TODO: this can be removed once we support home-dirs outside of /home
     #       better

@@ -6,7 +6,7 @@ prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
-    install_local test-snapd-classic-confinement
+    install_local_classic test-snapd-classic-confinement
     # Install the corresponding package that brings the special user account.
     # Specialize the code as required for a particular user.
     case "$SPECIAL_USER_NAME" in
