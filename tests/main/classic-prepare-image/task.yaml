@@ -87,6 +87,6 @@ execute: |
     snap known serial|MATCH "serial: 7777"
 
     snap list | MATCH "^basic"
-    test -f "$SEED_DIR/snaps/basic_*.snap"
+    test -f "$SEED_DIR/snaps/basic_"*.snap
     snap list | MATCH "^classic-gadget"
-    test -f "$SEED_DIR/snaps/classic-gadget_*.snap"
+    test -f "$SEED_DIR/snaps/classic-gadget_"*.snap
