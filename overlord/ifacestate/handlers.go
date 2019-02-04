@@ -1541,7 +1541,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 
 	systemSnap, err := systemSnapInfo(st)
 	if err != nil {
-		return fmt.Errorf("core snap not available")
+		return fmt.Errorf("system snap not available")
 	}
 
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
@@ -1605,6 +1605,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 			ts := updateDevice(st, iface.Name(), hotplugKey, slotSpec.Attrs)
 			snapstate.InjectTasks(task, ts)
 			st.EnsureBefore(0)
+			task.SetStatus(state.DoneStatus)
 		} // else - nothing to do
 		return nil
 	}
