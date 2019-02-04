@@ -6,7 +6,7 @@ environment:
 prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-classic-confinement --classic
+    install_local_classic test-snapd-classic-confinement
 
     # Install the corresponding package that brings the special user account.
     # Specialize the code as required for a particular user.
@@ -27,4 +27,3 @@ execute: |
     #shellcheck disable=SC2016
     su -c sh -c 'echo $HOME' "$SPECIAL_USER_NAME" | MATCH "/var/lib/$SPECIAL_USER_NAME"
     su -c 'snap run test-snapd-classic-confinement.sh -c /bin/true' "$SPECIAL_USER_NAME"
-
