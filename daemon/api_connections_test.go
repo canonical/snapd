@@ -264,6 +264,97 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestConnectionsBySnapAlias(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
+
+	expectedUnconnected := map[string]interface{}{
+		"established": []interface{}{},
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap":      "core",
+				"slot":      "slot",
+				"interface": "test",
+				"attrs":     map[string]interface{}{"key": "value"},
+				"label":     "label",
+			},
+		},
+		"plugs": []interface{}{},
+	}
+	s.testConnections(c, "/v2/connections?select=all&snap=core", map[string]interface{}{
+		"result":      expectedUnconnected,
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+	// try using a well know alias
+	s.testConnections(c, "/v2/connections?select=all&snap=system", map[string]interface{}{
+		"result":      expectedUnconnected,
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+
+	expectedConnmected := map[string]interface{}{
+		"plugs": []interface{}{
+			map[string]interface{}{
+				"snap":      "consumer",
+				"plug":      "plug",
+				"interface": "test",
+				"attrs":     map[string]interface{}{"key": "value"},
+				"apps":      []interface{}{"app"},
+				"label":     "label",
+				"connections": []interface{}{
+					map[string]interface{}{"snap": "core", "slot": "slot"},
+				},
+			},
+		},
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap":      "core",
+				"slot":      "slot",
+				"interface": "test",
+				"attrs":     map[string]interface{}{"key": "value"},
+				"label":     "label",
+				"connections": []interface{}{
+					map[string]interface{}{"snap": "consumer", "plug": "plug"},
+				},
+			},
+		},
+		"established": []interface{}{
+			map[string]interface{}{
+				"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+				"slot":      map[string]interface{}{"snap": "core", "slot": "slot"},
+				"manual":    true,
+				"interface": "test",
+			},
+		},
+	}
+
+	s.testConnectionsConnected(c, "/v2/connections?snap=core", map[string]interface{}{
+		"consumer:plug core:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	}, map[string]interface{}{
+		"result":      expectedConnmected,
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+	// connection was already established
+	s.testConnections(c, "/v2/connections?snap=system", map[string]interface{}{
+		"result":      expectedConnmected,
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
 func (s *apiSuite) TestConnectionsByIfaceName(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()

@@ -34,7 +34,7 @@ import (
 func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -63,7 +63,7 @@ func (s *SnapSuite) TestConnectionsZeroSlotsOnePlug(c *C) {
 func (s *SnapSuite) TestConnectionsZeroPlugsOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -94,7 +94,7 @@ func (s *SnapSuite) TestConnectionsZeroPlugsOneSlot(c *C) {
 func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -161,7 +161,7 @@ func (s *SnapSuite) TestConnectionsOneSlotOnePlug(c *C) {
 func (s *SnapSuite) TestConnectionsTwoPlugs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -202,7 +202,7 @@ func (s *SnapSuite) TestConnectionsTwoPlugs(c *C) {
 func (s *SnapSuite) TestConnectionsPlugsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -269,7 +269,7 @@ func (s *SnapSuite) TestConnectionsPlugsWithCommonName(c *C) {
 func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -336,7 +336,7 @@ func (s *SnapSuite) TestConnectionsOsSnapSlots(c *C) {
 func (s *SnapSuite) TestConnectionsTwoSlotsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -385,7 +385,7 @@ func (s *SnapSuite) TestConnectionsTwoSlotsAndFiltering(c *C) {
 func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -429,7 +429,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificSnap(c *C) {
 func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -484,7 +484,7 @@ func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 func (s *SnapSuite) TestConnectionsOfSpecificSnapAndSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -527,7 +527,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificSnapAndSlot(c *C) {
 func (s *SnapSuite) TestConnectionsNothingAtAll(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -548,7 +548,7 @@ func (s *SnapSuite) TestConnectionsNothingAtAll(c *C) {
 func (s *SnapSuite) TestConnectionsOfSpecificType(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -593,7 +593,7 @@ func (s *SnapSuite) TestConnectionsOfSpecificType(c *C) {
 func (s *SnapSuite) TestConnectionsCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/interfaces":
+		case "/v2/connections":
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
@@ -647,7 +647,7 @@ func (s *SnapSuite) TestConnectionsCoreSnap(c *C) {
 func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSnapName string) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})

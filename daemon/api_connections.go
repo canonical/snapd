@@ -221,7 +221,7 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	onlyConnected := qselect == ""
 
 	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
-		snapName:  snapName,
+		snapName:  ifacestate.RemapSnapFromRequest(snapName),
 		ifaceName: ifaceName,
 		connected: onlyConnected,
 	})
