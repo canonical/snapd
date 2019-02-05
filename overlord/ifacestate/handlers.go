@@ -1583,7 +1583,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 				Attrs:      slotSpec.Attrs,
 				HotplugKey: hotplugKey,
 			}
-			return m.storeHotplugSlot(stateSlots, iface, newSlot)
+			return storeHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
 		}
 
 		// else - not gone, restored already by reloadConnections, but may need updating.
@@ -1615,7 +1615,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 		Attrs:      slotSpec.Attrs,
 		HotplugKey: hotplugKey,
 	}
-	return m.storeHotplugSlot(stateSlots, iface, newSlot)
+	return storeHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
 }
 
 // doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
