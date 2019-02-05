@@ -1,0 +1,29 @@
+summary: Check that users with homes in /var/lib can run *classic* snaps
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+environment:
+    SPECIAL_USER_NAME/postgres: postgres
+prepare: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local_classic test-snapd-classic-confinement
+
+    # Install the corresponding package that brings the special user account.
+    # Specialize the code as required for a particular user.
+    case "$SPECIAL_USER_NAME" in
+        postgres)
+            apt install -y postgresql
+            ;;
+    esac
+restore: |
+    snap remove test-snapd-sh
+    # Remove the package we installed above.
+    case "$SPECIAL_USER_NAME" in
+        postgres)
+            apt autoremove --purge -y postgresql
+            ;;
+    esac
+execute: |
+    #shellcheck disable=SC2016
+    su -c sh -c 'echo $HOME' "$SPECIAL_USER_NAME" | MATCH "/var/lib/$SPECIAL_USER_NAME"
+    su -c 'snap run test-snapd-classic-confinement.sh -c /bin/true' "$SPECIAL_USER_NAME"
