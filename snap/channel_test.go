@@ -102,6 +102,49 @@ func (s storeChannelSuite) TestParseChannel(c *C) {
 	})
 }
 
+func mustParseChannel(c *C, channel string) snap.Channel {
+	ch, err := snap.ParseChannel(channel, "")
+	c.Assert(err, IsNil)
+	return ch
+}
+
+func (s storeChannelSuite) TestParseChannelVerbatim(c *C) {
+	ch, err := snap.ParseChannelVerbatim("sometrack", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "sometrack",
+	})
+	c.Check(mustParseChannel(c, "sometrack"), DeepEquals, ch.Clean())
+
+	ch, err = snap.ParseChannelVerbatim("latest", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "latest",
+	})
+	c.Check(mustParseChannel(c, "latest"), DeepEquals, ch.Clean())
+
+	ch, err = snap.ParseChannelVerbatim("latest/stable", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "latest",
+		Risk:         "stable",
+	})
+	c.Check(mustParseChannel(c, "latest/stable"), DeepEquals, ch.Clean())
+
+	ch, err = snap.ParseChannelVerbatim("latest/stable/foo", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, snap.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Track:        "latest",
+		Risk:         "stable",
+		Branch:       "foo",
+	})
+	c.Check(mustParseChannel(c, "latest/stable/foo"), DeepEquals, ch.Clean())
+}
+
 func (s storeChannelSuite) TestClean(c *C) {
 	ch := snap.Channel{
 		Architecture: "arm64",
@@ -121,29 +164,24 @@ func (s storeChannelSuite) TestClean(c *C) {
 }
 
 func (s storeChannelSuite) TestParseChannelErrors(c *C) {
-	_, err := snap.ParseChannel("", "")
-	c.Check(err, ErrorMatches, "channel name cannot be empty")
-
-	_, err = snap.ParseChannel("1.0////", "")
-	c.Check(err, ErrorMatches, "channel name has too many components: 1.0////")
-
-	_, err = snap.ParseChannel("1.0/cand", "invalid risk in channel name: 1.0/cand")
-	c.Check(err, ErrorMatches, "invalid risk in channel name: 1.0/cand")
-
-	_, err = snap.ParseChannel("fix//hotfix", "")
-	c.Check(err, ErrorMatches, "invalid risk in channel name: fix//hotfix")
-
-	_, err = snap.ParseChannel("/stable/", "")
-	c.Check(err, ErrorMatches, "invalid track in channel name: /stable/")
-
-	_, err = snap.ParseChannel("//stable", "")
-	c.Check(err, ErrorMatches, "invalid risk in channel name: //stable")
-
-	_, err = snap.ParseChannel("stable/", "")
-	c.Check(err, ErrorMatches, "invalid branch in channel name: stable/")
-
-	_, err = snap.ParseChannel("/stable", "")
-	c.Check(err, ErrorMatches, "invalid track in channel name: /stable")
+	for _, tc := range []struct {
+		channel string
+		err     string
+	}{
+		{"", "channel name cannot be empty"},
+		{"1.0////", "channel name has too many components: 1.0////"},
+		{"1.0/cand", "invalid risk in channel name: 1.0/cand"},
+		{"fix//hotfix", "invalid risk in channel name: fix//hotfix"},
+		{"/stable/", "invalid track in channel name: /stable/"},
+		{"//stable", "invalid risk in channel name: //stable"},
+		{"stable/", "invalid branch in channel name: stable/"},
+		{"/stable", "invalid track in channel name: /stable"},
+	} {
+		_, err := snap.ParseChannel(tc.channel, "")
+		c.Check(err, ErrorMatches, tc.err)
+		_, err = snap.ParseChannelVerbatim(tc.channel, "")
+		c.Check(err, ErrorMatches, tc.err)
+	}
 }
 
 func (s *storeChannelSuite) TestString(c *C) {

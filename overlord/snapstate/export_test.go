@@ -83,6 +83,7 @@ var (
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
+	ResolveChannel         = resolveChannel
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
