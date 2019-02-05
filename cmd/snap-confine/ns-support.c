@@ -595,7 +595,6 @@ static void teardown_signals_for_helper(void)
 
 static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 {
-	setup_signals_for_helper();
 	// Create a pipe for sending commands to the helper process.
 	if (pipe2(group->pipe_master, O_CLOEXEC | O_DIRECT) < 0) {
 		die("cannot create pipes for commanding the helper process");
@@ -620,6 +619,8 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 		sc_cleanup_close(&group->pipe_helper[0]);
 		helper_main(group, apparmor, parent);
 	} else {
+		setup_signals_for_helper();
+
 		/* master */
 		sc_cleanup_close(&group->pipe_master[0]);
 		sc_cleanup_close(&group->pipe_helper[1]);
