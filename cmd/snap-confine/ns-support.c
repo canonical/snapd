@@ -767,8 +767,12 @@ static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
 		die("cannot send command %d to helper process", command_id);
 	}
 	debug("waiting for response from helper");
-	if (read(group->pipe_helper[0], &ack, sizeof ack) < 0) {
+	int read_n = read(group->pipe_helper[0], &ack, sizeof ack);
+	if (read_n < 0) {
 		die("cannot receive ack from helper process");
+	}
+	if (read_n == 0) {
+		die("unexpected eof from helper process");
 	}
 }
 
