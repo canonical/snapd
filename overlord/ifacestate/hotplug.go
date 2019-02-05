@@ -22,7 +22,6 @@ package ifacestate
 import (
 	"crypto/sha256"
 	"fmt"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -98,26 +97,22 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 }
 
 // ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.
-// Uniqueness is achieved by appending a numeric suffix, or increasing existing suffix.
+// Uniqueness is achieved by appending a numeric suffix.
 func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	// if the name is unique right away, do nothing
 	if isUnique(proposedName) {
 		return proposedName
 	}
 
-	suffixNumValue := 0
-	prefix := strings.TrimRightFunc(proposedName, unicode.IsDigit)
-	if prefix != proposedName {
-		suffixNumValue, _ = strconv.Atoi(proposedName[len(prefix):])
-	}
-
+	baseName := proposedName
+	suffixNumValue := 1
 	// increase suffix value until we have a unique name
 	for {
-		suffixNumValue++
-		proposedName = fmt.Sprintf("%s%d", prefix, suffixNumValue)
+		proposedName = fmt.Sprintf("%s-%d", baseName, suffixNumValue)
 		if isUnique(proposedName) {
 			return proposedName
 		}
+		suffixNumValue++
 	}
 }
 

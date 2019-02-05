@@ -39,6 +39,7 @@ var (
 	MakeSlotName                 = makeSlotName
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
+	HotplugSlotName              = hotplugSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
 	GetHotplugAttrs              = getHotplugAttrs
 	SetHotplugAttrs              = setHotplugAttrs
