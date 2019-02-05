@@ -85,5 +85,6 @@ execute: |
     if is_classic_confinement_supported ; then
         echo "Installing a strict snap in classic works but --classic is ignored"
         snap install --classic test-snapd-busybox-static 2>stderr.out
-        MATCH 'Warning: flag --classic ignored for strictly confined snap test-snapd-busybox-static' < stderr.out
+        #shellcheck disable=SC2002
+        cat stderr.out | tr '\n' ' ' | tr -s ' ' | MATCH 'Warning: flag --classic ignored for strictly confined snap test-snapd-busybox-static'
     fi
