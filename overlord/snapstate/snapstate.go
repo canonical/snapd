@@ -573,6 +573,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
 	}
+	// TODO: integrate classic override with the helper
 	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, nil, err
 	}
@@ -640,6 +641,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
 	}
+	// TODO: integrate classic override with the helper
 	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, err
 	}
