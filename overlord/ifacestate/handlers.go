@@ -1583,21 +1583,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 				Attrs:      slotSpec.Attrs,
 				HotplugKey: hotplugKey,
 			}
-			if iface, ok := iface.(interfaces.SlotSanitizer); ok {
-				if err := iface.BeforePrepareSlot(newSlot); err != nil {
-					return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", newSlot.Name, newSlot.Interface, err)
-				}
-			}
-
-			if err := m.repo.AddSlot(newSlot); err != nil {
-				return fmt.Errorf("cannot restore hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
-			}
-			slot.HotplugGone = false
-			slot.StaticAttrs = slotSpec.Attrs
-			stateSlots[slot.Name] = slot
-			setHotplugSlots(st, stateSlots)
-
-			return nil
+			return m.storeHotplugSlot(stateSlots, iface, newSlot)
 		}
 
 		// else - not gone, restored already by reloadConnections, but may need updating.
@@ -1629,25 +1615,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 		Attrs:      slotSpec.Attrs,
 		HotplugKey: hotplugKey,
 	}
-	if iface, ok := iface.(interfaces.SlotSanitizer); ok {
-		if err := iface.BeforePrepareSlot(newSlot); err != nil {
-			return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", newSlot.Name, newSlot.Interface, err)
-		}
-	}
-
-	if err := m.repo.AddSlot(newSlot); err != nil {
-		return fmt.Errorf("cannot create hotplug slot %q for interface %s: %s", newSlot.Name, newSlot.Interface, err)
-	}
-	stateSlots[newSlot.Name] = &HotplugSlotInfo{
-		Name:        newSlot.Name,
-		Interface:   newSlot.Interface,
-		StaticAttrs: newSlot.Attrs,
-		HotplugKey:  newSlot.HotplugKey,
-	}
-	setHotplugSlots(st, stateSlots)
-	logger.Noticef("added hotplug slot %s:%s of interface %s, hotplug key %q", newSlot.Snap.InstanceName(), newSlot.Name, newSlot.Interface, hotplugKey)
-
-	return nil
+	return m.storeHotplugSlot(stateSlots, iface, newSlot)
 }
 
 // doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
