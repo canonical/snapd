@@ -317,19 +317,20 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 				needsPathWarning = false
 			}
 
-			if snap.Publisher != nil {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
-			} else {
-				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
-			}
 			if opts != nil && opts.Classic && snap.Confinement != client.ClassicConfinement {
 				// requested classic but the snap is not classic
 				head := i18n.G("Warning:")
 				// TRANSLATORS: the arg is a snap name (e.g. "some-snap")
 				warn := fill(fmt.Sprintf(i18n.G("flag --classic ignored for strictly confined snap %s"), snap.Name), utf8.RuneCountInString(head)+1) // +1 for the space
 				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
+			}
+
+			if snap.Publisher != nil {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
+			} else {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
 		case "refresh":
 			if snap.Publisher != nil {
