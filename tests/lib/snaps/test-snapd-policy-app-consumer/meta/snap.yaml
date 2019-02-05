@@ -203,9 +203,6 @@ apps:
   mpris:
     command: bin/run
     plugs: [ mpris ]
-  multipass:
-    command: bin/run
-    plugs: [ multipass ]
   multipass-support:
     command: bin/run
     plugs: [ multipass-support ]

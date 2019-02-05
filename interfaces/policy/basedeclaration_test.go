@@ -591,7 +591,6 @@ var (
 		"classic-support": nil,
 		"docker":          nil,
 		"lxd":             nil,
-		"multipass":       nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -654,12 +653,6 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
-
-	// test multipass specially
-	ic = s.installSlotCand(c, "multipass", snap.TypeApp, ``)
-	err = ic.Check()
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "installation not allowed by \"multipass\" slot rule of interface \"multipass\"")
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
@@ -723,7 +716,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":                       true,
 		"maliit":                    true,
 		"mir":                       true,
-		"multipass":                 true,
 		"network-status":            true,
 		"online-accounts-service":   true,
 		"storage-framework-service": true,
