@@ -49,6 +49,7 @@ type snapOpTestServer struct {
 	total           int
 	channel         string
 	trackingChannel string
+	confinement     string
 	rebooting       bool
 	snap            string
 }
@@ -81,7 +82,7 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 3:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s", "tracking-channel": "%s"}]}\n`, t.snap, t.channel, t.trackingChannel)
+		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s", "tracking-channel": "%s", "confinement": "%s"}]}\n`, t.snap, t.channel, t.trackingChannel, t.confinement)
 	default:
 		t.c.Fatalf("expected to get %d requests, now on %d", t.total, t.n+1)
 	}
@@ -362,6 +363,7 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 			"action":  "install",
 			"classic": true,
 		})
+		s.srv.confinement = "classic"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
@@ -370,6 +372,26 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallStrictWithClassicFlag(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"classic": true,
+		})
+		s.srv.confinement = "strict"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
+	c.Check(s.Stderr(), testutil.MatchesWrapped, `Warning:\s+flag --classic ignored for strictly confined snap foo.*`)
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
@@ -809,6 +831,8 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 		name, _, body := formFile(form, c)
 		c.Check(name, check.Equals, "snap")
 		c.Check(string(body), check.Equals, "snap-data")
+
+		s.srv.confinement = "classic"
 	}
 
 	snapBody := []byte("snap-data")
