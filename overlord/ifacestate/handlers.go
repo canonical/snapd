@@ -1596,19 +1596,10 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 		return nil
 	}
 
-	// New slot. Determine the name: use name provided by slot spec if set, otherwise use auto-generated name
-	proposedName := slotSpec.Name
-	if proposedName == "" {
-		proposedName = suggestedSlotName(&devinfo, ifaceName)
-	}
-	proposedName = ensureUniqueName(proposedName, func(name string) bool {
-		if slot, ok := stateSlots[name]; ok {
-			return slot.HotplugKey == hotplugKey
-		}
-		return m.repo.Slot(systemSnap.InstanceName(), name) == nil
-	})
+	// New slot.
+	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), slotSpec.Name, iface.Name(), devinfo, m.repo, stateSlots)
 	newSlot := &snap.SlotInfo{
-		Name:       proposedName,
+		Name:       slotName,
 		Label:      slotSpec.Label,
 		Snap:       systemSnap,
 		Interface:  iface.Name(),
