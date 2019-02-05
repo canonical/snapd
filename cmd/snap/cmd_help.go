@@ -22,6 +22,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -88,10 +90,11 @@ func (cmd *cmdHelp) setParser(parser *flags.Parser) {
 	cmd.parser = parser
 }
 
-// manfixer is a hackish way to get the generated manpage into section 8
-// (go-flags doesn't have an option for this; I'll be proposing something
-// there soon, but still waiting on some other PRs to make it through)
+// manfixer is a hackish way to fix drawbacks in the generated manpage:
+// - no way to get it into section 8
+// - duplicated TP lines that break older groff (e.g. 14.04), lp:1814767
 type manfixer struct {
+	bytes.Buffer
 	done bool
 }
 
@@ -100,13 +103,20 @@ func (w *manfixer) Write(buf []byte) (int, error) {
 		w.done = true
 		if bytes.HasPrefix(buf, []byte(".TH snap 1 ")) {
 			// io.Writer.Write must not modify the buffer, even temporarily
-			n, _ := Stdout.Write(buf[:9])
-			Stdout.Write([]byte{'8'})
-			m, err := Stdout.Write(buf[10:])
+			n, _ := w.Buffer.Write(buf[:9])
+			w.Buffer.Write([]byte{'8'})
+			m, err := w.Buffer.Write(buf[10:])
 			return n + m + 1, err
 		}
 	}
-	return Stdout.Write(buf)
+	return w.Buffer.Write(buf)
+}
+
+var tpRegexp = regexp.MustCompile(`(?m)(?:^\.TP\n)+`)
+
+func (w *manfixer) flush() {
+	str := tpRegexp.ReplaceAllLiteralString(w.Buffer.String(), ".TP\n")
+	io.Copy(Stdout, strings.NewReader(str))
 }
 
 func (cmd cmdHelp) Execute(args []string) error {
@@ -116,7 +126,9 @@ func (cmd cmdHelp) Execute(args []string) error {
 	if cmd.Manpage {
 		// you shouldn't try to to combine --man with --all nor a
 		// subcommand, but --man is hidden so no real need to check.
-		cmd.parser.WriteManPage(&manfixer{})
+		out := &manfixer{}
+		cmd.parser.WriteManPage(out)
+		out.flush()
 		return nil
 	}
 	if cmd.All {
