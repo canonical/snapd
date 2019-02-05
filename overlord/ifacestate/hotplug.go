@@ -181,10 +181,10 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 
 // hotplugSlotName returns a slot name derived from slotSpecName or device attributes, or interface name, in that priority order, depending
 // on which information is available. The chosen name is guaranteed to be unique
-func hotplugSlotName(hotplugKey, systemSnapInstanceName, slotSpecName, ifaceName string, devinfo hotplug.HotplugDeviceInfo, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo) string {
+func hotplugSlotName(hotplugKey, systemSnapInstanceName, slotSpecName, ifaceName string, devinfo *hotplug.HotplugDeviceInfo, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo) string {
 	proposedName := slotSpecName
 	if proposedName == "" {
-		proposedName = suggestedSlotName(&devinfo, ifaceName)
+		proposedName = suggestedSlotName(devinfo, ifaceName)
 	}
 	proposedName = ensureUniqueName(proposedName, func(slotName string) bool {
 		if slot, ok := stateSlots[slotName]; ok {
