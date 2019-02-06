@@ -255,6 +255,8 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 
 	if o.ensureNext.Before(now) {
+		// timer already expired, it will be reset in Loop() and
+		// next Ensure() will be called shortly.
 		if !o.ensureTimer.Stop() {
 			return
 		}
