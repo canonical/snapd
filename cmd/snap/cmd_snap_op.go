@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 
@@ -275,7 +276,7 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 				head := i18n.G("Warning:")
 				// TRANSLATORS: the arg is a snap name (e.g. "some-snap")
 				warn := fill(fmt.Sprintf(i18n.G("flag --classic ignored for strictly confined snap %s"), snap.Name), utf8.RuneCountInString(head)+1) // +1 for the space
-				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
+				fmt.Fprint(Stderr, head, " ", warn, "\n\n")
 			}
 
 			if snap.Publisher != nil {
