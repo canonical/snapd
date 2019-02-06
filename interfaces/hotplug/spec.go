@@ -47,9 +47,9 @@ type RequestedSlotSpec struct {
 	// Name is how the interface wants to name the slot. When left empty,
 	// one will be generated on demand. The hotplug machinery appends a
 	// suffix to ensure uniqueness of the name.
-	Name  string
-	Label string
-	Attrs map[string]interface{}
+	Name  string                 `json:"name"`
+	Label string                 `json:"label"`
+	Attrs map[string]interface{} `json:"attrs,omitempty"`
 }
 
 // Specification contains a slot definition to create in response to a hotplug event.

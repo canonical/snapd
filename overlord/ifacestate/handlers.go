@@ -1541,7 +1541,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 
 	systemSnap, err := systemSnapInfo(st)
 	if err != nil {
-		return fmt.Errorf("core snap not available")
+		return fmt.Errorf("system snap not available")
 	}
 
 	ifaceName, hotplugKey, err := getHotplugAttrs(task)
@@ -1583,21 +1583,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 				Attrs:      slotSpec.Attrs,
 				HotplugKey: hotplugKey,
 			}
-			if iface, ok := iface.(interfaces.SlotSanitizer); ok {
-				if err := iface.BeforePrepareSlot(newSlot); err != nil {
-					return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", newSlot.Name, newSlot.Interface, err)
-				}
-			}
-
-			if err := m.repo.AddSlot(newSlot); err != nil {
-				return fmt.Errorf("cannot restore hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
-			}
-			slot.HotplugGone = false
-			slot.StaticAttrs = slotSpec.Attrs
-			stateSlots[slot.Name] = slot
-			setHotplugSlots(st, stateSlots)
-
-			return nil
+			return storeHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
 		}
 
 		// else - not gone, restored already by reloadConnections, but may need updating.
@@ -1605,48 +1591,22 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 			ts := updateDevice(st, iface.Name(), hotplugKey, slotSpec.Attrs)
 			snapstate.InjectTasks(task, ts)
 			st.EnsureBefore(0)
+			task.SetStatus(state.DoneStatus)
 		} // else - nothing to do
 		return nil
 	}
 
-	// New slot. Determine the name: use name provided by slot spec if set, otherwise use auto-generated name
-	proposedName := slotSpec.Name
-	if proposedName == "" {
-		proposedName = suggestedSlotName(&devinfo, ifaceName)
-	}
-	proposedName = ensureUniqueName(proposedName, func(name string) bool {
-		if slot, ok := stateSlots[name]; ok {
-			return slot.HotplugKey == hotplugKey
-		}
-		return m.repo.Slot(systemSnap.InstanceName(), name) == nil
-	})
+	// New slot.
+	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), slotSpec.Name, iface.Name(), &devinfo, m.repo, stateSlots)
 	newSlot := &snap.SlotInfo{
-		Name:       proposedName,
+		Name:       slotName,
 		Label:      slotSpec.Label,
 		Snap:       systemSnap,
 		Interface:  iface.Name(),
 		Attrs:      slotSpec.Attrs,
 		HotplugKey: hotplugKey,
 	}
-	if iface, ok := iface.(interfaces.SlotSanitizer); ok {
-		if err := iface.BeforePrepareSlot(newSlot); err != nil {
-			return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", newSlot.Name, newSlot.Interface, err)
-		}
-	}
-
-	if err := m.repo.AddSlot(newSlot); err != nil {
-		return fmt.Errorf("cannot create hotplug slot %q for interface %s: %s", newSlot.Name, newSlot.Interface, err)
-	}
-	stateSlots[newSlot.Name] = &HotplugSlotInfo{
-		Name:        newSlot.Name,
-		Interface:   newSlot.Interface,
-		StaticAttrs: newSlot.Attrs,
-		HotplugKey:  newSlot.HotplugKey,
-	}
-	setHotplugSlots(st, stateSlots)
-	logger.Noticef("added hotplug slot %s:%s of interface %s, hotplug key %q", newSlot.Snap.InstanceName(), newSlot.Name, newSlot.Interface, hotplugKey)
-
-	return nil
+	return storeHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
 }
 
 // doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
