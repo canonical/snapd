@@ -128,20 +128,25 @@ func (x *cmdList) Execute(args []string) error {
 	esc := x.getEscapes()
 	w := tabWriter()
 
-	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
-	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tTracking\tPublisher%s\tNotes\n"), fillerPublisher(esc))
+	fmt.Fprintf(w, "%s%s\t%s\t%s\t%s\t%s%s%s\t%s%s\n",
+		esc.end,
+		i18n.G("Name"), i18n.G("Version"), i18n.G("Rev"), i18n.G("Tracking"), i18n.G("Publisher"), fillerPublisher(esc), esc.end, i18n.G("Notes"), esc.end)
 
 	for _, snap := range snaps {
-		// doing it this way because otherwise it's a sea of %s\t%s\t%s
-		line := []string{
+		e := esc.end
+		if snap.Status != client.StatusActive {
+			e = esc.dim
+		}
+		fmt.Fprintf(w, "%s%s\t%s\t%s\t%s\t%s%s\t%s%s\n",
+			e,
 			snap.Name,
 			snap.Version,
 			snap.Revision.String(),
 			fmtChannel(snap.TrackingChannel),
-			shortPublisher(esc, snap.Publisher),
+			shortPublisher(esc, snap.Publisher), e,
 			NotesFromLocal(snap).String(),
-		}
-		fmt.Fprintln(w, strings.Join(line, "\t"))
+			esc.end,
+		)
 	}
 	w.Flush()
 

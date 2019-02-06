@@ -111,6 +111,7 @@ var colorDescs = mixinDescs{
 type escapes struct {
 	green string
 	bold  string
+	dim   string
 	end   string
 
 	tick, dash, uparrow string
@@ -120,12 +121,14 @@ var (
 	color = escapes{
 		green: "\033[32m",
 		bold:  "\033[1m",
+		dim:   "\033[2m",
 		end:   "\033[0m",
 	}
 
 	mono = escapes{
 		green: "\033[1m",
 		bold:  "\033[1m",
+		dim:   "\033[2m",
 		end:   "\033[0m",
 	}
 
