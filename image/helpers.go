@@ -189,8 +189,13 @@ func (tac toolingAuthContext) UpdateUserAuth(user *auth.UserState, discharges []
 	return user, nil
 }
 
-func NewToolingStoreFromModel(model *asserts.Model) (*ToolingStore, error) {
-	return newToolingStore(model.Architecture(), model.Store())
+func NewToolingStoreFromModel(model *asserts.Model, fallbackArchitecture string) (*ToolingStore, error) {
+	architecture := model.Architecture()
+	// can happen on classic
+	if architecture == "" {
+		architecture = fallbackArchitecture
+	}
+	return newToolingStore(architecture, model.Store())
 }
 
 func NewToolingStore() (*ToolingStore, error) {
