@@ -29,7 +29,6 @@ prepare: |
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
 
 restore: |
-    rm -f call.error
     #shellcheck source=tests/lib/dbus.sh
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit || true
@@ -46,19 +45,22 @@ execute: |
     echo "And plug is disconnected by default"
     snap interfaces -i dbus | MATCH '^- +test-snapd-dbus-consumer:dbus-test'
 
-    if [ "$(snap debug confinement)" = partial ]; then
-        exit 0
-    fi
-
-    echo "And the consumer is not able to access the provided method"
-    if test-snapd-dbus-consumer.dbus-consumer 2> call.error; then
-        echo "Expected permission error calling dbus method with disconnected plug"
-        exit 1
-    fi
-    MATCH "Permission denied" < call.error
-
     echo "When the plug is connected"
     snap connect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
 
     echo "Then the consumer is able to call the provided method"
     test-snapd-dbus-consumer.dbus-consumer | MATCH "hello world"
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
+
+    echo "The consumer is not able to access the provided method"
+    if test-snapd-dbus-consumer.dbus-consumer 2> call.error; then
+        echo "Expected permission error calling dbus method with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

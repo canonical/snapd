@@ -40,7 +40,7 @@ var (
 
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
-	IsReexeced         = isReexeced
+	SnapdHelperPath    = snapdHelperPath
 	MaybePrintServices = maybePrintServices
 	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
@@ -48,6 +48,7 @@ var (
 	Antialias          = antialias
 	FormatChannel      = fmtChannel
 	PrintDescr         = printDescr
+	WrapFlow           = wrapFlow
 	TrueishJSON        = trueishJSON
 
 	CanUnicode           = canUnicode
@@ -239,5 +240,13 @@ func MockSELinuxRestoreContext(restorecon func(string, selinux.RestoreMode) erro
 	selinuxRestoreContext = restorecon
 	return func() {
 		selinuxRestoreContext = old
+	}
+}
+
+func MockTermSize(newTermSize func() (int, int)) (restore func()) {
+	old := termSize
+	termSize = newTermSize
+	return func() {
+		termSize = old
 	}
 }

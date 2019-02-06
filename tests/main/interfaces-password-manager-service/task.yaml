@@ -15,7 +15,6 @@ restore: |
     if [ -f dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
     fi
-    rm -f  dbus-launch.pid
 
 execute: |
     echo "Ensure things run"

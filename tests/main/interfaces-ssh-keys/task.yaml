@@ -22,7 +22,6 @@ prepare: |
     echo "testkey.pub" > "$TESTKEY".pub
 
 restore: |
-    rm -f call.error
     rm -rf "$KEYSDIR"
     if [ -d "$KEYSDIR".old ]; then
         mv "$KEYSDIR".old "$KEYSDIR"
@@ -51,7 +50,7 @@ execute: |
     snap disconnect test-snapd-sh:ssh-keys
 
     echo "Then the snap is not able to read a ssh private key"
-    if test-snapd-sh.with-ssh-keys-plug -c "cat $TESTKEY" 2>"${PWD}"/call.error; then
+    if test-snapd-sh.with-ssh-keys-plug -c "cat $TESTKEY" 2> call.error; then
         echo "Expected permission error accessing to ssh"
         exit 1
     fi

@@ -21,6 +21,7 @@ package backend
 
 import (
 	"archive/zip"
+	"context"
 	"crypto"
 	"encoding/json"
 	"errors"
@@ -30,8 +31,6 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
