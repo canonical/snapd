@@ -6,7 +6,7 @@ jobs:
     - stage: quick
       name: go 1.6/xenial static and unit test suites
       dist: xenial
-      go: 1.6
+      go: "1.6"
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
@@ -17,7 +17,7 @@ jobs:
         - ./run-checks --static
         - ./run-checks --short-unit
     - stage: quick
-      go: 1.10
+      go: "1.10"
       name: OSX build and minimal runtime sanity check
       os: osx
       addons:

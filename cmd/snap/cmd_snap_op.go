@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 
@@ -257,7 +258,7 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 }
 
 // show what has been done
-func showDone(cli *client.Client, names []string, op string, esc *escapes) error {
+func showDone(cli *client.Client, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
 	if err != nil {
 		return err
@@ -270,6 +271,14 @@ func showDone(cli *client.Client, names []string, op string, esc *escapes) error
 		}
 		switch op {
 		case "install":
+			if opts != nil && opts.Classic && snap.Confinement != client.ClassicConfinement {
+				// requested classic but the snap is not classic
+				head := i18n.G("Warning:")
+				// TRANSLATORS: the arg is a snap name (e.g. "some-snap")
+				warn := fill(fmt.Sprintf(i18n.G("flag --classic ignored for strictly confined snap %s"), snap.Name), utf8.RuneCountInString(head)+1) // +1 for the space
+				fmt.Fprint(Stderr, head, " ", warn, "\n\n")
+			}
+
 			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s from %s installed\n"), snap.Name, channelStr, snap.Version, longPublisher(esc, snap.Publisher))
@@ -400,7 +409,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		}
 	}
 
-	return showDone(x.client, []string{snapName}, "install", x.getEscapes())
+	return showDone(x.client, []string{snapName}, "install", opts, x.getEscapes())
 }
 
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
@@ -439,7 +448,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		if err := showDone(x.client, installed, "install", x.getEscapes()); err != nil {
+		if err := showDone(x.client, installed, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
 	}
@@ -538,7 +547,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 	}
 
 	if len(refreshed) > 0 {
-		return showDone(x.client, refreshed, "refresh", x.getEscapes())
+		return showDone(x.client, refreshed, "refresh", opts, x.getEscapes())
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -564,7 +573,7 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return err
 	}
 
-	return showDone(x.client, []string{name}, "refresh", x.getEscapes())
+	return showDone(x.client, []string{name}, "refresh", opts, x.getEscapes())
 }
 
 func parseSysinfoTime(s string) time.Time {
@@ -882,7 +891,7 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	return showDone(x.client, []string{name}, "revert", nil)
+	return showDone(x.client, []string{name}, "revert", nil, nil)
 }
 
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
