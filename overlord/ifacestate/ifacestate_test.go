@@ -6015,9 +6015,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"hotplugslot": map[string]interface{}{
-			"name":        "hotplugslot",
-			"interface":   "test",
-			"hotplug-key": "1234",
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
 		}})
 }
 
