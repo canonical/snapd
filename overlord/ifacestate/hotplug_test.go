@@ -468,6 +468,12 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 			"interface":    "test-a",
 			"hotplug-key":  "key-1",
 			"hotplug-gone": false}})
+	st.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test-a",
+			"hotplug-key":  "key-1",
+			"hotplug-gone": false}})
 
 	repo := s.mgr.Repository()
 	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
@@ -638,7 +644,7 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 			"interface": "test-a", "hotplug-gone": false, "static-attrs": map[string]interface{}{"slot-a-attr1": "a", "path": di.DevicePath()}, "hotplug-key": "key-1", "name": "hotplugslot-a"},
 		"hotplugslot-b": map[string]interface{}{
 			"name": "hotplugslot-b", "hotplug-gone": false, "interface": "test-b", "hotplug-key": "key-2"},
-		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "hotplug-gone": false, "interface": "test-a", "hotplug-key": "key-other-device"}})
+		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "hotplug-gone": true, "interface": "test-a", "hotplug-key": "key-other-device"}})
 }
 
 func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
