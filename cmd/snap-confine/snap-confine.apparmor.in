@@ -313,6 +313,18 @@
     @{HOME}/ r,
     @{HOME}/snap/{,*/,*/*/} rw,
 
+    # Special case for *classic* snaps that are used by users with existing dirs
+    # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...
+    # (see https://forum.snapcraft.io/t/9717)
+    # TODO: this can be removed once we support home-dirs outside of /home
+    #       better
+    /var/ r,
+    /var/lib/ r,
+    # These should both have 'owner' match but due to LP: #1466234, we can't
+    # yet
+    /var/lib/*/ r,
+    /var/lib/*/snap/{,*/,*/*/} rw,
+
     # for creating the user shared memory directories
     /{dev,run}/{,shm/} r,
     # This should both have 'owner' match but due to LP: #1466234, we can't yet
@@ -493,13 +505,6 @@
     /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-discard-ns rix,
     /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
     /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
-
-    # As a special exception, allow HOME to be /var/lib/jenkins
-    # This is required for snap-confine to create SNAP_USER_DATA and similar.
-    /var/ r,
-    /var/lib/ r,
-    /var/lib/jenkins/ r,
-    /var/lib/jenkins/snap/{,*/,*/*/} rw,
 
     # Allow mounting /var/lib/jenkinks from the host into the snap.
     mount options=(rw rbind) /var/lib/jenkins/ -> /tmp/snap.rootfs_*/var/lib/jenkins/,

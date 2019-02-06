@@ -172,7 +172,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 func (s *SnapSuite) TestDisconnectCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/interfaces":
+		case "/v2/connections":
 			c.Assert(r.Method, Equals, "GET")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
