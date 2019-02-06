@@ -639,10 +639,12 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
-		Media:        info.Media,
 		Type:         info.Type,
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
+		auxStoreInfo: auxStoreInfo{
+			Media: info.Media,
+		},
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -854,10 +856,12 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
-			Media:        update.Media,
 			Type:         update.Type,
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
+			auxStoreInfo: auxStoreInfo{
+				Media: update.Media,
+			},
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)

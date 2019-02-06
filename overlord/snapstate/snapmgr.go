@@ -83,7 +83,7 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
-	Media        snap.MediaInfos    `json:"media,omitempty"`
+	auxStoreInfo
 
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
@@ -262,8 +262,8 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		err = nil
 	}
 	if err == nil && flags&loadStore != 0 {
-		if e := attachStoreInfo(info); e != nil {
-			logger.Debugf("cannot read cached snap store info for %q: %v", name, e)
+		if e := retrieveAuxStoreInfo(info); e != nil {
+			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, e)
 		}
 	}
 	return info, err

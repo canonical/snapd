@@ -202,16 +202,12 @@ func setModel(override map[string]string) {
 	}
 }
 
-// store info cache
+// aux store info
 var (
-	SnapStoreInfoCacheFilename = snapStoreInfoCacheFilename
-	AttachStoreInfo            = attachStoreInfo
-	CacheStoreInfo             = cacheStoreInfo
-	DeleteStoreInfoCache       = deleteStoreInfoCache
+	AuxStoreInfoFilename = auxStoreInfoFilename
+	RetrieveAuxStoreInfo = retrieveAuxStoreInfo
+	RetainAuxStoreInfo   = retainAuxStoreInfo
+	DiscardAuxStoreInfo  = discardAuxStoreInfo
 )
 
-func NewStoreInfo(media snap.MediaInfos) *storeInfo {
-	return &storeInfo{
-		Media: media,
-	}
-}
+type AuxStoreInfo = auxStoreInfo

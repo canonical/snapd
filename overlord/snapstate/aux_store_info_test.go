@@ -28,36 +28,36 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type storeCacheSuite struct{}
+type auxInfoSuite struct{}
 
-var _ = check.Suite(&storeCacheSuite{})
+var _ = check.Suite(&auxInfoSuite{})
 
-func (s *storeCacheSuite) SetUpTest(c *check.C) {
+func (s *auxInfoSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *storeCacheSuite) TestStoreCacheRoundTrip(c *check.C) {
+func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	media := snap.MediaInfos{{Type: "1-2-3-testing"}}
 	info := &snap.Info{SuggestedName: "some-snap"}
 	info.SnapID = "some-id"
-	filename := snapstate.SnapStoreInfoCacheFilename(info.SnapID)
+	filename := snapstate.AuxStoreInfoFilename(info.SnapID)
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
-	c.Check(snapstate.AttachStoreInfo(info), check.IsNil)
+	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
 
-	c.Assert(snapstate.CacheStoreInfo(info.SnapID, snapstate.NewStoreInfo(media)), check.IsNil)
+	c.Assert(snapstate.RetainAuxStoreInfo(info.SnapID, &snapstate.AuxStoreInfo{media}), check.IsNil)
 	c.Check(osutil.FileExists(filename), check.Equals, true)
 
-	c.Assert(snapstate.AttachStoreInfo(info), check.IsNil)
+	c.Assert(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 1)
 	c.Check(info.Media, check.DeepEquals, media)
 	info.Media = nil
 
-	c.Assert(snapstate.DeleteStoreInfoCache(info.SnapID), check.IsNil)
+	c.Assert(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
 
-	c.Check(snapstate.AttachStoreInfo(info), check.IsNil)
+	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
 
-	c.Check(snapstate.DeleteStoreInfoCache(info.SnapID), check.IsNil)
+	c.Check(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
 }

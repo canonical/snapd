@@ -2107,8 +2107,8 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// we start without the cache
-	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap"), testutil.FileAbsent)
+	// we start without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
 
 	chg := s.state.NewChange("install", "install a snap")
 	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -2268,8 +2268,8 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	})
 	c.Assert(snapst.Required, Equals, false)
 
-	// we end with the cache
-	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap-id"), testutil.FilePresent)
+	// we end with the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
@@ -2904,8 +2904,8 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
-	// we start without the cache (or with an older cache)
-	c.Check(snapstate.SnapStoreInfoCacheFilename("services-snap"), testutil.FileAbsent)
+	// we start without the auxiliary store info (or with an older one)
+	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
 
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
@@ -3119,8 +3119,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Revision: snap.R(11),
 	})
 
-	// we end up with the cache
-	c.Check(snapstate.SnapStoreInfoCacheFilename("services-snap-id"), testutil.FilePresent)
+	// we end up with the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
@@ -6031,8 +6031,8 @@ version: 1.0`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
-	c.Assert(snapstate.CacheStoreInfo("some-snap-id", nil), IsNil)
-	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap-id"), testutil.FilePresent)
+	c.Assert(snapstate.RetainAuxStoreInfo("some-snap-id", nil), IsNil)
+	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FilePresent)
 	si := snap.SideInfo{
 		SnapID:   "some-snap-id",
 		RealName: "some-snap",
@@ -6156,7 +6156,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
-	c.Check(snapstate.SnapStoreInfoCacheFilename("some-snap-id"), testutil.FileAbsent)
+	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
 
 }
 
@@ -9103,15 +9103,15 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	c.Check(info.Media, IsNil)
 }
 
-func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsStoreInfoCache(c *C) {
-	storeInfo := snapstate.NewStoreInfo(snap.MediaInfos{
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C) {
+	storeInfo := &snapstate.AuxStoreInfo{snap.MediaInfos{
 		{
 			Type: "icon",
 			URL:  "http://example.com/favicon.ico",
 		},
-	})
+	}}
 
-	c.Assert(snapstate.CacheStoreInfo("123123123", storeInfo), IsNil)
+	c.Assert(snapstate.RetainAuxStoreInfo("123123123", storeInfo), IsNil)
 
 	st := s.st
 	st.Lock()
