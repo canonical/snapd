@@ -999,7 +999,7 @@ func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 		c.Assert(info.Epoch.String(), Equals, "0")
 	}
 
-	// now add some more snaps
+	// now add some more snap revisions with increasing epochs
 	for _, name := range snapNames {
 		for i, epoch := range []string{"1*", "2*", "3*"} {
 			revno := fmt.Sprint(i + 2)
@@ -1080,7 +1080,7 @@ func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFaili
 		c.Assert(info.Epoch.String(), Equals, "0")
 	}
 
-	// now add some more snaps
+	// now add some more snap revisions with increasing epochs
 	for _, name := range snapNames {
 		for i, epoch := range []string{"1*", "2*", "3*"} {
 			revno := fmt.Sprint(i + 2)
@@ -1100,6 +1100,8 @@ func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFaili
 	}
 
 	st.Unlock()
+	// the download for the refresh above will be performed below, during 'settle'.
+	// fail the refresh of cccc by failing its download
 	ms.failNextDownload = "cccc"
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()

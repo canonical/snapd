@@ -1957,27 +1957,33 @@ func nearlyReady(me string, change *state.Change) bool {
 }
 
 // laneSnaps returns the instance names from the first SnapSetup in each
-// non-zero lane that is Done
-func laneSnaps(tid string, tasks []*state.Task) []string {
+// non-zero Done lane in the refresh batch leading up the given task
+func laneSnaps(reTask *state.Task) []string {
+	tid := reTask.ID()
 	laneSnaps := map[int]string{}
 	// change.Tasks() preserves the order tasks were added, otherwise it all falls apart
-	for _, task := range tasks {
+	for _, task := range reTask.Change().Tasks() {
 		if task.ID() == tid {
+			// we've reached ourselves; we don't care about anything beyond this
 			break
 		}
 		if task.Kind() == "check-rerefresh" {
-			// reset and start over
+			// we've reached a previous check-rerefresh (but not ourselves).
+			// Only snaps in tasks after this point are of interest.
 			laneSnaps = map[int]string{}
 		}
 		lanes := task.Lanes()
 		if len(lanes) != 1 || lanes[0] == 0 {
+			// can't happen, really
 			continue
 		}
 		if task.Status() != state.DoneStatus {
+			// ignore non-successful lane
 			laneSnaps[lanes[0]] = ""
 			continue
 		}
 		if _, ok := laneSnaps[lanes[0]]; ok {
+			// ignore lanes we've already seen
 			continue
 		}
 		var snapsup SnapSetup
@@ -2028,7 +2034,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	if !nearlyReady(t.ID(), chg) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
-	snaps := laneSnaps(t.ID(), chg.Tasks())
+	snaps := laneSnaps(t)
 	if len(snaps) == 0 {
 		// nothing to do (maybe everything failed)
 		return nil

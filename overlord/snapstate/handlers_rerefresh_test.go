@@ -203,8 +203,8 @@ func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 }
 
 // wrapper around snapstate.LaneSnaps for easier testing
-func laneSnaps(tid string, tasks []*state.Task) string {
-	snaps := snapstate.LaneSnaps(tid, tasks)
+func laneSnaps(task *state.Task) string {
+	snaps := snapstate.LaneSnaps(task)
 	sort.Strings(snaps)
 	return strings.Join(snaps, ",")
 }
@@ -226,28 +226,68 @@ func addLane(st *state.State, chg *state.Change, t1snap string, t2status state.S
 	chg.AddTask(t2)
 }
 
-func (s *reRefreshSuite) TestLaneSnapsBasic(c *C) {
+func (s *reRefreshSuite) TestLaneSnapsSimple(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg := s.state.NewChange("testing", "...")
 	addLane(s.state, chg, "aaa", state.DoneStatus)
-	c.Check(laneSnaps("<>", chg.Tasks()), Equals, "aaa")
-	// more lanes, no problem
-	addLane(s.state, chg, "bbb", state.DoneStatus)
-	c.Check(laneSnaps("<>", chg.Tasks()), Equals, "aaa,bbb")
-	// a lane that's failed, no problem
-	addLane(s.state, chg, "ccc", state.ErrorStatus)
-	c.Check(laneSnaps("<>", chg.Tasks()), Equals, "aaa,bbb")
-
-	// a check-rerefresh task resets the list
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
-	c.Check(laneSnaps("<>", chg.Tasks()), Equals, "")
+	c.Check(laneSnaps(task), Equals, "aaa")
+}
+
+func (s *reRefreshSuite) TestLaneSnapsMoreLanes(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("testing", "...")
+	addLane(s.state, chg, "aaa", state.DoneStatus)
+	// more lanes, no problem
+	addLane(s.state, chg, "bbb", state.DoneStatus)
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+	c.Check(laneSnaps(task), Equals, "aaa,bbb")
+}
+
+func (s *reRefreshSuite) TestLaneSnapsFailedLane(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("testing", "...")
+	addLane(s.state, chg, "aaa", state.DoneStatus)
+	addLane(s.state, chg, "bbb", state.DoneStatus)
+	// a lane that's failed, no problem
+	addLane(s.state, chg, "ccc", state.ErrorStatus)
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+	c.Check(laneSnaps(task), Equals, "aaa,bbb")
+}
+
+func (s *reRefreshSuite) TestLaneSnapsRerefreshResets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("testing", "...")
+	addLane(s.state, chg, "aaa", state.DoneStatus)
+	addLane(s.state, chg, "bbb", state.DoneStatus)
+	// a check-rerefresh task resets the list
+	chg.AddTask(s.state.NewTask("check-rerefresh", "..."))
 	addLane(s.state, chg, "ddd", state.DoneStatus)
-	c.Check(laneSnaps("<>", chg.Tasks()), Equals, "ddd")
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+	c.Check(laneSnaps(task), Equals, "ddd")
+}
+
+func (s *reRefreshSuite) TestLaneSnapsStopsAtSelf(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("testing", "...")
+	addLane(s.state, chg, "aaa", state.DoneStatus)
+	addLane(s.state, chg, "bbb", state.DoneStatus)
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+	addLane(s.state, chg, "ddd", state.DoneStatus)
+	chg.AddTask(s.state.NewTask("check-rerefresh", "..."))
 
 	// unless we're looking for _that_ task (this is defensive; can't really happen)
-	c.Check(laneSnaps(task.ID(), chg.Tasks()), Equals, "aaa,bbb")
+	c.Check(laneSnaps(task), Equals, "aaa,bbb")
 }
 
 func (s *reRefreshSuite) TestLaneSnapsTwoSetups(c *C) {
@@ -269,7 +309,10 @@ func (s *reRefreshSuite) TestLaneSnapsTwoSetups(c *C) {
 	chg := s.state.NewChange("testing", "...")
 	chg.AddAll(ts)
 
-	c.Check(laneSnaps("", chg.Tasks()), Equals, "one")
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+
+	c.Check(laneSnaps(task), Equals, "one")
 }
 
 func (s *reRefreshSuite) TestLaneSnapsBadSetup(c *C) {
@@ -291,7 +334,10 @@ func (s *reRefreshSuite) TestLaneSnapsBadSetup(c *C) {
 	chg := s.state.NewChange("testing", "...")
 	chg.AddAll(ts)
 
-	c.Check(laneSnaps("", chg.Tasks()), Equals, "two")
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+
+	c.Check(laneSnaps(task), Equals, "two")
 }
 
 func (*reRefreshSuite) TestFilterReturnsFalseIfEpochEqual(c *C) {

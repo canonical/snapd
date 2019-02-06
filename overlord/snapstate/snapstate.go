@@ -943,7 +943,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
-		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Re-refresh of %s", strutil.Quoted(updated)))
+		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Consider re-refresh of %s", strutil.Quoted(updated)))
 		rerefresh.Set("rerefresh-setup", reRefreshSetup{
 			UserID: userID,
 			Flags:  globalFlags,
