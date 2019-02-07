@@ -3,6 +3,7 @@ summary: Check that "snap connections" works as expected
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+
     snap connections > all.out 2>&1
     test "$(wc -l < all.out)" = "0"
 
@@ -28,16 +29,16 @@ execute: |
     snap connections test-snapd-content-plug --disconnected > disconnected.out 2>&1
     test "$(wc -l < disconnected.out)" = "0"
 
-    # :gsettings is connected by default
-    snap install --edge test-snapd-gsettings-consumer
-    expected='test-snapd-gsettings-consumer:gsettings +:gsettings +gsettings +-'
-    snap connections test-snapd-gsettings-consumer | MATCH "$expected"
+    # :network is connected by default
+    install_local network-consumer
+    expected='network-consumer:network +:network +network +-'
+    snap connections network-consumer | MATCH "$expected"
     # disconect it manually
-    snap disconnect test-snapd-gsettings-consumer:gsettings
-    expected='test-snapd-gsettings-consumer:gsettings +:gsettings +gsettings +disconnected,manual'
-    snap connections test-snapd-gsettings-consumer 2>&1 | MATCH "$expected"
+    snap disconnect network-consumer:network
+    expected='network-consumer:network +:network +network +disconnected,manual'
+    snap connections network-consumer 2>&1 | MATCH "$expected"
     # and it should be marked accordingly in the output
-    snap connections test-snapd-gsettings-consumer --disconnected | MATCH "$expected"
+    snap connections network-consumer --disconnected | MATCH "$expected"
 
     # try with an interface which is not connected by default
     install_local test-snapd-daemon-notify
@@ -57,17 +58,17 @@ execute: |
     # show connected only
     snap connections > connected.out
     MATCH 'test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-' < connected.out
-    MATCH -v 'test-snapd-gsettings-consumer' < connected.out
+    MATCH -v 'network-consumer' < connected.out
     MATCH -v 'test-snapd-daemon-notify' < connected.out
 
     # show all
     snap connections --all > all.out
     MATCH 'test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-' < all.out
     MATCH 'test-snapd-daemon-notify:daemon-notify +- +daemon-notify +disconnected' < all.out
-    MATCH 'test-snapd-gsettings-consumer:gsettings +:gsettings +gsettings +disconnected,manual' < all.out
+    MATCH 'network-consumer:network +:network +network +disconnected,manual' < all.out
 
     # show just disconnected
     snap connections --disconnected > disconnected.out
-    MATCH 'test-snapd-gsettings-consumer:gsettings +:gsettings +gsettings +disconnected,manual' < disconnected.out
+    MATCH 'network-consumer:network +:network +network +disconnected,manual' < disconnected.out
     MATCH 'test-snapd-daemon-notify:daemon-notify +- +daemon-notify +disconnected' < disconnected.out
     MATCH -v 'test-snapd-content-plug' < disconnected.out
