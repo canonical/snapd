@@ -1,11 +1,14 @@
-summary: Check that Jenkins user can run snaps
+summary: Check that users with homes in /var/lib can run *classic* snaps
+
 systems: [ubuntu-16.04-64]
 environment:
     SPECIAL_USER_NAME/jenkins: jenkins
+    SPECIAL_USER_NAME/postgres: postgres
 prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    install_local_classic test-snapd-classic-confinement
+
     # Install the corresponding package that brings the special user account.
     # Specialize the code as required for a particular user.
     case "$SPECIAL_USER_NAME" in
@@ -18,20 +21,25 @@ prepare: |
             apt-get install -y jenkins
             apt install jenkins
             ;;
+        postgres)
+            apt install -y postgresql
+            ;;
     esac
 restore: |
     snap remove test-snapd-sh
     # Remove the package we installed above.
     case "$SPECIAL_USER_NAME" in
         jenkins)
-            apt-get remove --purge -y jenkins default-jre-headless
-            apt-get autoremove --purge -y
+            apt autoremove --purge -y jenkins default-jre-headless
             rm -f /etc/apt/sources.list.d/jenkins.list
             apt-get update
             # TODO: remove the apt key added above, but how?
+            ;;
+        postgres)
+            apt autoremove --purge -y postgresql
             ;;
     esac
 execute: |
     #shellcheck disable=SC2016
     su -c sh -c 'echo $HOME' "$SPECIAL_USER_NAME" | MATCH "/var/lib/$SPECIAL_USER_NAME"
-    su -c 'snap run test-snapd-sh -c /bin/true' "$SPECIAL_USER_NAME"
+    su -c 'snap run test-snapd-classic-confinement.sh -c /bin/true' "$SPECIAL_USER_NAME"

@@ -62,7 +62,14 @@ execute: |
             print(errno.errorcode[get_errno()])
     EOF
     echo "Running random syscall gives ENOSYS normally"
-    python3 sec.py 22082007 | MATCH ENOSYS
+    if [ "$(uname -m)" = "armv7l" ]; then
+        # armhf kills the process with si_signo=SIGKILL, si_code=ILL_ILLTRP
+        python3 sec.py 22082007 || ret="$?"
+        test "$ret" = "132" # SIGILL
+    else
+        # most arches give ENOSYS
+        python3 sec.py 22082007 | MATCH ENOSYS
+    fi
     echo "But in the sandbox we get a EPERM"
     test-snapd-sh.with-home-plug -c "python3 $(pwd)/sec.py 22082007" | MATCH EPERM
 

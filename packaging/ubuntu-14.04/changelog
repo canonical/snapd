@@ -1,3 +1,25 @@
+snapd (2.37.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1811233
+    - cmd/snap, overlord/snapstate: silently ignore classic flag when a
+      snap is strictly confined
+    - snap-confine: remove special handling of /var/lib/jenkins
+    - cmd/snap-confine: handle death of helper process gracefully
+    - snap-confine: fix classic snaps for users with /var/lib/* homedirs
+      like jenkins/postgres
+    - packaging: disable systemd environment generator on 18.04
+    - tests: update smoke/sandbox test for armhf
+    - cmd/snap-confine: refactor and cleanup of seccomp loading
+    - snap-confine: increase locking timeout to 30s
+    - snap-confine: fix incorrect "sanity timeout 3s" message
+    - snap: fix hook autodiscovery for parallel installed snaps
+    - tests: iterate getting journal logs to support delay on boards on
+      daemon-notify test
+    - interfaces/apparmor: deny inet/inet6 in snap-update-ns profile
+    - interfaces: add u2f-devices interface
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 06 Feb 2019 10:08:07 +0100
+
 snapd (2.37.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1811233
