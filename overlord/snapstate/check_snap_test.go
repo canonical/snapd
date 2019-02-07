@@ -827,7 +827,7 @@ func (s *checkSnapSuite) TestCheckSnapBasesCoreCanBeUsedAsCore16(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "ccore-id"}
+	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-id"}
 	snaptest.MockSnap(c, `
 name: core
 type: os
