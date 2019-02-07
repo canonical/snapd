@@ -199,11 +199,11 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay"},
+		Commands:    []string{"version", "warnings", "okay", "ack", "known"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"run", "pack", "try", "ack", "known", "download"},
+		Commands:    []string{"run", "pack", "try", "download", "prepare-image"},
 	},
 }
 
