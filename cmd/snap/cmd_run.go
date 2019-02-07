@@ -459,13 +459,20 @@ func snapdHelperPath(toolName string) (string, error) {
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
 	}
-
+	// The logic below only works if the last two path components
+	// are /usr/bin
+	// FIXME: use a snap warning?
+	if !strings.HasSuffix(exe, "/usr/bin/"+filepath.Base(exe)) {
+		logger.Noticef("(internal error): unexpected exe input in snapdHelperPath: %v", exe)
+		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
+	}
 	// snapBase will be "/snap/{core,snapd}/$rev/" because
 	// the snap binary is always at $root/usr/bin/snap
 	snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
-	// Run snap-confine from the core/snapd snap. That
-	// will work because snap-confine on the core/snapd snap is
-	// mostly statically linked (except libudev and libc)
+	// Run snap-confine from the core/snapd snap.  The tools in
+	// core/snapd snap are statically linked, or mostly
+	// statically, with the exception of libraries such as libudev
+	// and libc.
 	return filepath.Join(snapBase, dirs.CoreLibExecDir, toolName), nil
 }
 

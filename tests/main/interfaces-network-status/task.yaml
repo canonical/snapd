@@ -53,7 +53,7 @@ execute: |
     snap disconnect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test
 
     echo "And the snap state cannot be accessed"
-    if test-snapd-network-status-provider.consumer GetState 2>"${PWD}"/getstate.error; then
+    if test-snapd-network-status-provider.consumer GetState 2> getstate.error; then
         echo "Expected permission error trying to introspect state with disconnected plug"
         exit 1
     fi

@@ -1389,6 +1389,43 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+// doHotplugUpdateSlot updates static attributes of a hotplug slot for given device.
+func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	var attrs map[string]interface{}
+	if err := task.Get("slot-attrs", &attrs); err != nil {
+		return fmt.Errorf("internal error: cannot get slot-attrs attribute for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
+	}
+
+	slot, err := m.repo.UpdateHotplugSlotAttrs(ifaceName, hotplugKey, attrs)
+	if err != nil {
+		return err
+	}
+
+	if slotSpec, ok := stateSlots[slot.Name]; ok {
+		slotSpec.StaticAttrs = attrs
+		stateSlots[slot.Name] = slotSpec
+		setHotplugSlots(st, stateSlots)
+	} else {
+		return fmt.Errorf("internal error: cannot find slot %s for device %q", slot.Name, hotplugKey)
+	}
+
+	return nil
+}
+
 // doHotplugRemoveSlot removes hotplug slot for given device from the repository in response to udev "remove" event.
 // This task must necessarily be run after all affected slot gets disconnected in the repo.
 func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {
