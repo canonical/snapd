@@ -46,7 +46,7 @@ func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
 		})
 	})
 	_, err := Parser(Client()).ParseArgs([]string{"connections"})
-	c.Check(err, ErrorMatches, "no connections found")
+	c.Check(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 
@@ -56,7 +56,7 @@ func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
 		"select": []string{"all"},
 	}
 	_, err = Parser(Client()).ParseArgs([]string{"connections", "--all"})
-	c.Check(err, ErrorMatches, "no connections found")
+	c.Check(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -92,7 +92,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Plug                          Slot  Interface  Notes\n" +
-		"keyboard-lights:capslock-led  -     leds       -\n"
+		"keyboard-lights:capslock-led  -     leds       disconnected\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 
@@ -108,7 +108,7 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout = "" +
 		"Plug                          Slot  Interface  Notes\n" +
-		"keyboard-lights:capslock-led  -     leds       -\n"
+		"keyboard-lights:capslock-led  -     leds       disconnected\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -128,9 +128,8 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 			"result": result,
 		})
 	})
-	rest, err := Parser(Client()).ParseArgs([]string{"connections"})
-	c.Check(err, ErrorMatches, "no connections found")
-	c.Assert(rest, DeepEquals, []string{"connections"})
+	_, err := Parser(Client()).ParseArgs([]string{"connections"})
+	c.Check(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 
@@ -148,12 +147,12 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 			},
 		},
 	}
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "--all"})
+	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Plug  Slot                        Interface  Notes\n" +
-		"-     leds-provider:capslock-led  leds       -\n"
+		"-     leds-provider:capslock-led  leds       disconnected\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -255,6 +254,18 @@ func (s *SnapSuite) TestConnectionsSomeConnected(c *C) {
 		"keyboard-lights:scrollock  :scrollock-led              leds       -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+
+	query = url.Values{
+		"select": []string{"all"},
+		"snap":   []string{"keyboard-lights"},
+	}
+	// keyboard lights has no disconnected plugs
+	_, err = Parser(Client()).ParseArgs([]string{"connections", "keyboard-lights", "--disconnected"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
@@ -353,7 +364,7 @@ func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
 		"keyboard-lights:capslock   leds-provider:capslock-led  leds       -\n" +
 		"keyboard-lights:numlock    :numlock-led                leds       disconnected,manual\n" +
 		"keyboard-lights:scrollock  :scrollock-led              leds       -\n" +
-		"-                          leds-provider:numlock-led   leds       -\n"
+		"-                          leds-provider:numlock-led   leds       disconnected\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 
@@ -365,7 +376,7 @@ func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
 	expectedStdout = "" +
 		"Plug                     Slot                       Interface  Notes\n" +
 		"keyboard-lights:numlock  :numlock-led               leds       disconnected,manual\n" +
-		"-                        leds-provider:numlock-led  leds       -\n"
+		"-                        leds-provider:numlock-led  leds       disconnected\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -393,8 +404,12 @@ func (s *SnapSuite) TestConnectionsFiltering(c *C) {
 		"snap":   []string{"mouse-buttons"},
 	}
 	rest, err := Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons"})
-	c.Assert(err, ErrorMatches, "no connections found")
-	c.Assert(rest, DeepEquals, []string{"mouse-buttons"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	rest, err = Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "--all"})
+	c.Assert(err, ErrorMatches, "cannot use --all with snap name")
+	c.Assert(rest, DeepEquals, []string{"--all"})
 
 	result = client.Connections{
 		Plugs: []client.Plug{
@@ -405,13 +420,6 @@ func (s *SnapSuite) TestConnectionsFiltering(c *C) {
 			},
 		},
 	}
-	query = url.Values{
-		"select": []string{"all"},
-		"snap":   []string{"mouse-buttons"},
-	}
-	rest, err = Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "--all"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
 
 	query = url.Values{
 		"select": []string{"all"},

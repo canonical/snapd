@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 type cmdConnections struct {
@@ -34,17 +34,17 @@ type cmdConnections struct {
 	All          bool `long:"all"`
 	Disconnected bool `long:"disconnected"`
 	Positionals  struct {
-		Snap installedSnapName `skip-help:"true"`
+		Snap installedSnapName
 	} `positional-args:"true"`
 }
 
 var shortConnectionsHelp = i18n.G("List interface connections")
 var longConnectionsHelp = i18n.G(`
-List connections between plugs and slots. When passed an optional
-snap name, lists connected and unconnected plugs and slots for
-that snap only.
+The connections command outputs a listing of connections between plugs
+and slots. When passed an optional snap name, all plugs and slots for
+that snap only are displayed.
 
-Pass --all to list connected and unconnected plugs and slots.
+Pass --all to list connected and unconnected plugs and slots of all snaps.
 `)
 
 func init() {
@@ -52,10 +52,10 @@ func init() {
 		return &cmdConnections{}
 	}, map[string]string{
 		"all":          i18n.G("Show connected and unconnected plugs and slots"),
-		"disconnected": i18n.G("Show disconnected plugs and slots"),
+		"disconnected": i18n.G("Show disconnected plugs and slots only"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
-		name: i18n.G("<snap>"),
+		name: "<snap>",
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Constrain listing to a specific snap"),
 	}})
@@ -74,27 +74,25 @@ func endpoint(snap, name string) string {
 
 func wantedSnapMatches(name, wanted string) bool {
 	if wanted == "system" {
-		switch name {
-		case "core", "snapd", "system":
+		if isSystemSnap(name) {
 			return true
-		default:
-			return false
 		}
+		return false
 	}
 	return wanted == name
 }
 
 type connectionNotes struct {
-	slot      string
-	plug      string
-	manual    bool
-	gadget    bool
-	undesired bool
+	slot         string
+	plug         string
+	manual       bool
+	gadget       bool
+	disconnected bool
 }
 
 func (cn connectionNotes) String() string {
 	opts := []string{}
-	if cn.undesired {
+	if cn.disconnected {
 		opts = append(opts, "disconnected")
 	}
 	if cn.manual {
@@ -123,6 +121,11 @@ func (x *cmdConnections) Execute(args []string) error {
 	}
 	wanted := string(x.Positionals.Snap)
 	if wanted != "" {
+		if x.All {
+			// passing a snap name already implies --all, error out
+			// when it was passed explicitly
+			return fmt.Errorf(i18n.G("cannot use --all with snap name"))
+		}
 		// when asking for a single snap, include its disconnected plugs
 		// and slots
 		opts.Snap = wanted
@@ -137,32 +140,33 @@ func (x *cmdConnections) Execute(args []string) error {
 		return err
 	}
 	if len(connections.Plugs) == 0 && len(connections.Slots) == 0 {
-		return fmt.Errorf(i18n.G("no connections found"))
+		return nil
 	}
 
 	notes := make(map[string]connectionNotes, len(connections.Established)+len(connections.Undesired))
 	for _, conn := range connections.Established {
 		notes[connName(conn)] = connectionNotes{
-			plug:      endpoint(conn.Plug.Snap, conn.Plug.Name),
-			slot:      endpoint(conn.Slot.Snap, conn.Slot.Name),
-			manual:    conn.Manual,
-			gadget:    conn.Gadget,
-			undesired: false,
+			plug:         endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:         endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual:       conn.Manual,
+			gadget:       conn.Gadget,
+			disconnected: false,
 		}
 	}
 	for _, conn := range connections.Undesired {
 		notes[connName(conn)] = connectionNotes{
-			plug:      endpoint(conn.Plug.Snap, conn.Plug.Name),
-			slot:      endpoint(conn.Slot.Snap, conn.Slot.Name),
-			manual:    conn.Manual,
-			gadget:    conn.Gadget,
-			undesired: true,
+			plug:         endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:         endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual:       conn.Manual,
+			gadget:       conn.Gadget,
+			disconnected: true,
 		}
 	}
 
 	w := tabWriter()
 	fmt.Fprintln(w, i18n.G("Plug\tSlot\tInterface\tNotes"))
 
+	matched := false
 	for _, plug := range connections.Plugs {
 		if !x.Disconnected || x.All {
 			for _, slot := range plug.Connections {
@@ -170,6 +174,7 @@ func (x *cmdConnections) Execute(args []string) error {
 				cname := endpoint(plug.Snap, plug.Name) + " " + endpoint(slot.Snap, slot.Name)
 				cnotes := notes[cname]
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", endpoint(plug.Snap, plug.Name), endpoint(slot.Snap, slot.Name), plug.Interface, cnotes)
+				matched = true
 			}
 		}
 		if len(plug.Connections) == 0 && (x.All || x.Disconnected) {
@@ -177,12 +182,12 @@ func (x *cmdConnections) Execute(args []string) error {
 			// but the user has disconnected it explicitly
 			pname := endpoint(plug.Snap, plug.Name)
 			sname := "-"
-			var pnotes connectionNotes
+			pnotes := connectionNotes{disconnected: true}
 			for _, note := range notes {
 				// check whether the plug is undesired and
 				// determine the corresponding slot it that is
 				// the case
-				if !note.undesired {
+				if !note.disconnected {
 					continue
 				}
 				if note.plug == pname {
@@ -192,6 +197,7 @@ func (x *cmdConnections) Execute(args []string) error {
 				}
 			}
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pname, sname, plug.Interface, pnotes)
+			matched = true
 		}
 	}
 	for _, slot := range connections.Slots {
@@ -203,7 +209,7 @@ func (x *cmdConnections) Execute(args []string) error {
 			sname := endpoint(slot.Snap, slot.Name)
 			var found bool
 			for _, note := range notes {
-				if !note.undesired {
+				if !note.disconnected {
 					continue
 				}
 				if note.slot == sname {
@@ -212,11 +218,15 @@ func (x *cmdConnections) Execute(args []string) error {
 				}
 			}
 			if !found {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "-", sname, slot.Interface, "-")
+				snotes := connectionNotes{disconnected: true}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "-", sname, slot.Interface, snotes)
+				matched = true
 			}
 		}
 	}
 
-	w.Flush()
+	if matched {
+		w.Flush()
+	}
 	return nil
 }
