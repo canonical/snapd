@@ -45,26 +45,28 @@ execute: |
     }
 
     check_slot_not_present() {
+        SLOT_NAME="$1"
         for _ in $(seq 10); do
-            if ! execute_remote "snap interfaces" | MATCH ":qemuusbserial"; then
+            if ! execute_remote "snap interfaces" | MATCH ":$SLOT_NAME"; then
                 break
             fi
             sleep 1
         done
-        if execute_remote "snap interfaces" | MATCH ":qemuusbserial"; then
-            echo "qemuusbserial interface shouldn't be present anymore"
+        if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME "; then
+            echo "slot $SLOT_NAME should't be present anymore"
             exit 1
         fi
     }
 
     check_slot_present() {
+        SLOT_NAME="$1"
         for _ in $(seq 10); do
-            if execute_remote "snap interfaces" | MATCH ":qemuusbserial"; then
+            if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME "; then
                 break
             fi
             sleep 1
         done
-        execute_remote "snap interfaces" | MATCH ":qemuusbserial"
+        execute_remote "snap interfaces" | MATCH ":$SLOT_NAME "
     }
 
     check_slot_gone() {
@@ -78,8 +80,9 @@ execute: |
     }
 
     check_slot_connected() {
+        SLOT_NAME="$1"
         for _ in $(seq 10); do
-            if execute_remote "snap interfaces" | MATCH ":qemuusbserial.*serial-port-hotplug"; then
+            if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*serial-port-hotplug"; then
                 break
             fi
             sleep 1
@@ -126,7 +129,7 @@ execute: |
     execute_remote "ls /dev/tty*" | MATCH "ttyUSB0"
 
     echo "Checking that qemuusbserial hotplug slot is present"
-    check_slot_present
+    check_slot_present qemuusbserial
     check_slot_not_gone qemuusbserial
 
     echo "Unplugging the device"
@@ -146,20 +149,20 @@ execute: |
     fi
 
     echo "Checking that qemuusbserial hotplug slot is no longer present"
-    check_slot_not_present
+    check_slot_not_present qemuusbserial
 
     echo "Plugging the device back"
     hotplug_add_dev1
 
     echo "Checking that qemuusbserial hotplug slot is present again"
-    check_slot_present
+    check_slot_present qemuusbserial
 
     echo "Installing test snap with serial port plug"
     execute_remote "sudo snap install --dangerous serial-port-hotplug_1.0_all.snap"
 
     echo "Connecting serial-port interface"
     execute_remote "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
-    check_slot_connected
+    check_slot_connected qemuusbserial
 
     echo "Veryfing serial-port permissions"
     verify_apparmor_profile "/dev/ttyUSB0"
@@ -170,27 +173,28 @@ execute: |
     hotplug_del_dev1
 
     echo "Checking that qemuusbserial hotplug slot is no longer present"
-    check_slot_not_present
+    check_slot_not_present qemuusbserial
     check_slot_gone qemuusbserial
 
     echo "Plugging device back, checking that connection is restored"
     hotplug_add_dev1
-    check_slot_connected
+    check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
 
     echo "Unplugging the device"
     hotplug_del_dev1
 
     echo "Checking that qemuusbserial hotplug slot is not present"
-    check_slot_not_present
+    check_slot_not_present qemuusbserial
     check_slot_gone qemuusbserial
 
     echo "Plugging second device"
     hotplug_add_dev2
+    check_slot_present qemuusbserial-1
 
     echo "Plugging first device back while second device is present, checking that connection is restored"
     hotplug_add_dev1
-    check_slot_connected
+    check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
 
     echo "Veryfing serial-port permissions, the first device is now expected on ttyUSB1"
@@ -201,6 +205,6 @@ execute: |
     echo "Restarting snapd should restore hotplug interface"
     execute_remote "sudo systemctl stop snapd.service snapd.socket"
     execute_remote "sudo systemctl start snapd.service snapd.socket"
-    check_slot_connected
+    check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB1 ok"
