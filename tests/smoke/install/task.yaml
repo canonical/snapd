@@ -4,11 +4,20 @@ execute: |
     echo "Ensure install from the store works"
     snap install test-snapd-tools
 
-    echo "Ensure that the snap can be run"
+    echo "Ensure that the snap can be run as root"
     test-snapd-tools.echo hello > stdout.log 2> stderr.log
     MATCH "^hello$" < stdout.log
     if [ -s stderr.log ]; then
-        echo "stderr.log must be empty but it is not:"
+        echo "stderr.log must be empty but it is not: (run as root)"
+        cat stderr.log
+        exit 1
+    fi
+
+    echo "Ensure that the snap can be run as the user"
+    su -l -c "test-snapd-tools.echo hello > stdout.log 2> stderr.log" test
+    MATCH "^hello$" < stdout.log
+    if [ -s stderr.log ]; then
+        echo "stderr.log must be empty but it is not: (run as user)"
         cat stderr.log
         exit 1
     fi

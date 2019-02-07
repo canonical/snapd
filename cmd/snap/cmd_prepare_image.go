@@ -29,25 +29,35 @@ import (
 )
 
 type cmdPrepareImage struct {
+	Classic      bool   `long:"classic"`
+	Architecture string `long:"arch"`
+
 	Positional struct {
 		ModelAssertionFn string
 		Rootdir          string
 	} `positional-args:"yes" required:"yes"`
 
-	ExtraSnaps []string `long:"extra-snaps"`
 	Channel    string   `long:"channel" default:"stable"`
+	ExtraSnaps []string `long:"extra-snaps"`
 }
 
 func init() {
-	cmd := addCommand("prepare-image",
-		i18n.G("Prepare a core device image"),
+	addCommand("prepare-image",
+		i18n.G("Prepare a device image"),
 		i18n.G(`
-The prepare-image command performs some of the steps necessary for creating
-core device images.
-`),
-		func() flags.Commander {
-			return &cmdPrepareImage{}
-		}, map[string]string{
+The prepare-image command performs some of the steps necessary for
+creating device images.
+
+For core images it is not invoked directly but usually via
+ubuntu-image.
+
+For preparing classic images it supports a --classic mode`),
+		func() flags.Commander { return &cmdPrepareImage{} },
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"classic": i18n.G("Enable classic mode to prepare a classic model image"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"extra-snaps": i18n.G("Extra snaps to be installed"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -65,17 +75,22 @@ core device images.
 				desc: i18n.G("The output directory"),
 			},
 		})
-	cmd.hidden = true
 }
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
-		ModelFile: x.Positional.ModelAssertionFn,
+		ModelFile:    x.Positional.ModelAssertionFn,
+		Channel:      x.Channel,
+		Snaps:        x.ExtraSnaps,
+		Architecture: x.Architecture,
+	}
 
-		RootDir:         filepath.Join(x.Positional.Rootdir, "image"),
-		GadgetUnpackDir: filepath.Join(x.Positional.Rootdir, "gadget"),
-		Channel:         x.Channel,
-		Snaps:           x.ExtraSnaps,
+	if x.Classic {
+		opts.Classic = true
+		opts.RootDir = x.Positional.Rootdir
+	} else {
+		opts.RootDir = filepath.Join(x.Positional.Rootdir, "image")
+		opts.GadgetUnpackDir = filepath.Join(x.Positional.Rootdir, "gadget")
 	}
 
 	return image.Prepare(opts)
