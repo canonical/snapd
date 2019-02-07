@@ -16,6 +16,8 @@ prepare: |
     # add test user to dialout group required for ttyUSB* devices
     execute_remote "sudo usermod -a -G dialout user1"
 
+    execute_remote "sudo snap install --devmode jq"
+
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
@@ -63,6 +65,16 @@ execute: |
             sleep 1
         done
         execute_remote "snap interfaces" | MATCH ":qemuusbserial"
+    }
+
+    check_slot_gone() {
+        SLOT_NAME="$1"
+        execute_remote 'sudo jq -r ".data[\"hotplug-slots\"][\"'$SLOT_NAME'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "true"
+    }
+
+    check_slot_not_gone() {
+        SLOT_NAME="$1"
+        execute_remote 'sudo jq -r ".data[\"hotplug-slots\"][\"'$SLOT_NAME'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "false"
     }
 
     check_slot_connected() {
@@ -115,6 +127,7 @@ execute: |
 
     echo "Checking that qemuusbserial hotplug slot is present"
     check_slot_present
+    check_slot_not_gone qemuusbserial
 
     echo "Unplugging the device"
     hotplug_del_dev1
@@ -158,16 +171,19 @@ execute: |
 
     echo "Checking that qemuusbserial hotplug slot is no longer present"
     check_slot_not_present
+    check_slot_gone qemuusbserial
 
     echo "Plugging device back, checking that connection is restored"
     hotplug_add_dev1
     check_slot_connected
+    check_slot_not_gone qemuusbserial
 
     echo "Unplugging the device"
     hotplug_del_dev1
 
     echo "Checking that qemuusbserial hotplug slot is not present"
     check_slot_not_present
+    check_slot_gone qemuusbserial
 
     echo "Plugging second device"
     hotplug_add_dev2
@@ -175,6 +191,7 @@ execute: |
     echo "Plugging first device back while second device is present, checking that connection is restored"
     hotplug_add_dev1
     check_slot_connected
+    check_slot_not_gone qemuusbserial
 
     echo "Veryfing serial-port permissions, the first device is now expected on ttyUSB1"
     verify_apparmor_profile "/dev/ttyUSB1"
@@ -185,4 +202,5 @@ execute: |
     execute_remote "sudo systemctl stop snapd.service snapd.socket"
     execute_remote "sudo systemctl start snapd.service snapd.socket"
     check_slot_connected
+    check_slot_not_gone qemuusbserial
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB1 ok"
