@@ -42,7 +42,7 @@ type cmdPrepareImage struct {
 }
 
 func init() {
-	cmd := addCommand("prepare-image",
+	addCommand("prepare-image",
 		i18n.G("Prepare a device image"),
 		i18n.G(`
 The prepare-image command performs some of the steps necessary for creating device images. For core images it is not invoked directly but usually via ubuntu-image. For preparing classic images it supports a --classic mode.
@@ -71,7 +71,6 @@ The prepare-image command performs some of the steps necessary for creating devi
 				desc: i18n.G("The output directory"),
 			},
 		})
-	cmd.hidden = true
 }
 
 func (x *cmdPrepareImage) Execute(args []string) error {

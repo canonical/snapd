@@ -189,9 +189,14 @@ var helpCategories = []helpCategory{
 		Description: i18n.G("miscellanea"),
 		Commands:    []string{"version", "warnings", "okay"},
 	}, {
+		Label:       i18n.G("Assertions"),
+		Description: i18n.G("manage assertions"),
+		Commands:    []string{"ack", "known"},
+	},
+	{
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"run", "pack", "try", "ack", "known", "download"},
+		Commands:    []string{"run", "pack", "try", "download", "prepare-image"},
 	},
 }
 
