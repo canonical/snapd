@@ -526,7 +526,7 @@ func (s *helpersSuite) TestAddHotplugSeqWaitTask(c *C) {
 	c.Assert(t2.WaitTasks()[0].ID(), Equals, seqTask.ID())
 }
 
-func (s *helpersSuite) TestStoreHotplugSlot(c *C) {
+func (s *helpersSuite) TestAddHotplugSlot(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -547,7 +547,7 @@ func (s *helpersSuite) TestStoreHotplugSlot(c *C) {
 		Interface: "test",
 	}
 	// hotplug key missing
-	c.Assert(ifacestate.StoreHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `internal error: cannot store slot "slot", not a hotplug slot`)
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `internal error: cannot store slot "slot", not a hotplug slot`)
 
 	slot = &snap.SlotInfo{
 		Name:       "slot",
@@ -557,7 +557,7 @@ func (s *helpersSuite) TestStoreHotplugSlot(c *C) {
 		Attrs:      map[string]interface{}{"foo": "bar"},
 		HotplugKey: "key",
 	}
-	c.Assert(ifacestate.StoreHotplugSlot(s.st, repo, stateSlots, iface, slot), IsNil)
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), IsNil)
 	stateSlots, err = ifacestate.GetHotplugSlots(s.st)
 	c.Assert(err, IsNil)
 
@@ -571,9 +571,9 @@ func (s *helpersSuite) TestStoreHotplugSlot(c *C) {
 		HotplugGone: false})
 
 	// same slot cannot be re-added to repo
-	c.Assert(ifacestate.StoreHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot add hotplug slot "slot" for interface test: snap "core" has slots conflicting on name "slot"`)
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot add hotplug slot "slot" for interface test: snap "core" has slots conflicting on name "slot"`)
 
 	// sanitization failure
 	iface.BeforePrepareSlotCallback = func(slot *snap.SlotInfo) error { return fmt.Errorf("fail") }
-	c.Assert(ifacestate.StoreHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot sanitize hotplug slot \"slot\" for interface test: fail`)
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot sanitize hotplug slot \"slot\" for interface test: fail`)
 }
