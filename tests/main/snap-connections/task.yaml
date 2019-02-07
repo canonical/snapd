@@ -3,15 +3,19 @@ summary: Check that "snap connections" works as expected
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    snap connections 2>&1 | MATCH 'no connections found'
+    snap connections > all.out 2>&1
+    test "$(wc -l < all.out)" = "0"
 
     snap install test-snapd-content-slot
-    expected='- +test-snapd-content-slot:shared-content-slot +content +-'
+    expected='- +test-snapd-content-slot:shared-content-slot +content +disconnected'
     # asking for a snap shows connected and unconnected plugs and slots
     snap connections test-snapd-content-slot | MATCH -- "$expected"
 
+    snap connections test-snapd-content-slot --all 2>&1 | MATCH 'error: cannot use --all with snap name'
+
     # test-snapd-content-slot is the only snap installed and it has no connections yet
-    snap connections 2>&1 | MATCH 'no connections found'
+    snap connections > all.out 2>&1
+    test "$(wc -l < all.out)" = "0"
     # but it will show up if we ask for all or disconnected plugs and slots
     snap connections --all | MATCH -- "$expected"
     snap connections --disconnected | MATCH -- "$expected"
@@ -20,6 +24,9 @@ execute: |
     expected='test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-'
     snap connections test-snapd-content-plug | MATCH "$expected"
     snap connections test-snapd-content-slot | MATCH "$expected"
+    # test-snapd-content-plug has no disconnected plugs or slots
+    snap connections test-snapd-content-plug --disconnected > disconnected.out 2>&1
+    test "$(wc -l < disconnected.out)" = "0"
 
     # :gsettings is connected by default
     snap install --edge test-snapd-gsettings-consumer
@@ -34,7 +41,7 @@ execute: |
 
     # try with an interface which is not connected by default
     install_local test-snapd-daemon-notify
-    expected='test-snapd-daemon-notify:daemon-notify +- +daemon-notify +-'
+    expected='test-snapd-daemon-notify:daemon-notify +- +daemon-notify +disconnected'
     snap connections test-snapd-daemon-notify | MATCH "$expected"
     snap connections test-snapd-daemon-notify --disconnected | MATCH "$expected"
 
@@ -43,11 +50,10 @@ execute: |
     expected='test-snapd-daemon-notify:daemon-notify +:daemon-notify +daemon-notify +manual'
     snap connections test-snapd-daemon-notify | MATCH "$expected"
 
-    expected='test-snapd-daemon-notify:daemon-notify +- +daemon-notify +-'
+    expected='test-snapd-daemon-notify:daemon-notify +- +daemon-notify +disconnected'
     snap disconnect test-snapd-daemon-notify:daemon-notify
     snap connections test-snapd-daemon-notify | MATCH "$expected"
 
-    # prepare a state that is unambigous when matching the output of snap connections for all snaps
     # show connected only
     snap connections > connected.out
     MATCH 'test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-' < connected.out
@@ -57,11 +63,11 @@ execute: |
     # show all
     snap connections --all > all.out
     MATCH 'test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-' < all.out
-    MATCH 'test-snapd-daemon-notify:daemon-notify +- +daemon-notify +-' < all.out
+    MATCH 'test-snapd-daemon-notify:daemon-notify +- +daemon-notify +disconnected' < all.out
     MATCH 'test-snapd-gsettings-consumer:gsettings +:gsettings +gsettings +disconnected,manual' < all.out
 
     # show just disconnected
     snap connections --disconnected > disconnected.out
     MATCH 'test-snapd-gsettings-consumer:gsettings +:gsettings +gsettings +disconnected,manual' < disconnected.out
-    MATCH 'test-snapd-daemon-notify:daemon-notify +- +daemon-notify +-' < disconnected.out
+    MATCH 'test-snapd-daemon-notify:daemon-notify +- +daemon-notify +disconnected' < disconnected.out
     MATCH -v 'test-snapd-content-plug' < disconnected.out
