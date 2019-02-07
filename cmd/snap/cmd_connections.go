@@ -40,11 +40,22 @@ type cmdConnections struct {
 
 var shortConnectionsHelp = i18n.G("List interface connections")
 var longConnectionsHelp = i18n.G(`
-The connections command outputs a listing of connections between plugs
-and slots. When passed an optional snap name, all plugs and slots for
-that snap only are displayed.
+The connections command lists connections between plugs and slots
+in the system.
 
-Pass --all to list connected and unconnected plugs and slots of all snaps.
+Pass --all to list unconnected plugs and slots alongside those
+already connected, or pass --disconnected to list only unconnected
+plugs and slots. Unless <snap> is provided, the listing is for all
+snaps in the system.
+
+$ snap connections <snap>
+
+Lists connected and unconnected plugs and slots for the specified
+snap.
+
+$ snap connections --disconnected <snap>
+
+Lists only unconnected plugs and slots for the specified snap.
 `)
 
 func init() {
