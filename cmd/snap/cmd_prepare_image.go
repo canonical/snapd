@@ -37,19 +37,23 @@ type cmdPrepareImage struct {
 		Rootdir          string
 	} `positional-args:"yes" required:"yes"`
 
-	ExtraSnaps []string `long:"extra-snaps"`
 	Channel    string   `long:"channel" default:"stable"`
+	ExtraSnaps []string `long:"extra-snaps"`
 }
 
 func init() {
 	addCommand("prepare-image",
 		i18n.G("Prepare a device image"),
 		i18n.G(`
-The prepare-image command performs some of the steps necessary for creating device images. For core images it is not invoked directly but usually via ubuntu-image. For preparing classic images it supports a --classic mode.
-`),
-		func() flags.Commander {
-			return &cmdPrepareImage{}
-		}, map[string]string{
+The prepare-image command performs some of the steps necessary for
+creating device images.
+
+For core images it is not invoked directly but usually via
+ubuntu-image.
+
+For preparing classic images it supports a --classic mode`),
+		func() flags.Commander { return &cmdPrepareImage{} },
+		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"classic": i18n.G("Enable classic mode to prepare a classic model image"),
 			// TRANSLATORS: This should not start with a lowercase letter.
