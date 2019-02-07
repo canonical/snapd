@@ -252,7 +252,7 @@ func (m *autoRefresh) Ensure() error {
 			// immediate
 			m.nextRefresh = now
 		}
-		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
+		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh.Format(time.RFC3339))
 	}
 
 	// should we hold back refreshes?
