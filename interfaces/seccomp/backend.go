@@ -92,6 +92,14 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySecComp
 }
 
+func bpfSrcPath(srcName string) string {
+	return filepath.Join(dirs.SnapSeccompDir, srcName)
+}
+
+func bpfBinPath(srcName string) string {
+	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin")
+}
+
 // Setup creates seccomp profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
 // the offending application process.
@@ -117,14 +125,25 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+	changed, removed, err := osutil.EnsureDirState(dir, glob+".src", content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
+	for _, c := range removed {
+		err := os.Remove(bpfBinPath(c))
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	for _, c := range changed {
+		in := bpfSrcPath(c)
+		out := bpfBinPath(c)
 
-	for baseName := range content {
-		in := filepath.Join(dirs.SnapSeccompDir, baseName)
-		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
+		// remove binary profile first
+		err := os.Remove(out)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
 
 		seccompToBpf := seccompToBpfPath()
 		cmd := exec.Command(seccompToBpf, "compile", in, out)
