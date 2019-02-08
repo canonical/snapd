@@ -945,27 +945,15 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 			"slot":     true,
 			"slot1234": true,
 			"slot-1":   true,
-			"slot-2":   true,
-			"slot3-5":  true,
-			"slot3-6":  true,
-			"11":       true,
-			"12foo":    true,
-			"slot-99":  true,
 		}
 		return !reserved[n]
 	}
 
 	names := []struct{ proposedName, resultingName string }{
 		{"foo", "foo"},
-		{"slot", "slot2"},
-		{"slot1", "slot2"},
-		{"slot1234", "slot1235"},
-		{"slot-1", "slot-3"},
-		{"slot3-5", "slot3-7"},
-		{"slot3-1", "slot3-1"},
-		{"11", "12"},
-		{"12foo", "12foo1"},
-		{"slot-99", "slot-100"},
+		{"slot", "slot-2"},
+		{"slot1234", "slot1234-1"},
+		{"slot-1", "slot-1-1"},
 	}
 
 	for _, name := range names {
@@ -1041,6 +1029,47 @@ func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
 
 		slotName := ifacestate.SuggestedSlotName(di, "fallbackname")
 		c.Assert(slotName, Equals, data.outName)
+	}
+}
+
+func (s *hotplugSuite) TestHotplugSlotName(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	testData := []struct {
+		slotSpecName string
+		deviceData   map[string]string
+		expectedName string
+	}{
+		// names dervied from slotSpecName
+		{"hdcamera", map[string]string{"DEVPATH": "a", "NAME": "Video Camera"}, "hdcamera"},
+		{"hdcamera", map[string]string{"DEVPATH": "a", "NAME": "Video Camera"}, "hdcamera-1"},
+		{"ieee1394", map[string]string{"DEVPATH": "a"}, "ieee1394"},
+		{"ieee1394", map[string]string{"DEVPATH": "b"}, "ieee1394-1"},
+		{"ieee1394", map[string]string{"DEVPATH": "c"}, "ieee1394-2"},
+		// names derived from device attributes, since slotSpecName is empty
+		{"", map[string]string{"DEVPATH": "a", "NAME": "Video Camera"}, "videocamera"},
+		{"", map[string]string{"DEVPATH": "b", "NAME": "Video Camera"}, "videocamera-1"},
+		{"", map[string]string{"DEVPATH": "b", "NAME": "Video Camera"}, "videocamera-2"},
+		// names derived from interface name, since slotSpecName and relevant device attributes are not present
+		{"", map[string]string{"DEVPATH": "a"}, "ifacename"},
+		{"", map[string]string{"DEVPATH": "a"}, "ifacename-1"},
+	}
+
+	repo := interfaces.NewRepository()
+	iface := &ifacetest.TestInterface{InterfaceName: "camera"}
+	repo.AddInterface(iface)
+
+	stateSlots, err := ifacestate.GetHotplugSlots(st)
+	c.Assert(err, IsNil)
+
+	for _, data := range testData {
+		devinfo, err := hotplug.NewHotplugDeviceInfo(data.deviceData)
+		c.Assert(err, IsNil)
+		c.Check(ifacestate.HotplugSlotName("key", "core", data.slotSpecName, "ifacename", devinfo, repo, stateSlots), Equals, data.expectedName)
+		// store the slot to affect ensureUniqueName
+		stateSlots[data.expectedName] = &ifacestate.HotplugSlotInfo{}
 	}
 }
 
