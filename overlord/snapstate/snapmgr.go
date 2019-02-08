@@ -235,7 +235,7 @@ var ErrNoCurrent = errors.New("snap has no current revision")
 
 const (
 	errorOnBroken = 1 << iota
-	loadStore
+	withAuxStoreInfo
 )
 
 var snapReadInfo = snap.ReadInfo
@@ -261,7 +261,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		}
 		err = nil
 	}
-	if err == nil && flags&loadStore != 0 {
+	if err == nil && flags&withAuxStoreInfo != 0 {
 		if e := retrieveAuxStoreInfo(info); e != nil {
 			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, e)
 		}
@@ -288,7 +288,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	}
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
-	return readInfo(name, cur, loadStore)
+	return readInfo(name, cur, withAuxStoreInfo)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
