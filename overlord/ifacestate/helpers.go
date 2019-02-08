@@ -404,7 +404,7 @@ func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map
 		HotplugGone: false,
 	}
 	setHotplugSlots(st, stateSlots)
-	logger.Noticef("added hotplug slot %s:%s of interface %s, hotplug key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, slot.HotplugKey)
+	logger.Debugf("added hotplug slot %s:%s of interface %s, hotplug key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, slot.HotplugKey)
 	return nil
 }
 
