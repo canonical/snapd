@@ -291,10 +291,9 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 }
 
 func makeChannelFromTrack(what, track, snapChannel string) (string, error) {
-	errPrefix := fmt.Sprintf("cannot use track %q for %s from model assertion", track, what)
 	mch, err := snap.ParseChannel(track, "")
 	if err != nil {
-		return "", fmt.Errorf("%s: %v", errPrefix, err)
+		return "", fmt.Errorf("cannot use track %q for %s from model assertion: %v", track, what, err)
 	}
 	if snapChannel != "" {
 		ch, err := snap.ParseChannelVerbatim(snapChannel, "")

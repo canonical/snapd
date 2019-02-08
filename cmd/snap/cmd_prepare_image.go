@@ -40,8 +40,8 @@ type cmdPrepareImage struct {
 
 	Channel string `long:"channel" default:"stable"`
 	// TODO: introduce SnapWithChannel?
-	Snaps      []string `long:"snap"`
-	ExtraSnaps []string `long:"extra-snaps"` // DEPRECATED
+	Snaps      []string `long:"snap" value-name:"<snap>[=<channel>]"`
+	ExtraSnaps []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
 }
 
 func init() {
@@ -61,7 +61,8 @@ For preparing classic images it supports a --classic mode`),
 			"classic": i18n.G("Enable classic mode to prepare a classic model image"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
-			"snap": i18n.G("<snap>[=<channel>] specify extra snaps from store or local or optionally control the channel to track for a snap"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"snap": i18n.G("Specify extra snaps from store or local or optionally control the channel to track for a snap"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
