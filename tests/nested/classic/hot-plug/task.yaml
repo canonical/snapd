@@ -90,6 +90,12 @@ execute: |
         execute_remote 'sudo jq -r ".data[\"hotplug-slots\"][\"'$SLOT_NAME'\"] // \"missing\"" /var/lib/snapd/state.json' | MATCH "missing"
     }
 
+    check_slot_device_path() {
+        SLOT_NAME="$1"
+        DEVICE_PATH="$2"
+        execute_remote 'sudo jq -r ".data[\"hotplug-slots\"][\"'$SLOT_NAME'\"][\"static-attrs\"].path" /var/lib/snapd/state.json' | MATCH "$DEVICE_PATH"
+    }
+
     # Check that given slot is connected to the serial-port-hotplug snap, per 'snap interfaces' output
     check_slot_connected() {
         SLOT_NAME="$1"
@@ -144,6 +150,7 @@ execute: |
     echo "Checking that qemuusbserial hotplug slot is present"
     check_slot_present qemuusbserial
     check_slot_not_gone qemuusbserial
+    check_slot_device_path qemuusbserial "/dev/ttyUSB0"
 
     echo "Unplugging the device with no connections on the slot"
     hotplug_del_dev1
@@ -202,10 +209,11 @@ execute: |
     check_slot_not_present qemuusbserial
     check_slot_gone qemuusbserial
 
-    echo "Plugging second device creates a slot with new name"
+    echo "Plugging second device creates a slot with new name and it's expected on /dev/ttyUSB0"
     hotplug_add_dev2
     check_slot_present qemuusbserial-1
     check_slot_not_gone qemuusbserial-1
+    check_slot_device_path qemuusbserial-1 "/dev/ttyUSB0"
 
     echo "Plugging first device back while second device is present, checking that connection is restored"
     hotplug_add_dev1
@@ -213,6 +221,7 @@ execute: |
     check_slot_not_gone qemuusbserial
 
     echo "Veryfing serial-port permissions of the snap, the first device is now expected on ttyUSB1"
+    check_slot_device_path qemuusbserial "/dev/ttyUSB1"
     verify_apparmor_profile "/dev/ttyUSB1"
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB0 failed"
     execute_remote "/snap/bin/serial-port-hotplug.consumer" | MATCH "Access to /dev/ttyUSB1 ok"
