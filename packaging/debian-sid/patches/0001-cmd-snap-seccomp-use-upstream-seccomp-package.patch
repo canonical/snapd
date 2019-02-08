@@ -1,0 +1,52 @@
+From c56899919d95e573e2437f1189c9be42ae70c592 Mon Sep 17 00:00:00 2001
+From: Zygmunt Krynicki <me@zygoon.pl>
+Date: Thu, 17 Jan 2019 15:48:46 +0200
+Subject: [PATCH 1/9] cmd/snap-seccomp: use upstream seccomp package
+
+Upstream snapd uses a fork that carries additional compatibility patch
+required to build snapd for Ubuntu 14.04. This patch is not required with
+the latest snapshot of the upstream seccomp golang bindings but they are
+neither released upstream nor backported (in their entirety) to Ubuntu
+14.04.
+
+The forked seccomp library is not packaged in Debian. As such, to build
+snapd, we need to switch to the regular, non-forked package name.
+
+Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
+---
+ cmd/snap-seccomp/main.go      | 5 +----
+ cmd/snap-seccomp/main_test.go | 2 +-
+ 2 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/cmd/snap-seccomp/main.go b/cmd/snap-seccomp/main.go
+index 2d9158f4d..fb546252f 100644
+--- a/cmd/snap-seccomp/main.go
++++ b/cmd/snap-seccomp/main.go
+@@ -181,10 +181,7 @@ import (
+ 	"strings"
+ 	"syscall"
+ 
+-	// FIXME: we want github.com/seccomp/libseccomp-golang but that
+-	// will not work with trusty because libseccomp-golang checks
+-	// for the seccomp version and errors if it find one < 2.2.0
+-	"github.com/mvo5/libseccomp-golang"
++	"github.com/seccomp/libseccomp-golang"
+ 
+ 	"github.com/snapcore/snapd/arch"
+ 	"github.com/snapcore/snapd/osutil"
+diff --git a/cmd/snap-seccomp/main_test.go b/cmd/snap-seccomp/main_test.go
+index 9a8a28fbf..5c64abf52 100644
+--- a/cmd/snap-seccomp/main_test.go
++++ b/cmd/snap-seccomp/main_test.go
+@@ -32,7 +32,7 @@ import (
+ 
+ 	. "gopkg.in/check.v1"
+ 
+-	"github.com/mvo5/libseccomp-golang"
++	"github.com/seccomp/libseccomp-golang"
+ 
+ 	"github.com/snapcore/snapd/arch"
+ 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+-- 
+2.17.1
+
