@@ -53,6 +53,7 @@ var (
 	SetHotplugChangeAttrs        = setHotplugChangeAttrs
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
+	AddHotplugSlot               = addHotplugSlot
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {

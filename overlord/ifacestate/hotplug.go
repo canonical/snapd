@@ -26,6 +26,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -176,6 +177,22 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 		return fallbackName
 	}
 	return shortestName
+}
+
+// hotplugSlotName returns a slot name derived from slotSpecName or device attributes, or interface name, in that priority order, depending
+// on which information is available. The chosen name is guaranteed to be unique
+func hotplugSlotName(hotplugKey, systemSnapInstanceName, slotSpecName, ifaceName string, devinfo *hotplug.HotplugDeviceInfo, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo) string {
+	proposedName := slotSpecName
+	if proposedName == "" {
+		proposedName = suggestedSlotName(devinfo, ifaceName)
+	}
+	proposedName = ensureUniqueName(proposedName, func(slotName string) bool {
+		if slot, ok := stateSlots[slotName]; ok {
+			return slot.HotplugKey == hotplugKey
+		}
+		return repo.Slot(systemSnapInstanceName, slotName) == nil
+	})
+	return proposedName
 }
 
 // updateDevice creates tasks to disconnect slots of given device, update the slot in the repository, then connect it back.
