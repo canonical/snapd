@@ -54,7 +54,9 @@ type Options struct {
 	ModelFile       string
 	GadgetUnpackDir string
 
-	ClassicArchitecture string
+	// Architecture to use if none is specified by the model,
+	// useful only for classic mode. If set must match the model otherwise.
+	Architecture string
 }
 
 type localInfos struct {
@@ -176,12 +178,13 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
+	if model.Architecture() != "" && opts.Architecture != "" && model.Architecture() != opts.Architecture {
+		return fmt.Errorf("cannot override model architecture: %s", model.Architecture())
+	}
+
 	if !opts.Classic {
 		if model.Classic() {
 			return fmt.Errorf("--classic mode is required to prepare the image for a classic model")
-		}
-		if opts.ClassicArchitecture != "" {
-			return fmt.Errorf("internal error: classic architecture specified for a core model")
 		}
 	} else {
 		if !model.Classic() {
@@ -190,11 +193,8 @@ func Prepare(opts *Options) error {
 		if opts.GadgetUnpackDir != "" {
 			return fmt.Errorf("internal error: no gadget unpacking is performed for classic models but directory specified")
 		}
-		if model.Architecture() != "" && opts.ClassicArchitecture != "" && model.Architecture() != opts.ClassicArchitecture {
-			return fmt.Errorf("cannot override model architecture: %s", model.Architecture())
-		}
-		if model.Architecture() == "" && classicHasSnaps(model, opts) && opts.ClassicArchitecture == "" {
-			return fmt.Errorf("cannot have snaps for a classic image without an architecture in the model or from --classic-arch")
+		if model.Architecture() == "" && classicHasSnaps(model, opts) && opts.Architecture == "" {
+			return fmt.Errorf("cannot have snaps for a classic image without an architecture in the model or from --arch")
 		}
 	}
 
@@ -205,7 +205,7 @@ func Prepare(opts *Options) error {
 		return fmt.Errorf("cannot use channel: %v", err)
 	}
 
-	tsto, err := NewToolingStoreFromModel(model, opts.ClassicArchitecture)
+	tsto, err := NewToolingStoreFromModel(model, opts.Architecture)
 	if err != nil {
 		return err
 	}

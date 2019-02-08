@@ -1294,9 +1294,9 @@ func (s *imageSuite) TestPrepareClassicModelArchOverrideFails(c *C) {
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
-		Classic:             true,
-		ModelFile:           fn,
-		ClassicArchitecture: "i386",
+		Classic:      true,
+		ModelFile:    fn,
+		Architecture: "i386",
 	})
 	c.Assert(err, ErrorMatches, "cannot override model architecture: amd64")
 }
@@ -1324,7 +1324,7 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 		Classic:   true,
 		ModelFile: fn,
 	})
-	c.Assert(err, ErrorMatches, "cannot have snaps for a classic image without an architecture in the model or from --classic-arch")
+	c.Assert(err, ErrorMatches, "cannot have snaps for a classic image without an architecture in the model or from --arch")
 }
 
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {

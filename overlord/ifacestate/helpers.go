@@ -378,7 +378,7 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName str
 	return nil
 }
 
-func storeHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo, iface interfaces.Interface, slot *snap.SlotInfo) error {
+func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo, iface interfaces.Interface, slot *snap.SlotInfo) error {
 	if slot.HotplugKey == "" {
 		return fmt.Errorf("internal error: cannot store slot %q, not a hotplug slot", slot.Name)
 	}
@@ -400,7 +400,7 @@ func storeHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots m
 		HotplugGone: false,
 	}
 	setHotplugSlots(st, stateSlots)
-	logger.Noticef("added hotplug slot %s:%s of interface %s, hotplug key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, slot.HotplugKey)
+	logger.Debugf("added hotplug slot %s:%s of interface %s, hotplug key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, slot.HotplugKey)
 	return nil
 }
 
