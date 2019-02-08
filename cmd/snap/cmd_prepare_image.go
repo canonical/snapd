@@ -62,7 +62,7 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"snap": i18n.G("Specify extra snaps from store or local or optionally control the channel to track for a snap"),
+			"snap": i18n.G("Include the given snap from the store or a local file and/or specify the channel to track for the given snap"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
