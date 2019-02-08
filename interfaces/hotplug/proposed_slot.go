@@ -56,8 +56,6 @@ func (slot *ProposedSlot) Clean() (*ProposedSlot, error) {
 	attrs := slot.Attrs
 	if attrs == nil {
 		attrs = make(map[string]interface{})
-	} else {
-		attrs = utils.CopyAttributes(slot.Attrs)
 	}
 
 	return &ProposedSlot{

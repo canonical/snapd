@@ -49,6 +49,13 @@ func (s *proposedSlotSuite) TestCleanHappy(c *C) {
 	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot1", Label: "A slot", Attrs: map[string]interface{}{"foo": "bar"}})
 }
 
+func (s *proposedSlotSuite) TestNilAttrs(c *C) {
+	slot := &ProposedSlot{Name: "slot"}
+	slot, err := slot.Clean()
+	c.Assert(err, IsNil)
+	c.Assert(slot, DeepEquals, &ProposedSlot{Name: "slot", Attrs: map[string]interface{}{}})
+}
+
 func (s *proposedSlotSuite) TestDeepCopy(c *C) {
 	attrs := map[string]interface{}{"foo": "bar"}
 	slot := &ProposedSlot{Name: "slot1", Attrs: attrs}
