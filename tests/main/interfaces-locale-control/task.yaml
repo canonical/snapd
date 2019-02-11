@@ -44,7 +44,6 @@ restore: |
         fi
     fi
 
-    rm -f locale-read.error locale-write.error
     mv locale.back /etc/default/locale
 
 execute: |
@@ -71,7 +70,7 @@ execute: |
         snap disconnect locale-control-consumer:locale-control
 
         echo "Then the snap is not able to read the locale configuration"
-        if su -l -c "locale-control-consumer.get LANG" test 2>"${PWD}/locale-read.error"; then
+        if su -l -c "locale-control-consumer.get LANG" test 2> locale-read.error; then
             echo "Expected permission error accessing locale configuration with disconnected plug"
             exit 1
         fi
@@ -85,14 +84,16 @@ execute: |
     locale-control-consumer.set LANG mylang
     grep -q "LANG=\"mylang\"" /etc/default/locale
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "When the plug is disconnected"
-        snap disconnect locale-control-consumer:locale-control
-
-        echo "Then the snap is not able to read the locale configuration"
-        if locale-control-consumer.set LANG mysecondlang 2> locale-write.error; then
-            echo "Expected permission error accessing locale configuration with disconnected plug"
-            exit 1
-        fi
-        grep -q "Permission denied" locale-write.error
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
     fi
+
+    echo "When the plug is disconnected"
+    snap disconnect locale-control-consumer:locale-control
+
+    echo "Then the snap is not able to read the locale configuration"
+    if locale-control-consumer.set LANG mysecondlang 2> locale-write.error; then
+        echo "Expected permission error accessing locale configuration with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" locale-write.error

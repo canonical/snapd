@@ -22,6 +22,7 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,8 +34,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -836,7 +835,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_invalid_instance_name", "", snapstate.Flags{DevMode: true})
-	c.Assert(err, ErrorMatches, `invalid instance key: "invalid_instance_name"`)
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "invalid_instance_name"`)
 }
 
 func (ms *mgrsSuite) TestCheckInterfaces(c *C) {
