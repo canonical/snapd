@@ -22,6 +22,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/base64"
 	"encoding/json"
@@ -40,8 +41,6 @@ import (
 	"time"
 
 	"github.com/juju/ratelimit"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -763,13 +762,11 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 		if err != nil {
 			return nil, err
 		}
-
-		var resp *http.Response
 		if ctx != nil {
-			resp, err = ctxhttp.Do(ctx, client, req)
-		} else {
-			resp, err = client.Do(req)
+			req = req.WithContext(ctx)
 		}
+
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err
 		}

@@ -20,6 +20,7 @@
 package snapshotstate_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -969,17 +969,20 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	}
 
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
+	homedirA := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
+	homedirB := filepath.Join(dirs.GlobalRootDir, "home", "b-user")
 
 	defer backend.MockUserLookup(func(username string) (*user.User, error) {
-		if username != "a-user" {
+		if username != "a-user" && username != "b-user" {
 			c.Fatalf("unexpected user %q", username)
+			return nil, user.UnknownUserError(username)
 		}
 		return &user.User{
 			Uid:      fmt.Sprint(sys.Geteuid()),
 			Username: username,
-			HomeDir:  homedir,
+			HomeDir:  filepath.Join(dirs.GlobalRootDir, "home", username),
 		}, nil
+
 	})()
 
 	o := overlord.Mock()
@@ -1005,17 +1008,21 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 		})
 		snapInfo := snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+		for _, home := range []string{homedirA, homedirB} {
+			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"})
 		c.Assert(err, check.IsNil)
 	}
 
 	// move the old away
-	c.Assert(os.Rename(filepath.Join(homedir, "snap"), filepath.Join(homedir, "snap.old")), check.IsNil)
+	c.Assert(os.Rename(filepath.Join(homedirA, "snap"), filepath.Join(homedirA, "snap.old")), check.IsNil)
+	// remove b-user's home
+	c.Assert(os.RemoveAll(homedirB), check.IsNil)
 
-	found, taskset, err := snapshotstate.Restore(st, 42, nil, []string{"a-user"})
+	found, taskset, err := snapshotstate.Restore(st, 42, nil, []string{"a-user", "b-user"})
 	c.Assert(err, check.IsNil)
 	sort.Strings(found)
 	c.Check(found, check.DeepEquals, []string{"one-snap", "too-snap", "tri-snap"})
@@ -1028,8 +1035,13 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	st.Lock()
 	c.Check(change.Err(), check.IsNil)
 
+	// the three restores warn about the missing home (but no errors, no panics)
+	for _, task := range change.Tasks() {
+		c.Check(strings.Join(task.Log(), "\n"), check.Matches, `.* Skipping restore of "[^"]+/home/b-user/[^"]+" as "[^"]+/home/b-user" doesn't exist.`)
+	}
+
 	// check it was all brought back \o/
-	out, err := exec.Command("diff", "-rN", filepath.Join(homedir, "snap"), filepath.Join("snap.old")).CombinedOutput()
+	out, err := exec.Command("diff", "-rN", filepath.Join(homedirA, "snap"), filepath.Join("snap.old")).CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 }

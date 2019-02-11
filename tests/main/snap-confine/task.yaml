@@ -14,7 +14,6 @@ restore: |
 
     echo "Restore current symlink"
     mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current ||  true
-    rm -f snap-confine.stderr
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

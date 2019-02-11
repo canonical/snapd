@@ -1,9 +1,9 @@
 summary: "Check that refresh-modes works"
 
-kill-timeout: 5m
+# takes >1.5min to run
+backends: [-autopkgtest]
 
-restore:
-    rm -f ./*.pid || true
+kill-timeout: 5m
 
 debug: |
     grep -n '' ./*.pid || true
