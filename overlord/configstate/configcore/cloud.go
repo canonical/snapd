@@ -43,6 +43,42 @@ func alreadySeeded(tr config.Conf) (bool, error) {
 	return seeded, nil
 }
 
+type cloudInitInstanceData struct {
+	V1 struct {
+		Region           string
+		Name             string
+		AvailabilityZone string
+	}
+}
+
+func (c *cloudInitInstanceData) UnmarshalJSON(bs []byte) error {
+	var instanceDataJSON struct {
+		V1 struct {
+			Region string `json:"region"`
+			// these fields can come with - or _ as separators
+			Name                string `json:"cloud_name"`
+			AltName             string `json:"cloud-name"`
+			AvailabilityZone    string `json:"availability_zone"`
+			AltAvailabilityZone string `json:"availability-zone"`
+		} `json:"v1"`
+	}
+
+	if err := json.Unmarshal(bs, &instanceDataJSON); err != nil {
+		return err
+	}
+
+	c.V1.Region = instanceDataJSON.V1.Region
+	switch {
+	case instanceDataJSON.V1.Name != "":
+		c.V1.Name = instanceDataJSON.V1.Name
+		c.V1.AvailabilityZone = instanceDataJSON.V1.AvailabilityZone
+	case instanceDataJSON.V1.AltName != "":
+		c.V1.Name = instanceDataJSON.V1.AltName
+		c.V1.AvailabilityZone = instanceDataJSON.V1.AltAvailabilityZone
+	}
+	return nil
+}
+
 func setCloudInfoWhenSeeding(tr config.Conf) error {
 	// if we are during seeding try to capture cloud information
 	seeded, err := alreadySeeded(tr)
@@ -63,13 +99,8 @@ func setCloudInfoWhenSeeding(tr config.Conf) error {
 		logger.Noticef("cannot read cloud instance information %q: %v", dirs.CloudInstanceDataFile, err)
 		return nil
 	}
-	var instanceData struct {
-		V1 struct {
-			Name             string `json:"cloud-name"`
-			Region           string `json:"region"`
-			AvailabilityZone string `json:"availability-zone"`
-		} `json:"v1"`
-	}
+
+	var instanceData cloudInitInstanceData
 	err = json.Unmarshal(data, &instanceData)
 	if err != nil {
 		logger.Noticef("cannot unmarshal cloud instance information %q: %v", dirs.CloudInstanceDataFile, err)

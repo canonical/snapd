@@ -76,7 +76,7 @@
 
 
 Name:           snapd
-Version:        2.36.2
+Version:        2.37.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -91,7 +91,7 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
-BuildRequires:  go
+BuildRequires:  go >= 1.9
 BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libcap-devel
@@ -357,6 +357,7 @@ fi
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/glvnd
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp

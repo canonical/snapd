@@ -536,6 +536,10 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
+    # we do not need console-conf, so prevent it from running
+    mkdir -p /mnt/system-data/var/lib/console-conf
+    touch /mnt/system-data/var/lib/console-conf/complete
+
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
     umount /mnt

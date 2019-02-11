@@ -20,9 +20,8 @@
 package snapstate_test
 
 import (
+	"context"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 

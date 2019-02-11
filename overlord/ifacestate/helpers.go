@@ -378,6 +378,32 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName str
 	return nil
 }
 
+func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo, iface interfaces.Interface, slot *snap.SlotInfo) error {
+	if slot.HotplugKey == "" {
+		return fmt.Errorf("internal error: cannot store slot %q, not a hotplug slot", slot.Name)
+	}
+	if iface, ok := iface.(interfaces.SlotSanitizer); ok {
+		if err := iface.BeforePrepareSlot(slot); err != nil {
+			return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
+		}
+	}
+
+	if err := repo.AddSlot(slot); err != nil {
+		return fmt.Errorf("cannot add hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
+	}
+
+	stateSlots[slot.Name] = &HotplugSlotInfo{
+		Name:        slot.Name,
+		Interface:   slot.Interface,
+		StaticAttrs: slot.Attrs,
+		HotplugKey:  slot.HotplugKey,
+		HotplugGone: false,
+	}
+	setHotplugSlots(st, stateSlots)
+	logger.Debugf("added hotplug slot %s:%s of interface %s, hotplug key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, slot.HotplugKey)
+	return nil
+}
+
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
 	ByGadget  bool   `json:"by-gadget,omitempty"`
@@ -888,11 +914,30 @@ func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
 	chg.Set("hotplug-key", hotplugKey)
 }
 
+// addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
+// and makes all existing tasks of the change wait for it.
+func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
+	st := hotplugChange.State()
+	seq, err := allocHotplugSeq(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
+	}
+	setHotplugChangeAttrs(hotplugChange, seq, hotplugKey)
+	seqControl := st.NewTask("hotplug-seq-wait", fmt.Sprintf("Serialize hotplug change for hotplug key %q", hotplugKey))
+	tss := state.NewTaskSet(hotplugChange.Tasks()...)
+	tss.WaitFor(seqControl)
+	hotplugChange.AddTask(seqControl)
+	return nil
+}
+
 type HotplugSlotInfo struct {
 	Name        string                 `json:"name"`
 	Interface   string                 `json:"interface"`
 	StaticAttrs map[string]interface{} `json:"static-attrs,omitempty"`
 	HotplugKey  string                 `json:"hotplug-key"`
+
+	// device was unplugged but has connections, so slot is remembered
+	HotplugGone bool `json:"hotplug-gone"`
 }
 
 func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
@@ -909,6 +954,15 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 
 func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
+}
+
+func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName, hotplugKey string) *HotplugSlotInfo {
+	for _, slot := range stateSlots {
+		if slot.HotplugKey == hotplugKey && slot.Interface == ifaceName {
+			return slot
+		}
+	}
+	return nil
 }
 
 func findConnsForHotplugKey(conns map[string]*connState, ifaceName, hotplugKey string) []string {

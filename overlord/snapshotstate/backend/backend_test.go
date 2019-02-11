@@ -22,6 +22,7 @@ package backend_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -34,7 +35,6 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"

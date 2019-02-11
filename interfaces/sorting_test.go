@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
-	"github.com/snapcore/snapd/snap"
 )
 
 type SortingSuite struct{}
@@ -35,90 +34,6 @@ var _ = Suite(&SortingSuite{})
 
 func newConnRef(plugSnap, plug, slotSnap, slot string) *interfaces.ConnRef {
 	return &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plug}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slot}}
-}
-
-func (s *SortingSuite) TestSortBySlotRef(c *C) {
-	list := []interfaces.SlotRef{{
-		Snap: "snap-2",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2_instance",
-		Name: "name-2",
-	}, {
-		Snap: "snap-3",
-		Name: "name-2",
-	}, {
-		Snap: "snap-1",
-		Name: "name-2",
-	}, {
-		Snap: "snap-1",
-		Name: "name-1",
-	}}
-	sort.Sort(interfaces.BySlotRef(list))
-	c.Assert(list, DeepEquals, []interfaces.SlotRef{{
-		Snap: "snap-1",
-		Name: "name-1",
-	}, {
-		Snap: "snap-1",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2_instance",
-		Name: "name-2",
-	}, {
-		Snap: "snap-3",
-		Name: "name-2",
-	}})
-}
-
-func (s *SortingSuite) TestSortByPlugRef(c *C) {
-	list := []interfaces.PlugRef{{
-		Snap: "snap-2",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2_instance",
-		Name: "name-2",
-	}, {
-		Snap: "snap-3",
-		Name: "name-2",
-	}, {
-		Snap: "snap-1",
-		Name: "name-2",
-	}, {
-		Snap: "snap-1",
-		Name: "name-1",
-	}}
-	sort.Sort(interfaces.ByPlugRef(list))
-	c.Assert(list, DeepEquals, []interfaces.PlugRef{{
-		Snap: "snap-1",
-		Name: "name-1",
-	}, {
-		Snap: "snap-1",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2",
-		Name: "name-2",
-	}, {
-		Snap: "snap-2_instance",
-		Name: "name-2",
-	}, {
-		Snap: "snap-3",
-		Name: "name-2",
-	}})
-}
-
-func (s *SortingSuite) TestByBackendName(c *C) {
-	list := []interfaces.SecurityBackend{
-		&ifacetest.TestSecurityBackend{BackendName: "backend-2"},
-		&ifacetest.TestSecurityBackend{BackendName: "backend-1"},
-	}
-	sort.Sort(interfaces.ByBackendName(list))
-	c.Assert(list, DeepEquals, []interfaces.SecurityBackend{
-		&ifacetest.TestSecurityBackend{BackendName: "backend-1"},
-		&ifacetest.TestSecurityBackend{BackendName: "backend-2"},
-	})
 }
 
 func (s *SortingSuite) TestByInterfaceName(c *C) {
@@ -130,50 +45,6 @@ func (s *SortingSuite) TestByInterfaceName(c *C) {
 	c.Assert(list, DeepEquals, []interfaces.Interface{
 		&ifacetest.TestInterface{InterfaceName: "iface-1"},
 		&ifacetest.TestInterface{InterfaceName: "iface-2"},
-	})
-}
-
-func (s *SortingSuite) TestByPlugInfo(c *C) {
-	list := []*snap.PlugInfo{
-		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-1"},
-	}
-	sort.Sort(interfaces.ByPlugInfo(list))
-	c.Assert(list, DeepEquals, []*snap.PlugInfo{
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
-	})
-}
-
-func (s *SortingSuite) TestBySlotInfo(c *C) {
-	list := []*snap.SlotInfo{
-		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-1"},
-	}
-	sort.Sort(interfaces.BySlotInfo(list))
-	c.Assert(list, DeepEquals, []*snap.SlotInfo{
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-1"},
-		{Snap: &snap.Info{SuggestedName: "name-2_instance"}, Name: "plug-2"},
-		{Snap: &snap.Info{SuggestedName: "name-3"}, Name: "plug-2"},
 	})
 }
 
@@ -197,5 +68,67 @@ func (s *SortingSuite) TestByConnRef(c *C) {
 		newConnRef("name-1", "plug-2", "name-2", "slot-2"),
 		newConnRef("name-1", "plug-3", "name-2", "slot-1"),
 		newConnRef("name-1_instance", "plug-1", "name-2", "slot-1"),
+	})
+}
+
+func newSlotRef(snap, name string) *interfaces.SlotRef {
+	return &interfaces.SlotRef{Snap: snap, Name: name}
+}
+
+type bySlotRef []*interfaces.SlotRef
+
+func (b bySlotRef) Len() int      { return len(b) }
+func (b bySlotRef) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b bySlotRef) Less(i, j int) bool {
+	return b[i].SortsBefore(*b[j])
+}
+
+func (s *SortingSuite) TestSortSlotRef(c *C) {
+	list := []*interfaces.SlotRef{
+		newSlotRef("name-2", "slot-3"),
+		newSlotRef("name-2_instance", "slot-1"),
+		newSlotRef("name-2", "slot-2"),
+		newSlotRef("name-2", "slot-4"),
+		newSlotRef("name-2", "slot-1"),
+	}
+	sort.Sort(bySlotRef(list))
+
+	c.Assert(list, DeepEquals, []*interfaces.SlotRef{
+		newSlotRef("name-2", "slot-1"),
+		newSlotRef("name-2", "slot-2"),
+		newSlotRef("name-2", "slot-3"),
+		newSlotRef("name-2", "slot-4"),
+		newSlotRef("name-2_instance", "slot-1"),
+	})
+}
+
+type byPlugRef []*interfaces.PlugRef
+
+func (b byPlugRef) Len() int      { return len(b) }
+func (b byPlugRef) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byPlugRef) Less(i, j int) bool {
+	return b[i].SortsBefore(*b[j])
+}
+
+func newPlugRef(snap, name string) *interfaces.PlugRef {
+	return &interfaces.PlugRef{Snap: snap, Name: name}
+}
+
+func (s *SortingSuite) TestSortPlugRef(c *C) {
+	list := []*interfaces.PlugRef{
+		newPlugRef("name-2", "plug-3"),
+		newPlugRef("name-2_instance", "plug-1"),
+		newPlugRef("name-2", "plug-4"),
+		newPlugRef("name-2", "plug-2"),
+		newPlugRef("name-2", "plug-1"),
+	}
+	sort.Sort(byPlugRef(list))
+
+	c.Assert(list, DeepEquals, []*interfaces.PlugRef{
+		newPlugRef("name-2", "plug-1"),
+		newPlugRef("name-2", "plug-2"),
+		newPlugRef("name-2", "plug-3"),
+		newPlugRef("name-2", "plug-4"),
+		newPlugRef("name-2_instance", "plug-1"),
 	})
 }

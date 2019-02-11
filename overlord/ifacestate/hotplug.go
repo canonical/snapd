@@ -22,10 +22,10 @@ package ifacestate
 import (
 	"crypto/sha256"
 	"fmt"
-	"strconv"
 	"strings"
 	"unicode"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -97,26 +97,22 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 }
 
 // ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.
-// Uniqueness is achieved by appending a numeric suffix, or increasing existing suffix.
+// Uniqueness is achieved by appending a numeric suffix.
 func ensureUniqueName(proposedName string, isUnique func(string) bool) string {
 	// if the name is unique right away, do nothing
 	if isUnique(proposedName) {
 		return proposedName
 	}
 
-	suffixNumValue := 0
-	prefix := strings.TrimRightFunc(proposedName, unicode.IsDigit)
-	if prefix != proposedName {
-		suffixNumValue, _ = strconv.Atoi(proposedName[len(prefix):])
-	}
-
+	baseName := proposedName
+	suffixNumValue := 1
 	// increase suffix value until we have a unique name
 	for {
-		suffixNumValue++
-		proposedName = fmt.Sprintf("%s%d", prefix, suffixNumValue)
+		proposedName = fmt.Sprintf("%s-%d", baseName, suffixNumValue)
 		if isUnique(proposedName) {
 			return proposedName
 		}
+		suffixNumValue++
 	}
 }
 
@@ -178,10 +174,43 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 	return shortestName
 }
 
+// hotplugSlotName returns a slot name derived from slotSpecName or device attributes, or interface name, in that priority order, depending
+// on which information is available. The chosen name is guaranteed to be unique
+func hotplugSlotName(hotplugKey, systemSnapInstanceName, slotSpecName, ifaceName string, devinfo *hotplug.HotplugDeviceInfo, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo) string {
+	proposedName := slotSpecName
+	if proposedName == "" {
+		proposedName = suggestedSlotName(devinfo, ifaceName)
+	}
+	proposedName = ensureUniqueName(proposedName, func(slotName string) bool {
+		if slot, ok := stateSlots[slotName]; ok {
+			return slot.HotplugKey == hotplugKey
+		}
+		return repo.Slot(systemSnapInstanceName, slotName) == nil
+	})
+	return proposedName
+}
+
+// updateDevice creates tasks to disconnect slots of given device, update the slot in the repository, then connect it back.
+func updateDevice(st *state.State, ifaceName, hotplugKey string, newAttrs map[string]interface{}) *state.TaskSet {
+	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of interface %s, hotplug key %q", ifaceName, hotplugKey))
+	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
+
+	updateSlot := st.NewTask("hotplug-update-slot", fmt.Sprintf("Update slot of interface %s, hotplug key %q", ifaceName, hotplugKey))
+	setHotplugAttrs(updateSlot, ifaceName, hotplugKey)
+	updateSlot.Set("slot-attrs", newAttrs)
+	updateSlot.WaitFor(hotplugDisconnect)
+
+	hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %s, hotplug key %q", ifaceName, hotplugKey))
+	setHotplugAttrs(hotplugConnect, ifaceName, hotplugKey)
+	hotplugConnect.WaitFor(updateSlot)
+
+	return state.NewTaskSet(hotplugDisconnect, updateSlot, hotplugConnect)
+}
+
 // removeDevice creates tasks to disconnect slots of given device and remove affected slots.
 func removeDevice(st *state.State, ifaceName, hotplugKey string) *state.TaskSet {
 	// hotplug-disconnect task will create hooks and disconnect the slot
-	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections for interface %s, hotplug key %q", ifaceName, hotplugKey))
+	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of interface %s, hotplug key %q", ifaceName, hotplugKey))
 	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
 
 	// hotplug-remove-slot will remove this device's slot from the repository.

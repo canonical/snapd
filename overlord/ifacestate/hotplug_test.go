@@ -23,7 +23,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/state"
 
@@ -226,27 +228,15 @@ func (s *hotplugSuite) TestEnsureUniqueName(c *C) {
 			"slot":     true,
 			"slot1234": true,
 			"slot-1":   true,
-			"slot-2":   true,
-			"slot3-5":  true,
-			"slot3-6":  true,
-			"11":       true,
-			"12foo":    true,
-			"slot-99":  true,
 		}
 		return !reserved[n]
 	}
 
 	names := []struct{ proposedName, resultingName string }{
 		{"foo", "foo"},
-		{"slot", "slot2"},
-		{"slot1", "slot2"},
-		{"slot1234", "slot1235"},
-		{"slot-1", "slot-3"},
-		{"slot3-5", "slot3-7"},
-		{"slot3-1", "slot3-1"},
-		{"11", "12"},
-		{"12foo", "12foo1"},
-		{"slot-99", "slot-100"},
+		{"slot", "slot-2"},
+		{"slot1234", "slot1234-1"},
+		{"slot-1", "slot-1-1"},
 	}
 
 	for _, name := range names {
@@ -323,6 +313,86 @@ func (s *hotplugSuite) TestSuggestedSlotName(c *C) {
 		slotName := ifacestate.SuggestedSlotName(di, "fallbackname")
 		c.Assert(slotName, Equals, data.outName)
 	}
+}
+
+func (s *hotplugSuite) TestHotplugSlotName(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	testData := []struct {
+		slotSpecName string
+		deviceData   map[string]string
+		expectedName string
+	}{
+		// names dervied from slotSpecName
+		{"hdcamera", map[string]string{"DEVPATH": "a", "NAME": "Video Camera"}, "hdcamera"},
+		{"hdcamera", map[string]string{"DEVPATH": "a", "NAME": "Video Camera"}, "hdcamera-1"},
+		{"ieee1394", map[string]string{"DEVPATH": "a"}, "ieee1394"},
+		{"ieee1394", map[string]string{"DEVPATH": "b"}, "ieee1394-1"},
+		{"ieee1394", map[string]string{"DEVPATH": "c"}, "ieee1394-2"},
+		// names derived from device attributes, since slotSpecName is empty
+		{"", map[string]string{"DEVPATH": "a", "NAME": "Video Camera"}, "videocamera"},
+		{"", map[string]string{"DEVPATH": "b", "NAME": "Video Camera"}, "videocamera-1"},
+		{"", map[string]string{"DEVPATH": "b", "NAME": "Video Camera"}, "videocamera-2"},
+		// names derived from interface name, since slotSpecName and relevant device attributes are not present
+		{"", map[string]string{"DEVPATH": "a"}, "ifacename"},
+		{"", map[string]string{"DEVPATH": "a"}, "ifacename-1"},
+	}
+
+	repo := interfaces.NewRepository()
+	iface := &ifacetest.TestInterface{InterfaceName: "camera"}
+	repo.AddInterface(iface)
+
+	stateSlots, err := ifacestate.GetHotplugSlots(st)
+	c.Assert(err, IsNil)
+
+	for _, data := range testData {
+		devinfo, err := hotplug.NewHotplugDeviceInfo(data.deviceData)
+		c.Assert(err, IsNil)
+		c.Check(ifacestate.HotplugSlotName("key", "core", data.slotSpecName, "ifacename", devinfo, repo, stateSlots), Equals, data.expectedName)
+		// store the slot to affect ensureUniqueName
+		stateSlots[data.expectedName] = &ifacestate.HotplugSlotInfo{}
+	}
+}
+
+func (s *hotplugSuite) TestUpdateDeviceTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tss := ifacestate.UpdateDevice(st, "interface", "key", map[string]interface{}{"attr": "value"})
+	c.Assert(tss, NotNil)
+	c.Assert(tss.Tasks(), HasLen, 3)
+
+	task1 := tss.Tasks()[0]
+	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
+
+	iface, key, err := ifacestate.GetHotplugAttrs(task1)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+
+	task2 := tss.Tasks()[1]
+	c.Assert(task2.Kind(), Equals, "hotplug-update-slot")
+	iface, key, err = ifacestate.GetHotplugAttrs(task2)
+	c.Assert(err, IsNil)
+	c.Assert(iface, Equals, "interface")
+	c.Assert(key, Equals, "key")
+	var attrs map[string]interface{}
+	c.Assert(task2.Get("slot-attrs", &attrs), IsNil)
+	c.Assert(attrs, DeepEquals, map[string]interface{}{"attr": "value"})
+
+	wt := task2.WaitTasks()
+	c.Assert(wt, HasLen, 1)
+	c.Assert(wt[0], DeepEquals, task1)
+
+	task3 := tss.Tasks()[2]
+	c.Assert(task3.Kind(), Equals, "hotplug-connect")
+
+	wt = task3.WaitTasks()
+	c.Assert(wt, HasLen, 1)
+	c.Assert(wt[0], DeepEquals, task2)
 }
 
 func (s *hotplugSuite) TestRemoveDeviceTasks(c *C) {

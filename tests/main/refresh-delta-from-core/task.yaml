@@ -27,4 +27,4 @@ execute: |
     echo "When the snap is refreshed"
     snap refresh --beta "$SNAP_NAME"
     echo "Then deltas are successfully applied"
-    get_journalctl_log -u snapd | MATCH "Successfully applied delta"
+    check_journalctl_log "Successfully applied delta"

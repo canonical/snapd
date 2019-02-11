@@ -171,12 +171,6 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "WHc3uByvGaMcnSoI21fhzYgbOgg=",
-			"path": "golang.org/x/net/context/ctxhttp",
-			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
-			"revisionTime": "2017-06-28T23:42:41Z"
-		},
-		{
 			"checksumSHA1": "9gypWnVZJEaH3jMK9KqOp4xgQD4=",
 			"path": "gopkg.in/check.v1",
 			"revision": "788fd78401277ebd861206a03c884797c6ec5541",

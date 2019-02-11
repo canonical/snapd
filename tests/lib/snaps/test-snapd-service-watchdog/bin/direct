@@ -41,7 +41,7 @@ def main(opts):
     else:
         sleep_time = watchdog_timeout / 2
 
-    logging.info('watchdog notification every %us', sleep_time)
+    logging.info('watchdog notification every %ss', sleep_time)
 
     with closing(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)) as sock:
         sock.connect(notify_addr)

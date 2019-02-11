@@ -107,7 +107,10 @@ install::
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/desktop/applications
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/device
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/hostfs
-	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/{gl,gl32,vulkan}
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl32
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/glvnd
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/vulkan
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/mount
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/seccomp/bpf
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/sequence
