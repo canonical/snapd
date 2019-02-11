@@ -41,6 +41,7 @@ import (
 
 var (
 	snapstateInstall = snapstate.Install
+	snapstateUpdate  = snapstate.Update
 )
 
 // Model returns the device model assertion.
@@ -295,6 +296,16 @@ func CanManageRefreshes(st *state.State) bool {
 // Remodel takes a new model assertion and generates a change that
 // takes the device from the old to the new model or an error if the
 // transition is not possible.
+//
+// TODO:
+// - Check estimated disk size delta
+// - Reapply gadget connections as needed
+// - Need new session/serial if changing store or model
+// - Check all relevant snaps exist in new store
+//   (need to check that even unchanged snaps are accessible)
+// - Download everything in a first phase of the change and "pin" cache
+//   files (also get assertions), which means also dealing with new based
+//   and content providers
 func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	current, err := Model(st)
 	if err != nil {
@@ -342,7 +353,7 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 
 	// adjust tracks
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstate.Update(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
+		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
 		if err != nil {
 			return nil, err
 		}
