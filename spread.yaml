@@ -75,7 +75,6 @@ backends:
                 workers: 6
             - debian-sid-64:
                 workers: 6
-                manual: true
 
             - fedora-28-64:
                 workers: 4

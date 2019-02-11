@@ -169,24 +169,26 @@ InterfacesLoop:
 			}
 		}
 
-		spec := hotplug.NewSpecification()
-		if hotplugHandler.HotplugDeviceDetected(devinfo, spec) != nil {
+		proposedSlot, err := hotplugHandler.HotplugDeviceDetected(devinfo)
+		if err != nil {
 			logger.Noticef("cannot process hotplug event by the rule of interface %q: %s", iface.Name(), err)
 			continue
 		}
-		slotSpec := spec.Slot()
-		if slotSpec == nil {
+		if proposedSlot == nil {
 			continue
 		}
-
 		if key == "" {
 			logger.Debugf("no valid hotplug key provided by interface %q, device with path %s ignored", iface.Name(), devinfo.DevicePath())
 			continue
 		}
-
-		if slotSpec.Label == "" {
+		proposedSlot, err = proposedSlot.Clean()
+		if err != nil {
+			logger.Noticef("cannot validate hotplug slot proposed by interface %q: %v", iface.Name(), err.Error())
+			continue
+		}
+		if proposedSlot.Label == "" {
 			si := interfaces.StaticInfoOf(iface)
-			slotSpec.Label = si.Summary
+			proposedSlot.Label = si.Summary
 		}
 
 		if !hotplugFeature {
@@ -210,7 +212,7 @@ InterfacesLoop:
 		hotplugAdd := st.NewTask("hotplug-add-slot", fmt.Sprintf("Create slot for device with hotplug key %q", key))
 		setHotplugAttrs(hotplugAdd, iface.Name(), key)
 		hotplugAdd.Set("device-info", devinfo)
-		hotplugAdd.Set("slot-spec", slotSpec)
+		hotplugAdd.Set("proposed-slot", proposedSlot)
 		chg.AddTask(hotplugAdd)
 
 		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %s, hotplug key %q", iface.Name(), key))
