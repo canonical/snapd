@@ -48,6 +48,7 @@ type AuthState struct {
 
 // DeviceState represents the device's identity and store credentials
 type DeviceState struct {
+	// Brand refers to the brand-id
 	Brand  string `json:"brand,omitempty"`
 	Model  string `json:"model,omitempty"`
 	Serial string `json:"serial,omitempty"`

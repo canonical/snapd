@@ -57,6 +57,15 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func isSameAssertsRevision(err error) bool {
+	if e, ok := err.(*asserts.RevisionError); ok {
+		if e.Used == e.Current {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -66,12 +75,30 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("new-model", &modelass); err != nil {
 		return err
 	}
-	model, err := asserts.Decode(modelass)
+
+	ass, err := asserts.Decode(modelass)
 	if err != nil {
 		return err
 	}
 
-	return assertstate.Add(st, model)
+	model, ok := ass.(*asserts.Model)
+	if !ok {
+		return fmt.Errorf("new-model is not a model assertion but: %s", ass.Type().Name)
+	}
+
+	err = assertstate.Add(st, ass)
+	if err != nil && !isSameAssertsRevision(err) {
+		return err
+	}
+
+	// TODO: look at serial/keyid/sessionmacaroonq
+	device, err := auth.Device(st)
+	if err != nil {
+		return err
+	}
+
+	// set device,model from the new model assertion
+	return setDeviceFromModelAssertion(st, device, model)
 }
 
 func useStaging() bool {

@@ -22,6 +22,9 @@ package devicestate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -39,19 +42,22 @@ func (s *deviceMgrSuite) TestSetModelHandlerSimple(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	t.Set("new-model", newModel)
-	s.state.NewChange("dummy", "...").AddTask(t)
+	t.Set("new-model", asserts.Encode(newModel))
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
 
 	s.state.Unlock()
 
 	s.se.Ensure()
 	s.se.Wait()
 
-	c.Assert(t.Status(), Equals, state.DoneStatus)
-
 	m, err := s.mgr.Model()
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, newModel)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.Err(), IsNil)
 }
 
 func (s *deviceMgrSuite) TestSetModelHandlerSameRevision(c *C) {
@@ -61,17 +67,27 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevision(c *C) {
 		"gadget":       "pc",
 		"revision":     "1",
 	})
-	s.mgr.SetModel(model)
 
 	s.state.Lock()
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	err := assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+
 	t := s.state.NewTask("set-model", "set-model test")
-	t.Set("new-model", model)
-	s.state.NewChange("dummy", "...").AddTask(t)
+	t.Set("new-model", asserts.Encode(model))
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
 
 	s.state.Unlock()
 
 	s.se.Ensure()
 	s.se.Wait()
 
-	c.Assert(t.Status(), Equals, state.DoneStatus)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.Err(), IsNil)
 }
