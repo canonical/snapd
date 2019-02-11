@@ -31,6 +31,7 @@
 
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
+#include "../libsnap-confine-private/cgroup-pids-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/feature.h"
@@ -301,18 +302,25 @@ int main(int argc, char **argv)
 				}
 			}
 
-			// Associate each snap process with a dedicated snap freezer
-			// control group. This simplifies testing if any processes
-			// belonging to a given snap are still alive.
-			// See the documentation of the function for details.
+			// Associate each snap process with a dedicated snap freezer cgroup
+			// and snap pids cgroup. All snap processes belonging to one snap
+			// share the freezer cgroup. All snap processes belonging to one
+			// app or one hook share the pids cgroup.
+			//
+			// This simplifies testing if any processes belonging to a given
+			// snap are still alive as well as to properly account for each
+			// application and service.
 			if (getegid() != 0 && saved_gid == 0) {
-				// Temporarily raise egid so we can chown the freezer cgroup
-				// under LXD.
+				// Temporarily raise egid so we can chown the pids and freezer
+				// cgroups under LXD.
 				if (setegid(0) != 0) {
 					die("cannot set effective group id to root");
 				}
 			}
 			sc_cgroup_freezer_join(snap_instance, getpid());
+			if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+				sc_cgroup_pids_join(security_tag, getpid());
+			}
 			if (geteuid() == 0 && real_gid != 0) {
 				if (setegid(real_gid) != 0) {
 					die("cannot set effective group id to %d", real_gid);
