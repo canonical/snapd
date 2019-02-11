@@ -617,7 +617,6 @@ prepare_ubuntu_core() {
     fi
 
     echo "Ensure the core snap is cached"
-    # Install core to keep it as part of the snapd state
     if is_core18_system; then
         if ! snap list core; then
             cache_snaps core
