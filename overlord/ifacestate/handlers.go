@@ -1549,9 +1549,9 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
-	var slotSpec hotplug.RequestedSlotSpec
-	if err := task.Get("slot-spec", &slotSpec); err != nil {
-		return fmt.Errorf("internal error: cannot get hotplug slot specification from task attributes: %s", err)
+	var proposedSlot hotplug.ProposedSlot
+	if err := task.Get("proposed-slot", &proposedSlot); err != nil {
+		return fmt.Errorf("internal error: cannot get proposed hotplug slot from task attributes: %s", err)
 	}
 	var devinfo hotplug.HotplugDeviceInfo
 	if err := task.Get("device-info", &devinfo); err != nil {
@@ -1577,18 +1577,18 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 			// simply recreate the slot with potentially new attributes, and old connections will be re-created
 			newSlot := &snap.SlotInfo{
 				Name:       slot.Name,
-				Label:      slotSpec.Label,
+				Label:      proposedSlot.Label,
 				Snap:       systemSnap,
 				Interface:  ifaceName,
-				Attrs:      slotSpec.Attrs,
+				Attrs:      proposedSlot.Attrs,
 				HotplugKey: hotplugKey,
 			}
 			return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
 		}
 
 		// else - not gone, restored already by reloadConnections, but may need updating.
-		if !reflect.DeepEqual(slotSpec.Attrs, slot.StaticAttrs) {
-			ts := updateDevice(st, iface.Name(), hotplugKey, slotSpec.Attrs)
+		if !reflect.DeepEqual(proposedSlot.Attrs, slot.StaticAttrs) {
+			ts := updateDevice(st, iface.Name(), hotplugKey, proposedSlot.Attrs)
 			snapstate.InjectTasks(task, ts)
 			st.EnsureBefore(0)
 			task.SetStatus(state.DoneStatus)
@@ -1597,13 +1597,13 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// New slot.
-	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), slotSpec.Name, iface.Name(), &devinfo, m.repo, stateSlots)
+	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), proposedSlot.Name, iface.Name(), &devinfo, m.repo, stateSlots)
 	newSlot := &snap.SlotInfo{
 		Name:       slotName,
-		Label:      slotSpec.Label,
+		Label:      proposedSlot.Label,
 		Snap:       systemSnap,
 		Interface:  iface.Name(),
-		Attrs:      slotSpec.Attrs,
+		Attrs:      proposedSlot.Attrs,
 		HotplugKey: hotplugKey,
 	}
 	return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)

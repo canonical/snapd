@@ -184,13 +184,13 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-1", nil
 		},
-		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			return spec.SetSlot(&hotplug.RequestedSlotSpec{
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+			return &hotplug.ProposedSlot{
 				Name: "hotplugslot-a",
 				Attrs: map[string]interface{}{
 					"slot-a-attr1": "a",
 					"path":         deviceInfo.DevicePath(),
-				}})
+				}}, nil
 		},
 	}
 	testIface2 := &ifacetest.TestHotplugInterface{
@@ -198,8 +198,8 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-2", nil
 		},
-		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			return spec.SetSlot(&hotplug.RequestedSlotSpec{Name: "hotplugslot-b"})
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+			return &hotplug.ProposedSlot{Name: "hotplugslot-b"}, nil
 		},
 		HandledByGadgetCallback: func(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
 			s.handledByGadgetCalled++
@@ -214,15 +214,15 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
 			return "key-3", nil
 		},
-		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			return nil
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+			return nil, nil
 		},
 	}
 	// 3rd hotplug interface will only create a slot if default hotplug key can be computed
 	testIface4 := &ifacetest.TestHotplugInterface{
 		TestInterface: ifacetest.TestInterface{InterfaceName: "test-d"},
-		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			return spec.SetSlot(&hotplug.RequestedSlotSpec{Name: "hotplugslot-d"})
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+			return &hotplug.ProposedSlot{Name: "hotplugslot-d"}, nil
 		},
 	}
 

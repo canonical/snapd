@@ -20,16 +20,13 @@
 package hotplug
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces/utils"
-
 	"github.com/snapcore/snapd/snap"
 )
 
 // Definer can be implemented by interfaces that need to create slots in response to hotplug events.
 type Definer interface {
-	HotplugDeviceDetected(di *HotplugDeviceInfo, spec *Specification) error
+	HotplugDeviceDetected(di *HotplugDeviceInfo) (*ProposedSlot, error)
 }
 
 // HotplugKeyHandler can be implemented by interfaces that need to provide a non-standard key for hotplug devices.
@@ -42,8 +39,8 @@ type HandledByGadgetPredicate interface {
 	HandledByGadget(di *HotplugDeviceInfo, slot *snap.SlotInfo) bool
 }
 
-// RequestedSlotSpec is a definition of the slot to create in response to a hotplug event.
-type RequestedSlotSpec struct {
+// ProposedSlot is a definition of the slot to create in response to a hotplug event.
+type ProposedSlot struct {
 	// Name is how the interface wants to name the slot. When left empty,
 	// one will be generated on demand. The hotplug machinery appends a
 	// suffix to ensure uniqueness of the name.
@@ -52,43 +49,23 @@ type RequestedSlotSpec struct {
 	Attrs map[string]interface{} `json:"attrs,omitempty"`
 }
 
-// Specification contains a slot definition to create in response to a hotplug event.
-type Specification struct {
-	slot *RequestedSlotSpec
-}
-
-// NewSpecification creates an empty hotplug Specification.
-func NewSpecification() *Specification {
-	return &Specification{}
-}
-
-// SetSlot sets the slot specification.
-func (h *Specification) SetSlot(slotSpec *RequestedSlotSpec) error {
-	if h.slot != nil {
-		return fmt.Errorf("slot specification already created")
-	}
+// Clean returns a copy of the input slot with normalized attributes and validated slot name (unless its empty).
+func (slot *ProposedSlot) Clean() (*ProposedSlot, error) {
 	// only validate name if not empty, otherwise name is created by hotplug
-	// subsystem later on when the spec is processed.
-	if slotSpec.Name != "" {
-		if err := snap.ValidateSlotName(slotSpec.Name); err != nil {
-			return err
+	// subsystem later on when the proposed slot is processed.
+	if slot.Name != "" {
+		if err := snap.ValidateSlotName(slot.Name); err != nil {
+			return nil, err
 		}
 	}
-	attrs := slotSpec.Attrs
+	attrs := slot.Attrs
 	if attrs == nil {
 		attrs = make(map[string]interface{})
-	} else {
-		attrs = utils.CopyAttributes(slotSpec.Attrs)
 	}
-	h.slot = &RequestedSlotSpec{
-		Name:  slotSpec.Name,
-		Label: slotSpec.Label,
-		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
-	}
-	return nil
-}
 
-// Slot returns the specification of the requested slot.
-func (h *Specification) Slot() *RequestedSlotSpec {
-	return h.slot
+	return &ProposedSlot{
+		Name:  slot.Name,
+		Label: slot.Label,
+		Attrs: utils.NormalizeInterfaceAttributes(attrs).(map[string]interface{}),
+	}, nil
 }
