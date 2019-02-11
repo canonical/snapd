@@ -5579,8 +5579,8 @@ func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]s
 	t := s.state.NewTask("hotplug-add-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	spec := hotplug.ProposedSlot{Name: specName, Attrs: map[string]interface{}{"foo": "bar"}}
-	t.Set("proposed-slot", spec)
+	proposedSlot := hotplug.ProposedSlot{Name: specName, Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
 	devinfo, _ := hotplug.NewHotplugDeviceInfo(devData)
 	t.Set("device-info", devinfo)
 	chg.AddTask(t)
@@ -5644,8 +5644,8 @@ func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
 	t := s.state.NewTask("hotplug-add-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	spec := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "bar"}}
-	t.Set("proposed-slot", spec)
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
 	t.Set("device-info", map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"})
 	chg.AddTask(t)
 
@@ -5702,8 +5702,8 @@ func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
 	t := s.state.NewTask("hotplug-add-slot", "")
 	t.Set("hotplug-key", "1234")
 	t.Set("interface", "test")
-	spec := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "newfoo"}}
-	t.Set("proposed-slot", spec)
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "newfoo"}}
+	t.Set("proposed-slot", proposedSlot)
 	devinfo, _ := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/a"})
 	t.Set("device-info", devinfo)
 	chg.AddTask(t)
