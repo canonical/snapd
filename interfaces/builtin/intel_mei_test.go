@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type IntelManagementInterfaceSuite struct {
+type IntelMEISuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -39,76 +39,76 @@ type IntelManagementInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&IntelManagementInterfaceSuite{
-	iface: builtin.MustInterface("intel-management-interface"),
+var _ = Suite(&IntelMEISuite{
+	iface: builtin.MustInterface("intel-mei"),
 })
 
-const intelManagementConsumerYaml = `name: consumer
+const intelMEIConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [intel-management-interface]
+  plugs: [intel-mei]
 `
 
-const intelManagementCoreYaml = `name: core
+const intelMEICoreYaml = `name: core
 version: 0
 type: os
 slots:
-  intel-management-interface:
+  intel-mei:
 `
 
-func (s *IntelManagementInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, intelManagementConsumerYaml, nil, "intel-management-interface")
-	s.slot, s.slotInfo = MockConnectedSlot(c, intelManagementCoreYaml, nil, "intel-management-interface")
+func (s *IntelMEISuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, intelMEIConsumerYaml, nil, "intel-mei")
+	s.slot, s.slotInfo = MockConnectedSlot(c, intelMEICoreYaml, nil, "intel-mei")
 }
 
-func (s *IntelManagementInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "intel-management-interface")
+func (s *IntelMEISuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "intel-mei")
 }
 
-func (s *IntelManagementInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *IntelMEISuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "intel-management-interface",
-		Interface: "intel-management-interface",
+		Name:      "intel-mei",
+		Interface: "intel-mei",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"intel-management-interface slots are reserved for the core snap")
+		"intel-mei slots are reserved for the core snap")
 }
 
-func (s *IntelManagementInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *IntelMEISuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *IntelManagementInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *IntelMEISuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mei[0-9]+ rw,`)
 }
 
-func (s *IntelManagementInterfaceSuite) TestUDevSpec(c *C) {
+func (s *IntelMEISuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
-	c.Assert(spec.Snippets(), testutil.Contains, `# intel-management-interface
+	c.Assert(spec.Snippets(), testutil.Contains, `# intel-mei
 KERNEL=="mei[0-9]+", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
-func (s *IntelManagementInterfaceSuite) TestStaticInfo(c *C) {
+func (s *IntelMEISuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to the intel management interface`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "intel-management-interface")
+	c.Assert(si.Summary, Equals, `allows access to the intel MEI management interface`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "intel-mei")
 }
 
-func (s *IntelManagementInterfaceSuite) TestAutoConnect(c *C) {
+func (s *IntelMEISuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
-func (s *IntelManagementInterfaceSuite) TestInterfaces(c *C) {
+func (s *IntelMEISuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

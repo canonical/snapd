@@ -19,32 +19,32 @@
 
 package builtin
 
-const intelManagementSummary = `allows access to the intel management interface`
+const intelMEISummary = `allows access to the intel MEI management interface`
 
-const intelManagementBaseDeclarationSlots = `
-  intel-management-interface:
+const intelMEIBaseDeclarationSlots = `
+  intel-mei:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const intelManagementConnectedPlugAppArmor = `
-# Description: Allow access to the Intel management interface.
+const intelMEIConnectedPlugAppArmor = `
+# Description: Allow access to the Intel MEI management interface.
 /dev/mei[0-9]+ rw,
 `
 
-var intelManagementConnectedPlugUDev = []string{`KERNEL=="mei[0-9]+"`}
+var intelMEIConnectedPlugUDev = []string{`KERNEL=="mei[0-9]+"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "intel-management-interface",
-		summary:               intelManagementSummary,
+		name:                  "intel-mei",
+		summary:               intelMEISummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  intelManagementBaseDeclarationSlots,
-		connectedPlugAppArmor: intelManagementConnectedPlugAppArmor,
-		connectedPlugUDev:     intelManagementConnectedPlugUDev,
+		baseDeclarationSlots:  intelMEIBaseDeclarationSlots,
+		connectedPlugAppArmor: intelMEIConnectedPlugAppArmor,
+		connectedPlugUDev:     intelMEIConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }
