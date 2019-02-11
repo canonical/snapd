@@ -64,8 +64,10 @@ execute: |
         exit 0
     fi
 
-    # Disconnect the interface and check access to timedatectl status
+    echo "When the plug is disconnected"
     snap disconnect test-snapd-timedate-control-consumer:timeserver-control
+
+    echo "The timedatectl status cannot be retrieved"
     if test-snapd-timedate-control-consumer.timedatectl-timeserver status 2> call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1

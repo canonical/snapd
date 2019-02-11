@@ -31,6 +31,7 @@ slots:
   mir: null
   modem-manager: null
   network-manager: null
+  network-manager-observe: null
   network-status: null
   ofono: null
   online-accounts-service: null
@@ -95,6 +96,9 @@ apps:
   network-manager:
     command: bin/run
     slots: [ network-manager ]
+  network-manager-observe:
+    command: bin/run
+    slots: [ network-manager-observe ]
   network-status:
     command: bin/run
     slots: [ network-status ]

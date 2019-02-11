@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1389,6 +1391,43 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+// doHotplugUpdateSlot updates static attributes of a hotplug slot for given device.
+func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	var attrs map[string]interface{}
+	if err := task.Get("slot-attrs", &attrs); err != nil {
+		return fmt.Errorf("internal error: cannot get slot-attrs attribute for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
+	}
+
+	slot, err := m.repo.UpdateHotplugSlotAttrs(ifaceName, hotplugKey, attrs)
+	if err != nil {
+		return err
+	}
+
+	if slotSpec, ok := stateSlots[slot.Name]; ok {
+		slotSpec.StaticAttrs = attrs
+		stateSlots[slot.Name] = slotSpec
+		setHotplugSlots(st, stateSlots)
+	} else {
+		return fmt.Errorf("internal error: cannot find slot %s for device %q", slot.Name, hotplugKey)
+	}
+
+	return nil
+}
+
 // doHotplugRemoveSlot removes hotplug slot for given device from the repository in response to udev "remove" event.
 // This task must necessarily be run after all affected slot gets disconnected in the repo.
 func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {
@@ -1493,6 +1532,81 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	task.SetStatus(state.DoneStatus)
 
 	return nil
+}
+
+func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	systemSnap, err := systemSnapInfo(st)
+	if err != nil {
+		return fmt.Errorf("system snap not available")
+	}
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	var proposedSlot hotplug.ProposedSlot
+	if err := task.Get("proposed-slot", &proposedSlot); err != nil {
+		return fmt.Errorf("internal error: cannot get proposed hotplug slot from task attributes: %s", err)
+	}
+	var devinfo hotplug.HotplugDeviceInfo
+	if err := task.Get("device-info", &devinfo); err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug device info from task attributes: %s", err)
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
+	}
+
+	iface := m.repo.Interface(ifaceName)
+	if iface == nil {
+		return fmt.Errorf("internal error: cannot find interface %s", ifaceName)
+	}
+
+	slot := findHotplugSlot(stateSlots, ifaceName, hotplugKey)
+
+	// if we know this slot already, restore / update it.
+	if slot != nil {
+		if slot.HotplugGone {
+			// hotplugGone means the device was unplugged, so its disconnect hooks were run and can now
+			// simply recreate the slot with potentially new attributes, and old connections will be re-created
+			newSlot := &snap.SlotInfo{
+				Name:       slot.Name,
+				Label:      proposedSlot.Label,
+				Snap:       systemSnap,
+				Interface:  ifaceName,
+				Attrs:      proposedSlot.Attrs,
+				HotplugKey: hotplugKey,
+			}
+			return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
+		}
+
+		// else - not gone, restored already by reloadConnections, but may need updating.
+		if !reflect.DeepEqual(proposedSlot.Attrs, slot.StaticAttrs) {
+			ts := updateDevice(st, iface.Name(), hotplugKey, proposedSlot.Attrs)
+			snapstate.InjectTasks(task, ts)
+			st.EnsureBefore(0)
+			task.SetStatus(state.DoneStatus)
+		} // else - nothing to do
+		return nil
+	}
+
+	// New slot.
+	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), proposedSlot.Name, iface.Name(), &devinfo, m.repo, stateSlots)
+	newSlot := &snap.SlotInfo{
+		Name:       slotName,
+		Label:      proposedSlot.Label,
+		Snap:       systemSnap,
+		Interface:  iface.Name(),
+		Attrs:      proposedSlot.Attrs,
+		HotplugKey: hotplugKey,
+	}
+	return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
 }
 
 // doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.

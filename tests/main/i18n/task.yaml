@@ -1,5 +1,8 @@
 summary: Test that i18n works
 
+# no i18n yet in debian-sid
+systems: [-debian-sid-*]
+
 execute: |
     # The snapd deb from the archive does not contain .mo files, those
     # are stripped out by the langpack buildd stuff and put into the

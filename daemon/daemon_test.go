@@ -66,7 +66,7 @@ type daemonSuite struct {
 
 var _ = check.Suite(&daemonSuite{})
 
-func (s *daemonSuite) checkAuthorization(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+func (s *daemonSuite) checkAuthorization(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 	s.lastPolkitFlags = flags
 	return s.authorized, s.err
 }
@@ -372,7 +372,7 @@ func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 
 	// for UserOK commands, polkit is not consulted
 	cmd.UserOK = true
-	polkitCheckAuthorization = func(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		panic("polkit.CheckAuthorization called")
 	}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)

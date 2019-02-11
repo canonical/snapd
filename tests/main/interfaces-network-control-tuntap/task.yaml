@@ -31,13 +31,15 @@ execute: |
     echo "The interface is disconnected by default"
     snap interfaces -i network-control | MATCH -- '^- +test-snapd-tuntap:network-control$'
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "And cannot allocate the $DEV device"
-        test-snapd-tuntap.tuntap "$DEV" 2>&1 | MATCH "Permission denied"
-    fi
-
     echo "When the plug is connected"
     snap connect test-snapd-tuntap:network-control
 
     echo "Then the snap command can allocate the $DEV device"
     test-snapd-tuntap.tuntap "$DEV" | MATCH "PASS"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "And cannot allocate the $DEV device"
+    test-snapd-tuntap.tuntap "$DEV" 2>&1 | MATCH "Permission denied"

@@ -38,7 +38,7 @@ execute: |
     fi
 
     echo "The snap's plug cannot access an evdev keyboard when connected"
-    if test-snapd-udev-input-subsystem.plug 2>"${PWD}"/call.error; then
+    if test-snapd-udev-input-subsystem.plug 2> call.error; then
         echo "Expected permission error with connected plug"
         exit 1
     fi
@@ -50,7 +50,7 @@ execute: |
     snap interfaces -i mir | MATCH -- '- +test-snapd-udev-input-subsystem:mir-plug'
 
     echo "The snap's plug still cannot access an evdev keyboard"
-    if test-snapd-udev-input-subsystem.plug 2>"${PWD}"/call.error; then
+    if test-snapd-udev-input-subsystem.plug 2> call.error; then
         echo "Expected permission error with disconnected plug"
         exit 1
     fi
@@ -61,7 +61,7 @@ execute: |
     snap interfaces -i time-control | MATCH ':time-control +-'
 
     echo "The snap's time-control plug cannot access an evdev keyboard when disconnected"
-    if test-snapd-udev-input-subsystem.plug-with-time-control 2>"${PWD}"/call.error; then
+    if test-snapd-udev-input-subsystem.plug-with-time-control 2> call.error; then
         echo "Expected permission error with disconnected time-control plug"
         exit 1
     fi
@@ -73,7 +73,7 @@ execute: |
     snap interfaces -i time-control | MATCH ":time-control +test-snapd-udev-input-subsystem"
 
     echo "The snap's plug still cannot access an evdev keyboard"
-    if test-snapd-udev-input-subsystem.plug-with-time-control 2>"${PWD}"/call.error; then
+    if test-snapd-udev-input-subsystem.plug-with-time-control 2> call.error; then
         echo "Expected permission error with disconnected time-control plug"
         exit 1
     fi

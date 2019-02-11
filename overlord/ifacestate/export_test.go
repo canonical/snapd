@@ -39,6 +39,7 @@ var (
 	MakeSlotName                 = makeSlotName
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
+	HotplugSlotName              = hotplugSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
 	GetHotplugAttrs              = getHotplugAttrs
 	SetHotplugAttrs              = setHotplugAttrs
@@ -53,6 +54,7 @@ var (
 	SetHotplugChangeAttrs        = setHotplugChangeAttrs
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
+	AddHotplugSlot               = addHotplugSlot
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
