@@ -125,7 +125,7 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     if execute_remote "udevadm info -e" | MATCH "ID_MODEL.QEMU_USB_SERIAL"; then
-        echo "Usb serial already registered, exiting..."
+        echo "USB serial already registered, exiting..."
         exit 1
     fi
 
@@ -164,7 +164,7 @@ execute: |
         fi
     done
     if execute_remote "udevadm info -e" | MATCH "ID_MODEL.QEMU_USB_SERIAL"; then
-        echo "Usb serial should not be registered anymore, exiting..."
+        echo "USB serial should not be registered anymore, exiting..."
         exit 1
     fi
 
