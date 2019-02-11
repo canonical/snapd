@@ -2698,11 +2698,17 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	c.Assert(tss, HasLen, 3)
 	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "fake-install")
 	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Install new-required-snap-1")
+	c.Assert(tss[0].Tasks()[0].WaitTasks(), HasLen, 0)
+
 	c.Assert(tss[1].Tasks()[0].Kind(), Equals, "fake-install")
 	c.Assert(tss[1].Tasks()[0].Summary(), Equals, "Install new-required-snap-2")
+	// waits for first install
+	c.Assert(tss[1].Tasks()[0].WaitTasks(), DeepEquals, tss[0].Tasks())
 
 	c.Assert(tss[2].Tasks()[0].Kind(), Equals, "set-model")
 	c.Assert(tss[2].Tasks()[0].Summary(), Equals, "Set new model assertion")
+	// waits for everything in the change
+	c.Assert(tss[2].Tasks()[0].WaitTasks(), DeepEquals, []*state.Task{tss[0].Tasks()[0], tss[1].Tasks()[0]})
 }
 
 func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {

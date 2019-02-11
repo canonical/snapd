@@ -336,7 +336,6 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	}
 
 	// calculate snap differences between the two models
-	var tss []*state.TaskSet
 	// FIXME: this needs work to switch the base to boot as well
 	if current.Base() != new.Base() {
 		return nil, fmt.Errorf("cannot remodel to different bases yet")
@@ -351,13 +350,20 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	}
 	userID := 0
 
+	var tss []*state.TaskSet
+	addTss := func(ts *state.TaskSet) {
+		if len(tss) > 0 {
+			ts.WaitAll(tss[len(tss)-1])
+		}
+		tss = append(tss, ts)
+	}
 	// adjust tracks
 	if current.KernelTrack() != new.KernelTrack() {
 		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
 		if err != nil {
 			return nil, err
 		}
-		tss = append(tss, ts)
+		addTss(ts)
 	}
 	// adjust snaps
 	for _, snapName := range new.RequiredSnaps() {
@@ -368,7 +374,7 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 			if err != nil {
 				return nil, err
 			}
-			tss = append(tss, ts)
+			addTss(ts)
 		} else if err != nil {
 			return nil, err
 		}
