@@ -584,13 +584,11 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 gccgo-8
                 evolution-data-server
-                xdg-desktop-portal
                 "
             ;;
         ubuntu-18.10-64)
             echo "
                 evolution-data-server
-                xdg-desktop-portal
                 "
             ;;
         ubuntu-*)
@@ -602,7 +600,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 evolution-data-server
                 net-tools
-                xdg-desktop-portal
                 "
             ;;
     esac

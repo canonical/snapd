@@ -7,7 +7,9 @@ TEST_UID="$(id -u test)"
 USER_RUNTIME_DIR="/run/user/${TEST_UID}"
 
 setup_portals() {
-    # Configure service activation for fake portal UI.
+    # Install xdg-desktop-portal and configure service activation for
+    # fake portal UI.
+    distro_install_package xdg-desktop-portal
     cat << EOF > /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
 [D-BUS Service]
 Name=org.freedesktop.impl.portal.spread
@@ -45,6 +47,9 @@ teardown_portals() {
     rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
     rm -f /usr/lib/systemd/user/spread-portal-ui.service
     rm -f /usr/share/xdg-desktop-portal/portals/spread.portal
+
+    distro_purge_package xdg-desktop-portal
+    distro_auto_remove_packages
 
     if [ -d "${USER_RUNTIME_DIR}" ]; then 
         umount --lazy "${USER_RUNTIME_DIR}/doc" || :
