@@ -209,9 +209,9 @@ func (iface *serialPortInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bo
 	return true
 }
 
-func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
 	if di.Subsystem() == "tty" && serialDeviceNodePattern.MatchString(di.DeviceName()) {
-		slot := hotplug.RequestedSlotSpec{
+		slot := hotplug.ProposedSlot{
 			Attrs: map[string]interface{}{
 				"path": di.DeviceName(),
 			},
@@ -222,9 +222,9 @@ func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDevic
 		if product, ok := di.Attribute("ID_MODEL_ID"); ok {
 			slot.Attrs["usb-product"] = product
 		}
-		return spec.SetSlot(&slot)
+		return &slot, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
