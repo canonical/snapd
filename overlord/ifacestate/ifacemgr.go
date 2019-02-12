@@ -61,8 +61,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	// Leave udevRetryTimeout at the default value, so that udev is initialized on first Ensure run.
 	m := &InterfaceManager{
-		state: s,
-		repo:  interfaces.NewRepository(),
+		state:                s,
+		repo:                 interfaces.NewRepository(),
+		enumeratedDeviceKeys: make(map[string]map[string]bool),
+		hotplugDevicePaths:   make(map[string][]deviceData),
 	}
 
 	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
@@ -223,8 +225,6 @@ func (m *InterfaceManager) initUDevMonitor() error {
 		mon.Disconnect()
 		return err
 	}
-	m.enumeratedDeviceKeys = make(map[string]map[string]bool)
-	m.hotplugDevicePaths = make(map[string][]deviceData)
 	m.udevMon = mon
 	return nil
 }
