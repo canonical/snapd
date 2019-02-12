@@ -37,7 +37,7 @@ import (
 
 // deviceKey determines a key for given device and hotplug interface. Every interface may provide a custom HotplugDeviceKey method
 // to compute device key - if it doesn't, we fall back to defaultDeviceKey.
-func deviceKey(defaultDeviceKey string, device *hotplug.HotplugDeviceInfo, iface interfaces.Interface) (deviceKey string, err error) {
+func deviceKey(device *hotplug.HotplugDeviceInfo, iface interfaces.Interface, defaultDeviceKey string) (deviceKey string, err error) {
 	if keyhandler, ok := iface.(hotplug.HotplugKeyHandler); ok {
 		deviceKey, err = keyhandler.HotplugKey(device)
 		if err != nil {
@@ -110,8 +110,8 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	st.Lock()
 	defer st.Unlock()
 
-	if _, err := snapstate.CoreInfo(st); err != nil {
-		logger.Noticef("core snap not available, hotplug events ignored")
+	if _, err := systemSnapInfo(st); err != nil {
+		logger.Noticef("system snap not available, hotplug events ignored")
 		return
 	}
 
@@ -151,9 +151,13 @@ InterfacesLoop:
 		hotplugHandler := iface.(hotplug.Definer)
 
 		// determine device key for the interface; note that interface might provide own device keys.
-		key, err := deviceKey(defaultKey, devinfo, iface)
+		key, err := deviceKey(devinfo, iface, defaultKey)
 		if err != nil {
 			logger.Noticef("cannot compute hotplug key for device with path %s: %s", devinfo.DevicePath(), err.Error())
+			continue
+		}
+		if key == "" {
+			logger.Debugf("no valid hotplug key provided by interface %q, device with path %s ignored", iface.Name(), devinfo.DevicePath())
 			continue
 		}
 
@@ -175,10 +179,6 @@ InterfacesLoop:
 			continue
 		}
 		if proposedSlot == nil {
-			continue
-		}
-		if key == "" {
-			logger.Debugf("no valid hotplug key provided by interface %q, device with path %s ignored", iface.Name(), devinfo.DevicePath())
 			continue
 		}
 		proposedSlot, err = proposedSlot.Clean()
