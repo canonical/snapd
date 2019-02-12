@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -37,8 +38,10 @@ type cmdPrepareImage struct {
 		Rootdir          string
 	} `positional-args:"yes" required:"yes"`
 
-	Channel    string   `long:"channel" default:"stable"`
-	ExtraSnaps []string `long:"extra-snaps"`
+	Channel string `long:"channel" default:"stable"`
+	// TODO: introduce SnapWithChannel?
+	Snaps      []string `long:"snap" value-name:"<snap>[=<channel>]"`
+	ExtraSnaps []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
 }
 
 func init() {
@@ -59,7 +62,9 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"extra-snaps": i18n.G("Extra snaps to be installed"),
+			"snap": i18n.G("Include the given snap from the store or a local file and/or specify the channel to track for the given snap"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"channel": i18n.G("The channel to use"),
 		}, []argDesc{
@@ -72,17 +77,38 @@ For preparing classic images it supports a --classic mode`),
 				// TRANSLATORS: This needs to begin with < and end with >
 				name: i18n.G("<root-dir>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
-				desc: i18n.G("The output directory"),
+				desc: i18n.G("The target directory"),
 			},
 		})
 }
 
+var imagePrepare = image.Prepare
+
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
+		Snaps:        x.ExtraSnaps,
 		ModelFile:    x.Positional.ModelAssertionFn,
 		Channel:      x.Channel,
-		Snaps:        x.ExtraSnaps,
 		Architecture: x.Architecture,
+	}
+
+	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))
+	snapChannels := make(map[string]string)
+	for _, snapWChannel := range x.Snaps {
+		snapAndChannel := strings.SplitN(snapWChannel, "=", 2)
+		snaps = append(snaps, snapAndChannel[0])
+		if len(snapAndChannel) == 2 {
+			snapChannels[snapAndChannel[0]] = snapAndChannel[1]
+		}
+	}
+
+	snaps = append(snaps, x.ExtraSnaps...)
+
+	if len(snaps) != 0 {
+		opts.Snaps = snaps
+	}
+	if len(snapChannels) != 0 {
+		opts.SnapChannels = snapChannels
 	}
 
 	if x.Classic {
@@ -93,5 +119,5 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		opts.GadgetUnpackDir = filepath.Join(x.Positional.Rootdir, "gadget")
 	}
 
-	return image.Prepare(opts)
+	return imagePrepare(opts)
 }

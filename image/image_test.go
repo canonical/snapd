@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1202,6 +1202,86 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	c.Check(s.stderr.String(), Equals, "")
 }
 
+func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	})
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.downloadedSnaps["required-snap1"],
+		},
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+		SnapChannels: map[string]string{
+			"core": "candidate",
+			s.downloadedSnaps["required-snap1"]: "edge",
+		},
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 4)
+
+	// check the files are in place
+	for i, name := range []string{"core_3.snap", "pc-kernel", "pc", "required-snap1_3.snap"} {
+		info := s.storeSnapInfo[name]
+		if info == nil {
+			switch name {
+			case "core_3.snap":
+				info = &snap.Info{
+					SideInfo: snap.SideInfo{
+						RealName: "core",
+						SnapID:   "core-Id",
+						Revision: snap.R(3),
+						Channel:  "candidate",
+					},
+				}
+			case "required-snap1_3.snap":
+				info = &snap.Info{
+					SideInfo: snap.SideInfo{
+						RealName: "required-snap1",
+						SnapID:   "required-snap1-Id",
+						Revision: snap.R(3),
+						Channel:  "edge",
+					},
+				}
+			default:
+				c.Errorf("cannot have %s", name)
+			}
+		}
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true, Commentf("cannot find %s", p))
+
+		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
+			Name:       info.InstanceName(),
+			SnapID:     info.SnapID,
+			Channel:    info.Channel,
+			File:       fn,
+			Unasserted: false,
+		})
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+}
+
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
@@ -2019,6 +2099,56 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
 	c.Check(osutil.FileExists(blobdir), Equals, false)
+}
+
+func (s *imageSuite) TestSnapChannel(c *C) {
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	opts := &image.Options{
+		Channel: "stable",
+		SnapChannels: map[string]string{
+			"bar":       "beta",
+			"pc-kernel": "edge",
+		},
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	ch, err := image.SnapChannel("foo", model, opts, local)
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "stable")
+
+	ch, err = image.SnapChannel("bar", model, opts, local)
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "beta")
+
+	ch, err = image.SnapChannel("pc", model, opts, local)
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "18/stable")
+
+	ch, err = image.SnapChannel("pc-kernel", model, opts, local)
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "18/edge")
+
+	opts.SnapChannels["bar"] = "lts/candidate"
+	ch, err = image.SnapChannel("bar", model, opts, local)
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "lts/candidate")
+
+	opts.SnapChannels["pc-kernel"] = "lts/candidate"
+	_, err = image.SnapChannel("pc-kernel", model, opts, local)
+	c.Assert(err, ErrorMatches, `channel "lts/candidate" for kernel has a track incompatible with the track from model assertion: 18`)
 }
 
 type toolingAuthContextSuite struct {

@@ -34,7 +34,7 @@ prepare: |
     echo Running prepare-image
     #shellcheck disable=SC2086
     ARCH="$(dpkg-architecture -qDEB_HOST_ARCH)"
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --classic --arch $ARCH --channel $CORE_CHANNEL --extra-snaps basic_*.snap  --extra-snaps classic-gadget_*.snap $TESTSLIB/assertions/developer1-my-classic-w-gadget.model $ROOT"
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --classic --arch $ARCH --channel $CORE_CHANNEL --snap basic_*.snap  --snap classic-gadget_*.snap $TESTSLIB/assertions/developer1-my-classic-w-gadget.model $ROOT"
 
     "$TESTSLIB/reset.sh" --keep-stopped
     cp -ar "$ROOT/$SEED_DIR" "$SEED_DIR"

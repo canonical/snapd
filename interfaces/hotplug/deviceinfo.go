@@ -26,10 +26,14 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
+type hotplugDeviceInfoData struct {
+	// map of all attributes returned for given uevent.
+	Data map[string]string `json:"data"`
+}
+
 // HotplugDeviceInfo carries information about added/removed device detected at runtime.
 type HotplugDeviceInfo struct {
-	// map of all attributes returned for given uevent.
-	data map[string]string
+	hotplugDeviceInfoData
 }
 
 // NewHotplugDeviceInfo creates HotplugDeviceInfo structure related to udev add or remove event.
@@ -38,14 +42,14 @@ func NewHotplugDeviceInfo(env map[string]string) (*HotplugDeviceInfo, error) {
 		return nil, fmt.Errorf("missing device path attribute")
 	}
 	return &HotplugDeviceInfo{
-		data: env,
+		hotplugDeviceInfoData: hotplugDeviceInfoData{Data: env},
 	}, nil
 }
 
 // Returns the value of "SUBSYSTEM" attribute of the udev event associated with the device, e.g. "usb".
 // Subsystem value is always present.
 func (h *HotplugDeviceInfo) Subsystem() string {
-	return h.data["SUBSYSTEM"]
+	return h.Data["SUBSYSTEM"]
 }
 
 // Returns full device path under /sysfs, e.g /sys/devices/pci0000:00/0000:00:14.0/usb1/1-2.
@@ -59,29 +63,29 @@ func (h *HotplugDeviceInfo) DevicePath() string {
 // Returns the value of "MINOR" attribute of the udev event associated with the device.
 // The Minor value may be empty.
 func (h *HotplugDeviceInfo) Minor() string {
-	return h.data["MINOR"]
+	return h.Data["MINOR"]
 }
 
 // Returns the value of "MAJOR" attribute of the udev event associated with the device.
 // The Major value may be empty.
 func (h *HotplugDeviceInfo) Major() string {
-	return h.data["MAJOR"]
+	return h.Data["MAJOR"]
 }
 
 // Returns the value of "DEVNAME" attribute of the udev event associated with the device, e.g. "ttyUSB0".
 // The DeviceName value may be empty.
 func (h *HotplugDeviceInfo) DeviceName() string {
-	return h.data["DEVNAME"]
+	return h.Data["DEVNAME"]
 }
 
 // Returns the value of "DEVTYPE" attribute of the udev event associated with the device, e.g. "usb_device".
 // The DeviceType value may be empty.
 func (h *HotplugDeviceInfo) DeviceType() string {
-	return h.data["DEVTYPE"]
+	return h.Data["DEVTYPE"]
 }
 
 // Generic method for getting arbitrary attribute from the uevent data.
 func (h *HotplugDeviceInfo) Attribute(name string) (string, bool) {
-	val, ok := h.data[name]
+	val, ok := h.Data[name]
 	return val, ok
 }
