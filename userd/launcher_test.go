@@ -68,15 +68,15 @@ func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 		{"aabbccdd0011", "Supplied URL scheme \"\" is not allowed"},
 		{"invälid:%url", dbus.ErrMsgInvalidArg.Error()},
 	} {
-		err := s.launcher.OpenURL(t.url)
+		err := s.launcher.OpenURL(t.url, ":some-dbus-sender")
 		c.Assert(err, ErrorMatches, t.errMatcher)
 		c.Assert(s.mockXdgOpen.Calls(), IsNil)
 	}
 }
 
 func (s *launcherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
-	for _, schema := range []string{"http", "https", "mailto", "snap"} {
-		err := s.launcher.OpenURL(schema + "://snapcraft.io")
+	for _, schema := range []string{"http", "https", "mailto", "snap", "help"} {
+		err := s.launcher.OpenURL(schema+"://snapcraft.io", ":some-dbus-sender")
 		c.Assert(err, IsNil)
 		c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 			{"xdg-open", schema + "://snapcraft.io"},
@@ -89,7 +89,7 @@ func (s *launcherSuite) TestOpenURLWithFailingXdgOpen(c *C) {
 	cmd := testutil.MockCommand(c, "xdg-open", "false")
 	defer cmd.Restore()
 
-	err := s.launcher.OpenURL("https://snapcraft.io")
+	err := s.launcher.OpenURL("https://snapcraft.io", ":some-dbus-sender")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot open supplied URL")
 }
