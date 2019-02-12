@@ -78,7 +78,7 @@ unix ( shutdown) addr="@snap.@{SNAP_INSTANCE_NAME}.**",
 # These profiles will prevent utility processes escaping confinement.
 capability mac_admin,
 
-# Needed to drop privileges
+# Multipass will also use privilege separation when running utility processes
 capability setuid,
 capability setgid,
 
