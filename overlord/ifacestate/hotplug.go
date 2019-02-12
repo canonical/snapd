@@ -115,7 +115,6 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		return
 	}
 
-	hotplugIfaces := m.repo.AllHotplugInterfaces()
 	defaultKey, err := defaultDeviceKey(devinfo, deviceKeyVersion)
 	if err != nil {
 		logger.Noticef("cannot compute default hotplug key for device with path %s: %s", devinfo.DevicePath(), err.Error())
@@ -132,14 +131,11 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		logger.Noticef("internal error: cannot get gadget information: %s", err)
 	}
 
+	hotplugIfaces := m.repo.AllHotplugInterfaces()
 	gadgetSlotsByInterface := make(map[string][]*snap.SlotInfo)
 	if gadget != nil {
-		ifcs := make(map[string]bool)
-		for _, iface := range hotplugIfaces {
-			ifcs[iface.Name()] = true
-		}
 		for _, gadgetSlot := range gadget.Slots {
-			if _, ok := ifcs[gadgetSlot.Interface]; ok {
+			if _, ok := hotplugIfaces[gadgetSlot.Interface]; ok {
 				gadgetSlotsByInterface[gadgetSlot.Interface] = append(gadgetSlotsByInterface[gadgetSlot.Interface], gadgetSlot)
 			}
 		}
