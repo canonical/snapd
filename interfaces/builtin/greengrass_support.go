@@ -229,7 +229,8 @@ owner /{var/,}run/greengrassd.pid rw,
 # Note: eventually greengrass will gain the ability to specify child profiles
 # for it's containers and include these rules in that profile so they won't
 # be here, but that work isn't done yet
-# Additionally see bug XXXX for apparmor resolving file accesses after a pivot_root
+# Additionally see LP bug #1791711 for apparmor resolving file accesses after
+# a pivot_root
 
 # for child container lambda certificates
 /certs/ r,
