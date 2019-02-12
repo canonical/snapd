@@ -69,8 +69,8 @@ func retrieveAuxStoreInfo(info *snap.Info) error {
 	return nil
 }
 
-// retainAuxStoreInfo saves the given auxiliary store info to disk.
-func retainAuxStoreInfo(snapID string, aux *auxStoreInfo) error {
+// keepAuxStoreInfo saves the given auxiliary store info to disk.
+func keepAuxStoreInfo(snapID string, aux *auxStoreInfo) error {
 	if snapID == "" {
 		return nil
 	}

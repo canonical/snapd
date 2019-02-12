@@ -941,7 +941,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if cand.SnapID != "" {
 		// write the auxiliary store info
 		aux := &auxStoreInfo{Media: snapsup.Media}
-		if err := retainAuxStoreInfo(cand.SnapID, aux); err != nil {
+		if err := keepAuxStoreInfo(cand.SnapID, aux); err != nil {
 			return err
 		}
 		if len(snapst.Sequence) == 1 {

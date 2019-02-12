@@ -262,8 +262,8 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		err = nil
 	}
 	if err == nil && flags&withAuxStoreInfo != 0 {
-		if e := retrieveAuxStoreInfo(info); e != nil {
-			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, e)
+		if err := retrieveAuxStoreInfo(info); err != nil {
+			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, err)
 		}
 	}
 	return info, err

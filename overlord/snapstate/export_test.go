@@ -207,7 +207,7 @@ func setModel(override map[string]string) {
 var (
 	AuxStoreInfoFilename = auxStoreInfoFilename
 	RetrieveAuxStoreInfo = retrieveAuxStoreInfo
-	RetainAuxStoreInfo   = retainAuxStoreInfo
+	KeepAuxStoreInfo     = keepAuxStoreInfo
 	DiscardAuxStoreInfo  = discardAuxStoreInfo
 )
 

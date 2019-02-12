@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"path/filepath"
+
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -36,6 +38,12 @@ func (s *auxInfoSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
+func (s *auxInfoSuite) TestAuxStoreInfoFilename(c *check.C) {
+	// sanity check
+	filename := snapstate.AuxStoreInfoFilename("some-snap-id")
+	c.Check(filename, check.Equals, filepath.Join(dirs.SnapAuxStoreInfoDir, "some-snap-id.json"))
+}
+
 func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	media := snap.MediaInfos{{Type: "1-2-3-testing"}}
 	info := &snap.Info{SuggestedName: "some-snap"}
@@ -45,7 +53,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
 
-	c.Assert(snapstate.RetainAuxStoreInfo(info.SnapID, &snapstate.AuxStoreInfo{media}), check.IsNil)
+	c.Assert(snapstate.KeepAuxStoreInfo(info.SnapID, &snapstate.AuxStoreInfo{media}), check.IsNil)
 	c.Check(osutil.FileExists(filename), check.Equals, true)
 
 	c.Assert(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)

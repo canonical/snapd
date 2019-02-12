@@ -6292,7 +6292,7 @@ version: 1.0`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
-	c.Assert(snapstate.RetainAuxStoreInfo("some-snap-id", nil), IsNil)
+	c.Assert(snapstate.KeepAuxStoreInfo("some-snap-id", nil), IsNil)
 	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FilePresent)
 	si := snap.SideInfo{
 		SnapID:   "some-snap-id",
@@ -9372,7 +9372,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 		},
 	}}
 
-	c.Assert(snapstate.RetainAuxStoreInfo("123123123", storeInfo), IsNil)
+	c.Assert(snapstate.KeepAuxStoreInfo("123123123", storeInfo), IsNil)
 
 	st := s.st
 	st.Lock()
