@@ -69,19 +69,27 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
+func optedIntoSnapdSnap(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return false, err
+	}
+	return experimentalAllowSnapd, nil
+}
+
 func canInstallSnapdSnap(st *state.State) error {
 	model, err := Model(st)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	// any model that uses a base caninstall the snapd snap
+	// any model that uses a base can install the snapd snap
 	if model != nil && model.Base() != "" {
 		return nil
 	}
-	// for any other model the snapd snap is experimental
-	tr := config.NewTransaction(st)
-	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-	if err != nil && !config.IsNoOption(err) {
+	// models without a base (or classic) must opt in
+	experimentalAllowSnapd, err := optedIntoSnapdSnap(st)
+	if err != nil {
 		return err
 	}
 	if !experimentalAllowSnapd {

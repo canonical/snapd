@@ -518,20 +518,30 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 		return nil
 	}
 
-	// check if we should try the transition
-	if err := canInstallSnapdSnap(m.state); err != nil {
-		// do nothing here, if the snapd snap cannot be installed
+	// check if the user opts into the snapd snap
+	experimentalAllowSnapd, err := optedIntoSnapdSnap(m.state)
+	if err != nil {
+		return err
+	}
+	// nothing to do: the user does not want the snapd snap yet
+	if !experimentalAllowSnapd {
 		return nil
 	}
 
-	// get current core snap
-	err = Get(m.state, "core", &snapst)
+	// ensure we only transition systems that have snaps already
+	installedSnaps, err := All(m.state)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	// no snapd snap, no core snap: do nothing (fresh classic install)
-	if err == state.ErrNoState {
+	// no installed snaps (yet): do nothing (fresh classic install)
+	if len(installedSnaps) == 0 {
 		return nil
+	}
+
+	// get current core snap and use same channel/user for the snapd snap
+	err = Get(m.state, "core", &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
 	}
 	coreChannel := snapst.Channel
 	userID := snapst.UserID

@@ -11084,6 +11084,49 @@ func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
 	c.Check(ts, NotNil)
 }
 
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNOTRunWithoutSnaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	// no snaps installed on this system (e.g. fresh classic)
+	snapstate.Set(s.state, "core", nil)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesRunWithAnySnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	// some snap installed on this system but no core
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "foo", SnapID: "foo-id", Revision: snap.R(1), Channel: "beta"}},
+		Current:  snap.R(1),
+	})
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+}
+
 func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNOTRunWhenNotEnabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -11123,10 +11166,18 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 	s.state.Lock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
-	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-to-snapd-snap")
+	chg := s.state.Changes()[0]
+	c.Check(chg.Kind(), Equals, "transition-to-snapd-snap")
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// snapd snap is instaleld from the default channel
+	var snapst snapstate.SnapState
+	snapstate.Get(s.state, "snapd", &snapst)
+	c.Assert(snapst.Channel, Equals, "stable")
 }
 
-func (s *snapmgrTestSuite) TestTransitionSnapdSnapRunthrough(c *C) {
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
