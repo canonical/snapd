@@ -37,8 +37,10 @@ const greengrassSupportBaseDeclarationSlots = `
 
 const greengrassSupportConnectedPlugAppArmor = `
 # Description: can manage greengrass 'things' and their sandboxes. This
-# interface is restricted because it gives wide ranging access to the host and
-# other processes.
+# policy is intentionally not restrictive and is here to help guard against
+# programming errors and not for security confinement. The greengrassd
+# daemon by design requires extensive access to the system and
+# cannot be effectively confined against malicious activity.
 
 # greengrassd uses 'prctl(PR_CAPBSET_DROP, ...)'
 capability setpcap,
@@ -52,17 +54,6 @@ owner @{PROC}/[0-9]*/oom_score_adj rw,
 
 capability sys_ptrace,
 ptrace (trace) peer=@{profile_name},
-
-owner @{PROC}/[0-9]*/cgroup r,
-owner /sys/fs/cgroup/*/{,system.slice/} rw,
-owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.cpus rw,
-owner /sys/fs/cgroup/cpuset/{,system.slice/}cpuset.mems rw,
-owner /sys/fs/cgroup/*/system.slice/@{profile_name}.service/{,**} rw,
-# for running just after a reboot
-owner /sys/fs/cgroup/*/user.slice/ rw,
-owner /sys/fs/cgroup/cpuset/user.slice/cpuset.cpus rw,
-owner /sys/fs/cgroup/cpuset/user.slice/cpuset.mems rw,
-owner /sys/fs/cgroup/*/user.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
 
 # allow use of ggc_user and ggc_group
 capability chown,
@@ -86,38 +77,121 @@ capability dac_read_search,
 capability sys_admin,
 capability dac_override,  # for various overlayfs accesses
 
+# for setting up mounts
 @{PROC}/[0-9]*/mountinfo r,
 @{PROC}/filesystems r,
 
-# setup the overlay so we may pivot_root into it
+# cgroup accesses
+# greengrassd extensively uses cgroups to confine it's containers (AKA lambdas)
+# and needs to read what cgroups are available; we allow reading any cgroup, 
+# but limit writes below
+# also note that currently greengrass is not implemented in such a way that it
+# can stack it's cgroups inside the cgroup that snapd would normally enforce
+# but this may change in the future
+# an example cgroup access looks like this:
+# /old_rootfs/sys/fs/cgroup/cpuset/system.slice/7d23e67f-13f5-4b7e-5a85-83f8773345a8/
+# the old_rootfs prefix is due to the pivot_root - the "old" rootfs is mounted
+# at /old_rootfs before
+@{PROC}/cgroups r,
+owner @{PROC}/[0-9]*/cgroup r,
+owner /old_rootfs/sys/fs/cgroup/{,**} r,
+owner /old_rootfs/sys/fs/cgroup/{blkio,cpuset,devices,hugetlb,memory,perf_event,pids,freezer/snap.greengrass}/{,system.slice/}system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/{blkio,cpuset,devices,hugetlb,memory,perf_event,pids,freezer/snap.greengrass}/{,system.slice/}system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
+# separated from the above rule for clarity due to the comma in "net_cls,net_prio"
+owner /old_rootfs/sys/fs/cgroup/net_cls,net_prio/{,system.slice/}system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/net_cls,net_prio/{,system.slice/}system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
+owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/{,system.slice/}system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/{,system.slice/}system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
+owner /old_rootfs/sys/fs/cgroup/{devices,memory,pids,blkio,systemd}/{,system.slice/}snap.greengrass.greengrass{,d.service}/system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/{devices,memory,pids,blkio,systemd}/{,system.slice/}snap.greengrass.greengrass{,d.service}/system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
+owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.greengrass.greengrass{,d.service}/system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.greengrass.greengrass{,d.service}/system.slice/{,**} rw,
+# specific rule for cpuset files
+owner /old_rootfs/sys/fs/cgroup/cpuset/{,system.slice/}cpuset.{cpus,mems} rw,
+
+# the wrapper scripts need to use mount/umount and pivot_root from the 
+# core snap
+/bin/{,u}mount ixr,
+/sbin/pivot_root ixr,
+
+# allow pivot_root'ing into the rootfs prepared for the greengrass daemon
 # parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
 # completeness allow SNAP_INSTANCE_NAME too
-mount fstype=overlay no_source -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**,
-mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/,
-mount options=(rw, rbind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/,
-mount fstype=proc proc -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/proc/,
+pivot_root
+	oldroot=/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/old_rootfs/
+	/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/,
+
+# miscellaneous accesses by greengrassd
+/sys/devices/virtual/block/loop[0-9]*/loop/autoclear r,
+/sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
+
+# greengrassd requires protected hardlinks and symlinks 
+/proc/sys/fs/protected_hardlinks r,
+/proc/sys/fs/protected_symlinks r,
+
+# for determining users who performed mounts
+deny /run/mount/utab rw,
+
+# these accesses are needed in order to mount a squashfs file for the rootfs
+# note that these accesses allow reading other snaps and thus grants device control
+/dev/loop-control rw,
+/dev/loop[0-9]* rw,
+/sys/devices/virtual/block/loop[0-9]*/ r,
+/sys/devices/virtual/block/loop[0-9]*/** r,
+
+# generic mounts for allowing anything inside $SNAP_DATA to be remounted anywhere else inside $SNAP_DATA
+# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
+# completeness allow SNAP_INSTANCE_NAME too
+mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
+mount options=(rw, rbind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
+
+# specific mounts for setting up the mount namespace that greengrassd runs inside
+mount options=(rw, bind) /proc/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/proc/,
+mount options=(rw, bind) /dev/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/,
+mount options=(rw, bind) /{,var/}run/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/{,var/}run/,
 mount options=(rw, nosuid, strictatime) fstype=tmpfs tmpfs -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/,
 mount options=(rw, nosuid, nodev, noexec) fstype=mqueue mqueue -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/mqueue/,
 mount options=(rw, nosuid, noexec) fstype=devpts devpts -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/pts/,
 mount options=(rw, nosuid, nodev, noexec) fstype=tmpfs shm -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/shm/,
+mount fstype=proc proc -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/proc/,
 
-# add a few common devices
-# parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
-# completeness allow SNAP_INSTANCE_NAME too
-mount options=(rw, bind) /dev/full -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/full,
-mount options=(rw, bind) /dev/null -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/null,
-mount options=(rw, bind) /dev/random -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/random,
-mount options=(rw, bind) /dev/tty -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/tty,
-mount options=(rw, bind) /dev/urandom -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/urandom,
-mount options=(rw, bind) /dev/zero -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/zero,
+# mounts for setting up child container rootfs
+mount options=(rw, rprivate) -> /,
+mount options=(ro, remount, rbind) -> /,
 
-# allow mounting lambda, runtime and whatever else in SNAP_DATA into the
-# pivot_root
-mount options=(ro, remount, bind) -> /var/snap/@{SNAP_NAME}/**/rootfs/**/,
-mount options=(rw, bind) /var/snap/@{SNAP_NAME}/**/ -> /var/snap/@{SNAP_NAME}/*/rootfs/**/,
+# mounts greengrassd performs for the containers
+mount fstype="tmpfs" options=(rw, nosuid, strictatime) tmpfs -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/,
+mount fstype="devpts" options=(rw, nosuid, noexec) devpts -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/pts/,
+mount fstype="tmpfs" options=(rw, nosuid, nodev, noexec) shm -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/shm/,
+mount fstype="mqueue" options=(rw, nosuid, nodev, noexec) mqueue -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/mqueue/,
+mount options=(ro, remount, bind) -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/lambda/,
+mount options=(ro, remount, bind) -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/runtime/,
+mount options=(rw, bind) /dev/null -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/null,
+mount options=(rw, bind) /dev/random -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/random,
+mount options=(rw, bind) /dev/full -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/full,
+mount options=(rw, bind) /dev/tty -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/tty,
+mount options=(rw, bind) /dev/zero -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/zero,
+mount options=(rw, bind) /dev/urandom -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/urandom,
 
-# setup /proc
+# mounts for /run in the greengrassd mount namespace
+mount options=(rw, bind) /run/ -> /run/,
+
+# mounts for resolv.conf inside the container
+# we have to manually do this otherwise the go DNS resolver fails to work, because it isn't configured to 
+# use the system DNS server and attempts to do DNS resolution itself, manually inspecting /etc/resolv.conf
+mount options=(rw, bind) /run/systemd/resolve/stub-resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
+mount options=(rw, bind) /run/resolvconf/resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
+
+# pivot_root for the container initialization into the rootfs
+# note that the actual syscall is pivotroot(".",".")
+# so the oldroot is the same as the new root
+pivot_root 
+	oldroot=/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/
+	/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/,
+
+# mounts for /proc
 mount options=(ro, remount) -> /proc/{asound/,bus/,fs/,irq/,sys/,sysrq-trigger},
+mount options=(ro, remount, rbind) -> /proc/{asound/,bus/,fs/,irq/,sys/,sysrq-trigger},
 mount options=(ro, nosuid, nodev, noexec, remount, rbind) -> /proc/{asound/,bus/,fs/,irq/,sys/,sysrq-trigger},
 mount options=(rw, bind) /proc/asound/ -> /proc/asound/,
 mount options=(rw, bind) /proc/bus/ -> /proc/bus/,
@@ -126,31 +200,65 @@ mount options=(rw, bind) /proc/irq/ -> /proc/irq/,
 mount options=(rw, bind) /proc/sys/ -> /proc/sys/,
 mount options=(rw, bind) /proc/sysrq-trigger -> /proc/sysrq-trigger,
 
-# remap a few /proc accesses to /dev/null
+# mount some devices using /dev/null
 mount options=(rw, bind) /dev/null -> /proc/kcore,
 mount options=(rw, bind) /dev/null -> /proc/sched_debug,
 mount options=(rw, bind) /dev/null -> /proc/timer_stats,
 
-# perform the pivot_root into the overlay
-pivot_root oldroot=/var/snap/greengrass/@{SNAP_REVISION}/rootfs/.pivot_root*/ /var/snap/greengrass/*/rootfs/,
-mount options=(rw, rprivate) -> /.pivot_root*/,
-umount /.pivot_root*/,
-owner /.pivot_root*/ w,
-mount options=(rw, rprivate) -> /,
-mount options=(ro, remount, rbind) -> /,
+# umounts for tearing down containers
+umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/**,
 
-# allow tearing down the overlay
-umount /var/snap/@{SNAP_NAME}/**,
-/run/mount/utab rw,
-/bin/umount ixr,
+# this is for container device creation
+# also need mknod and mknodat in seccomp
+capability mknod,
 
-# For lambda functions, post pivot_root lambda execution accesses
+# for the greengrassd pid file
+owner /{var/,}run/greengrassd.pid rw,
+
+# these accesses are necessary for Ubuntu Core 16, likely due to the version 
+# of apparmor or the kernel which doesn't resolve the upper layer of an 
+# overlayfs mount correctly
+# the accesses show up as runc trying to read from
+# /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/ rw,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/{,**} rw,
+
+# all of the rest of the accesses are made by child containers and as such are 
+# "post-pivot_root", meaning that they aren't accessing these files on the 
+# host root filesystem, but rather somewhere inside $SNAP_DATA/rootfs/
+# Note: eventually greengrass will gain the ability to specify child profiles
+# for it's containers and include these rules in that profile so they won't
+# be here, but that work isn't done yet
+# Additionally see bug XXXX for apparmor resolving file accesses after a pivot_root
+
+# for child container lambda certificates
 /certs/ r,
 /certs/** r,
 /group/ r,
 /group/** r,
 /state/ r,
-/state/sqlite* rwk,
+/state/{,**} r,
+# the child containers need to use a file lock here
+owner /state/secretsmanager/secrets.db krw,
+owner /state/secretsmanager/secrets.db-journal rw,
+owner /state/shadow/ krw,
+owner /state/shadow/{,**} krw,
+# more specific accesses for writing
+owner /state/server/ rw,
+owner /state/server/{,**} rw,
+
+# for executing python, nodejs, java, and C (executable) lambda functions
+# currently the runtimes are "python2.7", "nodejs6.10", "java8" and "executable",
+# but those version numbers could change so we add a "*" on the end of the folders to be safe for
+# future potential upgrades
+/runtime/{python*,executable*,nodejs*,java*}/ r,
+/runtime/{python*,executable*,nodejs*,java*}/** r,
+
+# greengrass seems to ship somewhere with an embedded version of sqlite which creates these temp files
+# ideally we would set some sort of environment variable to force sqlite to change it's temp dir as described on
+# https://bugs.launchpad.net/ubuntu-ui-toolkit/+bug/1197049
+# it could also be possible that sqlite is pulled in from one of the stage-packages in the snap though...
+owner /var/tmp/etilqs_[0-9a-zA-Z]* rw,
 
 # Ideally we would use a child profile for these but since the greengrass
 # sandbox is using prctl(PR_SET_NO_NEW_PRIVS, ...) we cannot since that blocks
@@ -160,20 +268,36 @@ umount /var/snap/@{SNAP_NAME}/**,
 # sandbox for now.
 /lambda/ r,
 /lambda/** ixr,
+
+# the python runtime tries to access /etc/debian_version, presumably to identify what system it's running on
+# note there may be other accesses that the containers try to run...
+/etc/ r,
+/etc/debian_version r,
+
+# the java runtime attempts to access this
+/etc/ssl/certs/java/{,*} r,
+#include <abstractions/ssl_certs>
 `
 
 const greengrassSupportConnectedPlugSeccomp = `
 # Description: can manage greengrass 'things' and their sandboxes. This
-# interface is restricted because it gives wide ranging access to the host and
-# other processes.
+# policy is intentionally not restrictive and is here to help guard against
+# programming errors and not for security confinement. The greengrassd
+# daemon by design requires extensive access to the system and
+# cannot be effectively confined against malicious activity.
 
 # allow use of ggc_user and ggc_group
 # FIXME: seccomp arg filter by this uid/gid when supported by snap-confine
+lchown
+lchown32
 fchown
 fchown32
 fchownat
 setgroups
 setgroups32
+
+# for creating a new mount namespace for the containers
+setns - CLONE_NEWNS
 
 # for overlayfs and various bind mounts
 mount
@@ -188,9 +312,16 @@ sethostname
 # Note that the lambda functions themselves run under a seccomp sandbox setup
 # by greengrassd.
 keyctl
+
+# special character device creation is necessary for creating the overlayfs 
+# mounts
+# Unfortunately this grants device ownership to the snap.
+mknod - |S_IFCHR -
+mknodat - - |S_IFCHR -
 `
 
 func init() {
+	// declare the greengrass-support interface as needing ptrace(trace)
 	registerIface(&commonInterface{
 		name:                  "greengrass-support",
 		summary:               greengrassSupportSummary,
@@ -201,6 +332,7 @@ func init() {
 		connectedPlugAppArmor: greengrassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  greengrassSupportConnectedPlugSeccomp,
 		reservedForOS:         true,
+		usesPtraceTrace:       true,
 		controlsDeviceCgroup:  true,
 	})
 }
