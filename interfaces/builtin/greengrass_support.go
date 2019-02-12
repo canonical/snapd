@@ -19,6 +19,12 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/release"
+)
+
 const greengrassSupportSummary = `allows operating as the Greengrass service`
 
 const greengrassSupportBaseDeclarationPlugs = `
@@ -33,6 +39,17 @@ const greengrassSupportBaseDeclarationSlots = `
       slot-snap-type:
         - core
     deny-auto-connection: true
+`
+
+const greengrassSupportConnectedPlugAppArmorCore = `
+# these accesses are necessary for Ubuntu Core 16, likely due to the version 
+# of apparmor or the kernel which doesn't resolve the upper layer of an 
+# overlayfs mount correctly
+# the accesses show up as runc trying to read from
+# /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/ rw,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/{,**} rw,
+
 `
 
 const greengrassSupportConnectedPlugAppArmor = `
@@ -215,14 +232,6 @@ capability mknod,
 # for the greengrassd pid file
 owner /{var/,}run/greengrassd.pid rw,
 
-# these accesses are necessary for Ubuntu Core 16, likely due to the version 
-# of apparmor or the kernel which doesn't resolve the upper layer of an 
-# overlayfs mount correctly
-# the accesses show up as runc trying to read from
-# /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/
-/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/ rw,
-/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/{,**} rw,
-
 # all of the rest of the accesses are made by child containers and as such are 
 # "post-pivot_root", meaning that they aren't accessing these files on the 
 # host root filesystem, but rather somewhere inside $SNAP_DATA/rootfs/
@@ -321,19 +330,31 @@ mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
 `
 
+func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if release.OnClassic {
+		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor)
+	} else {
+		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor + greengrassSupportConnectedPlugAppArmorCore)
+	}
+	return nil
+}
+
+type greengrassSupportInterface struct {
+	commonInterface
+}
+
 func init() {
 	// declare the greengrass-support interface as needing ptrace(trace)
-	registerIface(&commonInterface{
-		name:                  "greengrass-support",
-		summary:               greengrassSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  greengrassSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  greengrassSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: greengrassSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  greengrassSupportConnectedPlugSeccomp,
-		reservedForOS:         true,
-		usesPtraceTrace:       true,
-		controlsDeviceCgroup:  true,
-	})
+	registerIface(&greengrassSupportInterface{commonInterface{
+		name:                 "greengrass-support",
+		summary:              greengrassSupportSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: greengrassSupportBaseDeclarationSlots,
+		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
+		connectedPlugSecComp: greengrassSupportConnectedPlugSeccomp,
+		reservedForOS:        true,
+		usesPtraceTrace:      true,
+		controlsDeviceCgroup: true,
+	}})
 }
