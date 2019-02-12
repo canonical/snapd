@@ -252,14 +252,10 @@ var removeStaleConnections = func(st *state.State) error {
 		return err
 	}
 	var staleConns []string
-	for id, conn := range conns {
+	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
-		}
-		// do not remove connections belonging to hotplug devices as they may re-appear
-		if conn.HotplugKey != "" {
-			continue
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
