@@ -425,8 +425,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartWithoutBase(c *C) {
-	restore := release.MockOnClassic(false)
+func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
 	defer restore()
 
 	s.state.Lock()
@@ -457,18 +457,28 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartWithoutBase(c *C) {
 	c.Check(typ, Equals, snap.TypeApp)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.stateBackend.restartRequested, IsNil)
-	c.Check(t.Log(), HasLen, 0)
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
+	c.Check(t.Log(), HasLen, 1)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartOnClassic(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNOcoreRestart(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
 	s.state.Lock()
-	si := &snap.SideInfo{
+	siSnapd := &snap.SideInfo{
 		RealName: "snapd",
-		Revision: snap.R(22),
+		Revision: snap.R(64),
+	}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{siSnapd},
+		Current:  siSnapd.Revision,
+		Active:   true,
+	})
+
+	si := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(33),
 	}
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -485,12 +495,12 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartOnClassic(c *C) {
 	defer s.state.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "snapd", &snapst)
+	err := snapstate.Get(s.state, "core", &snapst)
 	c.Assert(err, IsNil)
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeOS)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, IsNil)
