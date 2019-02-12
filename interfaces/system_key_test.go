@@ -104,8 +104,11 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, apparmorParserMtime, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
-func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, false)
+}
+
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, true)
 }
 
