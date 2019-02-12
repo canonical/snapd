@@ -35,15 +35,6 @@ var (
 	SetupSnapConfineReexec     = setupSnapConfineReexec
 )
 
-// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
-func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
-	old := isHomeUsingNFS
-	isHomeUsingNFS = new
-	return func() {
-		isHomeUsingNFS = old
-	}
-}
-
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
 func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
 	old := isRootWritableOverlay
