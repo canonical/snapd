@@ -980,7 +980,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 func snapdSnapInstalled(st *state.State) bool {
 	var snapst SnapState
 	err := Get(st, "snapd", &snapst)
-	return err == nil && snapst.IsInstalled()
+	return err == nil
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the
@@ -989,11 +989,8 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
 	if release.OnClassic {
-		if info.Type == snap.TypeOS && !snapdSnapInstalled(st) {
-			t.Logf("Requested daemon restart.")
-			st.RequestRestart(state.RestartDaemon)
-		}
-		if info.InstanceName() == "snapd" {
+		if (info.Type == snap.TypeOS && !snapdSnapInstalled(st)) ||
+			info.InstanceName() == "snapd" {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
 		}
