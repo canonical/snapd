@@ -55,6 +55,12 @@ type Task struct {
 	spawnTime time.Time
 	readyTime time.Time
 
+	// TODO: add:
+	// {,Un}DoingRetries - number of retries
+	// Retry{,Un}DoingTimes - time spend to figure out a retry is needed
+	doingTime   time.Duration
+	undoingTime time.Duration
+
 	atTime time.Time
 }
 
@@ -87,6 +93,9 @@ type marshalledTask struct {
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
 
+	DoingTime   time.Duration `json:"doing-time,omitempty"`
+	UndoingTime time.Duration `json:"undoing-time,omitempty"`
+
 	AtTime *time.Time `json:"at-time,omitempty"`
 }
 
@@ -117,6 +126,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 
 		SpawnTime: t.spawnTime,
 		ReadyTime: readyTime,
+
+		DoingTime:   t.doingTime,
+		UndoingTime: t.undoingTime,
 
 		AtTime: atTime,
 	})
@@ -155,6 +167,8 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	if unmarshalled.AtTime != nil {
 		t.atTime = *unmarshalled.AtTime
 	}
+	t.doingTime = unmarshalled.DoingTime
+	t.undoingTime = unmarshalled.UndoingTime
 	return nil
 }
 
@@ -274,6 +288,26 @@ func (t *Task) ReadyTime() time.Time {
 func (t *Task) AtTime() time.Time {
 	t.state.reading()
 	return t.atTime
+}
+
+func (t *Task) AccumulateDoingTime(duration time.Duration) {
+	t.state.writing()
+	t.doingTime += duration
+}
+
+func (t *Task) AccumulateUndoingTime(duration time.Duration) {
+	t.state.writing()
+	t.undoingTime += duration
+}
+
+func (t *Task) DoingTime() time.Duration {
+	t.state.reading()
+	return t.doingTime
+}
+
+func (t *Task) UndoingTime() time.Duration {
+	t.state.reading()
+	return t.undoingTime
 }
 
 const (
