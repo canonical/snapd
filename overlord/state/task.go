@@ -52,8 +52,9 @@ type Task struct {
 	log       []string
 	change    string
 
-	spawnTime time.Time
-	readyTime time.Time
+	spawnTime  time.Time
+	readyTime  time.Time
+	activeTime time.Duration
 
 	atTime time.Time
 }
@@ -84,8 +85,9 @@ type marshalledTask struct {
 	Log       []string                    `json:"log,omitempty"`
 	Change    string                      `json:"change"`
 
-	SpawnTime time.Time  `json:"spawn-time"`
-	ReadyTime *time.Time `json:"ready-time,omitempty"`
+	SpawnTime  time.Time     `json:"spawn-time"`
+	ReadyTime  *time.Time    `json:"ready-time,omitempty"`
+	ActiveTime time.Duration `json:"active-time,omitempty"`
 
 	AtTime *time.Time `json:"at-time,omitempty"`
 }
@@ -115,8 +117,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		Log:       t.log,
 		Change:    t.change,
 
-		SpawnTime: t.spawnTime,
-		ReadyTime: readyTime,
+		SpawnTime:  t.spawnTime,
+		ReadyTime:  readyTime,
+		ActiveTime: t.activeTime,
 
 		AtTime: atTime,
 	})
@@ -149,6 +152,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.log = unmarshalled.Log
 	t.change = unmarshalled.Change
 	t.spawnTime = unmarshalled.SpawnTime
+	t.activeTime = unmarshalled.ActiveTime
 	if unmarshalled.ReadyTime != nil {
 		t.readyTime = *unmarshalled.ReadyTime
 	}
@@ -274,6 +278,16 @@ func (t *Task) ReadyTime() time.Time {
 func (t *Task) AtTime() time.Time {
 	t.state.reading()
 	return t.atTime
+}
+
+func (t *Task) AccumulateActiveTime(duration time.Duration) {
+	t.state.writing()
+	t.activeTime += duration
+}
+
+func (t *Task) ActiveTime() time.Duration {
+	t.state.reading()
+	return t.activeTime
 }
 
 const (

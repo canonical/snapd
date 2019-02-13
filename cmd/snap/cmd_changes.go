@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -161,18 +162,22 @@ func (c *cmdTasks) showChange(chid string) error {
 
 	w := tabWriter()
 
-	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
+	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tActive\tSummary\n"))
 	for _, t := range chg.Tasks {
 		spawnTime := c.fmtTime(t.SpawnTime)
 		readyTime := c.fmtTime(t.ReadyTime)
 		if t.ReadyTime.IsZero() {
 			readyTime = "-"
 		}
+		activeTime := t.ActiveTime.Round(time.Millisecond).String()
+		if t.ActiveTime == 0 {
+			activeTime = "-"
+		}
 		summary := t.Summary
 		if t.Status == "Doing" && t.Progress.Total > 1 {
 			summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(t.Progress.Done)/float64(t.Progress.Total)*100.0)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, activeTime, summary)
 	}
 
 	w.Flush()

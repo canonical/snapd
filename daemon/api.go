@@ -1989,8 +1989,9 @@ type taskInfo struct {
 	Log      []string         `json:"log,omitempty"`
 	Progress taskInfoProgress `json:"progress"`
 
-	SpawnTime time.Time  `json:"spawn-time,omitempty"`
-	ReadyTime *time.Time `json:"ready-time,omitempty"`
+	SpawnTime  time.Time     `json:"spawn-time,omitempty"`
+	ReadyTime  *time.Time    `json:"ready-time,omitempty"`
+	ActiveTime time.Duration `json:"active-time,omitempty"`
 }
 
 type taskInfoProgress struct {
@@ -2034,7 +2035,8 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 				Done:  done,
 				Total: total,
 			},
-			SpawnTime: t.SpawnTime(),
+			SpawnTime:  t.SpawnTime(),
+			ActiveTime: t.ActiveTime(),
 		}
 		readyTime := t.ReadyTime()
 		if !readyTime.IsZero() {

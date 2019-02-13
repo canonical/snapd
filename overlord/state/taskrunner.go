@@ -188,13 +188,16 @@ func (r *TaskRunner) run(t *Task) {
 		// Capture the error result with tomb.Kill so we can
 		// use tomb.Err uniformily to consider both it or a
 		// overriding previous Kill reason.
+		perfStart := time.Now()
 		tomb.Kill(handler(t, tomb))
+		perfEnd := time.Now()
 
 		// Locks must be acquired in the same order everywhere.
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.state.Lock()
 		defer r.state.Unlock()
+		t.AccumulateActiveTime(perfEnd.Sub(perfStart))
 
 		delete(r.tombs, t.ID())
 

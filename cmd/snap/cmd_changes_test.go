@@ -37,7 +37,7 @@ var mockChangeJSON = `{"type": "sync", "result": {
   "ready": false,
   "spawn-time": "2016-04-21T01:02:03Z",
   "ready-time": "2016-04-21T01:02:04Z",
-  "tasks": [{"kind": "bar", "summary": "some summary", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
+  "tasks": [{"kind": "bar", "summary": "some summary", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z", "active-time": 12345678}]
 }}`
 
 func (s *SnapSuite) TestChangeSimple(c *check.C) {
@@ -53,8 +53,8 @@ func (s *SnapSuite) TestChangeSimple(c *check.C) {
 
 		n++
 	})
-	expectedChange := `(?ms)Status +Spawn +Ready +Summary
-Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
+	expectedChange := `(?ms)Status +Spawn +Ready +Active +Summary
+Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +12ms +some summary
 `
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"change", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
@@ -226,8 +226,8 @@ func (s *SnapSuite) TestChangeProgress(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"change", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?ms)Status +Spawn +Ready +Summary
-Doing +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary \(50.00%\)
+	c.Check(s.Stdout(), check.Matches, `(?ms)Status +Spawn +Ready +Active +Summary
+Doing +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +- +some summary \(50.00%\)
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }

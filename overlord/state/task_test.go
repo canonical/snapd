@@ -67,6 +67,18 @@ func (cs *taskSuite) TestReadyTime(c *C) {
 	c.Check(t.Before(now.Add(5*time.Second)), Equals, true)
 }
 
+func (cs *taskSuite) TestActiveTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("download", "summary...")
+
+	task.AccumulateActiveTime(123456)
+
+	c.Assert(task.ActiveTime(), Equals, time.Duration(123456))
+}
+
 func (ts *taskSuite) TestGetSet(c *C) {
 	st := state.New(nil)
 	st.Lock()
