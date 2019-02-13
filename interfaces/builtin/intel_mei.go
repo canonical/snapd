@@ -34,7 +34,7 @@ const intelMEIConnectedPlugAppArmor = `
 /dev/mei[0-9]+ rw,
 `
 
-var intelMEIConnectedPlugUDev = []string{`KERNEL=="mei[0-9]+"`}
+var intelMEIConnectedPlugUDev = []string{`SUBSYSTEM=="mei"`}
 
 func init() {
 	registerIface(&commonInterface{
