@@ -67,7 +67,7 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		return err
 	}
 	w := tabWriter()
-	fmt.Fprintf(w, "Status\tDoing\tUndoing\tSummary\n")
+	fmt.Fprintf(w, "Status\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
 	for _, t := range chg.Tasks {
 		doingTime := timings[t.ID].DoingTime.Round(time.Millisecond).String()
 		if timings[t.ID].DoingTime == 0 {
@@ -78,7 +78,9 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 			undoingTime = "-"
 		}
 		summary := t.Summary
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, doingTime, undoingTime, summary)
+		// Duration formats to 17m14.342s or 2.038s or 970ms, so with
+		// 11 chars we can go up to 59m59.999s
+		fmt.Fprintf(w, "%s\t%11s\t%11s\t%s\n", t.Status, doingTime, undoingTime, summary)
 	}
 	w.Flush()
 	fmt.Fprintln(Stdout)
