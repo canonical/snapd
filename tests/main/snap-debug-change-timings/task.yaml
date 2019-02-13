@@ -1,0 +1,12 @@
+summary: Ensure `snap debug change-timings` works
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    echo "When a snap gets installed"
+    install_local test-snapd-tools
+
+    echo "There is timing data available for it"
+    snap debug change-timings --last=install | MATCH 'Done +[0-9]+'
+
