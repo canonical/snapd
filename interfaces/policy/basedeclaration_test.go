@@ -485,9 +485,9 @@ plugs:
 `
 
 	snapDecl := s.mockSnapDecl(c, "multipass-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-        cand.PlugSnapDeclaration = snapDecl
-        err = cand.CheckAutoConnect()
-        c.Check(err, IsNil)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionBlockDevicesOverride(c *C) {
