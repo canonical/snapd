@@ -146,19 +146,12 @@ InterfacesLoop:
 	for _, iface := range hotplugIfaces {
 		hotplugHandler := iface.(hotplug.Definer)
 
-		// determine device key for the interface; note that interface might provide own device keys.
-		key, err := deviceKey(devinfo, iface, defaultKey)
-		if err != nil {
-			logger.Noticef("cannot compute hotplug key for device with path %s: %s", devinfo.DevicePath(), err.Error())
-			continue
-		}
-
 		// ignore device that is already handled by a gadget slot
 		if gadgetSlots, ok := gadgetSlotsByInterface[iface.Name()]; ok {
 			for _, gslot := range gadgetSlots {
 				if pred, ok := iface.(hotplug.HandledByGadgetPredicate); ok {
 					if pred.HandledByGadget(devinfo, gslot) {
-						logger.Debugf("ignoring device with hotplug key %q, interface %s (handled by gadget slot %s)", key, iface.Name(), gslot.Name)
+						logger.Debugf("ignoring device with path %q, interface %q (handled by gadget slot %s)", devinfo.DevicePath(), iface.Name(), gslot.Name)
 						continue InterfacesLoop
 					}
 				}
@@ -173,9 +166,15 @@ InterfacesLoop:
 		if proposedSlot == nil {
 			continue
 		}
+
 		// Check the key when we know the interface wants to create a hotplug slot, doing this earlier would generate too much log noise about irrelevant devices
+		key, err := deviceKey(devinfo, iface, defaultKey)
+		if err != nil {
+			logger.Noticef("cannot compute hotplug key for device with path %s: %s", devinfo.DevicePath(), err.Error())
+			continue
+		}
 		if key == "" {
-			logger.Debugf("no valid hotplug key provided by interface %q, device with path %s ignored", iface.Name(), devinfo.DevicePath())
+			logger.Noticef("no valid hotplug key provided by interface %q, device with path %s ignored", iface.Name(), devinfo.DevicePath())
 			continue
 		}
 
