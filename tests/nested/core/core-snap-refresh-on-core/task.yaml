@@ -43,7 +43,6 @@ execute: |
 
     # Check the initial core is installed and snaps can be executed
     test "$(get_nested_core_revision installed)" = "${INITIAL_REV}"
-    execute_remote "snap info core" | MATCH "tracking: *${CORE_CHANNEL}"
 
     # Ensure test-snapd-tools works
     execute_remote "test-snapd-tools.echo hello" | MATCH hello
@@ -55,7 +54,6 @@ execute: |
 
     # After refresh, check new core is installed  
     test "$(get_nested_core_revision installed)" = "${NEW_REV}"
-    execute_remote "snap info core" | MATCH "tracking: *${NEW_CORE_CHANNEL}"
 
     # Ensure test-snapd-tools works
     execute_remote "test-snapd-tools.echo hello" | MATCH hello
@@ -67,7 +65,6 @@ execute: |
 
     # After revert, check initial core is installed  
     test "$(get_nested_core_revision installed)" = "${INITIAL_REV}"
-    execute_remote "snap info core" | MATCH "tracking: *${CORE_CHANNEL}"
 
     # Ensure test-snapd-tools works
     execute_remote "test-snapd-tools.echo hello" | MATCH hello
