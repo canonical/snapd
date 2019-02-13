@@ -45,7 +45,7 @@ execute: |
     echo "Then the snap is not able to kill an existing process"
     while :; do sleep 1; done &
     pid=$!
-    if process-control-consumer.signal SIGTERM $pid 2>"${PWD}"/process-kill.error; then
+    if process-control-consumer.signal SIGTERM $pid 2> process-kill.error; then
         echo "Expected permission error accessing killing a process with disconnected plug"
         exit 1
     fi

@@ -20,13 +20,12 @@
 package auth_test
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"

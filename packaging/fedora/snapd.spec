@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.37
+Version:        2.37.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -112,7 +112,7 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 %endif
 
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
-BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
+BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang} >= 1.9
 BuildRequires:  systemd
 %{?systemd_requires}
 
@@ -164,8 +164,6 @@ BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
 BuildRequires: golang(golang.org/x/crypto/ssh/terminal)
-BuildRequires: golang(golang.org/x/net/context)
-BuildRequires: golang(golang.org/x/net/context/ctxhttp)
 BuildRequires: golang(gopkg.in/check.v1)
 BuildRequires: golang(gopkg.in/macaroon.v1)
 BuildRequires: golang(gopkg.in/mgo.v2/bson)
@@ -262,8 +260,6 @@ Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
 Requires:      golang(golang.org/x/crypto/ssh/terminal)
-Requires:      golang(golang.org/x/net/context)
-Requires:      golang(golang.org/x/net/context/ctxhttp)
 Requires:      golang(gopkg.in/check.v1)
 Requires:      golang(gopkg.in/macaroon.v1)
 Requires:      golang(gopkg.in/mgo.v2/bson)
@@ -291,8 +287,6 @@ Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
 Provides:      bundled(golang(golang.org/x/crypto/sha3))
 Provides:      bundled(golang(golang.org/x/crypto/ssh/terminal))
-Provides:      bundled(golang(golang.org/x/net/context))
-Provides:      bundled(golang(golang.org/x/net/context/ctxhttp))
 Provides:      bundled(golang(gopkg.in/check.v1))
 Provides:      bundled(golang(gopkg.in/macaroon.v1))
 Provides:      bundled(golang(gopkg.in/mgo.v2/bson))
@@ -535,6 +529,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl32
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/glvnd
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/vulkan
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
@@ -723,6 +718,7 @@ popd
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/glvnd
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
@@ -826,6 +822,47 @@ fi
 %endif
 
 %changelog
+* Wed Feb 06 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.37.2
+ - cmd/snap, overlord/snapstate: silently ignore classic flag when a
+   snap is strictly confined
+ - snap-confine: remove special handling of /var/lib/jenkins
+ - cmd/snap-confine: handle death of helper process gracefully
+ - snap-confine: fix classic snaps for users with /var/lib/* homedirs
+   like jenkins/postgres
+ - packaging: disable systemd environment generator on 18.04
+ - tests: update smoke/sandbox test for armhf
+ - cmd/snap-confine: refactor and cleanup of seccomp loading
+ - snap-confine: increase locking timeout to 30s
+ - snap-confine: fix incorrect "sanity timeout 3s" message
+ - snap: fix hook autodiscovery for parallel installed snaps
+ - tests: iterate getting journal logs to support delay on boards on
+   daemon-notify test
+ - interfaces/apparmor: deny inet/inet6 in snap-update-ns profile
+ - interfaces: add u2f-devices interface
+
+* Tue Jan 29 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.37.1
+ - cmd/snap-confine: add special case for Jenkins
+ - tests: workaround missing go dependencies in debian-9
+ - daemon, polkit: pid_t is signed
+ - interfaces: add display-control interface
+ - interfaces: add block-devices interface
+ - tests/main/searching: video section got renamed to photo-and-video
+ - interfaces/camera: allow reading vendor/etc info from
+   /run/udev/data/+usb
+ - interfaces/dbus: be less strict about alternations for well-known
+   names
+ - interfaces/home: allow dac_read_search with 'read: all'
+ - interfaces/pulseaudio: allow reading subdirectories of
+   /etc/pulse
+ - interfaces/system-observe: allow read on
+   /proc/locks
+ - tests: get test-snapd-dbus-{provider,consumer} from the beta
+   channel
+ - interfaces/apparmor: mock presence of overlayfs root
+ - packaging/{fedora,opensuse,ubuntu}: add /var/lib/snapd/lib/glvnd
+
 * Wed Jan 16 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.37
  - snapd: fix race in TestSanityFailGoesIntoDegradedMode test

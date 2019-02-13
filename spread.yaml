@@ -74,13 +74,12 @@ backends:
                 workers: 6
             - debian-sid-64:
                 workers: 6
-                manual: true
 
             - fedora-28-64:
                 workers: 4
                 manual: true
             - fedora-29-64:
-                workers: 4
+                workers: 6
             - opensuse-42.3-64:
                 workers: 4
                 # golang stack cannot compile anything, needs investigation
@@ -117,8 +116,6 @@ backends:
                 workers: 1
             - fedora-29-64:
                 workers: 1
-                # https://twitter.com/zygoon/status/1073629342884864000
-                manual: true
             - arch-linux-64:
                 workers: 1
             - amazon-linux-2-64:
@@ -138,9 +135,10 @@ backends:
                 workers: 4
             - ubuntu-16.04-64:
                 workers: 4
-            - ubuntu-17.10-64:
-                workers: 4
             - ubuntu-18.04-64:
+                workers: 4
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
                 workers: 4
 
     google-nested:
@@ -474,7 +472,7 @@ repack: |
         tar c current.delta >&4
     fi
 
-kill-timeout: 20m
+kill-timeout: 30m
 
 prepare: |
     # NOTE: This part of the code needs to be in spread.yaml as it runs before
