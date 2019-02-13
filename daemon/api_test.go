@@ -828,6 +828,112 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
+func (s *apiSuite) TestMapLocalFields(c *check.C) {
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://example.com/shot2.svg",
+		},
+	}
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			SnapID:            "some-snap-id",
+			RealName:          "some-snap",
+			EditedTitle:       "A Title",
+			EditedSummary:     "a summary",
+			EditedDescription: "the\nlong\ndescription",
+			Channel:           "bleeding/edge",
+			Contact:           "alice@example.com",
+			Revision:          snap.R(7),
+			Private:           true,
+		},
+		InstanceKey: "instance",
+		Type:        "app",
+		Base:        "the-base",
+		Version:     "v1.0",
+		License:     "MIT",
+		Broken:      "very",
+		Confinement: "very strict",
+		CommonIDs:   []string{"foo", "bar"},
+		Media:       media,
+		DownloadInfo: snap.DownloadInfo{
+			Size:     42,
+			Sha3_384: "some-sum",
+		},
+	}
+
+	// make InstallDate work
+	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
+
+	info.Apps = map[string]*snap.AppInfo{
+		"foo": {Snap: info, Name: "foo", Command: "foo"},
+		"bar": {Snap: info, Name: "bar", Command: "bar"},
+	}
+	about := aboutSnap{
+		info: info,
+		publisher: &snap.StoreAccount{
+			ID:          "some-dev-id",
+			Username:    "some-dev",
+			DisplayName: "Some Developer",
+			Validation:  "poor",
+		},
+		snapst: &snapstate.SnapState{
+			Active:  true,
+			Channel: "flaky/beta",
+			Current: snap.R(7),
+			Flags: snapstate.Flags{
+				IgnoreValidation: true,
+				DevMode:          true,
+				JailMode:         true,
+			},
+		},
+	}
+
+	expected := &client.Snap{
+		ID:               "some-snap-id",
+		Name:             "some-snap_instance",
+		Summary:          "a summary",
+		Description:      "the\nlong\ndescription",
+		Developer:        "some-dev",
+		Publisher:        about.publisher,
+		Icon:             "https://example.com/icon.png",
+		Type:             "app",
+		Base:             "the-base",
+		Version:          "v1.0",
+		Revision:         snap.R(7),
+		Channel:          "bleeding/edge",
+		TrackingChannel:  "flaky/beta",
+		InstallDate:      info.InstallDate(),
+		InstalledSize:    42,
+		Status:           "active",
+		Confinement:      "very strict",
+		IgnoreValidation: true,
+		DevMode:          true,
+		JailMode:         true,
+		Private:          true,
+		Broken:           "very",
+		Contact:          "alice@example.com",
+		Title:            "A Title",
+		License:          "MIT",
+		CommonIDs:        []string{"foo", "bar"},
+		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
+		Media:            media,
+		Apps: []client.AppInfo{
+			{Snap: "some-snap_instance", Name: "bar"},
+			{Snap: "some-snap_instance", Name: "foo"},
+		},
+	}
+	c.Check(mapLocal(about), check.DeepEquals, expected)
+}
+
 func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
 
