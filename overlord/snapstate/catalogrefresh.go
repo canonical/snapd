@@ -37,7 +37,7 @@ import (
 
 var (
 	catalogRefreshDelayBase      = 24 * time.Hour
-	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + time.Duration(rand.Intn(int(3*time.Hour)))
+	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + time.Duration(rand.Int63n(int64(3*time.Hour)))
 )
 
 type catalogRefresh struct {
