@@ -100,13 +100,12 @@ execute: |
     check_slot_connected() {
         SLOT_NAME="$1"
         for _ in $(seq 10); do
-            if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*serial-port-hotplug"; then
+            if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*serial-port-hotplug:serial-port"; then
                 break
             fi
             sleep 1
-
         done
-        execute_remote "snap interfaces" | MATCH ":qemuusbserial.*serial-port-hotplug"
+        execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*serial-port-hotplug:serial-port"
     }
 
     # Check that apparmor profile allows rw access to given device path.
