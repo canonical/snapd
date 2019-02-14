@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"fmt"
+	"math/rand" // seeded elsewhere
 	"os"
 	"sort"
 	"strings"
@@ -34,7 +35,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var catalogRefreshDelay = 24 * time.Hour
+var (
+	catalogRefreshDelayBase      = 24 * time.Hour
+	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + time.Duration(rand.Intn(int(3*time.Hour)))
+)
 
 type catalogRefresh struct {
 	state *state.State
@@ -57,10 +61,14 @@ func (r *catalogRefresh) Ensure() error {
 	}
 
 	now := time.Now()
+	catalogExists := true
 	if r.nextCatalogRefresh.IsZero() {
 		// try to use the timestamp on the sections file
 		if st, err := os.Stat(dirs.SnapSectionsFile); err == nil && st.ModTime().Before(now) {
-			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelay)
+			// add the delay with the delta so we spread the load a bit
+			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelayWithDelta)
+		} else if err != nil && os.IsNotExist(err) {
+			catalogExists = false
 		}
 	}
 
@@ -71,7 +79,13 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
-	next := now.Add(catalogRefreshDelay)
+	delay := catalogRefreshDelayBase
+	if !catalogExists {
+		// if the catalog didn't exist, add the delta for the next refresh
+		// (otherwise the delta has already been added)
+		delay = catalogRefreshDelayWithDelta
+	}
+	next := now.Add(delay)
 	// catalog refresh does not carry on trying on error
 	r.nextCatalogRefresh = next
 
