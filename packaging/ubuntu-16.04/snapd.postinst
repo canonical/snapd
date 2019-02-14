@@ -44,6 +44,51 @@ case "$1" in
         if test "$(md5sum /etc/apparmor.d/usr.lib.snapd.snap-confine | cut -f1 -d' ' 2>/dev/null)" = "2a38d40fe662f46fedd0aefbe78f23e9"; then
             rm -f /etc/apparmor.d/usr.lib.snapd.snap-confine
         fi
+
+
+        # We need to copy what debhelper is doing here because the 
+        # automatically added bits by debhelper run in the *wrong* order:
+        # - it (re)starts snapd first
+        # - it reloads the snap-confine apparmor profile *after* that
+        # which of course means that on an upgrade there is a time window
+        # in which snapd is available for the system-key check but
+        # snap-confine has an old profile and will die because it tries
+        # to do things that it cannot do with that old profile. By moving
+        # the apparmor load here we ensure that the profile for snap-confine
+        # is loaded before snapd restarts which means that when snapd is
+        # ready snap-confine also has the right profile.
+        #
+        #
+        # COPIED CODE DO NOT EDIT
+        # Automatically added by dh_apparmor/2.12-4ubuntu8
+        aa_is_enabled() {
+            if command aa-enabled >/dev/null 2>&1; then
+                # apparmor >= 2.10.95-2
+                aa-enabled --quiet 2>/dev/null
+            else
+                # apparmor << 2.10.95-2
+                # (This should be removed once Debian Stretch and Ubuntu 18.04 are out.)
+                rc=0
+                aa-status --enabled 2>/dev/null || rc=$?
+                [ "$rc" = 0 ] || [ "$rc" = 2 ]
+            fi
+        }
+        APP_PROFILE="/etc/apparmor.d/usr.lib.snapd.snap-confine.real"
+        if [ -f "$APP_PROFILE" ]; then
+            # Add the local/ include
+            LOCAL_APP_PROFILE="/etc/apparmor.d/local/usr.lib.snapd.snap-confine.real"
+            test -e "$LOCAL_APP_PROFILE" || {
+                mkdir -p `dirname "$LOCAL_APP_PROFILE"`
+                install --mode 644 /dev/null "$LOCAL_APP_PROFILE"
+            }
+            # Reload the profile, including any abstraction updates
+            if aa_is_enabled; then
+                apparmor_parser -r -T -W "$APP_PROFILE" || true
+            fi
+        fi
+        # End automatically added section
+fi
+
 esac
 
 #DEBHELPER#
