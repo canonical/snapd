@@ -4742,6 +4742,68 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestDisconnectConflict(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	d := s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, check.IsNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	st.Unlock()
+
+	simulateConflict(d.overlord, "consumer")
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &interfaceAction{
+		Action: "disconnect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 409)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"status-code": 409.,
+		"status":      "Conflict",
+		"result": map[string]interface{}{
+			"message": `snap "consumer" has "manip" change in progress`,
+			"kind":    "snap-change-conflict",
+			"value": map[string]interface{}{
+				"change-kind": "manip",
+				"snap-name":   "consumer",
+			},
+		},
+		"type": "error"})
+}
+
 func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
