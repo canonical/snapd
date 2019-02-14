@@ -26,6 +26,8 @@ import (
 
 // Definer can be implemented by interfaces that need to create slots in response to hotplug events.
 type Definer interface {
+	// HotplugDeviceDetected is called for all devices and should return nil slot for those that are irrelevant for the interface.
+	// Error should only be returned in rare cases when device is relevant, but there is a problem with creating a proposed slot for it.
 	HotplugDeviceDetected(di *HotplugDeviceInfo) (*ProposedSlot, error)
 }
 

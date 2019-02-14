@@ -163,6 +163,7 @@ InterfacesLoop:
 			logger.Noticef("cannot process hotplug event by the rule of interface %q: %s", iface.Name(), err)
 			continue
 		}
+		// if the interface doesn't propose a slot, carry on and go to the next interface
 		if proposedSlot == nil {
 			continue
 		}
@@ -170,7 +171,7 @@ InterfacesLoop:
 		// Check the key when we know the interface wants to create a hotplug slot, doing this earlier would generate too much log noise about irrelevant devices
 		key, err := deviceKey(devinfo, iface, defaultKey)
 		if err != nil {
-			logger.Noticef("cannot compute hotplug key for device with path %s: %s", devinfo.DevicePath(), err.Error())
+			logger.Noticef("internal error: cannot compute hotplug key for device with path %s: %s", devinfo.DevicePath(), err.Error())
 			continue
 		}
 		if key == "" {
@@ -208,6 +209,9 @@ InterfacesLoop:
 			m.enumeratedDeviceKeys[iface.Name()][key] = true
 		}
 		devPath := devinfo.DevicePath()
+		// We may have different interfaces at same paths (e.g. a "foo-observe" and "foo-control" interfaces), therefore use lists.
+		// Duplicates are not expected here because if a device is plugged twice, there will be an udev "remove" event inbetween the adds
+		// and hotplugDeviceRemoved() will remove affected path from hotplugDevicePaths.
 		m.hotplugDevicePaths[devPath] = append(m.hotplugDevicePaths[devPath], deviceData{hotplugKey: key, ifaceName: iface.Name()})
 
 		hotplugAdd := st.NewTask("hotplug-add-slot", fmt.Sprintf("Create slot for device with hotplug key %q", key))
