@@ -2661,6 +2661,10 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
