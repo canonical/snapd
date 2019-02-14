@@ -120,6 +120,15 @@ execute: |
         execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rw,"
     }
 
+    wait_for_all_changes() {
+        for _ in $(seq 10); do
+            if ! execute_remote "snap changes" | MATCH "Doing"; then
+                break
+            fi
+            sleep 1
+        done
+    }
+
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
@@ -246,6 +255,8 @@ execute: |
     check_slot_not_gone qemuusbserial
 
     echo "Disconnecting first slot and then unplugging the device removes the slot completely"
+    # manual snap disconnect doesn't implement retry and errors out if there are conflicting changes, so wait for hotplug changes to complete
+    wait_for_all_changes
     execute_remote "sudo snap disconnect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_present qemuusbserial
     hotplug_del_dev1
