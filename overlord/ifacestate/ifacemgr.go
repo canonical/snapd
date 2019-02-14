@@ -43,8 +43,9 @@ type InterfaceManager struct {
 	udevMon             udevmonitor.Interface
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
-	// indexed by interface name and device key
+	// indexed by interface name and device key. Reset to nil when enumeration is done.
 	enumeratedDeviceKeys map[string]map[string]bool
+	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
 }
@@ -61,8 +62,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	// Leave udevRetryTimeout at the default value, so that udev is initialized on first Ensure run.
 	m := &InterfaceManager{
-		state:                s,
-		repo:                 interfaces.NewRepository(),
+		state: s,
+		repo:  interfaces.NewRepository(),
+		// note: enumeratedDeviceKeys is reset to nil when enumeration is done
 		enumeratedDeviceKeys: make(map[string]map[string]bool),
 		hotplugDevicePaths:   make(map[string][]deviceData),
 	}

@@ -201,8 +201,7 @@ InterfacesLoop:
 			continue
 		}
 
-		// enumeratedDeviceKeys is only available when enumerating devices
-		if m.enumeratedDeviceKeys != nil {
+		if !m.enumerationDone {
 			if m.enumeratedDeviceKeys[iface.Name()] == nil {
 				m.enumeratedDeviceKeys[iface.Name()] = make(map[string]bool)
 			}
@@ -316,6 +315,7 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 
 	// the map of enumeratedDeviceKeys is not needed anymore
 	m.enumeratedDeviceKeys = nil
+	m.enumerationDone = true
 }
 
 func (m *InterfaceManager) hotplugEnabled() (bool, error) {
