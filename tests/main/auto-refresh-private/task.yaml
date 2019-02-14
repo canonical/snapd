@@ -73,6 +73,9 @@ execute: |
     snap remove test-snapd-private test-snapd-public
     snap install test-snapd-private test-snapd-public
 
+    echo "Clear the snap cache"
+    rm -f /var/lib/snapd/cache/*
+
     echo "Switch both to edge"
     snap switch --edge test-snapd-private
     snap switch --edge test-snapd-public
