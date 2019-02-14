@@ -14,7 +14,7 @@ execute: |
     exit 0
 
     echo "Ensure we have a snap catalog in our cache"
-    for i in {1..30}; do
+    for _ in {1..30}; do
         if [ -s /var/cache/snapd/commands.db ]; then
             break
         fi
