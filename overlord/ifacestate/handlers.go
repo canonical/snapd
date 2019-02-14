@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/tomb.v2"
+	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -1647,7 +1647,7 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 		// conflict with retry if there another change affecting same device and has lower sequence number
 		if hotplugKey == otherKey && otherSeq < seq {
 			task.Logf("Waiting processing of earlier hotplug event change %q affecting device with hotplug key %q", otherChg.Kind(), hotplugKey)
-			return &state.Retry{}
+			return &state.Retry{After: 2 * time.Second}
 		}
 	}
 
