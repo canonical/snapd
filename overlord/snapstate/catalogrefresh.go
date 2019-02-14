@@ -64,7 +64,7 @@ func (r *catalogRefresh) Ensure() error {
 	catalogExists := true
 	if r.nextCatalogRefresh.IsZero() {
 		// try to use the timestamp on the sections file
-		if st, err := os.Stat(dirs.SnapSectionsFile); err == nil && st.ModTime().Before(now) {
+		if st, err := os.Stat(dirs.SnapNamesFile); err == nil && st.ModTime().Before(now) {
 			// add the delay with the delta so we spread the load a bit
 			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelayWithDelta)
 		} else if err != nil && os.IsNotExist(err) {
@@ -114,7 +114,6 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	if err != nil {
 		return err
 	}
-
 	sort.Strings(sections)
 	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
 		return err
