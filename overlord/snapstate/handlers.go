@@ -1064,6 +1064,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if len(snapst.Sequence) == 1 {
+		err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
+		if err != nil {
+			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
+			return &state.Retry{After: 3 * time.Minute}
+		}
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
