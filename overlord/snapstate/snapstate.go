@@ -239,10 +239,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = installHook
 	}
 
-	// run new serices
-	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
-	addTask(startSnapServices)
-	prev = startSnapServices
+	if !snapsup.Flags.SkipServiceStart {
+		// run new services
+		startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
+		addTask(startSnapServices)
+		prev = startSnapServices
+	}
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {

@@ -39,38 +39,46 @@ type SnapOptions struct {
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
+	SkipServiceStart bool   `json:"skip-service-start,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
 
-func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
+func writeBoolField(mw *multipart.Writer, key string, val bool) error {
 	if !val {
 		return nil
 	}
 	return mw.WriteField(key, "true")
 }
 
+type boolField struct {
+	name string
+	flag bool
+}
+
+func writeBoolFields(mw *multipart.Writer, fields []boolField) error {
+	for _, o := range fields {
+		if err := writeBoolField(mw, o.name, o.flag); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
-	fields := []struct {
-		f string
-		b bool
-	}{
+	return writeBoolFields(mw, []boolField{
 		{"devmode", opts.DevMode},
 		{"classic", opts.Classic},
 		{"jailmode", opts.JailMode},
 		{"dangerous", opts.Dangerous},
-	}
-	for _, o := range fields {
-		if err := writeFieldBool(mw, o.f, o.b); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	})
 }
 
 func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
-	return writeFieldBool(mw, "unaliased", opts.Unaliased)
+	return writeBoolFields(mw, []boolField{
+		{"unaliased", opts.Unaliased},
+		{"skip-service-start", opts.SkipServiceStart},
+	})
 }
 
 type actionData struct {

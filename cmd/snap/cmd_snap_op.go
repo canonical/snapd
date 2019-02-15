@@ -406,9 +406,9 @@ type cmdInstall struct {
 	Dangerous bool `long:"dangerous"`
 	// alias for --dangerous, deprecated but we need to support it
 	// because we released 2.14.2 with --force-dangerous
-	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
-
-	Unaliased bool `long:"unaliased"`
+	ForceDangerous   bool `long:"force-dangerous" hidden:"yes"`
+	Unaliased        bool `long:"unaliased"`
+	SkipServiceStart bool `long:"skip-service-start"`
 
 	Name string `long:"name"`
 
@@ -527,10 +527,11 @@ func (x *cmdInstall) Execute([]string) error {
 
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
-		Channel:   x.Channel,
-		Revision:  x.Revision,
-		Dangerous: dangerous,
-		Unaliased: x.Unaliased,
+		Channel:          x.Channel,
+		Revision:         x.Revision,
+		Dangerous:        dangerous,
+		Unaliased:        x.Unaliased,
+		SkipServiceStart: x.SkipServiceStart,
 	}
 	x.setModes(opts)
 
@@ -1004,6 +1005,8 @@ func init() {
 			"unaliased": i18n.G("Install the given snap without enabling its automatic aliases"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"name": i18n.G("Install the snap file under the given instance name"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"skip-service-start": i18n.G("Do not attempt to start the services present in the snap"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{

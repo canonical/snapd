@@ -54,6 +54,10 @@ type Flags struct {
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`
 
+	// SkipServiceStart is set to request that services are not
+	// started automatically when installing the snap.
+	SkipServiceStart bool `json:"skip-service-start,omitempty"`
+
 	// Amend allows refreshing out of a snap unknown to the store
 	// and into one that is known.
 	Amend bool `json:"amend,omitempty"`

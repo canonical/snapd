@@ -900,6 +900,7 @@ type snapInstruction struct {
 	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	Unaliased        bool          `json:"unaliased"`
+	SkipServiceStart bool          `json:"skip-service-start"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -922,6 +923,9 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	}
 	if inst.Unaliased {
 		flags.Unaliased = true
+	}
+	if inst.SkipServiceStart {
+		flags.SkipServiceStart = true
 	}
 	return flags, nil
 }
