@@ -23,6 +23,15 @@ restore: |
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm
 
+debug: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    execute_remote "snap interfaces" || true
+    execute_remote "snap list" || true
+    execute_remote "dmesg" || true
+    execute_remote 'sudo jq -r ".data[\"hotplug-slots\"] /var/lib/snapd/state.json' || true
+
 execute: |
     hotplug_add_dev1() {
         add_tty_chardev my-chardev /dev/tty5
