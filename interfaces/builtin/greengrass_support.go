@@ -156,6 +156,9 @@ deny /run/mount/utab rw,
 /sys/devices/virtual/block/loop[0-9]*/ r,
 /sys/devices/virtual/block/loop[0-9]*/** r,
 
+# mount for mounting the rootfs which is a squashfs image inside $SNAP_DATA/rootfs
+mount options=ro /dev/loop[0-9]* -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/,
+
 # generic mounts for allowing anything inside $SNAP_DATA to be remounted anywhere else inside $SNAP_DATA
 # parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
 # completeness allow SNAP_INSTANCE_NAME too
@@ -164,9 +167,14 @@ mount options=(rw, rbind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /
 
 # specific mounts for setting up the mount namespace that greengrassd runs inside
 mount options=(rw, bind) /proc/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/proc/,
+mount /sys -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/sys/,
 mount options=(rw, bind) /dev/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/,
 mount options=(rw, bind) /{,var/}run/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/{,var/}run/,
 mount options=(rw, nosuid, strictatime) fstype=tmpfs tmpfs -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/,
+# note that we don't mount a new tmpfs here so that everytime we run and setup
+# the mount ns for greengrassd it uses the same tmpfs which will be the tmpfs
+# that snapd sets up for the snap
+mount options=(rw, bind) /tmp/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/tmp/,
 mount options=(rw, nosuid, nodev, noexec) fstype=mqueue mqueue -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/mqueue/,
 mount options=(rw, nosuid, noexec) fstype=devpts devpts -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/pts/,
 mount options=(rw, nosuid, nodev, noexec) fstype=tmpfs shm -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/dev/shm/,
@@ -175,9 +183,14 @@ mount fstype=proc proc -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootf
 # mounts for setting up child container rootfs
 mount options=(rw, rprivate) -> /,
 mount options=(ro, remount, rbind) -> /,
+mount fstype=overlay no_source -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/,
+
+# for jailing the process by removing the rootfs when the overlayfs is setup
+umount /,
 
 # mounts greengrassd performs for the containers
 mount fstype="tmpfs" options=(rw, nosuid, strictatime) tmpfs -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/,
+mount fstype="proc" proc -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/proc/,
 mount fstype="devpts" options=(rw, nosuid, noexec) devpts -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/pts/,
 mount fstype="tmpfs" options=(rw, nosuid, nodev, noexec) shm -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/shm/,
 mount fstype="mqueue" options=(rw, nosuid, nodev, noexec) mqueue -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/dev/mqueue/,
@@ -308,6 +321,7 @@ setgroups32
 
 # for creating a new mount namespace for the containers
 setns - CLONE_NEWNS
+unshare
 
 # for overlayfs and various bind mounts
 mount
