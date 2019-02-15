@@ -46,7 +46,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var snapsup SnapSetup
 
