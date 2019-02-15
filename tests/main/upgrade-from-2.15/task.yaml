@@ -5,6 +5,9 @@ systems: [ubuntu-16.04-64]
 prepare: |
     dpkg --purge snapd
 
+restore: |
+    dpkg --purge ubuntu-core-launcher snap-confine
+
 execute: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
@@ -18,6 +21,16 @@ execute: |
 
     echo "install a service snap and check its active"
     snap install go-example-webserver
+
+    # google ships 4.15 in (some?) of their cloud instances for 16.04
+    if [[ "$(uname -r)" != 4.4.* ]]; then
+        # snapd version 2.15 will not work with kernels newer than
+        # 4.4 because later kernels require snap-exec to be mmapable
+        # add this missing rule here
+        sed -i  's#^}$#/usr/lib/snapd/snap-exec m,\n}#' /var/lib/snapd/apparmor/profiles/snap.go-example-webserver.webserver
+        apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.go-example-webserver.webserver
+        systemctl start snap.go-example-webserver.webserver
+    fi
     wait_for_service snap.go-example-webserver.webserver.service
 
     echo "upgrade to current snapd"
