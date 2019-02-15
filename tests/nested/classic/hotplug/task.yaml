@@ -267,3 +267,18 @@ execute: |
     hotplug_del_dev2
     check_slot_not_present qemuusbserial-1
     check_slot_not_present_in_state qemuusbserial-1
+
+    echo "Plugging device back creates the slot again"
+    hotplug_add_dev1
+    check_slot_present qemuusbserial
+    check_slot_not_gone qemuusbserial
+    check_slot_device_path qemuusbserial "/dev/ttyUSB0"
+
+    echo "Connecting hotplug slot of the first device again"
+    execute_remote "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
+    check_slot_connected qemuusbserial
+
+    echo "Hotplug slot stays after removing the snap"
+    execute_remote "sudo snap remove serial-port-hotplug"
+    check_slot_present qemuusbserial
+    check_slot_not_gone qemuusbserial
