@@ -336,6 +336,9 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	} else {
 		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor + greengrassSupportConnectedPlugAppArmorCore)
 	}
+	// greengrass needs to use ptrace
+	spec.SetUsesPtraceTrace()
+
 	return nil
 }
 
@@ -354,7 +357,6 @@ func init() {
 		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
 		connectedPlugSecComp: greengrassSupportConnectedPlugSeccomp,
 		reservedForOS:        true,
-		usesPtraceTrace:      true,
 		controlsDeviceCgroup: true,
 	}})
 }
