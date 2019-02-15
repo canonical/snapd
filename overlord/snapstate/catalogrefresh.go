@@ -61,14 +61,15 @@ func (r *catalogRefresh) Ensure() error {
 	}
 
 	now := time.Now()
-	catalogExists := true
+	delay := catalogRefreshDelayBase
 	if r.nextCatalogRefresh.IsZero() {
 		// try to use the timestamp on the sections file
 		if st, err := os.Stat(dirs.SnapNamesFile); err == nil && st.ModTime().Before(now) {
 			// add the delay with the delta so we spread the load a bit
 			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelayWithDelta)
-		} else if err != nil && os.IsNotExist(err) {
-			catalogExists = false
+		} else {
+			// first time scheduling, add the delta
+			delay = catalogRefreshDelayWithDelta
 		}
 	}
 
@@ -79,12 +80,6 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
-	delay := catalogRefreshDelayBase
-	if !catalogExists {
-		// if the catalog didn't exist, add the delta for the next refresh
-		// (otherwise the delta has already been added)
-		delay = catalogRefreshDelayWithDelta
-	}
 	next := now.Add(delay)
 	// catalog refresh does not carry on trying on error
 	r.nextCatalogRefresh = next
