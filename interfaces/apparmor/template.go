@@ -716,7 +716,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow receiving signals from unconfined (eg, systemd)
   signal (receive) peer=unconfined,
   # Allow sending and receiving signals from ourselves.
-  signal peer=snap-update-ns.###SNAP_INSTANCE_NAME###,
+  signal peer=@{profile_name},
 
   # Commonly needed permissions for writable mimics.
   /tmp/ r,
