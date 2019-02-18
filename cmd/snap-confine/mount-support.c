@@ -581,7 +581,10 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 					die("cannot locate the core or legacy core snap (current symlink missing?)");
 				}
 			}
-			die("cannot locate the base snap: %s", base_snap_name);
+			// If after the special case handling above we are
+			// still not ok, die
+			if (access(rootfs_dir, F_OK) != 0)
+			        die("cannot locate the base snap: %s", base_snap_name);
 		}
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,
