@@ -142,11 +142,15 @@ pivot_root
 /sys/devices/virtual/block/loop[0-9]*/loop/autoclear r,
 /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
 
-# greengrassd requires protected hardlinks and symlinks 
-/proc/sys/fs/protected_hardlinks r,
-/proc/sys/fs/protected_symlinks r,
+# greengrassd needs protected hardlinks and symlinks to run securely, but 
+# won't turn them on itself, hence only read access for these things - 
+# the user is clearly informed if these are disabled and so the user can 
+# enable these themselves rather than give the snap permission to turn these
+# on
+@{PROC}/sys/fs/protected_hardlinks r,
+@{PROC}/sys/fs/protected_symlinks r,
 
-# for determining users who performed mounts
+# mount tries to access this, but it doesn't really need it 
 deny /run/mount/utab rw,
 
 # these accesses are needed in order to mount a squashfs file for the rootfs
@@ -183,7 +187,7 @@ mount fstype=proc proc -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootf
 # mounts for setting up child container rootfs
 mount options=(rw, rprivate) -> /,
 mount options=(ro, remount, rbind) -> /,
-mount fstype=overlay no_source -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/,
+mount fstype=overlay -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/,
 
 # for jailing the process by removing the rootfs when the overlayfs is setup
 umount /,
@@ -209,8 +213,9 @@ mount options=(rw, bind) /run/ -> /run/,
 # mounts for resolv.conf inside the container
 # we have to manually do this otherwise the go DNS resolver fails to work, because it isn't configured to 
 # use the system DNS server and attempts to do DNS resolution itself, manually inspecting /etc/resolv.conf
-mount options=(rw, bind) /run/systemd/resolve/stub-resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
-mount options=(rw, bind) /run/resolvconf/resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
+mount options=(ro, bind) /run/systemd/resolve/stub-resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
+mount options=(ro, bind) /run/resolvconf/resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
+mount options=(ro, remount, bind) -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
 
 # pivot_root for the container initialization into the rootfs
 # note that the actual syscall is pivotroot(".",".")
@@ -243,6 +248,12 @@ umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/**,
 capability mknod,
 
 # for the greengrassd pid file
+# note we can't use layouts for this because /var/run is a symlink to /run
+# and /run is explictly disallowed for use by layouts
+# also note that technically this access is post-pivot_root, but during the setup
+# for the mount ns that the snap performs (not snapd), /var/run is bind mounted
+# from outside the pivot_root to inside the pivot_root, so this will always 
+# access the same files inside or outside the pivot_root
 owner /{var/,}run/greengrassd.pid rw,
 
 # all of the rest of the accesses are made by child containers and as such are 
@@ -264,7 +275,7 @@ owner /{var/,}run/greengrassd.pid rw,
 # the child containers need to use a file lock here
 owner /state/secretsmanager/secrets.db krw,
 owner /state/secretsmanager/secrets.db-journal rw,
-owner /state/shadow/ krw,
+owner /state/shadow/ rw,
 owner /state/shadow/{,**} krw,
 # more specific accesses for writing
 owner /state/server/ rw,
@@ -276,12 +287,6 @@ owner /state/server/{,**} rw,
 # future potential upgrades
 /runtime/{python*,executable*,nodejs*,java*}/ r,
 /runtime/{python*,executable*,nodejs*,java*}/** r,
-
-# greengrass seems to ship somewhere with an embedded version of sqlite which creates these temp files
-# ideally we would set some sort of environment variable to force sqlite to change it's temp dir as described on
-# https://bugs.launchpad.net/ubuntu-ui-toolkit/+bug/1197049
-# it could also be possible that sqlite is pulled in from one of the stage-packages in the snap though...
-owner /var/tmp/etilqs_[0-9a-zA-Z]* rw,
 
 # Ideally we would use a child profile for these but since the greengrass
 # sandbox is using prctl(PR_SET_NO_NEW_PRIVS, ...) we cannot since that blocks
@@ -297,7 +302,8 @@ owner /var/tmp/etilqs_[0-9a-zA-Z]* rw,
 /etc/ r,
 /etc/debian_version r,
 
-# the java runtime attempts to access this
+# manually add java certs here
+# see also https://bugs.launchpad.net/apparmor/+bug/1816372
 /etc/ssl/certs/java/{,*} r,
 #include <abstractions/ssl_certs>
 `
