@@ -78,7 +78,11 @@ func (s *backendSuite) TestInitialize(c *C) {
 	err := s.Backend.Initialize()
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dirs.SnapSeccompDir, "global.bin")
-	c.Check(fname, testutil.FileEquals, seccomp.GlobalProfile)
+	if seccomp.IsBigEndian() {
+		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileBE)
+	} else {
+		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileLE)
+	}
 }
 
 // Tests for Setup() and Remove()

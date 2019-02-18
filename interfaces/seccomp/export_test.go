@@ -80,5 +80,7 @@ func MockReleaseInfoVersionId(s string) (restore func()) {
 var (
 	RequiresSocketcall = requiresSocketcall
 
-	GlobalProfile = globalProfile
+	GlobalProfileLE = globalProfileLE
+	GlobalProfileBE = globalProfileBE
+	IsBigEndian     = isBigEndian
 )
