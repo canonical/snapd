@@ -111,8 +111,11 @@ var (
 var (
 	NewAutoRefresh                = newAutoRefresh
 	NewRefreshHints               = newRefreshHints
-	NewCatalogRefresh             = newCatalogRefresh
 	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
+
+	NewCatalogRefresh            = newCatalogRefresh
+	CatalogRefreshDelayBase      = catalogRefreshDelayBase
+	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -125,6 +128,10 @@ func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
 
 func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 	cr.nextCatalogRefresh = when
+}
+
+func NextCatalogRefresh(cr *catalogRefresh) time.Time {
+	return cr.nextCatalogRefresh
 }
 
 func MockRefreshRetryDelay(d time.Duration) func() {

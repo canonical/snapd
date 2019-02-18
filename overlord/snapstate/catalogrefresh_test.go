@@ -93,9 +93,21 @@ func (s *catalogRefreshTestSuite) TearDownTest(c *C) {
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
+	// start with no catalog
+	c.Check(dirs.SnapSectionsFile, testutil.FileAbsent)
+	c.Check(dirs.SnapNamesFile, testutil.FileAbsent)
+	c.Check(dirs.SnapCommandsDB, testutil.FileAbsent)
+
 	cr7 := snapstate.NewCatalogRefresh(s.state)
+	// next is initially zero
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+	t0 := time.Now()
+
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
+
+	// next now has a delta (next refresh is not before t0 + delta)
+	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(snapstate.CatalogRefreshDelayWithDelta)), Equals, false)
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 
@@ -127,22 +139,32 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
 	// write a fake sections file just to have it
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSectionsFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapSectionsFile, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapNamesFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+	// set the timestamp to something known
+	t0 := time.Now().Truncate(time.Hour)
+	c.Assert(os.Chtimes(dirs.SnapNamesFile, t0, t0), IsNil)
 
 	cr7 := snapstate.NewCatalogRefresh(s.state)
+	// next is initially zero
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 	err := cr7.Ensure()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
+	next := snapstate.NextCatalogRefresh(cr7)
+	// next is no longer zero,
+	c.Check(next.IsZero(), Equals, false)
+	// but has a delta WRT the timestamp
+	c.Check(next.Equal(t0.Add(snapstate.CatalogRefreshDelayWithDelta)), Equals, true)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {
 	// write a fake sections file just to have it
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSectionsFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapSectionsFile, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapNamesFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
 	// but set the timestamp in the future
 	t := time.Now().Add(time.Hour)
-	c.Assert(os.Chtimes(dirs.SnapSectionsFile, t, t), IsNil)
+	c.Assert(os.Chtimes(dirs.SnapNamesFile, t, t), IsNil)
 
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	err := cr7.Ensure()
