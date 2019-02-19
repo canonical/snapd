@@ -63,9 +63,6 @@ const multipassSupportConnectedPlugAppArmor = `
 # Need to permit chown and chgrp of the socket.
 capability chown,
 
-# Multipass uses gRPC for IPC, which calls shutdown on the socket
-unix ( shutdown) addr="@snap.@{SNAP_INSTANCE_NAME}.**",
-
 # Multipass generates AppArmor profiles for the utility processes it spawns.
 /sbin/apparmor_parser ixr,
 /etc/apparmor{,.d}/{,**} r,
