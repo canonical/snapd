@@ -29,21 +29,20 @@
  **/
 int sc_selinux_set_snap_execcon(void)
 {
-	/* die("foo"); */
 	if (is_selinux_enabled() < 1) {
-		debug("selinux not enabled");
+		debug("SELinux not enabled");
 		return 0;
 	}
 
 	char *ctx_str = NULL;
 	if (getcon(&ctx_str) == -1) {
-		die("failed to obtain current process context");
+		die("cannot obtain current SELinux process context");
 	}
-	debug("current context: %s", ctx_str);
+	debug("current SELinux process context: %s", ctx_str);
 
 	context_t ctx = context_new(ctx_str);
 	if (ctx == NULL) {
-		die("failed to create context from context string %s", ctx_str);
+		die("cannot create SELinux context from context string %s", ctx_str);
 	}
 
 	if (sc_streq(context_type_get(ctx), "snappy_confine_t")) {
@@ -57,18 +56,18 @@ int sc_selinux_set_snap_execcon(void)
 		 * by snap_confine_t policy) upon the next exec() call.
 		 */
 		if (context_type_set(ctx, "unconfined_service_t") != 0) {
-			die("failed to update context %s type to unconfined_service_t",
+			die("cannot update SELinux context %s type to unconfined_service_t",
 			    ctx_str);
 		}
 
 		char *new_ctx_str = context_str(ctx);
 		if (new_ctx_str == NULL) {
-			die("failed to obtain string of an updated context");
+			die("cannot obtain updated SELinux context string");
 		}
 		if (setexeccon(new_ctx_str) == -1) {
-			die("failed to set exec context to %s", new_ctx_str);
+			die("cannot set SELinux exec context to %s", new_ctx_str);
 		}
-		debug("context after next exec: %s", new_ctx_str);
+		debug("SELinux context after next exec: %s", new_ctx_str);
 	}
 
 	context_free(ctx);
