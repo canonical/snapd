@@ -91,7 +91,7 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
-BuildRequires:  go
+BuildRequires:  go >= 1.9
 BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libapparmor-devel

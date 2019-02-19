@@ -22,6 +22,7 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,8 +34,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -371,25 +370,6 @@ func fakeSnapID(name string) string {
 }
 
 const (
-	searchHit = `{
-	"anon_download_url": "@URL@",
-	"architecture": [
-	    "all"
-	],
-	"channel": "stable",
-	"content": "application",
-	"description": "this is a description",
-        "developer_id": "devdevdev",
-	"download_url": "@URL@",
-	"icon_url": "@ICON@",
-	"origin": "bar",
-	"package_name": "@NAME@",
-	"revision": @REVISION@,
-	"snap_id": "@SNAPID@",
-	"summary": "Foo",
-	"version": "@VERSION@"
-}`
-
 	snapV2 = `{
 	"architectures": [
 	    "all"
@@ -528,39 +508,6 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			w.WriteHeader(200)
 			w.Write(asserts.Encode(a))
 			return
-		case "details":
-			w.WriteHeader(200)
-			io.WriteString(w, fillHit(searchHit, comps[1]))
-		case "metadata":
-			dec := json.NewDecoder(r.Body)
-			var input struct {
-				Snaps []struct {
-					SnapID   string `json:"snap_id"`
-					Revision int    `json:"revision"`
-				} `json:"snaps"`
-			}
-			err := dec.Decode(&input)
-			if err != nil {
-				panic(err)
-			}
-			var hits []json.RawMessage
-			for _, s := range input.Snaps {
-				name := ms.serveIDtoName[s.SnapID]
-				if snap.R(s.Revision) == snap.R(ms.serveRevision[name]) {
-					continue
-				}
-				hits = append(hits, json.RawMessage(fillHit(searchHit, name)))
-			}
-			w.WriteHeader(200)
-			output, err := json.Marshal(map[string]interface{}{
-				"_embedded": map[string]interface{}{
-					"clickindex:package": hits,
-				},
-			})
-			if err != nil {
-				panic(err)
-			}
-			w.Write(output)
 		case "download":
 			if ms.hijackServeSnap != nil {
 				ms.hijackServeSnap(w)
@@ -888,7 +835,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_invalid_instance_name", "", snapstate.Flags{DevMode: true})
-	c.Assert(err, ErrorMatches, `invalid instance key: "invalid_instance_name"`)
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "invalid_instance_name"`)
 }
 
 func (ms *mgrsSuite) TestCheckInterfaces(c *C) {

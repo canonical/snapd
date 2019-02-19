@@ -15,7 +15,6 @@ restore: |
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
        resolvConf=$(cat resolvConf.txt)
        mv "${resolvConf}.save" "${resolvConf}"
-       rm resolvConf.txt
     else
        mv /etc/resolv.conf.save /etc/resolv.conf
     fi

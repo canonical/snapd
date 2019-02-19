@@ -21,9 +21,7 @@ restore: |
     # Restore the initial timezone
     if [ -f timezone.txt ]; then
         timedatectl set-timezone "$(cat timezone.txt)" || true
-        rm -f timezone.txt
     fi
-    rm -f call.error
 
 execute: |
     echo "The interface is disconnected by default"
@@ -56,9 +54,11 @@ execute: |
         exit 0
     fi
 
-    # Disconnect the interface and check access to timedatectl status
+    echo "When the plug is disconnected"
     snap disconnect test-snapd-timedate-control-consumer:timezone-control
-    if test-snapd-timedate-control-consumer.timedatectl-timezone status 2>"${PWD}"/call.error; then
+
+    echo "The timedatectl status cannot be retrieved"
+    if test-snapd-timedate-control-consumer.timedatectl-timezone status 2> call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1
     fi

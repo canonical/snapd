@@ -32,8 +32,10 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -257,6 +259,42 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 	return nil
 }
 
+// isSnapInPath checks whether the snap binaries dir (e.g. /snap/bin)
+// is in $PATH.
+//
+// TODO: consider symlinks
+func isSnapInPath() bool {
+	paths := filepath.SplitList(os.Getenv("PATH"))
+	for _, path := range paths {
+		if filepath.Clean(path) == dirs.SnapBinariesDir {
+			return true
+		}
+	}
+	return false
+}
+
+func isSameRisk(tracking, current string) (bool, error) {
+	if tracking == current {
+		return true, nil
+	}
+	var trackingRisk, currentRisk string
+	if tracking != "" {
+		traCh, err := snap.ParseChannel(tracking, "")
+		if err != nil {
+			return false, err
+		}
+		trackingRisk = traCh.Risk
+	}
+	if current != "" {
+		curCh, err := snap.ParseChannel(current, "")
+		if err != nil {
+			return false, err
+		}
+		currentRisk = curCh.Risk
+	}
+	return trackingRisk == currentRisk, nil
+}
+
 // show what has been done
 func showDone(cli *client.Client, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
@@ -264,6 +302,7 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 		return err
 	}
 
+	needsPathWarning := !isSnapInPath()
 	for _, snap := range snaps {
 		channelStr := ""
 		if snap.Channel != "" && snap.Channel != "stable" {
@@ -271,12 +310,19 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 		}
 		switch op {
 		case "install":
+			if needsPathWarning {
+				head := i18n.G("Warning:")
+				warn := fill(fmt.Sprintf(i18n.G("%s was not found in your $PATH. If you've not restarted your session since you installed snapd, try doing that. Please see https://forum.snapcraft.io/t/9469 for more details."), dirs.SnapBinariesDir), utf8.RuneCountInString(head)+1) // +1 for the space
+				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
+				needsPathWarning = false
+			}
+
 			if opts != nil && opts.Classic && snap.Confinement != client.ClassicConfinement {
 				// requested classic but the snap is not classic
 				head := i18n.G("Warning:")
 				// TRANSLATORS: the arg is a snap name (e.g. "some-snap")
 				warn := fill(fmt.Sprintf(i18n.G("flag --classic ignored for strictly confined snap %s"), snap.Name), utf8.RuneCountInString(head)+1) // +1 for the space
-				fmt.Fprint(Stderr, head, " ", warn, "\n\n")
+				fmt.Fprint(Stderr, esc.bold, head, esc.end, " ", warn, "\n\n")
 			}
 
 			if snap.Publisher != nil {
@@ -301,8 +347,10 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
 		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
-			// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
-			fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+			if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
+				// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
+				fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+			}
 		}
 	}
 
