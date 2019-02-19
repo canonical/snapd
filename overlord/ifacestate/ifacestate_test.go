@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -5565,6 +5566,302 @@ func (s *interfaceManagerSuite) TestHotplugDisconnectWaitsForDisconnectPlug(c *C
 	c.Assert(hotplugChg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]string, specName, expectedName string) {
+	_ = s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: specName, Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
+	devinfo, _ := hotplug.NewHotplugDeviceInfo(devData)
+	t.Set("device-info", devinfo)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is created in the repository
+	slot := repo.Slot("core", expectedName)
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.HotplugKey, Equals, "1234")
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, HasLen, 1)
+	c.Check(hotplugSlots[expectedName], DeepEquals, map[string]interface{}{
+		"name":         expectedName,
+		"interface":    "test",
+		"hotplug-key":  "1234",
+		"static-attrs": map[string]interface{}{"foo": "bar"},
+		"hotplug-gone": false,
+	})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromSpec(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"}, "hotplugslot", "hotplugslot")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromDevice(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"}, "", "hdcamera")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromInterface(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a"}, "", "test")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
+	_ = s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot-old-name": map[string]interface{}{
+			"name":         "hotplugslot-old-name",
+			"interface":    "test",
+			"static-attrs": map[string]interface{}{"foo": "old"},
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
+	t.Set("device-info", map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is re-created in the repository, reuses old name and has new attributes
+	slot := repo.Slot("core", "hotplugslot-old-name")
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.HotplugKey, Equals, "1234")
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot-old-name": map[string]interface{}{
+			"name":         "hotplugslot-old-name",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"hotplug-gone": false,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"static-attrs": map[string]interface{}{"foo": "old"},
+			"hotplug-key":  "1234",
+		}})
+	c.Assert(repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		Attrs:      map[string]interface{}{"foo": "oldfoo"},
+		HotplugKey: "1234",
+	}), IsNil)
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "newfoo"}}
+	t.Set("proposed-slot", proposedSlot)
+	devinfo, _ := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/a"})
+	t.Set("device-info", devinfo)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// hotplugslot is re-created in the repository
+	slot := repo.Slot("core", "hotplugslot")
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "newfoo"})
+	c.Check(slot.HotplugKey, Equals, "1234")
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "newfoo"},
+			"hotplug-gone": false,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+
+	// sanity check
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-update-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	t.Set("slot-attrs", map[string]interface{}{"foo": "bar"})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is updated int the repository
+	slot := repo.Slot("core", "hotplugslot")
+	c.Assert(slot, NotNil)
+	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"hotplug-gone": false,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugUpdateSlotWhenConnected(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddPlug(consumer.Plugs["plug"])
+	c.Assert(err, IsNil)
+
+	// sanity check
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+	_, err = repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"}},
+		nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-update-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	t.Set("slot-attrs", map[string]interface{}{})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*internal error: cannot update slot hotplugslot while connected.*`)
+
+	// hotplugslot is not removed because of existing connection
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+}
+
 func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	coreInfo := s.mockSnap(c, coreSnapYaml)
 	repo := s.manager(c).Repository()
@@ -5621,9 +5918,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"otherslot": map[string]interface{}{
-			"name":        "otherslot",
-			"interface":   "test",
-			"hotplug-key": "5678",
+			"name":         "otherslot",
+			"interface":    "test",
+			"hotplug-key":  "5678",
+			"hotplug-gone": false,
 		}})
 }
 

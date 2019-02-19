@@ -1,0 +1,3 @@
+usr/bin/snap-repair
+usr/bin/snap-failure
+usr/lib/snapd/system-shutdown

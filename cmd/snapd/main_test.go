@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 
@@ -57,6 +58,8 @@ func (s *snapdSuite) SetUpTest(c *C) {
 
 func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 
 	sanityErr := fmt.Errorf("foo failed")

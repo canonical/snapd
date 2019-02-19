@@ -76,7 +76,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.37
+Version:        2.37.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -91,7 +91,7 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
-BuildRequires:  go
+BuildRequires:  go >= 1.9
 BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libapparmor-devel

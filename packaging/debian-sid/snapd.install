@@ -1,0 +1,37 @@
+usr/bin/snap
+usr/bin/snapctl /usr/lib/snapd/
+
+usr/bin/snap-exec /usr/lib/snapd/
+usr/bin/snap-update-ns /usr/lib/snapd/
+usr/bin/snapd /usr/lib/snapd/
+usr/bin/snap-seccomp /usr/lib/snapd/
+
+# bash completion
+data/completion/snap /usr/share/bash-completion/completions
+data/completion/complete.sh /usr/lib/snapd/
+data/completion/etelpmoc.sh /usr/lib/snapd/
+# snap/snapd version information
+data/info /usr/lib/snapd/
+# polkit actions
+data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
+# apt hook
+data/apt/20snapd.conf /etc/apt/apt.conf.d/
+
+# snap-confine stuff
+etc/apparmor.d/usr.lib.snapd.snap-confine.real
+usr/lib/snapd/snap-device-helper
+usr/lib/snapd/snap-mgmt
+usr/lib/snapd/snap-confine
+usr/lib/snapd/snap-discard-ns
+usr/share/man/
+# for compatibility with ancient snap installs that wrote the shell based
+# wrapper scripts instead of the modern symlinks
+usr/bin/ubuntu-core-launcher
+
+# gdb helper
+usr/lib/snapd/snap-gdb-shim
+
+# use "usr/lib" here because apparently systemd looks only there
+usr/lib/systemd/system-environment-generators
+# but system generators end up in lib
+lib/systemd/system-generators

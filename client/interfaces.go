@@ -60,12 +60,6 @@ type SlotRef struct {
 	Name string `json:"slot"`
 }
 
-// Connections contains information about all plugs, slots and their connections
-type Connections struct {
-	Plugs []Plug `json:"plugs"`
-	Slots []Slot `json:"slots"`
-}
-
 // Interface holds information about a given interface and its instances.
 type Interface struct {
 	Name    string `json:"name,omitempty"`
@@ -80,13 +74,6 @@ type InterfaceAction struct {
 	Action string `json:"action"`
 	Plugs  []Plug `json:"plugs,omitempty"`
 	Slots  []Slot `json:"slots,omitempty"`
-}
-
-// Connections returns all plugs, slots and their connections.
-func (client *Client) Connections() (Connections, error) {
-	var conns Connections
-	_, err := client.doSync("GET", "/v2/interfaces", nil, nil, nil, &conns)
-	return conns, err
 }
 
 // InterfaceOptions represents opt-in elements include in responses.

@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"errors"
@@ -42,7 +43,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/net/context"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -826,6 +826,112 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 404)
 	c.Check(rsp.Result, check.NotNil)
+}
+
+func (s *apiSuite) TestMapLocalFields(c *check.C) {
+	media := snap.MediaInfos{
+		{
+			Type: "screenshot",
+			URL:  "https://example.com/shot1.svg",
+		}, {
+			Type: "icon",
+			URL:  "https://example.com/icon.png",
+		}, {
+			Type: "screenshot",
+			URL:  "https://example.com/shot2.svg",
+		},
+	}
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			SnapID:            "some-snap-id",
+			RealName:          "some-snap",
+			EditedTitle:       "A Title",
+			EditedSummary:     "a summary",
+			EditedDescription: "the\nlong\ndescription",
+			Channel:           "bleeding/edge",
+			Contact:           "alice@example.com",
+			Revision:          snap.R(7),
+			Private:           true,
+		},
+		InstanceKey: "instance",
+		Type:        "app",
+		Base:        "the-base",
+		Version:     "v1.0",
+		License:     "MIT",
+		Broken:      "very",
+		Confinement: "very strict",
+		CommonIDs:   []string{"foo", "bar"},
+		Media:       media,
+		DownloadInfo: snap.DownloadInfo{
+			Size:     42,
+			Sha3_384: "some-sum",
+		},
+	}
+
+	// make InstallDate work
+	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
+
+	info.Apps = map[string]*snap.AppInfo{
+		"foo": {Snap: info, Name: "foo", Command: "foo"},
+		"bar": {Snap: info, Name: "bar", Command: "bar"},
+	}
+	about := aboutSnap{
+		info: info,
+		publisher: &snap.StoreAccount{
+			ID:          "some-dev-id",
+			Username:    "some-dev",
+			DisplayName: "Some Developer",
+			Validation:  "poor",
+		},
+		snapst: &snapstate.SnapState{
+			Active:  true,
+			Channel: "flaky/beta",
+			Current: snap.R(7),
+			Flags: snapstate.Flags{
+				IgnoreValidation: true,
+				DevMode:          true,
+				JailMode:         true,
+			},
+		},
+	}
+
+	expected := &client.Snap{
+		ID:               "some-snap-id",
+		Name:             "some-snap_instance",
+		Summary:          "a summary",
+		Description:      "the\nlong\ndescription",
+		Developer:        "some-dev",
+		Publisher:        about.publisher,
+		Icon:             "https://example.com/icon.png",
+		Type:             "app",
+		Base:             "the-base",
+		Version:          "v1.0",
+		Revision:         snap.R(7),
+		Channel:          "bleeding/edge",
+		TrackingChannel:  "flaky/beta",
+		InstallDate:      info.InstallDate(),
+		InstalledSize:    42,
+		Status:           "active",
+		Confinement:      "very strict",
+		IgnoreValidation: true,
+		DevMode:          true,
+		JailMode:         true,
+		Private:          true,
+		Broken:           "very",
+		Contact:          "alice@example.com",
+		Title:            "A Title",
+		License:          "MIT",
+		CommonIDs:        []string{"foo", "bar"},
+		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
+		Media:            media,
+		Apps: []client.AppInfo{
+			{Snap: "some-snap_instance", Name: "bar"},
+			{Snap: "some-snap_instance", Name: "foo"},
+		},
+	}
+	c.Check(mapLocal(about), check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
@@ -3236,7 +3342,7 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
 	info := &snap.Info{SuggestedName: "notInstalledSnap", Media: []snap.MediaInfo{{Type: "icon", URL: "icon.svg"}}}
 	iconfile := snapIcon(info)
-	c.Check(iconfile, testutil.Contains, "icon.svg")
+	c.Check(iconfile, check.Equals, "")
 }
 
 func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
@@ -3933,7 +4039,20 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 
 	d := s.daemon(c)
 
+	var anotherConsumerYaml = `
+name: another-consumer-%s
+version: 1
+apps:
+ app:
+plugs:
+ plug:
+  interface: test
+  key: value
+  label: label
+`
 	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
@@ -3943,6 +4062,26 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 	}
 	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
+
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"auto":      true,
+		},
+		"another-consumer-def:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+		"another-consumer-abc:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"by-gadget": true,
+			"auto":      true,
+		},
+	})
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3955,6 +4094,28 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "another-consumer-abc",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
+				map[string]interface{}{
+					"snap":      "another-consumer-def",
+					"plug":      "plug",
+					"interface": "test",
+					"attrs":     map[string]interface{}{"key": "value"},
+					"apps":      []interface{}{"app"},
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
+					},
+				},
 				map[string]interface{}{
 					"snap":      "consumer",
 					"plug":      "plug",
@@ -3976,6 +4137,8 @@ func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
+						map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
+						map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
 						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
@@ -4577,6 +4740,68 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"status-code": 400.0,
 		"type":        "error",
 	})
+}
+
+func (s *apiSuite) TestDisconnectConflict(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	d := s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, check.IsNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+	st.Unlock()
+
+	simulateConflict(d.overlord, "consumer")
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &interfaceAction{
+		Action: "disconnect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 409)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"status-code": 409.,
+		"status":      "Conflict",
+		"result": map[string]interface{}{
+			"message": `snap "consumer" has "manip" change in progress`,
+			"kind":    "snap-change-conflict",
+			"value": map[string]interface{}{
+				"change-kind": "manip",
+				"snap-name":   "consumer",
+			},
+		},
+		"type": "error"})
 }
 
 func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
@@ -5451,7 +5676,7 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
 		return 100, 0, dirs.SnapdSocket, nil
 	}
 	s.mockUserHome = c.MkDir()
@@ -5858,7 +6083,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
 		return 100, 0, dirs.SnapdSocket, nil
 	}
 	defer func() {
@@ -6596,7 +6821,7 @@ func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
 func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	_ = s.daemon(c)
 
-	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
+	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
 		return 100, 9999, dirs.SnapSocket, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
