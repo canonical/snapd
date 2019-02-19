@@ -297,11 +297,17 @@ func mapLocal(about aboutSnap) *client.Snap {
 	if about.publisher != nil {
 		publisherUsername = about.publisher.Username
 	}
+	// get the icon from the snap itself
+	icon := snapIcon(localSnap)
+	if icon == "" {
+		// fall back to the one in media
+		icon = localSnap.Media.IconURL()
+	}
 	result := &client.Snap{
 		Description:      localSnap.Description(),
 		Developer:        publisherUsername,
 		Publisher:        about.publisher,
-		Icon:             snapIcon(localSnap),
+		Icon:             icon,
 		ID:               localSnap.SnapID,
 		InstallDate:      localSnap.InstallDate(),
 		InstalledSize:    localSnap.Size,
@@ -327,6 +333,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		License:          localSnap.License,
 		CommonIDs:        localSnap.CommonIDs,
 		MountedFrom:      localSnap.MountFile(),
+		Media:            localSnap.Media,
 	}
 
 	if result.TryMode {

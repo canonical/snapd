@@ -115,7 +115,7 @@ if [ "$1" = "purge" ]; then
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
 
     echo "Removing snapd cache"
-    rm -f /var/cache/snapd/*
+    rm -rf /var/cache/snapd/*
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd

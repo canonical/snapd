@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.37.2
+Version:        2.37.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -822,6 +822,20 @@ fi
 %endif
 
 %changelog
+* Mon Feb 18 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.37.3
+ - interfaces/seccomp: generate global seccomp profile
+ - overlord/snapstate: add some randomness to the catalog refresh
+ - tests: add upgrade test from 2.15.2ubuntu1 -> current snapd
+ - snap-confine: fix fallback to ubuntu-core
+ - packaging: avoid race in snapd.postinst
+ - overlord/snapstate: discard mount namespace when undoing 1st link
+   snap
+ - cmd/snap-confine: allow writes to /var/lib/** again
+ - tests: stop catalog-update/apt-hooks test until the catlog refresh
+   is randomized
+ - debian: ensure leftover usr.lib.snapd.snap-confine is gone
+
 * Wed Feb 06 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.37.2
  - cmd/snap, overlord/snapstate: silently ignore classic flag when a
