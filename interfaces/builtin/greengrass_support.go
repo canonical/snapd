@@ -168,6 +168,12 @@ mount options=ro /dev/loop[0-9]* -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME
 # completeness allow SNAP_INSTANCE_NAME too
 mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
 mount options=(rw, rbind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
+# also allow mounting new files anywhere underneath the rootfs of the target 
+# overlayfs directory, which is the rootfs of the container
+# this is for allowing local resource access which first makes a mount at 
+# the target destination and then a bind mount from the source to the destination
+# the source destination mount will be allowed under the above rule
+mount -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/**,
 
 # specific mounts for setting up the mount namespace that greengrassd runs inside
 mount options=(rw, bind) /proc/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/proc/,
