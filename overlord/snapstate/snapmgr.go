@@ -469,7 +469,7 @@ func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 	return m.autoRefresh.RefreshSchedule()
 }
 
-// ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
+// ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	if !release.ReleaseInfo.ForceDevMode() {
