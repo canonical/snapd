@@ -31,9 +31,8 @@ import (
 
 type cmdConnections struct {
 	clientMixin
-	All          bool `long:"all"`
-	Disconnected bool `long:"disconnected"`
-	Positionals  struct {
+	All         bool `long:"all"`
+	Positionals struct {
 		Snap installedSnapName
 	} `positional-args:"true"`
 }
@@ -44,26 +43,20 @@ The connections command lists connections between plugs and slots
 in the system.
 
 Pass --all to list unconnected plugs and slots alongside those
-already connected, or pass --disconnected to list only unconnected
-plugs and slots. Unless <snap> is provided, the listing is for all
+already connected. Unless <snap> is provided, the listing is for all
 snaps in the system.
 
 $ snap connections <snap>
 
 Lists connected and unconnected plugs and slots for the specified
 snap.
-
-$ snap connections --disconnected <snap>
-
-Lists only unconnected plugs and slots for the specified snap.
 `)
 
 func init() {
 	addCommand("connections", shortConnectionsHelp, longConnectionsHelp, func() flags.Commander {
 		return &cmdConnections{}
 	}, map[string]string{
-		"all":          i18n.G("Show connected and unconnected plugs and slots"),
-		"disconnected": i18n.G("Show disconnected plugs and slots only"),
+		"all": i18n.G("Show connected and unconnected plugs and slots"),
 	}, []argDesc{{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		name: "<snap>",
@@ -94,18 +87,14 @@ func wantedSnapMatches(name, wanted string) bool {
 }
 
 type connectionNotes struct {
-	slot         string
-	plug         string
-	manual       bool
-	gadget       bool
-	disconnected bool
+	slot   string
+	plug   string
+	manual bool
+	gadget bool
 }
 
 func (cn connectionNotes) String() string {
 	opts := []string{}
-	if cn.disconnected {
-		opts = append(opts, "disconnected")
-	}
 	if cn.manual {
 		opts = append(opts, "manual")
 	}
@@ -128,7 +117,7 @@ func (x *cmdConnections) Execute(args []string) error {
 	}
 
 	opts := client.ConnectionOptions{
-		All: x.All || x.Disconnected,
+		All: x.All,
 	}
 	wanted := string(x.Positionals.Snap)
 	if wanted != "" {
@@ -141,9 +130,8 @@ func (x *cmdConnections) Execute(args []string) error {
 		// and slots
 		opts.Snap = wanted
 		opts.All = true
-		// print all slots, unless we were asked for disconnected ones
-		// only
-		x.All = !x.Disconnected
+		// print all slots
+		x.All = true
 	}
 
 	connections, err := x.client.Connections(&opts)
@@ -157,20 +145,18 @@ func (x *cmdConnections) Execute(args []string) error {
 	notes := make(map[string]connectionNotes, len(connections.Established)+len(connections.Undesired))
 	for _, conn := range connections.Established {
 		notes[connName(conn)] = connectionNotes{
-			plug:         endpoint(conn.Plug.Snap, conn.Plug.Name),
-			slot:         endpoint(conn.Slot.Snap, conn.Slot.Name),
-			manual:       conn.Manual,
-			gadget:       conn.Gadget,
-			disconnected: false,
+			plug:   endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:   endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual: conn.Manual,
+			gadget: conn.Gadget,
 		}
 	}
 	for _, conn := range connections.Undesired {
 		notes[connName(conn)] = connectionNotes{
-			plug:         endpoint(conn.Plug.Snap, conn.Plug.Name),
-			slot:         endpoint(conn.Slot.Snap, conn.Slot.Name),
-			manual:       conn.Manual,
-			gadget:       conn.Gadget,
-			disconnected: true,
+			plug:   endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:   endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual: conn.Manual,
+			gadget: conn.Gadget,
 		}
 	}
 
@@ -178,36 +164,20 @@ func (x *cmdConnections) Execute(args []string) error {
 	fmt.Fprintln(w, i18n.G("Plug\tSlot\tInterface\tNotes"))
 
 	matched := false
+	noNotes := connectionNotes{}
 	for _, plug := range connections.Plugs {
-		if !x.Disconnected || x.All {
-			for _, slot := range plug.Connections {
-				// these are only established connections
-				cname := endpoint(plug.Snap, plug.Name) + " " + endpoint(slot.Snap, slot.Name)
-				cnotes := notes[cname]
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", endpoint(plug.Snap, plug.Name), endpoint(slot.Snap, slot.Name), plug.Interface, cnotes)
-				matched = true
-			}
+		for _, slot := range plug.Connections {
+			// these are only established connections
+			cname := endpoint(plug.Snap, plug.Name) + " " + endpoint(slot.Snap, slot.Name)
+			cnotes := notes[cname]
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", endpoint(plug.Snap, plug.Name), endpoint(slot.Snap, slot.Name), plug.Interface, cnotes)
+			matched = true
 		}
-		if len(plug.Connections) == 0 && (x.All || x.Disconnected) {
+		if len(plug.Connections) == 0 && x.All {
 			// plug might be unconnected, or it was auto-connected
 			// but the user has disconnected it explicitly
 			pname := endpoint(plug.Snap, plug.Name)
-			sname := "-"
-			pnotes := connectionNotes{disconnected: true}
-			for _, note := range notes {
-				// check whether the plug is undesired and
-				// determine the corresponding slot it that is
-				// the case
-				if !note.disconnected {
-					continue
-				}
-				if note.plug == pname {
-					pnotes = note
-					sname = note.slot
-					break
-				}
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pname, sname, plug.Interface, pnotes)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pname, "-", plug.Interface, noNotes)
 			matched = true
 		}
 	}
@@ -216,23 +186,10 @@ func (x *cmdConnections) Execute(args []string) error {
 			// displaying unconnected system snap slots is boring
 			continue
 		}
-		if len(slot.Connections) == 0 && (x.All || x.Disconnected) {
+		if len(slot.Connections) == 0 && x.All {
 			sname := endpoint(slot.Snap, slot.Name)
-			var found bool
-			for _, note := range notes {
-				if !note.disconnected {
-					continue
-				}
-				if note.slot == sname {
-					found = true
-					break
-				}
-			}
-			if !found {
-				snotes := connectionNotes{disconnected: true}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "-", sname, slot.Interface, snotes)
-				matched = true
-			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "-", sname, slot.Interface, noNotes)
+			matched = true
 		}
 	}
 
