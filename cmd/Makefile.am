@@ -54,7 +54,10 @@ check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
 
-new_format = snap-discard-ns/snap-discard-ns.c
+new_format = \
+	 snap-confine/seccomp-support-ext.c \
+	 snap-confine/seccomp-support-ext.h \
+	 snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
 fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
 	clang-format -style='{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 120}' -i $^
@@ -254,6 +257,8 @@ snap_confine_snap_confine_LDFLAGS += $(SUID_LDFLAGS)
 
 if SECCOMP
 snap_confine_snap_confine_SOURCES += \
+	snap-confine/seccomp-support-ext.c \
+	snap-confine/seccomp-support-ext.h \
 	snap-confine/seccomp-support.c \
 	snap-confine/seccomp-support.h
 snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)

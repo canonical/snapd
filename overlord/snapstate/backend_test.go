@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,8 +28,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"
@@ -541,7 +540,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if user != nil {
 		macaroon = user.StoreMacaroon
 	}
-	// only add the options if they contain anything interessting
+	// only add the options if they contain anything interesting
 	if *dlOpts == (store.DownloadOptions{}) {
 		dlOpts = nil
 	}

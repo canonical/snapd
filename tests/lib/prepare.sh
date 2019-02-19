@@ -255,22 +255,10 @@ prepare_classic() {
         # need to be seeded to proceed with snap install
         # also make sure the captured state is seeded
         snap wait system seed.loaded
-        # Pre-cache a few heavy snaps so that they can be installed by tests
-        # quickly. This relies on a behavior of snapd where .partial files are
-        # used for resuming downloads.
-        (
-            set -x
-            cd "$TESTSLIB/cache/"
-            # Download each of the snaps we want to pre-cache. Note that `snap download`
-            # a quick no-op if the file is complete.
-            for snap_name in ${PRE_CACHE_SNAPS:-}; do
-                snap download "$snap_name"
-            done
-            # Copy all of the snaps back to the spool directory. From there we
-            # will reuse them during subsequent `snap install` operations.
-            cp -- *.snap /var/lib/snapd/snaps/
-            set +x
-        )
+
+        # Cache snaps
+        # shellcheck disable=SC2086
+        cache_snaps ${PRE_CACHE_SNAPS}
 
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
@@ -536,6 +524,10 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
+    # we do not need console-conf, so prevent it from running
+    mkdir -p /mnt/system-data/var/lib/console-conf
+    touch /mnt/system-data/var/lib/console-conf/complete
+
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
     umount /mnt
@@ -624,6 +616,13 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
+    echo "Ensure the core snap is cached"
+    if is_core18_system; then
+        if ! snap list core; then
+            cache_snaps core
+        fi
+    fi
+
     disable_refreshes
     setup_systemd_snapd_overrides
 
@@ -635,4 +634,23 @@ prepare_ubuntu_core() {
     fi
 
     disable_kernel_rate_limiting
+}
+
+cache_snaps(){
+    # Pre-cache snaps so that they can be installed by tests quickly.
+    # This relies on a behavior of snapd where .partial files are
+    # used for resuming downloads.
+    (
+        set -x
+        cd "$TESTSLIB/cache/"
+        # Download each of the snaps we want to pre-cache. Note that `snap download`
+        # a quick no-op if the file is complete.
+        for snap_name in "$@"; do
+            snap download "$snap_name"
+        done
+        # Copy all of the snaps back to the spool directory. From there we
+        # will reuse them during subsequent `snap install` operations.
+        cp -- *.snap /var/lib/snapd/snaps/
+        set +x
+    )
 }

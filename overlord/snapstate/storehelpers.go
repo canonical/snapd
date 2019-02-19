@@ -20,10 +20,9 @@
 package snapstate
 
 import (
+	"context"
 	"fmt"
 	"sort"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -198,6 +197,8 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 	return curInfo, user, nil
 }
 
+var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
+
 func singleActionResult(name, action string, results []*snap.Info, e error) (info *snap.Info, err error) {
 	if len(results) > 1 {
 		return nil, fmt.Errorf("internal error: multiple store results for a single snap op")
@@ -225,12 +226,7 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 
 		// no result, atypical case
 		if saErr.NoResults {
-			switch action {
-			case "refresh":
-				return nil, store.ErrNoUpdateAvailable
-			case "install":
-				return nil, store.ErrSnapNotFound
-			}
+			return nil, ErrMissingExpectedResult
 		}
 	}
 

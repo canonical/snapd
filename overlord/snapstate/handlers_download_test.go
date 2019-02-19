@@ -65,7 +65,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 		// code path in the task is hit and the store is queried
 		// in the task (instead of using the new
 		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
-		// snapstate.{Install,Update} directely.
+		// snapstate.{Install,Update} directly.
 		DownloadInfo: nil,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)

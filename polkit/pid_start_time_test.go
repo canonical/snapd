@@ -39,7 +39,7 @@ var _ = check.Suite(&polkitSuite{})
 func (s *polkitSuite) TestGetStartTime(c *check.C) {
 	pid := os.Getpid()
 
-	startTime, err := getStartTimeForPid(uint32(pid))
+	startTime, err := getStartTimeForPid(int32(pid))
 	c.Assert(err, check.IsNil)
 	c.Check(startTime, check.Not(check.Equals), uint64(0))
 }
@@ -54,7 +54,7 @@ func (s *polkitSuite) TestGetStartTimeBadPid(c *check.C) {
 		pid += 1
 	}
 
-	startTime, err := getStartTimeForPid(uint32(pid))
+	startTime, err := getStartTimeForPid(int32(pid))
 	c.Assert(err, check.ErrorMatches, "open .*: no such file or directory")
 	c.Check(startTime, check.Equals, uint64(0))
 }

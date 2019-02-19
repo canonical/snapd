@@ -271,25 +271,6 @@ int main(int argc, char **argv)
 			sc_maybe_fixup_permissions();
 			sc_maybe_fixup_udev();
 
-			// Associate each snap process with a dedicated snap freezer
-			// control group. This simplifies testing if any processes
-			// belonging to a given snap are still alive.
-			// See the documentation of the function for details.
-
-			if (getegid() != 0 && saved_gid == 0) {
-				// Temporarily raise egid so we can chown the freezer cgroup
-				// under LXD.
-				if (setegid(0) != 0) {
-					die("cannot set effective group id to root");
-				}
-			}
-			sc_cgroup_freezer_join(snap_instance, getpid());
-			if (geteuid() == 0 && real_gid != 0) {
-				if (setegid(real_gid) != 0) {
-					die("cannot set effective group id to %d", real_gid);
-				}
-			}
-
 			/* User mount profiles do not apply to non-root users. */
 			if (real_uid != 0) {
 				debug
@@ -322,6 +303,25 @@ int main(int argc, char **argv)
 					}
 				}
 			}
+
+			// Associate each snap process with a dedicated snap freezer
+			// control group. This simplifies testing if any processes
+			// belonging to a given snap are still alive.
+			// See the documentation of the function for details.
+			if (getegid() != 0 && saved_gid == 0) {
+				// Temporarily raise egid so we can chown the freezer cgroup
+				// under LXD.
+				if (setegid(0) != 0) {
+					die("cannot set effective group id to root");
+				}
+			}
+			sc_cgroup_freezer_join(snap_instance, getpid());
+			if (geteuid() == 0 && real_gid != 0) {
+				if (setegid(real_gid) != 0) {
+					die("cannot set effective group id to %d", real_gid);
+				}
+			}
+
 
 			sc_unlock(snap_lock_fd);
 
@@ -377,7 +377,11 @@ int main(int argc, char **argv)
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
-	sc_apply_seccomp_bpf(security_tag);
+	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
+		/* If the process is not explicitly unconfined then load the global
+		 * profile as well. */
+		sc_apply_global_seccomp_profile();
+	}
 #endif				// ifdef HAVE_SECCOMP
 #ifdef HAVE_SELINUX
 	sc_selinux_set_snap_execcon();
