@@ -35,7 +35,7 @@ int sc_selinux_set_snap_execcon(void)
 	}
 
 	char *ctx_str = NULL;
-	if (getcon(&ctx_str) == -1) {
+	if (getcon(&ctx_str) < 0) {
 		die("cannot obtain current SELinux process context");
 	}
 	debug("current SELinux process context: %s", ctx_str);
@@ -60,6 +60,7 @@ int sc_selinux_set_snap_execcon(void)
 			    ctx_str);
 		}
 
+		/* freed by context_free(ctx) */
 		char *new_ctx_str = context_str(ctx);
 		if (new_ctx_str == NULL) {
 			die("cannot obtain updated SELinux context string");
