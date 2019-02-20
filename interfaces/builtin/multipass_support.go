@@ -19,6 +19,24 @@
 
 package builtin
 
+/*
+ * Multipass is a tool to create and manage Virtual Machines and their images.
+ * Each VM runs as a separate "qemu" process (on Linux). VM images are automatically
+ * downloaded, but need conversion using "qemu-img". Networking is provided by
+ * configuring a TUN/TAP network on the host, with DHCP provided by a shared
+ * "dnsmasq" process. File sharing between the VM and the host is provided by a
+ * "sshfs_server" utility. All these utilities are shipped in the snap.
+ *
+ * Each of these utilities have a very different different purpose, and an attempt
+ * to confine them all in a single profile would result in an extremely broad AppArmor
+ * profile.
+ *
+ * Instead we defer to Multipass the responsibility of generating custom AppArmor
+ * profiles for each of these utilities, and trust it launches each utility with
+ * all possible security mechanisms enabled. The Multipass daemon itself will run
+ * under this restricted policy.
+ */
+
 const multipassSupportSummary = `allows operating as the Multipass service`
 
 const multipassSupportBaseDeclarationPlugs = `
@@ -36,34 +54,8 @@ const multipassSupportBaseDeclarationSlots = `
 `
 
 const multipassSupportConnectedPlugAppArmor = `
-# Description: allow operating as the Multipass daemon.
-
-# Multipass is a tool to create and manage Virtual Machines and their images.
-# Each VM runs as a separate "qemu" process (on Linux). VM images are automatically
-# downloaded, but need conversion using "qemu-img". Networking is provided by
-# configuring a TUN/TAP network on the host, with DHCP provided by a shared
-# "dnsmasq" process. File sharing between the VM and the host is provided by a
-# "sshfs_server" utility. All these utilities are shipped in the snap.
-
-# Each of these utilities have a very different different purpose, and an attempt
-# to confine them all in a single profile would result in an extremely broad AppArmor
-# profile.
-
-# Instead we defer to Multipass the responsibility of generating custom AppArmor
-# profiles for each of these utilities, and trust it launches each utility with
-# all possible security mechanisms enabled. The Multipass daemon itself will run
-# under this restricted policy.
-
-# Therefore this policy intentionally allows the Multipass daemon to configure
-# AppArmor.
-
-
-# Multipass has a server/client design, using a socket for IPC. The daemon runs
-# as root, but makes the socket accessible to anyone in the sudo group.
-# Need to permit chown and chgrp of the socket.
-capability chown,
-
-# Multipass generates AppArmor profiles for the utility processes it spawns.
+# Description: this policy intentionally allows the Multipass daemon to configure AppArmor
+# as Multipass generates AppArmor profiles for the utility processes it spawns.
 /sbin/apparmor_parser ixr,
 /etc/apparmor{,.d}/{,**} r,
 /sys/kernel/security/apparmor/{,**} r,
@@ -73,6 +65,11 @@ capability chown,
 # Allow running utility processes under the specialized AppArmor profiles.
 # These profiles will prevent utility processes escaping confinement.
 capability mac_admin,
+
+# Multipass has a server/client design, using a socket for IPC. The daemon runs
+# as root, but makes the socket accessible to anyone in the sudo group.
+# Need to permit chown and chgrp of the socket.
+capability chown,
 
 # Multipass will also use privilege separation when running utility processes
 capability setuid,
