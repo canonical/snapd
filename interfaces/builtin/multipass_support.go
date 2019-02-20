@@ -66,7 +66,6 @@ capability chown,
 # Multipass generates AppArmor profiles for the utility processes it spawns.
 /sbin/apparmor_parser ixr,
 /etc/apparmor{,.d}/{,**} r,
-/etc/apparmor.d/{,cache/}multipass* rw,
 /sys/kernel/security/apparmor/{,**} r,
 /sys/kernel/security/apparmor/.remove w,
 /sys/kernel/security/apparmor/.replace w,
