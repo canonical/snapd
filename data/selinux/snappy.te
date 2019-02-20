@@ -370,7 +370,7 @@ userdom_admin_home_dir_filetrans(snappy_confine_t, snappy_home_t, dir, "snap")
 allow snappy_confine_t snappy_snap_t:process transition;
 
 allow snappy_confine_t self:process { setexec };
-allow snappy_confine_t self:capability { setgid setuid sys_chroot dac_read_search dac_override };
+allow snappy_confine_t self:capability { setgid setuid sys_admin sys_chroot dac_read_search dac_override };
 
 init_read_state(snappy_confine_t)
 
