@@ -23,8 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
-	"strings"
 	sys "syscall"
 )
 
@@ -35,29 +35,23 @@ const (
 	ucrednetNobody    = uint32((1 << 32) - 1)
 )
 
+var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);$`)
+
 func ucrednetGet(remoteAddr string) (pid int32, uid uint32, socket string, err error) {
+	// NOTE treat remoteAddr at one point included a user-controlled
+	// string. In case that happens again by accident, treat it as tainted,
+	// and be very suspicious of it.
 	pid = ucrednetNoProcess
 	uid = ucrednetNobody
-	for _, token := range strings.Split(remoteAddr, ";") {
-		if strings.HasPrefix(token, "pid=") {
-			var v int64
-			if v, err = strconv.ParseInt(token[4:], 10, 32); err == nil {
-				pid = int32(v)
-			} else {
-				break
-			}
-		} else if strings.HasPrefix(token, "uid=") {
-			var v uint64
-			if v, err = strconv.ParseUint(token[4:], 10, 32); err == nil {
-				uid = uint32(v)
-			} else {
-				break
-			}
+	subs := raddrRegexp.FindStringSubmatch(remoteAddr)
+	if subs != nil {
+		if v, err := strconv.ParseInt(subs[1], 10, 32); err == nil {
+			pid = int32(v)
 		}
-		if strings.HasPrefix(token, "socket=") {
-			socket = token[7:]
+		if v, err := strconv.ParseUint(subs[2], 10, 32); err == nil {
+			uid = uint32(v)
 		}
-
+		socket = subs[3]
 	}
 	if pid == ucrednetNoProcess || uid == ucrednetNobody {
 		err = errNoID
@@ -85,6 +79,9 @@ type ucrednetAddr struct {
 }
 
 func (wa *ucrednetAddr) String() string {
+	// NOTE we drop the original (user-supplied) net.Addr from the
+	// serialization entirely. We carry it this far so it helps debugging
+	// (via %#v logging), but from here on in it's not helpful.
 	return wa.ucrednet.String()
 }
 
