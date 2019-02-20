@@ -97,11 +97,6 @@ const multipassSupportConnectedPlugSecComp = `
 setgroups 0 -
 setgroups32 0 -
 
-# Multipassd needs to chown its socket to a non-root user. sshfs_server also
-# will need these (see later).
-chown
-chown32
-
 # Multipassd will have a child process - sshfs_server - which allows mounting a
 # user-specified directory on the host into the VM. Here we permit typical filesytem
 # syscalls with the knowledge that Multipass will generate a specific AppArmor
@@ -110,6 +105,8 @@ chown32
 
 # More filesystem syscalls sshfs_server will need, as it allows user to change
 # file owner/group arbitrarily.
+chown
+chown32
 fchown
 fchown32
 fchownat
