@@ -68,7 +68,6 @@ capability mac_admin,
 
 # Multipass has a server/client design, using a socket for IPC. The daemon runs
 # as root, but makes the socket accessible to anyone in the sudo group.
-# Need to permit chown and chgrp of the socket.
 capability chown,
 
 # Multipass will also use privilege separation when running utility processes
