@@ -97,15 +97,6 @@ const multipassSupportConnectedPlugSecComp = `
 # utilities requires. We rely on Multipass to generate specific AppArmor profiles
 # for each child process, to further restrict their abilities.
 
-# Multipass has server/client design, using a socket for IPC.
-# Note: Qemu has several features that also open sockets, but the AppArmor profile
-# Multipass will execute Qemu under locks down its filesystem access dramatically
-# and prevents it creating these sockets.
-accept
-accept4
-bind
-listen
-
 # dnsmasq fails unless it can drop supplementary groups
 setgroups 0 -
 setgroups32 0 -
