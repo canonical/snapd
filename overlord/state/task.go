@@ -290,12 +290,12 @@ func (t *Task) AtTime() time.Time {
 	return t.atTime
 }
 
-func (t *Task) AccumulateDoingTime(duration time.Duration) {
+func (t *Task) accumulateDoingTime(duration time.Duration) {
 	t.state.writing()
 	t.doingTime += duration
 }
 
-func (t *Task) AccumulateUndoingTime(duration time.Duration) {
+func (t *Task) accumulateUndoingTime(duration time.Duration) {
 	t.state.writing()
 	t.undoingTime += duration
 }

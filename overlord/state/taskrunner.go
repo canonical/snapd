@@ -168,14 +168,14 @@ func (r *TaskRunner) run(t *Task) {
 		fallthrough
 	case DoingStatus:
 		handler = r.handlerPair(t).do
-		accuRuntime = t.AccumulateDoingTime
+		accuRuntime = t.accumulateDoingTime
 
 	case UndoStatus:
 		t.SetStatus(UndoingStatus)
 		fallthrough
 	case UndoingStatus:
 		handler = r.handlerPair(t).undo
-		accuRuntime = t.AccumulateUndoingTime
+		accuRuntime = t.accumulateUndoingTime
 
 	default:
 		panic("internal error: attempted to run task in status " + t.Status().String())

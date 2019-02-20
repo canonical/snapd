@@ -2472,7 +2472,7 @@ type debugAction struct {
 	Message string `json:"message"`
 	Params  struct {
 		ChgID string `json:"chg-id"`
-	}
+	} `json:"params"`
 }
 
 type ConnectivityStatus struct {
