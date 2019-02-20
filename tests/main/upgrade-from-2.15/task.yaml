@@ -38,3 +38,13 @@ execute: |
 
     echo "and ensure the snap service is still active"
     wait_for_service snap.go-example-webserver.webserver.service
+
+    echo "wait for ubuntu-core->core transition"
+    snap debug ensure-state-soon
+    for i in $(seq 240); do
+        if snap changes|grep -q ".*Done.*Transition ubuntu-core to core" ; then
+            break
+        fi
+        sleep 1
+    done
+    snap changes|MATCH ".*Done.*Transition ubuntu-core to core"
