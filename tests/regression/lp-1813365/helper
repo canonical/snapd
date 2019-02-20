@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Based on proof of concept exploit code by Chris Moberly.
 import contextlib
 import json
 import os
