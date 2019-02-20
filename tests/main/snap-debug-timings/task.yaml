@@ -8,5 +8,5 @@ execute: |
     install_local test-snapd-tools
 
     echo "There is timing data available for it"
-    snap debug change-timings --last=install | MATCH 'Done +[0-9]+'
+    snap debug timings --last=install | MATCH 'Done +[0-9]+'
 
