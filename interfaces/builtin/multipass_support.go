@@ -90,7 +90,7 @@ const multipassSupportConnectedPlugSecComp = `
 # Description: allow operating as the Multipass daemon, and enable its various utilites
 # (qemu, qemu-img, dnsmasq, sshfs_server)
 
-# Note that this profile contains the union of all the necessary syscalls each of the
+# Note that this profile necessarily contains the union of all the syscalls each of the
 # utilities requires. We rely on Multipass to generate specific AppArmor profiles
 # for each child process, to further restrict their abilities.
 
