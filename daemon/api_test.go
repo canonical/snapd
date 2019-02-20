@@ -6919,6 +6919,19 @@ func (s *postDebugSuite) TestPostDebugConnectivityUnhappy(c *check.C) {
 	})
 }
 
+func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
+	_ = s.daemon(c)
+
+	req, err := http.NewRequest("GET", "/v2/debug?action=base-declaration", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
+		testutil.Contains, "type: base-declaration")
+}
+
 type appSuite struct {
 	apiBaseSuite
 	cmd *testutil.MockCmd

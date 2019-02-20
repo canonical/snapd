@@ -53,3 +53,28 @@ func (s *SnapSuite) TestGetBaseDeclaration(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, "hello\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
+
+func (s *SnapSuite) TestBaseDeclaration(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/debug")
+			c.Check(r.URL.RawQuery, check.Equals, "action=base-declaration")
+			data, err := ioutil.ReadAll(r.Body)
+			c.Check(err, check.IsNil)
+			c.Check(data, check.HasLen, 0)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"base-declaration": "hello"}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "base-declaration"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, "hello\n")
+	c.Check(s.Stderr(), check.Equals, "")
+}
