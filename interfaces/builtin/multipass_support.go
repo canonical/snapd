@@ -112,13 +112,6 @@ chown32
 # profile for sshfs_server, restricting any filesystem access to just the
 # user-specified directory.
 
-# The default seccomp profile already includes these syscalls with the note:
-# "until we have syscall arg filtering (LP: #1446748)"
-# Am specifying them here as sshfs_server needs these syscalls unfiltered.
-chmod
-fchmod
-fchmodat
-
 # More filesystem syscalls sshfs_server will need, as it allows user to change
 # file owner/group arbitrarily.
 fchown
