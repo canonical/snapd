@@ -106,7 +106,10 @@ type savedCmd struct {
 }
 
 func (x *savedCmd) Execute([]string) error {
-	setID := uint64(x.ID)
+	setID, err := x.ID.ToUint()
+	if err != nil {
+		return err
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	list, err := x.client.SnapshotSets(setID, snaps)
 	if err != nil {
@@ -184,7 +187,10 @@ type forgetCmd struct {
 }
 
 func (x *forgetCmd) Execute([]string) error {
-	setID := uint64(x.Positional.ID)
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	changeID, err := x.client.ForgetSnapshots(setID, snaps)
 	if err != nil {
@@ -217,7 +223,10 @@ type checkSnapshotCmd struct {
 }
 
 func (x *checkSnapshotCmd) Execute([]string) error {
-	setID := uint64(x.Positional.ID)
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strutil.CommaSeparatedList(x.Users)
 	changeID, err := x.client.CheckSnapshots(setID, snaps, users)
@@ -253,7 +262,10 @@ type restoreCmd struct {
 }
 
 func (x *restoreCmd) Execute([]string) error {
-	setID := uint64(x.Positional.ID)
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strutil.CommaSeparatedList(x.Users)
 	changeID, err := x.client.RestoreSnapshots(setID, snaps, users)
