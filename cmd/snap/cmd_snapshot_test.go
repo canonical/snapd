@@ -20,6 +20,8 @@
 package main_test
 
 import (
+	"fmt"
+	"net/http"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -43,9 +45,26 @@ var snapshotsTests = []getCmdArgs{{
 }, {
 	args:  "check-snapshot x",
 	error: "invalid argument for set id’: expected a non-negative integer argument",
+}, {
+	args:   "restore 1",
+	stdout: "Restored snapshot #1.\n",
+}, {
+	args:   "forget 2",
+	stdout: "Snapshot #2 forgotten.\n",
+}, {
+	args:   "forget 2 snap1 snap2",
+	stdout: "Snapshot #2 of snaps \"snap1\", \"snap2\" forgotten.\n",
+}, {
+	args:   "check-snapshot 4",
+	stdout: "Snapshot #4 verified successfully.\n",
+}, {
+	args:   "check-snapshot 4 snap1 snap2",
+	stdout: "Snapshot #4 of snaps \"snap1\", \"snap2\" verified successfully.\n",
 }}
 
 func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
+	s.mockSnapshotsServer(c)
+
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
@@ -64,5 +83,17 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 			c.Check(s.Stdout(), Equals, test.stdout)
 		}
 	}
+}
 
+func (s *SnapSuite) mockSnapshotsServer(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/snapshots":
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
+		case "/v2/changes/9":
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
+		default:
+			c.Errorf("unexpected path %q", r.URL.Path)
+		}
+	})
 }

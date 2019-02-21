@@ -206,9 +206,9 @@ func (x *forgetCmd) Execute([]string) error {
 
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.NG("Snapshot #%d of snap %s forgotten.\n", "Snapshot #%d of snaps %s forgotten.\n", len(snaps)), x.Positional.ID, strutil.Quoted(snaps))
+		fmt.Fprintf(Stdout, i18n.NG("Snapshot #%s of snap %s forgotten.\n", "Snapshot #%s of snaps %s forgotten.\n", len(snaps)), x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d forgotten.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%s forgotten.\n"), x.Positional.ID)
 	}
 	return nil
 }
@@ -244,10 +244,10 @@ func (x *checkSnapshotCmd) Execute([]string) error {
 	// TODO: also mention the home archives that were actually checked
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of snaps %s verified successfully.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%s of snaps %s verified successfully.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d verified successfully.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%s verified successfully.\n"), x.Positional.ID)
 	}
 	return nil
 }
@@ -283,10 +283,10 @@ func (x *restoreCmd) Execute([]string) error {
 	// TODO: also mention the home archives that were actually restored
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%d of snaps %s.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%s of snaps %s.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%d.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%s.\n"), x.Positional.ID)
 	}
 	return nil
 }
