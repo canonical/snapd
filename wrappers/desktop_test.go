@@ -214,7 +214,7 @@ Icon=${SNAP}/meep
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
-X-SnapName=foo
+X-SnapInstanceName=foo
 Name=foo
 Icon=%s/foo/12/meep
 
@@ -238,7 +238,7 @@ Exec=baz
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 `)
 }
@@ -253,14 +253,14 @@ apps:
 `))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 Exec=snap.app.evil.evil
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 `)
 }
@@ -275,14 +275,14 @@ apps:
 `))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 Exec=snap.app.evil.evil
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop %s/bin/snap.app
 `, dirs.SnapMountDir))
@@ -304,7 +304,7 @@ Exec=snap.app %U
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
 `, dirs.SnapMountDir))
@@ -328,7 +328,7 @@ TryExec=snap.app %U
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 `)
 }
@@ -347,7 +347,7 @@ Invalid[i18n]=key
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Name=foo
 GenericName=bar
 GenericName[de]=einsehrlangeszusammengesetzteswort
@@ -368,7 +368,7 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileAyatana(c *C) {
 	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "snap"}}
 
 	desktopContent := []byte(`[Desktop Entry]
-X-SnapName=snap
+X-SnapInstanceName=snap
 Version=1.0
 Name=Firefox Web Browser
 X-Ayatana-Desktop-Shortcuts=NewWindow;Private
@@ -403,7 +403,7 @@ Exec=snap.app
 	df := filepath.Base(snap.Apps["app"].DesktopFile())
 	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
-X-SnapName=snap_bar
+X-SnapInstanceName=snap_bar
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
 `, dirs.SnapMountDir))
@@ -427,7 +427,7 @@ Exec=snap.app %U
 	df := filepath.Base(snap.Apps["app"].DesktopFile())
 	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
-X-SnapName=snap_bar
+X-SnapInstanceName=snap_bar
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app %%U
 `, dirs.SnapMountDir))

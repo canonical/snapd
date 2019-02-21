@@ -19,7 +19,7 @@ execute: |
 
         diff -u <(head -n5 "/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop") - <<-EOF
     [Desktop Entry]
-    X-SnapName=basic-desktop_${instance}
+    X-SnapInstanceName=basic-desktop_${instance}
     Name=Echo
     Comment=It echos stuff
     Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo

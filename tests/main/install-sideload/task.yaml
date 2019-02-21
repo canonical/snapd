@@ -35,7 +35,7 @@ execute: |
     snap install --dangerous ./basic-desktop_1.0_all.snap
     diff -u <(head -n5 /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop) - <<-EOF
     	[Desktop Entry]
-    	X-SnapName=basic-desktop
+    	X-SnapInstanceName=basic-desktop
     	Name=Echo
     	Comment=It echos stuff
     	Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo
