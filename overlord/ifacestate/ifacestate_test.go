@@ -6090,3 +6090,92 @@ func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
 			Undesired: true,
 		}})
 }
+
+const someSnapYaml = `name: some-snap
+version: 1
+plugs:
+  network:
+`
+
+const ubuntucoreSnapYaml = `name: ubuntu-core
+version: 1.0
+type: os
+slots:
+  network:
+
+`
+const coreSnapYaml2 = `name: core
+version: 1.0
+type: os
+slots:
+  network:
+`
+
+func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
+	mgr := s.manager(c)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	repo := mgr.Repository()
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+		Channel:  "beta",
+	})
+
+	si := snap.SideInfo{RealName: "some-snap", Revision: snap.R(-42)}
+	someSnap := snaptest.MockSnap(c, someSnapYaml, &si)
+	ubuntuCore := snaptest.MockSnap(c, ubuntucoreSnapYaml, &snap.SideInfo{
+		RealName: "ubuntu-core",
+		Revision: snap.R(1),
+	})
+	core := snaptest.MockSnap(c, coreSnapYaml2, &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+
+	c.Assert(repo.AddSnap(ubuntuCore), IsNil)
+	c.Assert(repo.AddSnap(core), IsNil)
+	c.Assert(repo.AddSnap(someSnap), IsNil)
+
+	_, err := repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "network"}, SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: "network"}}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	repoConns, err := repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+
+	st.Set("conns", map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+
+	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "ubuntu-core", "core"), IsNil)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true}})
+
+	repoConns, err = repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 0)
+	repoConns, err = repo.Connections("core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+
+	// migrate back (i.e. undo)
+	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "core", "ubuntu-core"), IsNil)
+
+	// check connections
+	conns = nil
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+	repoConns, err = repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+	repoConns, err = repo.Connections("core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 0)
+}
