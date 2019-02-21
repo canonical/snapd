@@ -335,7 +335,7 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 	if err != nil {
 		return err
 	}
-	for id, _ := range conns {
+	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
