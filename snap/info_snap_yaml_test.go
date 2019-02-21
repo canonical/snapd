@@ -1463,6 +1463,9 @@ apps:
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
+   activate-on:
+   - slot1
+   - slot2
    bus-name: busName
    sockets:
      sock1:
@@ -1483,7 +1486,7 @@ apps:
 		StartTimeout:    timeout.Timeout(42 * time.Minute),
 		StopCommand:     "stop-cmd",
 		PostStopCommand: "post-stop-cmd",
-		BusName:         "busName",
+		ActivateOn:      []string{"slot1", "slot2"},
 		Sockets:         map[string]*snap.SocketInfo{},
 	}
 

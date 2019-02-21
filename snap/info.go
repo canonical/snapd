@@ -851,10 +851,7 @@ type AppInfo struct {
 	RefreshMode     string
 	StopMode        StopModeType
 
-	// TODO: this should go away once we have more plumbing and can change
-	// things vs refactor
-	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
-	BusName string
+	ActivateOn []string
 
 	Plugs   map[string]*PlugInfo
 	Slots   map[string]*SlotInfo

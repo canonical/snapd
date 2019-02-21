@@ -637,7 +637,6 @@ func ValidateApp(app *AppInfo) error {
 		"stop-command":      app.StopCommand,
 		"reload-command":    app.ReloadCommand,
 		"post-stop-command": app.PostStopCommand,
-		"bus-name":          app.BusName,
 	}
 
 	for name, value := range checks {
@@ -663,6 +662,15 @@ func ValidateApp(app *AppInfo) error {
 	for _, socket := range app.Sockets {
 		if err := validateAppSocket(socket); err != nil {
 			return fmt.Errorf("invalid definition of socket %q: %v", socket.Name, err)
+		}
+	}
+
+	// ActivateOn is a list of slot names that use the "dbus" type
+	for _, slotName := range app.ActivateOn {
+		if slot, ok := app.Slots[slotName]; !ok {
+			return fmt.Errorf("invalid activate-on value %q: slot not found", slotName)
+		} else if slot.Interface != "dbus" {
+			return fmt.Errorf("invalid activate-on value %q: slot does not use dbus interface", slotName)
 		}
 	}
 

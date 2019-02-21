@@ -441,7 +441,6 @@ func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar'baz"}}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", CommandChain: []string{"bar baz"}}), NotNil)
 }
@@ -564,6 +563,51 @@ func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:$-]*$')`)
+}
+
+func (s *ValidateSuite) TestAppActivateOn(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+apps:
+  server:
+    activate-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), IsNil)
+}
+
+func (s *ValidateSuite) TestAppActivateOnSlotNotFound(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+apps:
+  server:
+    activate-on: [dbus-slot]
+  other-server:
+    slots: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activate-on value "dbus-slot": slot not found`)
+}
+
+func (s *ValidateSuite) TestAppActivateOnSlotNotDbus(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+apps:
+  server:
+    slots: [network-bind]
+    activate-on: [network-bind]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activate-on value "network-bind": slot does not use dbus interface`)
 }
 
 // Validate
