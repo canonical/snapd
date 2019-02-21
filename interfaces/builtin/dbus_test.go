@@ -98,12 +98,10 @@ slots:
     interface: dbus
     bus: system
     name: org.test-system-activatable
-    activatable: true
   test-session-activatable-slot:
     interface: dbus
     bus: session
     name: org.test-session-activatable
-    activatable: true
 
 plugs:
   test-session-plug:
@@ -139,10 +137,13 @@ apps:
   test-session-activatable-provider:
     slots:
     - test-session-activatable-slot
+    activate-on:
+    - test-session-activatable-slot
   test-system-activatable-provider:
     daemon: dbus
-    bus-name: org.test-session-activatable
     slots:
+    - test-system-activatable-slot
+    activate-on:
     - test-system-activatable-slot
 `, nil)
 }
@@ -304,10 +305,11 @@ slots:
     interface: dbus
     bus: session
     name: org.dbus-snap.session
-    activatable: true
 apps:
   app-dbus-slot:
     slots:
+    - dbus-service-slot
+    activate-on:
     - dbus-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -323,13 +325,16 @@ slots:
     interface: dbus
     bus: session
     name: org.dbus-snap.session
-    activatable: true
 apps:
   app-dbus-slot:
     slots:
     - dbus-service-slot
+    activate-on:
+    - dbus-service-slot
   app-dbus-slot-duplicated:
     slots:
+    - dbus-service-slot
+    activate-on:
     - dbus-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -346,11 +351,12 @@ slots:
     interface: dbus
     bus: session
     name: org.dbus-snap.session
-    activatable: true
 apps:
   system-service:
     daemon: simple
     slots:
+    - dbus-service-slot
+    activate-on:
     - dbus-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -367,10 +373,11 @@ slots:
     interface: dbus
     bus: session
     name: org.dbus-snap.session
-    activatable: true
 apps:
   app-dbus-slot:
     slots:
+    - dbus-service-slot
+    activate-on:
     - dbus-service-slot
 `
 
@@ -397,10 +404,11 @@ slots:
     interface: dbus
     bus: system
     name: org.dbus-snap.system
-    activatable: true
 apps:
   app-dbus-slot:
     slots:
+    - dbus-service-slot
+    activate-on:
     - dbus-service-slot
 `
 
@@ -428,10 +436,11 @@ slots:
     interface: dbus
     bus: system
     name: org.dbus-snap.system
-    activatable: true
 apps:
   app-dbus-slot:
     slots:
+    - dbus-service-slot
+    activate-on:
     - dbus-service-slot
 `
 

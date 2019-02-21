@@ -232,37 +232,30 @@ func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
 var isInvalidSnappyBusName = regexp.MustCompile("-[0-9]+$").MatchString
 
 // Obtain yaml-specified bus well-known name
-func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (bus, name string, activatable bool, err error) {
+func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (bus, name string, err error) {
 	// bus attribute
 	if err := attribs.Attr("bus", &bus); err != nil {
-		return "", "", false, fmt.Errorf("cannot find attribute 'bus'")
+		return "", "", fmt.Errorf("cannot find attribute 'bus'")
 	}
 
 	if bus != "session" && bus != "system" {
-		return "", "", false, fmt.Errorf("bus '%s' must be one of 'session' or 'system'", bus)
+		return "", "", fmt.Errorf("bus '%s' must be one of 'session' or 'system'", bus)
 	}
 
 	// name attribute
 	if err := attribs.Attr("name", &name); err != nil {
-		return "", "", false, fmt.Errorf("cannot find attribute 'name'")
+		return "", "", fmt.Errorf("cannot find attribute 'name'")
 	}
 
 	if err = interfaces.ValidateDBusBusName(name); err != nil {
-		return "", "", false, err
+		return "", "", err
 	}
 
 	if isInvalidSnappyBusName(name) {
-		return "", "", false, fmt.Errorf("DBus bus name must not end with -NUMBER")
+		return "", "", fmt.Errorf("DBus bus name must not end with -NUMBER")
 	}
 
-	// activatable attribute (optional)
-	if value, ok := attribs.Lookup("activatable"); ok {
-		if activatable, ok = value.(bool); !ok {
-			return "", "", false, fmt.Errorf("activatable attribute must be boolean")
-		}
-	}
-
-	return bus, name, activatable, nil
+	return bus, name, nil
 }
 
 // Determine AppArmor dbus abstraction to use based on bus
@@ -312,12 +305,12 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 }
 
 func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	bus, name, _, err := iface.getAttribs(plug)
+	bus, name, err := iface.getAttribs(plug)
 	if err != nil {
 		return err
 	}
 
-	busSlot, nameSlot, _, err := iface.getAttribs(slot)
+	busSlot, nameSlot, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
@@ -349,7 +342,7 @@ func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 }
 
 func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	bus, name, activatable, err := iface.getAttribs(slot)
+	bus, name, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
@@ -362,21 +355,22 @@ func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *sn
 	}
 
 	// handle activatable services
-	if activatable && len(slot.Apps) == 1 {
-		var app *snap.AppInfo
-		for _, app = range slot.Apps {
-			break
-		}
-		err = spec.AddService(bus, name, app)
-		if err != nil {
-			return err
+	for _, app := range slot.Apps {
+		for _, slotName := range app.ActivateOn {
+			if slotName == slot.Name {
+				err = spec.AddService(bus, name, app)
+				if err != nil {
+					return err
+				}
+				break
+			}
 		}
 	}
 	return nil
 }
 
 func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	bus, name, _, err := iface.getAttribs(slot)
+	bus, name, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
@@ -408,12 +402,12 @@ func (iface *dbusInterface) SecCompPermanentSlot(spec *seccomp.Specification, sl
 }
 
 func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	bus, name, _, err := iface.getAttribs(slot)
+	bus, name, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
 
-	busPlug, namePlug, _, err := iface.getAttribs(plug)
+	busPlug, namePlug, err := iface.getAttribs(plug)
 	if err != nil {
 		return err
 	}
@@ -438,24 +432,30 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 }
 
 func (iface *dbusInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, _, _, err := iface.getAttribs(plug)
+	_, _, err := iface.getAttribs(plug)
 	return err
 }
 
 func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	bus, name, activatable, err := iface.getAttribs(slot)
+	bus, name, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
 
-	if activatable {
-		if len(slot.Apps) > 1 {
-			return fmt.Errorf("cannot add activatable dbus service slot to multiple apps")
+	var apps []*snap.AppInfo
+	for _, app := range slot.Apps {
+		for _, slotName := range app.ActivateOn {
+			if slotName == slot.Name {
+				apps = append(apps, app)
+				break
+			}
 		}
-		var app *snap.AppInfo
-		for _, app = range slot.Apps {
-			break
-		}
+	}
+	if len(apps) > 1 {
+		return fmt.Errorf("cannot add activatable dbus service slot to multiple apps")
+	}
+	if len(apps) == 1 {
+		app := apps[0]
 		// TODO: support user daemons
 		if app.IsService() && bus != "system" {
 			return fmt.Errorf("system daemons can only attach to the system bus")
