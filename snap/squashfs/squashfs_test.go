@@ -590,6 +590,14 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestBuildDate(c *C) {
+	// This env is used in reproducible builds and will force
+	// squashfs to use a specific date. We need to unset it
+	// for this specific test.
+	if oldEnv := os.Getenv("SOURCE_DATE_EPOCH"); oldEnv != "" {
+		os.Unsetenv("SOURCE_DATE_EPOCH")
+		defer func() { os.Setenv("SOURCE_DATE_EPOCH", oldEnv) }()
+	}
+
 	// make a directory
 	d := c.MkDir()
 	// set its time waaay back

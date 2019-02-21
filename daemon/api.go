@@ -1889,7 +1889,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				conn, err := repo.Connection(connRef)
+				var conn *interfaces.Connection
+				conn, err = repo.Connection(connRef)
 				if err != nil {
 					break
 				}
@@ -2470,6 +2471,9 @@ func convertBuyError(err error) Response {
 type debugAction struct {
 	Action  string `json:"action"`
 	Message string `json:"message"`
+	Params  struct {
+		ChgID string `json:"chg-id"`
+	} `json:"params"`
 }
 
 type ConnectivityStatus struct {
@@ -2526,6 +2530,23 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		sort.Strings(status.Unreachable)
 
 		return SyncResponse(status, nil)
+	case "change-timings":
+		chg := st.Change(a.Params.ChgID)
+		if chg == nil {
+			return BadRequest("cannot find change: %v", a.Message)
+		}
+		m := map[string]struct {
+			DoingTime, UndoingTime time.Duration
+		}{}
+		for _, t := range chg.Tasks() {
+			m[t.ID()] = struct {
+				DoingTime, UndoingTime time.Duration
+			}{
+				DoingTime:   t.DoingTime(),
+				UndoingTime: t.UndoingTime(),
+			}
+		}
+		return SyncResponse(m, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

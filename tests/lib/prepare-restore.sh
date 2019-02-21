@@ -344,7 +344,10 @@ prepare_project() {
 
         quiet apt-get install -y software-properties-common
 
-        echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
+	# FIXME: trusty-proposed disabled because there is an inconsistency
+	#        in the trusty-proposed archive:
+	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
+        #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
         quiet apt-get update
 

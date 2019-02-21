@@ -213,18 +213,15 @@ func (s *TestInterfaceSuite) TestHotplugDeviceDetectedOK(c *C) {
 		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
-		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			spec.SetSlot(&hotplug.RequestedSlotSpec{
-				Name: "slot",
-			})
-			return nil
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+			return &hotplug.ProposedSlot{Name: "slot"}, nil
 		},
 	}
 
 	dev := &hotplug.HotplugDeviceInfo{}
-	spec := hotplug.NewSpecification()
-	c.Assert(iface.HotplugDeviceDetected(dev, spec), IsNil)
-	c.Assert(spec.Slot().Name, Equals, "slot")
+	slot, err := iface.HotplugDeviceDetected(dev)
+	c.Assert(err, IsNil)
+	c.Assert(slot.Name, Equals, "slot")
 }
 
 func (s *TestInterfaceSuite) TestHotplugDeviceDetectedError(c *C) {
@@ -232,11 +229,11 @@ func (s *TestInterfaceSuite) TestHotplugDeviceDetectedError(c *C) {
 		TestInterface: ifacetest.TestInterface{
 			InterfaceName: "test",
 		},
-		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
-			return fmt.Errorf("error")
+		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+			return nil, fmt.Errorf("error")
 		},
 	}
 	dev := &hotplug.HotplugDeviceInfo{}
-	spec := hotplug.NewSpecification()
-	c.Assert(iface.HotplugDeviceDetected(dev, spec), ErrorMatches, "error")
+	_, err := iface.HotplugDeviceDetected(dev)
+	c.Assert(err, ErrorMatches, "error")
 }
