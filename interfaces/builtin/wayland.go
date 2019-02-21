@@ -73,6 +73,9 @@ network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:input[0-9]* r,
 /run/udev/data/+platform:* r,
+
+# MESA reads this dri config file
+/etc/drirc r,
 `
 
 const waylandPermanentSlotSecComp = `
@@ -97,7 +100,7 @@ const waylandConnectedPlugAppArmor = `
 # Allow access to the Wayland compositor server socket
 owner /run/user/[0-9]*/wayland-[0-9]* rw,
 
-# Needed when using QT_QPA_PLATFORM=wayland-egl
+# Needed when using QT_QPA_PLATFORM=wayland-egl (MESA dri config)
 /etc/drirc r,
 `
 
