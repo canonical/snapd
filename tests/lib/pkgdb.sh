@@ -178,7 +178,7 @@ distro_install_local_package() {
             quiet yum -y localinstall "$@"
             ;;
         opensuse-*)
-            quiet rpm -i "$@"
+            quiet rpm -i --replacepkgs "$@"
             ;;
         arch-*)
             pacman -U --noconfirm "$@"
