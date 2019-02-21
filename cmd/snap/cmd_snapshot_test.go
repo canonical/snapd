@@ -35,16 +35,16 @@ type snapshotCmdArgs struct {
 
 var snapshotsTests = []getCmdArgs{{
 	args:  "restore x",
-	error: "invalid argument for set id’: expected a non-negative integer argument",
+	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
 	args:  "saved --id=x",
-	error: "invalid argument for set id’: expected a non-negative integer argument",
+	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
 	args:  "forget x",
-	error: "invalid argument for set id’: expected a non-negative integer argument",
+	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
 	args:  "check-snapshot x",
-	error: "invalid argument for set id’: expected a non-negative integer argument",
+	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
 	args:   "restore 1",
 	stdout: "Restored snapshot #1.\n",
