@@ -5,7 +5,7 @@ summary: Check that snaps can use stop-timeout
 # systemd on 14.04 does not really honour TimeoutStopSec
 systems: [-ubuntu-14*]
 
-restore:
+restore: |
     f="$TESTSLIB/snaps/test-snapd-service-stop-timeout/staaap.sh"
     if [ -e "$f.bak" ]; then
         mv -v "$f.bak" "$f"

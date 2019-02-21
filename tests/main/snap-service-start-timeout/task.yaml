@@ -3,7 +3,7 @@ summary: Check that snaps can use start-timeout
 # this test is expected to fail once we run the tests for SELinux
 # distros in Enforce mode
 
-restore:
+restore: |
     f="$TESTSLIB/snaps/test-snapd-service-start-timeout/forking.sh"
     if [ -e "$f.bak" ]; then
         mv -v "$f.bak" "$f"
