@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -477,20 +478,26 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
-func validateAppWatchdog(app *AppInfo) error {
-	if app.WatchdogTimeout == 0 {
-		// no watchdog
-		return nil
+func validateAppTimeouts(app *AppInfo) error {
+	type T struct {
+		desc    string
+		timeout timeout.Timeout
 	}
-
-	if !app.IsService() {
-		return errors.New("watchdog-timeout is only applicable to services")
+	for _, t := range []T{
+		{"start-timeout", app.StartTimeout},
+		{"stop-timeout", app.StopTimeout},
+		{"watchdog-timeout", app.WatchdogTimeout},
+	} {
+		if t.timeout == 0 {
+			continue
+		}
+		if !app.IsService() {
+			return fmt.Errorf("%s is only applicable to services", t.desc)
+		}
+		if t.timeout < 0 {
+			return fmt.Errorf("%s cannot be negative", t.desc)
+		}
 	}
-
-	if app.WatchdogTimeout < 0 {
-		return errors.New("watchdog-timeout cannot be negative")
-	}
-
 	return nil
 }
 
@@ -606,7 +613,7 @@ func ValidateApp(app *AppInfo) error {
 		return err
 	}
 
-	if err := validateAppWatchdog(app); err != nil {
+	if err := validateAppTimeouts(app); err != nil {
 		return err
 	}
 

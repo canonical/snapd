@@ -423,6 +423,9 @@ ExecStopPost={{.App.LauncherPostStopCommand}}
 {{- if .StopTimeout}}
 TimeoutStopSec={{.StopTimeout.Seconds}}
 {{- end}}
+{{- if .StartTimeout}}
+TimeoutStartSec={{.StartTimeout.Seconds}}
+{{- end}}
 Type={{.App.Daemon}}
 {{- if .Remain}}
 RemainAfterExit={{.Remain}}
@@ -477,6 +480,7 @@ WantedBy={{.ServicesTarget}}
 
 		Restart            string
 		StopTimeout        time.Duration
+		StartTimeout       time.Duration
 		ServicesTarget     string
 		PrerequisiteTarget string
 		MountUnit          string
@@ -493,6 +497,7 @@ WantedBy={{.ServicesTarget}}
 
 		Restart:            restartCond,
 		StopTimeout:        serviceStopTimeout(appInfo),
+		StartTimeout:       time.Duration(appInfo.StartTimeout),
 		ServicesTarget:     systemd.ServicesTarget,
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
