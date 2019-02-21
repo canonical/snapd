@@ -174,7 +174,7 @@ execute: |
     ensure_normal_perms
 
     # Back up the /etc/fstab file and define a NFS mount mount there.
-    cp /etc/fstab fstab.orig
+    cp -a /etc/fstab fstab.orig
     echo 'localhost:/home /home nfs defaults 0 0' >> /etc/fstab
 
     # Restart snapd and ensure that we have extra permissions again.
