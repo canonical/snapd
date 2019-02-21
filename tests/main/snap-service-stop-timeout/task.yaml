@@ -1,5 +1,16 @@
 summary: Check that snaps can use stop-timeout
 
+# this test is expected to fail once we run the tests for SELinux
+# distros in Enforce mode
+# systemd on 14.04 does not really honour TimeoutStopSec
+systems: [-ubuntu-14*]
+
+restore:
+    f="$TESTSLIB/snaps/test-snapd-service-stop-timeout/staaap.sh"
+    if [ -e "$f.bak" ]; then
+        mv -v "$f.bak" "$f"
+    fi
+
 execute: |
     dir="$TESTSLIB/snaps/test-snapd-service-stop-timeout"
     stamp="/var/snap/test-snapd-service-stop-timeout/current/stamp"
@@ -11,7 +22,7 @@ execute: |
     test -e "$stamp"
 
     # add a 'sleep 30'
-    sed -i -e 's/^# @@@/sleep 30/' "$dir/staaap.sh"
+    sed -i.bak -e 's/^# @@@/sleep 30/' "$dir/staaap.sh"
 
     snap start test-snapd-service-stop-timeout
 
