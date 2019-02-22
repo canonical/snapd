@@ -661,8 +661,8 @@ Type={{.App.Daemon}}
 {{- if .Remain}}
 RemainAfterExit={{.Remain}}
 {{- end}}
-{{- if .App.BusName}}
-BusName={{.App.BusName}}
+{{- if .BusName}}
+BusName={{.BusName}}
 {{- end}}
 {{- if .App.WatchdogTimeout}}
 WatchdogSec={{.App.WatchdogTimeout.Seconds}}
@@ -717,6 +717,14 @@ WantedBy={{.ServicesTarget}}
 		killMode = "process"
 	}
 
+	var busName string
+	if appInfo.Daemon == "dbus" && len(appInfo.ActivateOn) > 0 {
+		slot := appInfo.Slots[appInfo.ActivateOn[len(appInfo.ActivateOn)-1]]
+		if err := slot.Attr("name", &busName); err != nil {
+			logger.Noticef("could not get 'name' attribute of dbus slot %q: %v", slot.Name, err)
+		}
+	}
+
 	wrapperData := struct {
 		App *snap.AppInfo
 
@@ -731,6 +739,7 @@ WantedBy={{.ServicesTarget}}
 		KillMode           string
 		KillSignal         string
 		OOMAdjustScore     int
+		BusName            string
 		Before             []string
 		After              []string
 
@@ -746,6 +755,7 @@ WantedBy={{.ServicesTarget}}
 		KillMode:       killMode,
 		KillSignal:     appInfo.StopMode.KillSignal(),
 		OOMAdjustScore: oomAdjustScore,
+		BusName:        busName,
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),

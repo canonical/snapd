@@ -253,6 +253,11 @@ func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusName(c *C) {
 	yamlText := `
 name: snap
 version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: system
+    name: foo.bar.baz
 apps:
     app:
         command: bin/start
@@ -260,8 +265,9 @@ apps:
         reload-command: bin/reload
         post-stop-command: bin/stop --post
         stop-timeout: 10s
-        bus-name: foo.bar.baz
         daemon: dbus
+        activate-on:
+        - dbus-slot
 `
 
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
