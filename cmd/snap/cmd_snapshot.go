@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/jessevdk/go-flags"
 
@@ -173,7 +174,7 @@ func (x *saveCmd) Execute([]string) error {
 	y := &savedCmd{
 		clientMixin:   x.clientMixin,
 		durationMixin: x.durationMixin,
-		ID:            snapshotID(setID),
+		ID:            snapshotID(strconv.FormatUint(setID, 10)),
 	}
 	return y.Execute(nil)
 }
