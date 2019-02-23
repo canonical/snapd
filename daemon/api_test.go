@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -489,6 +490,12 @@ version: %s
 		if _, ok := err.(*asserts.RevisionError); !ok {
 			c.Assert(err, check.IsNil)
 		}
+		snapInfo.Publisher = snap.StoreAccount{
+			ID:          devAcct.AccountID(),
+			Username:    devAcct.Username(),
+			DisplayName: devAcct.DisplayName(),
+			Validation:  devAcct.Validation(),
+		}
 
 		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 			"series":       "16",
@@ -770,10 +777,11 @@ UnitFileState=enabled
 					},
 				},
 			},
-			Broken:    "",
-			Contact:   "",
-			License:   "GPL-3.0",
-			CommonIDs: []string{"org.foo.cmd"},
+			Broken:      "",
+			Contact:     "",
+			License:     "GPL-3.0",
+			CommonIDs:   []string{"org.foo.cmd"},
+			Screenshots: []snap.ScreenshotInfo{},
 		},
 		Meta: meta,
 	}
@@ -842,6 +850,12 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		},
 	}
 
+	publisher := snap.StoreAccount{
+		ID:          "some-dev-id",
+		Username:    "some-dev",
+		DisplayName: "Some Developer",
+		Validation:  "poor",
+	}
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			SnapID:            "some-snap-id",
@@ -867,6 +881,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 			Size:     42,
 			Sha3_384: "some-sum",
 		},
+		Publisher: publisher,
 	}
 
 	// make InstallDate work
@@ -879,12 +894,6 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 	}
 	about := aboutSnap{
 		info: info,
-		publisher: &snap.StoreAccount{
-			ID:          "some-dev-id",
-			Username:    "some-dev",
-			DisplayName: "Some Developer",
-			Validation:  "poor",
-		},
 		snapst: &snapstate.SnapState{
 			Active:  true,
 			Channel: "flaky/beta",
@@ -903,7 +912,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		Summary:          "a summary",
 		Description:      "the\nlong\ndescription",
 		Developer:        "some-dev",
-		Publisher:        about.publisher,
+		Publisher:        &publisher,
 		Icon:             "https://example.com/icon.png",
 		Type:             "app",
 		Base:             "the-base",
@@ -926,6 +935,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
+		Screenshots:      media.Screenshots(),
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -7153,7 +7163,7 @@ func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(bySnapApp(appInfos))
+	sort.Sort(cmd.BySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7166,7 +7176,7 @@ func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a", "snap-a.svc1"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(bySnapApp(appInfos))
+	sort.Sort(cmd.BySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7188,7 +7198,7 @@ func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 	}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 3)
-	sort.Sort(bySnapApp(appInfos))
+	sort.Sort(cmd.BySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
