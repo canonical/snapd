@@ -677,10 +677,10 @@ version: 1.0`
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
 }
 
-func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {
+func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {
 	// First check installed snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
-	info0 := snaptest.MockSnap(c, yaml, sideInfo)
+	info0 := snaptest.MockSnapInstance(c, instanceName, yaml, sideInfo)
 	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
 	info, err := snap.ReadInfo(info0.InstanceName(), sideInfo)
 	c.Check(err, IsNil)
@@ -698,7 +698,7 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents st
 func (s *infoSuite) TestReadInfoNoHooks(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", nil, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", nil, func(c *C, info *snap.Info) {
 		// Verify that no hooks were loaded for this snap
 		c.Check(info.Hooks, HasLen, 0)
 	})
@@ -707,7 +707,7 @@ version: 1.0`
 func (s *infoSuite) TestReadInfoSingleImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"test-hook"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"test-hook"}, func(c *C, info *snap.Info) {
 		// Verify that the `test-hook` hook has now been loaded, and that it has
 		// no associated plugs.
 		c.Check(info.Hooks, HasLen, 1)
@@ -718,7 +718,7 @@ version: 1.0`
 func (s *infoSuite) TestReadInfoMultipleImplicitHooks(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"foo", "bar"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"foo", "bar"}, func(c *C, info *snap.Info) {
 		// Verify that both hooks have now been loaded, and that neither have any
 		// associated plugs.
 		c.Check(info.Hooks, HasLen, 2)
@@ -733,7 +733,7 @@ func (s *infoSuite) TestReadInfoInvalidImplicitHook(c *C) {
 
 	yaml := `name: foo
 version: 1.0`
-	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"foo", "bar"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"foo", "bar"}, func(c *C, info *snap.Info) {
 		// Verify that only foo has been loaded, not bar
 		c.Check(info.Hooks, HasLen, 1)
 		verifyImplicitHook(c, info, "foo", nil)
@@ -747,7 +747,7 @@ hooks:
   explicit:
     plugs: [test-plug]
     slots: [test-slot]`
-	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
 		// Verify that the `implicit` hook has now been loaded, and that it has
 		// no associated plugs. Also verify that the `explicit` hook is still
 		// valid.
@@ -767,8 +767,22 @@ slots:
 hooks:
   explicit:
 `
-	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"explicit"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"explicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 1)
+		verifyExplicitHook(c, info, "explicit", []string{"test-plug"}, []string{"test-slot"})
+	})
+}
+
+func (s *infoSuite) TestParallelInstanceReadInfoImplicitAndExplicitHooks(c *C) {
+	yaml := `name: foo
+version: 1.0
+hooks:
+  explicit:
+    plugs: [test-plug]
+    slots: [test-slot]`
+	s.checkInstalledSnapAndSnapFile(c, "foo_instance", yaml, "SNAP", []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 2)
+		verifyImplicitHook(c, info, "implicit", nil)
 		verifyExplicitHook(c, info, "explicit", []string{"test-plug"}, []string{"test-slot"})
 	})
 }
@@ -793,7 +807,7 @@ plugs:
 slots:
   test-slot:
 `
-	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 2)
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)
@@ -827,7 +841,7 @@ slots:
 		c.Assert(explicitHook.Slots["test-slot"], DeepEquals, slot)
 	})
 
-	s.checkInstalledSnapAndSnapFile(c, yaml2, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml2, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 1)
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)

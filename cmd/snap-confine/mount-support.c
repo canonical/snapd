@@ -343,7 +343,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
-			die("cannot use result from readlink: %s", src);
+			die("cannot use result from readlink: %s", self);
 		}
 		src = dirname(self);
 		// dirname(path) might return '.' depending on path.
@@ -581,7 +581,10 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 					die("cannot locate the core or legacy core snap (current symlink missing?)");
 				}
 			}
-			die("cannot locate the base snap: %s", base_snap_name);
+			// If after the special case handling above we are
+			// still not ok, die
+			if (access(rootfs_dir, F_OK) != 0)
+			        die("cannot locate the base snap: %s", base_snap_name);
 		}
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,

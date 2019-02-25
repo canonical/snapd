@@ -97,11 +97,11 @@ execute: |
     CHANNELS="stable candidate beta edge"
     for CHANNEL in $CHANNELS; do
         # shellcheck disable=SC2153
-        if ! CHANNEL_INFO="$(snap info "$SNAP" | grep " $CHANNEL: ")"; then
+        if ! CHANNEL_INFO="$(snap info --unicode=never "$SNAP" | grep " $CHANNEL: ")"; then
             echo "Snap $SNAP not found"
             exit
         fi
-        if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*–"; then
+        if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*--"; then
             continue
         fi
 

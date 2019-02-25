@@ -74,6 +74,17 @@ func (s *backendSuite) TearDownTest(c *C) {
 	s.snapSeccomp.Restore()
 }
 
+func (s *backendSuite) TestInitialize(c *C) {
+	err := s.Backend.Initialize()
+	c.Assert(err, IsNil)
+	fname := filepath.Join(dirs.SnapSeccompDir, "global.bin")
+	if seccomp.IsBigEndian() {
+		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileBE)
+	} else {
+		c.Check(fname, testutil.FileEquals, seccomp.GlobalProfileLE)
+	}
+}
+
 // Tests for Setup() and Remove()
 func (s *backendSuite) TestName(c *C) {
 	c.Check(s.Backend.Name(), Equals, interfaces.SecuritySecComp)

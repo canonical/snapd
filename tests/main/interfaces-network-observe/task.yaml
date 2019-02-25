@@ -37,7 +37,6 @@ restore: |
 
     #shellcheck disable=SC2153
     systemd_stop_and_destroy_unit "$SERVICE_NAME"
-    rm -f net-query.output "$SERVICE_FILE"
 
 execute: |
     echo "The interface is disconnected by default"
@@ -49,13 +48,16 @@ execute: |
     echo "Then the snap command can query network status information"
     network-observe-consumer | MATCH "LISTEN.*:$PORT"
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "When the plug is disconnected"
-        snap disconnect network-observe-consumer:network-observe
-
-        echo "Then the snap command can not query network status information"
-        if network-observe-consumer 2>net-query.output; then
-            echo "Expected error caling command with disconnected plug"
-        fi
-        grep -Pq "Permission denied" < net-query.output
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
     fi
+
+    echo "When the plug is disconnected"
+    snap disconnect network-observe-consumer:network-observe
+
+    echo "Then the snap command can not query network status information"
+    if network-observe-consumer 2> net-query.output; then
+        echo "Expected error caling command with disconnected plug"
+    fi
+    grep -Pq "Permission denied" < net-query.output
+

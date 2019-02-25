@@ -23,7 +23,6 @@ environment:
 restore: |
     if [ -e dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
-        rm -f dbus-launch.pid
     fi
 
     # In case the process gvfsd-metadata does not finish by itself, it is manually stopped
@@ -66,27 +65,10 @@ execute: |
     END:VCARD
     EOF
 
-    test-snapd-eds.contacts load test-address-book << EOF
-    BEGIN:VCARD
-    VERSION:3.0
-    FN:John Doe
-    N:Doe;John;;;
-    EMAIL;type=WORK:john@example.com
-    END:VCARD
-    EOF
-
     echo "We can also retrieve those contacts"
     # Filter out ID and revision, which are unpredictable
     test-snapd-eds.contacts list test-address-book | sed -E 's/^(UID|REV):.*/\1:.../' > /tmp/contacts.vcf
     diff -uw - /tmp/contacts.vcf << EOF
-    BEGIN:VCARD
-    VERSION:3.0
-    FN:John Doe
-    N:Doe;John;;;
-    EMAIL;type=WORK:john@example.com
-    UID:...
-    REV:...
-    END:VCARD
     BEGIN:VCARD
     VERSION:3.0
     FN:Fred Smith

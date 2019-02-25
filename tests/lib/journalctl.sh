@@ -35,13 +35,13 @@ check_journalctl_ready(){
 check_journalctl_log(){
     expression=$1
     shift
-    for _ in $(seq 20); do
+    for _ in $(seq 10); do
         log=$(get_journalctl_log "$@")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
         fi
-        echo "Match failed, retrying"
-        sleep .5
+        echo "Match for \"$expression\" failed, retrying"
+        sleep 1
     done
     return 1
 }
