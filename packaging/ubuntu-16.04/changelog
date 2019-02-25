@@ -1,8 +1,19 @@
 snapd (2.37.3) xenial; urgency=medium
 
-  * placeholder changelog
+  * New upstream release, LP: #1811233
+    - interfaces/seccomp: generate global seccomp profile
+    - overlord/snapstate: add some randomness to the catalog refresh
+    - tests: add upgrade test from 2.15.2ubuntu1 -> current snapd
+    - snap-confine: fix fallback to ubuntu-core
+    - packaging: avoid race in snapd.postinst
+    - overlord/snapstate: discard mount namespace when undoing 1st link
+      snap
+    - cmd/snap-confine: allow writes to /var/lib/** again
+    - tests: stop catalog-update/apt-hooks test until the catlog refresh
+      is randomized
+    - debian: ensure leftover usr.lib.snapd.snap-confine is gone
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 19 Feb 2019 09:18:37 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 18 Feb 2019 17:17:33 +0100
 
 snapd (2.37.2) xenial; urgency=medium
 

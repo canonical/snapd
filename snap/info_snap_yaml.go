@@ -78,6 +78,7 @@ type appYaml struct {
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
+	StartTimeout    timeout.Timeout `yaml:"start-timeout,omitempty"`
 	WatchdogTimeout timeout.Timeout `yaml:"watchdog-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
@@ -320,6 +321,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			LegacyAliases:   yApp.Aliases,
 			Command:         yApp.Command,
 			CommandChain:    yApp.CommandChain,
+			StartTimeout:    yApp.StartTimeout,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
