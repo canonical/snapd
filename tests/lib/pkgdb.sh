@@ -543,6 +543,8 @@ pkg_dependencies_ubuntu_classic(){
         man
         nfs-kernel-server
         printer-driver-cups-pdf
+        python3-dbus
+        python3-gi
         python3-yaml
         upower
         weston

@@ -1,0 +1,52 @@
+summary: the desktop portal screenshot API works for snap applications
+description: |
+    The xdg-desktop-portal screenshot interface provides a way for
+    confined applications to take screenshots with the consent of the
+    user.
+
+    While there is nothing preventing an X11 client from screenshot
+    other apps or the entire screen, this is not possible with
+    Wayland.  Instead, it is necessary to ask the compositor to take a
+    screenshot.
+
+    While the gnome-shell compositor offers a D-Bus API to make
+    screenshots, it is not appropriate to expose to confined
+    applications.  There is no user prompt, and it can be used to make
+    the shell write to arbitrary paths.
+
+    The xdg-desktop-portal service addresses this by providing an API
+    that prompts the user and delivers the screenshot to the app
+    securely via the document portal.
+
+# Only enable the test on systems we know portals to function on.
+# Expand as needed.
+systems:
+  - ubuntu-18.04-*
+  - ubuntu-18.10-*
+  - ubuntu-19.04-*
+
+prepare: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    setup_portals
+
+restore: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    teardown_portals
+    rm -f /tmp/screenshot.txt
+
+execute: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    echo "Install the portals test client"
+    snap install --edge test-snapd-portal-client
+
+    echo "The confined application can take screenshots"
+    # The fake portal UI uses this file as the screenshot
+    echo "my screenshot" > /tmp/screenshot.txt
+    # file ownership is exposed through the document portal, and our
+    # AppArmor policy uses the @owner restriction.
+    chown test:test /tmp/screenshot.txt
+    as_user test-snapd-portal-client screenshot | MATCH "my screenshot"
