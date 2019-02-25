@@ -91,8 +91,8 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Plug                          Slot  Interface  Notes\n" +
-		"keyboard-lights:capslock-led  -     leds       -\n"
+		"Interface  Plug                          Slot  Notes\n" +
+		"leds       keyboard-lights:capslock-led  -     -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 
@@ -107,8 +107,8 @@ func (s *SnapSuite) TestConnectionsNoneConnectedPlugs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout = "" +
-		"Plug                          Slot  Interface  Notes\n" +
-		"keyboard-lights:capslock-led  -     leds       -\n"
+		"Interface  Plug                          Slot  Notes\n" +
+		"leds       keyboard-lights:capslock-led  -     -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -151,8 +151,8 @@ func (s *SnapSuite) TestConnectionsNoneConnectedSlots(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Plug  Slot                        Interface  Notes\n" +
-		"-     leds-provider:capslock-led  leds       -\n"
+		"Interface  Plug  Slot                        Notes\n" +
+		"leds       -     leds-provider:capslock-led  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -171,7 +171,7 @@ func (s *SnapSuite) TestConnectionsSomeConnected(c *C) {
 				Interface: "leds",
 				Manual:    true,
 			}, {
-				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "scrolllock"},
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "scrollock"},
 				Slot:      client.SlotRef{Snap: "core", Name: "scrollock-led"},
 				Interface: "leds",
 			},
@@ -248,10 +248,10 @@ func (s *SnapSuite) TestConnectionsSomeConnected(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Plug                       Slot                        Interface  Notes\n" +
-		"keyboard-lights:capslock   leds-provider:capslock-led  leds       gadget\n" +
-		"keyboard-lights:numlock    :numlock-led                leds       manual\n" +
-		"keyboard-lights:scrollock  :scrollock-led              leds       -\n"
+		"Interface  Plug                       Slot                        Notes\n" +
+		"leds       keyboard-lights:capslock   leds-provider:capslock-led  gadget\n" +
+		"leds       keyboard-lights:numlock    :numlock-led                manual\n" +
+		"leds       keyboard-lights:scrollock  :scrollock-led              -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -260,8 +260,12 @@ func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
 	result := client.Connections{
 		Established: []client.Connection{
 			{
-				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "scrolllock"},
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "scrollock"},
 				Slot:      client.SlotRef{Snap: "core", Name: "scrollock-led"},
+				Interface: "leds",
+			}, {
+				Plug:      client.PlugRef{Snap: "keyboard-lights", Name: "capslock"},
+				Slot:      client.SlotRef{Snap: "leds-provider", Name: "capslock-led"},
 				Interface: "leds",
 			},
 		},
@@ -348,11 +352,11 @@ func (s *SnapSuite) TestConnectionsSomeDisconnected(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Plug                       Slot                        Interface  Notes\n" +
-		"keyboard-lights:capslock   leds-provider:capslock-led  leds       -\n" +
-		"keyboard-lights:numlock    -                           leds       -\n" +
-		"keyboard-lights:scrollock  :scrollock-led              leds       -\n" +
-		"-                          leds-provider:numlock-led   leds       -\n"
+		"Interface  Plug                       Slot                        Notes\n" +
+		"leds       -                          leds-provider:numlock-led   -\n" +
+		"leds       keyboard-lights:capslock   leds-provider:capslock-led  -\n" +
+		"leds       keyboard-lights:numlock    -                           -\n" +
+		"leds       keyboard-lights:scrollock  :scrollock-led              -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -400,9 +404,9 @@ func (s *SnapSuite) TestConnectionsOnlyDisconnected(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Plug  Slot                        Interface  Notes\n" +
-		"-     leds-provider:capslock-led  leds       -\n" +
-		"-     leds-provider:numlock-led   leds       -\n"
+		"Interface  Plug  Slot                        Notes\n" +
+		"leds       -     leds-provider:capslock-led  -\n" +
+		"leds       -     leds-provider:numlock-led   -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -436,4 +440,184 @@ func (s *SnapSuite) TestConnectionsFiltering(c *C) {
 	rest, err = Parser(Client()).ParseArgs([]string{"connections", "mouse-buttons", "--all"})
 	c.Assert(err, ErrorMatches, "cannot use --all with snap name")
 	c.Assert(rest, DeepEquals, []string{"--all"})
+}
+
+func (s *SnapSuite) TestConnectionsSorting(c *C) {
+	result := client.Connections{
+		Established: []client.Connection{
+			{
+				Plug:      client.PlugRef{Snap: "foo", Name: "plug"},
+				Slot:      client.SlotRef{Snap: "a-content-provider", Name: "data"},
+				Interface: "content",
+			}, {
+				Plug:      client.PlugRef{Snap: "foo", Name: "plug"},
+				Slot:      client.SlotRef{Snap: "b-content-provider", Name: "data"},
+				Interface: "content",
+			}, {
+				Plug:      client.PlugRef{Snap: "foo", Name: "desktop-plug"},
+				Slot:      client.SlotRef{Snap: "core", Name: "desktop"},
+				Interface: "desktop",
+			}, {
+				Plug:      client.PlugRef{Snap: "foo", Name: "x11-plug"},
+				Slot:      client.SlotRef{Snap: "core", Name: "x11"},
+				Interface: "x11",
+			}, {
+				Plug:      client.PlugRef{Snap: "foo", Name: "a-x11-plug"},
+				Slot:      client.SlotRef{Snap: "core", Name: "x11"},
+				Interface: "x11",
+			}, {
+				Plug:      client.PlugRef{Snap: "a-foo", Name: "plug"},
+				Slot:      client.SlotRef{Snap: "a-content-provider", Name: "data"},
+				Interface: "content",
+			}, {
+				Plug:      client.PlugRef{Snap: "keyboard-app", Name: "x11"},
+				Slot:      client.SlotRef{Snap: "core", Name: "x11"},
+				Interface: "x11",
+				Manual:    true,
+			},
+		},
+		Undesired: []client.Connection{
+			{
+				Plug:      client.PlugRef{Snap: "foo", Name: "plug"},
+				Slot:      client.SlotRef{Snap: "c-content-provider", Name: "data"},
+				Interface: "content",
+				Manual:    true,
+			},
+		},
+		Plugs: []client.Plug{
+			{
+				Snap:      "foo",
+				Name:      "plug",
+				Interface: "content",
+				Connections: []client.SlotRef{{
+					Snap: "a-content-provider",
+					Name: "data",
+				}, {
+					Snap: "b-content-provider",
+					Name: "data",
+				}},
+			}, {
+				Snap:      "foo",
+				Name:      "desktop-plug",
+				Interface: "desktop",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "desktop",
+				}},
+			}, {
+				Snap:      "foo",
+				Name:      "x11-plug",
+				Interface: "x11",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "x11",
+				}},
+			}, {
+				Snap:      "foo",
+				Name:      "a-x11-plug",
+				Interface: "x11",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "x11",
+				}},
+			}, {
+				Snap:      "a-foo",
+				Name:      "plug",
+				Interface: "content",
+				Connections: []client.SlotRef{{
+					Snap: "a-content-provider",
+					Name: "data",
+				}},
+			}, {
+				Snap:      "keyboard-app",
+				Name:      "x11",
+				Interface: "x11",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "x11",
+				}},
+			}, {
+				Snap:      "keyboard-lights",
+				Name:      "numlock",
+				Interface: "leds",
+			},
+		},
+		Slots: []client.Slot{
+			{
+				Snap:      "c-content-provider",
+				Name:      "data",
+				Interface: "content",
+			}, {
+				Snap:      "a-content-provider",
+				Name:      "data",
+				Interface: "content",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "plug",
+				}, {
+					Snap: "a-foo",
+					Name: "plug",
+				}},
+			}, {
+				Snap:      "b-content-provider",
+				Name:      "data",
+				Interface: "content",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "plug",
+				}},
+			}, {
+				Snap:      "core",
+				Name:      "x11",
+				Interface: "x11",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "a-x11-plug",
+				}, {
+					Snap: "foo",
+					Name: "x11-plug",
+				}, {
+					Snap: "keyboard-app",
+					Name: "x11",
+				}},
+			}, {
+				Snap:      "leds-provider",
+				Name:      "numlock-led",
+				Interface: "leds",
+			},
+		},
+	}
+	query := url.Values{
+		"select": []string{"all"},
+	}
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": result,
+		})
+	})
+
+	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Interface  Plug                     Slot                       Notes\n" +
+		"content    -                        c-content-provider:data    -\n" +
+		"content    a-foo:plug               a-content-provider:data    -\n" +
+		"content    foo:plug                 a-content-provider:data    -\n" +
+		"content    foo:plug                 b-content-provider:data    -\n" +
+		"desktop    foo:desktop-plug         :desktop                   -\n" +
+		"leds       -                        leds-provider:numlock-led  -\n" +
+		"leds       keyboard-lights:numlock  -                          -\n" +
+		"x11        foo:a-x11-plug           :x11                       -\n" +
+		"x11        foo:x11-plug             :x11                       -\n" +
+		"x11        keyboard-app:x11         :x11                       manual\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
 }

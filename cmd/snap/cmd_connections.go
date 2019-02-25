@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -87,10 +88,11 @@ func wantedSnapMatches(name, wanted string) bool {
 }
 
 type connectionNotes struct {
-	slot   string
-	plug   string
-	manual bool
-	gadget bool
+	slot          string
+	plug          string
+	interfaceName string
+	manual        bool
+	gadget        bool
 }
 
 func (cn connectionNotes) String() string {
@@ -109,6 +111,21 @@ func (cn connectionNotes) String() string {
 
 func connName(conn client.Connection) string {
 	return endpoint(conn.Plug.Snap, conn.Plug.Name) + " " + endpoint(conn.Slot.Snap, conn.Slot.Name)
+}
+
+type byConnectionData []connectionNotes
+
+func (b byConnectionData) Len() int      { return len(b) }
+func (b byConnectionData) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byConnectionData) Less(i, j int) bool {
+	iCon, jCon := b[i], b[j]
+	if iCon.interfaceName != jCon.interfaceName {
+		return iCon.interfaceName < jCon.interfaceName
+	}
+	if iCon.plug != jCon.plug {
+		return iCon.plug < jCon.plug
+	}
+	return iCon.slot < jCon.slot
 }
 
 func (x *cmdConnections) Execute(args []string) error {
@@ -142,43 +159,27 @@ func (x *cmdConnections) Execute(args []string) error {
 		return nil
 	}
 
-	notes := make(map[string]connectionNotes, len(connections.Established)+len(connections.Undesired))
+	notes := make([]connectionNotes, 0, len(connections.Established)+len(connections.Undesired))
 	for _, conn := range connections.Established {
-		notes[connName(conn)] = connectionNotes{
-			plug:   endpoint(conn.Plug.Snap, conn.Plug.Name),
-			slot:   endpoint(conn.Slot.Snap, conn.Slot.Name),
-			manual: conn.Manual,
-			gadget: conn.Gadget,
-		}
-	}
-	for _, conn := range connections.Undesired {
-		notes[connName(conn)] = connectionNotes{
-			plug:   endpoint(conn.Plug.Snap, conn.Plug.Name),
-			slot:   endpoint(conn.Slot.Snap, conn.Slot.Name),
-			manual: conn.Manual,
-			gadget: conn.Gadget,
-		}
+		notes = append(notes, connectionNotes{
+			plug:          endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:          endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual:        conn.Manual,
+			gadget:        conn.Gadget,
+			interfaceName: conn.Interface,
+		})
 	}
 
 	w := tabWriter()
-	fmt.Fprintln(w, i18n.G("Plug\tSlot\tInterface\tNotes"))
+	fmt.Fprintln(w, i18n.G("Interface\tPlug\tSlot\tNotes"))
 
-	matched := false
-	noNotes := connectionNotes{}
 	for _, plug := range connections.Plugs {
-		for _, slot := range plug.Connections {
-			// these are only established connections
-			cname := endpoint(plug.Snap, plug.Name) + " " + endpoint(slot.Snap, slot.Name)
-			cnotes := notes[cname]
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", endpoint(plug.Snap, plug.Name), endpoint(slot.Snap, slot.Name), plug.Interface, cnotes)
-			matched = true
-		}
 		if len(plug.Connections) == 0 && x.All {
-			// plug might be unconnected, or it was auto-connected
-			// but the user has disconnected it explicitly
-			pname := endpoint(plug.Snap, plug.Name)
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pname, "-", plug.Interface, noNotes)
-			matched = true
+			notes = append(notes, connectionNotes{
+				plug:          endpoint(plug.Snap, plug.Name),
+				slot:          "-",
+				interfaceName: plug.Interface,
+			})
 		}
 	}
 	for _, slot := range connections.Slots {
@@ -187,13 +188,21 @@ func (x *cmdConnections) Execute(args []string) error {
 			continue
 		}
 		if len(slot.Connections) == 0 && x.All {
-			sname := endpoint(slot.Snap, slot.Name)
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "-", sname, slot.Interface, noNotes)
-			matched = true
+			notes = append(notes, connectionNotes{
+				plug:          "-",
+				slot:          endpoint(slot.Snap, slot.Name),
+				interfaceName: slot.Interface,
+			})
 		}
 	}
 
-	if matched {
+	sort.Sort(byConnectionData(notes))
+
+	for _, note := range notes {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", note.interfaceName, note.plug, note.slot, note)
+	}
+
+	if len(notes) > 0 {
 		w.Flush()
 	}
 	return nil
