@@ -8,7 +8,7 @@ execute: |
     test "$(wc -l < all.out)" = "0"
 
     snap install test-snapd-content-slot
-    expected='- +test-snapd-content-slot:shared-content-slot +content +-'
+    expected='content +- +test-snapd-content-slot:shared-content-slot +-'
     # asking for a snap shows connected and unconnected plugs and slots
     snap connections test-snapd-content-slot | MATCH -- "$expected"
 
@@ -21,41 +21,41 @@ execute: |
     snap connections --all | MATCH -- "$expected"
 
     snap install test-snapd-content-plug
-    expected='test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-'
+    expected='content +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-'
     snap connections test-snapd-content-plug | MATCH "$expected"
     snap connections test-snapd-content-slot | MATCH "$expected"
 
     # :network is connected by default
     install_local network-consumer
-    expected='network-consumer:network +:network +network +-'
+    expected='network +network-consumer:network +:network +-'
     snap connections network-consumer | MATCH "$expected"
     # disconect it manually
     snap disconnect network-consumer:network
-    expected='network-consumer:network +- +network +-'
+    expected='network +network-consumer:network +- +-'
     snap connections network-consumer 2>&1 | MATCH "$expected"
 
     # try with an interface which is not connected by default
     install_local test-snapd-daemon-notify
-    expected='test-snapd-daemon-notify:daemon-notify +- +daemon-notify +-'
+    expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-'
     snap connections test-snapd-daemon-notify | MATCH "$expected"
 
     snap connect test-snapd-daemon-notify:daemon-notify
     # once connected, the connection will show up as manual
-    expected='test-snapd-daemon-notify:daemon-notify +:daemon-notify +daemon-notify +manual'
+    expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +:daemon-notify +manual'
     snap connections test-snapd-daemon-notify | MATCH "$expected"
 
-    expected='test-snapd-daemon-notify:daemon-notify +- +daemon-notify +-'
+    expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-'
     snap disconnect test-snapd-daemon-notify:daemon-notify
     snap connections test-snapd-daemon-notify | MATCH "$expected"
 
     # show connected only
     snap connections > connected.out
-    MATCH 'test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-' < connected.out
+    MATCH 'content +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < connected.out
     MATCH -v 'network-consumer' < connected.out
     MATCH -v 'test-snapd-daemon-notify' < connected.out
 
     # show all
     snap connections --all > all.out
-    MATCH 'test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +content +-' < all.out
-    MATCH 'test-snapd-daemon-notify:daemon-notify +- +daemon-notify +-' < all.out
-    MATCH 'network-consumer:network +- +network +-' < all.out
+    MATCH 'content +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < all.out
+    MATCH 'daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-' < all.out
+    MATCH 'network +network-consumer:network +- +-' < all.out
