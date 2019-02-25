@@ -1447,6 +1447,7 @@ apps:
    command: svc1
    description: svc one
    stop-timeout: 25s
+   start-timeout: 42m
    daemon: forking
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
@@ -1467,6 +1468,7 @@ apps:
 		Daemon:          "forking",
 		RestartCond:     snap.RestartOnAbnormal,
 		StopTimeout:     timeout.Timeout(25 * time.Second),
+		StartTimeout:    timeout.Timeout(42 * time.Minute),
 		StopCommand:     "stop-cmd",
 		PostStopCommand: "post-stop-cmd",
 		BusName:         "busName",
