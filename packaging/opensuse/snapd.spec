@@ -423,4 +423,3 @@ fi
 %endif
 
 %changelog
-
