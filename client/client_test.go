@@ -570,5 +570,5 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"action": []string{"do-something"}})
+	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}})
 }

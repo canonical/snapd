@@ -685,7 +685,7 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	return err
 }
 
-func (client *Client) DebugGet(action string, result interface{}) error {
-	_, err := client.doSync("GET", "/v2/debug", url.Values{"action": []string{action}}, nil, nil, &result)
+func (client *Client) DebugGet(aspect string, result interface{}) error {
+	_, err := client.doSync("GET", "/v2/debug", url.Values{"aspect": []string{aspect}}, nil, nil, &result)
 	return err
 }

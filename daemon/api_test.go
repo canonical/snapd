@@ -6922,7 +6922,7 @@ func (s *postDebugSuite) TestPostDebugConnectivityUnhappy(c *check.C) {
 func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
 	_ = s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/debug?action=base-declaration", nil)
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=base-declaration", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := getDebug(debugCmd, req, nil).(*resp)

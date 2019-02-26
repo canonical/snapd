@@ -2485,11 +2485,11 @@ type ConnectivityStatus struct {
 
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
-	action := query.Get("action")
-	if action != "base-declaration" {
-		return BadRequest("unknown debug action %q", action)
+	aspect := query.Get("aspect")
+	if aspect != "base-declaration" {
+		return BadRequest("unknown debug aspect %q", aspect)
 	}
-	return doDebugAction(c, &debugAction{Action: action})
+	return doDebugAction(c, &debugAction{Action: aspect})
 }
 
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
