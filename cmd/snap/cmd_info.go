@@ -35,9 +35,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -119,52 +121,22 @@ func maybePrintBase(w io.Writer, base string, verbose bool) {
 	}
 }
 
-func tryDirect(w io.Writer, path string, verbose bool, termWidth int) bool {
-	path = norm(path)
-
+func loadDirect(path string) (*client.Snap, error) {
 	snapf, err := snap.Open(path)
 	if err != nil {
-		return false
+		return nil, err
 	}
-
-	var sha3_384 string
-	if verbose && !osutil.IsDirectory(path) {
-		var err error
-		sha3_384, _, err = asserts.SnapFileSHA3_384(path)
-		if err != nil {
-			return false
-		}
-	}
-
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	if err != nil {
-		return false
-	}
-	fmt.Fprintf(w, "path:\t%q\n", path)
-	fmt.Fprintf(w, "name:\t%s\n", info.InstanceName())
-	printSummary(w, info.Summary(), termWidth)
-
-	var notes *Notes
-	if verbose {
-		fmt.Fprintln(w, "notes:\t")
-		fmt.Fprintf(w, "  confinement:\t%s\n", info.Confinement)
-		if info.Broken == "" {
-			fmt.Fprintln(w, "  broken:\tfalse")
-		} else {
-			fmt.Fprintf(w, "  broken:\ttrue (%s)\n", info.Broken)
-		}
-
-	} else {
-		notes = NotesFromInfo(info)
-	}
-	fmt.Fprintf(w, "version:\t%s %s\n", info.Version, notes)
-	maybePrintType(w, string(info.Type))
-	maybePrintBase(w, info.Base, verbose)
-	if sha3_384 != "" {
-		fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
+		return nil, err
 	}
 
-	return true
+	direct, err := cmd.ClientSnapFromSnapInfo(info)
+	if err != nil {
+		return nil, err
+	}
+
+	return direct, nil
 }
 
 func coalesce(snaps ...*client.Snap) *client.Snap {
@@ -453,7 +425,7 @@ func (x *infoCmd) Execute([]string) error {
 
 	noneOK := true
 	for i, snapName := range x.Positional.Snaps {
-		snapName := string(snapName)
+		snapName := norm(string(snapName))
 		if i > 0 {
 			fmt.Fprintln(w, "---")
 		}
@@ -462,17 +434,32 @@ func (x *infoCmd) Execute([]string) error {
 			continue
 		}
 
-		if tryDirect(w, snapName, x.Verbose, termWidth) {
-			noneOK = false
-			continue
+		var direct, local, remote *client.Snap
+		var resInfo *client.ResultInfo
+		var directErr, remoteErr, localErr error
+
+		direct, directErr = loadDirect(snapName)
+		if directErr != nil {
+			remote, resInfo, remoteErr = x.client.FindOne(snapName)
+			local, _, localErr = x.client.Snap(snapName)
 		}
-		remote, resInfo, _ := x.client.FindOne(snapName)
-		local, _, _ := x.client.Snap(snapName)
+		// note direct == nil, or local == nil and remote == nil
+		theSnap := coalesce(direct, local, remote)
 
-		both := coalesce(local, remote)
-
-		if both == nil {
+		if theSnap == nil {
+			if x.Verbose {
+				if directErr != nil {
+					fmt.Fprintf(w, i18n.G("error:\ttreating %q as a path to a snap: %v\n"), snapName, directErr)
+				}
+				if localErr != nil {
+					fmt.Fprintf(w, i18n.G("error:\ttreating %q as a locally-installed snap name: %v\n"), snapName, localErr)
+				}
+				if remoteErr != nil {
+					fmt.Fprintf(w, i18n.G("error:\ttreating %q as a snap name in the store: %v\n"), snapName, remoteErr)
+				}
+			}
 			if len(x.Positional.Snaps) == 1 {
+				w.Flush()
 				return fmt.Errorf("no snap found for %q", snapName)
 			}
 
@@ -481,27 +468,41 @@ func (x *infoCmd) Execute([]string) error {
 		}
 		noneOK = false
 
-		fmt.Fprintf(w, "name:\t%s\n", both.Name)
-		printSummary(w, both.Summary, termWidth)
-		fmt.Fprintf(w, "publisher:\t%s\n", longPublisher(esc, both.Publisher))
-		if both.Contact != "" {
-			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
+		if direct != nil {
+			fmt.Fprintf(w, "path:\t%q\n", snapName)
 		}
-		license := both.License
+		fmt.Fprintf(w, "name:\t%s\n", theSnap.Name)
+		printSummary(w, theSnap.Summary, termWidth)
+		if direct == nil {
+			fmt.Fprintf(w, "publisher:\t%s\n", longPublisher(esc, theSnap.Publisher))
+		} else {
+			// NotesFromRemote might be better called NotesFromNotInstalled but that's nasty
+			fmt.Fprintf(w, "version:\t%s %s\n", theSnap.Version, NotesFromRemote(theSnap, nil))
+			if !osutil.IsDirectory(snapName) {
+				buildDate := squashfs.BuildDate(snapName)
+				if !buildDate.IsZero() {
+					fmt.Fprintf(w, "build-date:\t%s\n", x.fmtTime(buildDate))
+				}
+			}
+		}
+		if theSnap.Contact != "" {
+			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(theSnap.Contact, "mailto:"))
+		}
+		license := theSnap.License
 		if license == "" {
 			license = "unset"
 		}
 		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)
 		fmt.Fprintln(w, "description: |")
-		printDescr(w, both.Description, termWidth)
-		maybePrintCommands(w, snapName, both.Apps, termWidth)
-		maybePrintServices(w, snapName, both.Apps, termWidth)
+		printDescr(w, theSnap.Description, termWidth)
+		maybePrintCommands(w, theSnap.Name, theSnap.Apps, termWidth)
+		maybePrintServices(w, theSnap.Name, theSnap.Apps, termWidth)
 
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")
-			fmt.Fprintf(w, "  private:\t%t\n", both.Private)
-			fmt.Fprintf(w, "  confinement:\t%s\n", both.Confinement)
+			fmt.Fprintf(w, "  private:\t%t\n", theSnap.Private)
+			fmt.Fprintf(w, "  confinement:\t%s\n", theSnap.Confinement)
 		}
 
 		if local != nil {
@@ -522,35 +523,42 @@ func (x *infoCmd) Execute([]string) error {
 		}
 		// stops the notes etc trying to be aligned with channels
 		w.Flush()
-		maybePrintType(w, both.Type)
-		maybePrintBase(w, both.Base, x.Verbose)
-		maybePrintID(w, both)
-		if local != nil {
-			if local.TrackingChannel != "" {
-				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
+		maybePrintType(w, theSnap.Type)
+		maybePrintBase(w, theSnap.Base, x.Verbose)
+		if direct != nil && x.Verbose && !osutil.IsDirectory(snapName) {
+			sha3_384, _, _ := asserts.SnapFileSHA3_384(snapName)
+			if sha3_384 != "" {
+				fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
 			}
-			if !local.InstallDate.IsZero() {
-				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
+		} else {
+			maybePrintID(w, theSnap)
+			if local != nil {
+				if local.TrackingChannel != "" {
+					fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
+				}
+				if !local.InstallDate.IsZero() {
+					fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
+				}
 			}
-		}
 
-		chInfos := channelInfos{
-			chantpl:     "%s%s:\t%s %s%*s %*s %s\n",
-			releasedfmt: "2006-01-02",
-			esc:         esc,
+			chInfos := channelInfos{
+				chantpl:     "%s%s:\t%s %s%*s %*s %s\n",
+				releasedfmt: "2006-01-02",
+				esc:         esc,
+			}
+			if x.AbsTime {
+				chInfos.releasedfmt = time.RFC3339
+			}
+			if remote != nil && remote.Channels != nil && remote.Tracks != nil {
+				w.Flush()
+				chInfos.chantpl = "%s%s:\t%s\t%s\t%*s\t%*s\t%s\n"
+				chInfos.addFromRemote(remote)
+			}
+			if local != nil {
+				chInfos.addFromLocal(local)
+			}
+			chInfos.dump(w)
 		}
-		if x.AbsTime {
-			chInfos.releasedfmt = time.RFC3339
-		}
-		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			w.Flush()
-			chInfos.chantpl = "%s%s:\t%s\t%s\t%*s\t%*s\t%s\n"
-			chInfos.addFromRemote(remote)
-		}
-		if local != nil {
-			chInfos.addFromLocal(local)
-		}
-		chInfos.dump(w)
 	}
 	w.Flush()
 

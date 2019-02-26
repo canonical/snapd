@@ -390,6 +390,32 @@ installed:    2.10 (1) 1kB disabled
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *infoSuite) TestInfoNotFound(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n % 2 {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/x")
+		}
+		w.WriteHeader(404)
+		fmt.Fprintln(w, `{"type":"error","status-code":404,"status":"Not Found","result":{"message":"No.","kind":"snap-not-found","value":"x"}}`)
+
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", "/x"})
+	c.Check(err, check.ErrorMatches, `no snap found for "/x"`)
+	c.Check(s.Stdout(), check.Equals, `
+error: treating "/x" as a path to a snap: cannot open snap: open /x: no such file or directory
+error: treating "/x" as a locally-installed snap name: cannot retrieve snap "/x": No.
+error: treating "/x" as a snap name in the store: cannot find snap "/x": No.
+`[1:])
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
