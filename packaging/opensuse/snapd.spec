@@ -343,7 +343,6 @@ fi
 %dir %{_environmentdir}
 %dir %{_libexecdir}/snapd
 %dir %{_localstatedir}/cache/snapd
-%dir %{_localstatedir}/snap
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/apparmor
 %dir %{_sharedstatedir}/snapd/apparmor/profiles
@@ -371,6 +370,7 @@ fi
 %dir %{snap_mount_dir}/bin
 
 # Ghost entries for things created at runtime
+%ghost %dir %{_localstatedir}/snap
 %ghost %{_localstatedir}/cache/snapd/commands
 %ghost %{_localstatedir}/cache/snapd/names
 %ghost %{_localstatedir}/cache/snapd/sections
