@@ -643,6 +643,8 @@ pkg_dependencies_fedora(){
         net-tools
         nfs-utils
         python3-yaml
+        python3-dbus
+        python3-gobject
         redhat-lsb-core
         rpm-build
         udisks2
@@ -721,6 +723,8 @@ pkg_dependencies_arch(){
     openbsd-netcat
     python
     python-docutils
+    python-dbus
+    python-gobject
     python3-yaml
     squashfs-tools
     shellcheck
