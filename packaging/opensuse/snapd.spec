@@ -21,7 +21,9 @@
 # N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
 # did not support what we needed to be able to turn on basic integration.
 %if 0%{?suse_version} >= 1550
-%global with_apparmor 1
+%bcond_without apparmor
+%else
+%bcond_with apparmor
 %endif
 
 # The list of systemd services we are expected to ship. Note that this does
@@ -116,7 +118,7 @@ BuildRequires:  glibc-devel-static-32bit
 BuildRequires:  gcc-32bit
 %endif
 
-%if 0%{?with_apparmor:1}
+%if %{with apparmor}
 BuildRequires:  libapparmor-devel
 BuildRequires:  apparmor-rpm-macros
 %endif
@@ -124,7 +126,7 @@ BuildRequires:  apparmor-rpm-macros
 PreReq:         permissions
 
 Requires(post): permissions
-%if 0%{?with_apparmor:1}
+%if %{with apparmor}
 Requires:       apparmor-parser
 Requires:       apparmor-profiles
 %endif
@@ -189,7 +191,7 @@ unitdir = %{_unitdir}
 # Build configuration
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
-with_apparmor = %{!?with_apparmor:0}%{?with_apparmor:1}
+with_apparmor = %{with apparmor}
 with_testkeys = %{with_testkeys}
 __DEFINES__
 
@@ -277,7 +279,7 @@ install -m 644 -D %{indigo_srcdir}/packaging/opensuse/permissions.paranoid %{bui
 install -d %{buildroot}%{_sbindir}
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.seeded
-%if 0%{?with_apparmor:1}
+%if %{with apparmor}
 ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
 %endif
 
@@ -303,7 +305,7 @@ install -m 644 -D %{indigo_srcdir}/data/completion/etelpmoc.sh %{buildroot}%{_li
 
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
-%if 0%{?with_apparmor:1}
+%if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %service_add_post %{systemd_services_list}
@@ -412,7 +414,7 @@ fi
 %{_unitdir}/snapd.socket
 
 # When apparmor is enabled there are some additional entries.
-%if 0%{?with_apparmor:1}
+%if %{with apparmor}
 %config %{_sysconfdir}/apparmor.d
 %{_libexecdir}/snapd/snapd-apparmor
 %{_sbindir}/rcsnapd.apparmor
