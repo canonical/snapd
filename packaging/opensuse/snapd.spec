@@ -329,20 +329,21 @@ fi
 %service_del_postun %{systemd_services_list}
 
 %files
+
+# Configuration files
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
-%ghost %{_sharedstatedir}/snapd/state.json
-%ghost %{_sharedstatedir}/snapd/system-key
+
+# Directories
 %dir %attr(0000,root,root) %{_sharedstatedir}/snapd/void
-%dir %{snap_mount_dir}
-%dir %{snap_mount_dir}/bin
-%ghost %{snap_mount_dir}/README
+%dir %{_datadir}/dbus-1
+%dir %{_datadir}/dbus-1/services
+%dir %{_datadir}/polkit-1
+%dir %{_datadir}/polkit-1/actions
+%dir %{_environmentdir}
 %dir %{_libexecdir}/snapd
 %dir %{_localstatedir}/cache/snapd
-%ghost %{_localstatedir}/cache/snapd/commands
-%ghost %{_localstatedir}/cache/snapd/names
-%ghost %{_localstatedir}/cache/snapd/sections
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/apparmor
 %dir %{_sharedstatedir}/snapd/apparmor/profiles
@@ -364,49 +365,56 @@ fi
 %dir %{_sharedstatedir}/snapd/seccomp/bpf
 %dir %{_sharedstatedir}/snapd/sequence
 %dir %{_sharedstatedir}/snapd/snaps
-%dir %{_environmentdir}
 %dir %{_systemd_system_env_generator_dir}
 %dir %{_systemdgeneratordir}
-%dir %{_datadir}/dbus-1
-%dir %{_datadir}/dbus-1/services
-%dir %{_datadir}/polkit-1
-%dir %{_datadir}/polkit-1/actions
+%dir %{snap_mount_dir}
+%dir %{snap_mount_dir}/bin
+
+# Ghost entries for things created at runtime
+%ghost %{_localstatedir}/cache/snapd/commands
+%ghost %{_localstatedir}/cache/snapd/names
+%ghost %{_localstatedir}/cache/snapd/sections
+%ghost %{_sharedstatedir}/snapd/seccomp/bpf/global.bin
+%ghost %{_sharedstatedir}/snapd/state.json
+%ghost %{_sharedstatedir}/snapd/system-key
+%ghost %{snap_mount_dir}/README
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
-%{_mandir}/man8/snap-confine.8*
-%{_mandir}/man8/snap-discard-ns.8*
-%{_mandir}/man8/snapd-env-generator.8*
-%{_unitdir}/snapd.service
-%{_unitdir}/snapd.socket
-%{_unitdir}/snapd.seeded.service
-%{_unitdir}/snapd.failure.service
 %{_bindir}/snap
 %{_bindir}/snapctl
-%{_sbindir}/rcsnapd
-%{_sbindir}/rcsnapd.seeded
-%{_libexecdir}/snapd/info
-%{_libexecdir}/snapd/snap-discard-ns
-%{_libexecdir}/snapd/snap-update-ns
-%{_libexecdir}/snapd/snap-exec
-%{_libexecdir}/snapd/snap-seccomp
-%{_libexecdir}/snapd/snapd
-%{_libexecdir}/snapd/snapctl
-%{_libexecdir}/snapd/snap-mgmt
-%{_libexecdir}/snapd/snap-gdb-shim
-%{_libexecdir}/snapd/snap-device-helper
-%{_datadir}/bash-completion/completions/snap
-%{_libexecdir}/snapd/complete.sh
-%{_libexecdir}/snapd/etelpmoc.sh
-%{_systemdgeneratordir}/snapd-generator
-%{_mandir}/man8/snap.8*
 %{_datadir}/applications/snap-handle-link.desktop
+%{_datadir}/bash-completion/completions/snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
-%{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
-%{_libexecdir}/snapd/snapd.run-from-snap
 %{_environmentdir}/990-snapd.conf
+%{_libexecdir}/snapd/complete.sh
+%{_libexecdir}/snapd/etelpmoc.sh
+%{_libexecdir}/snapd/info
+%{_libexecdir}/snapd/snap-device-helper
+%{_libexecdir}/snapd/snap-discard-ns
+%{_libexecdir}/snapd/snap-exec
+%{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-mgmt
+%{_libexecdir}/snapd/snap-seccomp
+%{_libexecdir}/snapd/snap-update-ns
+%{_libexecdir}/snapd/snapctl
+%{_libexecdir}/snapd/snapd
+%{_libexecdir}/snapd/snapd.run-from-snap
+%{_mandir}/man8/snap-confine.8*
+%{_mandir}/man8/snap-discard-ns.8*
+%{_mandir}/man8/snap.8*
+%{_mandir}/man8/snapd-env-generator.8*
+%{_sbindir}/rcsnapd
+%{_sbindir}/rcsnapd.seeded
+%{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %{_systemd_system_env_generator_dir}/snapd-env-generator
+%{_systemdgeneratordir}/snapd-generator
+%{_unitdir}/snapd.failure.service
+%{_unitdir}/snapd.seeded.service
+%{_unitdir}/snapd.service
+%{_unitdir}/snapd.socket
 
+# When apparmor is enabled there are some additional entries.
 %if 0%{?with_apparmor:1}
 %config %{_sysconfdir}/apparmor.d
 %{_libexecdir}/snapd/snapd-apparmor
