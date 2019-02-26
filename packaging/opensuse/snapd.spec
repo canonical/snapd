@@ -16,9 +16,6 @@
 
 # Test keys: used for internal testing in snapd.
 %bcond_with testkeys
-%if %{with testkeys}
-%global with_test_keys 1
-%endif
 
 # Enable AppArmor on openSUSE Tumbleweed (post 15.0) or higher
 # N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
@@ -193,7 +190,7 @@ unitdir = %{_unitdir}
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
 with_apparmor = %{!?with_apparmor:0}%{?with_apparmor:1}
-with_test_keys = %{!?with_test_keys:0}%{?with_test_keys:1}
+with_testkeys = %{with_testkeys}
 __DEFINES__
 
 # Set the version that is compiled into the various executables/

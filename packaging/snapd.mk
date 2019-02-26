@@ -18,11 +18,11 @@ include snapd.defines.mk
 # 1) variables defining various directory names
 vars += bindir sbindir libexecdir mandir datadir localstatedir sharedstatedir unitdir
 # 2) variables defining build options:
-#   with_test_keys: set to 1 to build snapd with test key built in
+#   with_testkeys: set to 1 to build snapd with test key built in
 #   with_apparmor: set to 1 to build snapd with apparmor support
 #   with_core_bits: set to 1 to build snapd with things needed for the core/snapd snap
 #   with_alt_snap_mount_dir: set to 1 to build snapd with alternate snap mount directory
-vars += with_test_keys with_apparmor with_core_bits with_alt_snap_mount_dir
+vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir
 # Verify that none of the variables are empty. This may happen if snapd.mk and
 # distribution packaging generating snapd.defines.mk get out of sync.
 
@@ -69,7 +69,7 @@ snap-update-ns snap-exec:
 # Snapd can be built with test keys. This is only used by the internal test
 # suite to add test assertions. Do not enable this in distribution packages.
 snapd:
-ifeq ($(with_test_keys),1)
+ifeq ($(with_testkeys),1)
 	go build -buildmode=pie -tags withtestkeys $(import_path)/cmd/$@
 else
 	go build -buildmode=pie $(import_path)/cmd/$@
