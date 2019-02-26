@@ -201,5 +201,6 @@ func init() {
 		connectedPlugAppArmor: greengrassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  greengrassSupportConnectedPlugSeccomp,
 		reservedForOS:         true,
+		controlsDeviceCgroup:  true,
 	})
 }
