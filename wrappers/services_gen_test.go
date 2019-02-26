@@ -132,6 +132,26 @@ apps:
 	c.Check(string(generatedWrapper), Equals, expectedAppService)
 }
 
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithStartTimeout(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        start-timeout: 10m
+        daemon: simple
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), testutil.Contains, "\nTimeoutStartSec=600\n")
+}
+
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileRestart(c *C) {
 	yamlTextTemplate := `
 name: snap
