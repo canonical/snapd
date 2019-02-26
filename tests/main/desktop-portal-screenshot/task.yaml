@@ -50,3 +50,11 @@ execute: |
     # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/screenshot.txt
     as_user test-snapd-portal-client screenshot | MATCH "my screenshot"
+
+debug: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    ls -la "/run/user/$TEST_UID/" || true
+    #shellcheck disable=SC2009
+    ps -ef | grep xdg || true
