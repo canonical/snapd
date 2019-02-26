@@ -48,3 +48,9 @@ execute: |
         sleep 1
     done
     snap changes|MATCH ".*Done.*Transition ubuntu-core to core"
+  
+    echo "check that snap confine profiles are fine after upgrade"
+    test -f /etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    test $(ls /var/lib/snapd/apparmor/profiles/snap-confine.core.* 2>/dev/null | wc -l) -eq 1
+    MATCH "^/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
+    MATCH "^/snap/core/.*/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
