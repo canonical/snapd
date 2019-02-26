@@ -97,7 +97,7 @@ const (
 )
 
 // applyAliasesChange applies the necessary changes to aliases on disk
-// to go from prevAliases consindering the automatic aliases flag
+// to go from prevAliases considering the automatic aliases flag
 // (prevAutoDisabled) to newAliases considering newAutoDisabled for
 // snapName. It assumes that conflicts have already been checked.
 func applyAliasesChange(snapName string, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend, dryRun bool) (add, remove []*backend.Alias, err error) {
@@ -392,7 +392,7 @@ func disableAliases(curAliases map[string]*AliasTarget) (newAliases map[string]*
 	return newAliases, disabledManual
 }
 
-// reenableAliases returns newAliases corresponding to the reenabling over
+// reenableAliases returns newAliases corresponding to the re-enabling over
 // curAliases of disabledManual manual aliases.
 func reenableAliases(info *snap.Info, curAliases map[string]*AliasTarget, disabledManual map[string]string) (newAliases map[string]*AliasTarget) {
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
@@ -467,7 +467,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 	}
 
 	// mark pending "alias" tasks as errored
-	// they were never parts of lanes but either standalone or at the
+	// they were never parts of lanes but either standalone or at
 	// the start of wait chains
 	for _, t := range m.state.Tasks() {
 		if t.Kind() == "alias" && !t.Status().Ready() {

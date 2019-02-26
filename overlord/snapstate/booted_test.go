@@ -329,7 +329,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
-	// core snap udated
+	// core snap updated
 	si.Revision = snap.R(2)
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", si)
 
@@ -379,7 +379,7 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
-	// core18 snap udated
+	// core18 snap updated
 	si.Revision = snap.R(2)
 	snaptest.MockSnap(c, "name: core18\ntype: base\nversion: 2", si)
 

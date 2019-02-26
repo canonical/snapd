@@ -213,8 +213,10 @@ var (
 	}
 
 	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
+		Path:   "/v2/debug",
+		UserOK: true,
+		GET:    getDebug,
+		POST:   postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -1889,7 +1891,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				conn, err := repo.Connection(connRef)
+				var conn *interfaces.Connection
+				conn, err = repo.Connection(connRef)
 				if err != nil {
 					break
 				}
@@ -2470,11 +2473,23 @@ func convertBuyError(err error) Response {
 type debugAction struct {
 	Action  string `json:"action"`
 	Message string `json:"message"`
+	Params  struct {
+		ChgID string `json:"chg-id"`
+	} `json:"params"`
 }
 
 type ConnectivityStatus struct {
 	Connectivity bool     `json:"connectivity"`
 	Unreachable  []string `json:"unreachable,omitempty"`
+}
+
+func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	action := query.Get("action")
+	if action != "base-declaration" {
+		return BadRequest("unknown debug action %q", action)
+	}
+	return doDebugAction(c, &debugAction{Action: action})
 }
 
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2484,6 +2499,10 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into a debug action: %v", err)
 	}
 
+	return doDebugAction(c, &a)
+}
+
+func doDebugAction(c *Command, a *debugAction) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -2498,7 +2517,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "ensure-state-soon":
 		ensureStateSoon(st)
 		return SyncResponse(true, nil)
-	case "get-base-declaration":
+	case "get-base-declaration", "base-declaration":
 		bd, err := assertstate.BaseDeclaration(st)
 		if err != nil {
 			return InternalError("cannot get base declaration: %s", err)
@@ -2526,6 +2545,23 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		sort.Strings(status.Unreachable)
 
 		return SyncResponse(status, nil)
+	case "change-timings":
+		chg := st.Change(a.Params.ChgID)
+		if chg == nil {
+			return BadRequest("cannot find change: %v", a.Message)
+		}
+		m := map[string]struct {
+			DoingTime, UndoingTime time.Duration
+		}{}
+		for _, t := range chg.Tasks() {
+			m[t.ID()] = struct {
+				DoingTime, UndoingTime time.Duration
+			}{
+				DoingTime:   t.DoingTime(),
+				UndoingTime: t.UndoingTime(),
+			}
+		}
+		return SyncResponse(m, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

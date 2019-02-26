@@ -267,7 +267,7 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 	defer restore()
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'`)
+	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {
