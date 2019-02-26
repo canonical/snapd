@@ -112,17 +112,17 @@ capability dac_override,  # for various overlayfs accesses
 @{PROC}/cgroups r,
 owner @{PROC}/[0-9]*/cgroup r,
 owner /old_rootfs/sys/fs/cgroup/{,**} r,
-owner /old_rootfs/sys/fs/cgroup/{blkio,cpuset,devices,hugetlb,memory,perf_event,pids,freezer/snap.greengrass}/{,system.slice/}system.slice/ rw,
-owner /old_rootfs/sys/fs/cgroup/{blkio,cpuset,devices,hugetlb,memory,perf_event,pids,freezer/snap.greengrass}/{,system.slice/}system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
+owner /old_rootfs/sys/fs/cgroup/{blkio,cpuset,devices,hugetlb,memory,perf_event,pids,freezer/snap.@{SNAP_NAME}}/{,system.slice/}system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/{blkio,cpuset,devices,hugetlb,memory,perf_event,pids,freezer/snap.@{SNAP_NAME}}/{,system.slice/}system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
 # separated from the above rule for clarity due to the comma in "net_cls,net_prio"
 owner /old_rootfs/sys/fs/cgroup/net_cls,net_prio/{,system.slice/}system.slice/ rw,
 owner /old_rootfs/sys/fs/cgroup/net_cls,net_prio/{,system.slice/}system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
 owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/{,system.slice/}system.slice/ rw,
 owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/{,system.slice/}system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
-owner /old_rootfs/sys/fs/cgroup/{devices,memory,pids,blkio,systemd}/{,system.slice/}snap.greengrass.greengrass{,d.service}/system.slice/ rw,
-owner /old_rootfs/sys/fs/cgroup/{devices,memory,pids,blkio,systemd}/{,system.slice/}snap.greengrass.greengrass{,d.service}/system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
-owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.greengrass.greengrass{,d.service}/system.slice/ rw,
-owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.greengrass.greengrass{,d.service}/system.slice/{,**} rw,
+owner /old_rootfs/sys/fs/cgroup/{devices,memory,pids,blkio,systemd}/{,system.slice/}snap.@{SNAP_NAME}.greengrass{,d.service}/system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/{devices,memory,pids,blkio,systemd}/{,system.slice/}snap.@{SNAP_NAME}.greengrass{,d.service}/system.slice/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/{,**} rw,
+owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.@{SNAP_NAME}.greengrass{,d.service}/system.slice/ rw,
+owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.@{SNAP_NAME}.greengrass{,d.service}/system.slice/{,**} rw,
 # specific rule for cpuset files
 owner /old_rootfs/sys/fs/cgroup/cpuset/{,system.slice/}cpuset.{cpus,mems} rw,
 
