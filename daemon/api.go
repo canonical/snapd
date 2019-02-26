@@ -213,8 +213,10 @@ var (
 	}
 
 	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
+		Path:   "/v2/debug",
+		UserOK: true,
+		GET:    getDebug,
+		POST:   postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -2481,6 +2483,15 @@ type ConnectivityStatus struct {
 	Unreachable  []string `json:"unreachable,omitempty"`
 }
 
+func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	action := query.Get("action")
+	if action != "base-declaration" {
+		return BadRequest("unknown debug action %q", action)
+	}
+	return doDebugAction(c, &debugAction{Action: action})
+}
+
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a debugAction
 	decoder := json.NewDecoder(r.Body)
@@ -2488,6 +2499,10 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into a debug action: %v", err)
 	}
 
+	return doDebugAction(c, &a)
+}
+
+func doDebugAction(c *Command, a *debugAction) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -2502,7 +2517,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "ensure-state-soon":
 		ensureStateSoon(st)
 		return SyncResponse(true, nil)
-	case "get-base-declaration":
+	case "get-base-declaration", "base-declaration":
 		bd, err := assertstate.BaseDeclaration(st)
 		if err != nil {
 			return InternalError("cannot get base declaration: %s", err)
