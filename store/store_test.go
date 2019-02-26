@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
@@ -37,7 +38,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 	"gopkg.in/retry.v1"
@@ -397,6 +397,13 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	s.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
 
 	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1,
+		},
+	)))
+
+	store.MockDownloadRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,
 			Factor:  1,
@@ -1579,6 +1586,8 @@ slots:
     read:
       - /
 
+- add "released-at" to something randomish
+
 */
 const mockInfoJSON = `{
     "channel-map": [
@@ -1590,6 +1599,7 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "stable",
+                "released-at": "2019-01-01T10:11:12.123456789+00:00",
                 "risk": "stable",
                 "track": "latest"
             },
@@ -1623,6 +1633,7 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "candidate",
+                "released-at": "2019-01-02T10:11:12.123456789+00:00",
                 "risk": "candidate",
                 "track": "latest"
             },
@@ -1656,6 +1667,7 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "beta",
+                "released-at": "2019-01-03T10:11:12.123456789+00:00",
                 "risk": "beta",
                 "track": "latest"
             },
@@ -1689,6 +1701,7 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "edge",
+                "released-at": "2019-01-04T10:11:12.123456789+00:00",
                 "risk": "edge",
                 "track": "latest"
             },
@@ -2039,6 +2052,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Channel:     "stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
+			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
 		},
 		"latest/candidate": {
 			Revision:    snap.R(27),
@@ -2047,6 +2061,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Channel:     "candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
+			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
 		},
 		"latest/beta": {
 			Revision:    snap.R(27),
@@ -2055,6 +2070,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Channel:     "beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
+			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
 		},
 		"latest/edge": {
 			Revision:    snap.R(28),
@@ -2063,6 +2079,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Channel:     "edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
+			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
 		},
 	}
 	for k, v := range result.Channels {
@@ -2077,16 +2094,19 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	// NB this tests more channels, but still only one architecture
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", infoPathPattern)
-		// following is just a tweaked version of:
+		// following is just an aligned version of:
 		// http https://api.snapcraft.io/v2/snaps/info/go architecture==amd64 fields==channel Snap-Device-Series:16 | jq -c '.["channel-map"] | .[]'
 		io.WriteString(w, `{"channel-map": [
-{"channel":{"name":"stable",      "risk":"stable", "track":"latest"}},
-{"channel":{"name":"edge",        "risk":"edge",   "track":"latest"}},
-{"channel":{"name":"1.10/stable", "risk":"stable", "track":"1.10"  }},
-{"channel":{"name":"1.6/stable",  "risk":"stable", "track":"1.6"   }},
-{"channel":{"name":"1.7/stable",  "risk":"stable", "track":"1.7"   }},
-{"channel":{"name":"1.8/stable",  "risk":"stable", "track":"1.8"   }},
-{"channel":{"name":"1.9/stable",  "risk":"stable", "track":"1.9"   }}
+{"channel":{"architecture":"amd64","name":"stable",        "released-at":"2018-12-17T09:17:16.288554+00:00","risk":"stable",   "track":"latest"}},
+{"channel":{"architecture":"amd64","name":"edge",          "released-at":"2018-11-06T00:46:03.348730+00:00","risk":"edge",     "track":"latest"}},
+{"channel":{"architecture":"amd64","name":"1.11/stable",   "released-at":"2018-12-17T09:17:48.847205+00:00","risk":"stable",   "track":"1.11"}},
+{"channel":{"architecture":"amd64","name":"1.11/candidate","released-at":"2018-12-17T00:10:05.864910+00:00","risk":"candidate","track":"1.11"}},
+{"channel":{"architecture":"amd64","name":"1.10/stable",   "released-at":"2018-12-17T06:53:57.915517+00:00","risk":"stable",   "track":"1.10"}},
+{"channel":{"architecture":"amd64","name":"1.10/candidate","released-at":"2018-12-17T00:04:13.413244+00:00","risk":"candidate","track":"1.10"}},
+{"channel":{"architecture":"amd64","name":"1.9/stable",    "released-at":"2018-06-13T02:23:06.338145+00:00","risk":"stable",   "track":"1.9"}},
+{"channel":{"architecture":"amd64","name":"1.8/stable",    "released-at":"2018-02-07T23:08:59.152984+00:00","risk":"stable",   "track":"1.8"}},
+{"channel":{"architecture":"amd64","name":"1.7/stable",    "released-at":"2017-06-02T01:16:52.640258+00:00","risk":"stable",   "track":"1.7"}},
+{"channel":{"architecture":"amd64","name":"1.6/stable",    "released-at":"2017-05-17T21:18:42.224979+00:00","risk":"stable",   "track":"1.6"}}
 ]}`)
 	}))
 
@@ -2104,19 +2124,22 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	result, err := sto.SnapInfo(store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
-		"latest/stable": {Channel: "stable"},
-		"latest/edge":   {Channel: "edge"},
-		"1.6/stable":    {Channel: "1.6/stable"},
-		"1.7/stable":    {Channel: "1.7/stable"},
-		"1.8/stable":    {Channel: "1.8/stable"},
-		"1.9/stable":    {Channel: "1.9/stable"},
-		"1.10/stable":   {Channel: "1.10/stable"},
+		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
+		"latest/edge":    {Channel: "edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
+		"1.6/stable":     {Channel: "1.6/stable", ReleasedAt: time.Date(2017, 5, 17, 21, 18, 42, 224979000, time.UTC)},
+		"1.7/stable":     {Channel: "1.7/stable", ReleasedAt: time.Date(2017, 6, 2, 1, 16, 52, 640258000, time.UTC)},
+		"1.8/stable":     {Channel: "1.8/stable", ReleasedAt: time.Date(2018, 2, 7, 23, 8, 59, 152984000, time.UTC)},
+		"1.9/stable":     {Channel: "1.9/stable", ReleasedAt: time.Date(2018, 6, 13, 2, 23, 6, 338145000, time.UTC)},
+		"1.10/stable":    {Channel: "1.10/stable", ReleasedAt: time.Date(2018, 12, 17, 6, 53, 57, 915517000, time.UTC)},
+		"1.10/candidate": {Channel: "1.10/candidate", ReleasedAt: time.Date(2018, 12, 17, 0, 4, 13, 413244000, time.UTC)},
+		"1.11/stable":    {Channel: "1.11/stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 48, 847205000, time.UTC)},
+		"1.11/candidate": {Channel: "1.11/candidate", ReleasedAt: time.Date(2018, 12, 17, 0, 10, 5, 864910000, time.UTC)},
 	}
 	for k, v := range result.Channels {
 		c.Check(v, DeepEquals, expected[k], Commentf("%q", k))
 	}
 	c.Check(result.Channels, HasLen, len(expected))
-	c.Check(result.Tracks, DeepEquals, []string{"latest", "1.10", "1.6", "1.7", "1.8", "1.9"})
+	c.Check(result.Tracks, DeepEquals, []string{"latest", "1.11", "1.10", "1.9", "1.8", "1.7", "1.6"})
 }
 
 func (s *storeTestSuite) TestInfoNonDefaults(c *C) {

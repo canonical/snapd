@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -557,4 +558,17 @@ func (cs *clientSuite) TestDebugGeneric(c *C) {
 	data, err := ioutil.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 	c.Check(string(data), DeepEquals, `{"action":"do-something","params":["param1","param2"]}`)
+}
+
+func (cs *clientSuite) TestDebugGet(c *C) {
+	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
+
+	var result []string
+	err := cs.cli.DebugGet("do-something", &result)
+	c.Check(err, IsNil)
+	c.Check(result, DeepEquals, []string{"res1", "res2"})
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "GET")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"action": []string{"do-something"}})
 }

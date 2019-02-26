@@ -21,6 +21,7 @@ package backend
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"errors"
 	"fmt"
@@ -31,8 +32,6 @@ import (
 	"path/filepath"
 	"sort"
 	"syscall"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/jsonutil"

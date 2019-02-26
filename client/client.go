@@ -684,3 +684,8 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
 	return err
 }
+
+func (client *Client) DebugGet(action string, result interface{}) error {
+	_, err := client.doSync("GET", "/v2/debug", url.Values{"action": []string{action}}, nil, nil, &result)
+	return err
+}

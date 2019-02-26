@@ -76,7 +76,7 @@ command, a reload is performed instead of a restart.
 
 func init() {
 	argdescs := []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<service>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("A service specification, which can be just a snap name (for all services in the snap), or <snap>.<app> for a single service."),

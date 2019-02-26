@@ -13,6 +13,12 @@ prepare: |
         touch /dev/fb0.spread
     fi
 
+    # Create a test char device so we can verify the test snap cannot read.
+    if [ ! -e /dev/test1 ]; then
+        mknod /dev/test1 c 29 1
+        touch /dev/test1.spread
+    fi
+
     echo "Given a snap declaring a plug on framebuffer is installed in devmode"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
@@ -21,6 +27,9 @@ prepare: |
 restore: |
     if [ -e /dev/fb0.spread ]; then
         rm -f /dev/fb0 /dev/fb0.spread
+    fi
+    if [ -e /dev/test1.spread ]; then
+        rm -f /dev/test1 /dev/test1.spread
     fi
 
 execute: |
@@ -31,7 +40,7 @@ execute: |
     test-devmode-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "the devmode snap can access other devices"
-    test-devmode-cgroup.read-dev mem
+    test-devmode-cgroup.read-dev test1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "And the framebuffer plug is disconnected"
     snap disconnect test-devmode-cgroup:framebuffer
@@ -40,4 +49,4 @@ execute: |
     test-devmode-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "the devmode snap can access other devices"
-    test-devmode-cgroup.read-dev mem
+    test-devmode-cgroup.read-dev test1 | MATCH -v '(Permission denied|Operation not permitted)'

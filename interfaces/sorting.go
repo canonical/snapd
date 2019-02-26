@@ -30,38 +30,7 @@ type byConnRef []*ConnRef
 func (c byConnRef) Len() int      { return len(c) }
 func (c byConnRef) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c byConnRef) Less(i, j int) bool {
-	if c[i].PlugRef.Snap != c[j].PlugRef.Snap {
-		return c[i].PlugRef.Snap < c[j].PlugRef.Snap
-	}
-	if c[i].PlugRef.Name != c[j].PlugRef.Name {
-		return c[i].PlugRef.Name < c[j].PlugRef.Name
-	}
-	if c[i].SlotRef.Snap != c[j].SlotRef.Snap {
-		return c[i].SlotRef.Snap < c[j].SlotRef.Snap
-	}
-	return c[i].SlotRef.Name < c[j].SlotRef.Name
-}
-
-type bySlotRef []SlotRef
-
-func (c bySlotRef) Len() int      { return len(c) }
-func (c bySlotRef) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c bySlotRef) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
-	}
-	return c[i].Name < c[j].Name
-}
-
-type byPlugRef []PlugRef
-
-func (c byPlugRef) Len() int      { return len(c) }
-func (c byPlugRef) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byPlugRef) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
-	}
-	return c[i].Name < c[j].Name
+	return c[i].SortsBefore(c[j])
 }
 
 type byPlugSnapAndName []*snap.PlugInfo
@@ -90,14 +59,6 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
 	}
 	return c[i].Name < c[j].Name
-}
-
-type byBackendName []SecurityBackend
-
-func (c byBackendName) Len() int      { return len(c) }
-func (c byBackendName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byBackendName) Less(i, j int) bool {
-	return c[i].Name() < c[j].Name()
 }
 
 func sortedSnapNamesWithPlugs(m map[string]map[string]*snap.PlugInfo) []string {
@@ -142,32 +103,4 @@ func (c byInterfaceName) Len() int      { return len(c) }
 func (c byInterfaceName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c byInterfaceName) Less(i, j int) bool {
 	return c[i].Name() < c[j].Name()
-}
-
-type byPlugInfo []*snap.PlugInfo
-
-func (c byPlugInfo) Len() int      { return len(c) }
-func (c byPlugInfo) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byPlugInfo) Less(i, j int) bool {
-	if c[i].Snap.SnapName() != c[j].Snap.SnapName() {
-		return c[i].Snap.SnapName() < c[j].Snap.SnapName()
-	}
-	if c[i].Snap.InstanceKey != c[j].Snap.InstanceKey {
-		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
-	}
-	return c[i].Name < c[j].Name
-}
-
-type bySlotInfo []*snap.SlotInfo
-
-func (c bySlotInfo) Len() int      { return len(c) }
-func (c bySlotInfo) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c bySlotInfo) Less(i, j int) bool {
-	if c[i].Snap.SnapName() != c[j].Snap.SnapName() {
-		return c[i].Snap.SnapName() < c[j].Snap.SnapName()
-	}
-	if c[i].Snap.InstanceKey != c[j].Snap.InstanceKey {
-		return c[i].Snap.InstanceKey < c[j].Snap.InstanceKey
-	}
-	return c[i].Name < c[j].Name
 }

@@ -61,7 +61,7 @@ def static_email_check(email, master_emails, width):
     return False
 
 
-def lp_email_check(email, lp, cla_folks, canonical_folks, width):
+def lp_email_check(email, lp, cla_folks, width):
     contributor = lp.people.getByEmail(email=email)
     if not contributor:
         print("{}🛇{} {:<{}} has no Launchpad account".format(red, reset, email, width))
@@ -70,13 +70,6 @@ def lp_email_check(email, lp, cla_folks, canonical_folks, width):
     if contributor in cla_folks:
         print(
             "{}✓{} {:<{}} ({}) has signed the CLA".format(
-                green, reset, email, width, contributor
-            )
-        )
-        return True
-    elif contributor in canonical_folks:
-        print(
-            "{}✓{} {:<{}} ({}) is Canonical employee".format(
                 green, reset, email, width, contributor
             )
         )
@@ -132,8 +125,7 @@ def main():
             print("Logging into Launchpad...")
             lp = Launchpad.login_anonymously("check CLA", "production")
             cla_folks = lp.people["contributor-agreement-canonical"].participants
-            canonical_folks = lp.people["canonical"].participants
-        if not lp_email_check(email, lp, cla_folks, canonical_folks, width):
+        if not lp_email_check(email, lp, cla_folks, width):
             failed = True
 
     if failed:

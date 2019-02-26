@@ -43,7 +43,7 @@ type cmdWait struct {
 func init() {
 	addCommand("wait",
 		"Wait for configuration",
-		"The wait command waits until a configration becomes true.",
+		"The wait command waits until a configuration becomes true.",
 		func() flags.Commander {
 			return &cmdWait{}
 		}, nil, []argDesc{
@@ -52,7 +52,7 @@ func init() {
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The snap for which configuration will be checked"),
 			}, {
-				// TRANSLATORS: This needs to be wrapped in <>s.
+				// TRANSLATORS: This needs to begin with < and end with >
 				name: i18n.G("<key>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Key of interest within the configuration"),

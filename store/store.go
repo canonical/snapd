@@ -22,6 +22,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/base64"
 	"encoding/json"
@@ -40,8 +41,6 @@ import (
 	"time"
 
 	"github.com/juju/ratelimit"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -82,9 +81,16 @@ type RefreshOptions struct {
 
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 300 * time.Millisecond,
+		Initial: 350 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
+var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
+	retry.Exponential{
+		Initial: 500 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -756,13 +762,11 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 		if err != nil {
 			return nil, err
 		}
-
-		var resp *http.Response
 		if ctx != nil {
-			resp, err = ctxhttp.Do(ctx, client, req)
-		} else {
-			resp, err = client.Do(req)
+			req = req.WithContext(ctx)
 		}
+
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -1443,7 +1447,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	var finalErr error
 	var dlSize float64
 	startTime := time.Now()
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
 		reqOptions := reqOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
@@ -1582,7 +1586,7 @@ func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	case osutil.ExecutableExists("xdelta3"):
 		return exec.Command("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
+		return osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", args...)
 	}
 	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }

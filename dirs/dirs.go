@@ -74,10 +74,11 @@ var (
 	SnapRepairAssertsDir string
 	SnapRunRepairDir     string
 
-	SnapCacheDir     string
-	SnapNamesFile    string
-	SnapSectionsFile string
-	SnapCommandsDB   string
+	SnapCacheDir        string
+	SnapNamesFile       string
+	SnapSectionsFile    string
+	SnapCommandsDB      string
+	SnapAuxStoreInfoDir string
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
@@ -108,6 +109,8 @@ var (
 
 	ErrtrackerDbDir string
 	SysfsDir        string
+
+	FeaturesDir string
 )
 
 const (
@@ -239,6 +242,7 @@ func SetRootDir(rootdir string) {
 	SnapNamesFile = filepath.Join(SnapCacheDir, "names")
 	SnapSectionsFile = filepath.Join(SnapCacheDir, "sections")
 	SnapCommandsDB = filepath.Join(SnapCacheDir, "commands.db")
+	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
@@ -281,15 +285,28 @@ func SetRootDir(rootdir string) {
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 
+	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
+	// The cache path is true for Ubuntu, Debian, openSUSE, Arch
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
+	if release.DistroLike("fedora") && !release.DistroLike("amzn") {
+		// Applies to Fedora and CentOS, Amazon Linux 2 is behind with
+		// updates to fontconfig and uses /var/cache/fontconfig instead,
+		// see:
+		// https://fedoraproject.org/wiki/Changes/FontconfigCacheDirChange
+		// https://bugzilla.redhat.com/show_bug.cgi?id=1416380
+		// https://bugzilla.redhat.com/show_bug.cgi?id=1377367
+		SystemFontconfigCacheDir = filepath.Join(rootdir, "/usr/lib/fontconfig/cache")
+	}
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
+
+	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

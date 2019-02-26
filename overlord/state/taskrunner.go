@@ -161,18 +161,21 @@ func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
 // run must be called with the state lock in place
 func (r *TaskRunner) run(t *Task) {
 	var handler HandlerFunc
+	var accuRuntime func(dur time.Duration)
 	switch t.Status() {
 	case DoStatus:
 		t.SetStatus(DoingStatus)
 		fallthrough
 	case DoingStatus:
 		handler = r.handlerPair(t).do
+		accuRuntime = t.accumulateDoingTime
 
 	case UndoStatus:
 		t.SetStatus(UndoingStatus)
 		fallthrough
 	case UndoingStatus:
 		handler = r.handlerPair(t).undo
+		accuRuntime = t.accumulateUndoingTime
 
 	default:
 		panic("internal error: attempted to run task in status " + t.Status().String())
@@ -188,13 +191,16 @@ func (r *TaskRunner) run(t *Task) {
 		// Capture the error result with tomb.Kill so we can
 		// use tomb.Err uniformily to consider both it or a
 		// overriding previous Kill reason.
+		t0 := time.Now()
 		tomb.Kill(handler(t, tomb))
+		t1 := time.Now()
 
 		// Locks must be acquired in the same order everywhere.
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.state.Lock()
 		defer r.state.Unlock()
+		accuRuntime(t1.Sub(t0))
 
 		delete(r.tombs, t.ID())
 

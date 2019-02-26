@@ -41,7 +41,7 @@ var changeIDMixinOptDesc = mixinDescs{
 }
 
 var changeIDMixinArgDesc = []argDesc{{
-	// TRANSLATORS: This needs to be wrapped in <>s.
+	// TRANSLATORS: This needs to begin with < and end with >
 	name: i18n.G("<change-id>"),
 	// TRANSLATORS: This should not start with a lowercase letter.
 	desc: i18n.G("Change ID"),

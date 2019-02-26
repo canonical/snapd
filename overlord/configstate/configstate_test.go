@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -249,7 +248,7 @@ func (wm *witnessManager) Ensure() error {
 func (s *configcoreHijackSuite) TestHijack(c *C) {
 	configcoreRan := false
 	witnessCfg := false
-	witnessConfigcoreRun := func(conf configcore.Conf) error {
+	witnessConfigcoreRun := func(conf config.Conf) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()

@@ -74,14 +74,17 @@ backends:
                 workers: 6
             - debian-sid-64:
                 workers: 6
-                manual: true
 
             - fedora-28-64:
                 workers: 4
                 manual: true
             - fedora-29-64:
-                workers: 4
+                workers: 6
             - opensuse-42.3-64:
+                workers: 4
+                # golang stack cannot compile anything, needs investigation
+                manual: true
+            - opensuse-15.0-64:
                 workers: 4
             - arch-linux-64:
                 workers: 4
@@ -94,6 +97,36 @@ backends:
                 workers: 4
                 image: centos-7-64
 
+    google-upgrade:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-14.04-64:
+                workers: 1
+            - ubuntu-16.04-32:
+                workers: 1
+            - ubuntu-16.04-64:
+                workers: 1
+            - ubuntu-18.04-64:
+                workers: 1
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
+                workers: 1
+            - debian-9-64:
+                workers: 1
+            - fedora-29-64:
+                workers: 1
+            - arch-linux-64:
+                workers: 1
+            - amazon-linux-2-64:
+                workers: 1
+                storage: preserve-size
+            - centos-7-64:
+                workers: 1
+
+
     google-sru:
         type: google
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
@@ -104,9 +137,10 @@ backends:
                 workers: 4
             - ubuntu-16.04-64:
                 workers: 4
-            - ubuntu-17.10-64:
-                workers: 4
             - ubuntu-18.04-64:
+                workers: 4
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
                 workers: 4
 
     google-nested:
@@ -122,23 +156,6 @@ backends:
             - ubuntu-18.04-64:
                 image: ubuntu-1804-64-virt-enabled
                 workers: 1
-
-    linode:
-        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        plan: 4GB
-        location: Fremont
-        halt-timeout: 2h
-        environment:
-            # Using proxy can help to accelerate testing in local conditions
-            # but it is unlikely anyone has a proxy that is addressable from
-            # Linode network. As such, don't honor host's SPREAD_HTTP_PROXY
-            # that was set globally above.
-            HTTP_PROXY: null
-            HTTPS_PROXY: null
-        systems:
-            - fedora-25-64:
-                workers: 4
-                manual: true
 
     qemu:
         systems:
@@ -432,6 +449,8 @@ debug-each: |
         snap interfaces || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
+        echo '# free space'
+        df -h || true
     fi
 
 rename:
@@ -455,7 +474,7 @@ repack: |
         tar c current.delta >&4
     fi
 
-kill-timeout: 20m
+kill-timeout: 30m
 
 prepare: |
     # NOTE: This part of the code needs to be in spread.yaml as it runs before
@@ -569,6 +588,22 @@ suites:
         summary: Full-system tests for snapd
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        debug: |
+            systemctl status snapd.socket || true
+            journalctl -xe
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+    # Essential tests run inside the autopkgtest environment on each
+    # platform. Autopkgtest can be very slow so we cannot run all
+    # tests there without running into timeouts.
+    tests/smoke/:
+        summary: Essenial system level tests for snapd
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
@@ -633,7 +668,16 @@ suites:
         systems: [-ubuntu-core-*, -opensuse-*]
         # autopkgtest runs against localhost which causes problems with
         # this test prepare
-        backends: [-autopkgtest]
+        backends: [google-upgrade]
+        prepare-each: |
+            # FIXME: this should really use prepare-restore.sh --prepare-suite-each
+            # like other suites, needs more investigation
+
+            # shellcheck source=tests/lib/state.sh
+            . "$TESTSLIB"/state.sh
+            mkdir -p "$RUNTIME_STATE_PATH"
+            # save the job which is going to be executed in the system
+            echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -712,16 +756,32 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
-    tests/nested/:
+    tests/nested/classic/:
         summary: Tests for nested images
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
         backends: [google-nested]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
-            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+    tests/nested/core/:
+        summary: Tests for nested images
+        backends: [google-nested]
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh

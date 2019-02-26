@@ -76,7 +76,7 @@
 %global snap_mount_dir /snap
 
 Name:           snapd
-Version:        2.36.2
+Version:        2.37.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -91,7 +91,7 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
-BuildRequires:  go
+BuildRequires:  go >= 1.9
 BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libapparmor-devel
@@ -272,9 +272,9 @@ rm -f %{buildroot}%{_bindir}/ubuntu-core-launcher
 # shutdown process and thus can be left out of the distribution package.
 rm -f %{buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
-install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+install -d %{buildroot}%{_sharedstatedir}/snapd/{assertions,cookie,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
 
-install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/vulkan}
+install -d %{buildroot}%{_sharedstatedir}/snapd/{lib/gl,lib/gl32,lib/glvnd,lib/vulkan}
 install -d %{buildroot}%{_localstatedir}/cache/snapd
 install -d %{buildroot}%{_datadir}/polkit-1/actions
 install -d %{buildroot}%{snap_mount_dir}/bin
@@ -360,6 +360,7 @@ fi
 %dir %{_sharedstatedir}/snapd/apparmor/profiles
 %dir %{_sharedstatedir}/snapd/apparmor/snap-confine
 %dir %{_sharedstatedir}/snapd/assertions
+%dir %{_sharedstatedir}/snapd/cookie
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
@@ -371,6 +372,7 @@ fi
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/glvnd
 %dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_localstatedir}/cache/snapd
 %dir %{_environmentdir}

@@ -125,16 +125,15 @@ purge() {
                 rm -f "$mnt"
             done
         fi
-        if [ "$(find /run/snapd/ns/ -name "*.fstab" | wc -l)" -gt 0 ]; then
-            for fstab in /run/snapd/ns/*.fstab; do
-                rm -f "$fstab"
-            done
-        fi
+        find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
         umount -l /run/snapd/ns/ || true
     fi
 
     echo "Removing downloaded snaps"
     rm -rf /var/lib/snapd/snaps/*
+
+    echo "Removing features exported from snapd to helper tools"
+    rm -rf /var/lib/snapd/features
 
     echo "Final directory cleanup"
     rm -rf "${SNAP_MOUNT_DIR}"
@@ -154,7 +153,7 @@ purge() {
     rm -f /var/lib/snapd/system-key
 
     echo "Removing snapd catalog cache"
-    rm -f /var/cache/snapd/*
+    rm -rf /var/cache/snapd/*
 
     if test -d /etc/apparmor.d; then
         # Remove auto-generated rules for snap-confine from the 'core' snap

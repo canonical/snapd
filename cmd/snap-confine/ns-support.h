@@ -70,7 +70,6 @@ struct sc_mount_ns;
  * that specific snap namespace:
  * - sc_create_or_join_mount_ns()
  * - sc_preserve_populated_mount_ns()
- * - sc_discard_preserved_mount_ns()
  */
 struct sc_mount_ns *sc_open_mount_ns(const char *group_name);
 
@@ -145,13 +144,5 @@ void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
  * terminate cleanly.
  **/
 void sc_wait_for_helper(struct sc_mount_ns *group);
-
-/**
- * Discard the preserved namespace group.
- *
- * This function unmounts the bind-mounted files representing the kernel mount
- * namespace.
- **/
-void sc_discard_preserved_mount_ns(struct sc_mount_ns *group);
 
 #endif

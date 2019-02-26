@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -305,11 +305,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
-	//
-	// TODO: we need to deal with the "snapd" snap here soon
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -318,7 +316,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// systems but /etc/apparmor.d is not writable on core18 systems
 	if snapName == "snapd" && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -565,6 +563,14 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
 					tagSnippets += ptraceTraceDenySnippet
 				}
+
+				// Use 'ix' rules in the home interface unless an
+				// interface asked to suppress them
+				repl := "ix"
+				if spec.SuppressHomeIx() {
+					repl = ""
+				}
+				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
 			}
 
 			return tagSnippets
@@ -617,4 +623,15 @@ func (b *Backend) SandboxFeatures() []string {
 	tags = append(tags, fmt.Sprintf("policy:%s", policy))
 
 	return tags
+}
+
+// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
+// This is exported so that other packages that indirectly interact with AppArmor backend
+// can mock isHomeUsingNFS.
+func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingNFS
+	isHomeUsingNFS = new
+	return func() {
+		isHomeUsingNFS = old
+	}
 }

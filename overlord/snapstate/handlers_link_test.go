@@ -87,12 +87,16 @@ func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
+	// we start without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			Revision: snap.R(33),
+			SnapID:   "foo-id",
 		},
 		Channel: "beta",
 		UserID:  2,
@@ -123,6 +127,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+
+	// we end with the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessNoUserID(c *C) {
@@ -741,4 +748,39 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
 	c.Assert(autoconnectSup.InstanceName(), Equals, "snap2")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
+	// this is very chummy with the order of LinkSnap
+	c.Assert(ioutil.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
+
+	// we start without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Channel: "beta",
+		UserID:  2,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+
+	// we end without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 }

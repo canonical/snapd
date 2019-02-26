@@ -54,7 +54,7 @@ func init() {
 		return &cmdAlias{}
 	}, waitDescs, []argDesc{
 		{name: "<snap.app>"},
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		{name: i18n.G("<alias>")},
 	})
 }

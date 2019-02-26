@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 
@@ -58,13 +59,21 @@ func (s *snapdSuite) SetUpTest(c *C) {
 func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
 
 	sanityErr := fmt.Errorf("foo failed")
 	sanityCalled := make(chan bool)
-	sanityClosed := false
+	sanityRan := 0
 	restore = snapd.MockSanityCheck(func() error {
-		if !sanityClosed {
-			sanityClosed = true
+		sanityRan++
+		// Ensure this ran at least *twice* to avoid a race here:
+		// If we close the channel and this wakes up the "select"
+		// below immediately and stops this go-routine then the
+		// check that the logbuf contains the error will fail.
+		// By running this at least twice we know the error made
+		// it to the log.
+		if sanityRan == 2 {
 			close(sanityCalled)
 		}
 		return sanityErr

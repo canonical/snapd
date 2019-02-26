@@ -305,7 +305,7 @@ func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	if err != nil {
 		return err
 	}
-	cmd, err := osutilCommandFromCore("/usr/bin/mksquashfs")
+	cmd, err := osutilCommandFromCore(dirs.SnapMountDir, "/usr/bin/mksquashfs")
 	if err != nil {
 		cmd = exec.Command("mksquashfs")
 	}

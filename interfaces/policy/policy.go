@@ -148,14 +148,6 @@ func (connc *ConnectCandidate) SlotAttr(arg string) (interface{}, error) {
 	return nestedGet("slot", connc.Slot, arg)
 }
 
-func (connc *ConnectCandidate) plugSnapType() snap.Type {
-	return connc.Plug.Snap().Type
-}
-
-func (connc *ConnectCandidate) slotSnapType() snap.Type {
-	return connc.Slot.Snap().Type
-}
-
 func (connc *ConnectCandidate) plugSnapID() string {
 	if connc.PlugSnapDeclaration != nil {
 		return connc.PlugSnapDeclaration.SnapID()

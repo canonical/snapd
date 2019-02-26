@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -66,6 +67,12 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
+	path := os.Getenv("PATH")
+	s.AddCleanup(func() {
+		os.Setenv("PATH", path)
+	})
+	os.Setenv("PATH", path+":"+dirs.SnapBinariesDir)
+
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
@@ -92,6 +99,8 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snap.MockIsStdoutTTY(false))
 	s.AddCleanup(snap.MockIsStdinTTY(false))
+
+	s.AddCleanup(snap.MockSELinuxIsEnabled(func() (bool, error) { return false, nil }))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
@@ -258,7 +267,7 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 	defer restore()
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'`)
+	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {
@@ -327,4 +336,71 @@ func (s *SnapSuite) TestFirstNonOptionIsRun(c *C) {
 		os.Args = strings.Fields(positive)
 		c.Check(snap.FirstNonOptionIsRun(), Equals, true)
 	}
+}
+
+func (s *SnapSuite) TestLintDesc(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// LintDesc is happy about capitalized description.
+	snap.LintDesc("command", "<option>", "Description ...", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintDesc complains about lowercase description.
+	snap.LintDesc("command", "<option>", "description", "")
+	c.Check(log.String(), testutil.Contains, `description of command's "<option>" is lowercase: "description"`)
+	log.Reset()
+
+	// LintDesc does not complain about lowercase description starting with login.ubuntu.com
+	snap.LintDesc("command", "<option>", "login.ubuntu.com description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintDesc panics when original description is present.
+	fn := func() {
+		snap.LintDesc("command", "<option>", "description", "original description")
+	}
+	c.Check(fn, PanicMatches, `description of command's "<option>" of "original description" set from tag \(=> no i18n\)`)
+	log.Reset()
+
+	// LintDesc panics when option name is empty.
+	fn = func() {
+		snap.LintDesc("command", "", "description", "")
+	}
+	c.Check(fn, PanicMatches, `option on "command" has no name`)
+	log.Reset()
+}
+
+func (s *SnapSuite) TestLintArg(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// LintArg is happy when option is enclosed with < >.
+	snap.LintArg("command", "<option>", "Description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+
+	// LintArg complains about when option is not properly enclosed with < >.
+	snap.LintArg("command", "option", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "option" should begin with < and end with >`)
+	log.Reset()
+	snap.LintArg("command", "<option", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "<option" should begin with < and end with >`)
+	log.Reset()
+	snap.LintArg("command", "option>", "Description", "")
+	c.Check(log.String(), testutil.Contains, `argument "command"'s "option>" should begin with < and end with >`)
+	log.Reset()
+
+	// LintArg ignores the special case of <option>s.
+	snap.LintArg("command", "<option>s", "Description", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+}
+
+func (s *SnapSuite) TestFixupArg(c *C) {
+	c.Check(snap.FixupArg("option"), Equals, "option")
+	c.Check(snap.FixupArg("<option>"), Equals, "<option>")
+	// Trailing ">s" is fixed to just >.
+	c.Check(snap.FixupArg("<option>s"), Equals, "<option>")
 }
