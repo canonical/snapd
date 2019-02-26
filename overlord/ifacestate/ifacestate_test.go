@@ -6102,10 +6102,7 @@ version: 1.0
 type: os
 slots:
   network:
-  core-support:
-plugs:
-  core-support-plug:
-    interface: core-support
+
 `
 const coreSnapYaml2 = `name: core
 version: 1.0
@@ -6148,16 +6145,11 @@ func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
 
 	_, err := repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "network"}, SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: "network"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	_, err = repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "ubuntu-core", Name: "core-support-plug"}, SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: "core-support"}}, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
 	repoConns, err := repo.Connections("ubuntu-core")
 	c.Assert(err, IsNil)
-	c.Assert(repoConns, HasLen, 2)
+	c.Assert(repoConns, HasLen, 1)
 
-	st.Set("conns", map[string]interface{}{
-		"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true},
-		"ubuntu-core:core-support-plug ubuntu-core:core-support": map[string]interface{}{"interface": "core-support", "auto": true},
-	})
+	st.Set("conns", map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
 
 	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "ubuntu-core", "core"), IsNil)
 

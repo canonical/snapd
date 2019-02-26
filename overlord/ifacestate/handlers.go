@@ -1122,14 +1122,10 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 		return err
 	}
 
-	for id, conn := range conns {
+	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
-		}
-		if connRef.PlugRef.Snap == oldName && conn.Interface == "core-support" {
-			delete(conns, id)
-			continue
 		}
 		if connRef.SlotRef.Snap == oldName {
 			connRef.SlotRef.Snap = newName
