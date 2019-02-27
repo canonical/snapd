@@ -163,6 +163,29 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
+func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+	err := os.MkdirAll(dirs.AppArmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+	// mock the forest subdir and features file
+	subdir := filepath.Join(dirs.AppArmorCacheDir, "deadbeef.0")
+	err = os.MkdirAll(subdir, 0700)
+	c.Assert(err, IsNil)
+	features := filepath.Join(subdir, ".features")
+	ioutil.WriteFile(features, []byte("blob"), 0644)
+
+	fname := filepath.Join(subdir, "profile")
+	ioutil.WriteFile(fname, []byte("blob"), 0600)
+	err = apparmor.UnloadProfiles([]string{"profile"}, dirs.AppArmorCacheDir)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(fname)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
 // Tests for LoadedProfiles()
 
 func (s *appArmorSuite) TestLoadedApparmorProfilesReturnsErrorOnMissingFile(c *C) {

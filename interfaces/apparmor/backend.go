@@ -336,10 +336,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 				// profiles are like the following:
 				// - usr.lib.snapd.snap-confine.real
 				// - usr.lib.snapd.snap-confine
-				// - snap-confine.core.NNNN
 				// - snap.core.NNNN.usr.lib.snapd.snap-confine
+				// - snap-confine.core.NNNN
+				// TODO: also the "snapd" snap here soon
 				bn := path.Base(p)
-				if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.") && !strings.HasSuffix(bn, ".snap-confine") {
+				if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
 					continue
 				}
 				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {

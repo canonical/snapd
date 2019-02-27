@@ -30,6 +30,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -98,7 +100,21 @@ func unloadProfiles(names []string, cacheDir string) error {
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}
-	if err := osutil.UnlinkMany(cacheDir, names); err != nil && !os.IsNotExist(err) {
+
+	// AppArmor 2.13 and higher has a cache forest while 2.12 and lower has
+	// a flat directory (on 2.12 and earlier, .features and the snap
+	// profiles are in the top-level directory instead of a subdirectory).
+	// With 2.13+, snap profiles are not expected to be in every
+	// subdirectory, so don't error on ENOENT but otherwise if we get an
+	// error, something weird happened so stop processing.
+	if li, err := filepath.Glob(filepath.Join(cacheDir, "*/.features")); err == nil && len(li) > 0 { // 2.13+
+		for _, p := range li {
+			dir := path.Dir(p)
+			if err := osutil.UnlinkMany(dir, names); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("cannot remove apparmor profile cache in %s: %s", dir, err)
+			}
+		}
+	} else if err := osutil.UnlinkMany(cacheDir, names); err != nil && !os.IsNotExist(err) { // 2.12-
 		return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
 	}
 	return nil
