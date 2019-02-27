@@ -915,12 +915,32 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	canaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "meep")
 	err = ioutil.WriteFile(canaryPath, nil, 0644)
 	c.Assert(err, IsNil)
+	// and the snap-confine profiles are removed
+	scCanaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "usr.lib.snapd.snap-confine.real")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "usr.lib.snapd.snap-confine")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap-confine.core.6405")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap.core.4938.usr.lib.snapd.snap-confine")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
 	// but non-regular entries in the cache dir are kept
 	dirsAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "dir")
 	err = os.MkdirAll(dirsAreKept, 0755)
 	c.Assert(err, IsNil)
 	symlinksAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "symlink")
 	err = os.Symlink("some-sylink-target", symlinksAreKept)
+	c.Assert(err, IsNil)
+	// and the snap profiles are kept
+	snapCanaryKept := filepath.Join(dirs.SystemApparmorCacheDir, "snap.canary.meep")
+	err = ioutil.WriteFile(snapCanaryKept, nil, 0644)
+	c.Assert(err, IsNil)
+	sunCanaryKept := filepath.Join(dirs.SystemApparmorCacheDir, "snap-update-ns.canary")
+	err = ioutil.WriteFile(sunCanaryKept, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// install the new core snap on classic triggers a new snap-confine
@@ -930,7 +950,7 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
 	c.Assert(err, IsNil)
 	// canary is gone, extra stuff is kept
-	c.Check(l, DeepEquals, []string{dirsAreKept, symlinksAreKept})
+	c.Check(l, DeepEquals, []string{dirsAreKept, sunCanaryKept, snapCanaryKept, symlinksAreKept})
 }
 
 // snap-confine policy when NFS is not used.

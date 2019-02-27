@@ -42,6 +42,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -329,6 +330,18 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if snapName == "core" && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
 			for _, p := range li {
+				// On systems with unified cache directory,
+				// don't remove the snap profiles, only system
+				// and snap-confine profiles. snap-confine
+				// profiles are like the following:
+				// - usr.lib.snapd.snap-confine.real
+				// - usr.lib.snapd.snap-confine
+				// - snap-confine.core.NNNN
+				// - snap.core.NNNN.usr.lib.snapd.snap-confine
+				bn := path.Base(p)
+				if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.") && !strings.HasSuffix(bn, ".snap-confine") {
+					continue
+				}
 				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
 					if err := os.Remove(p); err != nil {
 						logger.Noticef("cannot remove %q: %s", p, err)

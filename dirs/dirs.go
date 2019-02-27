@@ -260,6 +260,11 @@ func SetRootDir(rootdir string) {
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
+	if _, err := os.Stat(SystemApparmorCacheDir); os.IsNotExist(err) {
+		// some systems use a single cache dir instead of splitting
+		// out the system cache
+		SystemApparmorCacheDir = AppArmorCacheDir
+	}
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
