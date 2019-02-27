@@ -572,6 +572,19 @@ prepare: |
     type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
 
+    if [ -e /etc/profile.d/go.sh ]; then
+        # Up until recently openSUSE golang packaging injected environment
+        # variables into the global shell profile. This caused issues across
+        # updates and was, in fact, entirely useless. As such, if we are
+        # working against an older image that still has that file, we can
+        # remove it and unset certain variables to avoid the problem.
+        unset GOBIN
+        unset GOARCH
+        unset GOROOT
+        unset GOOS
+        rm -f /etc/profile.d/go.sh
+    fi
+
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
