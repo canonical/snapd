@@ -1135,14 +1135,17 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	}
 	setConns(st, conns)
 
-	// The reloadConnections() just modifies the repository object, it
-	// has no effect on the running system, i.e. no security profiles
-	// on disk are rewriten. This is ok because core/ubuntu-core have
-	// exactly the same profiles and nothing in the generated policies
-	// has the slot-name encoded.
-	if _, err := m.reloadConnections(oldName); err != nil {
+	// After migrating connections in state, remove them from repo so they stay in sync and we don't
+	// attempt to run disconnects on when the old core gets removed as part of the transition.
+	if err := m.removeConnections(oldName); err != nil {
 		return err
 	}
+
+	// The reloadConnections() just modifies the repository object, it
+	// has no effect on the running system, i.e. no security profiles
+	// on disk are rewritten. This is ok because core/ubuntu-core have
+	// exactly the same profiles and nothing in the generated policies
+	// has the core snap-name encoded.
 	if _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
