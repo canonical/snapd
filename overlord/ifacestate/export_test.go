@@ -39,6 +39,7 @@ var (
 	MakeSlotName                 = makeSlotName
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
+	HotplugSlotName              = hotplugSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
 	GetHotplugAttrs              = getHotplugAttrs
 	SetHotplugAttrs              = setHotplugAttrs
@@ -53,6 +54,7 @@ var (
 	SetHotplugChangeAttrs        = setHotplugChangeAttrs
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
+	AddHotplugSlot               = addHotplugSlot
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -99,7 +101,7 @@ func UpperCaseConnState() map[string]*connState {
 	}
 }
 
-func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget bool) {
+func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget, undesired bool) {
 	connRef := &interfaces.ConnRef{
 		PlugRef: *conn.Plug.Ref(),
 		SlotRef: *conn.Slot.Ref(),
@@ -113,6 +115,7 @@ func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.C
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
 		ByGadget:         byGadget,
+		Undesired:        undesired,
 	}
 }
 

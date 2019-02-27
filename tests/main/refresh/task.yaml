@@ -64,7 +64,6 @@ restore: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
         if is_core_system; then
             exit

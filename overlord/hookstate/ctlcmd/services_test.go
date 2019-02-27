@@ -20,10 +20,9 @@
 package ctlcmd_test
 
 import (
+	"context"
 	"fmt"
 	"sort"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 

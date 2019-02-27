@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -101,6 +101,7 @@ var api = []*Command{
 	warningsCmd,
 	debugCmd,
 	snapshotCmd,
+	connectionsCmd,
 }
 
 var (
@@ -209,11 +210,6 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
-	}
-
-	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -1618,21 +1614,29 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	about, err := localSnapInfo(st, name)
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil {
-		if err == errNoSnap {
+		if err == state.ErrNoState {
 			return SnapNotFound(name, err)
 		}
-		return InternalError("%v", err)
+		return InternalError("cannot consult state: %v", err)
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		return NotFound("snap has no current revision")
 	}
 
-	path := filepath.Clean(snapIcon(about.info))
-	if !strings.HasPrefix(path, dirs.SnapMountDir) {
-		// XXX: how could this happen?
-		return BadRequest("requested icon is not in snap path")
+	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
+
+	if icon == "" {
+		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(path)
+	return FileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1789,57 +1793,15 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-
-	var ifjson interfaceJSON
-	plugConns := map[string][]interfaces.SlotRef{}
-	slotConns := map[string][]interfaces.PlugRef{}
-
-	for _, cref := range ifaces.Connections {
-		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
-		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
-		plugID := plugRef.String()
-		slotID := slotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], slotRef)
-		slotConns[slotID] = append(slotConns[slotID], plugRef)
+	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	if err != nil {
+		return InternalError("collecting connection information failed: %v", err)
 	}
-
-	for _, plug := range ifaces.Plugs {
-		var apps []string
-		for _, app := range plug.Apps {
-			apps = append(apps, app.Name)
-		}
-		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
-		pj := &plugJSON{
-			Snap:        plugRef.Snap,
-			Name:        plugRef.Name,
-			Interface:   plug.Interface,
-			Attrs:       plug.Attrs,
-			Apps:        apps,
-			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
-		}
-		ifjson.Plugs = append(ifjson.Plugs, pj)
+	legacyconnsjson := legacyConnectionsJSON{
+		Plugs: connsjson.Plugs,
+		Slots: connsjson.Slots,
 	}
-	for _, slot := range ifaces.Slots {
-		var apps []string
-		for _, app := range slot.Apps {
-			apps = append(apps, app.Name)
-		}
-		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
-		sj := &slotJSON{
-			Snap:        slotRef.Snap,
-			Name:        slotRef.Name,
-			Interface:   slot.Interface,
-			Attrs:       slot.Attrs,
-			Apps:        apps,
-			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
-		}
-		ifjson.Slots = append(ifjson.Slots, sj)
-	}
-	return SyncResponse(ifjson, nil)
+	return SyncResponse(legacyconnsjson, nil)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
@@ -1922,7 +1884,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				conn, err := repo.Connection(connRef)
+				var conn *interfaces.Connection
+				conn, err = repo.Connection(connRef)
 				if err != nil {
 					break
 				}
@@ -2499,71 +2462,6 @@ func convertBuyError(err error) Response {
 		return InternalError("%v", err)
 	}
 }
-
-type debugAction struct {
-	Action  string `json:"action"`
-	Message string `json:"message"`
-}
-
-type ConnectivityStatus struct {
-	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable,omitempty"`
-}
-
-func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
-	var a debugAction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a debug action: %v", err)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	switch a.Action {
-	case "add-warning":
-		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
-	case "unshow-warnings":
-		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
-	case "ensure-state-soon":
-		ensureStateSoon(st)
-		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		bd, err := assertstate.BaseDeclaration(st)
-		if err != nil {
-			return InternalError("cannot get base declaration: %s", err)
-		}
-		return SyncResponse(map[string]interface{}{
-			"base-declaration": string(asserts.Encode(bd)),
-		}, nil)
-	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
-		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
-	default:
-		return BadRequest("unknown debug action: %v", a.Action)
-	}
-}
-
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 

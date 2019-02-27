@@ -46,8 +46,6 @@ restore: |
     distro_purge_package openvswitch-switch
     distro_auto_remove_packages
 
-    rm -f ./*.error
-
     ip link delete tap1 || true
 
 execute: |
@@ -81,7 +79,7 @@ execute: |
     snap disconnect test-snapd-openvswitch-consumer:openvswitch
 
     echo "Then the snap is not able to create a bridge"
-    if test-snapd-openvswitch-consumer.ovs-vsctl add-br br0 2>"${PWD}"/bridge-creation.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl add-br br0 2> bridge-creation.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi
@@ -90,7 +88,7 @@ execute: |
     ovs-vsctl add-br br0
 
     echo "And the snap is not able to create a port"
-    if test-snapd-openvswitch-consumer.ovs-vsctl add-port br0 tap1 2>"${PWD}"/port-creation.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl add-port br0 tap1 2> port-creation.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi
@@ -99,14 +97,14 @@ execute: |
     ovs-vsctl add-port br0 tap1
 
     echo "And the snap is not able to delete a port"
-    if test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1 2>"${PWD}"/port-deletion.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1 2> port-deletion.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi
     MATCH 'database connection failed \(Permission denied\)' < port-deletion.error
 
     echo "And the snap is not able to delete a bridge"
-    if test-snapd-openvswitch-consumer.ovs-vsctl del-br br0 2>"${PWD}"/br-creation.error; then
+    if test-snapd-openvswitch-consumer.ovs-vsctl del-br br0 2> br-creation.error; then
         echo "Expected permission error accessing openvswitch socket with disconnected plug"
         exit 1
     fi

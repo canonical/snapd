@@ -41,7 +41,9 @@ import (
 
 var errorPrefix = i18n.G("error: %v\n")
 
-func termSize() (width, height int) {
+var termSize = termSizeImpl
+
+func termSizeImpl() (width, height int) {
 	if f, ok := Stdout.(*os.File); ok {
 		width, height, _ = terminal.GetSize(int(f.Fd()))
 	}

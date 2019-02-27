@@ -39,11 +39,10 @@ import (
 var errNoSnap = errors.New("snap not installed")
 
 // snapIcon tries to find the icon inside the snap
-func snapIcon(info *snap.Info) string {
-	// XXX: copy of snap.Snap.Icon which will go away
+func snapIcon(info snap.PlaceInfo) string {
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return info.Media.IconURL()
+		return ""
 	}
 
 	return found[0]
@@ -298,11 +297,17 @@ func mapLocal(about aboutSnap) *client.Snap {
 	if about.publisher != nil {
 		publisherUsername = about.publisher.Username
 	}
+	// get the icon from the snap itself
+	icon := snapIcon(localSnap)
+	if icon == "" {
+		// fall back to the one in media
+		icon = localSnap.Media.IconURL()
+	}
 	result := &client.Snap{
 		Description:      localSnap.Description(),
 		Developer:        publisherUsername,
 		Publisher:        about.publisher,
-		Icon:             snapIcon(localSnap),
+		Icon:             icon,
 		ID:               localSnap.SnapID,
 		InstallDate:      localSnap.InstallDate(),
 		InstalledSize:    localSnap.Size,
@@ -328,6 +333,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		License:          localSnap.License,
 		CommonIDs:        localSnap.CommonIDs,
 		MountedFrom:      localSnap.MountFile(),
+		Media:            localSnap.Media,
 	}
 
 	if result.TryMode {
@@ -358,7 +364,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Developer:    remoteSnap.Publisher.Username,
 		Publisher:    &publisher,
 		DownloadSize: remoteSnap.Size,
-		Icon:         snapIcon(remoteSnap),
+		Icon:         remoteSnap.Media.IconURL(),
 		ID:           remoteSnap.SnapID,
 		Name:         remoteSnap.InstanceName(),
 		Revision:     remoteSnap.Revision,

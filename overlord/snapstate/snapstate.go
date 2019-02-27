@@ -21,14 +21,13 @@
 package snapstate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -240,7 +239,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = installHook
 	}
 
-	// run new serices
+	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
 	prev = startSnapServices
@@ -264,7 +263,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -289,7 +288,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			if boot.InUse(snapsup.InstanceName(), si.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -538,7 +537,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	if err := canSwitchChannel(st, instanceName, channel); err != nil {
+	channel, err = resolveChannel(st, instanceName, channel)
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -560,7 +560,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 	if err := snap.ValidateInstanceName(instanceName); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
@@ -628,6 +628,10 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
+	if err := snap.ValidateInstanceName(name); err != nil {
+		return nil, fmt.Errorf("invalid instance name: %v", err)
+	}
+
 	info, err := installInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
@@ -653,6 +657,9 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Type:         info.Type,
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
+		auxStoreInfo: auxStoreInfo{
+			Media: info.Media,
+		},
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -671,6 +678,11 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		if snapst.IsInstalled() {
 			continue
 		}
+
+		if err := snap.ValidateInstanceName(name); err != nil {
+			return nil, nil, fmt.Errorf("invalid instance name: %v", err)
+		}
+
 		toInstall = append(toInstall, name)
 	}
 
@@ -867,6 +879,9 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Type:         update.Type,
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
+			auxStoreInfo: auxStoreInfo{
+				Media: update.Media,
+			},
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)
@@ -1037,43 +1052,55 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
-// canSwitchChannel returns an error if switching to newChannel for snap is
-// forbidden.
-func canSwitchChannel(st *state.State, snapName, newChannel string) error {
+// resolveChannel returns the effective channel to use, based on the requested
+// channel and constrains set by device model, or an error if switching to
+// requested channel is forbidden.
+func resolveChannel(st *state.State, snapName, newChannel string) (effectiveChannel string, err error) {
 	// nothing to do
 	if newChannel == "" {
-		return nil
+		return "", nil
 	}
 
 	// ensure we do not switch away from the kernel-track in the model
 	model, err := Model(st)
 	if err != nil && err != state.ErrNoState {
-		return err
+		return "", err
 	}
 	if model == nil {
-		return nil
+		return newChannel, nil
 	}
 
+	var pinnedTrack, which string
 	if snapName == model.Kernel() && model.KernelTrack() != "" {
-		nch, err := snap.ParseChannel(newChannel, "")
-		if err != nil {
-			return err
-		}
-		if nch.Track != model.KernelTrack() {
-			return fmt.Errorf("cannot switch from kernel track %q as specified for the (device) model to %q", model.KernelTrack(), nch.String())
-		}
+		pinnedTrack, which = model.KernelTrack(), "kernel"
 	}
 	if snapName == model.Gadget() && model.GadgetTrack() != "" {
-		nch, err := snap.ParseChannel(newChannel, "")
-		if err != nil {
-			return err
-		}
-		if nch.Track != model.GadgetTrack() {
-			return fmt.Errorf("cannot switch from gadget track %q as specified for the (device) model to %q", model.GadgetTrack(), nch.String())
-		}
+		pinnedTrack, which = model.GadgetTrack(), "gadget"
 	}
 
-	return nil
+	if pinnedTrack == "" {
+		// no pinned track
+		return newChannel, nil
+	}
+
+	nch, err := snap.ParseChannelVerbatim(newChannel, "")
+	if err != nil {
+		return "", err
+	}
+
+	if nch.Track == "" {
+		// channel name is valid and consist of risk level or
+		// risk/branch only, do the right thing and default to risk (or
+		// risk/branch) within the pinned track
+		return pinnedTrack + "/" + newChannel, nil
+	}
+	if nch.Track != "" && nch.Track != pinnedTrack {
+		// switching to a different track is not allowed
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
+
+	}
+
+	return newChannel, nil
 }
 
 // Switch switches a snap to a new channel
@@ -1091,7 +1118,8 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	if err := canSwitchChannel(st, name, channel); err != nil {
+	channel, err = resolveChannel(st, name, channel)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1130,7 +1158,8 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return nil, err
 	}
 
-	if err := canSwitchChannel(st, name, channel); err != nil {
+	channel, err = resolveChannel(st, name, channel)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1567,6 +1596,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	// main/current SnapSetup
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
+			SnapID:   info.SnapID,
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
@@ -1620,7 +1650,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		var tasks []*state.Task
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
-		removeAliases.WaitFor(prev)
+		removeAliases.WaitFor(prev) // prev is not needed beyond here
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
 
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
@@ -1639,20 +1669,21 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		seq := snapst.Sequence
 		for i := len(seq) - 1; i >= 0; i-- {
 			si := seq[i]
-			addNext(removeInactiveRevision(st, name, si.Revision))
+			addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
 		}
 	} else {
-		addNext(removeInactiveRevision(st, name, revision))
+		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
 	}
 
 	return full, nil
 }
 
-func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
+func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
 	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
+			SnapID:   snapID,
 			Revision: revision,
 		},
 		InstanceKey: instanceKey,
@@ -1787,7 +1818,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			return nil, err
 		}
 
-		// start by instaling the new snap
+		// start by installing the new snap
 		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,

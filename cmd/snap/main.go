@@ -478,7 +478,7 @@ var wrongDashes = string([]rune{
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
-	_, err := parser.Parse()
+	xtra, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
 			switch e.Type {
@@ -489,7 +489,16 @@ func run() error {
 				parser.WriteHelp(Stdout)
 				return nil
 			case flags.ErrUnknownCommand:
-				return fmt.Errorf(i18n.G(`unknown command %q, see 'snap help'`), os.Args[1])
+				sub := os.Args[1]
+				sug := "snap help"
+				if len(xtra) > 0 {
+					sub = xtra[0]
+					if x := parser.Command.Active; x != nil && x.Name != "help" {
+						sug = "snap help " + x.Name
+					}
+				}
+				// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
+				return fmt.Errorf(i18n.G("unknown command %q, see '%s'."), sub, sug)
 			}
 		}
 

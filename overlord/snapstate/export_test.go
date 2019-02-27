@@ -82,6 +82,7 @@ var (
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
+	ResolveChannel         = resolveChannel
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
@@ -208,3 +209,13 @@ func setModel(override map[string]string) {
 		return a.(*asserts.Model), nil
 	}
 }
+
+// aux store info
+var (
+	AuxStoreInfoFilename = auxStoreInfoFilename
+	RetrieveAuxStoreInfo = retrieveAuxStoreInfo
+	KeepAuxStoreInfo     = keepAuxStoreInfo
+	DiscardAuxStoreInfo  = discardAuxStoreInfo
+)
+
+type AuxStoreInfo = auxStoreInfo
