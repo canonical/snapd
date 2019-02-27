@@ -34,7 +34,7 @@ execute: |
     wait_for_service snap.go-example-webserver.webserver.service
 
     echo "Install a test snap"
-    snap install hello-world
+    snap install test-snapd-tools
     
     echo "upgrade to current snapd"
     apt install -y "$GOHOME"/snapd*.deb
@@ -54,9 +54,9 @@ execute: |
   
     echo "check that snap confine profiles are fine after upgrade"
     test -f /etc/apparmor.d/usr.lib.snapd.snap-confine.real
-    test $(ls /var/lib/snapd/apparmor/profiles/snap-confine.core.* 2>/dev/null | wc -l) -eq 1
+    test "$(find /var/lib/snapd/apparmor/profiles/ -name "snap-confine.core.*" | wc -l)" -eq 1
     MATCH "^/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
     MATCH "^/snap/core/.*/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
 
     echo "Smoke test, this should fail if profiles were wrong"
-    hello-world
+    test-snapd-tools.echo hello | MATCH hello
