@@ -203,10 +203,6 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.samba.smbd")
 		_, err = os.Stat(cache)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// apparmor_parser was used to unload the profile
-		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--remove", "snap-update-ns.samba", "snap.samba.smbd"},
-		})
 	}
 }
 
@@ -223,10 +219,6 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
 		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.foo.hook.configure")
 		_, err = os.Stat(cache)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// apparmor_parser was used to unload the profile
-		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--remove", "snap-update-ns.foo", "snap.foo.hook.configure"},
-		})
 	}
 }
 
@@ -306,7 +298,6 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", updateNSProfile, smbdProfile},
-			{"apparmor_parser", "--remove", "snap.samba.nmbd"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -329,7 +320,6 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", updateNSProfile, nmbdProfile, smbdProfile},
-			{"apparmor_parser", "--remove", "snap.samba.hook.configure"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -862,9 +852,6 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreYaml, 111)
 
 	c.Check(osutil.FileExists(canary), Equals, false)
-	c.Check(s.parserCmd.Calls(), testutil.DeepContains, []string{
-		"apparmor_parser", "--remove", canaryName,
-	})
 }
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
