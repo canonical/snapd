@@ -63,18 +63,43 @@ func getBaseDeclaration(st *state.State) Response {
 	}, nil)
 }
 
+func checkConnectivity(theStore snapstate.StoreService) Response {
+	checkResult, err := theStore.ConnectivityCheck()
+	if err != nil {
+		return InternalError("cannot run connectivity check: %v", err)
+	}
+	status := ConnectivityStatus{Connectivity: true}
+	for host, reachable := range checkResult {
+		if !reachable {
+			status.Connectivity = false
+			status.Unreachable = append(status.Unreachable, host)
+		}
+	}
+	sort.Strings(status.Unreachable)
+
+	return SyncResponse(status, nil)
+}
+
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	aspect := query.Get("aspect")
-	if aspect != "base-declaration" {
+	st := c.d.overlord.State()
+	switch aspect {
+	case "base-declaration":
+		st.Lock()
+		defer st.Unlock()
+
+		return getBaseDeclaration(st)
+	case "connectivity":
+		st.Lock()
+		theStore := snapstate.Store(st)
+		st.Unlock()
+
+		return checkConnectivity(theStore)
+	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	return getBaseDeclaration(st)
 }
 
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -105,21 +130,9 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "connectivity":
 		s := snapstate.Store(st)
 		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
+		rsp := checkConnectivity(s)
 		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
+		return rsp
 	case "change-timings":
 		chg := st.Change(a.Params.ChgID)
 		if chg == nil {
