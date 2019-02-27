@@ -108,7 +108,7 @@ func (c byTagAndSnippet) Less(i, j int) bool {
 
 // Snippets returns a copy of all the snippets added so far.
 func (spec *Specification) Snippets() (result []string) {
-	// If the interface controls it's own device cgroup, then
+	// If one of the interfaces controls it's own device cgroup, then
 	// we don't want to enforce a device cgroup, which is only turned on if
 	// there are udev rules, and as such we don't want to generate any udev
 	// rules
