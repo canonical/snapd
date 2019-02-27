@@ -57,13 +57,13 @@ go_binaries = snap snapctl snap-seccomp snap-update-ns snap-exec snapd
 .PHONY: all
 all: $(go_binaries) 
 
-snap snapctl snap-seccomp:
+snap snap-seccomp:
 	go build -buildmode=pie $(import_path)/cmd/$@
 
-# Those two need to be built as static binaries. They run on the inside of a
+# Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
-snap-update-ns snap-exec:
+snap-update-ns snap-exec snapctl:
 	go build -buildmode=default -ldflags '-extldflags "-static"' $(import_path)/cmd/$@
 
 # Snapd can be built with test keys. This is only used by the internal test
