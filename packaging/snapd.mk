@@ -60,7 +60,7 @@ all: $(go_binaries)
 snap snap-seccomp:
 	go build -buildmode=pie $(import_path)/cmd/$@
 
-# Those tree need to be built as static binaries. They run on the inside of a
+# Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
 snap-update-ns snap-exec snapctl:
