@@ -86,6 +86,8 @@ backends:
                 manual: true
             - opensuse-15.0-64:
                 workers: 4
+            - opensuse-tumbleweed-64:
+                workers: 4
             - arch-linux-64:
                 workers: 4
 
