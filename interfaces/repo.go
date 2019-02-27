@@ -104,15 +104,14 @@ func (r *Repository) AllInterfaces() []Interface {
 }
 
 // AllHotplugInterfaces returns all interfaces that handle hotplug events.
-func (r *Repository) AllHotplugInterfaces() []Interface {
+func (r *Repository) AllHotplugInterfaces() map[string]Interface {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	ifaces := make([]Interface, 0, len(r.hotplugIfaces))
+	ifaces := make(map[string]Interface)
 	for _, iface := range r.hotplugIfaces {
-		ifaces = append(ifaces, iface)
+		ifaces[iface.Name()] = iface
 	}
-	sort.Sort(byInterfaceName(ifaces))
 	return ifaces
 }
 

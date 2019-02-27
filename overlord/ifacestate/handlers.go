@@ -1460,25 +1460,25 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 
 	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
 	// including connection with hotplug-gone=true.
-Loop:
-	for slotName, def := range stateSlots {
-		if def.Interface != ifaceName || def.HotplugKey != hotplugKey {
-			continue
-		}
-		conns, err := getConns(st)
-		if err != nil {
-			return err
-		}
-		for _, conn := range conns {
-			if conn.Interface == def.Interface && conn.HotplugKey == def.HotplugKey {
-				// there is a connection referencing this slot, do not remove it
-				break Loop
-			}
-		}
-		delete(stateSlots, slotName)
-		setHotplugSlots(st, stateSlots)
-		break
+	slotDef := findHotplugSlot(stateSlots, ifaceName, hotplugKey)
+	if slotDef == nil {
+		return fmt.Errorf("internal error: cannot find hotplug slot for interface %s, hotplug key %q", ifaceName, hotplugKey)
 	}
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	for _, conn := range conns {
+		if conn.Interface == slotDef.Interface && conn.HotplugKey == slotDef.HotplugKey {
+			// there is a connection referencing this slot, do not remove it, only mark as "gone"
+			slotDef.HotplugGone = true
+			stateSlots[slotDef.Name] = slotDef
+			setHotplugSlots(st, stateSlots)
+			return nil
+		}
+	}
+	delete(stateSlots, slotDef.Name)
+	setHotplugSlots(st, stateSlots)
 
 	return nil
 }
