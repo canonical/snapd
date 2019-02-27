@@ -1,0 +1,68 @@
+summary: the desktop portal allows confined apps to open URIs
+description: |
+    The xdg-desktop-portal "Open URI" interface provides a way for
+    confined applications to open URIs using the host system's
+    preferred browser.
+
+# Only enable the test on systems we know portals to function on.
+# Expand as needed.
+systems:
+  - ubuntu-18.04-*
+  - ubuntu-18.10-*
+  - ubuntu-19.04-*
+
+environment:
+    BROWSER_HISTORY: /tmp/browser-history.txt
+
+prepare: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    setup_portals
+
+    # Configure fake web browser
+    mkdir -p ~test/.local/share/applications
+    cat << EOF > ~test/.local/share/applications/test-browser.desktop
+    [Desktop Entry]
+    Type=Application
+    Name=Test Web Browser
+    Exec=$(pwd)/web-browser.sh %u $BROWSER_HISTORY
+    MimeType=x-scheme-handler/http;
+    EOF
+    mkdir -p ~test/.config
+    cat << EOF > ~test/.config/mimeapps.list
+    [Default Applications]
+    x-scheme-handler/http=test-browser.desktop
+    EOF
+
+restore: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    teardown_portals
+
+    rm -f ~test/.config/mimeapps.list
+    rm -f ~test/.local/share/applications/test-browser.desktop
+    rm -f "$BROWSER_HISTORY"
+
+execute: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
+
+    echo "Install the portals test client"
+    snap install --edge test-snapd-portal-client
+
+    echo "The confined application can open URLs in the default browser"
+    as_user test-snapd-portal-client open-uri http://www.example.org
+
+    echo "The test-browser process was invoked with the URL"
+    wait_for_file "$BROWSER_HISTORY" 4 .5
+    MATCH http://www.example.org < "$BROWSER_HISTORY"
+
+debug: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    ls -la "/run/user/$TEST_UID/" || true
+    #shellcheck disable=SC2009
+    ps -ef | grep xdg || true

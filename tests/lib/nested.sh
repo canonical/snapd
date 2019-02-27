@@ -201,7 +201,11 @@ del_device(){
     echo "device deleted"
 }
 
-get_nested_core_revision(){
-    ID=$1
-    execute_remote "snap info core" | awk "/${ID}: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+get_nested_core_revision_for_channel(){
+    local CHANNEL=$1
+    execute_remote "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
+}
+
+get_nested_core_revision_installed(){
+    execute_remote "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }

@@ -37,6 +37,9 @@ bool sc_feature_enabled(sc_feature_flag flag)
 	case SC_PER_USER_MOUNT_NAMESPACE:
 		file_name = "per-user-mount-namespace";
 		break;
+	case SC_FEATURE_REFRESH_APP_AWARENESS:
+		file_name = "refresh-app-awareness";
+		break;
 	default:
 		die("unknown feature flag code %d", flag);
 	}
