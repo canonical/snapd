@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,10 +51,13 @@ type Options struct {
 	Snaps           []string
 	RootDir         string
 	Channel         string
+	SnapChannels    map[string]string
 	ModelFile       string
 	GadgetUnpackDir string
 
-	ClassicArchitecture string
+	// Architecture to use if none is specified by the model,
+	// useful only for classic mode. If set must match the model otherwise.
+	Architecture string
 }
 
 type localInfos struct {
@@ -176,12 +179,13 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
+	if model.Architecture() != "" && opts.Architecture != "" && model.Architecture() != opts.Architecture {
+		return fmt.Errorf("cannot override model architecture: %s", model.Architecture())
+	}
+
 	if !opts.Classic {
 		if model.Classic() {
 			return fmt.Errorf("--classic mode is required to prepare the image for a classic model")
-		}
-		if opts.ClassicArchitecture != "" {
-			return fmt.Errorf("internal error: classic architecture specified for a core model")
 		}
 	} else {
 		if !model.Classic() {
@@ -190,11 +194,8 @@ func Prepare(opts *Options) error {
 		if opts.GadgetUnpackDir != "" {
 			return fmt.Errorf("internal error: no gadget unpacking is performed for classic models but directory specified")
 		}
-		if model.Architecture() != "" && opts.ClassicArchitecture != "" && model.Architecture() != opts.ClassicArchitecture {
-			return fmt.Errorf("cannot override model architecture: %s", model.Architecture())
-		}
-		if model.Architecture() == "" && classicHasSnaps(model, opts) && opts.ClassicArchitecture == "" {
-			return fmt.Errorf("cannot have snaps for a classic image without an architecture in the model or from --classic-arch")
+		if model.Architecture() == "" && classicHasSnaps(model, opts) && opts.Architecture == "" {
+			return fmt.Errorf("cannot have snaps for a classic image without an architecture in the model or from --arch")
 		}
 	}
 
@@ -205,7 +206,7 @@ func Prepare(opts *Options) error {
 		return fmt.Errorf("cannot use channel: %v", err)
 	}
 
-	tsto, err := NewToolingStoreFromModel(model, opts.ClassicArchitecture)
+	tsto, err := NewToolingStoreFromModel(model, opts.Architecture)
 	if err != nil {
 		return err
 	}
@@ -260,23 +261,69 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	return modela, nil
 }
 
+// snapChannel returns the channel to use for the given snap.
+func snapChannel(name string, model *asserts.Model, opts *Options, local *localInfos) (string, error) {
+	snapChannel := opts.SnapChannels[local.PreferLocal(name)]
+	if snapChannel == "" {
+		// fallback to default channel
+		snapChannel = opts.Channel
+	}
+	// consider snap types that can be pinned to a track by the model
+	var pinnedTrack string
+	var kind string
+	switch name {
+	case model.Gadget():
+		kind = "gadget"
+		pinnedTrack = model.GadgetTrack()
+	case model.Kernel():
+		kind = "kernel"
+		pinnedTrack = model.KernelTrack()
+	}
+	if pinnedTrack != "" {
+		ch, err := makeChannelFromTrack(kind, pinnedTrack, snapChannel)
+		if err != nil {
+			return "", err
+		}
+		snapChannel = ch
+
+	}
+	return snapChannel, nil
+}
+
+func makeChannelFromTrack(what, track, snapChannel string) (string, error) {
+	mch, err := snap.ParseChannel(track, "")
+	if err != nil {
+		return "", fmt.Errorf("cannot use track %q for %s from model assertion: %v", track, what, err)
+	}
+	if snapChannel != "" {
+		ch, err := snap.ParseChannelVerbatim(snapChannel, "")
+		if err != nil {
+			return "", fmt.Errorf("cannot parse channel %q for %s", snapChannel, what)
+		}
+		if ch.Track != "" && ch.Track != mch.Track {
+			return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, what, track)
+		}
+		mch.Risk = ch.Risk
+	}
+	return mch.Clean().String(), nil
+}
+
 func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
 		return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
 	}
 
+	gadgetName := model.Gadget()
+	gadgetChannel, err := snapChannel(gadgetName, model, opts, local)
+	if err != nil {
+		return err
+	}
+
 	dlOpts := &DownloadOptions{
 		TargetDir: opts.GadgetUnpackDir,
-		Channel:   opts.Channel,
+		Channel:   gadgetChannel,
 	}
-	if model.GadgetTrack() != "" {
-		gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
-		if err != nil {
-			return err
-		}
-		dlOpts.Channel = gch
-	}
-	snapFn, _, err := acquireSnap(tsto, model.Gadget(), dlOpts, local)
+	snapFn, _, err := acquireSnap(tsto, gadgetName, dlOpts, local)
 	if err != nil {
 		return err
 	}
@@ -340,22 +387,6 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	return func() {
 		trusted = prevTrusted
 	}
-}
-
-func makeChannelFromTrack(what, track, defaultChannel string) (string, error) {
-	errPrefix := fmt.Sprintf("cannot use track %q for %s from model assertion", track, what)
-	mch, err := snap.ParseChannel(track, "")
-	if err != nil {
-		return "", fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	if defaultChannel != "" {
-		dch, err := snap.ParseChannel(defaultChannel, "")
-		if err != nil {
-			return "", fmt.Errorf("internal error: cannot parse channel %q", defaultChannel)
-		}
-		mch.Risk = dch.Risk
-	}
-	return mch.Clean().String(), nil
 }
 
 // neededDefaultProviders returns the names of all default-providers for
@@ -486,30 +517,20 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
 		}
 
-		snapChannel := opts.Channel
-		if name == model.Kernel() && model.KernelTrack() != "" {
-			kch, err := makeChannelFromTrack("kernel", model.KernelTrack(), opts.Channel)
-			if err != nil {
-				return err
-			}
-			snapChannel = kch
+		snapChannel, err := snapChannel(name, model, opts, local)
+		if err != nil {
+			return err
 		}
-		if name == model.Gadget() && model.GadgetTrack() != "" {
-			gch, err := makeChannelFromTrack("gadget", model.GadgetTrack(), opts.Channel)
-			if err != nil {
-				return err
-			}
-			snapChannel = gch
-		}
+
 		dlOpts := &DownloadOptions{
 			TargetDir: snapSeedDir,
 			Channel:   snapChannel,
 		}
-
 		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
 		if err != nil {
 			return err
 		}
+
 		// Sanity check, note that we could support this case
 		// if we have a use-case but it requires changes in the
 		// devicestate/firstboot.go ordering code.

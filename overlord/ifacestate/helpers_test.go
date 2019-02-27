@@ -21,6 +21,7 @@ package ifacestate_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -237,6 +238,7 @@ func (s *helpersSuite) TestHotplugSlotInfo(c *C) {
 			"interface":    "iface",
 			"static-attrs": map[string]interface{}{"attr": "value"},
 			"hotplug-key":  "key",
+			"hotplug-gone": false,
 		}})
 
 	slots, err = ifacestate.GetHotplugSlots(s.st)
@@ -522,4 +524,85 @@ func (s *helpersSuite) TestAddHotplugSeqWaitTask(c *C) {
 	c.Assert(t1.WaitTasks()[0].ID(), Equals, seqTask.ID())
 	c.Assert(t2.WaitTasks(), HasLen, 1)
 	c.Assert(t2.WaitTasks()[0].ID(), Equals, seqTask.ID())
+}
+
+func (s *helpersSuite) TestAddHotplugSlot(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var beforePrepareSlotCalled int
+	repo := interfaces.NewRepository()
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		BeforePrepareSlotCallback: func(*snap.SlotInfo) error {
+			beforePrepareSlotCalled += 1
+			return nil
+		},
+	}
+	repo.AddInterface(iface)
+
+	stateSlots, err := ifacestate.GetHotplugSlots(s.st)
+	c.Assert(err, IsNil)
+	c.Check(stateSlots, HasLen, 0)
+
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	coreInfo := snaptest.MockSnap(c, coreSnapYaml, si)
+
+	slot := &snap.SlotInfo{
+		Name:       "slot",
+		Label:      "label",
+		Snap:       coreInfo,
+		Interface:  "test",
+		Attrs:      map[string]interface{}{"foo": "bar"},
+		HotplugKey: "key",
+	}
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), IsNil)
+	c.Assert(beforePrepareSlotCalled, Equals, 1)
+
+	// same slot cannot be re-added to repo
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot add hotplug slot "slot" for interface test: snap "core" has slots conflicting on name "slot"`)
+
+	stateSlots, err = ifacestate.GetHotplugSlots(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(stateSlots, HasLen, 1)
+
+	stateSlot := stateSlots["slot"]
+	c.Assert(stateSlot, NotNil)
+	c.Check(stateSlot, DeepEquals, &ifacestate.HotplugSlotInfo{
+		Name:        "slot",
+		Interface:   "test",
+		StaticAttrs: map[string]interface{}{"foo": "bar"},
+		HotplugKey:  "key",
+		HotplugGone: false})
+}
+
+func (s *helpersSuite) TestAddHotplugSlotValidationErrors(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	repo := interfaces.NewRepository()
+	iface := &ifacetest.TestInterface{
+		InterfaceName:             "test",
+		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("fail") },
+	}
+	repo.AddInterface(iface)
+
+	stateSlots, err := ifacestate.GetHotplugSlots(s.st)
+	c.Assert(err, IsNil)
+	c.Check(stateSlots, HasLen, 0)
+
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	coreInfo := snaptest.MockSnap(c, coreSnapYaml, si)
+
+	slot := &snap.SlotInfo{
+		Name:      "slot",
+		Snap:      coreInfo,
+		Interface: "test",
+	}
+	// hotplug key missing
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `internal error: cannot store slot "slot", not a hotplug slot`)
+	slot.HotplugKey = "key"
+
+	// sanitization failure
+	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot sanitize hotplug slot \"slot\" for interface test: fail`)
 }

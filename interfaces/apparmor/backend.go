@@ -624,3 +624,14 @@ func (b *Backend) SandboxFeatures() []string {
 
 	return tags
 }
+
+// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
+// This is exported so that other packages that indirectly interact with AppArmor backend
+// can mock isHomeUsingNFS.
+func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingNFS
+	isHomeUsingNFS = new
+	return func() {
+		isHomeUsingNFS = old
+	}
+}

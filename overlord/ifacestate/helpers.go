@@ -328,6 +328,35 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
+// removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
+// has no connections in the state. State must be locked by the caller.
+func (m *InterfaceManager) removeConnections(snapName string) error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
+			return fmt.Errorf("internal error: cannot remove connections of snap %s from the repository while its connections are present in the state", snapName)
+		}
+	}
+
+	repoConns, err := m.repo.Connections(snapName)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+	for _, conn := range repoConns {
+		if err := m.repo.Disconnect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name); err != nil {
+			return fmt.Errorf("internal error: %v", err)
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
 	st := task.State()
 
@@ -375,6 +404,32 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName str
 			return err
 		}
 	}
+	return nil
+}
+
+func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo, iface interfaces.Interface, slot *snap.SlotInfo) error {
+	if slot.HotplugKey == "" {
+		return fmt.Errorf("internal error: cannot store slot %q, not a hotplug slot", slot.Name)
+	}
+	if iface, ok := iface.(interfaces.SlotSanitizer); ok {
+		if err := iface.BeforePrepareSlot(slot); err != nil {
+			return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
+		}
+	}
+
+	if err := repo.AddSlot(slot); err != nil {
+		return fmt.Errorf("cannot add hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
+	}
+
+	stateSlots[slot.Name] = &HotplugSlotInfo{
+		Name:        slot.Name,
+		Interface:   slot.Interface,
+		StaticAttrs: slot.Attrs,
+		HotplugKey:  slot.HotplugKey,
+		HotplugGone: false,
+	}
+	setHotplugSlots(st, stateSlots)
+	logger.Debugf("added hotplug slot %s:%s of interface %s, hotplug key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, slot.HotplugKey)
 	return nil
 }
 
@@ -909,6 +964,9 @@ type HotplugSlotInfo struct {
 	Interface   string                 `json:"interface"`
 	StaticAttrs map[string]interface{} `json:"static-attrs,omitempty"`
 	HotplugKey  string                 `json:"hotplug-key"`
+
+	// device was unplugged but has connections, so slot is remembered
+	HotplugGone bool `json:"hotplug-gone"`
 }
 
 func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
@@ -925,6 +983,15 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 
 func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
+}
+
+func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName, hotplugKey string) *HotplugSlotInfo {
+	for _, slot := range stateSlots {
+		if slot.HotplugKey == hotplugKey && slot.Interface == ifaceName {
+			return slot
+		}
+	}
+	return nil
 }
 
 func findConnsForHotplugKey(conns map[string]*connState, ifaceName, hotplugKey string) []string {

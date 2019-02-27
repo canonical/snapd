@@ -212,11 +212,6 @@ var (
 		GET:    getChanges,
 	}
 
-	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
-	}
-
 	createUserCmd = &Command{
 		Path: "/v2/create-user",
 		POST: postCreateUser,
@@ -1889,7 +1884,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				conn, err := repo.Connection(connRef)
+				var conn *interfaces.Connection
+				conn, err = repo.Connection(connRef)
 				if err != nil {
 					break
 				}
@@ -2466,71 +2462,6 @@ func convertBuyError(err error) Response {
 		return InternalError("%v", err)
 	}
 }
-
-type debugAction struct {
-	Action  string `json:"action"`
-	Message string `json:"message"`
-}
-
-type ConnectivityStatus struct {
-	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable,omitempty"`
-}
-
-func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
-	var a debugAction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a debug action: %v", err)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	switch a.Action {
-	case "add-warning":
-		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
-	case "unshow-warnings":
-		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
-	case "ensure-state-soon":
-		ensureStateSoon(st)
-		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		bd, err := assertstate.BaseDeclaration(st)
-		if err != nil {
-			return InternalError("cannot get base declaration: %s", err)
-		}
-		return SyncResponse(map[string]interface{}{
-			"base-declaration": string(asserts.Encode(bd)),
-		}, nil)
-	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
-		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
-	default:
-		return BadRequest("unknown debug action: %v", a.Action)
-	}
-}
-
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 

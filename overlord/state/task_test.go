@@ -67,6 +67,20 @@ func (cs *taskSuite) TestReadyTime(c *C) {
 	c.Check(t.Before(now.Add(5*time.Second)), Equals, true)
 }
 
+func (cs *taskSuite) TestDoingUndoingTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("download", "summary...")
+
+	task.AccumulateDoingTime(123456)
+	c.Assert(task.DoingTime(), Equals, time.Duration(123456))
+
+	task.AccumulateUndoingTime(654321)
+	c.Assert(task.UndoingTime(), Equals, time.Duration(654321))
+}
+
 func (ts *taskSuite) TestGetSet(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -250,6 +264,22 @@ func (ts *taskSuite) TestTaskMarshalsWaitFor(c *C) {
 	c.Assert(string(d), testutil.Contains, needle)
 }
 
+func (ts *taskSuite) TestTaskMarshalsDoingUndoingTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.AccumulateDoingTime(123456)
+	t.AccumulateUndoingTime(654321)
+
+	d, err := t.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	c.Assert(string(d), testutil.Contains, `"doing-time":123456`)
+	c.Assert(string(d), testutil.Contains, `"undoing-time":654321`)
+}
+
 func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -380,6 +410,8 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 		func() { t1.UnmarshalJSON(nil) },
 		func() { t1.SetProgress("", 1, 1) },
 		func() { t1.JoinLane(1) },
+		func() { t1.AccumulateDoingTime(1) },
+		func() { t1.AccumulateUndoingTime(2) },
 	}
 
 	reads := []func(){
@@ -394,6 +426,8 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 		func() { t1.Progress() },
 		func() { t1.SetProgress("", 0, 1) },
 		func() { t1.Lanes() },
+		func() { t1.DoingTime() },
+		func() { t1.UndoingTime() },
 	}
 
 	for i, f := range reads {

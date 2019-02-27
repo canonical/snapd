@@ -16,12 +16,7 @@ restore: |
     rm -f /usr/lib/fontconfig/cache/cache.txt
 
 execute: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-    distro_install_package fontconfig
-
     echo "Distribution font" > /usr/share/fonts/dist-font.txt
-
     # this may not exist across all distributions
     mkdir -p /usr/local/share/fonts
     echo "Local font" > /usr/local/share/fonts/local-font.txt
