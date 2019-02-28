@@ -379,6 +379,17 @@ snap-mgmt/$(am__dirstamp):
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
 
+if SELINUX
+##
+## snap-mgmt-selinux
+##
+
+libexec_SCRIPTS += snap-mgmt/snap-mgmt-selinux
+CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt-selinux
+
+snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgmt/$(am__dirstamp)
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+endif
 
 ##
 ## ubuntu-core-launcher
