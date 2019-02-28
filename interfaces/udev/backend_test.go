@@ -21,7 +21,6 @@ package udev_test
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -326,15 +325,14 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 func (s *backendSuite) TestControlsDeviceCgroup(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
-		spec.SetControlsDeviceCgroup()
 		spec.AddSnippet("dummy")
+		spec.SetControlsDeviceCgroup()
 		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
-		_, err := os.Stat(fname)
-		c.Assert(err, ErrorMatches, fmt.Sprintf("stat.*%s.*no such file or directory", fname))
+		c.Check(fname, testutil.FileAbsent)
 		s.RemoveSnap(c, snapInfo)
 	}
 }
