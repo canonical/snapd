@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -4792,6 +4793,9 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 type udevMonitorMock struct {
 	ConnectError, RunError                             error
 	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
+	AddDevice                                          udevmonitor.DeviceAddedFunc
+	RemoveDevice                                       udevmonitor.DeviceRemovedFunc
+	EnumerationDone                                    udevmonitor.EnumerationDoneFunc
 }
 
 func (u *udevMonitorMock) Connect() error {
@@ -5565,6 +5569,175 @@ func (s *interfaceManagerSuite) TestHotplugDisconnectWaitsForDisconnectPlug(c *C
 	c.Assert(hotplugChg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]string, specName, expectedName string) {
+	_ = s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: specName, Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
+	devinfo, _ := hotplug.NewHotplugDeviceInfo(devData)
+	t.Set("device-info", devinfo)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is created in the repository
+	slot := repo.Slot("core", expectedName)
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.HotplugKey, Equals, "1234")
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, HasLen, 1)
+	c.Check(hotplugSlots[expectedName], DeepEquals, map[string]interface{}{
+		"name":         expectedName,
+		"interface":    "test",
+		"hotplug-key":  "1234",
+		"static-attrs": map[string]interface{}{"foo": "bar"},
+		"hotplug-gone": false,
+	})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromSpec(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"}, "hotplugslot", "hotplugslot")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromDevice(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"}, "", "hdcamera")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromInterface(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a"}, "", "test")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
+	_ = s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot-old-name": map[string]interface{}{
+			"name":         "hotplugslot-old-name",
+			"interface":    "test",
+			"static-attrs": map[string]interface{}{"foo": "old"},
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
+	t.Set("device-info", map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is re-created in the repository, reuses old name and has new attributes
+	slot := repo.Slot("core", "hotplugslot-old-name")
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.HotplugKey, Equals, "1234")
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot-old-name": map[string]interface{}{
+			"name":         "hotplugslot-old-name",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"hotplug-gone": false,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"static-attrs": map[string]interface{}{"foo": "old"},
+			"hotplug-key":  "1234",
+		}})
+	c.Assert(repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		Attrs:      map[string]interface{}{"foo": "oldfoo"},
+		HotplugKey: "1234",
+	}), IsNil)
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "newfoo"}}
+	t.Set("proposed-slot", proposedSlot)
+	devinfo, _ := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/a"})
+	t.Set("device-info", devinfo)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// hotplugslot is re-created in the repository
+	slot := repo.Slot("core", "hotplugslot")
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "newfoo"})
+	c.Check(slot.HotplugKey, Equals, "1234")
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "newfoo"},
+			"hotplug-gone": false,
+		}})
+}
+
 func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 	coreInfo := s.mockSnap(c, coreSnapYaml)
 	repo := s.manager(c).Repository()
@@ -5607,7 +5780,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	// hotplugslot is updated int the repository
+	// hotplugslot is updated in the repository
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
@@ -5620,6 +5793,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 			"interface":    "test",
 			"hotplug-key":  "1234",
 			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"hotplug-gone": false,
 		}})
 }
 
@@ -5747,9 +5921,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"otherslot": map[string]interface{}{
-			"name":        "otherslot",
-			"interface":   "test",
-			"hotplug-key": "5678",
+			"name":         "otherslot",
+			"interface":    "test",
+			"hotplug-key":  "5678",
+			"hotplug-gone": false,
 		}})
 }
 
@@ -5810,9 +5985,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"hotplugslot": map[string]interface{}{
-			"name":        "hotplugslot",
-			"interface":   "test",
-			"hotplug-key": "1234",
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
 		}})
 }
 
@@ -5917,4 +6093,93 @@ func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
 			Auto:      true,
 			Undesired: true,
 		}})
+}
+
+const someSnapYaml = `name: some-snap
+version: 1
+plugs:
+  network:
+`
+
+const ubuntucoreSnapYaml = `name: ubuntu-core
+version: 1.0
+type: os
+slots:
+  network:
+
+`
+const coreSnapYaml2 = `name: core
+version: 1.0
+type: os
+slots:
+  network:
+`
+
+func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
+	mgr := s.manager(c)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	repo := mgr.Repository()
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+		Channel:  "beta",
+	})
+
+	si := snap.SideInfo{RealName: "some-snap", Revision: snap.R(-42)}
+	someSnap := snaptest.MockSnap(c, someSnapYaml, &si)
+	ubuntuCore := snaptest.MockSnap(c, ubuntucoreSnapYaml, &snap.SideInfo{
+		RealName: "ubuntu-core",
+		Revision: snap.R(1),
+	})
+	core := snaptest.MockSnap(c, coreSnapYaml2, &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+
+	c.Assert(repo.AddSnap(ubuntuCore), IsNil)
+	c.Assert(repo.AddSnap(core), IsNil)
+	c.Assert(repo.AddSnap(someSnap), IsNil)
+
+	_, err := repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "network"}, SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: "network"}}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	repoConns, err := repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+
+	st.Set("conns", map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+
+	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "ubuntu-core", "core"), IsNil)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true}})
+
+	repoConns, err = repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 0)
+	repoConns, err = repo.Connections("core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+
+	// migrate back (i.e. undo)
+	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "core", "ubuntu-core"), IsNil)
+
+	// check connections
+	conns = nil
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+	repoConns, err = repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+	repoConns, err = repo.Connections("core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 0)
 }

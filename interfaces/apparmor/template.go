@@ -713,6 +713,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # sharing and propagates mount events outside of the snap namespace.
   audit deny mount -> /media,
 
+  # Allow receiving signals from unconfined (eg, systemd)
+  signal (receive) peer=unconfined,
+  # Allow sending and receiving signals from ourselves.
+  signal peer=@{profile_name},
+
   # Commonly needed permissions for writable mimics.
   /tmp/ r,
   /tmp/.snap/{,**} rw,

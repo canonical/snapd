@@ -59,7 +59,7 @@ func (t *taskProgressAdapter) Set(current float64) {
 	t.task.SetProgress(t.label, int(current), int(t.total))
 }
 
-// SetTotal sets tht maximum progress
+// SetTotal sets the maximum progress
 func (t *taskProgressAdapter) SetTotal(total float64) {
 	t.total = total
 }

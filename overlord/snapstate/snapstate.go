@@ -239,7 +239,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = installHook
 	}
 
-	// run new serices
+	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
 	prev = startSnapServices
@@ -263,7 +263,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -288,7 +288,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			if boot.InUse(snapsup.InstanceName(), si.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -569,6 +569,11 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
+	if flags.Classic && !info.NeedsClassic() {
+		// snap does not require classic confinement, silently drop the flag
+		flags.Classic = false
+	}
+	// TODO: integrate classic override with the helper
 	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, nil, err
 	}
@@ -632,6 +637,11 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
+	if flags.Classic && !info.NeedsClassic() {
+		// snap does not require classic confinement, silently drop the flag
+		flags.Classic = false
+	}
+	// TODO: integrate classic override with the helper
 	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
 		return nil, err
 	}
@@ -647,6 +657,9 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Type:         info.Type,
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
+		auxStoreInfo: auxStoreInfo{
+			Media: info.Media,
+		},
 	}
 
 	return doInstall(st, &snapst, snapsup, 0)
@@ -866,6 +879,9 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Type:         update.Type,
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
+			auxStoreInfo: auxStoreInfo{
+				Media: update.Media,
+			},
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0)
@@ -1580,6 +1596,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	// main/current SnapSetup
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
+			SnapID:   info.SnapID,
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
@@ -1633,7 +1650,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		var tasks []*state.Task
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
-		removeAliases.WaitFor(prev)
+		removeAliases.WaitFor(prev) // prev is not needed beyond here
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
 
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
@@ -1652,20 +1669,21 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		seq := snapst.Sequence
 		for i := len(seq) - 1; i >= 0; i-- {
 			si := seq[i]
-			addNext(removeInactiveRevision(st, name, si.Revision))
+			addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
 		}
 	} else {
-		addNext(removeInactiveRevision(st, name, revision))
+		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
 	}
 
 	return full, nil
 }
 
-func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
+func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
 	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
+			SnapID:   snapID,
 			Revision: revision,
 		},
 		InstanceKey: instanceKey,
@@ -1800,7 +1818,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			return nil, err
 		}
 
-		// start by instaling the new snap
+		// start by installing the new snap
 		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,

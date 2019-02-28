@@ -10,7 +10,7 @@ pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
 optdepends=('bash-completion: bash completion support')
-pkgver=2.37.1
+pkgver=2.37.3
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/snapcore/snapd"
@@ -71,13 +71,13 @@ build() {
   gobuild_static="go build -x -v -buildmode=pie -ldflags=-extldflags=-static"
   # Build/install snap and snapd
   $gobuild -o $srcdir/go/bin/snap $GOFLAGS "${_gourl}/cmd/snap"
-  $gobuild -o $srcdir/go/bin/snapctl $GOFLAGS "${_gourl}/cmd/snapctl"
   $gobuild -o $srcdir/go/bin/snapd $GOFLAGS "${_gourl}/cmd/snapd"
   $gobuild -o $srcdir/go/bin/snap-seccomp $GOFLAGS "${_gourl}/cmd/snap-seccomp"
   $gobuild -o $srcdir/go/bin/snap-failure $GOFLAGS "${_gourl}/cmd/snap-failure"
   # build snap-exec and snap-update-ns completely static for base snaps
   $gobuild_static -o $srcdir/go/bin/snap-update-ns $GOFLAGS "${_gourl}/cmd/snap-update-ns"
   $gobuild_static -o $srcdir/go/bin/snap-exec $GOFLAGS "${_gourl}/cmd/snap-exec"
+  $gobuild_static -o $srcdir/go/bin/snapctl $GOFLAGS "${_gourl}/cmd/snapctl"
 
   # Generate data files such as real systemd units, dbus service, environment
   # setup helpers out of the available templates
