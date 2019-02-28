@@ -461,13 +461,13 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 # set tags.
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
-%gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
 
 # To ensure things work correctly with base snaps,
-# snap-exec and snap-update-ns need to be built statically
+# snap-exec, snap-update-ns and snapctl need to be built statically
 %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+%gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...

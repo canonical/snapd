@@ -4769,9 +4769,6 @@ func (s *apiSuite) TestDisconnectConflict(c *check.C) {
 
 	simulateConflict(d.overlord, "consumer")
 
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},

@@ -4793,6 +4793,9 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 type udevMonitorMock struct {
 	ConnectError, RunError                             error
 	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
+	AddDevice                                          udevmonitor.DeviceAddedFunc
+	RemoveDevice                                       udevmonitor.DeviceRemovedFunc
+	EnumerationDone                                    udevmonitor.EnumerationDoneFunc
 }
 
 func (u *udevMonitorMock) Connect() error {
@@ -5777,7 +5780,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	// hotplugslot is updated int the repository
+	// hotplugslot is updated in the repository
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
@@ -5982,9 +5985,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"hotplugslot": map[string]interface{}{
-			"name":        "hotplugslot",
-			"interface":   "test",
-			"hotplug-key": "1234",
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
 		}})
 }
 
