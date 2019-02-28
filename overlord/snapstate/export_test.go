@@ -213,7 +213,7 @@ func setModel(override map[string]string) {
 
 // re-refresh related
 var (
-	LaneSnaps       = laneSnaps
+	RefreshedSnaps  = refreshedSnaps
 	ReRefreshFilter = reRefreshFilter
 )
 

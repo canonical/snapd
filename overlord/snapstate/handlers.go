@@ -1978,8 +1978,11 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// nearlyReady returns whether all lanes (other than me) are Ready.
-func nearlyReady(me string, change *state.Change) bool {
+// nearlyReady returns whether all task's siblings (that is, all the
+// task's change's tasks other than itself) are Ready.
+func nearlyReady(task *state.Task) bool {
+	me := task.ID()
+	change := task.Change()
 	for _, task := range change.Tasks() {
 		if me == task.ID() {
 			// ignore self
@@ -1992,9 +1995,16 @@ func nearlyReady(me string, change *state.Change) bool {
 	return true
 }
 
-// laneSnaps returns the instance names from the first SnapSetup in each
-// non-zero Done lane in the refresh batch leading up the given task
-func laneSnaps(reTask *state.Task) []string {
+// refreshedSnaps returns the instance names of the snaps successfully refreshed
+// in the last batch of refreshes before the given (re-refresh) task.
+//
+// It does this by advancing through the given task's change's tasks, keeping
+// track of the instance names from the first SnapSetup in every lane, stopping
+// when finding the given task, and resetting things when finding a different
+// re-refresh task (that indicates the end of a batch that isn't the given one).
+func refreshedSnaps(reTask *state.Task) []string {
+	// NOTE nothing requires reTask to be a check-rerefresh task, nor even to be in
+	// a refresh-ish change, but it doesn't make much sense to call this otherwise.
 	tid := reTask.ID()
 	laneSnaps := map[int]string{}
 	// change.Tasks() preserves the order tasks were added, otherwise it all falls apart
@@ -2009,24 +2019,29 @@ func laneSnaps(reTask *state.Task) []string {
 			laneSnaps = map[int]string{}
 		}
 		lanes := task.Lanes()
-		if len(lanes) != 1 || lanes[0] == 0 {
+		if len(lanes) != 1 {
 			// can't happen, really
 			continue
 		}
-		if task.Status() != state.DoneStatus {
-			// ignore non-successful lane
-			laneSnaps[lanes[0]] = ""
+		lane := lanes[0]
+		if lane == 0 {
+			// not really a lane
 			continue
 		}
-		if _, ok := laneSnaps[lanes[0]]; ok {
-			// ignore lanes we've already seen
+		if task.Status() != state.DoneStatus {
+			// ignore non-successful lane (1)
+			laneSnaps[lane] = ""
+			continue
+		}
+		if _, ok := laneSnaps[lane]; ok {
+			// ignore lanes we've already seen (incuding ones explicitly ignored in (1))
 			continue
 		}
 		var snapsup SnapSetup
 		if err := task.Get("snap-setup", &snapsup); err != nil {
 			continue
 		}
-		laneSnaps[lanes[0]] = snapsup.InstanceName()
+		laneSnaps[lane] = snapsup.InstanceName()
 	}
 
 	snapNames := make([]string, 0, len(laneSnaps))
@@ -2045,8 +2060,11 @@ type reRefreshSetup struct {
 	*Flags
 }
 
+// reRefreshUpdateMany exists just to make testing simpler
 var reRefreshUpdateMany = updateManyFiltered
 
+// reRefreshFilter is an updateFilter that returns whether the given update
+// needs a re-refresh
 func reRefreshFilter(update *snap.Info, snapst *SnapState) bool {
 	cur, err := snapst.CurrentInfo()
 	if err != nil {
@@ -2063,14 +2081,13 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	defer st.Unlock()
 
 	if numHaltTasks := t.NumHaltTasks(); numHaltTasks > 0 {
-		logger.Panicf("rerefresh task has %d tasks waiting for it", numHaltTasks)
+		logger.Panicf("Re-refresh task has %d tasks waiting for it.", numHaltTasks)
 	}
 
-	chg := t.Change()
-	if !nearlyReady(t.ID(), chg) {
+	if !nearlyReady(t) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
-	snaps := laneSnaps(t)
+	snaps := refreshedSnaps(t)
 	if len(snaps) == 0 {
 		// nothing to do (maybe everything failed)
 		return nil
@@ -2080,15 +2097,16 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	if err := t.Get("rerefresh-setup", &re); err != nil {
 		return err
 	}
+	chg := t.Change()
 	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}
 
 	if len(updated) == 0 {
-		t.Logf("no re-refreshes found")
+		t.Logf("No re-refreshes found.")
 	} else {
-		t.Logf("found re-refresh for %s", strutil.Quoted(updated))
+		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
 
 		for _, taskset := range tasksets {
 			chg.AddAll(taskset)
