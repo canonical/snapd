@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -220,6 +222,51 @@ foo.zed  enabled  active    -
 `)
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
+}
+
+func (s *appOpSuite) TestServiceCompletion(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/apps")
+		c.Check(r.URL.Query(), check.HasLen, 1)
+		c.Check(r.URL.Query().Get("select"), check.Equals, "service")
+		c.Check(r.Method, check.Equals, "GET")
+		w.WriteHeader(200)
+		enc := json.NewEncoder(w)
+		enc.Encode(map[string]interface{}{
+			"type": "sync",
+			"result": []map[string]interface{}{
+				{"snap": "a-snap", "name": "foo", "daemon": "simple"},
+				{"snap": "a-snap", "name": "bar", "daemon": "simple"},
+				{"snap": "b-snap", "name": "baz", "daemon": "simple"},
+			},
+			"status":      "OK",
+			"status-code": 200,
+		})
+
+		n++
+	})
+
+	var comp = func(s string) string {
+		comps := snap.ServiceName("").Complete(s)
+		as := make([]string, len(comps))
+		for i := range comps {
+			as[i] = comps[i].Item
+		}
+		sort.Strings(as)
+		return strings.Join(as, "  ")
+	}
+
+	c.Check(comp(""), check.Equals, "a-snap  a-snap.bar  a-snap.foo  b-snap.baz")
+	c.Check(comp("a"), check.Equals, "a-snap  a-snap.bar  a-snap.foo")
+	c.Check(comp("a-snap"), check.Equals, "a-snap  a-snap.bar  a-snap.foo")
+	c.Check(comp("a-snap."), check.Equals, "a-snap.bar  a-snap.foo")
+	c.Check(comp("a-snap.b"), check.Equals, "a-snap.bar")
+	c.Check(comp("b"), check.Equals, "b-snap.baz")
+	c.Check(comp("c"), check.Equals, "")
+
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 7)
 }
 
 func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
