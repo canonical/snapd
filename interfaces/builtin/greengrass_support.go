@@ -255,7 +255,7 @@ capability mknod,
 
 # for the greengrassd pid file
 # note we can't use layouts for this because /var/run is a symlink to /run
-# and /run is explictly disallowed for use by layouts
+# and /run is explicitly disallowed for use by layouts
 # also note that technically this access is post-pivot_root, but during the setup
 # for the mount ns that the snap performs (not snapd), /var/run is bind mounted
 # from outside the pivot_root to inside the pivot_root, so this will always 
@@ -307,6 +307,7 @@ owner /state/server/{,**} rw,
 # note there may be other accesses that the containers try to run...
 /etc/ r,
 /etc/debian_version r,
+#include <abstractions/python>
 
 # manually add java certs here
 # see also https://bugs.launchpad.net/apparmor/+bug/1816372
