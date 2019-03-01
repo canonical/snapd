@@ -1978,9 +1978,8 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// nearlyReady returns whether all task's siblings (that is, all the
-// task's change's tasks other than itself) are Ready.
-func nearlyReady(task *state.Task) bool {
+// changeReadyUpToTask returns whether all other change's tasks are Ready.
+func changeReadyUpToTask(task *state.Task) bool {
 	me := task.ID()
 	change := task.Change()
 	for _, task := range change.Tasks() {
@@ -2034,7 +2033,7 @@ func refreshedSnaps(reTask *state.Task) []string {
 			continue
 		}
 		if _, ok := laneSnaps[lane]; ok {
-			// ignore lanes we've already seen (incuding ones explicitly ignored in (1))
+			// ignore lanes we've already seen (including ones explicitly ignored in (1))
 			continue
 		}
 		var snapsup SnapSetup
@@ -2047,6 +2046,7 @@ func refreshedSnaps(reTask *state.Task) []string {
 	snapNames := make([]string, 0, len(laneSnaps))
 	for _, name := range laneSnaps {
 		if name == "" {
+			// the lane was unsuccessful
 			continue
 		}
 		snapNames = append(snapNames, name)
@@ -2064,7 +2064,7 @@ type reRefreshSetup struct {
 var reRefreshUpdateMany = updateManyFiltered
 
 // reRefreshFilter is an updateFilter that returns whether the given update
-// needs a re-refresh
+// needs a re-refresh because of further epoch transitions available.
 func reRefreshFilter(update *snap.Info, snapst *SnapState) bool {
 	cur, err := snapst.CurrentInfo()
 	if err != nil {
@@ -2084,7 +2084,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		logger.Panicf("Re-refresh task has %d tasks waiting for it.", numHaltTasks)
 	}
 
-	if !nearlyReady(t) {
+	if !changeReadyUpToTask(t) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
 	snaps := refreshedSnaps(t)
