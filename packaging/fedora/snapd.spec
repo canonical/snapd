@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.37.3
+Version:        2.37.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -822,6 +822,14 @@ fi
 %endif
 
 %changelog
+* Wed Feb 27 2019 Michael Vogt <mvo@ubuntu.com>
+ - squashfs: unset SOURCE_DATE_EPOCH in the TestBuildDate test
+ - overlord/ifacestate: fix migration of connections on upgrade from
+   ubuntu-core
+ - tests: fix upgrade-from-2.15 with kernel 4.15
+ - interfaces/seccomp: increase filter precision
+ - tests: remove snapweb from tests
+
 * Mon Feb 18 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.37.3
  - interfaces/seccomp: generate global seccomp profile
