@@ -57,7 +57,7 @@ details are listed.
 `)
 
 func init() {
-	cmd := addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
+	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -68,7 +68,6 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
 	}})
-	cmd.hidden = true
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
@@ -87,10 +86,6 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}
-
-	defer fmt.Fprintf(Stderr, "\n%s\n",
-		i18n.G("The 'snap interfaces' command is deprecated, try the new 'snap connections'."))
-
 	w := tabWriter()
 	defer w.Flush()
 	fmt.Fprintln(w, i18n.G("Slot\tPlug"))
