@@ -98,6 +98,9 @@ capability dac_override,  # for various overlayfs accesses
 @{PROC}/[0-9]*/mountinfo r,
 @{PROC}/filesystems r,
 
+# runc needs this
+@{PROC}/[0-9]*/setgroups r,
+
 # cgroup accesses
 # greengrassd extensively uses cgroups to confine it's containers (AKA lambdas)
 # and needs to read what cgroups are available; we allow reading any cgroup, 
@@ -277,7 +280,7 @@ owner /{var/,}run/greengrassd.pid rw,
 /group/ r,
 /group/** r,
 /state/ r,
-/state/{,**} r,
+/state/{,**} krw,
 # the child containers need to use a file lock here
 owner /state/secretsmanager/secrets.db krw,
 owner /state/secretsmanager/secrets.db-journal rw,
@@ -302,6 +305,9 @@ owner /state/server/{,**} rw,
 # sandbox for now.
 /lambda/ r,
 /lambda/** ixr,
+
+# needed by cloneBinary.ensureSelfCloned()
+/ ix,
 
 # the python runtime tries to access /etc/debian_version, presumably to identify what system it's running on
 # note there may be other accesses that the containers try to run...
