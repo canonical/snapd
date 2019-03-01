@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -57,6 +58,26 @@ func (s *SnapSuite) TestConnectionsNoneConnected(c *C) {
 	}
 	_, err = Parser(Client()).ParseArgs([]string{"connections", "--all"})
 	c.Check(err, IsNil)
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestConnectionsNotInstalled(c *C) {
+	query := url.Values{
+		"snap":   []string{"foo"},
+		"select": []string{"all"},
+	}
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
+	})
+	_, err := Parser(Client()).ParseArgs([]string{"connections", "foo"})
+	c.Check(err, ErrorMatches, `not found`)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
