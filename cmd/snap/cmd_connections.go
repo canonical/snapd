@@ -87,7 +87,7 @@ func wantedSnapMatches(name, wanted string) bool {
 	return wanted == name
 }
 
-type connectionNotes struct {
+type connection struct {
 	slot          string
 	plug          string
 	interfaceName string
@@ -95,7 +95,7 @@ type connectionNotes struct {
 	gadget        bool
 }
 
-func (cn connectionNotes) String() string {
+func (cn connection) String() string {
 	opts := []string{}
 	if cn.manual {
 		opts = append(opts, "manual")
@@ -113,7 +113,7 @@ func connName(conn client.Connection) string {
 	return endpoint(conn.Plug.Snap, conn.Plug.Name) + " " + endpoint(conn.Slot.Snap, conn.Slot.Name)
 }
 
-type byConnectionData []connectionNotes
+type byConnectionData []connection
 
 func (b byConnectionData) Len() int      { return len(b) }
 func (b byConnectionData) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
@@ -159,9 +159,9 @@ func (x *cmdConnections) Execute(args []string) error {
 		return nil
 	}
 
-	notes := make([]connectionNotes, 0, len(connections.Established)+len(connections.Undesired))
+	notes := make([]connection, 0, len(connections.Established)+len(connections.Undesired))
 	for _, conn := range connections.Established {
-		notes = append(notes, connectionNotes{
+		notes = append(notes, connection{
 			plug:          endpoint(conn.Plug.Snap, conn.Plug.Name),
 			slot:          endpoint(conn.Slot.Snap, conn.Slot.Name),
 			manual:        conn.Manual,
@@ -175,7 +175,7 @@ func (x *cmdConnections) Execute(args []string) error {
 
 	for _, plug := range connections.Plugs {
 		if len(plug.Connections) == 0 && x.All {
-			notes = append(notes, connectionNotes{
+			notes = append(notes, connection{
 				plug:          endpoint(plug.Snap, plug.Name),
 				slot:          "-",
 				interfaceName: plug.Interface,
@@ -188,7 +188,7 @@ func (x *cmdConnections) Execute(args []string) error {
 			continue
 		}
 		if len(slot.Connections) == 0 && x.All {
-			notes = append(notes, connectionNotes{
+			notes = append(notes, connection{
 				plug:          "-",
 				slot:          endpoint(slot.Snap, slot.Name),
 				interfaceName: slot.Interface,
