@@ -75,7 +75,7 @@ capability setuid,
 capability setgid,
 
 # Some utility process (e.g. dnsmasq) will drop root privileges after startup and
-# change to another user. Multipass needs ability to stop them.
+# change to another user. The Multipass daemon needs ability to stop them.
 capability kill,
 
 # Profiles Multipass generates have a naming scheme, restrict any profile changes to
