@@ -87,23 +87,22 @@ func (s *GreengrassSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *GreengrassSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
-
 }
 
-func (s *GreengrassSupportInterfaceSuite) TestSecCompSpec(c *C) {
+func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount fstype=overlay no_source -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**,\n")
 }
 
-func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *GreengrassSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "# for overlayfs and various bind mounts\nmount\numount2\npivot_root\n")
 }
 
-func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisabling(c *C) {
+func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *C) {
 	// make a spec with network-control that has udev tagging
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.extraPlug, s.extraSlot), IsNil)
@@ -112,6 +111,17 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisabling(c *C) {
 	// connect the greengrass-support interface and ensure the spec is now nil
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.Snippets(), HasLen, 0)
+}
+
+func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c *C) {
+	spec := &udev.Specification{}
+	// connect the greengrass-support interface and ensure the spec is nil
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Snippets(), HasLen, 0)
+
+	// add network-control and ensure the spec is still nil
+	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.extraPlug, s.extraSlot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestInterfaces(c *C) {
