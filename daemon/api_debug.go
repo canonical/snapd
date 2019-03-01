@@ -63,7 +63,10 @@ func getBaseDeclaration(st *state.State) Response {
 	}, nil)
 }
 
-func checkConnectivity(theStore snapstate.StoreService) Response {
+func checkConnectivity(st *state.State) Response {
+	theStore := snapstate.Store(st)
+	st.Unlock()
+	defer st.Lock()
 	checkResult, err := theStore.ConnectivityCheck()
 	if err != nil {
 		return InternalError("cannot run connectivity check: %v", err)
@@ -84,18 +87,13 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	aspect := query.Get("aspect")
 	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 	switch aspect {
 	case "base-declaration":
-		st.Lock()
-		defer st.Unlock()
-
 		return getBaseDeclaration(st)
 	case "connectivity":
-		st.Lock()
-		theStore := snapstate.Store(st)
-		st.Unlock()
-
-		return checkConnectivity(theStore)
+		return checkConnectivity(st)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}
@@ -128,11 +126,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		rsp := checkConnectivity(s)
-		st.Lock()
-		return rsp
+		return checkConnectivity(st)
 	case "change-timings":
 		chg := st.Change(a.Params.ChgID)
 		if chg == nil {
