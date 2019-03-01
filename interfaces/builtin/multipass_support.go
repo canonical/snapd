@@ -27,7 +27,7 @@ package builtin
  * "dnsmasq" process. File sharing between the VM and the host is provided by a
  * "sshfs_server" utility. All these utilities are shipped in the snap.
  *
- * Each of these utilities have a very different different purpose, and an attempt
+ * Each of these utilities have a different purpose, and an attempt
  * to confine them all in a single profile would result in an extremely broad AppArmor
  * profile.
  *
