@@ -212,13 +212,6 @@ var (
 		GET:    getChanges,
 	}
 
-	debugCmd = &Command{
-		Path:   "/v2/debug",
-		UserOK: true,
-		GET:    getDebug,
-		POST:   postDebug,
-	}
-
 	createUserCmd = &Command{
 		Path: "/v2/create-user",
 		POST: postCreateUser,
@@ -2469,104 +2462,6 @@ func convertBuyError(err error) Response {
 		return InternalError("%v", err)
 	}
 }
-
-type debugAction struct {
-	Action  string `json:"action"`
-	Message string `json:"message"`
-	Params  struct {
-		ChgID string `json:"chg-id"`
-	} `json:"params"`
-}
-
-type ConnectivityStatus struct {
-	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable,omitempty"`
-}
-
-func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
-	query := r.URL.Query()
-	action := query.Get("action")
-	if action != "base-declaration" {
-		return BadRequest("unknown debug action %q", action)
-	}
-	return doDebugAction(c, &debugAction{Action: action})
-}
-
-func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
-	var a debugAction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a debug action: %v", err)
-	}
-
-	return doDebugAction(c, &a)
-}
-
-func doDebugAction(c *Command, a *debugAction) Response {
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	switch a.Action {
-	case "add-warning":
-		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
-	case "unshow-warnings":
-		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
-	case "ensure-state-soon":
-		ensureStateSoon(st)
-		return SyncResponse(true, nil)
-	case "get-base-declaration", "base-declaration":
-		bd, err := assertstate.BaseDeclaration(st)
-		if err != nil {
-			return InternalError("cannot get base declaration: %s", err)
-		}
-		return SyncResponse(map[string]interface{}{
-			"base-declaration": string(asserts.Encode(bd)),
-		}, nil)
-	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
-		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
-	case "change-timings":
-		chg := st.Change(a.Params.ChgID)
-		if chg == nil {
-			return BadRequest("cannot find change: %v", a.Message)
-		}
-		m := map[string]struct {
-			DoingTime, UndoingTime time.Duration
-		}{}
-		for _, t := range chg.Tasks() {
-			m[t.ID()] = struct {
-				DoingTime, UndoingTime time.Duration
-			}{
-				DoingTime:   t.DoingTime(),
-				UndoingTime: t.UndoingTime(),
-			}
-		}
-		return SyncResponse(m, nil)
-	default:
-		return BadRequest("unknown debug action: %v", a.Action)
-	}
-}
-
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 

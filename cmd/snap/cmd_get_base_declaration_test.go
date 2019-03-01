@@ -61,7 +61,7 @@ func (s *SnapSuite) TestBaseDeclaration(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
-			c.Check(r.URL.RawQuery, check.Equals, "action=base-declaration")
+			c.Check(r.URL.RawQuery, check.Equals, "aspect=base-declaration")
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
 			c.Check(data, check.HasLen, 0)

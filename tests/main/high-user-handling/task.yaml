@@ -7,6 +7,8 @@ prepare: |
 
 restore: |
     userdel hightest
+    rm -f hightest
 
 execute: |
-    sudo -E -u hightest "$(command -v go)" run test.go
+    "$(command -v go)" build -o hightest test.go
+    sudo -E -u hightest ./hightest
