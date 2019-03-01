@@ -61,9 +61,10 @@ type commonInterface struct {
 	permanentPlugKModModules []string
 	permanentSlotKModModules []string
 
-	usesPtraceTrace     bool
-	suppressPtraceTrace bool
-	suppressHomeIx      bool
+	usesPtraceTrace      bool
+	suppressPtraceTrace  bool
+	suppressHomeIx       bool
+	controlsDeviceCgroup bool
 }
 
 // Name returns the interface name.
@@ -162,8 +163,14 @@ func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	for _, rule := range iface.connectedPlugUDev {
-		spec.TagDevice(rule)
+	// don't tag devices if the interface controls it's own device cgroup
+	if iface.controlsDeviceCgroup {
+		spec.SetControlsDeviceCgroup()
+	} else {
+		for _, rule := range iface.connectedPlugUDev {
+			spec.TagDevice(rule)
+		}
 	}
+
 	return nil
 }
