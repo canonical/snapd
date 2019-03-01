@@ -1,12 +1,14 @@
 #!/bin/sh
 check_access() {
     DEVPATH=$1
-    if test -w "$DEVPATH" ; then
+    DATA=$2
+    if echo "$DATA on $DEVPATH" > "$DEVPATH" ; then
         echo "Access to $DEVPATH ok"
     else
         echo "Access to $DEVPATH failed"
     fi
 }
 
-check_access /dev/ttyUSB0
-check_access /dev/ttyUSB1
+DATA="$1"
+check_access /dev/ttyUSB0 "$DATA"
+check_access /dev/ttyUSB1 "$DATA"
