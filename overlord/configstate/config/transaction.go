@@ -171,10 +171,7 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 
 	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
-	snapChanges := t.changes[snapName]
-	for k, v := range snapChanges {
-		config[k] = commitChange(config[k], v)
-	}
+	applyChanges(config, t.changes[snapName])
 	return getFromConfig(snapName, subkeys, 0, config, result)
 }
 
@@ -256,9 +253,7 @@ func (t *Transaction) Commit() {
 		if !ok {
 			config = make(map[string]*json.RawMessage)
 		}
-		for k, v := range snapChanges {
-			config[k] = commitChange(config[k], v)
-		}
+		applyChanges(config, snapChanges)
 		t.pristine[instanceName] = config
 	}
 
@@ -266,6 +261,12 @@ func (t *Transaction) Commit() {
 
 	// The cache has been flushed, reset it.
 	t.changes = make(map[string]map[string]interface{})
+}
+
+func applyChanges(config map[string]*json.RawMessage, changes map[string]interface{}) {
+	for k, v := range changes {
+		config[k] = commitChange(config[k], v)
+	}
 }
 
 func jsonRaw(v interface{}) *json.RawMessage {
