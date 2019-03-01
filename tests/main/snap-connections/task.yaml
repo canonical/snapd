@@ -59,3 +59,15 @@ execute: |
     MATCH 'content +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < all.out
     MATCH 'daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-' < all.out
     MATCH 'network +network-consumer:network +- +-' < all.out
+
+    # connect back the network plug
+    snap connect network-consumer:network
+
+    # show system conections
+    snap connections system > system.out
+    MATCH 'network +network-consumer:network +:network +manual' < system.out
+    # make sure that an interface that is not connected shows up too
+    MATCH 'opengl +- +:opengl +-' < system.out
+
+    ! snap connections not-found > error.out 2>&1
+    MATCH 'error: snap "not-found" not found' < error.out
