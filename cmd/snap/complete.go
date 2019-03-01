@@ -439,17 +439,25 @@ func (s serviceName) Complete(match string) []flags.Completion {
 		return nil
 	}
 
-	snaps := map[string]bool{}
+	snaps := map[string]int{}
 	var ret []flags.Completion
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
 		}
-		if !snaps[app.Snap] {
-			snaps[app.Snap] = true
-			ret = append(ret, flags.Completion{Item: app.Snap})
+		name := snap.JoinSnapApp(app.Snap, app.Name)
+		if !strings.HasPrefix(name, match) {
+			continue
 		}
-		ret = append(ret, flags.Completion{Item: app.Snap + "." + app.Name})
+		ret = append(ret, flags.Completion{Item: name})
+		if len(match) <= len(app.Snap) {
+			snaps[app.Snap]++
+		}
+	}
+	for snap, n := range snaps {
+		if n > 1 {
+			ret = append(ret, flags.Completion{Item: snap})
+		}
 	}
 
 	return ret

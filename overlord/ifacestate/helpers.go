@@ -917,7 +917,7 @@ func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error)
 func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
 	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
-		return 0, err
+		return 0, fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
 	}
 	seq++
 	st.Set("hotplug-seq", seq)
@@ -945,18 +945,13 @@ func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
 
 // addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
 // and makes all existing tasks of the change wait for it.
-func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
+func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string, hotplugSeq int) {
 	st := hotplugChange.State()
-	seq, err := allocHotplugSeq(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
-	}
-	setHotplugChangeAttrs(hotplugChange, seq, hotplugKey)
+	setHotplugChangeAttrs(hotplugChange, hotplugSeq, hotplugKey)
 	seqControl := st.NewTask("hotplug-seq-wait", fmt.Sprintf("Serialize hotplug change for hotplug key %q", hotplugKey))
 	tss := state.NewTaskSet(hotplugChange.Tasks()...)
 	tss.WaitFor(seqControl)
 	hotplugChange.AddTask(seqControl)
-	return nil
 }
 
 type HotplugSlotInfo struct {
