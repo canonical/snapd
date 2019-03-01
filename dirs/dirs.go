@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -260,7 +261,7 @@ func SetRootDir(rootdir string) {
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
-	if _, err := os.Stat(SystemApparmorCacheDir); os.IsNotExist(err) {
+	if !osutil.IsWritable(SystemApparmorCacheDir) {
 		// some systems use a single cache dir instead of splitting
 		// out the system cache
 		SystemApparmorCacheDir = AppArmorCacheDir

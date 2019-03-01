@@ -91,7 +91,7 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 // (ie, forcibly stop all running processes from the snap). Otherwise, any
 // running processes will become unconfined. Since we don't have this guarantee
 // yet, leave the profiles loaded in the kernel but remove the cache files from
-// the system so the policy is gone on the next reboot.
+// the system so the policy is gone on the next reboot. LP: #1818241
 func unloadProfiles(names []string, cacheDir string) error {
 	if len(names) == 0 {
 		return nil
@@ -104,7 +104,7 @@ func unloadProfiles(names []string, cacheDir string) error {
 	// profile names one at a time to
 	// /sys/kernel/security/apparmor/.remove (with no trailing \n).
 	apparmorSysFsRemove := "/sys/kernel/security/apparmor/.remove"
-	if _, err := os.Stat(appArmorSysFsRemove); err != nil && os.IsNotExist(err) {
+	if !osutil.IsWritable(appArmorSysFsRemove) {
 	        return fmt.Errorf("cannot unload apparmor profile: %s does not exist\n", appArmorSysFsRemove)
 	}
 	for _, n := range names {
