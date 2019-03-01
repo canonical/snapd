@@ -149,6 +149,9 @@ apps:
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
+  intel-mei:
+    command: bin/run
+    plugs: [ intel-mei ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
