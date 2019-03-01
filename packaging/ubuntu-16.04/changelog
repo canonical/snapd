@@ -1,8 +1,14 @@
 snapd (2.37.4) xenial; urgency=medium
 
-  * placeholder changelog for 2.37.4
+  * New upstream release, LP: #1817949
+    - squashfs: unset SOURCE_DATE_EPOCH in the TestBuildDate test
+    - overlord/ifacestate: fix migration of connections on upgrade from
+      ubuntu-core
+    - tests: fix upgrade-from-2.15 with kernel 4.15
+    - interfaces/seccomp: increase filter precision
+    - tests: remove snapweb from tests
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 27 Feb 2019 21:08:53 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 27 Feb 2019 19:53:36 +0100
 
 snapd (2.37.3) xenial; urgency=medium
 
