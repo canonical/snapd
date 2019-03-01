@@ -53,9 +53,7 @@ var _ = Suite(&MultipassSupportInterfaceSuite{
 
 func (s *MultipassSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "core",
-			Type:          snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 		Name:      "multipass-support",
 		Interface: "multipass-support",
 	}
