@@ -286,6 +286,24 @@ func profileGlobs(snapName string) []string {
 	return []string{interfaces.SecurityTagGlob(snapName), nsProfile(snapName)}
 }
 
+// Determine if a profile filename is removable during core refresh/rollback.
+// On systems with unified cache directory, don't remove the snap profiles,
+// only system and snap-confine profiles. snap-confine profiles are like the
+// following:
+// - usr.lib.snapd.snap-confine.real
+// - usr.lib.snapd.snap-confine
+// - snap.core.NNNN.usr.lib.snapd.snap-confine
+// - var.lib.snapd.snap.core.NNNN.usr.lib.snapd.snap-confine
+// - snap-confine.core.NNNN
+// TODO: also the "snapd" snap here soon
+func profileIsRemovableOnCoreSetup(fn string) bool {
+	bn := path.Base(fn)
+	if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
+		return false
+	}
+	return true
+}
+
 // Setup creates and loads apparmor profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
 // the offending application process.
@@ -330,20 +348,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if snapName == "core" && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
 			for _, p := range li {
-				// On systems with unified cache directory,
-				// don't remove the snap profiles, only system
-				// and snap-confine profiles. snap-confine
-				// profiles are like the following:
-				// - usr.lib.snapd.snap-confine.real
-				// - usr.lib.snapd.snap-confine
-				// - snap.core.NNNN.usr.lib.snapd.snap-confine
-				// - snap-confine.core.NNNN
-				// TODO: also the "snapd" snap here soon
-				bn := path.Base(p)
-				if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
-					continue
-				}
-				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
 					if err := os.Remove(p); err != nil {
 						logger.Noticef("cannot remove %q: %s", p, err)
 					}

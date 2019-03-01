@@ -915,6 +915,9 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap.core.4938.usr.lib.snapd.snap-confine")
 	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
 	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "var.lib.snapd.snap.core.1234.usr.lib.snapd.snap-confine")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
 	// but non-regular entries in the cache dir are kept
 	dirsAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "dir")
 	err = os.MkdirAll(dirsAreKept, 0755)
