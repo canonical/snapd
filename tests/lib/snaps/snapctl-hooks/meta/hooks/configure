@@ -61,17 +61,16 @@ test_get_int_number() {
 }
 
 test_get_nested() {
-    echo "Getting a map"
-    if ! output="$(snapctl get root)"; then
-		    echo "Expected snapctl get to be able to retrieve value just set"
-		    exit 1
-	  fi
-	  for expected_output in "\"key1\": \"a\"" "\"key2\": \"b\""; do
-	      if ! echo "$output" | grep -E "$expected_output"; then
-		        echo "Expected output to be '$expected_output', but it was '$output'"
-		        exit 1
-	      fi
-    done
+  echo "Getting a map"
+  if ! output="$(snapctl get root)"; then
+      echo "Expected snapctl get to be able to retrieve value just set"
+      exit 1
+  fi
+  expected_output='{\n\t"key1": "a",\n\t"key2": "b"\n}'
+  if ! ( echo "$output" | grep -z -q -P "$expected_output" ); then
+      echo "Expected output to be '$expected_output' but it was '$output'"
+      exit 1
+  fi
 }
 
 test_snapctl_get_foo_null() {
