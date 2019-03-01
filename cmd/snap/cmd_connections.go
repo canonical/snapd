@@ -43,9 +43,9 @@ var longConnectionsHelp = i18n.G(`
 The connections command lists connections between plugs and slots
 in the system.
 
-Pass --all to list unconnected plugs and slots alongside those
-already connected. Unless <snap> is provided, the listing is for all
-snaps in the system.
+Unless <snap> is provided, the listing is for connected plugs and
+slots for all snaps in the system. In this mode, pass --all to also
+list unconnected plugs and slots.
 
 $ snap connections <snap>
 
@@ -77,16 +77,6 @@ func endpoint(snap, name string) string {
 	return snap + ":" + name
 }
 
-func wantedSnapMatches(name, wanted string) bool {
-	if wanted == "system" {
-		if isSystemSnap(name) {
-			return true
-		}
-		return false
-	}
-	return wanted == name
-}
-
 type connection struct {
 	slot          string
 	plug          string
@@ -107,10 +97,6 @@ func (cn connection) String() string {
 		return "-"
 	}
 	return strings.Join(opts, ",")
-}
-
-func connName(conn client.Connection) string {
-	return endpoint(conn.Plug.Snap, conn.Plug.Name) + " " + endpoint(conn.Slot.Snap, conn.Slot.Name)
 }
 
 type byConnectionData []connection
@@ -183,7 +169,7 @@ func (x *cmdConnections) Execute(args []string) error {
 		}
 	}
 	for _, slot := range connections.Slots {
-		if isSystemSnap(slot.Snap) {
+		if !isSystemSnap(wanted) && isSystemSnap(slot.Snap) {
 			// displaying unconnected system snap slots is boring
 			continue
 		}
