@@ -49,7 +49,6 @@ const greengrassSupportConnectedPlugAppArmorCore = `
 # /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/ rw,
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/{,**} rw,
-
 `
 
 const greengrassSupportConnectedPlugAppArmor = `
