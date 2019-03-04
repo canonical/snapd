@@ -101,7 +101,7 @@ func (s *IntelMEISuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to the intel MEI management interface`)
+	c.Assert(si.Summary, Equals, `allows access to the Intel MEI management interface`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "intel-mei")
 }
 

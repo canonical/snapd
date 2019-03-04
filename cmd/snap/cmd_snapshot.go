@@ -31,7 +31,7 @@ import (
 )
 
 func fmtSize(size int64) string {
-	return quantity.FormatAmount(uint64(size), -1)
+	return quantity.FormatAmount(uint64(size), -1) + "B"
 }
 
 var (
@@ -141,8 +141,9 @@ func (x *savedCmd) Execute([]string) error {
 			if sh.Broken != "" {
 				note = "broken: " + sh.Broken
 			}
-			size := quantity.FormatAmount(uint64(sh.Size), -1) + "B"
-			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", sg.ID, sh.Snap, x.fmtDuration(sh.Time), sh.Version, sh.Revision, size, note)
+			size := fmtSize(sh.Size)
+			age := x.fmtDuration(sh.Time)
+			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", sg.ID, sh.Snap, age, sh.Version, sh.Revision, size, note)
 		}
 	}
 	return nil
