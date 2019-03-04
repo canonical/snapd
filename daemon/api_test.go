@@ -427,10 +427,6 @@ func (s *apiBaseSuite) waitTrivialChange(c *check.C, chg *state.Change) {
 	c.Assert(chg.IsReady(), check.Equals, true)
 }
 
-func (s *apiBaseSuite) mkInstalled(c *check.C, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
-	return s.mkInstalledInState(c, nil, name, developer, version, revision, active, extraYaml)
-}
-
 func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
 	err := os.MkdirAll(filepath.Dir(df), 0755)
@@ -532,16 +528,6 @@ version: %s
 	}
 
 	return snapInfo
-}
-
-func (s *apiBaseSuite) mkGadget(c *check.C, store string) {
-	yamlText := fmt.Sprintf(`name: test
-version: 1
-type: gadget
-gadget: {store: {id: %q}}
-`, store)
-	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
-	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapMountDir, "test", "current")), check.IsNil)
 }
 
 type apiSuite struct {

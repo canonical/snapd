@@ -130,11 +130,6 @@ var execveatRE = regexp.MustCompile(`([0-9]+)\ +([0-9.]+) execveat\(.*\["([^"]+)
 // 17559 1542815330.242750 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=17643, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
 var sigChldTermRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*SIG(CHLD|TERM)\ {.*si_pid=([0-9]+),`)
 
-// all lines start with this:
-// PID   TIME
-// 21616 1542882400.198907 ....
-var timeRE = regexp.MustCompile(`[0-9]+\ +([0-9.]+).*`)
-
 func handleExecMatch(trace *ExecveTiming, pt *pidTracker, match []string) error {
 	if len(match) == 0 {
 		return nil
