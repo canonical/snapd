@@ -120,16 +120,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		var info *snap.Info
 		var err error
 		if all {
-			var publisher snap.StoreAccount
-			var gotPublisher bool
 			for _, seq := range snapst.Sequence {
-				if !gotPublisher {
-					gotPublisher = true
-					publisher, err = publisherAccount(st, seq.SnapID)
-					if err != nil && firstErr == nil {
-						firstErr = err
-					}
-				}
 				info, err = snap.ReadInfo(name, seq)
 				if err != nil {
 					// single revision may be broken
@@ -142,7 +133,10 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 					// clear the error
 					err = nil
 				}
-				info.Publisher = publisher
+				info.Publisher, err = publisherAccount(st, seq.SnapID)
+				if err != nil && firstErr == nil {
+					firstErr = err
+				}
 				aboutThis = append(aboutThis, aboutSnap{info, snapst})
 			}
 		} else {

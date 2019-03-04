@@ -110,6 +110,7 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 	return strings.Join(notes, ",")
 }
 
+// BySnapApp sorts apps by (snap name, app name)
 type BySnapApp []*snap.AppInfo
 
 func (a BySnapApp) Len() int      { return len(a) }

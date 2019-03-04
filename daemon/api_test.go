@@ -444,7 +444,14 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 
-	snapID := snapName + "-id"
+	if revision.Local() && developer != "" {
+		panic("not supported")
+	}
+
+	var snapID string
+	if revision.Store() {
+		snapID = snapName + "-id"
+	}
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:   snapID,
@@ -473,70 +480,75 @@ version: %s
 	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
 
-	if daemon != nil {
-		st := daemon.overlord.State()
-		st.Lock()
-		defer st.Unlock()
-
-		err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
-		if _, ok := err.(*asserts.RevisionError); !ok {
-			c.Assert(err, check.IsNil)
-		}
-
-		devAcct := assertstest.NewAccount(s.storeSigning, developer, map[string]interface{}{
-			"account-id": developer + "-id",
-		}, "")
-		err = assertstate.Add(st, devAcct)
-		if _, ok := err.(*asserts.RevisionError); !ok {
-			c.Assert(err, check.IsNil)
-		}
-		snapInfo.Publisher = snap.StoreAccount{
-			ID:          devAcct.AccountID(),
-			Username:    devAcct.Username(),
-			DisplayName: devAcct.DisplayName(),
-			Validation:  devAcct.Validation(),
-		}
-
-		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
-			"series":       "16",
-			"snap-id":      snapID,
-			"snap-name":    snapName,
-			"publisher-id": devAcct.AccountID(),
-			"timestamp":    time.Now().Format(time.RFC3339),
-		}, nil, "")
-		c.Assert(err, check.IsNil)
-		err = assertstate.Add(st, snapDecl)
-		if _, ok := err.(*asserts.RevisionError); !ok {
-			c.Assert(err, check.IsNil)
-		}
-
-		content, err := ioutil.ReadFile(snapInfo.MountFile())
-		c.Assert(err, check.IsNil)
-		h := sha3.Sum384(content)
-		dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
-		c.Assert(err, check.IsNil)
-		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
-			"snap-sha3-384": string(dgst),
-			"snap-size":     "999",
-			"snap-id":       snapID,
-			"snap-revision": fmt.Sprintf("%s", revision),
-			"developer-id":  devAcct.AccountID(),
-			"timestamp":     time.Now().Format(time.RFC3339),
-		}, nil, "")
-		c.Assert(err, check.IsNil)
-		err = assertstate.Add(st, snapRev)
-		c.Assert(err, check.IsNil)
-
-		var snapst snapstate.SnapState
-		snapstate.Get(st, instanceName, &snapst)
-		snapst.Active = active
-		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
-		snapst.Current = snapInfo.SideInfo.Revision
-		snapst.Channel = "stable"
-		snapst.InstanceKey = instanceKey
-
-		snapstate.Set(st, instanceName, &snapst)
+	if daemon == nil {
+		return snapInfo
 	}
+	st := daemon.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	snapstate.Get(st, instanceName, &snapst)
+	snapst.Active = active
+	snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
+	snapst.Current = snapInfo.SideInfo.Revision
+	snapst.Channel = "stable"
+	snapst.InstanceKey = instanceKey
+
+	snapstate.Set(st, instanceName, &snapst)
+
+	if developer == "" {
+		return snapInfo
+	}
+
+	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
+	if _, ok := err.(*asserts.RevisionError); !ok {
+		c.Assert(err, check.IsNil)
+	}
+
+	devAcct := assertstest.NewAccount(s.storeSigning, developer, map[string]interface{}{
+		"account-id": developer + "-id",
+	}, "")
+	err = assertstate.Add(st, devAcct)
+	if _, ok := err.(*asserts.RevisionError); !ok {
+		c.Assert(err, check.IsNil)
+	}
+	snapInfo.Publisher = snap.StoreAccount{
+		ID:          devAcct.AccountID(),
+		Username:    devAcct.Username(),
+		DisplayName: devAcct.DisplayName(),
+		Validation:  devAcct.Validation(),
+	}
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"snap-name":    snapName,
+		"publisher-id": devAcct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	err = assertstate.Add(st, snapDecl)
+	if _, ok := err.(*asserts.RevisionError); !ok {
+		c.Assert(err, check.IsNil)
+	}
+
+	content, err := ioutil.ReadFile(snapInfo.MountFile())
+	c.Assert(err, check.IsNil)
+	h := sha3.Sum384(content)
+	dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
+	c.Assert(err, check.IsNil)
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": string(dgst),
+		"snap-size":     "999",
+		"snap-id":       snapID,
+		"snap-revision": fmt.Sprintf("%s", revision),
+		"developer-id":  devAcct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	err = assertstate.Add(st, snapRev)
+	c.Assert(err, check.IsNil)
 
 	return snapInfo
 }
@@ -1637,6 +1649,34 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "local")
+}
+
+func (s *apiSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
+	d := s.daemon(c)
+
+	// the first 'local' is from a 'local' snap
+	s.mkInstalledInState(c, d, "local", "", "v1", snap.R(-1), false, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v2", snap.R(1), false, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v3", snap.R(2), true, "")
+
+	req, err := http.NewRequest("GET", "/v2/snaps?select=all", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 3)
+
+	publisher := map[string]interface{}{
+		"id":           "foo-id",
+		"username":     "foo",
+		"display-name": "Foo",
+		"validation":   "unproven",
+	}
+
+	c.Check(snaps[0]["publisher"], check.IsNil)
+	c.Check(snaps[1]["publisher"], check.DeepEquals, publisher)
+	c.Check(snaps[2]["publisher"], check.DeepEquals, publisher)
 }
 
 func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
