@@ -932,6 +932,10 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	sunCanaryKept := filepath.Join(dirs.SystemApparmorCacheDir, "snap-update-ns.canary")
 	err = ioutil.WriteFile(sunCanaryKept, nil, 0644)
 	c.Assert(err, IsNil)
+	// and the .features file is kept
+	dotKept := filepath.Join(dirs.SystemApparmorCacheDir, ".features")
+	err = ioutil.WriteFile(dotKept, nil, 0644)
+	c.Assert(err, IsNil)
 
 	// install the new core snap on classic triggers a new snap-confine
 	// for this snap-confine on core
@@ -940,7 +944,7 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
 	c.Assert(err, IsNil)
 	// canary is gone, extra stuff is kept
-	c.Check(l, DeepEquals, []string{dirsAreKept, sunCanaryKept, snapCanaryKept, symlinksAreKept})
+	c.Check(l, DeepEquals, []string{dotKept, dirsAreKept, sunCanaryKept, snapCanaryKept, symlinksAreKept})
 }
 
 // snap-confine policy when NFS is not used.

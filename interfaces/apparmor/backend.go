@@ -303,7 +303,9 @@ func profileGlobs(snapName string) []string {
 // TODO: also the "snapd" snap here soon
 func profileIsRemovableOnCoreSetup(fn string) bool {
 	bn := path.Base(fn)
-	if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
+	if strings.HasPrefix(bn, ".") {
+		return false
+	} else if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
 		return false
 	}
 	return true
