@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -63,18 +63,41 @@ func getBaseDeclaration(st *state.State) Response {
 	}, nil)
 }
 
+func checkConnectivity(st *state.State) Response {
+	theStore := snapstate.Store(st)
+	st.Unlock()
+	defer st.Lock()
+	checkResult, err := theStore.ConnectivityCheck()
+	if err != nil {
+		return InternalError("cannot run connectivity check: %v", err)
+	}
+	status := ConnectivityStatus{Connectivity: true}
+	for host, reachable := range checkResult {
+		if !reachable {
+			status.Connectivity = false
+			status.Unreachable = append(status.Unreachable, host)
+		}
+	}
+	sort.Strings(status.Unreachable)
+
+	return SyncResponse(status, nil)
+}
+
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	aspect := query.Get("aspect")
-	if aspect != "base-declaration" {
-		return BadRequest("unknown debug aspect %q", aspect)
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+	switch aspect {
+	case "base-declaration":
+		return getBaseDeclaration(st)
+	case "connectivity":
+		return checkConnectivity(st)
+	default:
+		return BadRequest("unknown debug aspect %q", aspect)
+	}
 
-	return getBaseDeclaration(st)
 }
 
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -103,23 +126,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
-		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
+		return checkConnectivity(st)
 	case "change-timings":
 		chg := st.Change(a.Params.ChgID)
 		if chg == nil {

@@ -112,7 +112,6 @@ type jsonRPC struct {
 	Method  string `json:"method"`
 	Params  struct {
 		Command         string   `json:"command"`
-		SearchTerms     []string `json:"search-terms"`
 		UnknownPackages []string `json:"unknown-packages"`
 	}
 }
