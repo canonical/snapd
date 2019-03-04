@@ -2415,8 +2415,8 @@ func (s *RepositorySuite) TestAllHotplugInterfaces(c *C) {
 
 	hi := repo.AllHotplugInterfaces()
 	c.Assert(hi, HasLen, 2)
-	c.Assert(hi[0].Name(), Equals, "iface2")
-	c.Assert(hi[1].Name(), Equals, "iface3")
+	c.Assert(hi["iface2"], DeepEquals, &ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "iface2"}})
+	c.Assert(hi["iface3"], DeepEquals, &ifacetest.TestHotplugInterface{TestInterface: ifacetest.TestInterface{InterfaceName: "iface3"}})
 }
 
 func (s *RepositorySuite) TestHotplugMethods(c *C) {

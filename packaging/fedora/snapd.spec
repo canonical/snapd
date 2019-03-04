@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.37.2
+Version:        2.37.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -461,13 +461,13 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 # set tags.
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
-%gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
 
 # To ensure things work correctly with base snaps,
-# snap-exec and snap-update-ns need to be built statically
+# snap-exec, snap-update-ns and snapctl need to be built statically
 %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+%gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
@@ -822,6 +822,28 @@ fi
 %endif
 
 %changelog
+* Wed Feb 27 2019 Michael Vogt <mvo@ubuntu.com>
+ - squashfs: unset SOURCE_DATE_EPOCH in the TestBuildDate test
+ - overlord/ifacestate: fix migration of connections on upgrade from
+   ubuntu-core
+ - tests: fix upgrade-from-2.15 with kernel 4.15
+ - interfaces/seccomp: increase filter precision
+ - tests: remove snapweb from tests
+
+* Mon Feb 18 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.37.3
+ - interfaces/seccomp: generate global seccomp profile
+ - overlord/snapstate: add some randomness to the catalog refresh
+ - tests: add upgrade test from 2.15.2ubuntu1 -> current snapd
+ - snap-confine: fix fallback to ubuntu-core
+ - packaging: avoid race in snapd.postinst
+ - overlord/snapstate: discard mount namespace when undoing 1st link
+   snap
+ - cmd/snap-confine: allow writes to /var/lib/** again
+ - tests: stop catalog-update/apt-hooks test until the catlog refresh
+   is randomized
+ - debian: ensure leftover usr.lib.snapd.snap-confine is gone
+
 * Wed Feb 06 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.37.2
  - cmd/snap, overlord/snapstate: silently ignore classic flag when a

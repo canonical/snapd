@@ -1,3 +1,32 @@
+snapd (2.37.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1817949
+    - squashfs: unset SOURCE_DATE_EPOCH in the TestBuildDate test
+    - overlord/ifacestate: fix migration of connections on upgrade from
+      ubuntu-core
+    - tests: fix upgrade-from-2.15 with kernel 4.15
+    - interfaces/seccomp: increase filter precision
+    - tests: remove snapweb from tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 27 Feb 2019 19:53:36 +0100
+
+snapd (2.37.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1811233
+    - interfaces/seccomp: generate global seccomp profile
+    - overlord/snapstate: add some randomness to the catalog refresh
+    - tests: add upgrade test from 2.15.2ubuntu1 -> current snapd
+    - snap-confine: fix fallback to ubuntu-core
+    - packaging: avoid race in snapd.postinst
+    - overlord/snapstate: discard mount namespace when undoing 1st link
+      snap
+    - cmd/snap-confine: allow writes to /var/lib/** again
+    - tests: stop catalog-update/apt-hooks test until the catlog refresh
+      is randomized
+    - debian: ensure leftover usr.lib.snapd.snap-confine is gone
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 18 Feb 2019 17:17:33 +0100
+
 snapd (2.37.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1811233

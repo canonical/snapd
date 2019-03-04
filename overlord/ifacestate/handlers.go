@@ -1135,14 +1135,17 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	}
 	setConns(st, conns)
 
-	// The reloadConnections() just modifies the repository object, it
-	// has no effect on the running system, i.e. no security profiles
-	// on disk are rewriten. This is ok because core/ubuntu-core have
-	// exactly the same profiles and nothing in the generated policies
-	// has the slot-name encoded.
-	if _, err := m.reloadConnections(oldName); err != nil {
+	// After migrating connections in state, remove them from repo so they stay in sync and we don't
+	// attempt to run disconnects on when the old core gets removed as part of the transition.
+	if err := m.removeConnections(oldName); err != nil {
 		return err
 	}
+
+	// The reloadConnections() just modifies the repository object, it
+	// has no effect on the running system, i.e. no security profiles
+	// on disk are rewritten. This is ok because core/ubuntu-core have
+	// exactly the same profiles and nothing in the generated policies
+	// has the core snap-name encoded.
 	if _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
@@ -1457,25 +1460,25 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 
 	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
 	// including connection with hotplug-gone=true.
-Loop:
-	for slotName, def := range stateSlots {
-		if def.Interface != ifaceName || def.HotplugKey != hotplugKey {
-			continue
-		}
-		conns, err := getConns(st)
-		if err != nil {
-			return err
-		}
-		for _, conn := range conns {
-			if conn.Interface == def.Interface && conn.HotplugKey == def.HotplugKey {
-				// there is a connection referencing this slot, do not remove it
-				break Loop
-			}
-		}
-		delete(stateSlots, slotName)
-		setHotplugSlots(st, stateSlots)
-		break
+	slotDef := findHotplugSlot(stateSlots, ifaceName, hotplugKey)
+	if slotDef == nil {
+		return fmt.Errorf("internal error: cannot find hotplug slot for interface %s, hotplug key %q", ifaceName, hotplugKey)
 	}
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	for _, conn := range conns {
+		if conn.Interface == slotDef.Interface && conn.HotplugKey == slotDef.HotplugKey {
+			// there is a connection referencing this slot, do not remove it, only mark as "gone"
+			slotDef.HotplugGone = true
+			stateSlots[slotDef.Name] = slotDef
+			setHotplugSlots(st, stateSlots)
+			return nil
+		}
+	}
+	delete(stateSlots, slotDef.Name)
+	setHotplugSlots(st, stateSlots)
 
 	return nil
 }
@@ -1549,9 +1552,9 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
-	var slotSpec hotplug.RequestedSlotSpec
-	if err := task.Get("slot-spec", &slotSpec); err != nil {
-		return fmt.Errorf("internal error: cannot get hotplug slot specification from task attributes: %s", err)
+	var proposedSlot hotplug.ProposedSlot
+	if err := task.Get("proposed-slot", &proposedSlot); err != nil {
+		return fmt.Errorf("internal error: cannot get proposed hotplug slot from task attributes: %s", err)
 	}
 	var devinfo hotplug.HotplugDeviceInfo
 	if err := task.Get("device-info", &devinfo); err != nil {
@@ -1577,18 +1580,18 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 			// simply recreate the slot with potentially new attributes, and old connections will be re-created
 			newSlot := &snap.SlotInfo{
 				Name:       slot.Name,
-				Label:      slotSpec.Label,
+				Label:      proposedSlot.Label,
 				Snap:       systemSnap,
 				Interface:  ifaceName,
-				Attrs:      slotSpec.Attrs,
+				Attrs:      proposedSlot.Attrs,
 				HotplugKey: hotplugKey,
 			}
 			return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
 		}
 
 		// else - not gone, restored already by reloadConnections, but may need updating.
-		if !reflect.DeepEqual(slotSpec.Attrs, slot.StaticAttrs) {
-			ts := updateDevice(st, iface.Name(), hotplugKey, slotSpec.Attrs)
+		if !reflect.DeepEqual(proposedSlot.Attrs, slot.StaticAttrs) {
+			ts := updateDevice(st, iface.Name(), hotplugKey, proposedSlot.Attrs)
 			snapstate.InjectTasks(task, ts)
 			st.EnsureBefore(0)
 			task.SetStatus(state.DoneStatus)
@@ -1597,13 +1600,13 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// New slot.
-	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), slotSpec.Name, iface.Name(), &devinfo, m.repo, stateSlots)
+	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), proposedSlot.Name, iface.Name(), &devinfo, m.repo, stateSlots)
 	newSlot := &snap.SlotInfo{
 		Name:       slotName,
-		Label:      slotSpec.Label,
+		Label:      proposedSlot.Label,
 		Snap:       systemSnap,
 		Interface:  iface.Name(),
-		Attrs:      slotSpec.Attrs,
+		Attrs:      proposedSlot.Attrs,
 		HotplugKey: hotplugKey,
 	}
 	return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
