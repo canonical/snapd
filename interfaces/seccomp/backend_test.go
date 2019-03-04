@@ -166,6 +166,7 @@ fi`)
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
 	raw, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
 	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
 # 1.2.3-core 2345 2345
 `)), Equals, true)
