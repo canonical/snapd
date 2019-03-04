@@ -261,7 +261,8 @@ func SetRootDir(rootdir string) {
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
-	if !osutil.IsWritable(SystemApparmorCacheDir) {
+	exists, isDir, _ := osutil.DirExists(SystemApparmorCacheDir)
+	if !exists || !isDir {
 		// some systems use a single cache dir instead of splitting
 		// out the system cache
 		SystemApparmorCacheDir = AppArmorCacheDir
