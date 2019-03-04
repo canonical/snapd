@@ -259,3 +259,5 @@ func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func(
 		imagePrepare = old
 	}
 }
+
+type ServiceName = serviceName
