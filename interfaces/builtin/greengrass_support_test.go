@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -93,7 +94,7 @@ func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount fstype=overlay no_source -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,\n")
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestSecCompSpec(c *C) {
@@ -126,4 +127,30 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c 
 
 func (s *GreengrassSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+
+	// verify core rule present
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "# /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/\n")
+}
+
+func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+
+	// verify core rule not present
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "# /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/\n")
 }
