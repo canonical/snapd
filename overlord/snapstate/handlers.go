@@ -980,7 +980,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 func snapdSnapInstalled(st *state.State) bool {
 	var snapst SnapState
 	err := Get(st, "snapd", &snapst)
-	return err == nil
+	return err == nil && snapst.Active
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the

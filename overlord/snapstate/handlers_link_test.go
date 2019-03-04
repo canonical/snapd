@@ -461,7 +461,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	c.Check(t.Log(), HasLen, 1)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNOcoreRestart(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNoCoreRestart(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
