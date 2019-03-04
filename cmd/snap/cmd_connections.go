@@ -145,9 +145,9 @@ func (x *cmdConnections) Execute(args []string) error {
 		return nil
 	}
 
-	notes := make([]connection, 0, len(connections.Established)+len(connections.Undesired))
+	annotatedConns := make([]connection, 0, len(connections.Established)+len(connections.Undesired))
 	for _, conn := range connections.Established {
-		notes = append(notes, connection{
+		annotatedConns = append(annotatedConns, connection{
 			plug:          endpoint(conn.Plug.Snap, conn.Plug.Name),
 			slot:          endpoint(conn.Slot.Snap, conn.Slot.Name),
 			manual:        conn.Manual,
@@ -161,7 +161,7 @@ func (x *cmdConnections) Execute(args []string) error {
 
 	for _, plug := range connections.Plugs {
 		if len(plug.Connections) == 0 && x.All {
-			notes = append(notes, connection{
+			annotatedConns = append(annotatedConns, connection{
 				plug:          endpoint(plug.Snap, plug.Name),
 				slot:          "-",
 				interfaceName: plug.Interface,
@@ -170,11 +170,12 @@ func (x *cmdConnections) Execute(args []string) error {
 	}
 	for _, slot := range connections.Slots {
 		if !isSystemSnap(wanted) && isSystemSnap(slot.Snap) {
-			// displaying unconnected system snap slots is boring
+			// displaying unconnected system snap slots is boring,
+			// unless explicitly asked to show them
 			continue
 		}
 		if len(slot.Connections) == 0 && x.All {
-			notes = append(notes, connection{
+			annotatedConns = append(annotatedConns, connection{
 				plug:          "-",
 				slot:          endpoint(slot.Snap, slot.Name),
 				interfaceName: slot.Interface,
@@ -182,13 +183,13 @@ func (x *cmdConnections) Execute(args []string) error {
 		}
 	}
 
-	sort.Sort(byConnectionData(notes))
+	sort.Sort(byConnectionData(annotatedConns))
 
-	for _, note := range notes {
+	for _, note := range annotatedConns {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", note.interfaceName, note.plug, note.slot, note)
 	}
 
-	if len(notes) > 0 {
+	if len(annotatedConns) > 0 {
 		w.Flush()
 	}
 	return nil
