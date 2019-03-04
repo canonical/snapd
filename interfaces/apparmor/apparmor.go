@@ -85,7 +85,7 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	return nil
 }
 
-// UnloadProfiles is meant to remove the named profiles from the running
+// unloadProfiles is meant to remove the named profiles from the running
 // kernel and then remove any cache files. Importantly, we can only unload
 // profiles when we are sure there are no lingering processes from the snap
 // (ie, forcibly stop all running processes from the snap). Otherwise, any
