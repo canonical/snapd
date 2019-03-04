@@ -38,6 +38,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -58,7 +59,27 @@ var (
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
+	snapSeccompVersionInfo   = snapSeccompVersionInfoImpl
+
+	validVersionInfo = regexp.MustCompile("^[a-z0-9][a-zA-Z0-9 .-]*$")
 )
+
+func snapSeccompVersionInfoImpl(snapSeccompPath string) (string, error) {
+	cmd := exec.Command(snapSeccompPath, "version-info")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", osutil.OutputErr(output, err)
+	}
+	raw := bytes.TrimSpace(output)
+	if len(raw) > 80 {
+		return "", fmt.Errorf("invalid version-info length: %q", raw)
+	}
+	if match := validVersionInfo.Match(raw); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", raw)
+	}
+
+	return string(raw), nil
+}
 
 func seccompToBpfPath() string {
 	// FIXME: use cmd.InternalToolPath here once:
@@ -81,7 +102,10 @@ func seccompToBpfPath() string {
 }
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
-type Backend struct{}
+type Backend struct {
+	snapSeccomp string
+	versionInfo string
+}
 
 var globalProfileLE = []byte{
 	0x20, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x04, 0x3e, 0x00, 0x00, 0xc0,
@@ -136,6 +160,13 @@ func (b *Backend) Initialize() error {
 	if err != nil {
 		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
 	}
+
+	b.snapSeccomp = seccompToBpfPath()
+	versionInfo, err := snapSeccompVersionInfo(b.snapSeccomp)
+	if err != nil {
+		return fmt.Errorf("cannot obtain snap-seccomp version information: %v", err)
+	}
+	b.versionInfo = versionInfo
 	return nil
 }
 
@@ -197,8 +228,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 			return err
 		}
 
-		seccompToBpf := seccompToBpfPath()
-		cmd := exec.Command(seccompToBpf, "compile", in, out)
+		cmd := exec.Command(b.snapSeccomp, "compile", in, out)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
@@ -229,21 +259,36 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content, addSocketcall)
+
+		path := fmt.Sprintf("%s.src", securityTag)
+		content[path] = &osutil.FileState{
+			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
+			Mode:    0644,
+		}
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content, addSocketcall)
+		path := fmt.Sprintf("%s.src", securityTag)
+		content[path] = &osutil.FileState{
+			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
+			Mode:    0644,
+		}
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, addSocketcall bool) {
+func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo string) []byte {
 	var buffer bytes.Buffer
+
+	if versionInfo != "" {
+		buffer.WriteString("# snap-seccomp version information:\n")
+		buffer.WriteString(fmt.Sprintf("# %s\n", versionInfo))
+	}
+
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@unrestricted\n")
@@ -270,11 +315,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 		buffer.WriteString(socketcallSyscallDeprecated)
 	}
 
-	path := fmt.Sprintf("%s.src", securityTag)
-	content[path] = &osutil.FileState{
-		Content: buffer.Bytes(),
-		Mode:    0644,
-	}
+	return buffer.Bytes()
 }
 
 // NewSpecification returns an empty seccomp specification.
@@ -362,4 +403,13 @@ func requiresSocketcallImpl(baseSnap string) bool {
 
 	// If we got here, something went wrong, but if the code above changes
 	// the compiler will complain about the lack of 'return'.
+}
+
+// MockSnapSeccompVersionInfo is for use in tests only.
+func MockSnapSeccompVersionInfo(s func(string) (string, error)) (restore func()) {
+	old := snapSeccompVersionInfo
+	snapSeccompVersionInfo = s
+	return func() {
+		snapSeccompVersionInfo = old
+	}
 }

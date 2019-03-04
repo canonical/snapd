@@ -20,6 +20,8 @@
 package seccomp_test
 
 import (
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -40,7 +42,9 @@ import (
 type backendSuite struct {
 	ifacetest.BackendSuite
 
-	snapSeccomp *testutil.MockCmd
+	snapSeccomp        *testutil.MockCmd
+	profileHeader      string
+	restoreVersionInfo func()
 }
 
 var _ = Suite(&backendSuite{})
@@ -66,12 +70,23 @@ func (s *backendSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
 	c.Assert(err, IsNil)
 	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
+
+	s.restoreVersionInfo = seccomp.MockSnapSeccompVersionInfo(func(p string) (string, error) {
+		c.Check(p, Equals, snapSeccompPath)
+		return "1.2.3-foo 1234 1234", nil
+	})
+
+	s.Backend.Initialize()
+	s.profileHeader = `# snap-seccomp version information:
+# 1.2.3-foo 1234 1234
+`
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
 	s.BackendSuite.TearDownTest(c)
 
 	s.snapSeccomp.Restore()
+	s.restoreVersionInfo()
 }
 
 func (s *backendSuite) TestInitialize(c *C) {
@@ -116,6 +131,8 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
+	// mocking was installed in test set-up
+	s.restoreVersionInfo()
 
 	restore := seccomp.MockOsReadlink(func(string) (string, error) {
 		// simulate that we run snapd from core
@@ -127,7 +144,14 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 	snapSeccompOnCorePath := filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snap-seccomp")
 	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
 	c.Assert(err, IsNil)
-	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, "")
+	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
+echo "1.2.3-core 2345 2345"
+fi`)
+	defer snapSeccompOnCore.Restore()
+
+	// rerun initialization
+	err = s.Backend.Initialize()
+	c.Assert(err, IsNil)
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
@@ -138,8 +162,13 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 	c.Check(s.snapSeccomp.Calls(), HasLen, 0)
 	// ensure the snap-seccomp from the core snap was used instead
 	c.Check(snapSeccompOnCore.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "version-info"},
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
+	raw, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
+# 1.2.3-core 2345 2345
+`)), Equals, true)
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesProfiles(c *C) {
@@ -293,7 +322,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 
 		snapInfo := s.InstallSnap(c, scenario.opts, "", ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-		c.Check(profile+".src", testutil.FileEquals, scenario.content)
+		c.Check(profile+".src", testutil.FileEquals, s.profileHeader+scenario.content)
 		stat, err := os.Stat(profile + ".src")
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -335,7 +364,7 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo")
-	c.Check(profile+".src", testutil.FileEquals, "default\naaa\nzzz\n")
+	c.Check(profile+".src", testutil.FileEquals, s.profileHeader+"default\naaa\nzzz\n")
 	stat, err := os.Stat(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -567,4 +596,40 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 	for _, baseSnap := range testBases {
 		c.Assert(seccomp.RequiresSocketcall(baseSnap), Equals, false)
 	}
+}
+
+func (s *backendSuite) TestSnapSeccompVersionInfo(c *C) {
+
+	for i, tc := range []struct {
+		v   string
+		exp string
+		err string
+	}{
+		{"2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", ""},
+		{"foo", "foo", ""},
+		{"1", "1", ""},
+		// this is over the sane length limit
+		{"b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "", "invalid version-info length: .*"},
+		{"i\ncan\nhave\nnewlines", "", "invalid format of version-info: .*"},
+		{"# invalid", "", "invalid format of version-info: .*"},
+		{"-1", "", "invalid format of version-info: .*"},
+	} {
+		c.Logf("tc: %v", i)
+		snapSeccompPath := filepath.Join(c.MkDir(), "snap-seccomp")
+		cmd := testutil.MockCommand(c, snapSeccompPath, fmt.Sprintf("echo \"%s\"", tc.v))
+
+		v, err := seccomp.SnapSeccompVersionInfo(snapSeccompPath)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+			c.Check(v, Equals, "")
+		} else {
+			c.Check(err, IsNil)
+			c.Check(v, Equals, tc.v)
+		}
+		c.Check(cmd.Calls(), DeepEquals, [][]string{
+			{"snap-seccomp", "version-info"},
+		})
+		cmd.Restore()
+	}
+
 }
