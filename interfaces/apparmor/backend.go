@@ -287,8 +287,13 @@ func profileGlobs(snapName string) []string {
 }
 
 // Determine if a profile filename is removable during core refresh/rollback.
-// On systems with unified cache directory, don't remove the snap profiles,
-// only system and snap-confine profiles. snap-confine profiles are like the
+// This is needed because core devices are also special, the apparmor cache
+// gets confused too easy, especially at rollbacks, so we delete the cache. See
+// Setup(), below. Some systems employ a unified cache directory where all
+// apparmor cache files are stored under one location so ensure we don't remove
+// the snap profiles since snapd manages them elsewhere and instead only remove
+// snap-confine and system profiles (eg, as shipped by distro package manager
+// or created by the administrator). snap-confine profiles are like the
 // following:
 // - usr.lib.snapd.snap-confine.real
 // - usr.lib.snapd.snap-confine
