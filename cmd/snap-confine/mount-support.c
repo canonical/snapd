@@ -71,8 +71,7 @@ static void setup_private_mount(const char *snap_name)
 	//
 	// Under that basedir, we put a 1777 /tmp dir that is then bind
 	// mounted for the applications to use
-	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-			 snap_name);
+	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%s_XXXXXX", snap_name);
 	if (mkdtemp(tmpdir) == NULL) {
 		die("cannot create temporary directory essential for private /tmp");
 	}
