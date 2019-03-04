@@ -29,10 +29,6 @@ import (
 	"github.com/snapcore/snapd/cmd/snap"
 )
 
-type snapshotCmdArgs struct {
-	args, stdout, stderr, error string
-}
-
 var snapshotsTests = []getCmdArgs{{
 	args:  "restore x",
 	error: "invalid argument for set id: expected a non-negative integer argument",
