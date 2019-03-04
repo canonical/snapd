@@ -398,6 +398,8 @@ func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.DoingTime(), Not(Equals), 0)
+	c.Check(t.UndoingTime(), Equals, time.Duration(0))
 }
 
 func (ts *taskRunnerSuite) TestStopKinds(c *C) {

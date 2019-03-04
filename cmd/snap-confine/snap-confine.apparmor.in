@@ -67,6 +67,13 @@
     /sys/fs/cgroup/freezer/snap.*/tasks w,
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs r,
 
+    # cgroup: pids
+    # allow creating per snap-security-tag hierarchy and adding snap command (task)
+    # invocations to the controller.
+    /sys/fs/cgroup/pids/ r,
+    /sys/fs/cgroup/pids/snap.*/ w,
+    /sys/fs/cgroup/pids/snap.*/tasks w,
+
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
@@ -393,6 +400,13 @@
 
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
+
+    # As a special exception allow snap-confine to write to anything in /var/lib.
+    # This code should be changed to allow delegation so that snap-confine can
+    # inherit any file descriptor and pass it to the invoked application but
+    # this is not possible in apparmor yet.
+    # See https://bugs.launchpad.net/snapd/+bug/1815869
+    /var/lib/** rw,
 
     ^mount-namespace-capture-helper (attach_disconnected) {
         # We run privileged, so be fanatical about what we include and don't use

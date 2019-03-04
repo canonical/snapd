@@ -44,6 +44,21 @@ type Specification struct {
 
 	securityTags             []string
 	udevadmSubsystemTriggers []string
+	controlsDeviceCgroup     bool
+}
+
+// SetControlsDeviceCgroup marks a specification as needing to control
+// it's own device cgroup which prevents generation of any udev tagging rules
+// for this snap name
+func (spec *Specification) SetControlsDeviceCgroup() {
+	spec.controlsDeviceCgroup = true
+}
+
+// ControlsDeviceCgroup marks a specification as needing to control
+// it's own device cgroup which prevents generation of any udev tagging rules
+// for this snap name
+func (spec *Specification) ControlsDeviceCgroup() bool {
+	return spec.controlsDeviceCgroup
 }
 
 func (spec *Specification) addEntry(snippet, tag string) {
@@ -93,6 +108,14 @@ func (c byTagAndSnippet) Less(i, j int) bool {
 
 // Snippets returns a copy of all the snippets added so far.
 func (spec *Specification) Snippets() (result []string) {
+	// If one of the interfaces controls it's own device cgroup, then
+	// we don't want to enforce a device cgroup, which is only turned on if
+	// there are udev rules, and as such we don't want to generate any udev
+	// rules
+
+	if spec.ControlsDeviceCgroup() {
+		return nil
+	}
 	entries := make([]entry, len(spec.entries))
 	copy(entries, spec.entries)
 	sort.Sort(byTagAndSnippet(entries))

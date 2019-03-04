@@ -46,7 +46,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var snapsup SnapSetup
 
@@ -829,7 +829,7 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	return osutil.AtomicWriteFile(p, b, 0644, 0)
 }
 
-func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -937,6 +937,24 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-candidate-index", oldCandidateIndex)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.InstanceName(), snapst)
+
+	if cand.SnapID != "" {
+		// write the auxiliary store info
+		aux := &auxStoreInfo{Media: snapsup.Media}
+		if err := keepAuxStoreInfo(cand.SnapID, aux); err != nil {
+			return err
+		}
+		if len(snapst.Sequence) == 1 {
+			defer func() {
+				if err != nil {
+					// the install is getting undone, and there are no more of this snap
+					// try to remove the aux info we just created
+					discardAuxStoreInfo(cand.SnapID)
+				}
+			}()
+		}
+	}
+
 	// write sequence file for failover helpers
 	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
 		return err
@@ -1069,8 +1087,18 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if len(snapst.Sequence) == 1 {
+		// XXX: shouldn't these two just log and carry on? this is an undo handler...
+		err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
+		if err != nil {
+			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
+			return &state.Retry{After: 3 * time.Minute}
+		}
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)
+		}
+		// try to remove the auxiliary store info
+		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
+			return fmt.Errorf("cannot remove auxiliary store info: %v", err)
 		}
 	}
 
@@ -1104,6 +1132,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if len(snapst.Sequence) == 1 {
+		// XXX: why only restore when len()==1?
 		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
 			return err
 		}
@@ -1388,6 +1417,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances); err != nil {
 			return fmt.Errorf("cannot remove snap directory: %v", err)
 		}
+
+		// try to remove the auxiliary store info
+		if err := discardAuxStoreInfo(snapsup.SideInfo.SnapID); err != nil {
+			logger.Noticef("Cannot remove auxiliary store info for %q: %v", snapsup.InstanceName(), err)
+		}
+
+		// XXX: also remove sequence files?
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
