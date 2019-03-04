@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -155,6 +156,7 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(osutil.FileExists(features), Equals, true)
 }
 
 // Tests for LoadedProfiles()
