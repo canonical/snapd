@@ -30,4 +30,3 @@ func MockTimeDuration(durationFunc func(t1, t2 time.Time) time.Duration) func() 
 		timeDuration = old
 	}
 }
-
