@@ -84,9 +84,9 @@ static int setns_into_snap(const char *snap_name, int uid)
 	return err;
 }
 
-// switch_to_specific_privileged_user drops to the specific user and group ID
+// switch_to_user_with_caps drops to the specific user and group ID
 // while retaining CAP_SYS_ADMIN, for operations such as mount().
-static int switch_to_specific_privileged_user(uid_t real_uid, gid_t real_gid)
+static int switch_to_user_with_caps(uid_t real_uid, gid_t real_gid)
 {
 	// _LINUX_CAPABILITY_VERSION_3 valid for kernel >= 2.6.26. See
 	// https://github.com/torvalds/linux/blob/master/kernel/capability.c
@@ -496,7 +496,7 @@ void bootstrap(int argc, char **argv, char **envp)
 	}
 	// If we are processing a user fstab, then drop privileges
 	if (process_user_fstab && uid != 0) {
-		switch_to_specific_privileged_user(uid, getgid());
-		// switch_to_privileged_user sets bootstrap_{errno,msg}
+		switch_to_user_with_caps(uid, getgid());
+		// switch_to_user_with_caps sets bootstrap_{errno,msg}
 	}
 }
