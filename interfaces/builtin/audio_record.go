@@ -35,7 +35,7 @@ import (
 // servers require different security policy for record (eg, a different socket
 // path), then those accesses will be added to this interface.
 
-const audioRecordSummary = `allows operating as or interacting with recording audio services`
+const audioRecordSummary = `allows audio recording via supporting services`
 
 const audioRecordBaseDeclarationSlots = `
   audio-record:

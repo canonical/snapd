@@ -38,7 +38,7 @@ import (
 // policy for record and playback (eg, a different socket path), then those
 // accesses will be added to this interface.
 
-const audioPlaybackSummary = `allows operating as or interacting with playback audio services`
+const audioPlaybackSummary = `allows audio playback via supporting services`
 
 const audioPlaybackBaseDeclarationSlots = `
   audio-playback:
