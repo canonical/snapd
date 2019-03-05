@@ -995,15 +995,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	return nil
 }
 
+func snapdSnapInstalled(st *state.State) bool {
+	var snapst SnapState
+	err := Get(st, "snapd", &snapst)
+	return err == nil
+}
+
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
-	// TODO: once classic uses the snapd snap we need to restart
-	//       here too
 	if release.OnClassic {
-		if info.Type == snap.TypeOS {
+		if (info.Type == snap.TypeOS && !snapdSnapInstalled(st)) ||
+			info.InstanceName() == "snapd" {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
 		}
