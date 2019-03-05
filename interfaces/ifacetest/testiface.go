@@ -113,6 +113,7 @@ type TestHotplugInterface struct {
 
 	// Support for interacting with hotplug subsystem.
 	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error)
+	HandledByGadgetCallback       func(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool
 	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error)
 }
 
@@ -425,4 +426,11 @@ func (t *TestHotplugInterface) HotplugDeviceDetected(deviceInfo *hotplug.Hotplug
 		return t.HotplugDeviceDetectedCallback(deviceInfo)
 	}
 	return nil, nil
+}
+
+func (t *TestHotplugInterface) HandledByGadget(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+	if t.HandledByGadgetCallback != nil {
+		return t.HandledByGadgetCallback(deviceInfo, slot)
+	}
+	return false
 }

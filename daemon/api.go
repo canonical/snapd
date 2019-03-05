@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -58,7 +57,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -211,11 +209,6 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
-	}
-
-	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -2172,15 +2165,6 @@ var (
 	ctlcmdRun                 = ctlcmd.Run
 	osutilAddUser             = osutil.AddUser
 )
-
-func makeHttpClient(st *state.State) *http.Client {
-	proxyConf := proxyconf.New(st)
-	return httputil.NewHTTPClient(&httputil.ClientOptions{
-		Timeout:    10 * time.Second,
-		MayLogBody: true,
-		Proxy:      proxyConf.Conf,
-	})
-}
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
 	v, err := theStore.UserInfo(email)
