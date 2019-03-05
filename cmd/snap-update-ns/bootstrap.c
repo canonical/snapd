@@ -84,8 +84,8 @@ static int setns_into_snap(const char *snap_name, int uid)
 	return err;
 }
 
-// switch_to_privileged_user drops to the specific user and group ID while retaining
-// CAP_SYS_ADMIN, for operations such as mount().
+// switch_to_specific_privileged_user drops to the specific user and group ID
+// while retaining CAP_SYS_ADMIN, for operations such as mount().
 static int switch_to_specific_privileged_user(uid_t real_uid, gid_t real_gid)
 {
 	// _LINUX_CAPABILITY_VERSION_3 valid for kernel >= 2.6.26. See
