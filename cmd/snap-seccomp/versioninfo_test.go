@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"fmt"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -35,14 +36,31 @@ var _ = Suite(&versionInfoSuite{})
 
 func (s *versionInfoSuite) TestVersionInfo(c *C) {
 	m, i, p := seccomp.GetLibraryVersion()
+	prefix := fmt.Sprintf("%d.%d.%d ", m, i, p)
+
+	defaultVi := main.VersionInfo()
+
+	// $ echo -n 'read\nwrite\n' | sha256sum
+	// 88b06efcea4b5946cebd4b0674b93744de328339de5d61b75db858119054ff93  -
+	readWriteHash := "88b06efcea4b5946cebd4b0674b93744de328339de5d61b75db858119054ff93"
+
+	c.Check(strings.HasPrefix(defaultVi, prefix), Equals, true)
+	c.Assert(len(defaultVi) > len(prefix), Equals, true)
+	hash := defaultVi[len(prefix):]
+	c.Check(len(hash), Equals, len(readWriteHash))
+	c.Check(hash, Not(Equals), readWriteHash)
 
 	restore := main.MockSeccompSyscalls([]string{"read", "write"})
 	defer restore()
 
-	// $ echo -n 'readwrite' | sha256sum
-	// dbed7fe3ca011c3d1fb0fec3bdced5031d4ef17dfce2fa867717f7beeff23d8e  -
-	syscallsHash := "dbed7fe3ca011c3d1fb0fec3bdced5031d4ef17dfce2fa867717f7beeff23d8e"
-
 	vi := main.VersionInfo()
-	c.Assert(vi, Equals, fmt.Sprintf("%d.%d.%d %s", m, i, p, syscallsHash))
+	c.Check(vi, Equals, prefix+readWriteHash)
+
+	// pretend it's only 'read' now
+	readHash := "15fd60c6f5c6804626177d178f3dba849a41f4a1878b2e7e7e3ed38a194dc82b"
+	restore = main.MockSeccompSyscalls([]string{"read"})
+	defer restore()
+
+	vi = main.VersionInfo()
+	c.Check(vi, Equals, prefix+readHash)
 }
