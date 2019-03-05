@@ -17,7 +17,6 @@
  *
  */
 
-
 package timings_test
 
 import (
@@ -27,20 +26,18 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
-
 
 func TestTimings(t *testing.T) { TestingT(t) }
 
 type timingsSuite struct {
-	st *state.State
+	st       *state.State
 	duration time.Duration
 }
 
 var _ = Suite(&timingsSuite{})
-
 
 func (s *timingsSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
@@ -54,14 +51,17 @@ func (s *timingsSuite) SetUpTest(c *C) {
 }
 
 func (s *timingsSuite) TestSave(c *C) {
-	timing := timings.New(timings.Task, map[string]string{"id":"3", "change-id":"12"})
-	meas := timing.Start("doing something", "...")
-	nested := meas.StartNested("nested measurement", "...")
-	nestedMore := nested.StartNested("nested more", "...")
-	nestedMore.Stop()
-	nested.Stop()
-	meas.Stop()
-	timing.Save(s.st)
+	// two timings, with 2 nested measures
+	for i := 0; i < 2; i++ {
+		timing := timings.New(timings.Task, map[string]string{"id": "3", "change-id": "12"})
+		meas := timing.Start(fmt.Sprintf("doing something-%d", i), "...")
+		nested := meas.StartNested("nested measurement", "...")
+		nestedMore := nested.StartNested("nested more", "...")
+		nestedMore.Stop()
+		nested.Stop()
+		meas.Stop()
+		timing.Save(s.st)
+	}
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -69,15 +69,48 @@ func (s *timingsSuite) TestSave(c *C) {
 	var stateTimings []interface{}
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 
-	c.Assert(stateTimings, DeepEquals, []interface{}{map[string]interface {}{
-		"level":float64(0), "label": "doing something", "duration":1e+06, "subject":"task", "meta":map[string]interface {}{"change-id":"12", "id":"3"}, "nested":[]interface{}{
-			map[string]interface {}{"level": float64(1), "label":"nested measurement", "summary":"...", "duration":2e+06},
-			map[string]interface {}{"level": float64(2), "label":"nested more", "summary":"...", "duration":3e+06}}}})
+	c.Assert(stateTimings, DeepEquals, []interface{}{
+		map[string]interface{}{
+			"level":    float64(0),
+			"label":    "doing something-0",
+			"duration": float64(1000000),
+			"subject":  "task",
+			"meta":     map[string]interface{}{"change-id": "12", "id": "3"},
+			"nested": []interface{}{
+				map[string]interface{}{
+					"level":    float64(1),
+					"label":    "nested measurement",
+					"summary":  "...",
+					"duration": float64(2000000)},
+				map[string]interface{}{
+					"level":    float64(2),
+					"label":    "nested more",
+					"summary":  "...",
+					"duration": float64(3000000)},
+			}},
+		map[string]interface{}{
+			"level":    float64(0),
+			"label":    "doing something-1",
+			"duration": float64(4000000),
+			"subject":  "task",
+			"meta":     map[string]interface{}{"change-id": "12", "id": "3"},
+			"nested": []interface{}{
+				map[string]interface{}{
+					"level":    float64(1),
+					"label":    "nested measurement",
+					"summary":  "...",
+					"duration": float64(5000000)},
+				map[string]interface{}{
+					"level":    float64(2),
+					"label":    "nested more",
+					"summary":  "...",
+					"duration": float64(6000000)},
+			}}})
 }
 
 func (s *timingsSuite) TestPurge(c *C) {
 	// Create 10 timings
-	for i:=0; i<10; i++ {
+	for i := 0; i < 10; i++ {
 		timing := timings.New(timings.Ensure, nil)
 		meas := timing.Start(fmt.Sprintf("%d", i), "...")
 		meas.Stop()
@@ -91,48 +124,23 @@ func (s *timingsSuite) TestPurge(c *C) {
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 	c.Check(stateTimings, HasLen, 10)
 
-	// purge 3 times, consecutive purging does nothing if limit not reached
-	for i:=0; i<3; i++ {
+	// purge 3 times, consecutive purging does nothing if limit not reached; two most recent timings expected after purge.
+	for i := 0; i < 3; i++ {
 		s.st.Unlock()
 		c.Assert(timings.Purge(s.st, 2), IsNil)
 		s.st.Lock()
 
 		c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 		c.Assert(stateTimings, DeepEquals, []interface{}{
-			map[string]interface{}{"level": float64(0), "label":"8", "duration":9e+06, "subject":"ensure"},
-			map[string]interface{}{"level": float64(0), "label":"9", "duration":1e+07, "subject":"ensure"}})
+			map[string]interface{}{
+				"level":    float64(0),
+				"label":    "8",
+				"duration": float64(9000000),
+				"subject":  "ensure"},
+			map[string]interface{}{
+				"level":    float64(0),
+				"label":    "9",
+				"duration": float64(10000000),
+				"subject":  "ensure"}})
 	}
-}
-
-
-func (s *timingsSuite) TestNested(c *C) {
-	for i:=0; i<5; i++ {
-		var t *timings.Timings
-		if i % 2 == 0 {
-			t = timings.New(timings.Ensure, nil)
-		} else {
-			t = timings.New(timings.Task, map[string]string{"task":"3", "change":"12"})
-		}
-		c.Assert(t, NotNil)
-
-		m := t.Start(fmt.Sprintf("foo-%d", i), "bar")
-		nested := m.StartNested(fmt.Sprintf("foo-%d-nested", i), "bar nested")
-		nestedMore := nested.StartNested(fmt.Sprintf("foo-%d-nested-more", i), "nested more")
-		nestedEvenMore := nestedMore.StartNested(fmt.Sprintf("foo-%d-even-nested-more", i), "nested even more")
-		nestedEvenMore.Stop()
-		nestedMore.Stop()
-		nested.Stop()
-
-		nested2 := m.StartNested(fmt.Sprintf("boo-%d-nested", i), "baz nested")
-		nested2.Stop()
-
-		m.Stop()
-		t.Save(s.st)
-	}
-
-
-	/*s.st.Lock()
-	defer s.st.Unlock()
-	statedata, _:= s.st.MarshalJSON()
-	fmt.Printf("%s\n", (string)(statedata))*/
 }
