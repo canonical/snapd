@@ -301,6 +301,37 @@ prepare_project() {
         fi
     fi
 
+    # debian-sid packaging is special
+    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+        if [ ! -d packaging/debian-sid ]; then
+            echo "no packaging/debian-sid/ directory "
+            echo "broken test setup"
+            exit 1
+        fi
+
+        # remove etckeeper
+        apt purge -y etckeeper
+
+        # debian has its own packaging
+        rm -f debian
+        # the debian dir must be a real dir, a symlink will make
+        # dpkg-buildpackage choke later.
+        mv packaging/debian-sid debian
+
+        # get the build-deps
+        apt build-dep -y ./
+
+        # and ensure we don't take any of the vendor deps
+        rm -rf vendor/*/
+
+        # and create a fake upstream tarball
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
+
+        # and build a source package - this will be used during the sbuild test
+        dpkg-buildpackage -S --no-sign
+    fi
+
+    # so is ubuntu-14.04
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
@@ -313,7 +344,10 @@ prepare_project() {
 
         quiet apt-get install -y software-properties-common
 
-        echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
+	# FIXME: trusty-proposed disabled because there is an inconsistency
+	#        in the trusty-proposed archive:
+	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
+        #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
         quiet apt-get update
 
@@ -423,6 +457,11 @@ prepare_suite() {
 prepare_suite_each() {
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
+
+    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
+    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
+        systemctl restart systemd-journald
+    fi
 
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"

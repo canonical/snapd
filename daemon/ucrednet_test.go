@@ -144,14 +144,14 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGetNoUid(c *check.C) {
-	pid, uid, _, err := ucrednetGet("pid=100;uid=;")
+	pid, uid, _, err := ucrednetGet("pid=100;uid=;socket=;")
 	c.Check(err, check.Equals, errNoID)
-	c.Check(pid, check.Equals, int32(100))
+	c.Check(pid, check.Equals, ucrednetNoProcess)
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGetBadUid(c *check.C) {
-	pid, uid, _, err := ucrednetGet("pid=100;uid=hello;")
+	pid, uid, _, err := ucrednetGet("pid=100;uid=4294967296;socket=;")
 	c.Check(err, check.NotNil)
 	c.Check(pid, check.Equals, int32(100))
 	c.Check(uid, check.Equals, ucrednetNobody)
@@ -172,9 +172,17 @@ func (s *ucrednetSuite) TestGetNothing(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	pid, uid, socket, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket")
+	pid, uid, socket, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;")
 	c.Check(err, check.IsNil)
 	c.Check(pid, check.Equals, int32(100))
 	c.Check(uid, check.Equals, uint32(42))
 	c.Check(socket, check.Equals, "/run/snap.socket")
+}
+
+func (s *ucrednetSuite) TestGetSneak(c *check.C) {
+	pid, uid, socket, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;pid=0;uid=0;socket=/tmp/my.socket")
+	c.Check(err, check.Equals, errNoID)
+	c.Check(pid, check.Equals, ucrednetNoProcess)
+	c.Check(uid, check.Equals, ucrednetNobody)
+	c.Check(socket, check.Equals, "")
 }

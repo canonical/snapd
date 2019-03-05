@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,8 @@
 package main
 
 import (
-	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -30,33 +30,41 @@ import (
 )
 
 type cmdPrepareImage struct {
-	Classic             bool   `long:"classic"`
-	ClassicArchitecture string `long:"classic-arch"`
+	Classic      bool   `long:"classic"`
+	Architecture string `long:"arch"`
 
 	Positional struct {
 		ModelAssertionFn string
 		Rootdir          string
 	} `positional-args:"yes" required:"yes"`
 
-	ExtraSnaps []string `long:"extra-snaps"`
-	Channel    string   `long:"channel" default:"stable"`
+	Channel string `long:"channel" default:"stable"`
+	// TODO: introduce SnapWithChannel?
+	Snaps      []string `long:"snap" value-name:"<snap>[=<channel>]"`
+	ExtraSnaps []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
 }
 
 func init() {
-	cmd := addCommand("prepare-image",
+	addCommand("prepare-image",
 		i18n.G("Prepare a device image"),
 		i18n.G(`
-The prepare-image command performs some of the steps necessary for creating device images.
-`),
-		func() flags.Commander {
-			return &cmdPrepareImage{}
-		}, map[string]string{
+The prepare-image command performs some of the steps necessary for
+creating device images.
+
+For core images it is not invoked directly but usually via
+ubuntu-image.
+
+For preparing classic images it supports a --classic mode`),
+		func() flags.Commander { return &cmdPrepareImage{} },
+		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"classic": i18n.G("Enable classic mode to prepare a classic model image"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"classic-arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
+			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"extra-snaps": i18n.G("Extra snaps to be installed"),
+			"snap": i18n.G("Include the given snap from the store or a local file and/or specify the channel to track for the given snap"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"channel": i18n.G("The channel to use"),
 		}, []argDesc{
@@ -69,30 +77,47 @@ The prepare-image command performs some of the steps necessary for creating devi
 				// TRANSLATORS: This needs to begin with < and end with >
 				name: i18n.G("<root-dir>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
-				desc: i18n.G("The output directory"),
+				desc: i18n.G("The target directory"),
 			},
 		})
-	cmd.hidden = true
 }
+
+var imagePrepare = image.Prepare
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
-		ModelFile: x.Positional.ModelAssertionFn,
-		Channel:   x.Channel,
-		Snaps:     x.ExtraSnaps,
+		Snaps:        x.ExtraSnaps,
+		ModelFile:    x.Positional.ModelAssertionFn,
+		Channel:      x.Channel,
+		Architecture: x.Architecture,
+	}
+
+	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))
+	snapChannels := make(map[string]string)
+	for _, snapWChannel := range x.Snaps {
+		snapAndChannel := strings.SplitN(snapWChannel, "=", 2)
+		snaps = append(snaps, snapAndChannel[0])
+		if len(snapAndChannel) == 2 {
+			snapChannels[snapAndChannel[0]] = snapAndChannel[1]
+		}
+	}
+
+	snaps = append(snaps, x.ExtraSnaps...)
+
+	if len(snaps) != 0 {
+		opts.Snaps = snaps
+	}
+	if len(snapChannels) != 0 {
+		opts.SnapChannels = snapChannels
 	}
 
 	if x.Classic {
 		opts.Classic = true
 		opts.RootDir = x.Positional.Rootdir
-		opts.ClassicArchitecture = x.ClassicArchitecture
 	} else {
-		if x.ClassicArchitecture != "" {
-			return fmt.Errorf(i18n.G("--classic-arch is meant to be used only in --classic mode to specify an architecture when the model does not"))
-		}
 		opts.RootDir = filepath.Join(x.Positional.Rootdir, "image")
 		opts.GadgetUnpackDir = filepath.Join(x.Positional.Rootdir, "gadget")
 	}
 
-	return image.Prepare(opts)
+	return imagePrepare(opts)
 }

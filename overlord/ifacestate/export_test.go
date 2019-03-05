@@ -39,6 +39,7 @@ var (
 	MakeSlotName                 = makeSlotName
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
+	HotplugSlotName              = hotplugSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
 	GetHotplugAttrs              = getHotplugAttrs
 	SetHotplugAttrs              = setHotplugAttrs
@@ -53,6 +54,7 @@ var (
 	SetHotplugChangeAttrs        = setHotplugChangeAttrs
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
+	AddHotplugSlot               = addHotplugSlot
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -142,4 +144,8 @@ func MockWriteSystemKey(fn func() error) func() {
 	old := writeSystemKey
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }
+}
+
+func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
+	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
