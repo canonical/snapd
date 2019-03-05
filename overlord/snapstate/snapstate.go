@@ -86,13 +86,18 @@ func canInstallSnapdSnap(st *state.State) error {
 	if model != nil && model.Base() != "" {
 		return nil
 	}
-	// models without a base (or classic) must opt in
+	// core cannot yet transition to the snapd snap (there are open
+	// questions still)
+	if !release.OnClassic {
+		return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+	}
+	// classic must opt in
 	experimentalAllowSnapd, err := optedIntoSnapdSnap(st)
 	if err != nil {
 		return err
 	}
 	if !experimentalAllowSnapd {
-		return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+		return fmt.Errorf("cannot install snapd snap on classic without setting the `experimental.snapd-snap` option")
 	}
 	return nil
 }

@@ -13201,13 +13201,42 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	c.Check(hasConfigureTask(ts), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnCoreWithoutBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	r := release.MockOnClassic(false)
+	defer r()
 
 	// but snapd do not for install
 	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+}
+
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnCoreWithoutBaseNoOptIn(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// it is not possible to opt-into the snapd snap on core yet
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snapd-snap", true)
+	tr.Commit()
+
+	// but snapd do not for install
+	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+}
+
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnClassic(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	r := release.MockOnClassic(true)
+	defer r()
+
+	// but snapd do not for install
+	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "cannot install snapd snap on classic without setting the `experimental.snapd-snap` option")
 }
 
 func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {

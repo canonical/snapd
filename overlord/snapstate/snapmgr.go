@@ -502,6 +502,18 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	return nil
 }
 
+// changeInFlight returns true if there is any change in the state
+// in non-ready state.
+func changeInFlight(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if !chg.Status().Ready() {
+			// another change already in motion
+			return true
+		}
+	}
+	return false
+}
+
 // ensureSnapdSnapTransition will migrate systems to use the "snapd" snap
 func (m *SnapManager) ensureSnapdSnapTransition() error {
 	m.state.Lock()
@@ -529,12 +541,12 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	}
 
 	// ensure we only transition systems that have snaps already
-	installedSnaps, err := All(m.state)
+	installedSnaps, err := NumSnaps(m.state)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	// no installed snaps (yet): do nothing (fresh classic install)
-	if len(installedSnaps) == 0 {
+	if installedSnaps == 0 {
 		return nil
 	}
 
@@ -546,13 +558,10 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	coreChannel := snapst.Channel
 	userID := snapst.UserID
 
-	// check that there is no change in flight already, this is a
-	// precaution to ensure the snapd transition is safe
-	for _, chg := range m.state.Changes() {
-		if !chg.Status().Ready() {
-			// another change already in motion
-			return nil
-		}
+	if changeInFlight(m.state) {
+		// check that there is no change in flight already, this is a
+		// precaution to ensure the snapd transition is safe
+		return nil
 	}
 
 	// ensure we limit the retries in case something goes wrong
@@ -603,11 +612,9 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	// check that there is no change in flight already, this is a
 	// precaution to ensure the core transition is safe
-	for _, chg := range m.state.Changes() {
-		if !chg.Status().Ready() {
-			// another change already in motion
-			return nil
-		}
+	if changeInFlight(m.state) {
+		// another change already in motion
+		return nil
 	}
 
 	// ensure we limit the retries in case something goes wrong
