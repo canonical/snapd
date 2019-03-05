@@ -73,12 +73,12 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	s.restoreVersionInfo = seccomp.MockSnapSeccompVersionInfo(func(p string) (string, error) {
 		c.Check(p, Equals, snapSeccompPath)
-		return "1.2.3-foo 1234 1234", nil
+		return "1.2.3 1234abcd", nil
 	})
 
 	s.Backend.Initialize()
 	s.profileHeader = `# snap-seccomp version information:
-# 1.2.3-foo 1234 1234
+# 1.2.3 1234abcd
 `
 }
 
@@ -145,7 +145,7 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
 	c.Assert(err, IsNil)
 	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
-echo "1.2.3-core 2345 2345"
+echo "2.3.4 2345cdef"
 fi`)
 	defer snapSeccompOnCore.Restore()
 
@@ -168,7 +168,7 @@ fi`)
 	raw, err := ioutil.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
-# 1.2.3-core 2345 2345
+# 2.3.4 2345cdef
 `)), Equals, true)
 }
 
@@ -599,6 +599,59 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 	}
 }
 
+func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
+	restore := release.MockForcedDevmode(false)
+	defer restore()
+	restore = release.MockSecCompActions([]string{"log"})
+	defer restore()
+	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
+	defer restore()
+
+	// NOTE: replace the real template with a shorter variant
+	restore = seccomp.MockTemplate([]byte("\ndefault\n"))
+	defer restore()
+
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	c.Check(profile+".src", testutil.FileEquals, s.profileHeader+"\ndefault\n")
+
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+	})
+
+	// unchanged snap-seccomp version will not trigger a rebuild
+	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+
+	c.Check(s.snapSeccomp.Calls(), HasLen, 1)
+
+	// change version reported by snap-seccomp
+	s.restoreVersionInfo = seccomp.MockSnapSeccompVersionInfo(func(p string) (string, error) {
+		return "2.3.3 2345abcd", nil
+	})
+	updatedProfileHeader := `# snap-seccomp version information:
+# 2.3.3 2345abcd
+`
+	// reload cached version info
+	err = s.Backend.Initialize()
+	c.Assert(err, IsNil)
+
+	// the profile should be rebuilt now
+	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	c.Check(profile+".src", testutil.FileEquals, updatedProfileHeader+"\ndefault\n")
+
+	// 2 calls now
+	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+	})
+}
+
 func (s *backendSuite) TestSnapSeccompVersionInfo(c *C) {
 
 	for i, tc := range []struct {
@@ -606,11 +659,18 @@ func (s *backendSuite) TestSnapSeccompVersionInfo(c *C) {
 		exp string
 		err string
 	}{
-		{"2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", ""},
-		{"foo", "foo", ""},
-		{"1", "1", ""},
+		// valid
+		{"2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", ""},
+		{"0.0.0 abcd", "0.0.0 abcd", ""},
+
+		// invalid all the way down from here
+
 		// this is over the sane length limit
 		{"b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "", "invalid version-info length: .*"},
+		// incorrect format
+		{"0.0.0 fg", "", "invalid format of version-info: .*"},
+		{"foo", "", "invalid format of version-info: .*"},
+		{"1", "", "invalid format of version-info: .*"},
 		{"i\ncan\nhave\nnewlines", "", "invalid format of version-info: .*"},
 		{"# invalid", "", "invalid format of version-info: .*"},
 		{"-1", "", "invalid format of version-info: .*"},
@@ -625,7 +685,7 @@ func (s *backendSuite) TestSnapSeccompVersionInfo(c *C) {
 			c.Check(v, Equals, "")
 		} else {
 			c.Check(err, IsNil)
-			c.Check(v, Equals, tc.v)
+			c.Check(v, Equals, tc.exp)
 		}
 		c.Check(cmd.Calls(), DeepEquals, [][]string{
 			{"snap-seccomp", "version-info"},

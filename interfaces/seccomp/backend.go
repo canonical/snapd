@@ -61,7 +61,7 @@ var (
 	requiresSocketcall       = requiresSocketcallImpl
 	snapSeccompVersionInfo   = snapSeccompVersionInfoImpl
 
-	validVersionInfo = regexp.MustCompile("^[a-z0-9][a-zA-Z0-9 .-]*$")
+	validVersionInfo = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+ [0-9a-f]+$`)
 )
 
 func snapSeccompVersionInfoImpl(snapSeccompPath string) (string, error) {
