@@ -229,6 +229,14 @@ func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDevic
 	return &slot, nil
 }
 
+func (iface *serialPortInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
+		return false
+	}
+	return di.DeviceName() == path
+}
+
 func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
 	var v int64
 	if err := attrs.Attr("usb-vendor", &v); err == nil {
