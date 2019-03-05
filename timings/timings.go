@@ -37,7 +37,7 @@ const (
 // Timings represents a tree of measures concerning given Subject (activity).
 // Calling Start on the Timings objects returns a root Measure and starts a new performance measurement. Measurement needs to
 // be finished by calling Stop function on the Measure object.
-// Nested measures may be collected by calling StartNested on Measure objects. Similiar to the above, nested measurements need
+// Nested measures may be collected by calling StartNested on Measure objects. Similar to the above, nested measurements need
 // to be finished by calling Stop on them.
 //
 // Typical usagage:
