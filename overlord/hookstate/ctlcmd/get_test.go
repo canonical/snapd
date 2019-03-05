@@ -209,7 +209,7 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 		c.Assert(string(stderr), Equals, "")
 		c.Check(string(stdout), Equals, test.stdout)
 
-		// transaction not commited, drop it
+		// transaction not committed, drop it
 		tr2 = nil
 
 		// another transaction doesn't see uncommitted changes of tr2
