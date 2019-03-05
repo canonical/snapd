@@ -24,10 +24,14 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
@@ -53,7 +57,7 @@ const launcherIntrospectionXML = `
 </interface>`
 
 var (
-	allowedURLSchemes = []string{"http", "https", "mailto", "snap"}
+	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
@@ -87,7 +91,7 @@ func makeAccessDeniedError(err error) *dbus.Error {
 // OpenURL implements the 'OpenURL' method of the 'io.snapcraft.Launcher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
-func (s *Launcher) OpenURL(addr string) *dbus.Error {
+func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	u, err := url.Parse(addr)
 	if err != nil {
 		return &dbus.ErrMsgInvalidArg
@@ -97,7 +101,22 @@ func (s *Launcher) OpenURL(addr string) *dbus.Error {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
-	if err = exec.Command("xdg-open", addr).Run(); err != nil {
+	snap, err := snapFromSender(s.conn, sender)
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+
+	xdg_data_dirs := []string{}
+	xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf(filepath.Join(dirs.SnapMountDir, snap, "current/usr/share")))
+	for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
+		xdg_data_dirs = append(xdg_data_dirs, dir)
+	}
+
+	cmd := exec.Command("xdg-open", addr)
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, fmt.Sprintf("XDG_DATA_DIRS=%s", strings.Join(xdg_data_dirs, ":")))
+
+	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
 

@@ -6,3 +6,5 @@ apps:
         command: bin/classic-confinement
     recurse:
         command: bin/recurse
+    sh:
+        command: bin/sh

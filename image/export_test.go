@@ -31,8 +31,9 @@ var (
 	LocalSnaps           = localSnaps
 	DecodeModelAssertion = decodeModelAssertion
 	DownloadUnpackGadget = downloadUnpackGadget
-	BootstrapToRootDir   = bootstrapToRootDir
+	SetupSeed            = setupSeed
 	InstallCloudConfig   = installCloudConfig
+	SnapChannel          = snapChannel
 )
 
 func (tsto *ToolingStore) User() *auth.UserState {

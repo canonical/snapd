@@ -1,5 +1,8 @@
 summary: Check that snap install respects after/before ordering of services
 
+# slow in autopkgtest (>3m)
+backends: [-autopkgtest]
+
 debug: |
     for name in $(snap list | grep '^test-snapd-after-before-service' | awk '{print $1}'); do
         for service in before-middle middle after-middle; do

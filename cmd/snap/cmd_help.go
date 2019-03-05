@@ -22,6 +22,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -69,7 +71,7 @@ type cmdHelp struct {
 	Manpage    bool `long:"man" hidden:"true"`
 	Positional struct {
 		// TODO: find a way to make Command tab-complete
-		Sub string `positional-arg-name:"<command>"`
+		Subs []string `positional-arg-name:"<command>"`
 	} `positional-args:"yes"`
 	parser *flags.Parser
 }
@@ -88,10 +90,11 @@ func (cmd *cmdHelp) setParser(parser *flags.Parser) {
 	cmd.parser = parser
 }
 
-// manfixer is a hackish way to get the generated manpage into section 8
-// (go-flags doesn't have an option for this; I'll be proposing something
-// there soon, but still waiting on some other PRs to make it through)
+// manfixer is a hackish way to fix drawbacks in the generated manpage:
+// - no way to get it into section 8
+// - duplicated TP lines that break older groff (e.g. 14.04), lp:1814767
 type manfixer struct {
+	bytes.Buffer
 	done bool
 }
 
@@ -100,13 +103,20 @@ func (w *manfixer) Write(buf []byte) (int, error) {
 		w.done = true
 		if bytes.HasPrefix(buf, []byte(".TH snap 1 ")) {
 			// io.Writer.Write must not modify the buffer, even temporarily
-			n, _ := Stdout.Write(buf[:9])
-			Stdout.Write([]byte{'8'})
-			m, err := Stdout.Write(buf[10:])
+			n, _ := w.Buffer.Write(buf[:9])
+			w.Buffer.Write([]byte{'8'})
+			m, err := w.Buffer.Write(buf[10:])
 			return n + m + 1, err
 		}
 	}
-	return Stdout.Write(buf)
+	return w.Buffer.Write(buf)
+}
+
+var tpRegexp = regexp.MustCompile(`(?m)(?:^\.TP\n)+`)
+
+func (w *manfixer) flush() {
+	str := tpRegexp.ReplaceAllLiteralString(w.Buffer.String(), ".TP\n")
+	io.Copy(Stdout, strings.NewReader(str))
 }
 
 func (cmd cmdHelp) Execute(args []string) error {
@@ -116,27 +126,36 @@ func (cmd cmdHelp) Execute(args []string) error {
 	if cmd.Manpage {
 		// you shouldn't try to to combine --man with --all nor a
 		// subcommand, but --man is hidden so no real need to check.
-		cmd.parser.WriteManPage(&manfixer{})
+		out := &manfixer{}
+		cmd.parser.WriteManPage(out)
+		out.flush()
 		return nil
 	}
 	if cmd.All {
-		if cmd.Positional.Sub != "" {
+		if len(cmd.Positional.Subs) > 0 {
 			return fmt.Errorf(i18n.G("help accepts a command, or '--all', but not both."))
 		}
 		printLongHelp(cmd.parser)
 		return nil
 	}
 
-	if cmd.Positional.Sub != "" {
-		subcmd := cmd.parser.Find(cmd.Positional.Sub)
+	var subcmd = cmd.parser.Command
+	for _, subname := range cmd.Positional.Subs {
+		subcmd = subcmd.Find(subname)
 		if subcmd == nil {
-			return fmt.Errorf(i18n.G("Unknown command %q. Try 'snap help'."), cmd.Positional.Sub)
+			sug := "snap help"
+			if x := cmd.parser.Command.Active; x != nil && x.Name != "help" {
+				sug = "snap help " + x.Name
+			}
+			// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
+			return fmt.Errorf(i18n.G("unknown command %q, see '%s'."), subname, sug)
 		}
 		// this makes "snap help foo" work the same as "snap foo --help"
 		cmd.parser.Command.Active = subcmd
+	}
+	if subcmd != cmd.parser.Command {
 		return &flags.Error{Type: flags.ErrHelp}
 	}
-
 	return &flags.Error{Type: flags.ErrCommandRequired}
 }
 
@@ -179,7 +198,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
-		Commands:    []string{"interfaces", "interface", "connect", "disconnect"},
+		Commands:    []string{"connections", "interfaces", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
@@ -187,11 +206,11 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay"},
+		Commands:    []string{"version", "warnings", "okay", "ack", "known"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"run", "pack", "try", "ack", "known", "download"},
+		Commands:    []string{"run", "pack", "try", "download", "prepare-image"},
 	},
 }
 

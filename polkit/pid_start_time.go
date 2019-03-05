@@ -28,7 +28,7 @@ import (
 )
 
 // getStartTimeForPid determines the start time for a given process ID
-func getStartTimeForPid(pid uint32) (uint64, error) {
+func getStartTimeForPid(pid int32) (uint64, error) {
 	filename := fmt.Sprintf("/proc/%d/stat", pid)
 	return getStartTimeForProcStatFile(filename)
 }
