@@ -61,7 +61,7 @@ var (
 	requiresSocketcall       = requiresSocketcallImpl
 	snapSeccompVersionInfo   = snapSeccompVersionInfoImpl
 
-	validVersionInfo = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+ [0-9a-f]+$`)
+	validVersionInfo = regexp.MustCompile(`^[0-9a-f]+ [0-9]+\.[0-9]+\.[0-9]+ [0-9a-f]+$`)
 )
 
 func snapSeccompVersionInfoImpl(snapSeccompPath string) (string, error) {
@@ -71,7 +71,7 @@ func snapSeccompVersionInfoImpl(snapSeccompPath string) (string, error) {
 		return "", osutil.OutputErr(output, err)
 	}
 	raw := bytes.TrimSpace(output)
-	if len(raw) > 80 {
+	if len(raw) > 120 {
 		return "", fmt.Errorf("invalid version-info length: %q", raw)
 	}
 	if match := validVersionInfo.Match(raw); !match {

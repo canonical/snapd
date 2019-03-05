@@ -73,12 +73,12 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	s.restoreVersionInfo = seccomp.MockSnapSeccompVersionInfo(func(p string) (string, error) {
 		c.Check(p, Equals, snapSeccompPath)
-		return "1.2.3 1234abcd", nil
+		return "abcdef 1.2.3 1234abcd", nil
 	})
 
 	s.Backend.Initialize()
 	s.profileHeader = `# snap-seccomp version information:
-# 1.2.3 1234abcd
+# abcdef 1.2.3 1234abcd
 `
 }
 
@@ -145,7 +145,7 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
 	c.Assert(err, IsNil)
 	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
-echo "2.3.4 2345cdef"
+echo "2345cdef 2.3.4 2345cdef"
 fi`)
 	defer snapSeccompOnCore.Restore()
 
@@ -168,7 +168,7 @@ fi`)
 	raw, err := ioutil.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
-# 2.3.4 2345cdef
+# 2345cdef 2.3.4 2345cdef
 `)), Equals, true)
 }
 
@@ -660,15 +660,16 @@ func (s *backendSuite) TestSnapSeccompVersionInfo(c *C) {
 		err string
 	}{
 		// valid
-		{"2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", ""},
-		{"0.0.0 abcd", "0.0.0 abcd", ""},
+		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", ""},
+		{"abcdef 0.0.0 abcd", "abcdef 0.0.0 abcd", ""},
 
 		// invalid all the way down from here
 
 		// this is over the sane length limit
-		{"b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "", "invalid version-info length: .*"},
+		{"b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853 2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "", "invalid version-info length: .*"},
 		// incorrect format
-		{"0.0.0 fg", "", "invalid format of version-info: .*"},
+		{"abcd 0.0.0 fg", "", "invalid format of version-info: .*"},
+		{"ggg 0.0.0 abc", "", "invalid format of version-info: .*"},
 		{"foo", "", "invalid format of version-info: .*"},
 		{"1", "", "invalid format of version-info: .*"},
 		{"i\ncan\nhave\nnewlines", "", "invalid format of version-info: .*"},
