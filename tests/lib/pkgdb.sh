@@ -178,7 +178,7 @@ distro_install_local_package() {
             quiet yum -y localinstall "$@"
             ;;
         opensuse-*)
-            quiet rpm -i "$@"
+            quiet rpm -i --replacepkgs "$@"
             ;;
         arch-*)
             pacman -U --noconfirm "$@"
@@ -538,11 +538,14 @@ pkg_dependencies_ubuntu_classic(){
         avahi-daemon
         cups
         dbus-x11
+        fontconfig
         gnome-keyring
         jq
         man
         nfs-kernel-server
         printer-driver-cups-pdf
+        python3-dbus
+        python3-gi
         python3-yaml
         upower
         weston
@@ -630,6 +633,7 @@ pkg_dependencies_fedora(){
         dbus-x11
         evolution-data-server
         expect
+        fontconfig
         git
         golang
         jq
@@ -639,6 +643,8 @@ pkg_dependencies_fedora(){
         net-tools
         nfs-utils
         python3-yaml
+        python3-dbus
+        python3-gobject
         redhat-lsb-core
         rpm-build
         udisks2
@@ -653,6 +659,7 @@ pkg_dependencies_amazon(){
         curl
         dbus-x11
         expect
+        fontconfig
         git
         golang
         grub2-tools
@@ -678,6 +685,7 @@ pkg_dependencies_opensuse(){
         curl
         evolution-data-server
         expect
+        fontconfig
         git
         golang-packaging
         jq
@@ -702,6 +710,7 @@ pkg_dependencies_arch(){
     curl
     evolution-data-server
     expect
+    fontconfig
     git
     go
     go-tools
@@ -714,6 +723,8 @@ pkg_dependencies_arch(){
     openbsd-netcat
     python
     python-docutils
+    python-dbus
+    python-gobject
     python3-yaml
     squashfs-tools
     shellcheck

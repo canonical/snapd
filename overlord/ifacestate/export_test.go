@@ -145,3 +145,7 @@ func MockWriteSystemKey(fn func() error) func() {
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }
 }
+
+func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
+	return m.transitionConnectionsCoreMigration(st, oldName, newName)
+}

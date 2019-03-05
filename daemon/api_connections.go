@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var connectionsCmd = &Command{
@@ -210,6 +212,14 @@ func (b byCrefConnJSON) Less(i, j int) bool {
 	return sortsBefore
 }
 
+func checkSnapInstalled(st *state.State, name string) error {
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	return snapstate.Get(st, name, &snapst)
+}
+
 func getConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	snapName := query.Get("snap")
@@ -220,8 +230,18 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 	onlyConnected := qselect == ""
 
+	snapName = ifacestate.RemapSnapFromRequest(snapName)
+	if snapName != "" {
+		if err := checkSnapInstalled(c.d.overlord.State(), snapName); err != nil {
+			if err == state.ErrNoState {
+				return SnapNotFound(snapName, err)
+			}
+			return InternalError("cannot access snap state: %v", err)
+		}
+	}
+
 	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
-		snapName:  ifacestate.RemapSnapFromRequest(snapName),
+		snapName:  snapName,
 		ifaceName: ifaceName,
 		connected: onlyConnected,
 	})

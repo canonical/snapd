@@ -24,7 +24,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 
 	"strings"
@@ -74,6 +73,9 @@ network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:input[0-9]* r,
 /run/udev/data/+platform:* r,
+
+# MESA reads this dri config file
+/etc/drirc r,
 `
 
 const waylandPermanentSlotSecComp = `
@@ -98,7 +100,7 @@ const waylandConnectedPlugAppArmor = `
 # Allow access to the Wayland compositor server socket
 owner /run/user/[0-9]*/wayland-[0-9]* rw,
 
-# Needed when using QT_QPA_PLATFORM=wayland-egl
+# Needed when using QT_QPA_PLATFORM=wayland-egl (MESA dri config)
 /etc/drirc r,
 `
 
@@ -122,38 +124,30 @@ func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *waylandInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
-		old := "###PLUG_SECURITY_TAGS###"
-		new := "snap." + plug.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
-		snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
-		spec.AddSnippet(snippet)
-	}
+	old := "###PLUG_SECURITY_TAGS###"
+	new := "snap." + plug.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+	snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
 	return nil
 }
 
 func (iface *waylandInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
-		spec.AddSnippet(waylandPermanentSlotSecComp)
-	}
+	spec.AddSnippet(waylandPermanentSlotSecComp)
 	return nil
 }
 
 func (iface *waylandInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
-		spec.AddSnippet(waylandPermanentSlotAppArmor)
-	}
+	spec.AddSnippet(waylandPermanentSlotAppArmor)
 	return nil
 }
 
 func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
-		spec.TriggerSubsystem("input")
-		spec.TagDevice(`KERNEL=="tty[0-9]*"`)
-		spec.TagDevice(`KERNEL=="mice"`)
-		spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
-		spec.TagDevice(`KERNEL=="event[0-9]*"`)
-		spec.TagDevice(`KERNEL=="ts[0-9]*"`)
-	}
+	spec.TriggerSubsystem("input")
+	spec.TagDevice(`KERNEL=="tty[0-9]*"`)
+	spec.TagDevice(`KERNEL=="mice"`)
+	spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
+	spec.TagDevice(`KERNEL=="event[0-9]*"`)
+	spec.TagDevice(`KERNEL=="ts[0-9]*"`)
 	return nil
 }
 

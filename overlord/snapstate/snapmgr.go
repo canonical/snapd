@@ -83,6 +83,7 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+	auxStoreInfo
 
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
@@ -234,6 +235,7 @@ var ErrNoCurrent = errors.New("snap has no current revision")
 
 const (
 	errorOnBroken = 1 << iota
+	withAuxStoreInfo
 )
 
 var snapReadInfo = snap.ReadInfo
@@ -248,7 +250,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
 		_, instanceKey := snap.SplitInstanceName(name)
-		info := &snap.Info{
+		info = &snap.Info{
 			SuggestedName: name,
 			Broken:        bse.Broken(),
 			InstanceKey:   instanceKey,
@@ -257,7 +259,12 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		if si != nil {
 			info.SideInfo = *si
 		}
-		return info, nil
+		err = nil
+	}
+	if err == nil && flags&withAuxStoreInfo != 0 {
+		if err := retrieveAuxStoreInfo(info); err != nil {
+			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, err)
+		}
 	}
 	return info, err
 }
@@ -281,7 +288,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	}
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
-	return readInfo(name, cur, 0)
+	return readInfo(name, cur, withAuxStoreInfo)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -462,7 +469,7 @@ func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 	return m.autoRefresh.RefreshSchedule()
 }
 
-// ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
+// ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	if !release.ReleaseInfo.ForceDevMode() {
