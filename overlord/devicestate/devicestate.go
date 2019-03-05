@@ -304,7 +304,7 @@ func CanManageRefreshes(st *state.State) bool {
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
 // - Download everything in a first phase of the change and "pin" cache
-//   files (also get assertions), which means also dealing with new based
+//   files (also get assertions), which means also dealing with new bases
 //   and content providers
 func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	current, err := Model(st)
@@ -380,7 +380,8 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 		}
 	}
 
-	// set the new model assertion
+	// Set the new model assertion - this *must* be the last thing done
+	// by the change.
 	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
 	setModel.Set("new-model", asserts.Encode(new))
 	for _, tsPrev := range tss {

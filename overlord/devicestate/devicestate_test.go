@@ -2718,9 +2718,12 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		panic("no snapstate.Install expected")
+		ts := state.NewTaskSet()
+		ts.AddTask(s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name)))
+		return ts, nil
 	})
 	defer restore()
+
 	restore = devicestate.MockSnapstateUpdate(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		ts := state.NewTaskSet()
 		ts.AddTask(s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, channel)))
@@ -2741,17 +2744,21 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	})
 
 	new := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel=18",
-		"gadget":       "pc",
-		"base":         "core18",
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel=18",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1"},
 	})
 	tss, err := devicestate.Remodel(s.state, new)
 	c.Assert(err, IsNil)
-	c.Assert(tss, HasLen, 2)
+	c.Assert(tss, HasLen, 3)
 	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "fake-update")
 	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Update pc-kernel to track 18")
 
-	c.Assert(tss[1].Tasks()[0].Kind(), Equals, "set-model")
-	c.Assert(tss[1].Tasks()[0].Summary(), Equals, "Set new model assertion")
+	c.Assert(tss[1].Tasks()[0].Kind(), Equals, "fake-install")
+	c.Assert(tss[1].Tasks()[0].Summary(), Equals, "Install new-required-snap-1")
+
+	c.Assert(tss[2].Tasks()[0].Kind(), Equals, "set-model")
+	c.Assert(tss[2].Tasks()[0].Summary(), Equals, "Set new model assertion")
 }

@@ -83,7 +83,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 
 	model, ok := ass.(*asserts.Model)
 	if !ok {
-		return fmt.Errorf("new-model is not a model assertion but: %s", ass.Type().Name)
+		return fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
 	}
 
 	err = assertstate.Add(st, ass)
@@ -91,7 +91,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// TODO: look at serial/keyid/sessionmacaroonq
+	// TODO: look at serial/keyid/session macaroon
 	device, err := auth.Device(st)
 	if err != nil {
 		return err

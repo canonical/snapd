@@ -78,7 +78,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
-	// this *must* always runs last and finalizes a remodel
+	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
 
 	return m, nil
