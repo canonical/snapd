@@ -27,35 +27,36 @@ import (
 	"time"
 )
 
+// timingJson and rootTimingJson aid in marshalling of flattened timings into state.
 type timingJson struct {
-	Level int `json:"level"`
-	Label string `json:"label,omitempty"`
-	Summary string `json:"summary,omitempty"`
+	Level    int           `json:"level"`
+	Label    string        `json:"label,omitempty"`
+	Summary  string        `json:"summary,omitempty"`
 	Duration time.Duration `json:"duration"`
 }
 
 type rootTimingJson struct {
 	timingJson
-	MeasuredSubject string `json:"subject"`
-	Meta map[string]string `json:"meta,omitempty"`
-	NestedTimings []*timingJson `json:"nested,omitempty"`
+	MeasuredSubject string            `json:"subject"`
+	Meta            map[string]string `json:"meta,omitempty"`
+	NestedTimings   []*timingJson     `json:"nested,omitempty"`
 }
 
 var timeDuration = func(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
+// flatten flattens nested measurements into a single list within rootTimingJson.NestedTImings.
 func (t *Timings) flatten() interface{} {
 	data := &rootTimingJson{
 		timingJson: timingJson{
-			Level: 0,
-			Label: t.m.label,
+			Level:    0,
+			Label:    t.m.label,
 			Duration: timeDuration(t.m.stop, t.m.start),
 		},
 		MeasuredSubject: string(t.subject),
-		Meta: t.meta,
+		Meta:            t.meta,
 	}
-	data.NestedTimings = []*timingJson{}
 	flattenRecursive(data, t.m.nested, 1)
 	return data
 }
@@ -63,9 +64,9 @@ func (t *Timings) flatten() interface{} {
 func flattenRecursive(data *rootTimingJson, measures []*Measure, nestLevel int) {
 	for _, m := range measures {
 		data.NestedTimings = append(data.NestedTimings, &timingJson{
-			Level: nestLevel,
-			Label: m.label,
-			Summary: m.summary,
+			Level:    nestLevel,
+			Label:    m.label,
+			Summary:  m.summary,
 			Duration: timeDuration(m.stop, m.start),
 		})
 		if len(m.nested) > 0 {
@@ -74,6 +75,7 @@ func flattenRecursive(data *rootTimingJson, measures []*Measure, nestLevel int) 
 	}
 }
 
+// Save appends Timings data to the "timings" list in the state.
 func (t *Timings) Save(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
@@ -94,12 +96,14 @@ func (t *Timings) Save(st *state.State) error {
 	return nil
 }
 
+// Purge removes excess timings from the "timings" list in the state (starting from the oldest),
+// ensuring that up to maxTimings is kept.
 func Purge(st *state.State, maxTimings int) error {
 	st.Lock()
 	defer st.Unlock()
 
 	var timings []*json.RawMessage
-	err := st.Get("timings", &timings);
+	err := st.Get("timings", &timings)
 	if err == state.ErrNoState {
 		return nil
 	}
