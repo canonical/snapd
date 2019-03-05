@@ -46,8 +46,9 @@ int bootstrap_errno = 0;
 const char *bootstrap_msg = NULL;
 
 // setns_into_snap switches mount namespace into that of a given snap.
-// If the uid argument is non-zero the mount namespace of a specific user is joined.
-// Otherwise the system-wide mount namespace of the provided snap is used.
+// If the uid argument is non-zero the mount namespace of the provided snap
+// for the specific user is joined. Otherwise the system-wide mount namespace
+// of the provided snap is used.
 static int setns_into_snap(const char *snap_name, int uid)
 {
 	// Construct the name of the .mnt file to open.
