@@ -28,6 +28,7 @@ import (
 	"github.com/mvo5/libseccomp-golang"
 
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type versionInfoSuite struct{}
@@ -35,10 +36,14 @@ type versionInfoSuite struct{}
 var _ = Suite(&versionInfoSuite{})
 
 func (s *versionInfoSuite) TestVersionInfo(c *C) {
-	m, i, p := seccomp.GetLibraryVersion()
-	prefix := fmt.Sprintf("%d.%d.%d ", m, i, p)
+	buildID, err := osutil.MyBuildID()
+	c.Assert(err, IsNil)
 
-	defaultVi := main.VersionInfo()
+	m, i, p := seccomp.GetLibraryVersion()
+	prefix := fmt.Sprintf("%s %d.%d.%d ", buildID, m, i, p)
+
+	defaultVi, err := main.VersionInfo()
+	c.Assert(err, IsNil)
 
 	// $ echo -n 'read\nwrite\n' | sha256sum
 	// 88b06efcea4b5946cebd4b0674b93744de328339de5d61b75db858119054ff93  -
@@ -53,7 +58,8 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 	restore := main.MockSeccompSyscalls([]string{"read", "write"})
 	defer restore()
 
-	vi := main.VersionInfo()
+	vi, err := main.VersionInfo()
+	c.Assert(err, IsNil)
 	c.Check(vi, Equals, prefix+readWriteHash)
 
 	// pretend it's only 'read' now
@@ -61,6 +67,7 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 	restore = main.MockSeccompSyscalls([]string{"read"})
 	defer restore()
 
-	vi = main.VersionInfo()
+	vi, err = main.VersionInfo()
+	c.Assert(err, IsNil)
 	c.Check(vi, Equals, prefix+readHash)
 }
