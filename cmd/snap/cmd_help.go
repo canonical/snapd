@@ -198,8 +198,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
-		// TODO: add 'connections' here
-		Commands: []string{"interface", "connect", "disconnect"},
+		Commands:    []string{"connections", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),

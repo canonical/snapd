@@ -19,10 +19,10 @@
 
 package builtin
 
-// Details about the Intel MEI can be found here:
+// Details about Intel MEI can be found here:
 // https://www.kernel.org/doc/Documentation/misc-devices/mei/mei.txt
 
-const intelMEISummary = `allows access to the intel MEI management interface`
+const intelMEISummary = `allows access to the Intel MEI management interface`
 
 const intelMEIBaseDeclarationSlots = `
   intel-mei:
