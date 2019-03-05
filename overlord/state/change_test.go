@@ -103,6 +103,7 @@ func (cs *changeSuite) TestNewTaskAddTaskAndTasks(c *C) {
 	chg.AddTask(t2)
 
 	tasks := chg.Tasks()
+	// Tasks must return tasks in the order they were added (first)!
 	c.Check(tasks, DeepEquals, []*state.Task{t1, t2})
 	c.Check(t1.Change(), Equals, chg)
 	c.Check(t2.Change(), Equals, chg)
