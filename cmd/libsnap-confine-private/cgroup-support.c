@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "cleanup-funcs.h"
+#include "string-utils.h"
 #include "utils.h"
 
 void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) {
@@ -38,22 +39,13 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
     if (tasks_fd < 0) {
         die("cannot open file %s/%s/tasks", parent, name);
     }
-    FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
-    stream = fdopen(tasks_fd, "w");
-    if (stream == NULL) {
-        die("cannot open stream of %s/%s/tasks", parent, name);
-    }
-    // stream now owns tasks_fd
-    tasks_fd = -1;
     // Write the process (task) number to the tasks file. Linux task IDs are
     // limited to 2^29 so a long int is enough to represent it.
     // See include/linux/threads.h in the kernel source tree for details.
-    int n = fprintf(stream, "%ld", (long)pid);
-    if (n < 0) {
+    char buf[22] = {0};  // 2^64 base10 + 2 for NUL and '-' for long
+    int n = sc_must_snprintf(buf, sizeof buf, "%ld", (long)pid);
+    if (write(tasks_fd, buf, n) < n) {
         die("cannot move process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);
-    }
-    if (fflush(stream) == EOF) {
-        die("cannot flush buffer");
     }
     debug("moved process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);
 }
