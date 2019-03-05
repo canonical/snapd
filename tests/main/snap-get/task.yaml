@@ -86,6 +86,10 @@ execute: |
         exit 1
     fi
 
+    echo "Test nested values"
+    snap set snapctl-hooks command=test-get-nested root.key1="a" root.key2="b"
+    snap set snapctl-hooks command=test-get-nested root.key1="a"
+
     if ! output=$(snap get snapctl-hooks intnumber2); then
         echo "snap get unexpectedly failed"
     fi

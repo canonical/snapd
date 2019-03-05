@@ -291,6 +291,8 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
 	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t2})
+	c.Assert(t1.NumHaltTasks(), Equals, 1)
+	c.Assert(t2.NumHaltTasks(), Equals, 0)
 }
 
 func (ts *taskSuite) TestAt(c *C) {
@@ -487,7 +489,7 @@ func (ts *taskSuite) TestTaskSetWaitFor(c *C) {
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
 	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1})
-	c.Assert(t1.HaltTasks(), HasLen, 2)
+	c.Assert(t1.NumHaltTasks(), Equals, 2)
 }
 
 func (ts *taskSuite) TestTaskSetWaitAll(c *C) {
@@ -505,8 +507,8 @@ func (ts *taskSuite) TestTaskSetWaitAll(c *C) {
 
 	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1, t2})
 	c.Assert(t4.WaitTasks(), DeepEquals, []*state.Task{t1, t2})
-	c.Assert(t1.HaltTasks(), HasLen, 2)
-	c.Assert(t2.HaltTasks(), HasLen, 2)
+	c.Assert(t1.NumHaltTasks(), Equals, 2)
+	c.Assert(t2.NumHaltTasks(), Equals, 2)
 }
 
 func (ts *taskSuite) TestTaskSetAddTaskAndAddAll(c *C) {

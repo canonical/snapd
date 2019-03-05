@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -260,6 +261,12 @@ func SetRootDir(rootdir string) {
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
+	exists, isDir, _ := osutil.DirExists(SystemApparmorCacheDir)
+	if !exists || !isDir {
+		// some systems use a single cache dir instead of splitting
+		// out the system cache
+		SystemApparmorCacheDir = AppArmorCacheDir
+	}
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")

@@ -62,8 +62,6 @@
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
 {
-	uid_t uid = getuid();
-	gid_t gid = getgid();
 	char tmpdir[MAX_BUF] = { 0 };
 
 	// Create a 0700 base directory, this is the base dir that is
@@ -71,8 +69,7 @@ static void setup_private_mount(const char *snap_name)
 	//
 	// Under that basedir, we put a 1777 /tmp dir that is then bind
 	// mounted for the applications to use
-	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-			 snap_name);
+	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%s_XXXXXX", snap_name);
 	if (mkdtemp(tmpdir) == NULL) {
 		die("cannot create temporary directory essential for private /tmp");
 	}
@@ -99,7 +96,7 @@ static void setup_private_mount(const char *snap_name)
 	// MS_PRIVATE needs linux > 2.6.11
 	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
 	// do the chown after the bind mount to avoid potential shenanigans
-	if (chown("/tmp/", uid, gid) < 0) {
+	if (chown("/tmp/", 0, 0) < 0) {
 		die("cannot change ownership of /tmp");
 	}
 	// chdir to original directory
