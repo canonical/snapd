@@ -487,10 +487,14 @@ void bootstrap(int argc, char **argv, char **envp)
 	unsigned long uid = getuid();
 	process_arguments(argc, argv, &snap_name, &should_setns,
 			  &process_user_fstab, &uid);
+
+	// If needed, enter the snap's namespace using either the user fstab with
+	// our uid or the system wide snap fstab with uid 0
 	if (should_setns && snap_name != NULL) {
 		setns_into_snap(snap_name, process_user_fstab ? uid : 0);
 		// setns_into_snap sets bootstrap_{errno,msg}
 	}
+	// If we are processing a user fstab, then drop privileges
 	if (process_user_fstab && uid != 0) {
 		switch_to_specific_privileged_user(uid, getgid());
 		// switch_to_privileged_user sets bootstrap_{errno,msg}
