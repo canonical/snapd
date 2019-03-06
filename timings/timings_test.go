@@ -27,12 +27,14 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 func TestTimings(t *testing.T) { TestingT(t) }
 
 type timingsSuite struct {
+	testutil.BaseTest
 	st       *state.State
 	duration time.Duration
 }
@@ -40,15 +42,21 @@ type timingsSuite struct {
 var _ = Suite(&timingsSuite{})
 
 func (s *timingsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.st = state.New(nil)
 
 	s.duration = 0
 	// Increase duration by 1 millisecond on each call
-	timings.MockTimeDuration(func(start, end time.Time) time.Duration {
+	s.BaseTest.AddCleanup(timings.MockTimeDuration(func(start, end time.Time) time.Duration {
 		c.Check(start.Before(end), Equals, true)
 		s.duration += time.Millisecond
 		return s.duration
-	})
+	}))
+}
+
+func (s *timingsSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *timingsSuite) TestSave(c *C) {
