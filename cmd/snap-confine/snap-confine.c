@@ -324,6 +324,12 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 	struct sc_mount_ns *group = NULL;
 	group = sc_open_mount_ns(inv->snap_instance);
 
+	// Check if we are running in normal mode with pivot root. Do this here
+	// because once on the inside of the transformed mount namespace we can no
+	// longer tell.
+	bool is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
+							inv->base_snap_name);
+
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */
@@ -331,7 +337,7 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 	int retval = sc_join_preserved_ns(group, inv->apparmor,
 					  inv->base_snap_name,
 					  inv->snap_instance,
-					  snap_discard_ns_fd);
+					  snap_discard_ns_fd, is_normal_mode);
 	if (retval == ESRCH) {
 		/* Create and populate the mount namespace. This performs all
 		   of the bootstrapping mounts, pivots into the new root filesystem and
@@ -342,7 +348,7 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 		}
 		sc_populate_mount_ns(inv->apparmor,
 				     snap_update_ns_fd, inv->base_snap_name,
-				     inv->snap_instance);
+				     inv->snap_instance, is_normal_mode);
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
