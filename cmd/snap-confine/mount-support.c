@@ -578,18 +578,6 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 					die("cannot locate the core or legacy core snap (current symlink missing?)");
 				}
 			}
-			if (sc_streq(base_snap_name, "core16")) {
-				// As a special fallback, allow the core
-				// as an alternative name for "core16"
-				base_snap_name = "core";
-				sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
-						 "%s/%s/current/",
-						 SNAP_MOUNT_DIR,
-						 base_snap_name);
-				if (access(rootfs_dir, F_OK) != 0) {
-					die("cannot locate the core16 or core snap (current symlink missing?)");
-				}
-			}
 			// If after the special case handling above we are
 			// still not ok, die
 			if (access(rootfs_dir, F_OK) != 0)

@@ -889,6 +889,20 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
+	// As a special case, when starting a snap that uses core16 as base, in the
+	// case that core16 is not installed but core itself is, rewrite the base
+	// snap to "core".
+	if info.Base == "core16" {
+		core16 := filepath.Join(dirs.SnapMountDir, "core16")
+		core := filepath.Join(dirs.SnapMountDir, "core")
+		if !osutil.FileExists(core16) && osutil.FileExists(core) {
+			info.Base = "core"
+		}
+	}
+	// TODO: consider handling the ubuntu-core/core fallback here as well.
+
+	// TODO: snap-confine treats unspecified base as "core", consider making
+	// this fully explicit here and make base a required argument.
 	if info.Base != "" {
 		cmd = append(cmd, "--base", info.Base)
 	}
