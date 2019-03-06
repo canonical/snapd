@@ -392,11 +392,11 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 		return nil
 	}
 	cur, err := snapst.CurrentInfo()
-	if err == ErrNoCurrent {
-		// refreshing a disabled snap (maybe via InstallPath)
-		return nil
-	}
 	if err != nil {
+		if err == ErrNoCurrent {
+			// refreshing a disabled snap (maybe via InstallPath)
+			return nil
+		}
 		return err
 	}
 
