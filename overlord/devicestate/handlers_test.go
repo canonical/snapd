@@ -25,19 +25,29 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 // TODO: should we move this into a new handlers suite?
-func (s *deviceMgrSuite) TestSetModelHandlerSimple(c *C) {
-	_, err := s.mgr.Model()
-	c.Check(err, Equals, state.ErrNoState)
+func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
+	s.state.Lock()
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	err := assertstate.Add(s.state, s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"revision":     "1",
+	}))
+	c.Assert(err, IsNil)
+	s.state.Unlock()
 
 	newModel := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
-		"revision":     "1",
+		"revision":     "2",
 	})
 
 	s.state.Lock()
@@ -60,7 +70,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSimple(c *C) {
 	c.Assert(chg.Err(), IsNil)
 }
 
-func (s *deviceMgrSuite) TestSetModelHandlerSameRevision(c *C) {
+func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	model := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -72,7 +82,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevision(c *C) {
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
-		Model: "pc",
+		Model: "pc-model",
 	})
 	err := assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
