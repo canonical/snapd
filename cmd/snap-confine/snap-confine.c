@@ -95,6 +95,18 @@ static void sc_maybe_fixup_udev(void)
 	}
 }
 
+typedef struct sc_invocation {
+	const char *base_snap_name;
+	const char *security_tag;
+	const char *snap_instance;
+	struct sc_apparmor *apparmor;
+	uid_t real_uid, effective_uid, saved_uid;
+	gid_t real_gid, effective_gid, saved_gid;
+} sc_invocation;
+
+static void enter_classic_execution_environment(const sc_invocation * inv);
+static void enter_non_classic_execution_environment(const sc_invocation * inv);
+
 int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
@@ -182,9 +194,28 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
+
+	/* Invocation helps to pass relevant data to various parts of snap-confine. */
+	sc_invocation invocation = {
+		.snap_instance = snap_instance,
+		.base_snap_name = base_snap_name,
+		.security_tag = security_tag,
+		.apparmor = &apparmor,
+		.real_uid = real_uid,
+		.effective_uid = effective_uid,
+		.saved_uid = saved_uid,
+		.real_gid = real_gid,
+		.effective_gid = effective_gid,
+		.saved_gid = saved_gid,
+	};
+	/* For the ease of introducing inv to the if branch below. */
+	const sc_invocation *inv = &invocation;
+
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
 		if (classic_confinement) {
+			/* TODO: move everything into this call */
+			enter_classic_execution_environment(inv);
 			/* 'classic confinement' is designed to run without the sandbox
 			 * inside the shared namespace. Specifically:
 			 * - snap-confine skips using the snap-specific mount namespace
@@ -195,6 +226,8 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
+			/* TODO: move everything into this call */
+			enter_non_classic_execution_environment(inv);
 			/* snap-confine uses privately-shared /run/snapd/ns to store
 			 * bind-mounted mount namespaces of each snap. In the case that
 			 * snap-confine is invoked from the mount namespace it typically
@@ -229,19 +262,19 @@ int main(int argc, char **argv)
 			snap_discard_ns_fd = sc_open_snap_discard_ns();
 
 			// Do per-snap initialization.
-			int snap_lock_fd = sc_lock_snap(snap_instance);
+			int snap_lock_fd = sc_lock_snap(inv->snap_instance);
 			debug("initializing mount namespace: %s",
-			      snap_instance);
+			      inv->snap_instance);
 			struct sc_mount_ns *group = NULL;
-			group = sc_open_mount_ns(snap_instance);
+			group = sc_open_mount_ns(inv->snap_instance);
 
 			/* Stale mount namespace discarded or no mount namespace to
 			   join. We need to construct a new mount namespace ourselves.
 			   To capture it we will need a helper process so make one. */
-			sc_fork_helper(group, &apparmor);
-			int retval = sc_join_preserved_ns(group, &apparmor,
-							  base_snap_name,
-							  snap_instance,
+			sc_fork_helper(group, inv->apparmor);
+			int retval = sc_join_preserved_ns(group, inv->apparmor,
+							  inv->base_snap_name,
+							  inv->snap_instance,
 							  snap_discard_ns_fd);
 			if (retval == ESRCH) {
 				/* Create and populate the mount namespace. This performs all
@@ -253,10 +286,10 @@ int main(int argc, char **argv)
 				if (unshare(CLONE_NEWNS) < 0) {
 					die("cannot unshare the mount namespace");
 				}
-				sc_populate_mount_ns(&apparmor,
+				sc_populate_mount_ns(inv->apparmor,
 						     snap_update_ns_fd,
-						     base_snap_name,
-						     snap_instance);
+						     inv->base_snap_name,
+						     inv->snap_instance);
 
 				/* Preserve the mount namespace. */
 				sc_preserve_populated_mount_ns(group);
@@ -269,11 +302,12 @@ int main(int argc, char **argv)
 			sc_maybe_fixup_udev();
 
 			/* User mount profiles do not apply to non-root users. */
-			if (real_uid != 0) {
+			if (inv->real_uid != 0) {
 				debug
 				    ("joining preserved per-user mount namespace");
 				retval =
 				    sc_join_preserved_per_user_ns(group,
+								  inv->
 								  snap_instance);
 				if (retval == ESRCH) {
 					debug
@@ -281,8 +315,9 @@ int main(int argc, char **argv)
 					if (unshare(CLONE_NEWNS) < 0) {
 						die("cannot unshare the mount namespace");
 					}
-					sc_setup_user_mounts(&apparmor,
+					sc_setup_user_mounts(inv->apparmor,
 							     snap_update_ns_fd,
+							     inv->
 							     snap_instance);
 					/* Preserve the mount per-user namespace. But only if the
 					 * experimental feature is enabled. This way if the feature is
@@ -305,17 +340,17 @@ int main(int argc, char **argv)
 			// control group. This simplifies testing if any processes
 			// belonging to a given snap are still alive.
 			// See the documentation of the function for details.
-			if (getegid() != 0 && saved_gid == 0) {
+			if (getegid() != 0 && inv->saved_gid == 0) {
 				// Temporarily raise egid so we can chown the freezer cgroup
 				// under LXD.
 				if (setegid(0) != 0) {
 					die("cannot set effective group id to root");
 				}
 			}
-			sc_cgroup_freezer_join(snap_instance, getpid());
-			if (geteuid() == 0 && real_gid != 0) {
-				if (setegid(real_gid) != 0) {
-					die("cannot set effective group id to %d", real_gid);
+			sc_cgroup_freezer_join(inv->snap_instance, getpid());
+			if (geteuid() == 0 && inv->real_gid != 0) {
+				if (setegid(inv->real_gid) != 0) {
+					die("cannot set effective group id to %d", inv->real_gid);
 				}
 			}
 
@@ -350,8 +385,9 @@ int main(int argc, char **argv)
 				}
 			}
 			struct snappy_udev udev_s;
-			if (snappy_udev_init(security_tag, &udev_s) == 0)
-				setup_devices_cgroup(security_tag, &udev_s);
+			if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
+				setup_devices_cgroup(inv->security_tag,
+						     &udev_s);
 			snappy_udev_cleanup(&udev_s);
 		}
 		// The rest does not so temporarily drop privs back to calling
@@ -408,4 +444,12 @@ int main(int argc, char **argv)
 	execv(executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
+}
+
+static void enter_classic_execution_environment(const sc_invocation * inv)
+{
+}
+
+static void enter_non_classic_execution_environment(const sc_invocation * inv)
+{
 }
