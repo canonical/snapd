@@ -4472,7 +4472,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	// we need to make it not be rerefresh, and we could do just
+	// We need to make it not be rerefresh, and we could do just
 	// that but instead we do the 'right' thing and attach it to
 	// the last task that's on a lane.
 	last := lastWithLane(ts.Tasks())
