@@ -18,7 +18,8 @@ priority: 1000
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
-    if command -v apt; then
+    # apt -v to test if apt is usable (its not on ubuntu-core)
+    if command -v apt && apt -v; then
         apt autoremove -y lxd
     fi
 
