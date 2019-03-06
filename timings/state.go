@@ -20,11 +20,11 @@
 package timings
 
 import (
-	"github.com/snapcore/snapd/overlord/state"
-
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // timingJson and rootTimingJson aid in marshalling of flattened timings into state.
@@ -52,7 +52,7 @@ func (t *Timings) flatten() interface{} {
 		timingJson: timingJson{
 			Level:    0,
 			Label:    t.m.label,
-			Duration: timeDuration(t.m.stop, t.m.start),
+			Duration: timeDuration(t.m.start, t.m.stop),
 		},
 		MeasuredSubject: string(t.subject),
 		Meta:            t.meta,
@@ -67,7 +67,7 @@ func flattenRecursive(data *rootTimingJson, measures []*Measure, nestLevel int) 
 			Level:    nestLevel,
 			Label:    m.label,
 			Summary:  m.summary,
-			Duration: timeDuration(m.stop, m.start),
+			Duration: timeDuration(m.start, m.stop),
 		})
 		if len(m.nested) > 0 {
 			flattenRecursive(data, m.nested, nestLevel+1)
