@@ -248,7 +248,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		var retain int
 		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
-			retain = 3
+			// on classic we only keep 2 copies by default
+			if release.OnClassic {
+				retain = 2
+			} else {
+				retain = 3
+			}
 		}
 		retain-- //  we're adding one
 
