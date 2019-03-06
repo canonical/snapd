@@ -45,6 +45,7 @@ func (s *timingsSuite) SetUpTest(c *C) {
 	s.duration = 0
 	// Increase duration by 1 millisecond on each call
 	timings.MockTimeDuration(func(start, end time.Time) time.Duration {
+		c.Check(start.Before(end), Equals, true)
 		s.duration += time.Millisecond
 		return s.duration
 	})
