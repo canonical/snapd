@@ -100,12 +100,13 @@ typedef struct sc_invocation {
 	const char *security_tag;
 	const char *snap_instance;
 	struct sc_apparmor *apparmor;
-	uid_t real_uid, effective_uid, saved_uid;
-	gid_t real_gid, effective_gid, saved_gid;
 } sc_invocation;
 
 static void enter_classic_execution_environment(const sc_invocation * inv);
-static void enter_non_classic_execution_environment(const sc_invocation * inv);
+static void enter_non_classic_execution_environment(const sc_invocation * inv,
+						    uid_t real_uid,
+						    gid_t real_gid,
+						    gid_t saved_gid);
 
 int main(int argc, char **argv)
 {
@@ -201,12 +202,6 @@ int main(int argc, char **argv)
 		.base_snap_name = base_snap_name,
 		.security_tag = security_tag,
 		.apparmor = &apparmor,
-		.real_uid = real_uid,
-		.effective_uid = effective_uid,
-		.saved_uid = saved_uid,
-		.real_gid = real_gid,
-		.effective_gid = effective_gid,
-		.saved_gid = saved_gid,
 	};
 	/* For the ease of introducing inv to the if branch below. */
 	const sc_invocation *inv = &invocation;
@@ -227,7 +222,9 @@ int main(int argc, char **argv)
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
 			/* TODO: move everything into this call */
-			enter_non_classic_execution_environment(inv);
+			enter_non_classic_execution_environment(inv, real_uid,
+								real_gid,
+								saved_gid);
 			/* snap-confine uses privately-shared /run/snapd/ns to store
 			 * bind-mounted mount namespaces of each snap. In the case that
 			 * snap-confine is invoked from the mount namespace it typically
@@ -302,13 +299,12 @@ int main(int argc, char **argv)
 			sc_maybe_fixup_udev();
 
 			/* User mount profiles do not apply to non-root users. */
-			if (inv->real_uid != 0) {
+			if (real_uid != 0) {
 				debug
 				    ("joining preserved per-user mount namespace");
 				retval =
 				    sc_join_preserved_per_user_ns(group,
-								  inv->
-								  snap_instance);
+								  inv->snap_instance);
 				if (retval == ESRCH) {
 					debug
 					    ("unsharing the mount namespace (per-user)");
@@ -317,8 +313,7 @@ int main(int argc, char **argv)
 					}
 					sc_setup_user_mounts(inv->apparmor,
 							     snap_update_ns_fd,
-							     inv->
-							     snap_instance);
+							     inv->snap_instance);
 					/* Preserve the mount per-user namespace. But only if the
 					 * experimental feature is enabled. This way if the feature is
 					 * disabled user mount namespaces will still exist but will be
@@ -335,12 +330,11 @@ int main(int argc, char **argv)
 					}
 				}
 			}
-
 			// Associate each snap process with a dedicated snap freezer
 			// control group. This simplifies testing if any processes
 			// belonging to a given snap are still alive.
 			// See the documentation of the function for details.
-			if (getegid() != 0 && inv->saved_gid == 0) {
+			if (getegid() != 0 && saved_gid == 0) {
 				// Temporarily raise egid so we can chown the freezer cgroup
 				// under LXD.
 				if (setegid(0) != 0) {
@@ -348,12 +342,11 @@ int main(int argc, char **argv)
 				}
 			}
 			sc_cgroup_freezer_join(inv->snap_instance, getpid());
-			if (geteuid() == 0 && inv->real_gid != 0) {
-				if (setegid(inv->real_gid) != 0) {
-					die("cannot set effective group id to %d", inv->real_gid);
+			if (geteuid() == 0 && real_gid != 0) {
+				if (setegid(real_gid) != 0) {
+					die("cannot set effective group id to %d", real_gid);
 				}
 			}
-
 
 			sc_unlock(snap_lock_fd);
 
@@ -450,6 +443,9 @@ static void enter_classic_execution_environment(const sc_invocation * inv)
 {
 }
 
-static void enter_non_classic_execution_environment(const sc_invocation * inv)
+static void enter_non_classic_execution_environment(const sc_invocation * inv,
+						    uid_t real_uid,
+						    gid_t real_gid,
+						    gid_t saved_gid)
 {
 }
