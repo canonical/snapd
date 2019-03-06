@@ -60,6 +60,9 @@ func (s *timingsSuite) TearDownTest(c *C) {
 }
 
 func (s *timingsSuite) TestSave(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	// two timings, with 2 nested measures
 	for i := 0; i < 2; i++ {
 		timing := timings.New(timings.Task, map[string]string{"id": "3", "change-id": "12"})
@@ -71,9 +74,6 @@ func (s *timingsSuite) TestSave(c *C) {
 		meas.Stop()
 		timing.Save(s.st)
 	}
-
-	s.st.Lock()
-	defer s.st.Unlock()
 
 	var stateTimings []interface{}
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
@@ -118,6 +118,9 @@ func (s *timingsSuite) TestSave(c *C) {
 }
 
 func (s *timingsSuite) TestPurge(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	// Create 10 timings
 	for i := 0; i < 10; i++ {
 		timing := timings.New(timings.Ensure, nil)
@@ -125,19 +128,13 @@ func (s *timingsSuite) TestPurge(c *C) {
 		meas.Stop()
 		timing.Save(s.st)
 	}
-
-	s.st.Lock()
-	defer s.st.Unlock()
-
 	var stateTimings []interface{}
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 	c.Check(stateTimings, HasLen, 10)
 
 	// purge 3 times, consecutive purging does nothing if limit not reached; two most recent timings expected after purge.
 	for i := 0; i < 3; i++ {
-		s.st.Unlock()
 		c.Assert(timings.Purge(s.st, 2), IsNil)
-		s.st.Lock()
 
 		c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 		c.Assert(stateTimings, DeepEquals, []interface{}{

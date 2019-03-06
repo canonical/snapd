@@ -76,10 +76,8 @@ func flattenRecursive(data *rootTimingJson, measures []*Measure, nestLevel int) 
 }
 
 // Save appends Timings data to the "timings" list in the state.
+// It's responsibility of the caller to lock the state before calling this function.
 func (t *Timings) Save(st *state.State) error {
-	st.Lock()
-	defer st.Unlock()
-
 	var timings []*json.RawMessage
 	if err := st.Get("timings", &timings); err != nil && err != state.ErrNoState {
 		return err
@@ -98,10 +96,8 @@ func (t *Timings) Save(st *state.State) error {
 
 // Purge removes excess timings from the "timings" list in the state (starting from the oldest),
 // ensuring that up to maxTimings is kept.
+// It's responsibility of the caller to lock the state before calling this function.
 func Purge(st *state.State, maxTimings int) error {
-	st.Lock()
-	defer st.Unlock()
-
 	var timings []*json.RawMessage
 	err := st.Get("timings", &timings)
 	if err == state.ErrNoState {
