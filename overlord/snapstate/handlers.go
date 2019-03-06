@@ -1031,10 +1031,8 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		return
 	}
 	if info.InstanceName() == "snapd" {
-		if err := canInstallSnapdSnap(st); err == nil {
-			t.Logf("Requested daemon restart (snapd snap).")
-			st.RequestRestart(state.RestartDaemon)
-		}
+		t.Logf("Requested daemon restart (snapd snap).")
+		st.RequestRestart(state.RestartDaemon)
 	}
 }
 

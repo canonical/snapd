@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -40,6 +41,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	snapdTransitionDelayWithRandomess = 3*time.Hour + time.Duration(rand.Int63n(int64(4*time.Hour)))
 )
 
 // overridden in the tests
@@ -550,7 +555,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	// ensure we only transition systems that have snaps already
 	installedSnaps, err := NumSnaps(m.state)
-	if err != nil && err != state.ErrNoState {
+	if err != nil {
 		return err
 	}
 	// no installed snaps (yet): do nothing (fresh classic install)
@@ -579,7 +584,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 		return err
 	}
 	now := time.Now()
-	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(6*time.Hour).After(now) {
+	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(snapdTransitionDelayWithRandomess).After(now) {
 		return nil
 	}
 	m.state.Set("snapd-transition-last-retry-time", now)
