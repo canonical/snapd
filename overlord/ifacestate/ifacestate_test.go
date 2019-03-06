@@ -220,6 +220,10 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.log = buf
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
+	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+		return "abcdef 1.2.3 1234abcd", nil
+	})
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
