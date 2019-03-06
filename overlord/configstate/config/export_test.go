@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,21 +17,12 @@
  *
  */
 
-package main_test
+package config
 
 import (
-	"os"
-
-	. "gopkg.in/check.v1"
-
-	failure "github.com/snapcore/snapd/cmd/snap-failure"
+	"encoding/json"
 )
 
-func (r *failureSuite) TestRun(c *C) {
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-	os.Args = []string{"snap-failure", "snapd"}
-	err := failure.Run()
-	c.Check(err, IsNil)
-	c.Check(r.Stderr(), HasLen, 0)
+func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
+	return t.pristine
 }

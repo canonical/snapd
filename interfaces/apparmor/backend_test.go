@@ -203,10 +203,6 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.samba.smbd")
 		_, err = os.Stat(cache)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// apparmor_parser was used to unload the profile
-		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--remove", "snap-update-ns.samba", "snap.samba.smbd"},
-		})
 	}
 }
 
@@ -223,10 +219,6 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
 		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.foo.hook.configure")
 		_, err = os.Stat(cache)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// apparmor_parser was used to unload the profile
-		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--remove", "snap-update-ns.foo", "snap.foo.hook.configure"},
-		})
 	}
 }
 
@@ -306,7 +298,6 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", updateNSProfile, smbdProfile},
-			{"apparmor_parser", "--remove", "snap.samba.nmbd"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -329,7 +320,6 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", updateNSProfile, nmbdProfile, smbdProfile},
-			{"apparmor_parser", "--remove", "snap.samba.hook.configure"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -862,9 +852,6 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreYaml, 111)
 
 	c.Check(osutil.FileExists(canary), Equals, false)
-	c.Check(s.parserCmd.Calls(), testutil.DeepContains, []string{
-		"apparmor_parser", "--remove", canaryName,
-	})
 }
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
@@ -915,12 +902,39 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	canaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "meep")
 	err = ioutil.WriteFile(canaryPath, nil, 0644)
 	c.Assert(err, IsNil)
+	// and the snap-confine profiles are removed
+	scCanaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "usr.lib.snapd.snap-confine.real")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "usr.lib.snapd.snap-confine")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap-confine.core.6405")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap.core.4938.usr.lib.snapd.snap-confine")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "var.lib.snapd.snap.core.1234.usr.lib.snapd.snap-confine")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
 	// but non-regular entries in the cache dir are kept
 	dirsAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "dir")
 	err = os.MkdirAll(dirsAreKept, 0755)
 	c.Assert(err, IsNil)
 	symlinksAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "symlink")
 	err = os.Symlink("some-sylink-target", symlinksAreKept)
+	c.Assert(err, IsNil)
+	// and the snap profiles are kept
+	snapCanaryKept := filepath.Join(dirs.SystemApparmorCacheDir, "snap.canary.meep")
+	err = ioutil.WriteFile(snapCanaryKept, nil, 0644)
+	c.Assert(err, IsNil)
+	sunCanaryKept := filepath.Join(dirs.SystemApparmorCacheDir, "snap-update-ns.canary")
+	err = ioutil.WriteFile(sunCanaryKept, nil, 0644)
+	c.Assert(err, IsNil)
+	// and the .features file is kept
+	dotKept := filepath.Join(dirs.SystemApparmorCacheDir, ".features")
+	err = ioutil.WriteFile(dotKept, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// install the new core snap on classic triggers a new snap-confine
@@ -930,7 +944,7 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
 	c.Assert(err, IsNil)
 	// canary is gone, extra stuff is kept
-	c.Check(l, DeepEquals, []string{dirsAreKept, symlinksAreKept})
+	c.Check(l, DeepEquals, []string{dotKept, dirsAreKept, sunCanaryKept, snapCanaryKept, symlinksAreKept})
 }
 
 // snap-confine policy when NFS is not used.

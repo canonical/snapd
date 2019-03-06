@@ -212,6 +212,9 @@ apps:
   mpris:
     command: bin/run
     plugs: [ mpris ]
+  multipass-support:
+    command: bin/run
+    plugs: [ multipass-support ]
   netlink-audit:
     command: bin/run
     plugs: [ netlink-audit ]

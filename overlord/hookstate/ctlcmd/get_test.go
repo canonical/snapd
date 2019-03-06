@@ -21,6 +21,7 @@ package ctlcmd_test
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -104,6 +105,9 @@ var getTests = []struct {
 	args:   "get -t missing-key",
 	stdout: "null\n",
 }, {
+	args:  "get -t test-key2.sub",
+	error: "snap \"test-snap\" option \"test-key2\" is not a map",
+}, {
 	args:   "get -d test-key1",
 	stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
 }, {
@@ -143,6 +147,78 @@ func (s *getSuite) TestGetTests(c *C) {
 			c.Check(string(stderr), Equals, "")
 			c.Check(string(stdout), Equals, test.stdout)
 		}
+	}
+}
+
+var getTests2 = []struct {
+	setPath      string
+	setValue     interface{}
+	args, stdout string
+}{{
+	setPath:  "root.key1",
+	setValue: "c",
+	args:     "get root",
+	stdout:   "{\n\t\"key1\": \"c\",\n\t\"key2\": \"b\",\n\t\"key3\": {\n\t\t\"sub1\": \"x\",\n\t\t\"sub2\": \"y\"\n\t}\n}\n",
+}, {
+	setPath:  "root.key3",
+	setValue: "d",
+	args:     "get root",
+	stdout:   "{\n\t\"key1\": \"a\",\n\t\"key2\": \"b\",\n\t\"key3\": \"d\"\n}\n",
+}, {
+	setPath:  "root.key3.sub1",
+	setValue: "z",
+	args:     "get root.key3",
+	stdout:   "{\n\t\"sub1\": \"z\",\n\t\"sub2\": \"y\"\n}\n",
+}, {
+	setPath:  "root.key3",
+	setValue: map[string]interface{}{"sub3": "z"},
+	args:     "get root",
+	stdout:   "{\n\t\"key1\": \"a\",\n\t\"key2\": \"b\",\n\t\"key3\": {\n\t\t\"sub3\": \"z\"\n\t}\n}\n",
+}}
+
+func (s *getSuite) TestGetPartialNestedStruct(c *C) {
+	for _, test := range getTests2 {
+		c.Logf("Test: %s", test.args)
+
+		mockHandler := hooktest.NewMockHandler()
+
+		state := state.New(nil)
+		state.Lock()
+
+		task := state.NewTask("test-task", "my test task")
+		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+
+		var err error
+		mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+		c.Check(err, IsNil)
+
+		// Initialize configuration
+		tr := config.NewTransaction(state)
+		tr.Set("test-snap", "root", map[string]interface{}{"key1": "a", "key2": "b", "key3": map[string]interface{}{"sub1": "x", "sub2": "y"}})
+		tr.Commit()
+
+		state.Unlock()
+
+		mockContext.Lock()
+		tr2 := configstate.ContextTransaction(mockContext)
+		tr2.Set("test-snap", test.setPath, test.setValue)
+		mockContext.Unlock()
+
+		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0)
+		c.Assert(err, IsNil)
+		c.Assert(string(stderr), Equals, "")
+		c.Check(string(stdout), Equals, test.stdout)
+
+		// transaction not committed, drop it
+		tr2 = nil
+
+		// another transaction doesn't see uncommitted changes of tr2
+		state.Lock()
+		defer state.Unlock()
+		tr3 := config.NewTransaction(state)
+		var config map[string]interface{}
+		c.Assert(tr3.Get("test-snap", "root", &config), IsNil)
+		c.Assert(config, DeepEquals, map[string]interface{}{"key1": "a", "key2": "b", "key3": map[string]interface{}{"sub1": "x", "sub2": "y"}})
 	}
 }
 
@@ -194,6 +270,7 @@ func (s *setSuite) TestNull(c *C) {
 	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
 	c.Assert(value, DeepEquals, []interface{}{nil})
 }
+
 func (s *getAttrSuite) SetUpTest(c *C) {
 	s.mockHandler = hooktest.NewMockHandler()
 
@@ -211,6 +288,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	}
 	dynamicPlugAttrs := map[string]interface{}{
 		"dyn-plug-attr": "c",
+		"nilattr":       nil,
 	}
 	dynamicSlotAttrs := map[string]interface{}{
 		"dyn-slot-attr": "d",
@@ -266,8 +344,14 @@ var getPlugAttributesTests = []struct {
 	args:   "get :aplug aattr",
 	stdout: "foo\n",
 }, {
+	args:  "get :aplug aattr.sub",
+	error: "snap \"test-snap\" attribute \"aattr\" is not a map",
+}, {
 	args:   "get -d :aplug baz",
 	stdout: "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n",
+}, {
+	args:  "get :aplug",
+	error: `.*get which attribute.*`,
 }, {
 	args:   "get :aplug mapattr.mapattr1",
 	stdout: "mapval1\n",
@@ -278,6 +362,9 @@ var getPlugAttributesTests = []struct {
 	args:   "get :aplug dyn-plug-attr",
 	stdout: "c\n",
 }, {
+	args:   "get -t :aplug nilattr",
+	stdout: "null\n",
+}, {
 	// The --plug parameter doesn't do anything if used on plug side
 	args:   "get --plug :aplug aattr",
 	stdout: "foo\n",
@@ -286,7 +373,7 @@ var getPlugAttributesTests = []struct {
 	stdout: "bar\n",
 }, {
 	args:  "get :aplug x",
-	error: `unknown attribute "x"`,
+	error: `no "x" attribute`,
 }, {
 	args:  "get :bslot x",
 	error: `unknown plug or slot "bslot"`,
@@ -327,7 +414,7 @@ var getSlotAttributesTests = []struct {
 	stdout: "foo\n",
 }, {
 	args:  "get :bslot x",
-	error: `unknown attribute "x"`,
+	error: `no "x" attribute`,
 }, {
 	args:  "get :aplug x",
 	error: `unknown plug or slot "aplug"`,
