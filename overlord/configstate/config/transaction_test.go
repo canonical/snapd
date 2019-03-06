@@ -90,6 +90,8 @@ func (op setGetOp) fails() bool {
 
 var setGetTests = [][]setGetOp{{
 	// Basics.
+	`set n=null`,
+	`get n=null`,
 	`set one=1 two=2`,
 	`set big=1234567890`,
 	`setunder three=3 big=9876543210`,
@@ -97,6 +99,7 @@ var setGetTests = [][]setGetOp{{
 	`getunder one=- two=- three=3 big=9876543210`,
 	`changes core.big core.one core.two`,
 	`commit`,
+	`get n=null`,
 	`getunder one=1 two=2 three=3`,
 	`get one=1 two=2 three=3`,
 	`set two=22 four=4 big=1234567890`,
@@ -136,6 +139,23 @@ var setGetTests = [][]setGetOp{{
 	`get one.two.three=3`,
 	`get one.two.four=4`,
 	`get one.five=5`,
+}, {
+	// Nested partial update with full get
+	`set one={"two":2,"three":3}`,
+	`commit`,
+	// update just one subkey
+	`set one.two=0`,
+	// both subkeys are returned
+	`get one={"two":0,"three":3}`,
+	`getroot ={"one":{"two":0,"three":3}}`,
+	`get one.two=0`,
+	`get one.three=3`,
+	`getunder one={"two":2,"three":3}`,
+	`changes core.one.two`,
+	`commit`,
+	`getroot ={"one":{"two":0,"three":3}}`,
+	`get one={"two":0,"three":3}`,
+	`getunder one={"two":0,"three":3}`,
 }, {
 	// Replacement with nested mutation.
 	`set one={"two":{"three":3}}`,
@@ -345,4 +365,25 @@ func (s *transactionSuite) TestState(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	c.Check(tr.State(), DeepEquals, s.state)
+}
+
+func (s *transactionSuite) TestPristineIsNotTainted(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Check(tr.Set("test-snap", "foo.a.a", "a"), IsNil)
+	tr.Commit()
+
+	var data interface{}
+	var result interface{}
+	tr = config.NewTransaction(s.state)
+	c.Check(tr.Set("test-snap", "foo.b", "b"), IsNil)
+	c.Check(tr.Set("test-snap", "foo.a.a", "b"), IsNil)
+	c.Assert(tr.Get("test-snap", "foo", &result), IsNil)
+	c.Check(result, DeepEquals, map[string]interface{}{"a": map[string]interface{}{"a": "b"}, "b": "b"})
+
+	pristine := tr.PristineConfig()
+	c.Assert(json.Unmarshal([]byte(*pristine["test-snap"]["foo"]), &data), IsNil)
+	c.Assert(data, DeepEquals, map[string]interface{}{"a": map[string]interface{}{"a": "a"}})
 }

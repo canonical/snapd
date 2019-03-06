@@ -1091,29 +1091,40 @@ apps:
 	}
 }
 
-func (s *ValidateSuite) TestValidateAppWatchdog(c *C) {
+func (s *ValidateSuite) TestValidateAppWatchdogTimeout(c *C) {
+	s.testValidateAppTimeout(c, "watchdog")
+}
+func (s *ValidateSuite) TestValidateAppStartTimeout(c *C) {
+	s.testValidateAppTimeout(c, "start")
+}
+func (s *ValidateSuite) TestValidateAppStopTimeout(c *C) {
+	s.testValidateAppTimeout(c, "stop")
+}
+
+func (s *ValidateSuite) testValidateAppTimeout(c *C, timeout string) {
+	timeout += "-timeout"
 	meta := []byte(`
 name: foo
 version: 1.0
 `)
-	fooAllGood := []byte(`
+	fooAllGood := []byte(fmt.Sprintf(`
 apps:
   foo:
     daemon: simple
-    watchdog-timeout: 12s
-`)
-	fooNotADaemon := []byte(`
+    %s: 12s
+`, timeout))
+	fooNotADaemon := []byte(fmt.Sprintf(`
 apps:
   foo:
-    watchdog-timeout: 12s
-`)
+    %s: 12s
+`, timeout))
 
-	fooNegative := []byte(`
+	fooNegative := []byte(fmt.Sprintf(`
 apps:
   foo:
     daemon: simple
-    watchdog-timeout: -12s
-`)
+    %s: -12s
+`, timeout))
 
 	tcs := []struct {
 		name string
@@ -1125,11 +1136,11 @@ apps:
 	}, {
 		name: "foo not a service",
 		desc: fooNotADaemon,
-		err:  `watchdog-timeout is only applicable to services`,
+		err:  timeout + ` is only applicable to services`,
 	}, {
 		name: "negative timeout",
 		desc: fooNegative,
-		err:  `watchdog-timeout cannot be negative`,
+		err:  timeout + ` cannot be negative`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)

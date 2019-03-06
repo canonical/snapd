@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -112,8 +113,11 @@ var (
 var (
 	NewAutoRefresh                = newAutoRefresh
 	NewRefreshHints               = newRefreshHints
-	NewCatalogRefresh             = newCatalogRefresh
 	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
+
+	NewCatalogRefresh            = newCatalogRefresh
+	CatalogRefreshDelayBase      = catalogRefreshDelayBase
+	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -126,6 +130,10 @@ func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
 
 func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 	cr.nextCatalogRefresh = when
+}
+
+func NextCatalogRefresh(cr *catalogRefresh) time.Time {
+	return cr.nextCatalogRefresh
 }
 
 func MockRefreshRetryDelay(d time.Duration) func() {
@@ -200,6 +208,30 @@ func setModel(override map[string]string) {
 
 	Model = func(*state.State) (*asserts.Model, error) {
 		return a.(*asserts.Model), nil
+	}
+}
+
+// re-refresh related
+var (
+	RefreshedSnaps  = refreshedSnaps
+	ReRefreshFilter = reRefreshFilter
+)
+
+type UpdateFilter = updateFilter
+
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+	old := reRefreshUpdateMany
+	reRefreshUpdateMany = f
+	return func() {
+		reRefreshUpdateMany = old
+	}
+}
+
+func MockReRefreshRetryTimeout(d time.Duration) (restore func()) {
+	old := reRefreshRetryTimeout
+	reRefreshRetryTimeout = d
+	return func() {
+		reRefreshRetryTimeout = old
 	}
 }
 

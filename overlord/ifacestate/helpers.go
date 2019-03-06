@@ -328,6 +328,35 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
+// removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
+// has no connections in the state. State must be locked by the caller.
+func (m *InterfaceManager) removeConnections(snapName string) error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
+			return fmt.Errorf("internal error: cannot remove connections of snap %s from the repository while its connections are present in the state", snapName)
+		}
+	}
+
+	repoConns, err := m.repo.Connections(snapName)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+	for _, conn := range repoConns {
+		if err := m.repo.Disconnect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name); err != nil {
+			return fmt.Errorf("internal error: %v", err)
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
 	st := task.State()
 
@@ -888,7 +917,7 @@ func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error)
 func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
 	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
-		return 0, err
+		return 0, fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
 	}
 	seq++
 	st.Set("hotplug-seq", seq)
@@ -916,18 +945,13 @@ func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
 
 // addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
 // and makes all existing tasks of the change wait for it.
-func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
+func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string, hotplugSeq int) {
 	st := hotplugChange.State()
-	seq, err := allocHotplugSeq(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
-	}
-	setHotplugChangeAttrs(hotplugChange, seq, hotplugKey)
+	setHotplugChangeAttrs(hotplugChange, hotplugSeq, hotplugKey)
 	seqControl := st.NewTask("hotplug-seq-wait", fmt.Sprintf("Serialize hotplug change for hotplug key %q", hotplugKey))
 	tss := state.NewTaskSet(hotplugChange.Tasks()...)
 	tss.WaitFor(seqControl)
 	hotplugChange.AddTask(seqControl)
-	return nil
 }
 
 type HotplugSlotInfo struct {
