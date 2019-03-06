@@ -100,10 +100,11 @@ typedef struct sc_invocation {
 	const char *security_tag;
 	const char *snap_instance;
 	struct sc_apparmor *apparmor;
+	bool is_normal_mode;
 } sc_invocation;
 
 static void enter_classic_execution_environment(const sc_invocation * inv);
-static void enter_non_classic_execution_environment(const sc_invocation * inv,
+static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid);
@@ -202,9 +203,10 @@ int main(int argc, char **argv)
 		.base_snap_name = base_snap_name,
 		.security_tag = security_tag,
 		.apparmor = &apparmor,
+		/* is_normal_mode is not probed yet */
 	};
 	/* For the ease of introducing inv to the if branch below. */
-	const sc_invocation *inv = &invocation;
+	sc_invocation *inv = &invocation;
 
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
@@ -283,7 +285,7 @@ static void enter_classic_execution_environment(const sc_invocation * inv)
 	debug("skipping sandbox setup, classic confinement in use");
 }
 
-static void enter_non_classic_execution_environment(const sc_invocation * inv,
+static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid)
@@ -327,8 +329,8 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 	// Check if we are running in normal mode with pivot root. Do this here
 	// because once on the inside of the transformed mount namespace we can no
 	// longer tell.
-	bool is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
-							inv->base_snap_name);
+	inv->is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
+			inv->base_snap_name);
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
@@ -337,7 +339,7 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 	int retval = sc_join_preserved_ns(group, inv->apparmor,
 					  inv->base_snap_name,
 					  inv->snap_instance,
-					  snap_discard_ns_fd, is_normal_mode);
+					  snap_discard_ns_fd, inv->is_normal_mode);
 	if (retval == ESRCH) {
 		/* Create and populate the mount namespace. This performs all
 		   of the bootstrapping mounts, pivots into the new root filesystem and
@@ -348,7 +350,7 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 		}
 		sc_populate_mount_ns(inv->apparmor,
 				     snap_update_ns_fd, inv->base_snap_name,
-				     inv->snap_instance, is_normal_mode);
+				     inv->snap_instance, inv->is_normal_mode);
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
