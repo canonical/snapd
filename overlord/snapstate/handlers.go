@@ -995,15 +995,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	return nil
 }
 
+func snapdSnapInstalled(st *state.State) bool {
+	var snapst SnapState
+	err := Get(st, "snapd", &snapst)
+	return err == nil
+}
+
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
-	// TODO: once classic uses the snapd snap we need to restart
-	//       here too
 	if release.OnClassic {
-		if info.Type == snap.TypeOS {
+		if (info.Type == snap.TypeOS && !snapdSnapInstalled(st)) ||
+			info.InstanceName() == "snapd" {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
 		}
@@ -1975,6 +1980,146 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-aliases-v2", curAliases)
 	snapst.AutoAliasesDisabled = false
 	Set(st, instanceName, snapst)
+	return nil
+}
+
+// changeReadyUpToTask returns whether all other change's tasks are Ready.
+func changeReadyUpToTask(task *state.Task) bool {
+	me := task.ID()
+	change := task.Change()
+	for _, task := range change.Tasks() {
+		if me == task.ID() {
+			// ignore self
+			continue
+		}
+		if !task.Status().Ready() {
+			return false
+		}
+	}
+	return true
+}
+
+// refreshedSnaps returns the instance names of the snaps successfully refreshed
+// in the last batch of refreshes before the given (re-refresh) task.
+//
+// It does this by advancing through the given task's change's tasks, keeping
+// track of the instance names from the first SnapSetup in every lane, stopping
+// when finding the given task, and resetting things when finding a different
+// re-refresh task (that indicates the end of a batch that isn't the given one).
+func refreshedSnaps(reTask *state.Task) []string {
+	// NOTE nothing requires reTask to be a check-rerefresh task, nor even to be in
+	// a refresh-ish change, but it doesn't make much sense to call this otherwise.
+	tid := reTask.ID()
+	laneSnaps := map[int]string{}
+	// change.Tasks() preserves the order tasks were added, otherwise it all falls apart
+	for _, task := range reTask.Change().Tasks() {
+		if task.ID() == tid {
+			// we've reached ourselves; we don't care about anything beyond this
+			break
+		}
+		if task.Kind() == "check-rerefresh" {
+			// we've reached a previous check-rerefresh (but not ourselves).
+			// Only snaps in tasks after this point are of interest.
+			laneSnaps = map[int]string{}
+		}
+		lanes := task.Lanes()
+		if len(lanes) != 1 {
+			// can't happen, really
+			continue
+		}
+		lane := lanes[0]
+		if lane == 0 {
+			// not really a lane
+			continue
+		}
+		if task.Status() != state.DoneStatus {
+			// ignore non-successful lane (1)
+			laneSnaps[lane] = ""
+			continue
+		}
+		if _, ok := laneSnaps[lane]; ok {
+			// ignore lanes we've already seen (including ones explicitly ignored in (1))
+			continue
+		}
+		var snapsup SnapSetup
+		if err := task.Get("snap-setup", &snapsup); err != nil {
+			continue
+		}
+		laneSnaps[lane] = snapsup.InstanceName()
+	}
+
+	snapNames := make([]string, 0, len(laneSnaps))
+	for _, name := range laneSnaps {
+		if name == "" {
+			// the lane was unsuccessful
+			continue
+		}
+		snapNames = append(snapNames, name)
+	}
+	return snapNames
+}
+
+// reRefreshSetup holds the necessary details to re-refresh snaps that need it
+type reRefreshSetup struct {
+	UserID int `json:"user-id,omitempty"`
+	*Flags
+}
+
+// reRefreshUpdateMany exists just to make testing simpler
+var reRefreshUpdateMany = updateManyFiltered
+
+// reRefreshFilter is an updateFilter that returns whether the given update
+// needs a re-refresh because of further epoch transitions available.
+func reRefreshFilter(update *snap.Info, snapst *SnapState) bool {
+	cur, err := snapst.CurrentInfo()
+	if err != nil {
+		return false
+	}
+	return !update.Epoch.Equal(&cur.Epoch)
+}
+
+var reRefreshRetryTimeout = time.Second / 10
+
+func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if numHaltTasks := t.NumHaltTasks(); numHaltTasks > 0 {
+		logger.Panicf("Re-refresh task has %d tasks waiting for it.", numHaltTasks)
+	}
+
+	if !changeReadyUpToTask(t) {
+		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
+	}
+	snaps := refreshedSnaps(t)
+	if len(snaps) == 0 {
+		// nothing to do (maybe everything failed)
+		return nil
+	}
+
+	var re reRefreshSetup
+	if err := t.Get("rerefresh-setup", &re); err != nil {
+		return err
+	}
+	chg := t.Change()
+	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, re.UserID, reRefreshFilter, re.Flags, chg.ID())
+	if err != nil {
+		return err
+	}
+
+	if len(updated) == 0 {
+		t.Logf("No re-refreshes found.")
+	} else {
+		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
+
+		for _, taskset := range tasksets {
+			chg.AddAll(taskset)
+		}
+		st.EnsureBefore(0)
+	}
+	t.SetStatus(state.DoneStatus)
+
 	return nil
 }
 

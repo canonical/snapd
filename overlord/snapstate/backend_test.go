@@ -293,6 +293,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeBase
 	case "snap-content-plug-id":
 		name = "snap-content-plug"
+	case "snap-content-slot-id":
+		name = "snap-content-slot"
 	case "snapd-id":
 		name = "snapd"
 	case "kernel-id":
@@ -694,6 +696,8 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		snapName = "alias-snap"
 	}
 	switch snapName {
+	case "snap-with-empty-epoch":
+		info.Epoch = snap.Epoch{}
 	case "some-epoch-snap":
 		info.Epoch = snap.E("13")
 	case "gadget":
