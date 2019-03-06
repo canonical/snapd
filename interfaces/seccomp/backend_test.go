@@ -643,7 +643,6 @@ fi`)
 	c.Assert(err, IsNil)
 	c.Check(profile+".src", testutil.FileEquals, updatedProfileHeader+"\ndefault\n")
 
-	// 2 calls now
 	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
