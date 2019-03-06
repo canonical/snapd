@@ -570,7 +570,6 @@ func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetectedNotSerialPort(c *C) 
 	c.Assert(proposedSlot, IsNil)
 }
 
-
 func (s *SerialPortInterfaceSuite) TestHotplugHandledByGadget(c *C) {
 	byGadgetPred := s.iface.(hotplug.HandledByGadgetPredicate)
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/ttyXRUSB0", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
