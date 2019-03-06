@@ -4365,26 +4365,13 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	})
 }
 
-func snapInstallAppendErrorTrigger(c *C, chg *state.Change) {
-	tasks := chg.Tasks()
-	// we need to make it not be rerefresh, and we could do just
-	// that but instead we do the 'right' thing and attach it to
-	// the last task that's on a lane.
-	var last *state.Task
+func lastWithLane(tasks []*state.Task) *state.Task {
 	for i := len(tasks) - 1; i >= 0; i-- {
-		lanes := tasks[i].Lanes()
-		if len(lanes) == 1 && lanes[0] != 0 {
-			last = tasks[i]
-			break
+		if lanes := tasks[i].Lanes(); len(lanes) == 1 && lanes[0] != 0 {
+			return tasks[i]
 		}
 	}
-	// sanity
-	c.Assert(last, NotNil)
-
-	terr := chg.State().NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(last)
-	terr.JoinLane(last.Lanes()[0])
-	chg.AddTask(terr)
+	return nil
 }
 
 func (s *snapmgrTestSuite) TestUpdateUndoRestoresRevisionConfig(c *C) {
@@ -4439,7 +4426,13 @@ func (s *snapmgrTestSuite) TestUpdateUndoRestoresRevisionConfig(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	snapInstallAppendErrorTrigger(c, chg)
+	last := lastWithLane(ts.Tasks())
+	c.Assert(last, NotNil)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	terr.JoinLane(last.Lanes()[0])
+	chg.AddTask(terr)
 
 	s.state.Unlock()
 	defer s.se.Stop()
@@ -4479,7 +4472,16 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	snapInstallAppendErrorTrigger(c, chg)
+	// we need to make it not be rerefresh, and we could do just
+	// that but instead we do the 'right' thing and attach it to
+	// the last task that's on a lane.
+	last := lastWithLane(ts.Tasks())
+	c.Assert(last, NotNil)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	terr.JoinLane(last.Lanes()[0])
+	chg.AddTask(terr)
 
 	s.state.Unlock()
 	defer s.se.Stop()
