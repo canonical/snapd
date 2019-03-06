@@ -83,6 +83,4 @@ var (
 	GlobalProfileLE = globalProfileLE
 	GlobalProfileBE = globalProfileBE
 	IsBigEndian     = isBigEndian
-
-	SnapSeccompVersionInfo = snapSeccompVersionInfo
 )

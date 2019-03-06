@@ -36,9 +36,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -48,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -60,28 +59,13 @@ var (
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
 	snapSeccompVersionInfo   = snapSeccompVersionInfoImpl
-
-	validVersionInfo = regexp.MustCompile(`^[0-9a-f]+ [0-9]+\.[0-9]+\.[0-9]+ [0-9a-f]+$`)
 )
 
-func snapSeccompVersionInfoImpl(snapSeccompPath string) (string, error) {
-	cmd := exec.Command(snapSeccompPath, "version-info")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", osutil.OutputErr(output, err)
-	}
-	raw := bytes.TrimSpace(output)
-	if len(raw) > 120 {
-		return "", fmt.Errorf("invalid version-info length: %q", raw)
-	}
-	if match := validVersionInfo.Match(raw); !match {
-		return "", fmt.Errorf("invalid format of version-info: %q", raw)
-	}
-
-	return string(raw), nil
+func snapSeccompVersionInfoImpl(c Compiler) (string, error) {
+	return c.VersionInfo()
 }
 
-func seccompToBpfPath() string {
+func snapSeccompPath() string {
 	// FIXME: use cmd.InternalToolPath here once:
 	//   https://github.com/snapcore/snapd/pull/3512
 	// is merged
@@ -101,9 +85,14 @@ func seccompToBpfPath() string {
 	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
 }
 
+type Compiler interface {
+	Compile(in, out string) error
+	VersionInfo() (string, error)
+}
+
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
 type Backend struct {
-	snapSeccomp string
+	snapSeccomp Compiler
 	versionInfo string
 }
 
@@ -161,7 +150,7 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
 	}
 
-	b.snapSeccomp = seccompToBpfPath()
+	b.snapSeccomp = seccomp_compiler.NewAtPath(snapSeccompPath())
 	versionInfo, err := snapSeccompVersionInfo(b.snapSeccomp)
 	if err != nil {
 		return fmt.Errorf("cannot obtain snap-seccomp version information: %v", err)
@@ -228,9 +217,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 			return err
 		}
 
-		cmd := exec.Command(b.snapSeccomp, "compile", in, out)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if err := b.snapSeccomp.Compile(in, out); err != nil {
+			return fmt.Errorf("cannot compile %s: %v", in, err)
 		}
 	}
 
@@ -406,7 +394,7 @@ func requiresSocketcallImpl(baseSnap string) bool {
 }
 
 // MockSnapSeccompVersionInfo is for use in tests only.
-func MockSnapSeccompVersionInfo(s func(string) (string, error)) (restore func()) {
+func MockSnapSeccompVersionInfo(s func(c Compiler) (string, error)) (restore func()) {
 	old := snapSeccompVersionInfo
 	snapSeccompVersionInfo = s
 	return func() {

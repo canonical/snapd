@@ -21,7 +21,6 @@ package seccomp_test
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -42,9 +41,8 @@ import (
 type backendSuite struct {
 	ifacetest.BackendSuite
 
-	snapSeccomp        *testutil.MockCmd
-	profileHeader      string
-	restoreVersionInfo func()
+	snapSeccomp   *testutil.MockCmd
+	profileHeader string
 }
 
 var _ = Suite(&backendSuite{})
@@ -69,24 +67,26 @@ func (s *backendSuite) SetUpTest(c *C) {
 	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
 	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
 	c.Assert(err, IsNil)
-	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
-
-	s.restoreVersionInfo = seccomp.MockSnapSeccompVersionInfo(func(p string) (string, error) {
-		c.Check(p, Equals, snapSeccompPath)
-		return "abcdef 1.2.3 1234abcd", nil
-	})
+	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, `
+if [ "$1" = "version-info" ]; then
+    echo "abcdef 1.2.3 1234abcd"
+fi`)
 
 	s.Backend.Initialize()
 	s.profileHeader = `# snap-seccomp version information:
 # abcdef 1.2.3 1234abcd
 `
+	// make sure initialize called version-info
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "version-info"},
+	})
+	s.snapSeccomp.ForgetCalls()
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
 	s.BackendSuite.TearDownTest(c)
 
 	s.snapSeccomp.Restore()
-	s.restoreVersionInfo()
 }
 
 func (s *backendSuite) TestInitialize(c *C) {
@@ -131,9 +131,6 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
-	// mocking was installed in test set-up
-	s.restoreVersionInfo()
-
 	restore := seccomp.MockOsReadlink(func(string) (string, error) {
 		// simulate that we run snapd from core
 		return filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snapd"), nil
@@ -629,11 +626,13 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	c.Check(s.snapSeccomp.Calls(), HasLen, 1)
 
 	// change version reported by snap-seccomp
-	s.restoreVersionInfo = seccomp.MockSnapSeccompVersionInfo(func(p string) (string, error) {
-		return "2.3.3 2345abcd", nil
-	})
+	snapSeccomp := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
+if [ "$1" = "version-info" ]; then
+    echo "abcdef 2.3.3 2345abcd"
+fi`)
+	defer snapSeccomp.Restore()
 	updatedProfileHeader := `# snap-seccomp version information:
-# 2.3.3 2345abcd
+# abcdef 2.3.3 2345abcd
 `
 	// reload cached version info
 	err = s.Backend.Initialize()
@@ -645,53 +644,11 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	c.Check(profile+".src", testutil.FileEquals, updatedProfileHeader+"\ndefault\n")
 
 	// 2 calls now
-	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
+	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		// initialization with new version
+		{"snap-seccomp", "version-info"},
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
-}
-
-func (s *backendSuite) TestSnapSeccompVersionInfo(c *C) {
-
-	for i, tc := range []struct {
-		v   string
-		exp string
-		err string
-	}{
-		// valid
-		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", ""},
-		{"abcdef 0.0.0 abcd", "abcdef 0.0.0 abcd", ""},
-
-		// invalid all the way down from here
-
-		// this is over the sane length limit
-		{"b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853 2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "", "invalid version-info length: .*"},
-		// incorrect format
-		{"abcd 0.0.0 fg", "", "invalid format of version-info: .*"},
-		{"ggg 0.0.0 abc", "", "invalid format of version-info: .*"},
-		{"foo", "", "invalid format of version-info: .*"},
-		{"1", "", "invalid format of version-info: .*"},
-		{"i\ncan\nhave\nnewlines", "", "invalid format of version-info: .*"},
-		{"# invalid", "", "invalid format of version-info: .*"},
-		{"-1", "", "invalid format of version-info: .*"},
-	} {
-		c.Logf("tc: %v", i)
-		snapSeccompPath := filepath.Join(c.MkDir(), "snap-seccomp")
-		cmd := testutil.MockCommand(c, snapSeccompPath, fmt.Sprintf("echo \"%s\"", tc.v))
-
-		v, err := seccomp.SnapSeccompVersionInfo(snapSeccompPath)
-		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
-			c.Check(v, Equals, "")
-		} else {
-			c.Check(err, IsNil)
-			c.Check(v, Equals, tc.exp)
-		}
-		c.Check(cmd.Calls(), DeepEquals, [][]string{
-			{"snap-seccomp", "version-info"},
-		})
-		cmd.Restore()
-	}
-
 }
