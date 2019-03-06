@@ -41,6 +41,7 @@ import (
 
 var (
 	snapstateInstall = snapstate.Install
+	snapstateUpdate  = snapstate.Update
 )
 
 // Model returns the device model assertion.
@@ -295,6 +296,16 @@ func CanManageRefreshes(st *state.State) bool {
 // Remodel takes a new model assertion and generates a change that
 // takes the device from the old to the new model or an error if the
 // transition is not possible.
+//
+// TODO:
+// - Check estimated disk size delta
+// - Reapply gadget connections as needed
+// - Need new session/serial if changing store or model
+// - Check all relevant snaps exist in new store
+//   (need to check that even unchanged snaps are accessible)
+// - Download everything in a first phase of the change and "pin" cache
+//   files (also get assertions), which means also dealing with new bases
+//   and content providers
 func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	current, err := Model(st)
 	if err != nil {
@@ -325,7 +336,6 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	}
 
 	// calculate snap differences between the two models
-	var tss []*state.TaskSet
 	// FIXME: this needs work to switch the base to boot as well
 	if current.Base() != new.Base() {
 		return nil, fmt.Errorf("cannot remodel to different bases yet")
@@ -340,13 +350,20 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	}
 	userID := 0
 
+	var tss []*state.TaskSet
+	addTss := func(ts *state.TaskSet) {
+		if len(tss) > 0 {
+			ts.WaitAll(tss[len(tss)-1])
+		}
+		tss = append(tss, ts)
+	}
 	// adjust tracks
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstate.Update(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
+		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
 		if err != nil {
 			return nil, err
 		}
-		tss = append(tss, ts)
+		addTss(ts)
 	}
 	// adjust snaps
 	for _, snapName := range new.RequiredSnaps() {
@@ -357,13 +374,14 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 			if err != nil {
 				return nil, err
 			}
-			tss = append(tss, ts)
+			addTss(ts)
 		} else if err != nil {
 			return nil, err
 		}
 	}
 
-	// set the new model assertion
+	// Set the new model assertion - this *must* be the last thing done
+	// by the change.
 	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
 	setModel.Set("new-model", asserts.Encode(new))
 	for _, tsPrev := range tss {

@@ -96,6 +96,14 @@ func MockSnapstateInstall(f func(st *state.State, name, channel string, revision
 	}
 }
 
+func MockSnapstateUpdate(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdate
+	snapstateUpdate = f
+	return func() {
+		snapstateUpdate = old
+	}
+}
+
 func EnsureSeedYaml(m *DeviceManager) error {
 	return m.ensureSeedYaml()
 }
