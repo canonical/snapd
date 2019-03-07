@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -229,7 +230,37 @@ func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDevic
 	return &slot, nil
 }
 
+func compareSlotAndDeviceAttribute(slotAttributeValue int64, di *hotplug.HotplugDeviceInfo, devinfoAttribute string) bool {
+	var attr string
+	var ok bool
+	if attr, ok = di.Attribute(devinfoAttribute); !ok {
+		return false
+	}
+	val, err := strconv.ParseInt(attr, 16, 64)
+	return err == nil && val == slotAttributeValue
+}
+
 func (iface *serialPortInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+	// if the slot has vendor, product and interface number set, check if they match
+	var usbVendor, usbProduct, usbInterfaceNumber int64
+	if err := slot.Attr("usb-vendor", &usbVendor); err == nil {
+		if !compareSlotAndDeviceAttribute(usbVendor, di, "ID_VENDOR_ID") {
+			return false
+		}
+		if err := slot.Attr("usb-product", &usbProduct); err != nil {
+			return false
+		}
+		if !compareSlotAndDeviceAttribute(usbProduct, di, "ID_MODEL_ID") {
+			return false
+		}
+		if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
+			if !compareSlotAndDeviceAttribute(usbInterfaceNumber, di, "ID_USB_INTERFACE_NUM") {
+				return false
+			}
+		}
+		return true
+	}
+
 	var path string
 	if err := slot.Attr("path", &path); err != nil {
 		return false

@@ -578,6 +578,28 @@ func (s *SerialPortInterfaceSuite) TestHotplugHandledByGadget(c *C) {
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testSlot5Info), Equals, false)
 	// matching path /dev/ttyXRUSB0
 	c.Assert(byGadgetPred.HandledByGadget(di, s.testSlot7Info), Equals, true)
+
+	// matching on vendor, model, usb interface num
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, true)
+	// model doesn't match, everything else matches
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "ffff", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
+	// vendor doesn't match, everything else matches
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "eeee", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
+	// usb interface doesn't match, everything else matches
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "ff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
+
+	// usb interface num is optional, match on vendor/model
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "ffff", "ID_MODEL_ID": "ffff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev2Info), Equals, true)
 }
 
 func (s *SerialPortInterfaceSuite) TestInterfaces(c *C) {
