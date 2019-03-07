@@ -125,10 +125,10 @@ func definingAttributeValue(conn *client.Connection) string {
 			value, _ = conn.SlotAttrs["content"].(string)
 		}
 	}
-	if value != "" {
-		return fmt.Sprintf("[%v]", value)
+	if value == "" {
+		return ""
 	}
-	return value
+	return fmt.Sprintf("[%v]", value)
 }
 
 func (x *cmdConnections) Execute(args []string) error {
