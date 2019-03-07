@@ -101,7 +101,7 @@ typedef struct sc_invocation {
 	const char *snap_instance;
 } sc_invocation;
 
-static void enter_classic_execution_environment(const sc_invocation * inv);
+static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(const sc_invocation * inv,
 						    struct sc_apparmor *aa,
 						    uid_t real_uid,
@@ -210,7 +210,7 @@ int main(int argc, char **argv)
 	if (geteuid() == 0) {
 		if (classic_confinement) {
 			/* TODO: move everything into this call */
-			enter_classic_execution_environment(inv);
+			enter_classic_execution_environment();
 			/* 'classic confinement' is designed to run without the sandbox
 			 * inside the shared namespace. Specifically:
 			 * - snap-confine skips using the snap-specific mount namespace
@@ -442,7 +442,7 @@ int main(int argc, char **argv)
 	return 1;
 }
 
-static void enter_classic_execution_environment(const sc_invocation * inv)
+static void enter_classic_execution_environment(void)
 {
 }
 
