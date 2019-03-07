@@ -32,21 +32,20 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var _ = check.Suite(&blobSuite{})
+var _ = check.Suite(&snapFileSuite{})
 
-type blobSuite struct{}
+type snapFileSuite struct{}
 
-func (s *blobSuite) SetUpTest(c *check.C) {
+func (s *snapFileSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *blobSuite) TestGetBlob(c *check.C) {
+func (s *snapFileSuite) TestGetFile(c *check.C) {
 	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-
 		return map[string]string{"name": "foo"}
 	})()
 
-	c.Check(daemon.SnapBlobCmd.Path, check.Equals, "/v2/snaps/{name}/blob")
+	c.Check(daemon.SnapFileCmd.Path, check.Equals, "/v2/snaps/{name}/file")
 
 	o := overlord.Mock()
 	daemon.NewWithOverlord(o)
@@ -58,15 +57,15 @@ func (s *blobSuite) TestGetBlob(c *check.C) {
 		err                      string
 	}
 
-	req, err := http.NewRequest("GET", "/v2/snaps/foo/blob", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/foo/file", nil)
 	c.Assert(err, check.IsNil)
 
 	for i, scen := range []scenario{
 		{exists: true, active: true},
 		{exists: false, err: "no state entry for key"},
-		{exists: true, active: false, err: `cannot download blob of inactive snap "foo"`},
-		{exists: true, active: true, try: true, err: `cannot download blob for try-mode snap "foo"`},
-		{exists: true, wat: true, err: `cannot download blob for snap "foo": internal error: .*`},
+		{exists: true, active: false, err: `cannot download file of inactive snap "foo"`},
+		{exists: true, active: true, try: true, err: `cannot download file for try-mode snap "foo"`},
+		{exists: true, wat: true, err: `cannot download file for snap "foo": internal error: .*`},
 	} {
 		var snapst snapstate.SnapState
 		if scen.wat {
@@ -88,7 +87,7 @@ func (s *blobSuite) TestGetBlob(c *check.C) {
 			st.Unlock()
 		}
 
-		rsp := daemon.GetSnapBlob(daemon.SnapBlobCmd, req, nil)
+		rsp := daemon.GetSnapFile(daemon.SnapFileCmd, req, nil)
 		if scen.err == "" {
 			c.Check(string(rsp.(daemon.FileResponse)), check.Equals, filepath.Join(dirs.SnapBlobDir, "foo_x1.snap"), check.Commentf("%d", i))
 		} else {

@@ -19,6 +19,6 @@
 
 package daemon
 
-var SnapBlobCmd = snapBlobCmd
+var SnapFileCmd = snapFileCmd
 
-var GetSnapBlob = getSnapBlob
+var GetSnapFile = getSnapFile
