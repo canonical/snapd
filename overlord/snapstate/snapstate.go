@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // control flags for doInstall
@@ -68,7 +69,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
@@ -110,7 +111,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, snapsup.InstanceName(), snapst); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, fromChange); err != nil {
 		return nil, err
 	}
 
@@ -248,7 +249,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		var retain int
 		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
-			retain = 3
+			// on classic we only keep 2 copies by default
+			if release.OnClassic {
+				retain = 2
+			} else {
+				retain = 3
+			}
 		}
 		retain-- //  we're adding one
 
@@ -594,7 +600,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		InstanceKey: info.InstanceKey,
 	}
 
-	ts, err := doInstall(st, &snapst, snapsup, instFlags)
+	ts, err := doInstall(st, &snapst, snapsup, instFlags, "")
 	return ts, info, err
 }
 
@@ -662,7 +668,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		},
 	}
 
-	return doInstall(st, &snapst, snapsup, 0)
+	return doInstall(st, &snapst, snapsup, 0, "")
 }
 
 // InstallMany installs everything from the given list of names.
@@ -718,7 +724,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			InstanceKey:  info.InstanceKey,
 		}
 
-		ts, err := doInstall(st, &snapst, snapsup, 0)
+		ts, err := doInstall(st, &snapst, snapsup, 0, "")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -743,6 +749,18 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
 func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
+}
+
+// updateFilter is the type of function that can be passed to
+// updateManyFromChange so it filters the updates.
+//
+// If the filter returns true, the update for that snap proceeds. If
+// it returns false, the snap is removed from the list of updates to
+// consider.
+type updateFilter func(*snap.Info, *SnapState) bool
+
+func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -759,6 +777,16 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if filter != nil {
+		actual := updates[:0]
+		for _, update := range updates {
+			if filter(update, stateByInstanceName[update.InstanceName()]) {
+				actual = append(actual, update)
+			}
+		}
+		updates = actual
 	}
 
 	if ValidateRefreshes != nil && len(updates) != 0 {
@@ -784,15 +812,15 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 
 	}
 
-	return doUpdate(ctx, st, names, updates, params, userID, flags)
+	return doUpdate(ctx, st, names, updates, params, userID, flags, fromChange)
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
 
-	tasksets := make([]*state.TaskSet, 0, len(updates))
+	tasksets := make([]*state.TaskSet, 0, len(updates)+2) // 1 for auto-aliases, 1 for re-refresh
 
 	refreshAll := len(names) == 0
 	var nameSet map[string]bool
@@ -855,6 +883,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			}
 			return nil, nil, err
 		}
+
 		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
@@ -884,7 +913,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			},
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, 0)
+		ts, err := doInstall(st, snapst, snapsup, 0, fromChange)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -929,6 +958,18 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	updated := make([]string, 0, len(reportUpdated))
 	for name := range reportUpdated {
 		updated = append(updated, name)
+	}
+
+	if len(updated) > 0 {
+		// re-refresh will check the lanes to decide what to
+		// _actually_ re-refresh, but it'll be a subset of updated
+		// (and equal to updated if nothing goes wrong)
+		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Consider re-refresh of %s", strutil.Quoted(updated)))
+		rerefresh.Set("rerefresh-setup", reRefreshSetup{
+			UserID: userID,
+			Flags:  globalFlags,
+		})
+		tasksets = append(tasksets, state.NewTaskSet(rerefresh))
 	}
 
 	return updated, tasksets, nil
@@ -1193,13 +1234,16 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return channel, updateFlags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags)
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, "")
 	if err != nil {
 		return nil, err
 	}
 
 	// see if we need to update the channel or toggle ignore-validation
 	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != channel || snapst.IgnoreValidation != flags.IgnoreValidation) {
+		// NOTE: if we are in here, len(updates) == 0
+		//       (so we're free to add tasks because there's no rerefresh)
+
 		if err := CheckChangeConflict(st, name, nil); err != nil {
 			return nil, err
 		}
@@ -1783,7 +1827,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, &snapst, snapsup, 0)
+	return doInstall(st, &snapst, snapsup, 0, "")
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1824,7 +1868,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type,
-		}, 0)
+		}, 0, "")
 		if err != nil {
 			return nil, err
 		}

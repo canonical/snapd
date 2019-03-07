@@ -73,18 +73,6 @@ func (s *apiSuite) testConnections(c *check.C, query string, expected map[string
 	c.Check(body, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) testConnectedConnections(c *check.C, query string, expected map[string]interface{}) {
-	req, err := http.NewRequest("GET", query, nil)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	connectionsCmd.GET(connectionsCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, expected)
-}
-
 func (s *apiSuite) TestConnectionsUnhappy(c *check.C) {
 	s.daemon(c)
 	req, err := http.NewRequest("GET", "/v2/connections?select=bad", nil)
@@ -126,6 +114,28 @@ func (s *apiSuite) TestConnectionsEmpty(c *check.C) {
 		"status":      "OK",
 		"status-code": 200.0,
 		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestConnectionsNotFound(c *check.C) {
+	s.daemon(c)
+	req, err := http.NewRequest("GET", "/v2/connections?snap=not-found", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	connectionsCmd.GET(connectionsCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 404)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "no state entry for key",
+			"kind":    "snap-not-found",
+			"value":   "not-found",
+		},
+		"status":      "Not Found",
+		"status-code": 404.0,
+		"type":        "error",
 	})
 }
 
