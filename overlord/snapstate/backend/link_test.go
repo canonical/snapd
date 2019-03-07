@@ -277,7 +277,9 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 
 	err := s.be.LinkSnap(s.info, nil)
 	c.Assert(err, NotNil)
-	c.Assert(err, FitsTypeOf, &os.PathError{})
+	_, isPathError := err.(*os.PathError)
+	_, isLinkError := err.(*os.LinkError)
+	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%T", err))
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
 		l, err := filepath.Glob(filepath.Join(d, "*"))
@@ -300,6 +302,10 @@ func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
 	s.testLinkCleanupDirOnFail(c, dirs.SnapServicesDir)
 }
 
+func (s *linkCleanupSuite) TestLinkCleanupOnMountDirFail(c *C) {
+	s.testLinkCleanupDirOnFail(c, filepath.Dir(s.info.MountDir()))
+}
+
 func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
 		return nil, errors.New("ouchie")
@@ -314,6 +320,24 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
 	}
+}
+
+func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C) {
+	// sanity check
+	c.Assert(s.info.DataDir(), testutil.FileAbsent)
+
+	// the mountdir symlink is currently the last thing in
+	// LinkSnap that can make it fail
+	d := filepath.Dir(s.info.MountDir())
+	c.Assert(os.Chmod(d, 0), IsNil)
+	defer os.Chmod(d, 0755)
+
+	err := s.be.LinkSnap(s.info, nil)
+	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
+
+	c.Check(s.info.DataDir(), testutil.FileAbsent)
+	c.Check(filepath.Join(s.info.DataDir(), "..", "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(s.info.MountDir(), "..", "current"), testutil.FileAbsent)
 }
 
 func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
