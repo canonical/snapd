@@ -27,6 +27,9 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// Maximum number of timings to keep in state.
+const MaxTimings = 100
+
 // timingJson and rootTimingJson aid in marshalling of flattened timings into state.
 type timingJson struct {
 	Level    int           `json:"level"`
@@ -36,32 +39,31 @@ type timingJson struct {
 }
 
 type rootTimingJson struct {
-	timingJson
-	MeasuredSubject string            `json:"subject"`
-	Meta            map[string]string `json:"meta,omitempty"`
-	NestedTimings   []*timingJson     `json:"nested,omitempty"`
+	Tags          map[string]string `json:"tags,omitempty"`
+	NestedTimings []*timingJson     `json:"timings,omitempty"`
+	// the duration between start time of the first timing and the most recent stop of any timing within the tree
+	TotalDuration time.Duration `json:"total-duration"`
 }
 
 var timeDuration = func(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
-// flatten flattens nested measurements into a single list within rootTimingJson.NestedTImings.
+// flatten flattens nested measurements into a single list within rootTimingJson.NestedTimings
+// and calculates total duration.
 func (t *Timings) flatten() interface{} {
 	data := &rootTimingJson{
-		timingJson: timingJson{
-			Level:    0,
-			Label:    t.m.label,
-			Duration: timeDuration(t.m.start, t.m.stop),
-		},
-		MeasuredSubject: string(t.subject),
-		Meta:            t.meta,
+		Tags: t.tags,
 	}
-	flattenRecursive(data, t.m.nested, 1)
+	var maxStopTime time.Time
+	if len(t.timings) > 0 {
+		flattenRecursive(data, t.timings, 0, &maxStopTime)
+		data.TotalDuration = timeDuration(t.timings[0].start, maxStopTime)
+	}
 	return data
 }
 
-func flattenRecursive(data *rootTimingJson, measures []*Measure, nestLevel int) {
+func flattenRecursive(data *rootTimingJson, measures []*Timing, nestLevel int, maxStopTime *time.Time) {
 	for _, m := range measures {
 		data.NestedTimings = append(data.NestedTimings, &timingJson{
 			Level:    nestLevel,
@@ -69,17 +71,21 @@ func flattenRecursive(data *rootTimingJson, measures []*Measure, nestLevel int) 
 			Summary:  m.summary,
 			Duration: timeDuration(m.start, m.stop),
 		})
-		if len(m.nested) > 0 {
-			flattenRecursive(data, m.nested, nestLevel+1)
+		if m.stop.After(*maxStopTime) {
+			*maxStopTime = m.stop
+		}
+		if len(m.timings) > 0 {
+			flattenRecursive(data, m.timings, nestLevel+1, maxStopTime)
 		}
 	}
 }
 
-// Save appends Timings data to the "timings" list in the state.
+// Save appends Timings data to the "timings" list in the state and purges old timings, ensuring
+// that up to MaxTimings are kept.
 // It's responsibility of the caller to lock the state before calling this function.
 func (t *Timings) Save(st *state.State) error {
-	var timings []*json.RawMessage
-	if err := st.Get("timings", &timings); err != nil && err != state.ErrNoState {
+	var stateTimings []*json.RawMessage
+	if err := st.Get("timings", &stateTimings); err != nil && err != state.ErrNoState {
 		return err
 	}
 
@@ -89,28 +95,10 @@ func (t *Timings) Save(st *state.State) error {
 	}
 	entryJSON := json.RawMessage(serialized)
 
-	timings = append(timings, &entryJSON)
-	st.Set("timings", timings)
-	return nil
-}
-
-// Purge removes excess timings from the "timings" list in the state (starting from the oldest),
-// ensuring that up to maxTimings is kept.
-// It's responsibility of the caller to lock the state before calling this function.
-func Purge(st *state.State, maxTimings int) error {
-	var timings []*json.RawMessage
-	err := st.Get("timings", &timings)
-	if err == state.ErrNoState {
-		return nil
+	stateTimings = append(stateTimings, &entryJSON)
+	if len(stateTimings) > MaxTimings {
+		stateTimings = stateTimings[MaxTimings:]
 	}
-	if err != nil {
-		return err
-	}
-	if len(timings) < maxTimings {
-		return nil
-	}
-
-	timings = timings[(len(timings) - maxTimings):]
-	st.Set("timings", timings)
+	st.Set("timings", stateTimings)
 	return nil
 }

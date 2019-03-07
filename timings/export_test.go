@@ -30,3 +30,11 @@ func MockTimeDuration(durationFunc func(t1, t2 time.Time) time.Duration) func() 
 		timeDuration = old
 	}
 }
+
+func MockTimeNow(nowFunc func() time.Time) func() {
+	old := timeNow
+	timeNow = nowFunc
+	return func() {
+		timeNow = old
+	}
+}

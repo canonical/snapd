@@ -20,87 +20,79 @@
 package timings
 
 import (
-	"fmt"
 	"time"
 )
 
-// Subject is a type of the activity being measured; available subjects are defined below.
-type Subject string
-
-const (
-	// execution of ensure loop
-	Ensure Subject = "ensure"
-	// acitivity related to task
-	Task = "task"
-)
-
-// Timings represents a tree of measures concerning given Subject (activity).
-// Calling Start on the Timings objects returns a root Measure and starts a new performance measurement. Measurement needs to
-// be finished by calling Stop function on the Measure object.
-// Nested measures may be collected by calling StartNested on Measure objects. Similar to the above, nested measurements need
-// to be finished by calling Stop on them.
-//
-// Typical usagage:
-//   timing := timings.New(timings.Ensure)
-//   measure := timing.Start("computation", "...")
-//   ....
-//   nested := measure.StartNested("sub-computation", "...")
-//   ....
-//   nested.Stop()
-//   measure.Stop()
-type Timings struct {
-	subject Subject
-	meta    map[string]string
-
-	// root measurement
-	m *Measure
+var timeNow = func() time.Time {
+	return time.Now()
 }
 
-// Measure represents a single measure with optional nested measurements.
-type Measure struct {
+// Timings represents a tree of Timing measurements for a single execution of measured activity.
+// A Timings tree object should be created at the beginning of the activity,
+// followed by starting at least one Timing measurement, and then saved at the end of the activity.
+//
+// Calling Start on the Timings objects creates a Timing and starts new
+// performance measurement. Measurement needs to be finished by calling Stop
+// function on the Timing object.
+// Nested measures may be collected by calling Start on Timing objects. Similar
+// to the above, nested measurements need to be finished by calling Stop on them.
+//
+// Typical usagage:
+//   timingsTree := timings.New(timings.Ensure)
+//   timing := timing.Start("computation", "...")
+//   ....
+//   nestedTiming := measure.Start("sub-computation", "...")
+//   ....
+//   nestedTiming.Stop()
+//   timing.Stop()
+//   timingsTree.Save()
+type Timings struct {
+	tags    map[string]string
+	timings []*Timing
+}
+
+// Timing represents a single performance measurement with optional nested measurements.
+type Timing struct {
 	label, summary string
 	start, stop    time.Time
-	nested         []*Measure
+	timings        []*Timing
 }
 
 // New creates a Timings object.
-func New(subject Subject, metaInfo map[string]string) *Timings {
+func New(tags map[string]string) *Timings {
 	return &Timings{
-		subject: subject,
-		meta:    metaInfo,
+		tags: tags,
 	}
 }
 
-// Starts creates and returns root Measure and initiates performance measurement.
+func start(label, summary string) *Timing {
+	meas := &Timing{
+		label:   label,
+		summary: summary,
+		start:   timeNow(),
+	}
+	return meas
+}
+
+// Starts creates a Timing and initiates performance measurement.
 // Measurement needs to be stopped by calling Stop on it.
-func (t *Timings) Start(label, summary string) *Measure {
-	if t.m != nil {
-		panic(fmt.Sprintf("timing %q already started", label))
-	}
-	t.m = &Measure{
-		label:   label,
-		summary: summary,
-		start:   time.Now(),
-	}
-	return t.m
+func (t *Timings) Start(label, summary string) *Timing {
+	meas := start(label, summary)
+	t.timings = append(t.timings, meas)
+	return meas
 }
 
-// StartNested creates a new nested Measure and initiates performance measurement.
+// Start creates a new nested Timing and initiates performance measurement.
 // Nested measure needs to be stopped by calling Stop on it.
-func (m *Measure) StartNested(label, summary string) *Measure {
-	meas := &Measure{
-		label:   label,
-		summary: summary,
-		start:   time.Now(),
-	}
-	m.nested = append(m.nested, meas)
+func (t *Timing) Start(label, summary string) *Timing {
+	meas := start(label, summary)
+	t.timings = append(t.timings, meas)
 	return meas
 }
 
 // Stops the measurement.
-func (m *Measure) Stop() {
-	if !m.stop.IsZero() {
-		panic(fmt.Sprintf("measure %q already stopped", m.label))
-	}
-	m.stop = time.Now()
+func (t *Timing) Stop() {
+	if t.stop.IsZero() {
+		t.stop = timeNow()
+	} // else - stopping already stopped timing is an error, but just ignore it
 }
