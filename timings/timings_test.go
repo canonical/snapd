@@ -64,7 +64,7 @@ func (s *timingsSuite) mockDuration(c *C) {
 
 func (s *timingsSuite) mockTimeNow(c *C) {
 	s.fakeTime = time.Now()
-	// Increase duration by 1 millisecond on each call
+	// Increase fakeTime by 1 millisecond on each call, and report it as current time
 	s.BaseTest.AddCleanup(timings.MockTimeNow(func() time.Time {
 		s.fakeTime = s.fakeTime.Add(time.Millisecond)
 		return s.fakeTime
@@ -182,7 +182,8 @@ func (s *timingsSuite) TestDuration(c *C) {
 
 func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	s.mockDuration(c)
-	timings.MockMaxTimings(3)
+	restore := timings.MockMaxTimings(3)
+	defer restore()
 
 	s.st.Lock()
 	defer s.st.Unlock()
