@@ -182,12 +182,13 @@ func (s *timingsSuite) TestDuration(c *C) {
 
 func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	s.mockDuration(c)
+	timings.MockMaxTimings(3)
 
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	// Create lots of timings
-	for i := 0; i < timings.MaxTimings+3; i++ {
+	for i := 0; i < 10; i++ {
 		t := timings.New(map[string]string{"number": fmt.Sprintf("%d", i)})
 		m := t.Start("...", "...")
 		m.Stop()
@@ -199,7 +200,7 @@ func (s *timingsSuite) TestPurgeOnSave(c *C) {
 
 	// excess timings got dropped
 	c.Assert(stateTimings, HasLen, 3)
-	c.Check(stateTimings[0].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "100"})
-	c.Check(stateTimings[1].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "101"})
-	c.Check(stateTimings[2].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "102"})
+	c.Check(stateTimings[0].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "7"})
+	c.Check(stateTimings[1].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "8"})
+	c.Check(stateTimings[2].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "9"})
 }

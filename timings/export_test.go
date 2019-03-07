@@ -38,3 +38,11 @@ func MockTimeNow(nowFunc func() time.Time) func() {
 		timeNow = old
 	}
 }
+
+func MockMaxTimings(newMaxTimings int) func() {
+	old := maxTimings
+	maxTimings = newMaxTimings
+	return func() {
+		maxTimings = old
+	}
+}

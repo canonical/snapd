@@ -27,9 +27,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// Maximum number of timings to keep in state.
-const MaxTimings = 100
-
 // timingJson and rootTimingJson aid in marshalling of flattened timings into state.
 type timingJson struct {
 	Level    int           `json:"level"`
@@ -44,6 +41,9 @@ type rootTimingJson struct {
 	// the duration between start time of the first timing and the most recent stop of any timing within the tree
 	TotalDuration time.Duration `json:"total-duration"`
 }
+
+// Maximum number of timings to keep in state.
+var maxTimings = 100
 
 var timeDuration = func(start, end time.Time) time.Duration {
 	return end.Sub(start)
@@ -96,8 +96,8 @@ func (t *Timings) Save(st *state.State) error {
 	entryJSON := json.RawMessage(serialized)
 
 	stateTimings = append(stateTimings, &entryJSON)
-	if len(stateTimings) > MaxTimings {
-		stateTimings = stateTimings[MaxTimings:]
+	if len(stateTimings) > maxTimings {
+		stateTimings = stateTimings[len(stateTimings) - maxTimings:]
 	}
 	st.Set("timings", stateTimings)
 	return nil
