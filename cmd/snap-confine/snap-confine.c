@@ -99,11 +99,11 @@ typedef struct sc_invocation {
 	const char *base_snap_name;
 	const char *security_tag;
 	const char *snap_instance;
-	struct sc_apparmor *apparmor;
 } sc_invocation;
 
-static void enter_classic_execution_environment(const sc_invocation * inv);
+static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(const sc_invocation * inv,
+						    struct sc_apparmor *aa,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid);
@@ -201,17 +201,18 @@ int main(int argc, char **argv)
 		.snap_instance = snap_instance,
 		.base_snap_name = base_snap_name,
 		.security_tag = security_tag,
-		.apparmor = &apparmor,
 	};
 	/* For the ease of introducing inv to the if branch below. */
 	const sc_invocation *inv = &invocation;
+	struct sc_apparmor *aa = &apparmor;
 
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
 		if (classic_confinement) {
-			enter_classic_execution_environment(inv);
+			enter_classic_execution_environment();
 		} else {
-			enter_non_classic_execution_environment(inv, real_uid,
+			enter_non_classic_execution_environment(inv, aa,
+								real_uid,
 								real_gid,
 								saved_gid);
 		}
@@ -233,7 +234,7 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-	sc_maybe_aa_change_onexec(&apparmor, security_tag);
+	sc_maybe_aa_change_onexec(aa, security_tag);
 #ifdef HAVE_SECCOMP
 	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
@@ -271,7 +272,7 @@ int main(int argc, char **argv)
 	return 1;
 }
 
-static void enter_classic_execution_environment(const sc_invocation * inv)
+static void enter_classic_execution_environment(void)
 {
 	/* 'classic confinement' is designed to run without the sandbox inside the
 	 * shared namespace. Specifically:
@@ -284,6 +285,7 @@ static void enter_classic_execution_environment(const sc_invocation * inv)
 }
 
 static void enter_non_classic_execution_environment(const sc_invocation * inv,
+						    struct sc_apparmor *aa,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid)
@@ -327,8 +329,8 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */
-	sc_fork_helper(group, inv->apparmor);
-	int retval = sc_join_preserved_ns(group, inv->apparmor,
+	sc_fork_helper(group, aa);
+	int retval = sc_join_preserved_ns(group, aa,
 					  inv->base_snap_name,
 					  inv->snap_instance,
 					  snap_discard_ns_fd);
@@ -340,7 +342,7 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		sc_populate_mount_ns(inv->apparmor,
+		sc_populate_mount_ns(aa,
 				     snap_update_ns_fd, inv->base_snap_name,
 				     inv->snap_instance);
 
@@ -364,7 +366,7 @@ static void enter_non_classic_execution_environment(const sc_invocation * inv,
 			if (unshare(CLONE_NEWNS) < 0) {
 				die("cannot unshare the mount namespace");
 			}
-			sc_setup_user_mounts(inv->apparmor, snap_update_ns_fd,
+			sc_setup_user_mounts(aa, snap_update_ns_fd,
 					     inv->snap_instance);
 			/* Preserve the mount per-user namespace. But only if the
 			 * experimental feature is enabled. This way if the feature is
