@@ -133,6 +133,8 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 			Manual:    cstate.Auto == false,
 			Gadget:    cstate.ByGadget,
 			Interface: cstate.Interface,
+			PlugAttrs: cstate.PlugAttrs,
+			SlotAttrs: cstate.SlotAttrs,
 		}
 		if cstate.Undesired {
 			// explicitly disconnected are always manual
