@@ -96,15 +96,17 @@ static void sc_maybe_fixup_udev(void)
 }
 
 typedef struct sc_invocation {
+	/* Things declared by the system. */
 	const char *base_snap_name;
 	const char *security_tag;
 	const char *snap_instance;
-	struct sc_apparmor *apparmor;
+	/* Things derived at runtime. */
 	bool is_normal_mode;
 } sc_invocation;
 
-static void enter_classic_execution_environment(const sc_invocation * inv);
+static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
+						    struct sc_apparmor *aa,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid);
@@ -202,18 +204,19 @@ int main(int argc, char **argv)
 		.snap_instance = snap_instance,
 		.base_snap_name = base_snap_name,
 		.security_tag = security_tag,
-		.apparmor = &apparmor,
 		/* is_normal_mode is not probed yet */
 	};
 	/* For the ease of introducing inv to the if branch below. */
 	sc_invocation *inv = &invocation;
+	struct sc_apparmor *aa = &apparmor;
 
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
 		if (classic_confinement) {
-			enter_classic_execution_environment(inv);
+			enter_classic_execution_environment();
 		} else {
-			enter_non_classic_execution_environment(inv, real_uid,
+			enter_non_classic_execution_environment(inv, aa,
+								real_uid,
 								real_gid,
 								saved_gid);
 		}
@@ -235,7 +238,7 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-	sc_maybe_aa_change_onexec(&apparmor, security_tag);
+	sc_maybe_aa_change_onexec(aa, security_tag);
 #ifdef HAVE_SECCOMP
 	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
@@ -273,7 +276,7 @@ int main(int argc, char **argv)
 	return 1;
 }
 
-static void enter_classic_execution_environment(const sc_invocation * inv)
+static void enter_classic_execution_environment(void)
 {
 	/* 'classic confinement' is designed to run without the sandbox inside the
 	 * shared namespace. Specifically:
@@ -286,6 +289,7 @@ static void enter_classic_execution_environment(const sc_invocation * inv)
 }
 
 static void enter_non_classic_execution_environment(sc_invocation * inv,
+						    struct sc_apparmor *aa,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid)
@@ -330,16 +334,17 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// because once on the inside of the transformed mount namespace we can no
 	// longer tell.
 	inv->is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
-			inv->base_snap_name);
+							inv->base_snap_name);
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */
-	sc_fork_helper(group, inv->apparmor);
-	int retval = sc_join_preserved_ns(group, inv->apparmor,
+	sc_fork_helper(group, aa);
+	int retval = sc_join_preserved_ns(group, aa,
 					  inv->base_snap_name,
 					  inv->snap_instance,
-					  snap_discard_ns_fd, inv->is_normal_mode);
+					  snap_discard_ns_fd,
+					  inv->is_normal_mode);
 	if (retval == ESRCH) {
 		/* Create and populate the mount namespace. This performs all
 		   of the bootstrapping mounts, pivots into the new root filesystem and
@@ -348,7 +353,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		sc_populate_mount_ns(inv->apparmor,
+		sc_populate_mount_ns(aa,
 				     snap_update_ns_fd, inv->base_snap_name,
 				     inv->snap_instance, inv->is_normal_mode);
 
@@ -372,7 +377,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			if (unshare(CLONE_NEWNS) < 0) {
 				die("cannot unshare the mount namespace");
 			}
-			sc_setup_user_mounts(inv->apparmor, snap_update_ns_fd,
+			sc_setup_user_mounts(aa, snap_update_ns_fd,
 					     inv->snap_instance);
 			/* Preserve the mount per-user namespace. But only if the
 			 * experimental feature is enabled. This way if the feature is
