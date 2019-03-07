@@ -77,6 +77,10 @@ func MockReleaseInfoVersionId(s string) (restore func()) {
 	}
 }
 
+func (b *Backend) VersionInfo() string {
+	return b.versionInfo
+}
+
 var (
 	RequiresSocketcall = requiresSocketcall
 

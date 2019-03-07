@@ -43,6 +43,8 @@ type backendSuite struct {
 
 	snapSeccomp   *testutil.MockCmd
 	profileHeader string
+
+	restoreReadlink func()
 }
 
 var _ = Suite(&backendSuite{})
@@ -64,6 +66,10 @@ func (s *backendSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(dirs.SnapSeccompDir, 0700)
 	c.Assert(err, IsNil)
 
+	s.restoreReadlink = seccomp.MockOsReadlink(func(string) (string, error) {
+		// pretend that snapd is run from distro libexecdir
+		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
+	})
 	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
 	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
 	c.Assert(err, IsNil)
@@ -87,6 +93,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 	s.BackendSuite.TearDownTest(c)
 
 	s.snapSeccomp.Restore()
+	s.restoreReadlink()
 }
 
 func (s *backendSuite) TestInitialize(c *C) {
@@ -650,4 +657,42 @@ fi`)
 		{"snap-seccomp", "version-info"},
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
+}
+
+func (s *backendSuite) TestInitializationDuringBootstrap(c *C) {
+	// undo what was done in test set-up
+	s.snapSeccomp.Restore()
+	os.Remove(s.snapSeccomp.Exe())
+
+	// during bootstrap, before seeding, snapd/core snap is mounted at some
+	// random location under /tmp
+	tmpDir := c.MkDir()
+	restore := seccomp.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(tmpDir, "usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
+	// ensure we have a mocked snap-seccomp on core
+	snapSeccompInMountedPath := filepath.Join(tmpDir, "usr/lib/snapd/snap-seccomp")
+	err := os.MkdirAll(filepath.Dir(snapSeccompInMountedPath), 0755)
+	c.Assert(err, IsNil)
+	snapSeccompInMounted := testutil.MockCommand(c, snapSeccompInMountedPath, `if [ "$1" = "version-info" ]; then
+echo "2345cdef 2.3.4 2345cdef"
+fi`)
+	defer snapSeccompInMounted.Restore()
+
+	// rerun initialization
+	err = s.Backend.Initialize()
+	c.Assert(err, IsNil)
+
+	// ensure the snap-seccomp from the regular path was *not* used
+	c.Check(s.snapSeccomp.Calls(), HasLen, 0)
+	// the one from mounted snap was used
+	c.Check(snapSeccompInMounted.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "version-info"},
+	})
+
+	sb, ok := s.Backend.(*seccomp.Backend)
+	c.Assert(ok, Equals, true)
+	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef")
 }

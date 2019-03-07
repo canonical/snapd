@@ -69,19 +69,15 @@ func snapSeccompPath() string {
 	// FIXME: use cmd.InternalToolPath here once:
 	//   https://github.com/snapcore/snapd/pull/3512
 	// is merged
-	snapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	defaultSnapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
 
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
 		logger.Noticef("cannot read /proc/self/exe: %v, using default snap-seccomp command", err)
-		return snapSeccomp
-	}
-	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
-		return snapSeccomp
+		return defaultSnapSeccomp
 	}
 
-	// if we are re-execed, then snap-seccomp is at the same location
-	// as snapd
+	// snap-seccomp is at the same location as snapd
 	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
 }
 
