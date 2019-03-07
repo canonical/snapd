@@ -1407,18 +1407,6 @@ architectures:
 	c.Assert(err, NotNil)
 }
 
-func (s *YamlSuite) TestSnapYamlLicenseParsing(c *C) {
-	y := []byte(`
-name: foo
-version: 1.0
-license-agreement: explicit
-license-version: 12`)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-	c.Assert(info.LicenseAgreement, Equals, "explicit")
-	c.Assert(info.LicenseVersion, Equals, "12")
-}
-
 // apps
 
 func (s *YamlSuite) TestSimpleAppExample(c *C) {
