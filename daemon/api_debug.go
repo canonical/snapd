@@ -123,6 +123,14 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(true, nil)
 	case "get-base-declaration":
 		return getBaseDeclaration(st)
+	case "get-model":
+		model, err := devicestate.Model(st)
+		if err != nil {
+			return InternalError("cannot get model: %v", err)
+		}
+		return SyncResponse(map[string]interface{}{
+			"model": string(asserts.Encode(model)),
+		}, nil)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
