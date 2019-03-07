@@ -343,9 +343,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		sc_populate_mount_ns(aa,
-				     snap_update_ns_fd, inv->base_snap_name,
-				     inv->snap_instance, inv->is_normal_mode);
+		sc_populate_mount_ns(aa, snap_update_ns_fd, inv);
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
