@@ -178,6 +178,19 @@ type ConnectionState struct {
 	// Undesired indicates whether the connection, otherwise established
 	// automatically, was explicitly disconnected
 	Undesired bool
+	PlugAttrs map[string]interface{}
+	SlotAttrs map[string]interface{}
+}
+
+func mergeAttrs(one map[string]interface{}, other map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{}, len(one)+len(other))
+	for k, v := range one {
+		merged[k] = v
+	}
+	for k, v := range other {
+		merged[k] = v
+	}
+	return merged
 }
 
 // ConnectionStates return the state of connections tracked by the manager
@@ -196,6 +209,8 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 			ByGadget:  cstate.ByGadget,
 			Interface: cstate.Interface,
 			Undesired: cstate.Undesired,
+			PlugAttrs: mergeAttrs(cstate.StaticPlugAttrs, cstate.DynamicPlugAttrs),
+			SlotAttrs: mergeAttrs(cstate.StaticSlotAttrs, cstate.DynamicSlotAttrs),
 		}
 	}
 	return connStateByRef, nil
