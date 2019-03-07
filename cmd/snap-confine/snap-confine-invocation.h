@@ -28,8 +28,10 @@
 typedef struct sc_invocation {
 	/* Things declared by the system. */
 	const char *base_snap_name;
+	const char *executable;
 	const char *security_tag;
 	const char *snap_instance;
+	bool classic_confinement;
 	/* Things derived at runtime. */
 	bool is_normal_mode;
 } sc_invocation;

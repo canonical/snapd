@@ -193,9 +193,11 @@ int main(int argc, char **argv)
 
 	/* Invocation helps to pass relevant data to various parts of snap-confine. */
 	sc_invocation invocation = {
-		.snap_instance = snap_instance,
 		.base_snap_name = base_snap_name,
+		.executable = executable,
 		.security_tag = security_tag,
+		.snap_instance = snap_instance,
+		.classic_confinement = classic_confinement
 		/* is_normal_mode is not probed yet */
 	};
 	/* For the ease of introducing inv to the if branch below. */
