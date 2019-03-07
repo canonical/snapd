@@ -701,6 +701,20 @@ func (s *snapmgrTestSuite) TestRevertTasksClassic(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.testUpdateCreatesGCTasks(c, 2)
+}
+
+func (s *snapmgrTestSuite) TestUpdateCreatesGCTasksOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.testUpdateCreatesGCTasks(c, 3)
+}
+
+func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -719,7 +733,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 2, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, expectedDiscards, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -820,6 +834,9 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -7349,6 +7366,8 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	restore := release.MockOnClassic(false)
+	defer restore()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -10247,6 +10266,9 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 }
 
 func (s *snapmgrTestSuite) testUpdateSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	opts.revert = false
 	snapst, ts := s.testOpSequence(c, opts)
 	// update always ends with current==seq[-1]==via:
@@ -10264,6 +10286,9 @@ func (s *snapmgrTestSuite) testUpdateSequence(c *C, opts *opSeqOpts) *state.Task
 }
 
 func (s *snapmgrTestSuite) testUpdateFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	opts.revert = false
 	opts.after = opts.before
 	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf(filepath.Join(dirs.SnapMountDir, "some-snap/%d"), opts.via)
@@ -10286,6 +10311,9 @@ func (s *snapmgrTestSuite) testUpdateFailureSequence(c *C, opts *opSeqOpts) *sta
 
 // testTotal*Failure fails *after* link-snap
 func (s *snapmgrTestSuite) testTotalUpdateFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	opts.revert = false
 	opts.fail = true
 	snapst, ts := s.testOpSequence(c, opts)
@@ -10490,6 +10518,8 @@ func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
 func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	restore := release.MockOnClassic(false)
+	defer restore()
 
 	si1 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
 	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}
