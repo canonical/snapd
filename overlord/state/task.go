@@ -465,14 +465,24 @@ func (t *Task) At(when time.Time) {
 	}
 }
 
+// TaskSetEdge allows marking tasks inside a TaskSet
+type TaskSetEdge string
+
 // A TaskSet holds a set of tasks.
 type TaskSet struct {
 	tasks []*Task
+
+	edges map[TaskSetEdge]*Task
 }
 
 // NewTaskSet returns a new TaskSet comprising the given tasks.
 func NewTaskSet(tasks ...*Task) *TaskSet {
-	return &TaskSet{tasks}
+	return &TaskSet{tasks, nil}
+}
+
+// Edge returns the task marked with the given TaskSetEdge
+func (ts TaskSet) Edge(e TaskSetEdge) *Task {
+	return ts.edges[e]
 }
 
 // WaitFor registers a task as a requirement for the tasks in the set
@@ -499,6 +509,14 @@ func (ts *TaskSet) AddTask(task *Task) {
 		}
 	}
 	ts.tasks = append(ts.tasks, task)
+}
+
+// MarkEdge marks the given task as a specific edge
+func (ts *TaskSet) MarkEdge(task *Task, edge TaskSetEdge) {
+	if ts.edges == nil {
+		ts.edges = make(map[TaskSetEdge]*Task)
+	}
+	ts.edges[edge] = task
 }
 
 // AddAll adds all the tasks in the argument set to the target set ts.
