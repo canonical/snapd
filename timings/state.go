@@ -97,7 +97,7 @@ func (t *Timings) Save(st *state.State) error {
 
 	stateTimings = append(stateTimings, &entryJSON)
 	if len(stateTimings) > maxTimings {
-		stateTimings = stateTimings[len(stateTimings) - maxTimings:]
+		stateTimings = stateTimings[len(stateTimings)-maxTimings:]
 	}
 	st.Set("timings", stateTimings)
 	return nil
