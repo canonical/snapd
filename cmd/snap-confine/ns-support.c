@@ -442,9 +442,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
-			 *apparmor, const char *base_snap_name,
-			 const char *snap_name, int snap_discard_ns_fd,
-			 bool is_normal_mode)
+			 *apparmor, sc_invocation * inv, int snap_discard_ns_fd)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -485,8 +483,8 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
-		    (mnt_fd, snap_name, base_snap_name,
-		     snap_discard_ns_fd, is_normal_mode) == EAGAIN) {
+		    (mnt_fd, inv->snap_instance, inv->base_snap_name,
+		     snap_discard_ns_fd, inv->is_normal_mode) == EAGAIN) {
 			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.

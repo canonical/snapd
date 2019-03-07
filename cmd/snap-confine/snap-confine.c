@@ -334,11 +334,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */
 	sc_fork_helper(group, aa);
-	int retval = sc_join_preserved_ns(group, aa,
-					  inv->base_snap_name,
-					  inv->snap_instance,
-					  snap_discard_ns_fd,
-					  inv->is_normal_mode);
+	int retval = sc_join_preserved_ns(group, aa, inv, snap_discard_ns_fd);
 	if (retval == ESRCH) {
 		/* Create and populate the mount namespace. This performs all
 		   of the bootstrapping mounts, pivots into the new root filesystem and
