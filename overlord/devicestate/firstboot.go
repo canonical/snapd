@@ -347,9 +347,7 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	}
 
 	// set device,model from the model assertion
-	device.Brand = modelAssertion.BrandID()
-	device.Model = modelAssertion.Model()
-	if err := auth.SetDevice(st, device); err != nil {
+	if err := setDeviceFromModelAssertion(st, device, modelAssertion); err != nil {
 		return nil, err
 	}
 
