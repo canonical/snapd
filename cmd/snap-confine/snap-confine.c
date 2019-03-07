@@ -44,6 +44,7 @@
 #include "user-support.h"
 #include "cookie-support.h"
 #include "snap-confine-args.h"
+#include "snap-confine-invocation.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
@@ -94,15 +95,6 @@ static void sc_maybe_fixup_udev(void)
 		unlink(glob_res.gl_pathv[i]);
 	}
 }
-
-typedef struct sc_invocation {
-	/* Things declared by the system. */
-	const char *base_snap_name;
-	const char *security_tag;
-	const char *snap_instance;
-	/* Things derived at runtime. */
-	bool is_normal_mode;
-} sc_invocation;
 
 static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
