@@ -42,8 +42,8 @@ type rootTimingJson struct {
 	TotalDuration time.Duration `json:"total-duration"`
 }
 
-// Maximum number of timings to keep in state.
-var maxTimings = 100
+// Maximum number of timings to keep in state. It can be changed only while holding state lock.
+var MaxTimings = 100
 
 var timeDuration = func(start, end time.Time) time.Duration {
 	return end.Sub(start)
@@ -63,19 +63,19 @@ func (t *Timings) flatten() interface{} {
 	return data
 }
 
-func flattenRecursive(data *rootTimingJson, measures []*Timing, nestLevel int, maxStopTime *time.Time) {
-	for _, m := range measures {
+func flattenRecursive(data *rootTimingJson, timings []*Timing, nestLevel int, maxStopTime *time.Time) {
+	for _, tm := range timings {
 		data.NestedTimings = append(data.NestedTimings, &timingJson{
 			Level:    nestLevel,
-			Label:    m.label,
-			Summary:  m.summary,
-			Duration: timeDuration(m.start, m.stop),
+			Label:    tm.label,
+			Summary:  tm.summary,
+			Duration: timeDuration(tm.start, tm.stop),
 		})
-		if m.stop.After(*maxStopTime) {
-			*maxStopTime = m.stop
+		if tm.stop.After(*maxStopTime) {
+			*maxStopTime = tm.stop
 		}
-		if len(m.timings) > 0 {
-			flattenRecursive(data, m.timings, nestLevel+1, maxStopTime)
+		if len(tm.timings) > 0 {
+			flattenRecursive(data, tm.timings, nestLevel+1, maxStopTime)
 		}
 	}
 }
@@ -91,13 +91,13 @@ func (t *Timings) Save(st *state.State) error {
 
 	serialized, err := json.Marshal(t.flatten())
 	if err != nil {
-		return fmt.Errorf("internal error: could not marshal value: %v", err)
+		return fmt.Errorf("internal error: could not marshal timings: %v", err)
 	}
 	entryJSON := json.RawMessage(serialized)
 
 	stateTimings = append(stateTimings, &entryJSON)
-	if len(stateTimings) > maxTimings {
-		stateTimings = stateTimings[len(stateTimings)-maxTimings:]
+	if len(stateTimings) > MaxTimings {
+		stateTimings = stateTimings[len(stateTimings)-MaxTimings:]
 	}
 	st.Set("timings", stateTimings)
 	return nil

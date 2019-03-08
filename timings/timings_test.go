@@ -182,8 +182,11 @@ func (s *timingsSuite) TestDuration(c *C) {
 
 func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	s.mockDuration(c)
-	restore := timings.MockMaxTimings(3)
-	defer restore()
+	oldMaxTimings := timings.MaxTimings
+	timings.MaxTimings = 3
+	defer func() {
+		timings.MaxTimings = oldMaxTimings
+	}()
 
 	s.st.Lock()
 	defer s.st.Unlock()

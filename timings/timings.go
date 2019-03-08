@@ -34,14 +34,14 @@ var timeNow = func() time.Time {
 // Calling Start on the Timings objects creates a Timing and starts new
 // performance measurement. Measurement needs to be finished by calling Stop
 // function on the Timing object.
-// Nested measures may be collected by calling Start on Timing objects. Similar
+// Nested measurements may be collected by calling Start on Timing objects. Similar
 // to the above, nested measurements need to be finished by calling Stop on them.
 //
 // Typical usagage:
-//   timingsTree := timings.New(timings.Ensure)
+//   timingsTree := timings.New(map[string]string{"tag": "tag-value"})
 //   timing := timing.Start("computation", "...")
 //   ....
-//   nestedTiming := measure.Start("sub-computation", "...")
+//   nestedTiming := timing.Start("sub-computation", "...")
 //   ....
 //   nestedTiming.Stop()
 //   timing.Stop()
@@ -66,28 +66,28 @@ func New(tags map[string]string) *Timings {
 }
 
 func start(label, summary string) *Timing {
-	meas := &Timing{
+	tmeas := &Timing{
 		label:   label,
 		summary: summary,
 		start:   timeNow(),
 	}
-	return meas
+	return tmeas
 }
 
 // Starts creates a Timing and initiates performance measurement.
 // Measurement needs to be stopped by calling Stop on it.
 func (t *Timings) Start(label, summary string) *Timing {
-	meas := start(label, summary)
-	t.timings = append(t.timings, meas)
-	return meas
+	tmeas := start(label, summary)
+	t.timings = append(t.timings, tmeas)
+	return tmeas
 }
 
 // Start creates a new nested Timing and initiates performance measurement.
-// Nested measure needs to be stopped by calling Stop on it.
+// Nested measurements need to be stopped by calling Stop on it.
 func (t *Timing) Start(label, summary string) *Timing {
-	meas := start(label, summary)
-	t.timings = append(t.timings, meas)
-	return meas
+	tmeas := start(label, summary)
+	t.timings = append(t.timings, tmeas)
+	return tmeas
 }
 
 // Stops the measurement.
