@@ -656,7 +656,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 var contentLinkRetryTimeout = 30 * time.Second
 
 // timeout for retrying hotplug-related tasks
-var hotplugRetryTimeout = 2 * time.Second
+var hotplugRetryTimeout = 300 * time.Millisecond
 
 // defaultContentProviders returns a dict of the default-providers for the
 // content plugs for the given instanceName
@@ -1653,6 +1653,7 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 		// conflict with retry if there another change affecting same device and has lower sequence number
 		if hotplugKey == otherKey && otherSeq < seq {
 			task.Logf("Waiting processing of earlier hotplug event change %q affecting device with hotplug key %q", otherChg.Kind(), hotplugKey)
+			// TODO: consider introducing a new task that runs last and does EnsureBefore(0) for hotplug changes
 			return &state.Retry{After: hotplugRetryTimeout}
 		}
 	}
