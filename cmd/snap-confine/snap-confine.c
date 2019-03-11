@@ -117,40 +117,12 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	const char *snap_instance = getenv("SNAP_INSTANCE_NAME");
-	if (snap_instance == NULL) {
-		die("SNAP_INSTANCE_NAME is not set");
-	}
-	sc_instance_name_validate(snap_instance, NULL);
-
-	// Collect and validate the security tag and a few other things passed on
-	// command line.
-	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag, snap_instance)) {
-		die("security tag %s not allowed", security_tag);
-	}
-	const char *executable = sc_args_executable(args);
-	const char *base_snap_name = sc_args_base_snap(args) ? : "core";
-	bool classic_confinement = sc_args_is_classic_confinement(args);
-
-	sc_snap_name_validate(base_snap_name, NULL);
-
-
-	/* Invocation helps to pass relevant data to various parts of snap-confine. */
-	sc_invocation invocation = {
-		.base_snap_name = base_snap_name,
-		.executable = executable,
-		.security_tag = security_tag,
-		.snap_instance = snap_instance,
-		.classic_confinement = classic_confinement
-		/* is_normal_mode is not probed yet */
-	};
-
-	debug("security tag: %s", security_tag);
-	debug("executable:   %s", executable);
-	debug("confinement:  %s",
-	      classic_confinement ? "classic" : "non-classic");
-	debug("base snap:    %s", base_snap_name);
+	/* Collect all invocation parameters. This gives us authorative
+	 * information about what needs to be invoked and how. The data comes
+	 * from either the environment or from command line arguments and
+	 * doesn't have a separate lifecycle. */
+	sc_invocation invocation;
+	sc_init_invocation(&invocation, args, getenv("SNAP_INSTANCE_NAME"));
 
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;
@@ -180,9 +152,10 @@ int main(int argc, char **argv)
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
-	if (!sc_is_hook_security_tag(security_tag)) {
+	if (!sc_is_hook_security_tag(invocation.security_tag)) {
 		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-		snap_context = sc_cookie_get_from_snapd(snap_instance, &err);
+		snap_context =
+		    sc_cookie_get_from_snapd(invocation.snap_instance, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));
 		}
@@ -203,10 +176,11 @@ int main(int argc, char **argv)
 	}
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
-		if (classic_confinement) {
+		if (invocation.classic_confinement) {
 			enter_classic_execution_environment();
 		} else {
-			enter_non_classic_execution_environment(&invocation, &apparmor,
+			enter_non_classic_execution_environment(&invocation,
+								&apparmor,
 								real_uid,
 								real_gid,
 								saved_gid);
@@ -229,9 +203,9 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-	sc_maybe_aa_change_onexec(&apparmor, security_tag);
+	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
 #ifdef HAVE_SECCOMP
-	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
+	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
 		sc_apply_global_seccomp_profile();
@@ -257,12 +231,12 @@ int main(int argc, char **argv)
 			die("permanently dropping privs did not work");
 	}
 	// and exec the new executable
-	argv[0] = (char *)executable;
-	debug("execv(%s, %s...)", executable, argv[0]);
+	argv[0] = (char *)invocation.executable;
+	debug("execv(%s, %s...)", invocation.executable, argv[0]);
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
-	execv(executable, (char *const *)&argv[0]);
+	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
 }
