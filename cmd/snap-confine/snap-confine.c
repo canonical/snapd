@@ -200,8 +200,6 @@ int main(int argc, char **argv)
 		.classic_confinement = classic_confinement
 		/* is_normal_mode is not probed yet */
 	};
-	/* For the ease of introducing inv to the if branch below. */
-	sc_invocation *inv = &invocation;
 	struct sc_apparmor *aa = &apparmor;
 
 	// TODO: check for similar situation and linux capabilities.
@@ -209,7 +207,7 @@ int main(int argc, char **argv)
 		if (classic_confinement) {
 			enter_classic_execution_environment();
 		} else {
-			enter_non_classic_execution_environment(inv, aa,
+			enter_non_classic_execution_environment(&invocation, aa,
 								real_uid,
 								real_gid,
 								saved_gid);
