@@ -589,140 +589,79 @@ profile "snap.samba_foo.smbd" (attach_disconnected,mediate_deleted) {
 	s.RemoveSnap(c, snapInfo)
 }
 
-// On openSUSE Tumbleweed partial apparmor support doesn't change apparmor template to classic.
-// Strict confinement template, along with snippets, are used.
-func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
-	restore := release.MockAppArmorLevel(release.PartialAppArmor)
-	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed"})
-	defer restore()
-	restore = osutil.MockKernelVersion("4.16.10-1-default")
-	defer restore()
-	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
-	defer restore()
-	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
-	defer restore()
-	// NOTE: replace the real template with a shorter variant
-	restoreTemplate := apparmor.MockTemplate("\n" +
+func mockManyThingsAtOnceOhMy(c *C, kernelVersion string, releaseID string, releaseIDLike ...string) (restore func()) {
+	restore1 := release.MockAppArmorLevel(release.PartialAppArmor)
+	restore2 := release.MockReleaseInfo(&release.OS{ID: releaseID, IDLike: releaseIDLike})
+	restore3 := osutil.MockKernelVersion(kernelVersion)
+	restore4 := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore5 := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	// Replace the real template with a shorter variant that is easier to test.
+	restore6 := apparmor.MockTemplate("\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
 		"###SNIPPETS###\n" +
 		"}\n")
-	defer restoreTemplate()
-	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
+	restore7 := apparmor.MockClassicTemplate("\n" +
 		"#classic\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
 		"###SNIPPETS###\n" +
 		"}\n")
-	defer restoreClassicTemplate()
+
+	return func() {
+		restore1()
+		restore2()
+		restore3()
+		restore4()
+		restore5()
+		restore6()
+		restore7()
+	}
+}
+
+// On openSUSE tumbleweed partial apparmor support doesn't change apparmor template to classic.
+// Strict confinement template, along with snippets, are used.
+func (s *backendSuite) TestCombineSnippetsOpenSUSE(c *C) {
+	restore := mockManyThingsAtOnceOhMy(c, "4.16-10-1-default", "opensuse-tumbleweed")
+	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
 		return nil
 	}
-
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
 }
 
-// On openSUSE Tumbleweed running older kernel partial apparmor support changes
+// On openSUSE tumbleweed running older kernel partial apparmor support changes
 // apparmor template to classic.
-func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
-	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+func (s *backendSuite) TestCombineSnippetsOpenSUSEOldKernel(c *C) {
+	restore := mockManyThingsAtOnceOhMy(c, "4.14", "opensuse-tumbleweed")
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed"})
-	defer restore()
-	restore = osutil.MockKernelVersion("4.14")
-	defer restore()
-	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
-	defer restore()
-	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
-	defer restore()
-	// NOTE: replace the real template with a shorter variant
-	restoreTemplate := apparmor.MockTemplate("\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-	defer restoreTemplate()
-	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
-		"#classic\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-	defer restoreClassicTemplate()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
 		return nil
 	}
-
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	c.Check(profile, testutil.FileEquals, "\n#classic"+commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n")
 }
 
 func (s *backendSuite) TestCombineSnippetsArchOldIDSufficientHardened(c *C) {
-	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	restore := mockManyThingsAtOnceOhMy(c, "4.18.2.a-1-hardened", "arch", "archlinux")
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "arch", IDLike: []string{"archlinux"}})
-	defer restore()
-	restore = osutil.MockKernelVersion("4.18.2.a-1-hardened")
-	defer restore()
-	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
-	defer restore()
-	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
-	defer restore()
-	// NOTE: replace the real template with a shorter variant
-	restoreTemplate := apparmor.MockTemplate("\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-	defer restoreTemplate()
-	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
-		"#classic\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-	defer restoreClassicTemplate()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
 		return nil
 	}
-
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
 }
 
 func (s *backendSuite) TestCombineSnippetsArchSufficientHardened(c *C) {
-	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	restore := mockManyThingsAtOnceOhMy(c, "4.18.2.a-1-hardened", "archlinux")
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "archlinux"})
-	defer restore()
-	restore = osutil.MockKernelVersion("4.18.2.a-1-hardened")
-	defer restore()
-	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
-	defer restore()
-	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
-	defer restore()
-	// NOTE: replace the real template with a shorter variant
-	restoreTemplate := apparmor.MockTemplate("\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-	defer restoreTemplate()
-	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
-		"#classic\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-	defer restoreClassicTemplate()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
 		return nil
