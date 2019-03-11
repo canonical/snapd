@@ -117,13 +117,13 @@ hooks:
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101, 105})
 }
 
-func (s *refreshSuite) TestHardRefreshCheck(c *C) {
+func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	// Mock directory locations.
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
 	// There are no errors when cgroups are absent.
-	err := snapstate.HardRefreshCheck("foo")
+	err := snapstate.HardNothingRunningRefreshCheck("foo")
 	c.Check(err, IsNil)
 
 	snapPath := filepath.Join(dirs.FreezerCgroupDir, "snap.foo")
@@ -133,20 +133,20 @@ func (s *refreshSuite) TestHardRefreshCheck(c *C) {
 
 	// Presence of any processes blocks refresh.
 	writePids(c, snapPath, []int{100})
-	err = snapstate.HardRefreshCheck("foo")
+	err = snapstate.HardNothingRunningRefreshCheck("foo")
 	c.Check(err, ErrorMatches, `snap "foo" has running apps or hooks`)
 
 	// Services are not excluded from the check.
 	writePids(c, snapPath, []int{100})
 	writePids(c, daemonPath, []int{100})
-	err = snapstate.HardRefreshCheck("foo")
+	err = snapstate.HardNothingRunningRefreshCheck("foo")
 	c.Check(err, ErrorMatches, `snap "foo" has running apps or hooks`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{100})
 
 	// Apps are not excluded from the check.
 	writePids(c, snapPath, []int{101})
 	writePids(c, appPath, []int{101})
-	err = snapstate.HardRefreshCheck("foo")
+	err = snapstate.HardNothingRunningRefreshCheck("foo")
 	c.Check(err, ErrorMatches, `snap "foo" has running apps or hooks`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
@@ -155,7 +155,7 @@ func (s *refreshSuite) TestHardRefreshCheck(c *C) {
 	writePids(c, daemonPath, []int{})
 	writePids(c, appPath, []int{})
 	writePids(c, hookPath, []int{105})
-	err = snapstate.HardRefreshCheck("foo")
+	err = snapstate.HardNothingRunningRefreshCheck("foo")
 	c.Check(err, ErrorMatches, `snap "foo" has running apps or hooks`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 }

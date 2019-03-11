@@ -114,7 +114,7 @@ func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 	}
 }
 
-// HardRefreshCheck looks if there are any processes alive.
+// HardNothingRunningRefreshCheck looks if there are any processes alive.
 //
 // The check is designed to run late in the refresh pipeline, after stopping
 // snap services. At this point services should be stopped, hooks should no
@@ -124,7 +124,7 @@ func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 // The check looks at the set of PIDs in the freezer cgroup associated with a
 // given snap. Presence of any processes indicates that a snap is busy and
 // refresh cannot proceed.
-func HardRefreshCheck(snapName string) error {
+func HardNothingRunningRefreshCheck(snapName string) error {
 	pidSet, err := pidSetOfSnap(snapName)
 	if err != nil {
 		return err
