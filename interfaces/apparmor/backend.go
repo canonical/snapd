@@ -318,7 +318,7 @@ func profileIsRemovableOnCoreSetup(fn string) bool {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm *timings.Timing) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm *timings.Span) error {
 	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -398,7 +398,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	var errReloadChanged error
-	tm.Run("load changed profiles", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm *timings.Timing) {
+	tm.Run("load changed profiles", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm *timings.Span) {
 		errReloadChanged = loadProfiles(pathnames, cache, skipReadCache)
 	})
 
@@ -411,7 +411,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	var errReloadOther error
-	tm.Run("load unchanged profiles", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm *timings.Timing) {
+	tm.Run("load unchanged profiles", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm *timings.Span) {
 		errReloadOther = loadProfiles(pathnames, cache, 0)
 	})
 	errUnload := unloadProfiles(removed, cache)

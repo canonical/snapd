@@ -44,7 +44,7 @@ type backendSuite struct {
 	ifacetest.BackendSuite
 
 	parserCmd *testutil.MockCmd
-	meas *timings.Timing
+	meas *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
@@ -94,7 +94,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
 	perf := timings.New(nil)
-	s.meas = perf.Start("", "")
+	s.meas = perf.StartSpan("", "")
 
 	err := os.MkdirAll(dirs.AppArmorCacheDir, 0700)
 	c.Assert(err, IsNil)

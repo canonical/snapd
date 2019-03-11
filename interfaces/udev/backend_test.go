@@ -39,7 +39,7 @@ type backendSuite struct {
 	ifacetest.BackendSuite
 
 	udevadmCmd *testutil.MockCmd
-	meas *timings.Timing
+	meas *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
@@ -73,7 +73,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	perf := timings.New(nil)
-	s.meas = perf.Start("", "")
+	s.meas = perf.StartSpan("", "")
 }
 
 func (s *backendSuite) TearDownTest(c *C) {

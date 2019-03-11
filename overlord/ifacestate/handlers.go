@@ -46,7 +46,7 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	}
 }
 
-func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm *timings.Timing) error {
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm *timings.Span) error {
 	st := task.State()
 
 	// Setup security of the affected snaps.
@@ -68,7 +68,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		tm.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", affectedSnapInfo.InstanceName()), func(nesttm *timings.Timing) {
+		tm.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", affectedSnapInfo.InstanceName()), func(nesttm *timings.Span) {
 			err = m.setupSnapSecurity(task, affectedSnapInfo, opts, nesttm)
 		})
 		if err != nil {
@@ -112,13 +112,13 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 	opts := confinementOptions(snapsup.Flags)
 
-	meas.Run("setup profiles", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm *timings.Timing) {
+	meas.Run("setup profiles", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm *timings.Span) {
 		err = m.setupProfilesForSnap(task, tomb, snapInfo, opts, tm)
 	})
 	return err
 }
 
-func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm *timings.Timing) error {
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm *timings.Span) error {
 	st := task.State()
 
 	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
@@ -208,7 +208,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
 	}
 
-	tm.Run("setup security by backend", fmt.Sprintf("setup security of %d affected snaps", len(affectedSnaps)), func(nesttm *timings.Timing) {
+	tm.Run("setup security by backend", fmt.Sprintf("setup security of %d affected snaps", len(affectedSnaps)), func(nesttm *timings.Span) {
 		err = m.setupSecurityByBackend(task, affectedSnaps, confinementOpts, nesttm)
 	})
 	return err
@@ -233,7 +233,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	return m.removeProfilesForSnap(task, tomb, snapName, meas)
 }
 
-func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm *timings.Timing) error {
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm *timings.Span) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
@@ -294,7 +294,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		// The snap was not installed before so undo should remove security profiles.
-		meas.Run("remove profiles for snap", fmt.Sprintf("remove profiles of snap %q", snapName), func(tm *timings.Timing) {
+		meas.Run("remove profiles for snap", fmt.Sprintf("remove profiles of snap %q", snapName), func(tm *timings.Span) {
 			err = m.removeProfilesForSnap(task, tomb, snapName, tm)
 		})
 		return err
@@ -305,7 +305,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		meas.Run("setup profiles for snap", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm *timings.Timing) {
+		meas.Run("setup profiles for snap", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm *timings.Span) {
 			err = m.setupProfilesForSnap(task, tomb, snapInfo, opts, tm)
 		})
 		return err
@@ -491,7 +491,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slot.Snap.InstanceName()), func(tm *timings.Timing) {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slot.Snap.InstanceName()), func(tm *timings.Span) {
 		err = m.setupSnapSecurity(task, slot.Snap, slotOpts, tm)
 	})
 	if err != nil {
@@ -499,7 +499,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", plug.Snap.InstanceName()), func(tm *timings.Timing) {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", plug.Snap.InstanceName()), func(tm *timings.Span) {
 		err = m.setupSnapSecurity(task, plug.Snap, plugOpts, tm)
 	})
 	if err != nil {
@@ -567,7 +567,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slotRef.Snap), func(tm *timings.Timing) {
+		meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slotRef.Snap), func(tm *timings.Span) {
 			err = m.setupSnapSecurity(task, snapInfo, opts, tm)
 		})
 		if err != nil {
@@ -671,14 +671,14 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slot.Snap.InstanceName()), func(tm *timings.Timing) {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slot.Snap.InstanceName()), func(tm *timings.Span) {
 		err = m.setupSnapSecurity(task, slot.Snap, slotOpts, tm)
 	})
 	if err != nil {
 		return err
 	}
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", plug.Snap.InstanceName()), func(tm *timings.Timing) {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", plug.Snap.InstanceName()), func(tm *timings.Span) {
 		err = m.setupSnapSecurity(task, plug.Snap, plugOpts, tm)
 	})
 	if err != nil {

@@ -23,17 +23,17 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func NewForTask(task *state.Task) (*Timings, *Timing) {
+func NewForTask(task *state.Task) (*Timings, *Span) {
 	tags := map[string]string{"id": task.ID()}
 	if chg := task.Change(); chg != nil {
 		tags["change-id"] = chg.ID()
 	}
 	t := New(tags)
-	return t, t.Start(task.Kind(), task.Summary())
+	return t, t.StartSpan(task.Kind(), task.Summary())
 }
 
-func (t *Timing) Run(label, summary string, f func(nestedTiming *Timing)) {
-	meas := t.Start(label, summary)
+func (t *Span) Run(label, summary string, f func(nestedTiming *Span)) {
+	meas := t.StartSpan(label, summary)
 	f(meas)
 	meas.Stop()
 }

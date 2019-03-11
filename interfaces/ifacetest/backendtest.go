@@ -36,7 +36,7 @@ type BackendSuite struct {
 	RootDir         string
 	restoreSanitize func()
 
-	meas *timings.Timing
+	meas *timings.Span
 }
 
 func (s *BackendSuite) SetUpTest(c *C) {
@@ -50,7 +50,7 @@ func (s *BackendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	perf := timings.New(nil)
-	s.meas = perf.Start("", "")
+	s.meas = perf.StartSpan("", "")
 
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }

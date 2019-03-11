@@ -42,7 +42,7 @@ func Test(t *testing.T) {
 type backendSuite struct {
 	ifacetest.BackendSuite
 	modprobeCmd *testutil.MockCmd
-	meas *timings.Timing
+	meas *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
@@ -61,7 +61,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.modprobeCmd = testutil.MockCommand(c, "modprobe", "")
 
 	perf := timings.New(nil)
-	s.meas = perf.Start("", "")
+	s.meas = perf.StartSpan("", "")
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
