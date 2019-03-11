@@ -396,7 +396,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	for i, profile := range changed {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
-	errReloadChanged := loadProfiles(pathnames, cache, skipReadCache)
+
+	var errReloadChanged error
+	tm.Run("load changed profiles", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm *timings.Timing) {
+		errReloadChanged = loadProfiles(pathnames, cache, skipReadCache)
+	})
+
 	// Load all unchanged profiles anyway. This ensures those are correct in
 	// the kernel even if the files on disk were not changed. We rely on
 	// apparmor cache to make this performant.
@@ -404,7 +409,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	for i, profile := range unchanged {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
-	errReloadOther := loadProfiles(pathnames, cache, 0)
+
+	var errReloadOther error
+	tm.Run("load unchanged profiles", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm *timings.Timing) {
+		errReloadOther = loadProfiles(pathnames, cache, 0)
+	})
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
