@@ -20,8 +20,25 @@
 #include <selinux/selinux.h>
 #include <selinux/context.h>
 
+#include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/utils.h"
 #include "../libsnap-confine-private/string-utils.h"
+
+static void sc_freecon(char **ctx)
+{
+	if (ctx != NULL && *ctx != NULL) {
+		freecon(*ctx);
+		*ctx = NULL;
+	}
+}
+
+static void sc_context_free(context_t *ctx)
+{
+	if (ctx != NULL && *ctx != NULL) {
+		context_free(*ctx);
+		*ctx = NULL;
+	}
+}
 
 /**
  * Set security context for the snap
@@ -34,13 +51,13 @@ int sc_selinux_set_snap_execcon(void)
 		return 0;
 	}
 
-	char *ctx_str = NULL;
+	char *ctx_str SC_CLEANUP(sc_freecon) = NULL;
 	if (getcon(&ctx_str) < 0) {
 		die("cannot obtain current SELinux process context");
 	}
 	debug("current SELinux process context: %s", ctx_str);
 
-	context_t ctx = context_new(ctx_str);
+	context_t ctx SC_CLEANUP(sc_context_free) = context_new(ctx_str);
 	if (ctx == NULL) {
 		die("cannot create SELinux context from context string %s", ctx_str);
 	}
@@ -71,7 +88,5 @@ int sc_selinux_set_snap_execcon(void)
 		debug("SELinux context after next exec: %s", new_ctx_str);
 	}
 
-	context_free(ctx);
-	freecon(ctx_str);
 	return 0;
 }
