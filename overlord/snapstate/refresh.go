@@ -142,8 +142,8 @@ func HardRefreshCheck(snapName string) error {
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
 type BusySnapError struct {
-	pids          []int
 	snapName      string
+	pids          []int
 	busyAppNames  []string
 	busyHookNames []string
 }
