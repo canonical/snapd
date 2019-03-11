@@ -22,9 +22,9 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"time"
 )
 
 type progress struct {
@@ -425,6 +425,11 @@ func (t *Task) WaitTasks() []*Task {
 func (t *Task) HaltTasks() []*Task {
 	t.state.reading()
 	return t.state.tasksIn(t.haltTasks)
+}
+
+// NumHaltTasks returns the number of tasks registered to wait for t.
+func (t *Task) NumHaltTasks() int {
+	return len(t.haltTasks)
 }
 
 // Lanes returns the lanes the task is in.

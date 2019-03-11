@@ -66,11 +66,13 @@ type interfaceAction struct {
 // connectionsJSON aids in marshalling information about a single connection
 // into JSON
 type connectionJSON struct {
-	Slot      interfaces.SlotRef `json:"slot"`
-	Plug      interfaces.PlugRef `json:"plug"`
-	Interface string             `json:"interface"`
-	Manual    bool               `json:"manual,omitempty"`
-	Gadget    bool               `json:"gadget,omitempty"`
+	Slot      interfaces.SlotRef     `json:"slot"`
+	Plug      interfaces.PlugRef     `json:"plug"`
+	Interface string                 `json:"interface"`
+	Manual    bool                   `json:"manual,omitempty"`
+	Gadget    bool                   `json:"gadget,omitempty"`
+	SlotAttrs map[string]interface{} `json:"slot-attrs,omitempty"`
+	PlugAttrs map[string]interface{} `json:"plug-attrs,omitempty"`
 }
 
 // legacyConnectionsJSON aids in marshaling legacy connections into JSON.

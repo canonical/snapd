@@ -57,6 +57,45 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func isSameAssertsRevision(err error) bool {
+	if e, ok := err.(*asserts.RevisionError); ok {
+		if e.Used == e.Current {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var modelass []byte
+	if err := t.Get("new-model", &modelass); err != nil {
+		return err
+	}
+
+	ass, err := asserts.Decode(modelass)
+	if err != nil {
+		return err
+	}
+
+	_, ok := ass.(*asserts.Model)
+	if !ok {
+		return fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
+	}
+
+	err = assertstate.Add(st, ass)
+	if err != nil && !isSameAssertsRevision(err) {
+		return err
+	}
+
+	// TODO: set device,model from the new model assertion
+	// return setDeviceFromModelAssertion(st, device, model)
+	return nil
+}
+
 func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
