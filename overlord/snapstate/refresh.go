@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// SoftRefreshCheck looks if there are at most only service processes alive.
+// SoftNothingRunningRefreshCheck looks if there are at most only service processes alive.
 //
 // The check is designed to run early in the refresh pipeline. Before
 // downloading or stopping services for the update, we can check that only
@@ -46,7 +46,7 @@ import (
 // new commands. The hard check needs to be synchronized but the soft check
 // doesn't require this since it would serve no purpose. After the soft check
 // passes the user is free to start snap applications and block the hard check.
-func SoftRefreshCheck(info *snap.Info) error {
+func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 	// Find the set of PIDs that belong to the snap, excluding any that belong
 	// to services since services are stopped for refresh and will likely not
 	// interfere.

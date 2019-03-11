@@ -51,7 +51,7 @@ func writePids(c *C, dir string, pids []int) {
 	c.Assert(err, IsNil)
 }
 
-func (s *refreshSuite) TestSoftRefreshCheck(c *C) {
+func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	yamlText := `
 name: foo
 version: 1
@@ -71,7 +71,7 @@ hooks:
 	defer dirs.SetRootDir("")
 
 	// There are no errors when cgroups are absent.
-	err := snapstate.SoftRefreshCheck(info)
+	err := snapstate.SoftNothingRunningRefreshCheck(info)
 	c.Check(err, IsNil)
 
 	snapPath := filepath.Join(dirs.FreezerCgroupDir, "snap.foo")
@@ -81,20 +81,20 @@ hooks:
 
 	// Processes not traced to a service block refresh.
 	writePids(c, snapPath, []int{100})
-	err = snapstate.SoftRefreshCheck(info)
+	err = snapstate.SoftNothingRunningRefreshCheck(info)
 	c.Check(err, ErrorMatches, `snap "foo" has running apps or hooks`)
 
 	// Services are excluded from the check.
 	writePids(c, snapPath, []int{100})
 	writePids(c, daemonPath, []int{100})
-	err = snapstate.SoftRefreshCheck(info)
+	err = snapstate.SoftNothingRunningRefreshCheck(info)
 	c.Check(err, IsNil)
 
 	// Apps are not excluded.
 	writePids(c, snapPath, []int{100, 101})
 	writePids(c, daemonPath, []int{100})
 	writePids(c, appPath, []int{101})
-	err = snapstate.SoftRefreshCheck(info)
+	err = snapstate.SoftNothingRunningRefreshCheck(info)
 	c.Check(err, ErrorMatches, `snap "foo" has running apps \(app\)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
@@ -103,7 +103,7 @@ hooks:
 	writePids(c, daemonPath, []int{})
 	writePids(c, appPath, []int{})
 	writePids(c, hookPath, []int{105})
-	err = snapstate.SoftRefreshCheck(info)
+	err = snapstate.SoftNothingRunningRefreshCheck(info)
 	c.Check(err, ErrorMatches, `snap "foo" has running hooks \(configure\)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 
@@ -112,7 +112,7 @@ hooks:
 	writePids(c, daemonPath, []int{100})
 	writePids(c, appPath, []int{101})
 	writePids(c, hookPath, []int{105})
-	err = snapstate.SoftRefreshCheck(info)
+	err = snapstate.SoftNothingRunningRefreshCheck(info)
 	c.Check(err, ErrorMatches, `snap "foo" has running apps \(app\) and hooks \(configure\)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101, 105})
 }
