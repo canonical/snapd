@@ -47,4 +47,18 @@ typedef struct sc_invocation {
  **/
 void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance);
 
+/**
+ * sc_apply_invocation_fallback implements special fallback behavior.
+ *
+ * When performing ubuntu-core to core migration, the  snap "core" may not be
+ * mounted yet. In that mode when snapd instructs us to use "core" as the base
+ * snap name snap-confine may choose to transparently fallback to "ubuntu-core"
+ * it that is available instead.
+ *
+ * This check must be performed in the regular mount namespace (that is, that
+ * of the init process) because it relies on the value of compile-time-choice
+ * of SNAP_MOUNT_DIR.
+ **/
+void sc_apply_invocation_fallback(sc_invocation *inv);
+
 #endif

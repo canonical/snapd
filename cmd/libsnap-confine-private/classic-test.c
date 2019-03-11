@@ -178,6 +178,10 @@ static void test_is_on_custom_base(void)
 
 static void test_should_use_normal_mode(void)
 {
+	g_assert_false(sc_should_use_normal_mode(SC_DISTRO_CORE16, "ubuntu-core"));
+	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CORE_OTHER, "ubuntu-core"));
+	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CLASSIC, "ubuntu-core"));
+
 	g_assert_false(sc_should_use_normal_mode(SC_DISTRO_CORE16, "core"));
 	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CORE_OTHER, "core"));
 	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CLASSIC, "core"));

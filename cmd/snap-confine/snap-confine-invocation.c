@@ -17,9 +17,14 @@
 
 #include "snap-confine-invocation.h"
 
+#include "config.h"
+
+#include <limits.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
 void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance) {
@@ -65,4 +70,19 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     debug("executable:   %s", inv->executable);
     debug("confinement:  %s", inv->classic_confinement ? "classic" : "non-classic");
     debug("base snap:    %s", inv->base_snap_name);
+}
+
+void sc_apply_invocation_fallback(sc_invocation *inv) {
+    /* As a special fallback, allow the base snap to degrade from "core" to
+     * "ubuntu-core". This is needed for the migration tests. */
+    char mount_point[PATH_MAX] = {0};
+    sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, inv->base_snap_name);
+
+    if (sc_streq(inv->base_snap_name, "core") && access(mount_point, F_OK) != 0) {
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, "ubuntu-core");
+        if (access(mount_point, F_OK) == 0) {
+            inv->base_snap_name = "ubuntu-core";
+            debug("falling back to ubuntu-core instead of unavailable core snap");
+        }
+    }
 }

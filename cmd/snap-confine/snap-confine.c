@@ -295,6 +295,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	struct sc_mount_ns *group = NULL;
 	group = sc_open_mount_ns(inv->snap_instance);
 
+	/* Apply fallback behaviors, if any apply. */
+	sc_apply_invocation_fallback(inv);
+
 	// Check if we are running in normal mode with pivot root. Do this here
 	// because once on the inside of the transformed mount namespace we can no
 	// longer tell.

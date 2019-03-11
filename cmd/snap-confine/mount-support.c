@@ -516,14 +516,8 @@ static bool __attribute__ ((used))
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  sc_invocation * inv)
+			  const sc_invocation * inv)
 {
-	/* NOTE: this function makes a local modification to base snap name.
-	 * This should not be done like that but for the purpose of refactoring
-	 * being purely a refactoring, this property is preserved by copying
-	 * base_snap_name out of the invocation argument and making
-	 * modifications local. */
-	const char *base_snap_name = inv->base_snap_name;
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
 	// will try to re-locate to the same directory (if possible).
@@ -534,6 +528,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 	// Classify the current distribution, as claimed by /etc/os-release.
 	sc_distro distro = sc_classify_distro();
+
 	// Check which mode we should run in, normal or legacy.
 	if (inv->is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
@@ -568,33 +563,17 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		char rootfs_dir[PATH_MAX] = { 0 };
 		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
 				 "%s/%s/current/", SNAP_MOUNT_DIR,
-				 base_snap_name);
+				 inv->base_snap_name);
 		if (access(rootfs_dir, F_OK) != 0) {
-			if (sc_streq(base_snap_name, "core")) {
-				// As a special fallback, allow the
-				// base snap to degrade from "core" to
-				// "ubuntu-core". This is needed for
-				// the migration tests.
-				base_snap_name = "ubuntu-core";
-				sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
-						 "%s/%s/current/",
-						 SNAP_MOUNT_DIR,
-						 base_snap_name);
-				if (access(rootfs_dir, F_OK) != 0) {
-					die("cannot locate the core or legacy core snap (current symlink missing?)");
-				}
-			}
-			// If after the special case handling above we are
-			// still not ok, die
-			if (access(rootfs_dir, F_OK) != 0)
-			        die("cannot locate the base snap: %s", base_snap_name);
+			die("cannot locate the base snap: %s",
+			    inv->base_snap_name);
 		}
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
 			.distro = distro,
 			.normal_mode = true,
-			.base_snap_name = base_snap_name,
+			.base_snap_name = inv->base_snap_name,
 		};
 		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
@@ -610,7 +589,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			.mounts = mounts,
 			.distro = distro,
 			.normal_mode = false,
-			.base_snap_name = base_snap_name,
+			.base_snap_name = inv->base_snap_name,
 		};
 		sc_bootstrap_mount_namespace(&legacy_config);
 	}

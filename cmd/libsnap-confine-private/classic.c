@@ -59,5 +59,7 @@ sc_distro sc_classify_distro(void)
 
 bool sc_should_use_normal_mode(sc_distro distro, const char *base_snap_name)
 {
-	return distro != SC_DISTRO_CORE16 || !sc_streq(base_snap_name, "core");
+	return distro != SC_DISTRO_CORE16 || !(sc_streq(base_snap_name, "core")
+					       || sc_streq(base_snap_name,
+							   "ubuntu-core"));
 }
