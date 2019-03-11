@@ -6074,12 +6074,16 @@ func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
-			PlugAttrs: map[string]interface{}{
-				"attr1":          "value1",
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
 				"dynamic-number": int64(7),
 			},
-			SlotAttrs: map[string]interface{}{
-				"attr2":        "value2",
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
 				"other-number": int64(9),
 			},
 		}})
@@ -6092,12 +6096,16 @@ func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
 			Interface: "test",
 			Auto:      true,
 			ByGadget:  true,
-			PlugAttrs: map[string]interface{}{
-				"attr1":          "value1",
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
 				"dynamic-number": int64(7),
 			},
-			SlotAttrs: map[string]interface{}{
-				"attr2":        "value2",
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
 				"other-number": int64(9),
 			},
 		}})
@@ -6110,12 +6118,16 @@ func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
 			Interface: "test",
 			Auto:      true,
 			Undesired: true,
-			PlugAttrs: map[string]interface{}{
-				"attr1":          "value1",
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
 				"dynamic-number": int64(7),
 			},
-			SlotAttrs: map[string]interface{}{
-				"attr2":        "value2",
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
 				"other-number": int64(9),
 			},
 		}})
