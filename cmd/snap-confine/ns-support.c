@@ -306,7 +306,7 @@ enum sc_discard_vote {
 // inspect the namespace and send information back via eventfd and then exit
 // unconditionally.
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
-						 sc_invocation * inv,
+						 const sc_invocation * inv,
 						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
@@ -443,7 +443,8 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
-			 *apparmor, sc_invocation * inv, int snap_discard_ns_fd)
+			 *apparmor, const sc_invocation * inv,
+			 int snap_discard_ns_fd)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };

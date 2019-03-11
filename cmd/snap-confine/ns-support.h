@@ -92,7 +92,7 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
  * function returns zero.
  **/
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
-			 *apparmor, sc_invocation * inv,
+			 *apparmor, const sc_invocation * inv,
 			 int snap_discard_ns_fd);
 
 /**
