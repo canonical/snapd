@@ -200,14 +200,12 @@ int main(int argc, char **argv)
 		.classic_confinement = classic_confinement
 		/* is_normal_mode is not probed yet */
 	};
-	struct sc_apparmor *aa = &apparmor;
-
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
 		if (classic_confinement) {
 			enter_classic_execution_environment();
 		} else {
-			enter_non_classic_execution_environment(&invocation, aa,
+			enter_non_classic_execution_environment(&invocation, &apparmor,
 								real_uid,
 								real_gid,
 								saved_gid);
@@ -230,7 +228,7 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-	sc_maybe_aa_change_onexec(aa, security_tag);
+	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
 	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
