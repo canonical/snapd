@@ -161,7 +161,7 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = overlord.New()
-	c.Assert(err, ErrorMatches, "EOF")
+	c.Assert(err, ErrorMatches, "cannot read state: EOF")
 }
 
 func (ovs *overlordSuite) TestNewWithPatches(c *C) {
@@ -366,6 +366,35 @@ func (ovs *overlordSuite) TestEnsureBeforeSleepy(c *C) {
 	ensure := func(s *state.State) error {
 		overlord.MockEnsureNext(o, time.Now().Add(-10*time.Hour))
 		s.EnsureBefore(0)
+		return nil
+	}
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 2,
+		ensureCalled:   make(chan struct{}),
+		ensureCallback: ensure,
+	}
+	o.AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+}
+
+func (ovs *overlordSuite) TestEnsureBeforeLater(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
+	defer restoreIntv()
+	o := overlord.Mock()
+
+	ensure := func(s *state.State) error {
+		overlord.MockEnsureNext(o, time.Now().Add(-10*time.Hour))
+		s.EnsureBefore(time.Second * 5)
 		return nil
 	}
 

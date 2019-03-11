@@ -20,23 +20,16 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
-
-func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{overlord: o}
-	d.addRoutes()
-	return d
-}
 
 func MockSnapshotSave(newSave func(*state.State, []string, []string) (uint64, []string, *state.TaskSet, error)) (restore func()) {
 	oldSave := snapshotSave

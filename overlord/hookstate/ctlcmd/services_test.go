@@ -20,10 +20,9 @@
 package ctlcmd_test
 
 import (
+	"context"
 	"fmt"
 	"sort"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -369,15 +368,17 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	c.Assert(tts[0].Tasks(), HasLen, 18)
 	c.Assert(tts[1].Tasks(), HasLen, 18)
+	c.Assert(tts[2].Tasks(), HasLen, 1)
+	c.Assert(tts[2].Tasks()[0].Kind(), Equals, "check-rerefresh")
 	chg.AddAll(tts[0])
 	chg.AddAll(tts[1])
 
 	s.st.Unlock()
 
-	for _, ts := range tts {
+	for _, ts := range tts[:2] {
 		tsTasks := ts.Tasks()
 		// assumes configure task is last
 		task := tsTasks[len(tsTasks)-1]

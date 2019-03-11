@@ -322,6 +322,21 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	}
 }
 
+func (s *backendSuite) TestControlsDeviceCgroup(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("dummy")
+		spec.SetControlsDeviceCgroup()
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		c.Check(fname, testutil.FileAbsent)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWithNewline(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {

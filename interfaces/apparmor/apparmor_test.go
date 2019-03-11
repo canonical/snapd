@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -107,43 +108,14 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplaceWithSnapdDebug(
 
 // Tests for Profile.Unload()
 
-func (s *appArmorSuite) TestUnloadProfilesRunsAppArmorParserRemove(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-	cmd := testutil.MockCommand(c, "apparmor_parser", "")
-	defer cmd.Restore()
-	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"}, dirs.AppArmorCacheDir)
-	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--remove", "snap.samba.smbd"},
-	})
-}
-
 func (s *appArmorSuite) TestUnloadProfilesMany(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", "")
-	defer cmd.Restore()
 	err := apparmor.UnloadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, dirs.AppArmorCacheDir)
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--remove", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
-	})
 }
 
 func (s *appArmorSuite) TestUnloadProfilesNone(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", "")
-	defer cmd.Restore()
 	err := apparmor.UnloadProfiles([]string{}, dirs.AppArmorCacheDir)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), HasLen, 0)
-}
-
-func (s *appArmorSuite) TestUnloadProfilesReportsErrors(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
-	defer cmd.Restore()
-	err := apparmor.UnloadProfiles([]string{"snap.samba.smbd"}, dirs.AppArmorCacheDir)
-	c.Assert(err.Error(), Equals, `cannot unload apparmor profile: exit status 42
-apparmor_parser output:
-`)
 }
 
 func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
@@ -161,6 +133,30 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+	err := os.MkdirAll(dirs.AppArmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+	// mock the forest subdir and features file
+	subdir := filepath.Join(dirs.AppArmorCacheDir, "deadbeef.0")
+	err = os.MkdirAll(subdir, 0700)
+	c.Assert(err, IsNil)
+	features := filepath.Join(subdir, ".features")
+	ioutil.WriteFile(features, []byte("blob"), 0644)
+
+	fname := filepath.Join(subdir, "profile")
+	ioutil.WriteFile(fname, []byte("blob"), 0600)
+	err = apparmor.UnloadProfiles([]string{"profile"}, dirs.AppArmorCacheDir)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(fname)
+	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(osutil.FileExists(features), Equals, true)
 }
 
 // Tests for LoadedProfiles()
@@ -218,4 +214,20 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
 	profiles, err = apparmor.LoadedProfiles()
 	c.Assert(err, ErrorMatches, `syntax error, expected: name \(mode\)`)
 	c.Check(profiles, IsNil)
+}
+
+func (s *appArmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
+	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), ErrorMatches, ".* contains a reserved apparmor char from .*", Commentf("%q is not raising an error", s))
+	}
+}
+
+func (s *appArmorSuite) TestValidateFreeFromAAREhappy(c *C) {
+	var testCases = []string{"foo", "BaR", "b-z", "foo+bar", "b00m!", "be/ep", "a%b", "a&b", "a(b", "a)b", "a=b", "a#b", "a~b", "a'b", "a_b", "a,b", "a;b", "a>b", "a<b", "a|b"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), IsNil, Commentf("%q raised an error but shouldn't", s))
+	}
 }

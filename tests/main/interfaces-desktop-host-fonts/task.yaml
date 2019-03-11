@@ -7,15 +7,27 @@ details: |
 
 systems: [-ubuntu-core-*]
 
-execute: |
-    mkdir -p /usr/share/fonts
-    echo "Distribution font" > /usr/share/fonts/dist-font.txt
+restore: |
+    rm -f /usr/share/fonts/dist-font.txt
+    rm -f /usr/local/share/fonts/local-font.txt
+    rm -f "$HOME"/.fonts/user-font1.txt
+    rm -f "$HOME"/.local/share/fonts/user-font2.txt
+    rm -f /var/cache/fontconfig/cache.txt
+    rm -f /usr/lib/fontconfig/cache/cache.txt
 
+execute: |
+    echo "Distribution font" > /usr/share/fonts/dist-font.txt
+    # this may not exist across all distributions
     mkdir -p /usr/local/share/fonts
     echo "Local font" > /usr/local/share/fonts/local-font.txt
 
-    mkdir -p /var/cache/fontconfig
-    echo "Cache file" > /var/cache/fontconfig/cache.txt
+    cache_dir=/var/cache/fontconfig
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            cache_dir=/usr/lib/fontconfig/cache
+            ;;
+    esac
+    echo "Cache file" > "$cache_dir"/cache.txt
 
     mkdir -p "$HOME"/.fonts
     echo "User font 1" > "$HOME"/.fonts/user-font1.txt
@@ -35,8 +47,8 @@ execute: |
     echo "Checking access to host /usr/local/share/fonts"
     test-snapd-desktop.check-files /usr/local/share/fonts/local-font.txt | MATCH "Local font"
 
-    echo "Checking access to host /var/cache/fontconfig"
-    test-snapd-desktop.check-files /var/cache/fontconfig/cache.txt | MATCH "Cache file"
+    echo "Checking access to host $cache_dir"
+    test-snapd-desktop.check-files "$cache_dir"/cache.txt | MATCH "Cache file"
 
     echo "Checking access to host ~/.fonts"
     test-snapd-desktop.check-files "$HOME"/.fonts/user-font1.txt | MATCH "User font 1"

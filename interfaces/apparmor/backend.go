@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,6 +42,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -285,6 +286,31 @@ func profileGlobs(snapName string) []string {
 	return []string{interfaces.SecurityTagGlob(snapName), nsProfile(snapName)}
 }
 
+// Determine if a profile filename is removable during core refresh/rollback.
+// This is needed because core devices are also special, the apparmor cache
+// gets confused too easy, especially at rollbacks, so we delete the cache. See
+// Setup(), below. Some systems employ a unified cache directory where all
+// apparmor cache files are stored under one location so ensure we don't remove
+// the snap profiles since snapd manages them elsewhere and instead only remove
+// snap-confine and system profiles (eg, as shipped by distro package manager
+// or created by the administrator). snap-confine profiles are like the
+// following:
+// - usr.lib.snapd.snap-confine.real
+// - usr.lib.snapd.snap-confine
+// - snap.core.NNNN.usr.lib.snapd.snap-confine
+// - var.lib.snapd.snap.core.NNNN.usr.lib.snapd.snap-confine
+// - snap-confine.core.NNNN
+// TODO: also the "snapd" snap here soon
+func profileIsRemovableOnCoreSetup(fn string) bool {
+	bn := path.Base(fn)
+	if strings.HasPrefix(bn, ".") {
+		return false
+	} else if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
+		return false
+	}
+	return true
+}
+
 // Setup creates and loads apparmor profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
 // the offending application process.
@@ -329,7 +355,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if snapName == "core" && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
 			for _, p := range li {
-				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
 					if err := os.Remove(p); err != nil {
 						logger.Noticef("cannot remove %q: %s", p, err)
 					}
@@ -563,6 +589,14 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
 					tagSnippets += ptraceTraceDenySnippet
 				}
+
+				// Use 'ix' rules in the home interface unless an
+				// interface asked to suppress them
+				repl := "ix"
+				if spec.SuppressHomeIx() {
+					repl = ""
+				}
+				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
 			}
 
 			return tagSnippets
@@ -615,4 +649,15 @@ func (b *Backend) SandboxFeatures() []string {
 	tags = append(tags, fmt.Sprintf("policy:%s", policy))
 
 	return tags
+}
+
+// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
+// This is exported so that other packages that indirectly interact with AppArmor backend
+// can mock isHomeUsingNFS.
+func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingNFS
+	isHomeUsingNFS = new
+	return func() {
+		isHomeUsingNFS = old
+	}
 }

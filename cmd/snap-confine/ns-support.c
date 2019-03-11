@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
-#include <linux/kdev_t.h>
 #include <sched.h>
 #include <signal.h>
 #include <string.h>
@@ -33,6 +32,7 @@
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
@@ -249,7 +249,7 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	     sc_first_mountinfo_entry(mi); mie != NULL;
 	     mie = sc_next_mountinfo_entry(mie)) {
 		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
-			base_snap_dev = MKDEV(mie->dev_major, mie->dev_minor);
+			base_snap_dev = makedev(mie->dev_major, mie->dev_minor);
 			debug("block device of snap %s, revision %s is %d:%d",
 			      base_snap_name, base_snap_rev, mie->dev_major,
 			      mie->dev_minor);
@@ -290,7 +290,7 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 		// measure.
 		debug("block device of the root filesystem is %d:%d",
 		      mie->dev_major, mie->dev_minor);
-		return base_snap_dev != MKDEV(mie->dev_major, mie->dev_minor);
+		return base_snap_dev != makedev(mie->dev_major, mie->dev_minor);
 	}
 	die("cannot find mount entry of the root filesystem");
 }
@@ -308,7 +308,8 @@ enum sc_discard_vote {
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 						 const char *snap_name,
 						 const char *base_snap_name,
-						 int snap_discard_ns_fd)
+						 int snap_discard_ns_fd,
+						 bool is_normal_mode)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
 	char fname[PATH_MAX] = { 0 };
@@ -327,12 +328,6 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// Find the device that is backing the current revision of the base snap.
 	base_snap_dev = find_base_snap_device(base_snap_name, base_snap_rev);
-
-	// Check if we are running in normal mode with pivot root. Do this here
-	// because once on the inside of the transformed mount namespace we can no
-	// longer tell.
-	bool is_normal_mode =
-	    sc_should_use_normal_mode(sc_classify_distro(), base_snap_name);
 
 	// Store the PID of this process. This is done instead of calls to
 	// getppid() below because then we can reliably track the PID of the
@@ -448,7 +443,8 @@ static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
-			 const char *snap_name, int snap_discard_ns_fd)
+			 const char *snap_name, int snap_discard_ns_fd,
+			 bool is_normal_mode)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -457,7 +453,10 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
 	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
 	if (mnt_fd < 0) {
 		die("cannot open preserved mount namespace %s", group->name);
 	}
@@ -487,7 +486,7 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
 		    (mnt_fd, snap_name, base_snap_name,
-		     snap_discard_ns_fd) == EAGAIN) {
+		     snap_discard_ns_fd, is_normal_mode) == EAGAIN) {
 			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.
@@ -527,7 +526,10 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
 	if (mnt_fd < 0) {
 		die("cannot open preserved mount namespace %s", group->name);
 	}
@@ -568,6 +570,25 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 	return ESRCH;
 }
 
+static void setup_signals_for_helper(void)
+{
+	/* Ignore the SIGPIPE signal so that we get EPIPE on the read / write
+	 * operations attempting to work with a closed pipe. This ensures that we
+	 * are not killed by the default disposition (terminate) and can return a
+	 * non-signal-death return code to the program invoking snap-confine. */
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+		die("cannot install ignore handler for SIGPIPE");
+	}
+}
+
+static void teardown_signals_for_helper(void)
+{
+	/* Undo operations done by setup_signals_for_helper. */
+	if (signal(SIGPIPE, SIG_DFL) == SIG_ERR) {
+		die("cannot restore default handler for SIGPIPE");
+	}
+}
+
 static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 {
 	// Create a pipe for sending commands to the helper process.
@@ -594,6 +615,8 @@ static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 		sc_cleanup_close(&group->pipe_helper[0]);
 		helper_main(group, apparmor, parent);
 	} else {
+		setup_signals_for_helper();
+
 		/* master */
 		sc_cleanup_close(&group->pipe_master[0]);
 		sc_cleanup_close(&group->pipe_helper[1]);
@@ -645,6 +668,12 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 		debug("helper process waiting for command");
 		sc_enable_sanity_timeout();
 		if (read(group->pipe_master[0], &command, sizeof command) < 0) {
+			int saved_errno = errno;
+			// This will ensure we get the correct error message
+			// if there is a read error because the timeout
+			// expired.
+			sc_disable_sanity_timeout();
+			errno = saved_errno;
 			die("cannot read command from the pipe");
 		}
 		sc_disable_sanity_timeout();
@@ -683,6 +712,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 		die("cannot create file %s", dst);
 	}
 	close(fd);
+
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve mount namespace of process %d as %s",
 		    (int)parent, dst);
@@ -700,6 +730,14 @@ static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent)
 	debug("capturing per-snap, per-user mount namespace");
 	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
 	sc_must_snprintf(dst, sizeof dst, "%s.%d.mnt", group->name, (int)uid);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
+	}
+	close(fd);
+
 	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot preserve per-user mount namespace of process %d as %s", (int)parent, dst);
 	}
@@ -725,8 +763,12 @@ static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
 		die("cannot send command %d to helper process", command_id);
 	}
 	debug("waiting for response from helper");
-	if (read(group->pipe_helper[0], &ack, sizeof ack) < 0) {
+	int read_n = read(group->pipe_helper[0], &ack, sizeof ack);
+	if (read_n < 0) {
 		die("cannot receive ack from helper process");
+	}
+	if (read_n == 0) {
+		die("unexpected eof from helper process");
 	}
 }
 
@@ -746,6 +788,7 @@ static void sc_wait_for_capture_helper(struct sc_mount_ns *group)
 	}
 	debug("helper process exited normally");
 	group->child = 0;
+	teardown_signals_for_helper();
 }
 
 void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor)

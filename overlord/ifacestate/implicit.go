@@ -75,6 +75,9 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 		if _, ok := snapInfo.Slots[hslotInfo.Name]; ok {
 			return fmt.Errorf("cannot add hotplug slot %s: slot already exists", hslotInfo.Name)
 		}
+		if hslotInfo.HotplugGone {
+			continue
+		}
 		snapInfo.Slots[hslotInfo.Name] = &snap.SlotInfo{
 			Name:       hslotInfo.Name,
 			Snap:       snapInfo,

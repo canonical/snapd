@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
-func updateCurrentSymlinks(info *snap.Info) error {
+func updateCurrentSymlinks(info *snap.Info) (e error) {
 	mountDir := info.MountDir()
 
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
@@ -47,19 +47,38 @@ func updateCurrentSymlinks(info *snap.Info) error {
 		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
 	}
 
-	if err := os.MkdirAll(info.DataDir(), 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return err
 	}
+	cleanup := []string{dataDir, ""}[:1] // cleanup has cap(2)
+	defer func() {
+		if e == nil {
+			return
+		}
+		for _, d := range cleanup {
+			if err := os.Remove(d); err != nil {
+				logger.Noticef("Cannot clean up %q: %v", d, err)
+			}
+		}
+	}()
 
 	if err := os.Symlink(filepath.Base(dataDir), currentDataSymlink); err != nil {
 		return err
 	}
+	cleanup = append(cleanup, currentDataSymlink)
 
 	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
 }
 
+func hasFontConfigCache(info *snap.Info) bool {
+	if info.InstanceName() == "core" || info.InstanceName() == "snapd" {
+		return true
+	}
+	return false
+}
+
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
+func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) (e error) {
 	if info.Revision.Unset() {
 		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
@@ -67,10 +86,19 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if err := generateWrappers(info); err != nil {
 		return err
 	}
+	defer func() {
+		if e == nil {
+			return
+		}
+		removeGeneratedWrappers(info, progress.Null)
+	}()
 
-	// fontconfig is only relevant on classic
-	// TODO: consider moving this to a less hidden place
-	if release.OnClassic {
+	// fontconfig is only relevant on classic and is carried by 'core' or
+	// 'snapd' snaps
+	// for non-core snaps, fontconfig cache needs to be updated before the
+	// snap applications are runnable
+	if release.OnClassic && !hasFontConfigCache(info) {
+		// XXX: does this need cleaning up? (afaict no)
 		if err := updateFontconfigCaches(); err != nil {
 			logger.Noticef("cannot update fontconfig cache: %v", err)
 		}
@@ -84,13 +112,27 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 		}
 		switch info.InstanceName() {
 		case model.Kernel(), bootBase:
+			// XXX: This *needs* to clean up if updateCurrentSymlinks fails
 			if err := boot.SetNextBoot(info); err != nil {
 				return err
 			}
 		}
 	}
 
-	return updateCurrentSymlinks(info)
+	if err := updateCurrentSymlinks(info); err != nil {
+		return err
+	}
+	// if anything below here could return error, you need to
+	// somehow clean up whatever updateCurrentSymlinks did
+
+	// for core snap, fontconfig cache can be updated after the snap has
+	// been made available
+	if release.OnClassic && hasFontConfigCache(info) {
+		if err := updateFontconfigCaches(); err != nil {
+			logger.Noticef("cannot update fontconfig cache: %v", err)
+		}
+	}
+	return nil
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter) error {

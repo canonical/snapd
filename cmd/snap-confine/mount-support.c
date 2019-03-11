@@ -62,8 +62,6 @@
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
 {
-	uid_t uid = getuid();
-	gid_t gid = getgid();
 	char tmpdir[MAX_BUF] = { 0 };
 
 	// Create a 0700 base directory, this is the base dir that is
@@ -71,8 +69,7 @@ static void setup_private_mount(const char *snap_name)
 	//
 	// Under that basedir, we put a 1777 /tmp dir that is then bind
 	// mounted for the applications to use
-	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-			 snap_name);
+	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%s_XXXXXX", snap_name);
 	if (mkdtemp(tmpdir) == NULL) {
 		die("cannot create temporary directory essential for private /tmp");
 	}
@@ -99,7 +96,7 @@ static void setup_private_mount(const char *snap_name)
 	// MS_PRIVATE needs linux > 2.6.11
 	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
 	// do the chown after the bind mount to avoid potential shenanigans
-	if (chown("/tmp/", uid, gid) < 0) {
+	if (chown("/tmp/", 0, 0) < 0) {
 		die("cannot change ownership of /tmp");
 	}
 	// chdir to original directory
@@ -343,7 +340,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
-			die("cannot use result from readlink: %s", src);
+			die("cannot use result from readlink: %s", self);
 		}
 		src = dirname(self);
 		// dirname(path) might return '.' depending on path.
@@ -519,7 +516,8 @@ static bool __attribute__ ((used))
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const char *base_snap_name, const char *snap_name)
+			  const char *base_snap_name, const char *snap_name,
+			  bool is_normal_mode)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -532,7 +530,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// Classify the current distribution, as claimed by /etc/os-release.
 	sc_distro distro = sc_classify_distro();
 	// Check which mode we should run in, normal or legacy.
-	if (sc_should_use_normal_mode(distro, base_snap_name)) {
+	if (is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
@@ -581,7 +579,10 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 					die("cannot locate the core or legacy core snap (current symlink missing?)");
 				}
 			}
-			die("cannot locate the base snap: %s", base_snap_name);
+			// If after the special case handling above we are
+			// still not ok, die
+			if (access(rootfs_dir, F_OK) != 0)
+			        die("cannot locate the base snap: %s", base_snap_name);
 		}
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,

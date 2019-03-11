@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
@@ -275,7 +277,9 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 
 	err := s.be.LinkSnap(s.info, nil)
 	c.Assert(err, NotNil)
-	c.Assert(err, FitsTypeOf, &os.PathError{})
+	_, isPathError := err.(*os.PathError)
+	_, isLinkError := err.(*os.LinkError)
+	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%T", err))
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
 		l, err := filepath.Glob(filepath.Join(d, "*"))
@@ -298,6 +302,10 @@ func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
 	s.testLinkCleanupDirOnFail(c, dirs.SnapServicesDir)
 }
 
+func (s *linkCleanupSuite) TestLinkCleanupOnMountDirFail(c *C) {
+	s.testLinkCleanupDirOnFail(c, filepath.Dir(s.info.MountDir()))
+}
+
 func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
 		return nil, errors.New("ouchie")
@@ -314,14 +322,34 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	}
 }
 
-func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
-	for _, onClassic := range []bool{false, true} {
+func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C) {
+	// sanity check
+	c.Assert(s.info.DataDir(), testutil.FileAbsent)
 
+	// the mountdir symlink is currently the last thing in
+	// LinkSnap that can make it fail
+	d := filepath.Dir(s.info.MountDir())
+	c.Assert(os.Chmod(d, 0), IsNil)
+	defer os.Chmod(d, 0755)
+
+	err := s.be.LinkSnap(s.info, nil)
+	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
+
+	c.Check(s.info.DataDir(), testutil.FileAbsent)
+	c.Check(filepath.Join(s.info.DataDir(), "..", "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(s.info.MountDir(), "..", "current"), testutil.FileAbsent)
+}
+
+func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
+	current := filepath.Join(s.info.MountDir(), "..", "current")
+
+	for _, onClassic := range []bool{false, true} {
 		restore := release.MockOnClassic(onClassic)
 		defer restore()
 
 		var updateFontconfigCaches int
 		restore = backend.MockUpdateFontconfigCaches(func() error {
+			c.Assert(osutil.FileExists(current), Equals, false)
 			updateFontconfigCaches += 1
 			return nil
 		})
@@ -334,5 +362,53 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 		} else {
 			c.Assert(updateFontconfigCaches, Equals, 0)
 		}
+		c.Assert(os.Remove(current), IsNil)
 	}
+}
+
+func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesCallsFromNewCurrent(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	const yaml = `name: core
+version: 1.0
+type: os
+`
+	// old version is 'current'
+	infoOld := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	mountDirOld := infoOld.MountDir()
+	err := os.Symlink(filepath.Base(mountDirOld), filepath.Join(mountDirOld, "..", "current"))
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Join(mountDirOld, "bin"), 0755)
+	c.Assert(err, IsNil)
+
+	oldCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v6"), "")
+	oldCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v7"), "")
+
+	infoNew := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(12)})
+	mountDirNew := infoNew.MountDir()
+
+	err = os.MkdirAll(filepath.Join(mountDirNew, "bin"), 0755)
+	c.Assert(err, IsNil)
+
+	newCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v6"), "")
+	newCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v7"), "")
+
+	// provide our own mock, osutil.CommandFromCore expects an ELF binary
+	restore = backend.MockCommandFromCore(func(mountDir, name string, args ...string) (*exec.Cmd, error) {
+		cmd := filepath.Join(mountDir, "core", "current", name)
+		c.Logf("command from core: %v", cmd)
+		return exec.Command(cmd, args...), nil
+	})
+	defer restore()
+
+	err = s.be.LinkSnap(infoNew, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(oldCmdV6.Calls(), HasLen, 0)
+	c.Check(oldCmdV7.Calls(), HasLen, 0)
+
+	c.Check(newCmdV6.Calls(), HasLen, 1)
+	c.Check(newCmdV7.Calls(), HasLen, 1)
 }
