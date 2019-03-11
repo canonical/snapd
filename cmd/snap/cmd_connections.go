@@ -78,12 +78,12 @@ func endpoint(snap, name string) string {
 }
 
 type connection struct {
-	slot              string
-	plug              string
-	interfaceName     string
-	manual            bool
-	gadget            bool
-	definingAttrValue string
+	slot                 string
+	plug                 string
+	interfaceName        string
+	interfaceDeterminant string
+	manual               bool
+	gadget               bool
 }
 
 func (cn connection) String() string {
@@ -115,7 +115,7 @@ func (b byConnectionData) Less(i, j int) bool {
 	return iCon.slot < jCon.slot
 }
 
-func definingAttributeValue(conn *client.Connection) string {
+func interfaceDeterminant(conn *client.Connection) string {
 	var value string
 
 	switch conn.Interface {
@@ -165,12 +165,12 @@ func (x *cmdConnections) Execute(args []string) error {
 	annotatedConns := make([]connection, 0, len(connections.Established)+len(connections.Undesired))
 	for _, conn := range connections.Established {
 		annotatedConns = append(annotatedConns, connection{
-			plug:              endpoint(conn.Plug.Snap, conn.Plug.Name),
-			slot:              endpoint(conn.Slot.Snap, conn.Slot.Name),
-			manual:            conn.Manual,
-			gadget:            conn.Gadget,
-			interfaceName:     conn.Interface,
-			definingAttrValue: definingAttributeValue(&conn),
+			plug:                 endpoint(conn.Plug.Snap, conn.Plug.Name),
+			slot:                 endpoint(conn.Slot.Snap, conn.Slot.Name),
+			manual:               conn.Manual,
+			gadget:               conn.Gadget,
+			interfaceName:        conn.Interface,
+			interfaceDeterminant: interfaceDeterminant(&conn),
 		})
 	}
 
@@ -204,7 +204,7 @@ func (x *cmdConnections) Execute(args []string) error {
 	sort.Sort(byConnectionData(annotatedConns))
 
 	for _, note := range annotatedConns {
-		fmt.Fprintf(w, "%s%s\t%s\t%s\t%s\n", note.interfaceName, note.definingAttrValue, note.plug, note.slot, note)
+		fmt.Fprintf(w, "%s%s\t%s\t%s\t%s\n", note.interfaceName, note.interfaceDeterminant, note.plug, note.slot, note)
 	}
 
 	if len(annotatedConns) > 0 {
