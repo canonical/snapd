@@ -502,19 +502,12 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 func downgradeConfinement() bool {
 	kver := osutil.KernelVersion()
-	switch {
-	case release.DistroLike("opensuse-tumbleweed"):
-		if cmp, _ := strutil.VersionCompare(kver, "4.16"); cmp >= 0 {
-			// As a special exception, for openSUSE Tumbleweed which ships Linux
-			// 4.16, do not downgrade the confinement template.
-			return false
-		}
-	case release.DistroLike("arch", "archlinux"):
-		// The default kernel has AppArmor enabled since 4.18.8, the
-		// hardened one since 4.17.4
-		return false
-	}
-	return true
+	// When the kernel version is at least 4.16, do not downgrade the
+	// confinement template. This allows everyone to benefit from common
+	// features like "file" checks, even if some more advanced access patterns
+	// are not mediated (typically DBus IPC).
+	cmp, _ := strutil.VersionCompare(kver, "4.16")
+	return cmp < 0
 }
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, spec *Specification) {

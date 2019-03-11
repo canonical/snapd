@@ -663,10 +663,11 @@ func mockPartalAppArmorOnDistro(c *C, kernelVersion string, releaseID string, re
 	}
 }
 
-// On openSUSE Tumbleweed partial apparmor support doesn't change apparmor template to classic.
-// Strict confinement template, along with snippets, are used.
-func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.16-10-1-default", "opensuse-tumbleweed")
+// On recent enough kernel, partial apparmor support doesn't change apparmor
+// template to classic.  Strict confinement template, along with snippets, are
+// used.
+func (s *backendSuite) TestCombineSnippetsNewKernel(c *C) {
+	restore := mockPartalAppArmorOnDistro(c, "4.16-10-1-default", "not-important")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
@@ -677,10 +678,10 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
 	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
 }
 
-// On openSUSE Tumbleweed running older kernel partial apparmor support changes
-// apparmor template to classic.
-func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.14", "opensuse-tumbleweed")
+// On older kernel partial apparmor support changes apparmor template to
+// classic.
+func (s *backendSuite) TestCombineSnippetsOldKernel(c *C) {
+	restore := mockPartalAppArmorOnDistro(c, "4.14", "not-important")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
@@ -689,31 +690,6 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	c.Check(profile, testutil.FileEquals, "\n#classic"+commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n")
-}
-
-func (s *backendSuite) TestCombineSnippetsArchOldIDSufficientHardened(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.18.2.a-1-hardened", "arch", "archlinux")
-	defer restore()
-	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.AddSnippet("snippet")
-		return nil
-	}
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
-}
-
-func (s *backendSuite) TestCombineSnippetsArchSufficientHardened(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.18.2.a-1-hardened", "archlinux")
-	defer restore()
-	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.AddSnippet("snippet")
-		return nil
-	}
-
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
 }
 
 const coreYaml = `name: core
