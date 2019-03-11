@@ -645,6 +645,14 @@ fi`)
 	err = s.Backend.Initialize()
 	c.Assert(err, IsNil)
 
+	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		// previous compilation
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		// initialization with new version
+		{"snap-seccomp", "version-info"},
+	})
+
 	// the profile should be rebuilt now
 	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
 	c.Assert(err, IsNil)
@@ -652,9 +660,11 @@ fi`)
 
 	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		// previous compilation
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 		// initialization with new version
 		{"snap-seccomp", "version-info"},
+		// compilation of profiles with new compiler version
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
 }

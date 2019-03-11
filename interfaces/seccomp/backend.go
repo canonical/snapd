@@ -125,7 +125,10 @@ func isBigEndian() bool {
 	return false
 }
 
-// Initialize ensures that the global profile is on disk.
+// Initialize ensures that the global profile is on disk and interrogates
+// libseccomp wrapper to generate a version string that will be used to
+// determine if we need to recompile seccomp policy due to system
+// changes outside of snapd.
 func (b *Backend) Initialize() error {
 	dir := dirs.SnapSeccompDir
 	fname := "global.bin"
