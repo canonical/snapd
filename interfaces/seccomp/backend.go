@@ -247,7 +247,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		}
 		securityTag := hookInfo.SecurityTag()
 
-		path := fmt.Sprintf("%s.src", securityTag)
+		path := securityTag + ".src"
 		content[path] = &osutil.FileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
 			Mode:    0644,
@@ -258,7 +258,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
-		path := fmt.Sprintf("%s.src", securityTag)
+		path := securityTag + ".src"
 		content[path] = &osutil.FileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
 			Mode:    0644,
@@ -273,7 +273,7 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 
 	if versionInfo != "" {
 		buffer.WriteString("# snap-seccomp version information:\n")
-		buffer.WriteString(fmt.Sprintf("# %s\n", versionInfo))
+		fmt.Fprintf(&buffer, "# %s\n", versionInfo)
 	}
 
 	if opts.Classic && !opts.JailMode {
