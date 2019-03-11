@@ -1,0 +1,8 @@
+name: test-snapd-service
+version: 3.0
+apps:
+ service:
+  command: bin/bad
+  daemon: oneshot
+  restart-condition: never
+  stop-command: bin/hang

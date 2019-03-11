@@ -1,0 +1,5 @@
+#!/bin/sh
+
+echo "service v3"
+touch "$SNAP_COMMON/should-fail"
+exit 1

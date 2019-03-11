@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "Hanging forever in stop"
+sleep 1h

@@ -30,7 +30,7 @@ execute: |
             # retry
             retries=$((retries+1))
             if [ $retries -gt 30 ]; then
-                echo 'expected "service v1" output did not appear in systemctl status snap.test-snapd-service.service.service'
+                echo "expected \"$1\" output did not appear in systemctl status snap.test-snapd-service.service.service"
                 exit 1
             fi
             sleep 1
