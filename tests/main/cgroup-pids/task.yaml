@@ -55,3 +55,31 @@ execute: |
     kill "$pid2"
     wait "$pid2" || true  # same as above
     MATCH -v "$pid2" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+
+    # If a snap command forks a child process it is also tracked.
+    #shellcheck disable=SC2016
+    test-snapd-sh -c 'touch $SNAP_DATA/3.stamp && sleep 1h' &
+    pid3=$!
+
+    # Ensure that snap-confine has finished its task and that the snap process
+    # is active. Note that we don't want to wait forever either.
+    for _ in $(seq 30); do
+        test -e /var/snap/test-snapd-sh/current/3.stamp && break
+        sleep 0.1
+    done
+    # While the process is alive its PID can be seen in the cgroup.procs file
+    # of the pid controller.
+    MATCH "$pid3" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+
+    # Because the script above used "sleep 1h" instead of "exec sleep 1h" there
+    # are now two processes: the shell and sleep.
+    test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 2
+    kill "$pid3"
+    wait "$pid3" || true  # same as above
+    test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 1
+    # Killing the shell will not kill sleep and since spread will hang if a
+    # background process is still running (that was spawned using &) we need to
+    # kill it ourselves. This is a bit heavy handed but works.
+    # NOTE: Alternatively we could kill the remaining cgroup process.
+    killall sleep
+    test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 0
