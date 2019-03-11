@@ -135,6 +135,17 @@ int main(int argc, char **argv)
 
 	sc_snap_name_validate(base_snap_name, NULL);
 
+
+	/* Invocation helps to pass relevant data to various parts of snap-confine. */
+	sc_invocation invocation = {
+		.base_snap_name = base_snap_name,
+		.executable = executable,
+		.security_tag = security_tag,
+		.snap_instance = snap_instance,
+		.classic_confinement = classic_confinement
+		/* is_normal_mode is not probed yet */
+	};
+
 	debug("security tag: %s", security_tag);
 	debug("executable:   %s", executable);
 	debug("confinement:  %s",
@@ -190,16 +201,6 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
-
-	/* Invocation helps to pass relevant data to various parts of snap-confine. */
-	sc_invocation invocation = {
-		.base_snap_name = base_snap_name,
-		.executable = executable,
-		.security_tag = security_tag,
-		.snap_instance = snap_instance,
-		.classic_confinement = classic_confinement
-		/* is_normal_mode is not probed yet */
-	};
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
 		if (classic_confinement) {
