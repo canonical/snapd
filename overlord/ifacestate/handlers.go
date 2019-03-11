@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
@@ -45,7 +46,7 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	}
 }
 
-func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm *timings.Timing) error {
 	st := task.State()
 
 	// Setup security of the affected snaps.
@@ -67,7 +68,10 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
+		tm.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", affectedSnapInfo.InstanceName()), func(nesttm *timings.Timing) {
+			err = m.setupSnapSecurity(task, affectedSnapInfo, opts, nesttm)
+		})
+		if err != nil {
 			return err
 		}
 	}
@@ -77,6 +81,10 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
+
+	perfTimings, meas := timings.NewForTask(task)
+	defer perfTimings.Save(task.State()) // XXX: should the error from save be returned from handler?
+	defer meas.Stop()
 
 	// Get snap.Info from bits handed by the snap manager.
 	snapsup, err := snapstate.TaskSnapSetup(task)
@@ -103,10 +111,14 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	}
 
 	opts := confinementOptions(snapsup.Flags)
-	return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+
+	meas.Run("setup profiles", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm *timings.Timing) {
+		err = m.setupProfilesForSnap(task, tomb, snapInfo, opts, tm)
+	})
+	return err
 }
 
-func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm *timings.Timing) error {
 	st := task.State()
 
 	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
@@ -195,13 +207,21 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		affectedSnaps = append(affectedSnaps, snapInfo)
 		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
 	}
-	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts)
+
+	tm.Run("setup security by backend", fmt.Sprintf("setup security of %d affected snaps", len(affectedSnaps)), func(nesttm *timings.Timing) {
+		err = m.setupSecurityByBackend(task, affectedSnaps, confinementOpts, nesttm)
+	})
+	return err
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings, meas := timings.NewForTask(task)
+	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer meas.Stop()
 
 	// Get SnapSetup for this snap. This is gives us the name of the snap.
 	snapSetup, err := snapstate.TaskSnapSetup(task)
@@ -210,10 +230,10 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 	snapName := snapSetup.InstanceName()
 
-	return m.removeProfilesForSnap(task, tomb, snapName)
+	return m.removeProfilesForSnap(task, tomb, snapName, meas)
 }
 
-func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string) error {
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm *timings.Timing) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
@@ -222,7 +242,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	if err != nil {
 		return err
 	}
-	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps); err != nil {
+	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps, tm); err != nil {
 		return err
 	}
 
@@ -244,6 +264,10 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings, meas := timings.NewForTask(task)
+	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer meas.Stop()
 
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
@@ -270,7 +294,10 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		// The snap was not installed before so undo should remove security profiles.
-		return m.removeProfilesForSnap(task, tomb, snapName)
+		meas.Run("remove profiles for snap", fmt.Sprintf("remove profiles of snap %q", snapName), func(tm *timings.Timing) {
+			err = m.removeProfilesForSnap(task, tomb, snapName, tm)
+		})
+		return err
 	} else {
 		// The snap was installed before so undo should setup the old security profiles.
 		snapInfo, err := snap.ReadInfo(snapName, sideInfo)
@@ -278,7 +305,10 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+		meas.Run("setup profiles for snap", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm *timings.Timing) {
+			err = m.setupProfilesForSnap(task, tomb, snapInfo, opts, tm)
+		})
+		return err
 	}
 }
 
@@ -374,6 +404,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings, meas := timings.NewForTask(task)
+	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer meas.Stop()
+
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
@@ -457,11 +491,18 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slot.Snap.InstanceName()), func(tm *timings.Timing) {
+		err = m.setupSnapSecurity(task, slot.Snap, slotOpts, tm)
+	})
+	if err != nil {
 		return err
 	}
+
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", plug.Snap.InstanceName()), func(tm *timings.Timing) {
+		err = m.setupSnapSecurity(task, plug.Snap, plugOpts, tm)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -487,6 +528,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings, meas := timings.NewForTask(task)
+	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer meas.Stop()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
@@ -522,7 +567,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
+		meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slotRef.Snap), func(tm *timings.Timing) {
+			err = m.setupSnapSecurity(task, snapInfo, opts, tm)
+		})
+		if err != nil {
 			return err
 		}
 	}
@@ -574,6 +622,10 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings, meas := timings.NewForTask(task)
+	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer meas.Stop()
+
 	var oldconn connState
 	err := task.Get("old-conn", &oldconn)
 	if err == state.ErrNoState {
@@ -619,11 +671,17 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slot.Snap.InstanceName()), func(tm *timings.Timing) {
+		err = m.setupSnapSecurity(task, slot.Snap, slotOpts, tm)
+	})
+	if err != nil {
 		return err
 	}
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
+	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", plug.Snap.InstanceName()), func(tm *timings.Timing) {
+		err = m.setupSnapSecurity(task, plug.Snap, plugOpts, tm)
+	})
+	if err != nil {
 		return err
 	}
 

@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // Backend is responsible for maintaining DBus policy files.
@@ -77,7 +78,7 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm *timings.Timing) error {
 	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)

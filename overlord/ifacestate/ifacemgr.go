@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
 
 type deviceData struct{ ifaceName, hotplugKey string }
@@ -53,6 +54,9 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
+	perftimings := timings.New(map[string]string{"startup": "interface manager"})
+	meas := perftimings.Start("manager init", "interface manager ctor")
+
 	delayedCrossMgrInit()
 
 	// NOTE: hookManager is nil only when testing.
@@ -69,7 +73,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		hotplugDevicePaths:   make(map[string][]deviceData),
 	}
 
-	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
+	var err error
+	meas.Run("initialize", "initialization of interface manager", func(nesttm *timings.Timing) {
+		err = m.initialize(extraInterfaces, extraBackends, nesttm)
+	})
+	if err != nil {
 		return nil, err
 	}
 
@@ -117,6 +125,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 		return false
 	})
+
+	meas.Stop()
+	s.Lock()
+	perftimings.Save(s) // xxx: should the error be returned?
+	s.Unlock()
 
 	return m, nil
 }
