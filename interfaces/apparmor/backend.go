@@ -494,10 +494,12 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 func downgradeConfinement() bool {
 	kver := osutil.KernelVersion()
 	switch {
+	// As a special exception, for openSUSE when the kernel package is
+	// at least Linux 4.16, do not downgrade the confinement template.
+	case release.DistroLike("opensuse"):
+		fallthrough
 	case release.DistroLike("opensuse-tumbleweed"):
 		if cmp, _ := strutil.VersionCompare(kver, "4.16"); cmp >= 0 {
-			// As a special exception, for openSUSE Tumbleweed which ships Linux
-			// 4.16, do not downgrade the confinement template.
 			return false
 		}
 	case release.DistroLike("arch", "archlinux"):
