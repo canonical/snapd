@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -58,7 +57,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -83,6 +81,7 @@ var api = []*Command{
 	findCmd,
 	snapsCmd,
 	snapCmd,
+	snapFileCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -210,11 +209,6 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
-	}
-
-	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -2164,15 +2158,6 @@ var (
 	osutilAddUser             = osutil.AddUser
 )
 
-func makeHttpClient(st *state.State) *http.Client {
-	proxyConf := proxyconf.New(st)
-	return httputil.NewHTTPClient(&httputil.ClientOptions{
-		Timeout:    10 * time.Second,
-		MayLogBody: true,
-		Proxy:      proxyConf.Conf,
-	})
-}
-
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
 	v, err := theStore.UserInfo(email)
 	if err != nil {
@@ -2467,71 +2452,6 @@ func convertBuyError(err error) Response {
 		return InternalError("%v", err)
 	}
 }
-
-type debugAction struct {
-	Action  string `json:"action"`
-	Message string `json:"message"`
-}
-
-type ConnectivityStatus struct {
-	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable,omitempty"`
-}
-
-func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
-	var a debugAction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a debug action: %v", err)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	switch a.Action {
-	case "add-warning":
-		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
-	case "unshow-warnings":
-		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
-	case "ensure-state-soon":
-		ensureStateSoon(st)
-		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		bd, err := assertstate.BaseDeclaration(st)
-		if err != nil {
-			return InternalError("cannot get base declaration: %s", err)
-		}
-		return SyncResponse(map[string]interface{}{
-			"base-declaration": string(asserts.Encode(bd)),
-		}, nil)
-	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
-		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
-	default:
-		return BadRequest("unknown debug action: %v", a.Action)
-	}
-}
-
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 

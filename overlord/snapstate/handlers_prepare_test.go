@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -60,9 +62,11 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
 	reset1 := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
+	reset2 := snapstate.MockReRefreshRetryTimeout(time.Second / 200)
 	s.reset = func() {
 		dirs.SetRootDir("/")
 		reset1()
+		reset2()
 	}
 }
 

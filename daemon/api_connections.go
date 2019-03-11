@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var connectionsCmd = &Command{
@@ -87,6 +89,19 @@ func (b byPlugRef) Less(i, j int) bool {
 	return b[i].SortsBefore(b[j])
 }
 
+// mergeAttrs merges attributes from 2 disjoint sets of static and dynamic slot or
+// plug attributes into a single map.
+func mergeAttrs(one map[string]interface{}, other map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{}, len(one)+len(other))
+	for k, v := range one {
+		merged[k] = v
+	}
+	for k, v := range other {
+		merged[k] = v
+	}
+	return merged
+}
+
 func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) (*connectionsJSON, error) {
 	repo := ifaceMgr.Repository()
 	ifaces := repo.Interfaces()
@@ -131,6 +146,8 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 			Manual:    cstate.Auto == false,
 			Gadget:    cstate.ByGadget,
 			Interface: cstate.Interface,
+			PlugAttrs: mergeAttrs(cstate.StaticPlugAttrs, cstate.DynamicPlugAttrs),
+			SlotAttrs: mergeAttrs(cstate.StaticSlotAttrs, cstate.DynamicSlotAttrs),
 		}
 		if cstate.Undesired {
 			// explicitly disconnected are always manual
@@ -210,6 +227,14 @@ func (b byCrefConnJSON) Less(i, j int) bool {
 	return sortsBefore
 }
 
+func checkSnapInstalled(st *state.State, name string) error {
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	return snapstate.Get(st, name, &snapst)
+}
+
 func getConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	snapName := query.Get("snap")
@@ -220,8 +245,18 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 	onlyConnected := qselect == ""
 
+	snapName = ifacestate.RemapSnapFromRequest(snapName)
+	if snapName != "" {
+		if err := checkSnapInstalled(c.d.overlord.State(), snapName); err != nil {
+			if err == state.ErrNoState {
+				return SnapNotFound(snapName, err)
+			}
+			return InternalError("cannot access snap state: %v", err)
+		}
+	}
+
 	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
-		snapName:  ifacestate.RemapSnapFromRequest(snapName),
+		snapName:  snapName,
 		ifaceName: ifaceName,
 		connected: onlyConnected,
 	})

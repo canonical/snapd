@@ -22,6 +22,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/client"
@@ -31,6 +32,56 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
+
+func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
+	var publisher *snap.StoreAccount
+	if snapInfo.Publisher.Username != "" {
+		publisher = &snapInfo.Publisher
+	}
+
+	confinement := snapInfo.Confinement
+	if confinement == "" {
+		confinement = snap.StrictConfinement
+	}
+
+	snapapps := make([]*snap.AppInfo, 0, len(snapInfo.Apps))
+	for _, app := range snapInfo.Apps {
+		snapapps = append(snapapps, app)
+	}
+	sort.Sort(BySnapApp(snapapps))
+
+	apps, err := ClientAppInfosFromSnapAppInfos(snapapps)
+	result := &client.Snap{
+		Description: snapInfo.Description(),
+		Developer:   snapInfo.Publisher.Username,
+		Publisher:   publisher,
+		Icon:        snapInfo.Media.IconURL(),
+		ID:          snapInfo.SnapID,
+		InstallDate: snapInfo.InstallDate(),
+		Name:        snapInfo.InstanceName(),
+		Revision:    snapInfo.Revision,
+		Summary:     snapInfo.Summary(),
+		Type:        string(snapInfo.Type),
+		Base:        snapInfo.Base,
+		Version:     snapInfo.Version,
+		Channel:     snapInfo.Channel,
+		Private:     snapInfo.Private,
+		Confinement: string(confinement),
+		Apps:        apps,
+		Broken:      snapInfo.Broken,
+		Contact:     snapInfo.Contact,
+		Title:       snapInfo.Title(),
+		License:     snapInfo.License,
+		Screenshots: snapInfo.Media.Screenshots(),
+		Media:       snapInfo.Media,
+		Prices:      snapInfo.Prices,
+		Channels:    snapInfo.Channels,
+		Tracks:      snapInfo.Tracks,
+		CommonIDs:   snapInfo.CommonIDs,
+	}
+
+	return result, err
+}
 
 func ClientAppInfoNotes(app *client.AppInfo) string {
 	if !app.IsService() {
@@ -57,6 +108,20 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 		return "-"
 	}
 	return strings.Join(notes, ",")
+}
+
+// BySnapApp sorts apps by (snap name, app name)
+type BySnapApp []*snap.AppInfo
+
+func (a BySnapApp) Len() int      { return len(a) }
+func (a BySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a BySnapApp) Less(i, j int) bool {
+	iName := a[i].Snap.InstanceName()
+	jName := a[j].Snap.InstanceName()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
 }
 
 func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) ([]client.AppInfo, error) {

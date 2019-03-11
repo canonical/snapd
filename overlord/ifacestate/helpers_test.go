@@ -502,7 +502,7 @@ func (s *helpersSuite) TestAddHotplugSeqWaitTask(c *C) {
 	chg.AddTask(t1)
 	chg.AddTask(t2)
 
-	c.Assert(ifacestate.AddHotplugSeqWaitTask(chg, "1234"), IsNil)
+	ifacestate.AddHotplugSeqWaitTask(chg, "1234", 1)
 	// hotplug change got an extra task
 	c.Assert(chg.Tasks(), HasLen, 3)
 	seq, key, err := ifacestate.GetHotplugChangeAttrs(chg)

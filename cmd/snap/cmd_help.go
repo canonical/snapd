@@ -71,7 +71,7 @@ type cmdHelp struct {
 	Manpage    bool `long:"man" hidden:"true"`
 	Positional struct {
 		// TODO: find a way to make Command tab-complete
-		Sub string `positional-arg-name:"<command>"`
+		Subs []string `positional-arg-name:"<command>"`
 	} `positional-args:"yes"`
 	parser *flags.Parser
 }
@@ -132,23 +132,30 @@ func (cmd cmdHelp) Execute(args []string) error {
 		return nil
 	}
 	if cmd.All {
-		if cmd.Positional.Sub != "" {
+		if len(cmd.Positional.Subs) > 0 {
 			return fmt.Errorf(i18n.G("help accepts a command, or '--all', but not both."))
 		}
 		printLongHelp(cmd.parser)
 		return nil
 	}
 
-	if cmd.Positional.Sub != "" {
-		subcmd := cmd.parser.Find(cmd.Positional.Sub)
+	var subcmd = cmd.parser.Command
+	for _, subname := range cmd.Positional.Subs {
+		subcmd = subcmd.Find(subname)
 		if subcmd == nil {
-			return fmt.Errorf(i18n.G("Unknown command %q. Try 'snap help'."), cmd.Positional.Sub)
+			sug := "snap help"
+			if x := cmd.parser.Command.Active; x != nil && x.Name != "help" {
+				sug = "snap help " + x.Name
+			}
+			// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
+			return fmt.Errorf(i18n.G("unknown command %q, see '%s'."), subname, sug)
 		}
 		// this makes "snap help foo" work the same as "snap foo --help"
 		cmd.parser.Command.Active = subcmd
+	}
+	if subcmd != cmd.parser.Command {
 		return &flags.Error{Type: flags.ErrHelp}
 	}
-
 	return &flags.Error{Type: flags.ErrCommandRequired}
 }
 
@@ -191,7 +198,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
-		Commands:    []string{"interfaces", "interface", "connect", "disconnect"},
+		Commands:    []string{"connections", "interfaces", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
