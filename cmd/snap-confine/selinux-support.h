@@ -19,8 +19,7 @@
 
 /**
  * Set security context for the snap
- *
  **/
 int sc_selinux_set_snap_execcon(void);
 
-#endif				/* SNAP_CONFINE_SELINUX_SUPPORT_H */
+#endif /* SNAP_CONFINE_SELINUX_SUPPORT_H */

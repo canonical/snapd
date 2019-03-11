@@ -55,8 +55,14 @@ check-unit-tests:
 endif
 
 new_format = \
+	 libsnap-confine-private/cgroup-pids-support.c \
+	 libsnap-confine-private/cgroup-pids-support.h \
+	 libsnap-confine-private/cgroup-support.c \
+	 libsnap-confine-private/cgroup-support.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
+	 snap-confine/selinux-support.c \
+	 snap-confine/selinux-support.h \
 	 snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
 fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
@@ -94,6 +100,10 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/apparmor-support.h \
 	libsnap-confine-private/cgroup-freezer-support.c \
 	libsnap-confine-private/cgroup-freezer-support.h \
+	libsnap-confine-private/cgroup-pids-support.c \
+	libsnap-confine-private/cgroup-pids-support.h \
+	libsnap-confine-private/cgroup-support.c \
+	libsnap-confine-private/cgroup-support.h \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
 	libsnap-confine-private/cleanup-funcs.c \

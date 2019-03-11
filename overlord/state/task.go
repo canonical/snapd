@@ -22,9 +22,9 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"time"
 )
 
 type progress struct {
@@ -54,6 +54,12 @@ type Task struct {
 
 	spawnTime time.Time
 	readyTime time.Time
+
+	// TODO: add:
+	// {,Un}DoingRetries - number of retries
+	// Retry{,Un}DoingTimes - time spend to figure out a retry is needed
+	doingTime   time.Duration
+	undoingTime time.Duration
 
 	atTime time.Time
 }
@@ -87,6 +93,9 @@ type marshalledTask struct {
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
 
+	DoingTime   time.Duration `json:"doing-time,omitempty"`
+	UndoingTime time.Duration `json:"undoing-time,omitempty"`
+
 	AtTime *time.Time `json:"at-time,omitempty"`
 }
 
@@ -117,6 +126,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 
 		SpawnTime: t.spawnTime,
 		ReadyTime: readyTime,
+
+		DoingTime:   t.doingTime,
+		UndoingTime: t.undoingTime,
 
 		AtTime: atTime,
 	})
@@ -155,6 +167,8 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	if unmarshalled.AtTime != nil {
 		t.atTime = *unmarshalled.AtTime
 	}
+	t.doingTime = unmarshalled.DoingTime
+	t.undoingTime = unmarshalled.UndoingTime
 	return nil
 }
 
@@ -276,6 +290,26 @@ func (t *Task) AtTime() time.Time {
 	return t.atTime
 }
 
+func (t *Task) accumulateDoingTime(duration time.Duration) {
+	t.state.writing()
+	t.doingTime += duration
+}
+
+func (t *Task) accumulateUndoingTime(duration time.Duration) {
+	t.state.writing()
+	t.undoingTime += duration
+}
+
+func (t *Task) DoingTime() time.Duration {
+	t.state.reading()
+	return t.doingTime
+}
+
+func (t *Task) UndoingTime() time.Duration {
+	t.state.reading()
+	return t.undoingTime
+}
+
 const (
 	// Messages logged in tasks are guaranteed to use the time formatted
 	// per RFC3339 plus the following strings as a prefix, so these may
@@ -391,6 +425,11 @@ func (t *Task) WaitTasks() []*Task {
 func (t *Task) HaltTasks() []*Task {
 	t.state.reading()
 	return t.state.tasksIn(t.haltTasks)
+}
+
+// NumHaltTasks returns the number of tasks registered to wait for t.
+func (t *Task) NumHaltTasks() int {
+	return len(t.haltTasks)
 }
 
 // Lanes returns the lanes the task is in.

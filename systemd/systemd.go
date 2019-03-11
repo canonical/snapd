@@ -76,8 +76,8 @@ func (m *extMutex) Lock() {
 
 // Unlock releases the mutex
 func (m *extMutex) Unlock() {
-	m.lock.Unlock()
 	atomic.AddInt32(&m.muC, -1)
+	m.lock.Unlock()
 }
 
 // Taken will panic with the given error message if the lock is not

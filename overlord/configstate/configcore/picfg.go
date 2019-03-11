@@ -33,6 +33,7 @@ import (
 // valid pi config keys
 var piConfigKeys = map[string]bool{
 	"disable_overscan":         true,
+	"force_turbo":              true,
 	"framebuffer_width":        true,
 	"framebuffer_height":       true,
 	"framebuffer_depth":        true,

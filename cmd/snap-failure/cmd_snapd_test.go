@@ -33,6 +33,5 @@ func (r *failureSuite) TestRun(c *C) {
 	os.Args = []string{"snap-failure", "snapd"}
 	err := failure.Run()
 	c.Check(err, IsNil)
-	c.Check(r.Stdout(), HasLen, 0)
 	c.Check(r.Stderr(), HasLen, 0)
 }

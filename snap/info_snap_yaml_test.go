@@ -1407,18 +1407,6 @@ architectures:
 	c.Assert(err, NotNil)
 }
 
-func (s *YamlSuite) TestSnapYamlLicenseParsing(c *C) {
-	y := []byte(`
-name: foo
-version: 1.0
-license-agreement: explicit
-license-version: 12`)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-	c.Assert(info.LicenseAgreement, Equals, "explicit")
-	c.Assert(info.LicenseVersion, Equals, "12")
-}
-
 // apps
 
 func (s *YamlSuite) TestSimpleAppExample(c *C) {
@@ -1447,6 +1435,7 @@ apps:
    command: svc1
    description: svc one
    stop-timeout: 25s
+   start-timeout: 42m
    daemon: forking
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
@@ -1467,6 +1456,7 @@ apps:
 		Daemon:          "forking",
 		RestartCond:     snap.RestartOnAbnormal,
 		StopTimeout:     timeout.Timeout(25 * time.Second),
+		StartTimeout:    timeout.Timeout(42 * time.Minute),
 		StopCommand:     "stop-cmd",
 		PostStopCommand: "post-stop-cmd",
 		BusName:         "busName",

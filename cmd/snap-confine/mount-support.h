@@ -51,7 +51,8 @@ int sc_open_snap_discard_ns(void);
  * this is impossible it will chdir to SC_VOID_DIR.
  **/
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const char *base_snap_name, const char *snap_name);
+			  const char *base_snap_name, const char *snap_name,
+			  bool is_normal_mode);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option.
