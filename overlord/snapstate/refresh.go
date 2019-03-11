@@ -177,6 +177,12 @@ func (err BusySnapError) Pids() []int {
 	return err.pids
 }
 
+// isSecurityTagBusy returns true if there are any processes belonging to a given security tag.
+func isSecurityTagBusy(securityTag string) (bool, error) {
+	pids, err := pidsOfSecurityTag(securityTag)
+	return len(pids) > 0, err
+}
+
 // parsePid parses a string as a process identifier.
 func parsePid(text string) (int, error) {
 	pid, err := strconv.Atoi(text)
@@ -245,10 +251,4 @@ func pidsOfSecurityTag(securityTag string) ([]int, error) {
 	}
 	defer file.Close()
 	return parsePids(bufio.NewReader(file))
-}
-
-// isSecurityTagBusy returns true if there are any processes belonging to a given security tag.
-func isSecurityTagBusy(securityTag string) (bool, error) {
-	pids, err := pidsOfSecurityTag(securityTag)
-	return len(pids) > 0, err
 }
