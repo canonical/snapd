@@ -331,20 +331,6 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 	return &assertResponse{assertions: asserts, bundle: bundle}
 }
 
-// InterfacesUnchanged is an error responder used when an operation
-// that would normally change interfaces finds it has nothing to do
-func InterfacesUnchanged(format string, v ...interface{}) Response {
-	res := &errorResult{
-		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindInterfacesUnchanged,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 400,
-	}
-}
-
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t := asserts.MediaType
 	if ar.bundle {
@@ -493,6 +479,20 @@ func AuthCancelled(format string, v ...interface{}) Response {
 		Type:   ResponseTypeError,
 		Result: res,
 		Status: 403,
+	}
+}
+
+// InterfacesUnchanged is an error responder used when an operation
+// that would normally change interfaces finds it has nothing to do
+func InterfacesUnchanged(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindInterfacesUnchanged,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 400,
 	}
 }
 
