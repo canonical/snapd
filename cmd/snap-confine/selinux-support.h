@@ -19,7 +19,6 @@
 
 /**
  * Set security context for the snap
- *
  **/
 int sc_selinux_set_snap_execcon(void);
 

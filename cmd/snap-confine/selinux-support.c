@@ -40,7 +40,6 @@ static void sc_context_free(context_t *ctx) {
 
 /**
  * Set security context for the snap
- *
  **/
 int sc_selinux_set_snap_execcon(void) {
     if (is_selinux_enabled() < 1) {
@@ -59,7 +58,14 @@ int sc_selinux_set_snap_execcon(void) {
         die("cannot create SELinux context from context string %s", ctx_str);
     }
 
-    if (sc_streq(context_type_get(ctx), "snappy_confine_t")) {
+    /* freed by context_free(ctx) */
+    const char *ctx_type = context_type_get(ctx);
+
+    if (ctx_type == NULL) {
+        die("cannot obtain type from SELinux context string %s", ctx_str);
+    }
+
+    if (sc_streq(ctx_type, "snappy_confine_t")) {
         /* We are running under a targeted policy which ended up transitioning
          * to snappy_confine_t domain, at this point we are right before
          * executing snap-exec. However we do not have a full SELinux support
