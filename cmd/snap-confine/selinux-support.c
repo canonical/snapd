@@ -32,7 +32,7 @@ static void sc_freecon(char **ctx)
 	}
 }
 
-static void sc_context_free(context_t *ctx)
+static void sc_context_free(context_t * ctx)
 {
 	if (ctx != NULL && *ctx != NULL) {
 		context_free(*ctx);
@@ -59,7 +59,8 @@ int sc_selinux_set_snap_execcon(void)
 
 	context_t ctx SC_CLEANUP(sc_context_free) = context_new(ctx_str);
 	if (ctx == NULL) {
-		die("cannot create SELinux context from context string %s", ctx_str);
+		die("cannot create SELinux context from context string %s",
+		    ctx_str);
 	}
 
 	if (sc_streq(context_type_get(ctx), "snappy_confine_t")) {
@@ -73,8 +74,7 @@ int sc_selinux_set_snap_execcon(void)
 		 * by snap_confine_t policy) upon the next exec() call.
 		 */
 		if (context_type_set(ctx, "unconfined_service_t") != 0) {
-			die("cannot update SELinux context %s type to unconfined_service_t",
-			    ctx_str);
+			die("cannot update SELinux context %s type to unconfined_service_t", ctx_str);
 		}
 
 		/* freed by context_free(ctx) */
@@ -83,7 +83,8 @@ int sc_selinux_set_snap_execcon(void)
 			die("cannot obtain updated SELinux context string");
 		}
 		if (setexeccon(new_ctx_str) == -1) {
-			die("cannot set SELinux exec context to %s", new_ctx_str);
+			die("cannot set SELinux exec context to %s",
+			    new_ctx_str);
 		}
 		debug("SELinux context after next exec: %s", new_ctx_str);
 	}
