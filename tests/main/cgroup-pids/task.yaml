@@ -75,11 +75,10 @@ execute: |
     # are now two processes: the shell and sleep.
     test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 2
     kill "$pid3"
-    wait "$pid3" || true  # same as above
     test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 1
-    # Killing the shell will not kill sleep and since spread will hang if a
-    # background process is still running (that was spawned using &) we need to
-    # kill it ourselves. This is a bit heavy handed but works.
-    # NOTE: Alternatively we could kill the remaining cgroup process.
-    killall sleep
+    # Kill the remaining cgroup process.
+    while read -r pid; do
+        kill "$pid"
+    done < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    wait "$pid3" || true  # same as above
     test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 0
