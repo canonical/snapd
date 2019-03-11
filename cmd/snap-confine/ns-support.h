@@ -92,7 +92,8 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
  **/
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
-			 const char *snap_name, int snap_discard_ns_fd);
+			 const char *snap_name, int snap_discard_ns_fd,
+			 bool is_normal_mode);
 
 /**
  * Join a preserved, per-user, mount namespace if one exists.
