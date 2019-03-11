@@ -61,6 +61,8 @@ new_format = \
 	 libsnap-confine-private/cgroup-support.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
+	 snap-confine/snap-confine-invocation.c \
+	 snap-confine/snap-confine-invocation.h \
 	 snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
 fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))

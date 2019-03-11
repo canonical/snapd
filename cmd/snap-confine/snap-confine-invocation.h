@@ -28,14 +28,14 @@
  * All of the pointer fields have the life-cycle bound to the main process.
  **/
 typedef struct sc_invocation {
-	/* Things declared by the system. */
-	const char *base_snap_name;
-	const char *executable;
-	const char *security_tag;
-	const char *snap_instance;
-	bool classic_confinement;
-	/* Things derived at runtime. */
-	bool is_normal_mode;
+    /* Things declared by the system. */
+    const char *base_snap_name;
+    const char *executable;
+    const char *security_tag;
+    const char *snap_instance;
+    bool classic_confinement;
+    /* Things derived at runtime. */
+    bool is_normal_mode;
 } sc_invocation;
 
 /**
@@ -45,7 +45,6 @@ typedef struct sc_invocation {
  * environment value (SNAP_INSTANCE_NAME). All input is untrustee and is
  * validated internally.
  **/
-void sc_init_invocation(sc_invocation * inv, const struct sc_args *args,
-			const char *snap_instance);
+void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance);
 
 #endif
