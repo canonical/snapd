@@ -47,6 +47,8 @@ func (s *timingsSuite) SetUpTest(c *C) {
 
 	s.st = state.New(nil)
 	s.duration = 0
+
+	s.mockTimeNow(c)
 }
 
 func (s *timingsSuite) TearDownTest(c *C) {
@@ -63,7 +65,9 @@ func (s *timingsSuite) mockDuration(c *C) {
 }
 
 func (s *timingsSuite) mockTimeNow(c *C) {
-	s.fakeTime = time.Now()
+	t, err := time.Parse(time.RFC3339, "2019-03-11T09:01:00.0Z")
+	c.Assert(err, IsNil)
+	s.fakeTime = t
 	// Increase fakeTime by 1 millisecond on each call, and report it as current time
 	s.BaseTest.AddCleanup(timings.MockTimeNow(func() time.Time {
 		s.fakeTime = s.fakeTime.Add(time.Millisecond)
@@ -80,9 +84,9 @@ func (s *timingsSuite) TestSave(c *C) {
 	// two timings, with 2 nested measures
 	for i := 0; i < 2; i++ {
 		timing := timings.New(map[string]string{"task": "3", "change": "12"})
-		meas := timing.Start(fmt.Sprintf("doing something-%d", i), "...")
-		nested := meas.Start("nested measurement", "...")
-		nestedMore := nested.Start("nested more", "...")
+		meas := timing.StartSpan(fmt.Sprintf("doing something-%d", i), "...")
+		nested := meas.StartSpan("nested measurement", "...")
+		nestedMore := nested.StartSpan("nested more", "...")
 		nestedMore.Stop()
 		nested.Stop()
 		meas.Stop()
@@ -94,11 +98,11 @@ func (s *timingsSuite) TestSave(c *C) {
 
 	c.Assert(stateTimings, DeepEquals, []interface{}{
 		map[string]interface{}{
-			"tags":           map[string]interface{}{"change": "12", "task": "3"},
-			"total-duration": float64(4000000),
+			"tags":       map[string]interface{}{"change": "12", "task": "3"},
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
 			"timings": []interface{}{
 				map[string]interface{}{
-					"level":    float64(0),
 					"label":    "doing something-0",
 					"summary":  "...",
 					"duration": float64(1000000),
@@ -115,41 +119,39 @@ func (s *timingsSuite) TestSave(c *C) {
 					"duration": float64(3000000)},
 			}},
 		map[string]interface{}{
-			"tags":           map[string]interface{}{"change": "12", "task": "3"},
-			"total-duration": float64(8000000),
+			"tags":       map[string]interface{}{"change": "12", "task": "3"},
+			"start-time": "2019-03-11T09:01:00.007Z",
+			"stop-time":  "2019-03-11T09:01:00.012Z",
 			"timings": []interface{}{
 				map[string]interface{}{
-					"level":    float64(0),
 					"label":    "doing something-1",
 					"summary":  "...",
-					"duration": float64(5000000),
+					"duration": float64(4000000),
 				},
 				map[string]interface{}{
 					"level":    float64(1),
 					"label":    "nested measurement",
 					"summary":  "...",
-					"duration": float64(6000000)},
+					"duration": float64(5000000)},
 				map[string]interface{}{
 					"level":    float64(2),
 					"label":    "nested more",
 					"summary":  "...",
-					"duration": float64(7000000)},
+					"duration": float64(6000000)},
 			}}})
 }
 
 func (s *timingsSuite) TestDuration(c *C) {
-	s.mockTimeNow(c)
-
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	timing := timings.New(nil)
-	meas := timing.Start("foo", "...")                   // time now = 1
-	nested := meas.Start("nested", "...")                // time now = 2
-	nested.Stop()                                        // time now = 3 -> duration = 1
-	nestedSibling := meas.Start("nested sibling", "...") // time now = 4
-	nestedSibling.Stop()                                 // time now = 5 -> duration = 1
-	meas.Stop()                                          // time now = 6 -> total duration = 5
+	meas := timing.StartSpan("foo", "...")                   // time now = 1
+	nested := meas.StartSpan("nested", "...")                // time now = 2
+	nested.Stop()                                            // time now = 3 -> duration = 1
+	nestedSibling := meas.StartSpan("nested sibling", "...") // time now = 4
+	nestedSibling.Stop()                                     // time now = 5 -> duration = 1
+	meas.Stop()
 	timing.Save(s.st)
 
 	var stateTimings []interface{}
@@ -157,10 +159,10 @@ func (s *timingsSuite) TestDuration(c *C) {
 
 	c.Assert(stateTimings, DeepEquals, []interface{}{
 		map[string]interface{}{
-			"total-duration": float64(5000000),
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
 			"timings": []interface{}{
 				map[string]interface{}{
-					"level":    float64(0),
 					"label":    "foo",
 					"summary":  "...",
 					"duration": float64(5000000),
@@ -181,7 +183,6 @@ func (s *timingsSuite) TestDuration(c *C) {
 }
 
 func (s *timingsSuite) TestPurgeOnSave(c *C) {
-	s.mockDuration(c)
 	oldMaxTimings := timings.MaxTimings
 	timings.MaxTimings = 3
 	defer func() {
@@ -194,7 +195,7 @@ func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	// Create lots of timings
 	for i := 0; i < 10; i++ {
 		t := timings.New(map[string]string{"number": fmt.Sprintf("%d", i)})
-		m := t.Start("...", "...")
+		m := t.StartSpan("...", "...")
 		m.Stop()
 		t.Save(s.st)
 	}

@@ -37,36 +37,37 @@ var timeNow = func() time.Time {
 // Nested measurements may be collected by calling Start on Timing objects. Similar
 // to the above, nested measurements need to be finished by calling Stop on them.
 //
-// Typical usagage:
-//   timingsTree := timings.New(map[string]string{"tag": "tag-value"})
-//   timing := timing.Start("computation", "...")
+// Typical usage:
+//   troot := timings.New(map[string]string{"task-id": task.ID(), "change-id": task.Change().ID()})
+//   t1 := troot.StartSpan("computation", "...")
 //   ....
-//   nestedTiming := timing.Start("sub-computation", "...")
+//   nestedTiming := t1.StartSpan("sub-computation", "...")
 //   ....
 //   nestedTiming.Stop()
-//   timing.Stop()
-//   timingsTree.Save()
+//   t1.Stop()
+//   troot.Save()
 type Timings struct {
 	tags    map[string]string
-	timings []*Timing
+	timings []*Span
 }
 
-// Timing represents a single performance measurement with optional nested measurements.
-type Timing struct {
+// Span represents a single performance measurement with optional nested measurements.
+type Span struct {
 	label, summary string
 	start, stop    time.Time
-	timings        []*Timing
+	timings        []*Span
 }
 
-// New creates a Timings object.
+// New creates a Timings object. Tags provide extra information (such as "task-id" and "change-id")
+// that can be used by the client when retrieving timings.
 func New(tags map[string]string) *Timings {
 	return &Timings{
 		tags: tags,
 	}
 }
 
-func start(label, summary string) *Timing {
-	tmeas := &Timing{
+func startSpan(label, summary string) *Span {
+	tmeas := &Span{
 		label:   label,
 		summary: summary,
 		start:   timeNow(),
@@ -76,22 +77,22 @@ func start(label, summary string) *Timing {
 
 // Starts creates a Timing and initiates performance measurement.
 // Measurement needs to be stopped by calling Stop on it.
-func (t *Timings) Start(label, summary string) *Timing {
-	tmeas := start(label, summary)
+func (t *Timings) StartSpan(label, summary string) *Span {
+	tmeas := startSpan(label, summary)
 	t.timings = append(t.timings, tmeas)
 	return tmeas
 }
 
 // Start creates a new nested Timing and initiates performance measurement.
 // Nested measurements need to be stopped by calling Stop on it.
-func (t *Timing) Start(label, summary string) *Timing {
-	tmeas := start(label, summary)
+func (t *Span) StartSpan(label, summary string) *Span {
+	tmeas := startSpan(label, summary)
 	t.timings = append(t.timings, tmeas)
 	return tmeas
 }
 
 // Stops the measurement.
-func (t *Timing) Stop() {
+func (t *Span) Stop() {
 	if t.stop.IsZero() {
 		t.stop = timeNow()
 	} // else - stopping already stopped timing is an error, but just ignore it

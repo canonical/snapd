@@ -27,19 +27,21 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// timingJson and rootTimingJson aid in marshalling of flattened timings into state.
+// timingJson and rootTimingsJson aid in marshalling of flattened timings into state.
 type timingJson struct {
-	Level    int           `json:"level"`
+	Level    int           `json:"level,omitempty"`
 	Label    string        `json:"label,omitempty"`
 	Summary  string        `json:"summary,omitempty"`
 	Duration time.Duration `json:"duration"`
 }
 
-type rootTimingJson struct {
+type rootTimingsJson struct {
 	Tags          map[string]string `json:"tags,omitempty"`
 	NestedTimings []*timingJson     `json:"timings,omitempty"`
-	// the duration between start time of the first timing and the most recent stop of any timing within the tree
-	TotalDuration time.Duration `json:"total-duration"`
+	// start time of the first timing
+	StartTime time.Time `json:"start-time"`
+	// the most recent stop time of all timings
+	StopTime time.Time `json:"stop-time"`
 }
 
 // Maximum number of timings to keep in state. It can be changed only while holding state lock.
@@ -52,18 +54,19 @@ var timeDuration = func(start, end time.Time) time.Duration {
 // flatten flattens nested measurements into a single list within rootTimingJson.NestedTimings
 // and calculates total duration.
 func (t *Timings) flatten() interface{} {
-	data := &rootTimingJson{
+	data := &rootTimingsJson{
 		Tags: t.tags,
 	}
 	var maxStopTime time.Time
 	if len(t.timings) > 0 {
 		flattenRecursive(data, t.timings, 0, &maxStopTime)
-		data.TotalDuration = timeDuration(t.timings[0].start, maxStopTime)
+		data.StartTime = t.timings[0].start
+		data.StopTime = maxStopTime
 	}
 	return data
 }
 
-func flattenRecursive(data *rootTimingJson, timings []*Timing, nestLevel int, maxStopTime *time.Time) {
+func flattenRecursive(data *rootTimingsJson, timings []*Span, nestLevel int, maxStopTime *time.Time) {
 	for _, tm := range timings {
 		data.NestedTimings = append(data.NestedTimings, &timingJson{
 			Level:    nestLevel,
