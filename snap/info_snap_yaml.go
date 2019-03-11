@@ -33,26 +33,24 @@ import (
 )
 
 type snapYaml struct {
-	Name             string                 `yaml:"name"`
-	Version          string                 `yaml:"version"`
-	Type             Type                   `yaml:"type"`
-	Architectures    []string               `yaml:"architectures,omitempty"`
-	Assumes          []string               `yaml:"assumes"`
-	Title            string                 `yaml:"title"`
-	Description      string                 `yaml:"description"`
-	Summary          string                 `yaml:"summary"`
-	License          string                 `yaml:"license,omitempty"`
-	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
-	LicenseVersion   string                 `yaml:"license-version,omitempty"`
-	Epoch            Epoch                  `yaml:"epoch,omitempty"`
-	Base             string                 `yaml:"base,omitempty"`
-	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
-	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
-	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots            map[string]interface{} `yaml:"slots,omitempty"`
-	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
-	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
-	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
+	Name          string                 `yaml:"name"`
+	Version       string                 `yaml:"version"`
+	Type          Type                   `yaml:"type"`
+	Architectures []string               `yaml:"architectures,omitempty"`
+	Assumes       []string               `yaml:"assumes"`
+	Title         string                 `yaml:"title"`
+	Description   string                 `yaml:"description"`
+	Summary       string                 `yaml:"summary"`
+	License       string                 `yaml:"license,omitempty"`
+	Epoch         Epoch                  `yaml:"epoch,omitempty"`
+	Base          string                 `yaml:"base,omitempty"`
+	Confinement   ConfinementType        `yaml:"confinement,omitempty"`
+	Environment   strutil.OrderedMap     `yaml:"environment,omitempty"`
+	Plugs         map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots         map[string]interface{} `yaml:"slots,omitempty"`
+	Apps          map[string]appYaml     `yaml:"apps,omitempty"`
+	Hooks         map[string]hookYaml    `yaml:"hooks,omitempty"`
+	Layout        map[string]layoutYaml  `yaml:"layout,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -246,8 +244,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
 		License:             y.License,
-		LicenseAgreement:    y.LicenseAgreement,
-		LicenseVersion:      y.LicenseVersion,
 		Epoch:               y.Epoch,
 		Confinement:         confinement,
 		Base:                y.Base,

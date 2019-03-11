@@ -308,7 +308,8 @@ enum sc_discard_vote {
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 						 const char *snap_name,
 						 const char *base_snap_name,
-						 int snap_discard_ns_fd)
+						 int snap_discard_ns_fd,
+						 bool is_normal_mode)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
 	char fname[PATH_MAX] = { 0 };
@@ -327,12 +328,6 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// Find the device that is backing the current revision of the base snap.
 	base_snap_dev = find_base_snap_device(base_snap_name, base_snap_rev);
-
-	// Check if we are running in normal mode with pivot root. Do this here
-	// because once on the inside of the transformed mount namespace we can no
-	// longer tell.
-	bool is_normal_mode =
-	    sc_should_use_normal_mode(sc_classify_distro(), base_snap_name);
 
 	// Store the PID of this process. This is done instead of calls to
 	// getppid() below because then we can reliably track the PID of the
@@ -448,7 +443,8 @@ static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 			 *apparmor, const char *base_snap_name,
-			 const char *snap_name, int snap_discard_ns_fd)
+			 const char *snap_name, int snap_discard_ns_fd,
+			 bool is_normal_mode)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -490,7 +486,7 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
 		    (mnt_fd, snap_name, base_snap_name,
-		     snap_discard_ns_fd) == EAGAIN) {
+		     snap_discard_ns_fd, is_normal_mode) == EAGAIN) {
 			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.

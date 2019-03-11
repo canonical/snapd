@@ -95,6 +95,22 @@ static void sc_maybe_fixup_udev(void)
 	}
 }
 
+typedef struct sc_invocation {
+	/* Things declared by the system. */
+	const char *base_snap_name;
+	const char *security_tag;
+	const char *snap_instance;
+	/* Things derived at runtime. */
+	bool is_normal_mode;
+} sc_invocation;
+
+static void enter_classic_execution_environment(void);
+static void enter_non_classic_execution_environment(sc_invocation * inv,
+						    struct sc_apparmor *aa,
+						    uid_t real_uid,
+						    gid_t real_gid,
+						    gid_t saved_gid);
+
 int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
@@ -182,177 +198,27 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
+
+	/* Invocation helps to pass relevant data to various parts of snap-confine. */
+	sc_invocation invocation = {
+		.snap_instance = snap_instance,
+		.base_snap_name = base_snap_name,
+		.security_tag = security_tag,
+		/* is_normal_mode is not probed yet */
+	};
+	/* For the ease of introducing inv to the if branch below. */
+	sc_invocation *inv = &invocation;
+	struct sc_apparmor *aa = &apparmor;
+
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
 		if (classic_confinement) {
-			/* 'classic confinement' is designed to run without the sandbox
-			 * inside the shared namespace. Specifically:
-			 * - snap-confine skips using the snap-specific mount namespace
-			 * - snap-confine skips using device cgroups
-			 * - snapd sets up a lenient AppArmor profile for snap-confine to use
-			 * - snapd sets up a lenient seccomp profile for snap-confine to use
-			 */
-			debug
-			    ("skipping sandbox setup, classic confinement in use");
+			enter_classic_execution_environment();
 		} else {
-			/* snap-confine uses privately-shared /run/snapd/ns to store
-			 * bind-mounted mount namespaces of each snap. In the case that
-			 * snap-confine is invoked from the mount namespace it typically
-			 * constructs, the said directory does not contain mount entries
-			 * for preserved namespaces as those are only visible in the main,
-			 * outer namespace.
-			 *
-			 * In order to operate in such an environment snap-confine must
-			 * first re-associate its own process with another namespace in
-			 * which the /run/snapd/ns directory is visible.  The most obvious
-			 * candidate is pid one, which definitely doesn't run in a
-			 * snap-specific namespace, has a predictable PID and is long
-			 * lived.
-			 */
-			sc_reassociate_with_pid1_mount_ns();
-			// Do global initialization:
-			int global_lock_fd = sc_lock_global();
-			// ensure that "/" or "/snap" is mounted with the
-			// "shared" option, see LP:#1668659
-			debug("ensuring that snap mount directory is shared");
-			sc_ensure_shared_snap_mount();
-			debug("unsharing snap namespace directory");
-			sc_initialize_mount_ns();
-			sc_unlock(global_lock_fd);
-
-			// Find and open snap-update-ns and snap-discard-ns from the same
-			// path as where we (snap-confine) were called.
-			int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
-			snap_update_ns_fd = sc_open_snap_update_ns();
-			int snap_discard_ns_fd SC_CLEANUP(sc_cleanup_close) =
-			    -1;
-			snap_discard_ns_fd = sc_open_snap_discard_ns();
-
-			// Do per-snap initialization.
-			int snap_lock_fd = sc_lock_snap(snap_instance);
-			debug("initializing mount namespace: %s",
-			      snap_instance);
-			struct sc_mount_ns *group = NULL;
-			group = sc_open_mount_ns(snap_instance);
-
-			/* Stale mount namespace discarded or no mount namespace to
-			   join. We need to construct a new mount namespace ourselves.
-			   To capture it we will need a helper process so make one. */
-			sc_fork_helper(group, &apparmor);
-			int retval = sc_join_preserved_ns(group, &apparmor,
-							  base_snap_name,
-							  snap_instance,
-							  snap_discard_ns_fd);
-			if (retval == ESRCH) {
-				/* Create and populate the mount namespace. This performs all
-				   of the bootstrapping mounts, pivots into the new root
-				   filesystem and applies the per-snap mount profile using
-				   snap-update-ns. */
-				debug
-				    ("unsharing the mount namespace (per-snap)");
-				if (unshare(CLONE_NEWNS) < 0) {
-					die("cannot unshare the mount namespace");
-				}
-				sc_populate_mount_ns(&apparmor,
-						     snap_update_ns_fd,
-						     base_snap_name,
-						     snap_instance);
-
-				/* Preserve the mount namespace. */
-				sc_preserve_populated_mount_ns(group);
-			}
-
-			/* Older versions of snap-confine created incorrect 777 permissions
-			   for /var/lib and we need to fixup for systems that had their NS
-			   created with an old version. */
-			sc_maybe_fixup_permissions();
-			sc_maybe_fixup_udev();
-
-			/* User mount profiles do not apply to non-root users. */
-			if (real_uid != 0) {
-				debug
-				    ("joining preserved per-user mount namespace");
-				retval =
-				    sc_join_preserved_per_user_ns(group,
-								  snap_instance);
-				if (retval == ESRCH) {
-					debug
-					    ("unsharing the mount namespace (per-user)");
-					if (unshare(CLONE_NEWNS) < 0) {
-						die("cannot unshare the mount namespace");
-					}
-					sc_setup_user_mounts(&apparmor,
-							     snap_update_ns_fd,
-							     snap_instance);
-					/* Preserve the mount per-user namespace. But only if the
-					 * experimental feature is enabled. This way if the feature is
-					 * disabled user mount namespaces will still exist but will be
-					 * entirely ephemeral. In addition the call
-					 * sc_join_preserved_user_ns() will never find a preserved
-					 * mount namespace and will always enter this code branch. */
-					if (sc_feature_enabled
-					    (SC_PER_USER_MOUNT_NAMESPACE)) {
-						sc_preserve_populated_per_user_mount_ns
-						    (group);
-					} else {
-						debug
-						    ("NOT preserving per-user mount namespace");
-					}
-				}
-			}
-
-			// Associate each snap process with a dedicated snap freezer
-			// control group. This simplifies testing if any processes
-			// belonging to a given snap are still alive.
-			// See the documentation of the function for details.
-			if (getegid() != 0 && saved_gid == 0) {
-				// Temporarily raise egid so we can chown the freezer cgroup
-				// under LXD.
-				if (setegid(0) != 0) {
-					die("cannot set effective group id to root");
-				}
-			}
-			sc_cgroup_freezer_join(snap_instance, getpid());
-			if (geteuid() == 0 && real_gid != 0) {
-				if (setegid(real_gid) != 0) {
-					die("cannot set effective group id to %d", real_gid);
-				}
-			}
-
-
-			sc_unlock(snap_lock_fd);
-
-			sc_close_mount_ns(group);
-
-			// Reset path as we cannot rely on the path from the host OS to
-			// make sense. The classic distribution may use any PATH that makes
-			// sense but we cannot assume it makes sense for the core snap
-			// layout. Note that the /usr/local directories are explicitly
-			// left out as they are not part of the core snap.
-			debug
-			    ("resetting PATH to values in sync with core snap");
-			setenv("PATH",
-			       "/usr/local/sbin:"
-			       "/usr/local/bin:"
-			       "/usr/sbin:"
-			       "/usr/bin:"
-			       "/sbin:"
-			       "/bin:" "/usr/games:" "/usr/local/games", 1);
-			// Ensure we set the various TMPDIRs to /tmp.
-			// One of the parts of setting up the mount namespace is to create a private /tmp
-			// directory (this is done in sc_populate_mount_ns() above). The host environment
-			// may point to a directory not accessible by snaps so we need to reset it here.
-			const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
-			int i;
-			for (i = 0; tmpd[i] != NULL; i++) {
-				if (setenv(tmpd[i], "/tmp", 1) != 0) {
-					die("cannot set environment variable '%s'", tmpd[i]);
-				}
-			}
-			struct snappy_udev udev_s;
-			if (snappy_udev_init(security_tag, &udev_s) == 0)
-				setup_devices_cgroup(security_tag, &udev_s);
-			snappy_udev_cleanup(&udev_s);
+			enter_non_classic_execution_environment(inv, aa,
+								real_uid,
+								real_gid,
+								saved_gid);
 		}
 		// The rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
@@ -372,7 +238,7 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-	sc_maybe_aa_change_onexec(&apparmor, security_tag);
+	sc_maybe_aa_change_onexec(aa, security_tag);
 #ifdef HAVE_SECCOMP
 	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
@@ -408,4 +274,170 @@ int main(int argc, char **argv)
 	execv(executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
+}
+
+static void enter_classic_execution_environment(void)
+{
+	/* 'classic confinement' is designed to run without the sandbox inside the
+	 * shared namespace. Specifically:
+	 * - snap-confine skips using the snap-specific mount namespace
+	 * - snap-confine skips using device cgroups
+	 * - snapd sets up a lenient AppArmor profile for snap-confine to use
+	 * - snapd sets up a lenient seccomp profile for snap-confine to use
+	 */
+	debug("skipping sandbox setup, classic confinement in use");
+}
+
+static void enter_non_classic_execution_environment(sc_invocation * inv,
+						    struct sc_apparmor *aa,
+						    uid_t real_uid,
+						    gid_t real_gid,
+						    gid_t saved_gid)
+{
+	/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
+	 * mount namespaces of each snap. In the case that snap-confine is invoked
+	 * from the mount namespace it typically constructs, the said directory
+	 * does not contain mount entries for preserved namespaces as those are
+	 * only visible in the main, outer namespace.
+	 *
+	 * In order to operate in such an environment snap-confine must first
+	 * re-associate its own process with another namespace in which the
+	 * /run/snapd/ns directory is visible. The most obvious candidate is pid
+	 * one, which definitely doesn't run in a snap-specific namespace, has a
+	 * predictable PID and is long lived.
+	 */
+	sc_reassociate_with_pid1_mount_ns();
+	// Do global initialization:
+	int global_lock_fd = sc_lock_global();
+	// ensure that "/" or "/snap" is mounted with the
+	// "shared" option, see LP:#1668659
+	debug("ensuring that snap mount directory is shared");
+	sc_ensure_shared_snap_mount();
+	debug("unsharing snap namespace directory");
+	sc_initialize_mount_ns();
+	sc_unlock(global_lock_fd);
+
+	// Find and open snap-update-ns and snap-discard-ns from the same
+	// path as where we (snap-confine) were called.
+	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	snap_update_ns_fd = sc_open_snap_update_ns();
+	int snap_discard_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	snap_discard_ns_fd = sc_open_snap_discard_ns();
+
+	// Do per-snap initialization.
+	int snap_lock_fd = sc_lock_snap(inv->snap_instance);
+	debug("initializing mount namespace: %s", inv->snap_instance);
+	struct sc_mount_ns *group = NULL;
+	group = sc_open_mount_ns(inv->snap_instance);
+
+	// Check if we are running in normal mode with pivot root. Do this here
+	// because once on the inside of the transformed mount namespace we can no
+	// longer tell.
+	inv->is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
+							inv->base_snap_name);
+
+	/* Stale mount namespace discarded or no mount namespace to
+	   join. We need to construct a new mount namespace ourselves.
+	   To capture it we will need a helper process so make one. */
+	sc_fork_helper(group, aa);
+	int retval = sc_join_preserved_ns(group, aa,
+					  inv->base_snap_name,
+					  inv->snap_instance,
+					  snap_discard_ns_fd,
+					  inv->is_normal_mode);
+	if (retval == ESRCH) {
+		/* Create and populate the mount namespace. This performs all
+		   of the bootstrapping mounts, pivots into the new root filesystem and
+		   applies the per-snap mount profile using snap-update-ns. */
+		debug("unsharing the mount namespace (per-snap)");
+		if (unshare(CLONE_NEWNS) < 0) {
+			die("cannot unshare the mount namespace");
+		}
+		sc_populate_mount_ns(aa,
+				     snap_update_ns_fd, inv->base_snap_name,
+				     inv->snap_instance, inv->is_normal_mode);
+
+		/* Preserve the mount namespace. */
+		sc_preserve_populated_mount_ns(group);
+	}
+
+	/* Older versions of snap-confine created incorrect 777 permissions
+	   for /var/lib and we need to fixup for systems that had their NS created
+	   with an old version. */
+	sc_maybe_fixup_permissions();
+	sc_maybe_fixup_udev();
+
+	/* User mount profiles do not apply to non-root users. */
+	if (real_uid != 0) {
+		debug("joining preserved per-user mount namespace");
+		retval =
+		    sc_join_preserved_per_user_ns(group, inv->snap_instance);
+		if (retval == ESRCH) {
+			debug("unsharing the mount namespace (per-user)");
+			if (unshare(CLONE_NEWNS) < 0) {
+				die("cannot unshare the mount namespace");
+			}
+			sc_setup_user_mounts(aa, snap_update_ns_fd,
+					     inv->snap_instance);
+			/* Preserve the mount per-user namespace. But only if the
+			 * experimental feature is enabled. This way if the feature is
+			 * disabled user mount namespaces will still exist but will be
+			 * entirely ephemeral. In addition the call
+			 * sc_join_preserved_user_ns() will never find a preserved mount
+			 * namespace and will always enter this code branch. */
+			if (sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE)) {
+				sc_preserve_populated_per_user_mount_ns(group);
+			} else {
+				debug
+				    ("NOT preserving per-user mount namespace");
+			}
+		}
+	}
+	// Associate each snap process with a dedicated snap freezer control group.
+	// This simplifies testing if any processes belonging to a given snap are
+	// still alive.  See the documentation of the function for details.
+	if (getegid() != 0 && saved_gid == 0) {
+		// Temporarily raise egid so we can chown the freezer cgroup under LXD.
+		if (setegid(0) != 0) {
+			die("cannot set effective group id to root");
+		}
+	}
+	sc_cgroup_freezer_join(inv->snap_instance, getpid());
+	if (geteuid() == 0 && real_gid != 0) {
+		if (setegid(real_gid) != 0) {
+			die("cannot set effective group id to %d", real_gid);
+		}
+	}
+
+	sc_unlock(snap_lock_fd);
+
+	sc_close_mount_ns(group);
+
+	// Reset path as we cannot rely on the path from the host OS to make sense.
+	// The classic distribution may use any PATH that makes sense but we cannot
+	// assume it makes sense for the core snap layout. Note that the /usr/local
+	// directories are explicitly left out as they are not part of the core
+	// snap.
+	debug("resetting PATH to values in sync with core snap");
+	setenv("PATH",
+	       "/usr/local/sbin:"
+	       "/usr/local/bin:"
+	       "/usr/sbin:"
+	       "/usr/bin:"
+	       "/sbin:" "/bin:" "/usr/games:" "/usr/local/games", 1);
+	// Ensure we set the various TMPDIRs to /tmp. One of the parts of setting
+	// up the mount namespace is to create a private /tmp directory (this is
+	// done in sc_populate_mount_ns() above). The host environment may point to
+	// a directory not accessible by snaps so we need to reset it here.
+	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
+	int i;
+	for (i = 0; tmpd[i] != NULL; i++) {
+		if (setenv(tmpd[i], "/tmp", 1) != 0) {
+			die("cannot set environment variable '%s'", tmpd[i]);
+		}
+	}
+	struct snappy_udev udev_s;
+	if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
+		setup_devices_cgroup(inv->security_tag, &udev_s);
+	snappy_udev_cleanup(&udev_s);
 }
