@@ -20,6 +20,8 @@
 
 #include <stdbool.h>
 
+#include "snap-confine-args.h"
+
 /**
  * sc_invocation contains information about how snap-confine was invoked.
  *
@@ -35,5 +37,15 @@ typedef struct sc_invocation {
 	/* Things derived at runtime. */
 	bool is_normal_mode;
 } sc_invocation;
+
+/**
+ * sc_init_invocation initializes the invocation object.
+ *
+ * Invocation is constructed based on command line arguments as well as
+ * environment value (SNAP_INSTANCE_NAME). All input is untrustee and is
+ * validated internally.
+ **/
+void sc_init_invocation(sc_invocation * inv, const struct sc_args *args,
+			const char *snap_instance);
 
 #endif
