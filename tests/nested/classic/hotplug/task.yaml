@@ -28,7 +28,7 @@ debug: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    execute_remote "snap interfaces" || true
+    execute_remote "snap connections --all" || true
     execute_remote "snap list" || true
     execute_remote "dmesg" || true
     execute_remote 'sudo jq -r ".data[\"hotplug-slots\"] /var/lib/snapd/state.json' || true
@@ -54,32 +54,32 @@ execute: |
         remove_chardev my-chardev2
     }
 
-    # Check that given slot is not present in 'snap interfaces' output
+    # Check that given slot is not present in 'snap connections' output
     # (note, it can still be present in the state with hotplug-gone=true)
     check_slot_not_present() {
         SLOT_NAME="$1"
         for _ in $(seq 10); do
-            if ! execute_remote "snap interfaces" | MATCH ":$SLOT_NAME"; then
+            if ! execute_remote "snap connections system" | MATCH ":$SLOT_NAME"; then
                 break
             fi
             sleep 1
         done
-        if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME "; then
-            echo "slot $SLOT_NAME should't be present anymore"
+        if execute_remote "snap connections system" | MATCH ":$SLOT_NAME "; then
+            echo "slot $SLOT_NAME shouldn't be present anymore"
             exit 1
         fi
     }
 
-    # Check that given slot is present in 'snap interfaces' output (but is not connected)
+    # Check that given slot is present in 'snap connections' output (but is not connected)
     check_slot_present() {
         SLOT_NAME="$1"
         for _ in $(seq 10); do
-            if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*-"; then
+            if execute_remote "snap connections system" | MATCH "serial-port .* - .* :$SLOT_NAME"; then
                 break
             fi
             sleep 1
         done
-        execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*-"
+        execute_remote "snap connections system" | MATCH "serial-port .* - .* :$SLOT_NAME"
     }
 
     # Check that given slot has hotplug-gone=true, meaning the device was unplugged but there are connections remembered for it
@@ -106,16 +106,16 @@ execute: |
         execute_remote 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"static-attrs\"].path" /var/lib/snapd/state.json' | MATCH "$DEVICE_PATH"
     }
 
-    # Check that given slot is connected to the serial-port-hotplug snap, per 'snap interfaces' output
+    # Check that given slot is connected to the serial-port-hotplug snap, per 'snap connections' output
     check_slot_connected() {
         SLOT_NAME="$1"
         for _ in $(seq 10); do
-            if execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*serial-port-hotplug:serial-port"; then
+            if execute_remote "snap connections" | MATCH "serial-port .*serial-port-hotplug:serial-port .*$SLOT_NAME"; then
                 break
             fi
             sleep 1
         done
-        execute_remote "snap interfaces" | MATCH ":$SLOT_NAME .*serial-port-hotplug:serial-port"
+        execute_remote "snap connections" | MATCH "serial-port .*serial-port-hotplug:serial-port .*$SLOT_NAME"
     }
 
     # Check that apparmor profile allows rw access to given device path.
