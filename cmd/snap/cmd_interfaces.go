@@ -74,7 +74,7 @@ func init() {
 	cmd.hidden = true
 }
 
-const interfacesDeprecationNotice = "'snap interfaces' is deprecated; use 'snap connections'."
+var interfacesDeprecationNotice = i18n.G("'snap interfaces' is deprecated; use 'snap connections'.")
 
 func (x *cmdInterfaces) Execute(args []string) error {
 	if len(args) > 0 {
@@ -93,7 +93,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}
 
-	defer fmt.Fprintln(Stderr, "\n"+fill(i18n.G(interfacesDeprecationNotice), 0))
+	defer fmt.Fprintln(Stderr, "\n"+fill(interfacesDeprecationNotice, 0))
 
 	w := tabWriter()
 	defer w.Flush()
