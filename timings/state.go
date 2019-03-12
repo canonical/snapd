@@ -27,17 +27,17 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// timingJson and rootTimingsJson aid in marshalling of flattened timings into state.
-type timingJson struct {
+// TimingJson and rootTimingsJson aid in marshalling of flattened timings into state.
+type TimingJson struct {
 	Level    int           `json:"level,omitempty"`
 	Label    string        `json:"label,omitempty"`
 	Summary  string        `json:"summary,omitempty"`
 	Duration time.Duration `json:"duration"`
 }
 
-type rootTimingsJson struct {
+type RootTimingsJson struct {
 	Tags          map[string]string `json:"tags,omitempty"`
-	NestedTimings []*timingJson     `json:"timings,omitempty"`
+	NestedTimings []*TimingJson     `json:"timings,omitempty"`
 	// start time of the first timing
 	StartTime time.Time `json:"start-time"`
 	// the most recent stop time of all timings
@@ -54,7 +54,7 @@ var timeDuration = func(start, end time.Time) time.Duration {
 // flatten flattens nested measurements into a single list within rootTimingJson.NestedTimings
 // and calculates total duration.
 func (t *Timings) flatten() interface{} {
-	data := &rootTimingsJson{
+	data := &RootTimingsJson{
 		Tags: t.tags,
 	}
 	var maxStopTime time.Time
@@ -66,9 +66,9 @@ func (t *Timings) flatten() interface{} {
 	return data
 }
 
-func flattenRecursive(data *rootTimingsJson, timings []*Span, nestLevel int, maxStopTime *time.Time) {
+func flattenRecursive(data *RootTimingsJson, timings []*Span, nestLevel int, maxStopTime *time.Time) {
 	for _, tm := range timings {
-		data.NestedTimings = append(data.NestedTimings, &timingJson{
+		data.NestedTimings = append(data.NestedTimings, &TimingJson{
 			Level:    nestLevel,
 			Label:    tm.label,
 			Summary:  tm.summary,

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
 
 var debugCmd = &Command{
@@ -84,8 +85,19 @@ func checkConnectivity(st *state.State) Response {
 }
 
 func getTimings(st *state.State) Response {
-	var timings []interface{}
+	var timings []timings.RootTimingsJson
 	st.Get("timings", &timings)
+	// attach doing-time and undoing-time to tags of all task timings, if available
+	for _, tm := range timings {
+		if taskID, ok := tm.Tags["task-id"]; ok {
+			task := st.Task(taskID)
+			if task == nil {
+				continue
+			}
+			tm.Tags["doing-time"] = task.DoingTime().String()
+			tm.Tags["undoing-time"] = task.UndoingTime().String()
+		}
+	}
 	return SyncResponse(map[string]interface{}{
 		"timings": timings,
 	}, nil)
