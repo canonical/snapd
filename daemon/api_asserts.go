@@ -76,9 +76,22 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	if assertType == nil {
 		return BadRequest("invalid assert type: %q", assertTypeName)
 	}
+	jsonResult := false
+	headersOnly := false
 	headers := map[string]string{}
 	q := r.URL.Query()
 	for k := range q {
+		if k == "json" {
+			switch q.Get(k) {
+			case "true":
+			case "headers":
+				headersOnly = true
+			default:
+				return BadRequest(`"json" query parameter when used must be set to "true" or "headers"`)
+			}
+			jsonResult = true
+			continue
+		}
 		headers[k] = q.Get(k)
 	}
 
@@ -88,10 +101,25 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	state.Unlock()
 
 	assertions, err := db.FindMany(assertType, headers)
-	if asserts.IsNotFound(err) {
-		return AssertResponse(nil, true)
-	} else if err != nil {
+	if err != nil && !asserts.IsNotFound(err) {
 		return InternalError("searching assertions failed: %v", err)
 	}
+
+	if jsonResult {
+		assertsJSON := make([]struct {
+			Headers map[string]interface{} `json:"headers,omitempty"`
+			Body    string                 `json:"body,omitempty"`
+		}, len(assertions))
+		for i := range assertions {
+			assertsJSON[i].Headers = assertions[i].Headers()
+			if !headersOnly {
+				assertsJSON[i].Body = string(assertions[i].Body())
+			}
+		}
+		return SyncResponse(map[string]interface{}{
+			"assertions": assertsJSON,
+		}, nil)
+	}
+
 	return AssertResponse(assertions, true)
 }
