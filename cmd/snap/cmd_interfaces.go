@@ -54,6 +54,9 @@ $ snap interfaces -i=<interface> [<snap>]
 
 Filters the complete output so only plugs and/or slots matching the provided
 details are listed.
+
+NOTE this command is deprecated and has been replaced with the 'connections'
+     command.
 `)
 
 func init() {
@@ -70,6 +73,8 @@ func init() {
 	}})
 	cmd.hidden = true
 }
+
+const interfacesDeprecationNotice = "'snap interfaces' is deprecated; use 'snap connections'."
 
 func (x *cmdInterfaces) Execute(args []string) error {
 	if len(args) > 0 {
@@ -88,7 +93,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}
 
-	defer fmt.Fprintln(Stderr, "\n"+fill(i18n.G("The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command."), 0))
+	defer fmt.Fprintln(Stderr, "\n"+fill(i18n.G(interfacesDeprecationNotice), 0))
 
 	w := tabWriter()
 	defer w.Flush()
