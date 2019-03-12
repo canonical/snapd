@@ -71,7 +71,6 @@ func (cmd *cmdTimings) Execute(args []string) error {
 		return err
 	}
 
-	//w := tabWriter()
 	w := os.Stdout
 	fmt.Fprintf(w, "Timings\n\n")
 
@@ -81,22 +80,22 @@ func (cmd *cmdTimings) Execute(args []string) error {
 			chg, _ := timing.Tags["change-id"]
 			if doingTime, hasTaskDoingTimes := timing.Tags["doing-time"]; hasTaskDoingTimes {
 				undoingTime, _ := timing.Tags["undoing-time"]
-				fmt.Fprintf(w, "%s\tTask: %s, change: %s, start: %s, doing time: %s, undoing time: %s\n", dur, tid, chg, timing.StartTime, doingTime, undoingTime)
+				fmt.Fprintf(w, "%12s\tTask: %s, change: %s, start: %s, doing time: %s, undoing time: %s\n", dur, tid, chg, timing.StartTime, doingTime, undoingTime)
 			} else {
-				fmt.Fprintf(w, "%s\ttask: %s, change: %s, start: %s\n", dur, tid, chg, timing.StartTime)
+				fmt.Fprintf(w, "%12s\ttask: %s, change: %s, start: %s\n", dur, tid, chg, timing.StartTime)
 			}
 		}
 		if mgr, ok := timing.Tags["startup"]; ok {
-			fmt.Fprintf(w, "%s\tStartup of %s\n", dur, mgr)
+			fmt.Fprintf(w, "%12s\tStartup of %s, start: %s\n", dur, mgr, timing.StartTime)
 		}
 		if mgr, ok := timing.Tags["ensure"]; ok {
-			fmt.Fprintf(w, "%s\tEnsure loop of %s\n", dur, mgr)
+			fmt.Fprintf(w, "%12s\tEnsure loop of %s, start: %s\n", dur, mgr, timing.StartTime)
 		}
 
 		for _, span := range timing.NestedTimings {
-			fmt.Fprintf(w, "%s\t", span.Duration)
+			fmt.Fprintf(w, "%12s\t", span.Duration)
 			indent := ""
-			for i := 0; i<=span.Level; i++ {
+			for i := 0; i<span.Level+1; i++ {
 				indent += "\t"
 			}
 			fmt.Fprintf(w, indent + "%s, %s\n", span.Label, span.Summary)
