@@ -122,7 +122,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 	connsjson.Slots = make([]*slotJSON, 0, len(ifaces.Slots))
 
 	for crefStr, cstate := range connStates {
-		if cstate.Undesired && filter.connected {
+		if (cstate.Undesired && filter.connected) || cstate.HotplugGone {
 			continue
 		}
 		cref, err := interfaces.ParseConnRef(crefStr)

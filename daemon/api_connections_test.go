@@ -794,6 +794,32 @@ func (s *apiSuite) TestConnectionsOnlyUndesired(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestConnectionsHotplugGone(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"hotplug-gone": true,
+		},
+	}, map[string]interface{}{
+		"result": map[string]interface{}{
+			"established": []interface{}{},
+			"plugs":       []interface{}{},
+			"slots":       []interface{}{},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
 func (s *apiSuite) TestConnectionsSorted(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
