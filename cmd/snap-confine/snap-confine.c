@@ -31,6 +31,7 @@
 
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
+#include "../libsnap-confine-private/cgroup-pids-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/feature.h"
@@ -38,16 +39,14 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
+#include "cookie-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
-#include "udev-support.h"
-#include "user-support.h"
-#include "cookie-support.h"
+#include "seccomp-support.h"
 #include "snap-confine-args.h"
 #include "snap-confine-invocation.h"
-#ifdef HAVE_SECCOMP
-#include "seccomp-support.h"
-#endif				// ifdef HAVE_SECCOMP
+#include "udev-support.h"
+#include "user-support.h"
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -204,13 +203,11 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
-#ifdef HAVE_SECCOMP
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
 		sc_apply_global_seccomp_profile();
 	}
-#endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
@@ -352,9 +349,14 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			}
 		}
 	}
-	// Associate each snap process with a dedicated snap freezer control group.
+	// Associate each snap process with a dedicated snap freezer cgroup and
+	// snap pids cgroup. All snap processes belonging to one snap share the
+	// freezer cgroup. All snap processes belonging to one app or one hook
+	// share the pids cgroup.
+	//
 	// This simplifies testing if any processes belonging to a given snap are
-	// still alive.  See the documentation of the function for details.
+	// still alive as well as to properly account for each application and
+	// service.
 	if (getegid() != 0 && saved_gid == 0) {
 		// Temporarily raise egid so we can chown the freezer cgroup under LXD.
 		if (setegid(0) != 0) {
@@ -362,6 +364,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		}
 	}
 	sc_cgroup_freezer_join(inv->snap_instance, getpid());
+	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+		sc_cgroup_pids_join(inv->security_tag, getpid());
+	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {
 			die("cannot set effective group id to %d", real_gid);
