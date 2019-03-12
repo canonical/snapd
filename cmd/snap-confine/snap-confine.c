@@ -39,15 +39,13 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
+#include "cookie-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
+#include "seccomp-support.h"
+#include "snap-confine-args.h"
 #include "udev-support.h"
 #include "user-support.h"
-#include "cookie-support.h"
-#include "snap-confine-args.h"
-#ifdef HAVE_SECCOMP
-#include "seccomp-support.h"
-#endif				// ifdef HAVE_SECCOMP
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -240,13 +238,11 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(aa, security_tag);
-#ifdef HAVE_SECCOMP
 	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
 		sc_apply_global_seccomp_profile();
 	}
-#endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
