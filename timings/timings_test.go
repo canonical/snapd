@@ -209,3 +209,31 @@ func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	c.Check(stateTimings[1].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "8"})
 	c.Check(stateTimings[2].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "9"})
 }
+
+func (s *timingsSuite) TestNewForTask(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	task := s.st.NewTask("foo", "bar")
+	chg := s.st.NewChange("change", "...")
+	chg.AddTask(task)
+
+	troot, span := timings.NewForTask(task)
+	span.Stop()
+	troot.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
+	c.Assert(stateTimings, DeepEquals, []interface{}{
+		map[string]interface{}{
+			"tags":       map[string]interface{}{"change-id": chg.ID(), "task-id": task.ID()},
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.002Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "foo",
+					"summary":  "bar",
+					"duration": float64(1000000),
+				},
+			}}})
+}

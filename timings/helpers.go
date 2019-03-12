@@ -24,7 +24,7 @@ import (
 )
 
 func NewForTask(task *state.Task) (*Timings, *Span) {
-	tags := map[string]string{"id": task.ID()}
+	tags := map[string]string{"task-id": task.ID()}
 	if chg := task.Change(); chg != nil {
 		tags["change-id"] = chg.ID()
 	}
