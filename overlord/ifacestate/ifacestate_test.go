@@ -6054,10 +6054,12 @@ func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undes
 	c.Assert(slot, NotNil)
 	plug := plugSnap.Plugs["plug"]
 	c.Assert(plug, NotNil)
+	dynamicPlugAttrs := map[string]interface{}{"dynamic-number": 7}
+	dynamicSlotAttrs := map[string]interface{}{"other-number": 9}
 	// create connection in conns state
 	conn := &interfaces.Connection{
-		Plug: interfaces.NewConnectedPlug(plug, nil, nil),
-		Slot: interfaces.NewConnectedSlot(slot, nil, nil),
+		Plug: interfaces.NewConnectedPlug(plug, nil, dynamicPlugAttrs),
+		Slot: interfaces.NewConnectedSlot(slot, nil, dynamicSlotAttrs),
 	}
 	ifacestate.UpdateConnectionInConnState(sc, conn, auto, byGadget, undesired)
 	ifacestate.SetConns(st, sc)
@@ -6075,6 +6077,18 @@ func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
 		}})
 }
 
@@ -6085,6 +6099,18 @@ func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
 			Interface: "test",
 			Auto:      true,
 			ByGadget:  true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
 		}})
 }
 
@@ -6095,6 +6121,18 @@ func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
 			Interface: "test",
 			Auto:      true,
 			Undesired: true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
 		}})
 }
 

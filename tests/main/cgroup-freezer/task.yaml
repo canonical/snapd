@@ -13,6 +13,7 @@ restore: |
     rmdir /sys/fs/cgroup/freezer/snap.test-snapd-sh || true
 
 execute: |
+    trap 'killall test-snapd-sh || true' EXIT
     # Start a "sleep" process in the background
     #shellcheck disable=SC2016
     test-snapd-sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 1h' &
