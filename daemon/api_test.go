@@ -322,6 +322,38 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	snapstateUpdateMany = snapstate.UpdateMany
 }
 
+func makeMockModelHdrs() map[string]interface{} {
+	return map[string]interface{}{
+		"type":         "model",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"brand-id":     "can0nical",
+		"model":        "pc",
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+}
+
+func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
+	// realistic model setup
+	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, makeMockModelHdrs(), nil, "")
+	c.Assert(err, check.IsNil)
+	model := a.(*asserts.Model)
+
+	snapstate.Model = devicestate.Model
+
+	err = assertstate.Add(st, model)
+	c.Assert(err, check.IsNil)
+
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
+}
+
 func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	if s.d != nil {
 		panic("called daemon() twice")
@@ -337,32 +369,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
-	// realistic model setup
-	modelHdrs := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "can0nical",
-		"series":       "16",
-		"brand-id":     "can0nical",
-		"model":        "pc",
-		"architecture": "amd64",
-		"gadget":       "gadget",
-		"kernel":       "kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, modelHdrs, nil, "")
-	c.Assert(err, check.IsNil)
-	model := a.(*asserts.Model)
-
-	snapstate.Model = devicestate.Model
-
-	err = assertstate.Add(st, model)
-	c.Assert(err, check.IsNil)
-
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "can0nical",
-		Model:  "pc",
-		Serial: "serialserial",
-	})
+	s.mockModel(c, st)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -7742,8 +7749,12 @@ func (s *apiSuite) TestPostRemodelUnhappy(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
-func (s *apiSuite) TestPostRemodel(c *check.C) {
+func (s *apiSuite) testPostRemodel(c *check.C, newModel map[string]interface{}, expectedChgSummary string) {
 	d := s.daemonWithOverlordMock(c)
+	st := d.overlord.State()
+	st.Lock()
+	s.mockModel(c, st)
+	st.Unlock()
 
 	var devicestateRemodelGotModel *asserts.Model
 	devicestateRemodel = func(st *state.State, nm *asserts.Model) ([]*state.TaskSet, error) {
@@ -7752,16 +7763,7 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	}
 
 	// create a valid model assertion
-	mockModel, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
+	mockModel, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, newModel, nil, "")
 	c.Assert(err, check.IsNil)
 	mockModelEncoded := string(asserts.Encode(mockModel))
 	data, err := json.Marshal(postModelData{NewModel: mockModelEncoded})
@@ -7775,9 +7777,34 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Check(mockModel, check.DeepEquals, devicestateRemodelGotModel)
 
-	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
-	c.Check(chg.Summary(), check.Equals, "Remodel device to my-brand/my-model (0)")
+	c.Check(chg.Summary(), check.Equals, expectedChgSummary)
+}
+
+func (s *apiSuite) TestPostRemodelDifferentBrandModel(c *check.C) {
+	newModel := map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	expectedChgSummary := "Remodel device to my-brand/my-model (0)"
+	s.testPostRemodel(c, newModel, expectedChgSummary)
+}
+
+func (s *apiSuite) TestPostRemodelSameBrandModelDifferentRev(c *check.C) {
+	newModel := make(map[string]interface{})
+	for k, v := range makeMockModelHdrs() {
+		newModel[k] = v
+	}
+	newModel["revision"] = "2"
+
+	expectedChgSummary := "Refresh model assertion from revision 0 to 2"
+	s.testPostRemodel(c, newModel, expectedChgSummary)
 }

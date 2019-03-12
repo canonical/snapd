@@ -2839,7 +2839,17 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
-	msg := fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), newModel.BrandID(), newModel.Model(), newModel.Revision())
+	model, err := devicestate.Model(st)
+	if err != nil {
+		return InternalError("cannot get model: %v", err)
+	}
+
+	var msg string
+	if model.BrandID() == newModel.BrandID() && model.Model() == newModel.Model() {
+		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), model.Revision(), newModel.Revision())
+	} else {
+		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), newModel.BrandID(), newModel.Model(), newModel.Revision())
+	}
 	chg := newChange(st, "remodel", msg, tss, nil)
 
 	ensureStateSoon(st)
