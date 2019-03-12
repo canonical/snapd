@@ -619,9 +619,9 @@ func mockPartalAppArmorOnDistro(c *C, kernelVersion string, releaseID string, re
 	}
 }
 
-// On openSUSE tumbleweed partial apparmor support doesn't change apparmor template to classic.
+// On openSUSE Tumbleweed partial apparmor support doesn't change apparmor template to classic.
 // Strict confinement template, along with snippets, are used.
-func (s *backendSuite) TestCombineSnippetsOpenSUSE(c *C) {
+func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
 	restore := mockPartalAppArmorOnDistro(c, "4.16-10-1-default", "opensuse-tumbleweed")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
@@ -633,9 +633,9 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSE(c *C) {
 	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
 }
 
-// On openSUSE tumbleweed running older kernel partial apparmor support changes
+// On openSUSE Tumbleweed running older kernel partial apparmor support changes
 // apparmor template to classic.
-func (s *backendSuite) TestCombineSnippetsOpenSUSEOldKernel(c *C) {
+func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
 	restore := mockPartalAppArmorOnDistro(c, "4.14", "opensuse-tumbleweed")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
