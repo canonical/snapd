@@ -805,7 +805,7 @@ func (s *apiSuite) TestConnectionsHotplugGone(c *check.C) {
 
 	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
-			"interface": "test",
+			"interface":    "test",
 			"hotplug-gone": true,
 		},
 	}, map[string]interface{}{

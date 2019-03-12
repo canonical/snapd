@@ -4966,7 +4966,7 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(conn.Slot.Attr("number", &number), IsNil)
 	c.Check(number, Equals, int64(1))
 
-	var isAuto, byGadget, isUndesired,hotplugGone bool
+	var isAuto, byGadget, isUndesired, hotplugGone bool
 	ifacestate.UpdateConnectionInConnState(conns, conn, isAuto, byGadget, isUndesired, hotplugGone)
 	ifacestate.SetConns(st, conns)
 
@@ -6137,7 +6137,7 @@ func (s *interfaceManagerSuite) TestConnectionStatesHotplugGone(c *C) {
 	var isAuto, byGadget, isUndesired, hotplugGone bool = false, false, false, true
 	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
 		"consumer:plug producer:slot": {
-			Interface: "test",
+			Interface:   "test",
 			HotplugGone: true,
 			StaticPlugAttrs: map[string]interface{}{
 				"attr1": "value1",
