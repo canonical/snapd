@@ -293,11 +293,9 @@ func (s *assertsSuite) TestAssertsFindManyJSONFilter(c *check.C) {
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
-	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
-		"assertions": []interface{}{
-			map[string]interface{}{
-				"headers": acct.Headers(),
-			},
+	c.Check(body["result"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"headers": acct.Headers(),
 		},
 	})
 }
@@ -326,9 +324,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
-	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
-		"assertions": []interface{}{},
-	})
+	c.Check(body["result"], check.DeepEquals, []interface{}{})
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
@@ -353,7 +349,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
-	for _, a := range body["result"].(map[string]interface{})["assertions"].([]interface{}) {
+	for _, a := range body["result"].([]interface{}) {
 		h := a.(map[string]interface{})["headers"].(map[string]interface{})
 		got = append(got, h["account-id"].(string)+"/"+h["name"].(string))
 		// check body
@@ -387,7 +383,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
-	for _, a := range body["result"].(map[string]interface{})["assertions"].([]interface{}) {
+	for _, a := range body["result"].([]interface{}) {
 		h := a.(map[string]interface{})["headers"].(map[string]interface{})
 		got = append(got, h["account-id"].(string)+"/"+h["name"].(string))
 		// check body absent
@@ -423,4 +419,34 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"message": `"json" query parameter when used must be set to "true" or "headers"`,
 	})
+}
+
+func (s *assertsSuite) TestAssertsFindManyJSONNopFilter(c *check.C) {
+	st := s.o.State()
+	// add store key
+	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
+
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	daemon.AssertAdd(st, acct)
+
+	// Execute
+	req, err := http.NewRequest("POST", "/v2/assertions/account?json=false&username=developer1", nil)
+	c.Assert(err, check.IsNil)
+	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
+		return map[string]string{"assertType": "account"}
+	})()
+
+	rec := httptest.NewRecorder()
+	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	// Verify
+	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
+	dec := asserts.NewDecoder(rec.Body)
+	a1, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+	c.Check(a1.Type(), check.Equals, asserts.AccountType)
+	c.Check(a1.(*asserts.Account).Username(), check.Equals, "developer1")
+	c.Check(a1.(*asserts.Account).AccountID(), check.Equals, acct.AccountID())
+	_, err = dec.Decode()
+	c.Check(err, check.Equals, io.EOF)
 }

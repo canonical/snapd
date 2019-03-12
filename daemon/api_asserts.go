@@ -83,13 +83,16 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	for k := range q {
 		if k == "json" {
 			switch q.Get(k) {
-			case "true":
+			case "false":
+				jsonResult = false
 			case "headers":
 				headersOnly = true
+				fallthrough
+			case "true":
+				jsonResult = true
 			default:
 				return BadRequest(`"json" query parameter when used must be set to "true" or "headers"`)
 			}
-			jsonResult = true
 			continue
 		}
 		headers[k] = q.Get(k)
@@ -116,9 +119,7 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 				assertsJSON[i].Body = string(assertions[i].Body())
 			}
 		}
-		return SyncResponse(map[string]interface{}{
-			"assertions": assertsJSON,
-		}, nil)
+		return SyncResponse(assertsJSON, nil)
 	}
 
 	return AssertResponse(assertions, true)
