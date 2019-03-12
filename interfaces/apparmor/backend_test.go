@@ -44,7 +44,7 @@ type backendSuite struct {
 	ifacetest.BackendSuite
 
 	parserCmd *testutil.MockCmd
-	meas *timings.Span
+	meas      *timings.Span
 }
 
 var _ = Suite(&backendSuite{})

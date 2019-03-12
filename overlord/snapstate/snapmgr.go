@@ -667,7 +667,6 @@ func (m *SnapManager) Ensure() error {
 		measure(m.localInstallCleanup, "local install cleanup", ""),
 	}
 
-
 	m.state.Lock()
 	defer m.state.Unlock()
 	perftimings.Save(m.state)

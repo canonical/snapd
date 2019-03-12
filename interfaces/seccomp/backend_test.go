@@ -42,7 +42,7 @@ type backendSuite struct {
 	ifacetest.BackendSuite
 
 	snapSeccomp *testutil.MockCmd
-	meas *timings.Span
+	meas        *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
