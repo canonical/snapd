@@ -84,7 +84,7 @@ func startSpan(label, summary string) *Span {
 	return tmeas
 }
 
-// Starts creates a Timing and initiates performance measurement.
+// StartSpan creates a Span and initiates performance measurement.
 // Measurement needs to be stopped by calling Stop on it.
 func (t *Timings) StartSpan(label, summary string) *Span {
 	tmeas := startSpan(label, summary)
@@ -92,7 +92,7 @@ func (t *Timings) StartSpan(label, summary string) *Span {
 	return tmeas
 }
 
-// Start creates a new nested Timing and initiates performance measurement.
+// StartSpan creates a new nested Span and initiates performance measurement.
 // Nested measurements need to be stopped by calling Stop on it.
 func (t *Span) StartSpan(label, summary string) *Span {
 	tmeas := startSpan(label, summary)
@@ -100,7 +100,7 @@ func (t *Span) StartSpan(label, summary string) *Span {
 	return tmeas
 }
 
-// Stops the measurement.
+// Stop stops the measurement.
 func (t *Span) Stop() {
 	if t.stop.IsZero() {
 		t.stop = timeNow()
