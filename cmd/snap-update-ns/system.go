@@ -118,7 +118,8 @@ func computeAndSaveSystemChanges(snapName string, as *Assumptions) error {
 		as.AddChange(&Change{Action: Mount, Entry: entry})
 	}
 
-	currentAfter, err := applyProfile(snapName, currentBefore, desired, as)
+	up := &TransitionalMountProfileUpdate{}
+	currentAfter, err := applyProfile(up, snapName, currentBefore, desired, as)
 	if err != nil {
 		return err
 	}

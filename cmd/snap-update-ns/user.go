@@ -43,6 +43,7 @@ func applyUserFstab(snapName string) error {
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
-	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, as)
+	up := &TransitionalMountProfileUpdate{}
+	_, err = applyProfile(up, snapName, &osutil.MountProfile{}, desired, as)
 	return err
 }

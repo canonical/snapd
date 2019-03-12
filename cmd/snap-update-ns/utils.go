@@ -654,7 +654,7 @@ func createWritableMimic(dir, neededBy string, as *Assumptions) ([]*Change, erro
 	return changes, nil
 }
 
-func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
+func applyProfile(up MountProfileUpdate, snapName string, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
