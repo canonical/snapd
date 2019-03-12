@@ -83,6 +83,14 @@ func checkConnectivity(st *state.State) Response {
 	return SyncResponse(status, nil)
 }
 
+func getTimings(st *state.State) Response {
+	var timings []interface{}
+	st.Get("timings", &timings)
+	return SyncResponse(map[string]interface{}{
+		"timings": timings,
+	}, nil)
+}
+
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	aspect := query.Get("aspect")
@@ -144,6 +152,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 			}
 		}
 		return SyncResponse(m, nil)
+	case "timings":
+		return getTimings(st)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
