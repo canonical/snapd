@@ -7739,11 +7739,11 @@ func (s *apiSuite) TestPostRemodelUnhappy(c *check.C) {
 	rsp := postModel(appsCmd, req, nil).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Assert(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot decode request new model assertion: .*")
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
 func (s *apiSuite) TestPostRemodel(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMock(c)
 
 	var devicestateRemodelGotModel *asserts.Model
 	devicestateRemodel = func(st *state.State, nm *asserts.Model) ([]*state.TaskSet, error) {
@@ -7774,4 +7774,10 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	rsp := postModel(appsCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Check(mockModel, check.DeepEquals, devicestateRemodelGotModel)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, "Remodel device to my-brand/my-model (0)")
 }

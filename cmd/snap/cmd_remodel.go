@@ -28,6 +28,13 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
+var (
+	shortRemodelHelp = i18n.G("Remodel this device")
+	longRemodelHelp  = i18n.G(`
+The remodel command changes the model assertion of the device.
+`)
+)
+
 type cmdRemodel struct {
 	waitMixin
 	RemodelOptions struct {
@@ -37,8 +44,8 @@ type cmdRemodel struct {
 
 func init() {
 	cmd := addCommand("remodel",
-		"Remodel the given device",
-		"Remodel the given device",
+		shortRemodelHelp,
+		longRemodelHelp,
 		func() flags.Commander {
 			return &cmdRemodel{}
 		}, nil, []argDesc{{

@@ -261,7 +261,7 @@ var (
 	modelCmd = &Command{
 		Path: "/v2/model",
 		POST: postModel,
-		// FIXME: provide getModel here instead of via debug?
+		// TODO: provide GET here too once we decided on the details of the API
 	}
 
 	buildID = "unknown"
@@ -2824,7 +2824,7 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 	rawNewModel, err := asserts.Decode([]byte(data.NewModel))
 	if err != nil {
-		return BadRequest("cannot decode request new model assertion: %v", err)
+		return BadRequest("cannot decode new model assertion: %v", err)
 	}
 	newModel, ok := rawNewModel.(*asserts.Model)
 	if !ok {
@@ -2839,7 +2839,7 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
-	msg := fmt.Sprintf(i18n.G("Remodel device to %v (%v)"), newModel.Model(), newModel.Revision())
+	msg := fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), newModel.BrandID(), newModel.Model(), newModel.Revision())
 	chg := newChange(st, "remodel", msg, tss, nil)
 
 	ensureStateSoon(st)

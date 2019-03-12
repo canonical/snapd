@@ -30,7 +30,7 @@ type cmdGetModel struct {
 }
 
 func init() {
-	cmd := addDebugCommand("get-model",
+	cmd := addDebugCommand("model",
 		"(internal) obtain the active model assertion",
 		"(internal) obtain the active model assertion",
 		func() flags.Commander {
@@ -46,7 +46,7 @@ func (x *cmdGetModel) Execute(args []string) error {
 	var resp struct {
 		Model string `json:"model"`
 	}
-	if err := x.client.Debug("get-model", nil, &resp); err != nil {
+	if err := x.client.Debug("model", nil, &resp); err != nil {
 		return err
 	}
 	fmt.Fprintf(Stdout, "%s\n", resp.Model)
