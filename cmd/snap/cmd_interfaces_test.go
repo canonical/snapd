@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	. "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
@@ -57,7 +58,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 		"Slot  Plug\n" +
 		"-     keyboard-lights:capslock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
@@ -88,7 +89,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 		"Slot                  Plug\n" +
 		"canonical-pi2:pin-13  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
@@ -139,7 +140,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 		"Slot                  Plug\n" +
 		"canonical-pi2:pin-13  keyboard-lights:capslock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 
 	s.SetUpTest(c)
 	// should be the same
@@ -147,7 +148,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 
 	s.SetUpTest(c)
 	// and the same again
@@ -155,7 +156,7 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
@@ -196,7 +197,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 		"Slot                  Plug\n" +
 		"canonical-pi2:pin-13  keyboard-lights:capslock-led,keyboard-lights:scrollock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
@@ -263,7 +264,7 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 		"Slot                             Plug\n" +
 		"canonical-pi2:network-listening  paste-daemon,time-daemon\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
@@ -330,7 +331,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 		"Slot                Plug\n" +
 		":network-listening  paste-daemon,time-daemon\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
@@ -379,7 +380,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 		"Slot                         Plug\n" +
 		"canonical-pi2:debug-console  core\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
@@ -423,7 +424,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		"wake-up-alarm:toggle  -\n" +
 		"wake-up-alarm:snooze  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
@@ -466,7 +467,7 @@ func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
 		"Slot           Plug\n" +
 		":core-support  core:core-support-plug\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 
 	s.ResetStdStreams()
 
@@ -478,7 +479,7 @@ func (s *SnapSuite) TestInterfacesOfSystemNicknameSnap(c *C) {
 		"Slot           Plug\n" +
 		":core-support  core:core-support-plug\n"
 	c.Assert(s.Stdout(), Equals, expectedStdoutSystem)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
@@ -521,7 +522,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 		"Slot                  Plug\n" +
 		"wake-up-alarm:snooze  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
@@ -587,7 +588,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificType(c *C) {
 		"wake-up-alarm:toggle  -\n" +
 		"wake-up-alarm:snooze  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }
 
 func (s *SnapSuite) TestInterfacesCompletion(c *C) {
@@ -670,5 +671,5 @@ func (s *SnapSuite) checkConnectionsSystemCoreRemapping(c *C, apiSnapName, cliSn
 		"Slot      Plug\n" +
 		":network  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "\nThe 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.\n")
+	c.Assert(s.Stderr(), testutil.EqualsWrapped, "The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command.")
 }

@@ -88,8 +88,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}
 
-	defer fmt.Fprintf(Stderr, "\n%s\n",
-		i18n.G("The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command."))
+	defer fmt.Fprintln(Stderr, "\n"+fill(i18n.G("The 'snap interfaces' command is deprecated and has been replaced with the 'snap connections' command."), 0))
 
 	w := tabWriter()
 	defer w.Flush()
