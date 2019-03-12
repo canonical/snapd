@@ -27,14 +27,14 @@ var timeNow = func() time.Time {
 	return time.Now()
 }
 
-// Timings represents a tree of Timing measurements for a single execution of measured activity.
+// Timings represents a tree of Span measurements for a single execution of measured activity.
 // A Timings tree object should be created at the beginning of the activity,
-// followed by starting at least one Timing measurement, and then saved at the end of the activity.
+// followed by starting at least one Span, and then saved at the end of the activity.
 //
-// Calling Start on the Timings objects creates a Timing and starts new
+// Calling StartSpan on the Timings objects creates a Span and starts new
 // performance measurement. Measurement needs to be finished by calling Stop
-// function on the Timing object.
-// Nested measurements may be collected by calling Start on Timing objects. Similar
+// function on the Span object.
+// Nested measurements may be collected by calling StartSpan on Span objects. Similar
 // to the above, nested measurements need to be finished by calling Stop on them.
 //
 // Typical usage:
@@ -44,6 +44,15 @@ var timeNow = func() time.Time {
 //   nestedTiming := t1.StartSpan("sub-computation", "...")
 //   ....
 //   nestedTiming.Stop()
+//   t1.Stop()
+//   troot.Save()
+//
+// In addition, a few helpers exist to simplify typical use cases, for example the above example
+// can be reduced to:
+//   troot, t1 := timings.NewForTask(task) // tags set automatically, label and summary derived from task
+//   t1.Run("sub-computation", "...", func(nested *Span) {
+//          ... expensive computation
+//   })
 //   t1.Stop()
 //   troot.Save()
 type Timings struct {
