@@ -46,7 +46,7 @@ func (up *TransitionalMountProfileUpdate) SaveCurrentProfile(profile *osutil.Mou
 }
 
 func (up *TransitionalMountProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*Change {
-	return nil
+	return NeededChanges(old, new)
 }
 
 func (up *TransitionalMountProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
