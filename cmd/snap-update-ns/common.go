@@ -50,5 +50,5 @@ func (up *TransitionalMountProfileUpdate) NeededChanges(old, new *osutil.MountPr
 }
 
 func (up *TransitionalMountProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
-	return nil, nil
+	return changePerform(change, as)
 }
