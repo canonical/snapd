@@ -74,19 +74,23 @@ func (cmd *cmdTimings) Execute(args []string) error {
 	//w := tabWriter()
 	w := os.Stdout
 	fmt.Fprintf(w, "Timings\n\n")
+
 	for _, timing := range resp.Timings {
 		dur := timing.StopTime.Sub(timing.StartTime)
 		if tid, ok := timing.Tags["task-id"]; ok {
 			chg, _ := timing.Tags["change-id"]
 			if doingTime, hasTaskDoingTimes := timing.Tags["doing-time"]; hasTaskDoingTimes {
 				undoingTime, _ := timing.Tags["undoing-time"]
-				fmt.Fprintf(w, "%s\ttask: %s, change: %s, start: %s, doing time: %s, undoing time: %s\n", dur, tid, chg, timing.StartTime, doingTime, undoingTime)
+				fmt.Fprintf(w, "%s\tTask: %s, change: %s, start: %s, doing time: %s, undoing time: %s\n", dur, tid, chg, timing.StartTime, doingTime, undoingTime)
 			} else {
 				fmt.Fprintf(w, "%s\ttask: %s, change: %s, start: %s\n", dur, tid, chg, timing.StartTime)
 			}
 		}
 		if mgr, ok := timing.Tags["startup"]; ok {
-			fmt.Fprintf(w, "%s\tmanager startup: %s\n", dur, mgr)
+			fmt.Fprintf(w, "%s\tStartup of %s\n", dur, mgr)
+		}
+		if mgr, ok := timing.Tags["ensure"]; ok {
+			fmt.Fprintf(w, "%s\tEnsure loop of %s\n", dur, mgr)
 		}
 
 		for _, span := range timing.NestedTimings {
