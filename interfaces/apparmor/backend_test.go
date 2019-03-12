@@ -589,7 +589,7 @@ profile "snap.samba_foo.smbd" (attach_disconnected,mediate_deleted) {
 	s.RemoveSnap(c, snapInfo)
 }
 
-func mockManyThingsAtOnceOhMy(c *C, kernelVersion string, releaseID string, releaseIDLike ...string) (restore func()) {
+func mockPartalAppArmorOnDistro(c *C, kernelVersion string, releaseID string, releaseIDLike ...string) (restore func()) {
 	restore1 := release.MockAppArmorLevel(release.PartialAppArmor)
 	restore2 := release.MockReleaseInfo(&release.OS{ID: releaseID, IDLike: releaseIDLike})
 	restore3 := osutil.MockKernelVersion(kernelVersion)
@@ -622,7 +622,7 @@ func mockManyThingsAtOnceOhMy(c *C, kernelVersion string, releaseID string, rele
 // On openSUSE tumbleweed partial apparmor support doesn't change apparmor template to classic.
 // Strict confinement template, along with snippets, are used.
 func (s *backendSuite) TestCombineSnippetsOpenSUSE(c *C) {
-	restore := mockManyThingsAtOnceOhMy(c, "4.16-10-1-default", "opensuse-tumbleweed")
+	restore := mockPartalAppArmorOnDistro(c, "4.16-10-1-default", "opensuse-tumbleweed")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
@@ -636,7 +636,7 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSE(c *C) {
 // On openSUSE tumbleweed running older kernel partial apparmor support changes
 // apparmor template to classic.
 func (s *backendSuite) TestCombineSnippetsOpenSUSEOldKernel(c *C) {
-	restore := mockManyThingsAtOnceOhMy(c, "4.14", "opensuse-tumbleweed")
+	restore := mockPartalAppArmorOnDistro(c, "4.14", "opensuse-tumbleweed")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
@@ -648,7 +648,7 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSEOldKernel(c *C) {
 }
 
 func (s *backendSuite) TestCombineSnippetsArchOldIDSufficientHardened(c *C) {
-	restore := mockManyThingsAtOnceOhMy(c, "4.18.2.a-1-hardened", "arch", "archlinux")
+	restore := mockPartalAppArmorOnDistro(c, "4.18.2.a-1-hardened", "arch", "archlinux")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
@@ -660,7 +660,7 @@ func (s *backendSuite) TestCombineSnippetsArchOldIDSufficientHardened(c *C) {
 }
 
 func (s *backendSuite) TestCombineSnippetsArchSufficientHardened(c *C) {
-	restore := mockManyThingsAtOnceOhMy(c, "4.18.2.a-1-hardened", "archlinux")
+	restore := mockPartalAppArmorOnDistro(c, "4.18.2.a-1-hardened", "archlinux")
 	defer restore()
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("snippet")
