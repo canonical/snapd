@@ -49,6 +49,10 @@ type autoRefreshStore struct {
 }
 
 func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if !opts.IsAutoRefresh {
+		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
+	}
+
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
