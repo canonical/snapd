@@ -41,7 +41,7 @@ type MountProfileUpdateContext interface {
 	SaveCurrentProfile(*osutil.MountProfile) error
 }
 
-func applySystemFstab(ctx MountProfileUpdateContext) error {
+func applyFstab(ctx MountProfileUpdateContext) error {
 	unlock, err := ctx.Lock()
 	if err != nil {
 		return err
@@ -66,48 +66,6 @@ func applySystemFstab(ctx MountProfileUpdateContext) error {
 		as.AddChange(&Change{Action: Mount, Entry: entry})
 	}
 
-	currentAfter, err := applyProfile(ctx, currentBefore, desired, as)
-	if err != nil {
-		return err
-	}
-
-	return ctx.SaveCurrentProfile(currentAfter)
-}
-
-func applyUserFstab(ctx MountProfileUpdateContext) error {
-	unlock, err := ctx.Lock()
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
-	desired, err := ctx.LoadDesiredProfile()
-	if err != nil {
-		return err
-	}
-	debugShowProfile(desired, "desired mount profile")
-
-	currentBefore, err := ctx.LoadCurrentProfile()
-	if err != nil {
-		return err
-	}
-	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
-
-	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
-	as := ctx.Assumptions()
-	for _, entry := range currentBefore.Entries {
-		as.AddChange(&Change{Action: Mount, Entry: entry})
-	}
-
-	currentAfter, err := applyProfile(ctx, currentBefore, desired, as)
-	if err != nil {
-		return err
-	}
-
-	return ctx.SaveCurrentProfile(currentAfter)
-}
-
-func applyProfile(ctx MountProfileUpdateContext, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
@@ -132,7 +90,7 @@ func applyProfile(ctx MountProfileUpdateContext, currentBefore, desired *osutil.
 			// store them.
 			origin := change.Entry.XSnapdOrigin()
 			if origin == "layout" || origin == "overname" {
-				return nil, err
+				return err
 			} else if err != ErrIgnoredMissingMount {
 				logger.Noticef("cannot change mount namespace according to change %s: %s", change, err)
 			}
@@ -151,5 +109,5 @@ func applyProfile(ctx MountProfileUpdateContext, currentBefore, desired *osutil.
 		}
 	}
 	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
-	return &currentAfter, nil
+	return ctx.SaveCurrentProfile(&currentAfter)
 }
