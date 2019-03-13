@@ -206,3 +206,19 @@ func (as *Assumptions) PastChanges() []*Change {
 func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
 	return as.canWriteToDirectory(dirFd, dirName)
 }
+
+func (up *CommonProfileUpdate) CurrentProfilePath() string {
+	return up.currentProfilePath
+}
+
+func (up *CommonProfileUpdate) DesiredProfilePath() string {
+	return up.desiredProfilePath
+}
+
+func NewCommonProfileUpdate(instanceName string, currentProfilePath, desiredProfilePath string) *CommonProfileUpdate {
+	return &CommonProfileUpdate{
+		instanceName:       instanceName,
+		currentProfilePath: currentProfilePath,
+		desiredProfilePath: desiredProfilePath,
+	}
+}
