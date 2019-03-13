@@ -29,7 +29,7 @@ import (
 
 // UserProfileUpdate contains information about update to per-user mount namespace.
 type UserProfileUpdate struct {
-	TransitionalMountProfileUpdate
+	CommonProfileUpdate
 }
 
 func applyUserFstab(snapName string) error {

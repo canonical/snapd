@@ -23,32 +23,32 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type TransitionalMountProfileUpdate struct{}
+type CommonProfileUpdate struct{}
 
-func (up *TransitionalMountProfileUpdate) Lock() (unlock func(), err error) {
+func (up *CommonProfileUpdate) Lock() (unlock func(), err error) {
 	return func() {}, nil
 }
 
-func (up *TransitionalMountProfileUpdate) Assumptions() *Assumptions {
+func (up *CommonProfileUpdate) Assumptions() *Assumptions {
 	return nil
 }
 
-func (up *TransitionalMountProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
+func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	return nil, nil
 }
 
-func (up *TransitionalMountProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
+func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
 	return nil, nil
 }
 
-func (up *TransitionalMountProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
+func (up *CommonProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
 	return nil
 }
 
-func (up *TransitionalMountProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*Change {
+func (up *CommonProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*Change {
 	return NeededChanges(old, new)
 }
 
-func (up *TransitionalMountProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
+func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
 	return changePerform(change, as)
 }

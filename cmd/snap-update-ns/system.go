@@ -31,7 +31,7 @@ import (
 
 // SystemProfileUpdate contains information about update to system-wide mount namespace.
 type SystemProfileUpdate struct {
-	TransitionalMountProfileUpdate
+	CommonProfileUpdate
 }
 
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
