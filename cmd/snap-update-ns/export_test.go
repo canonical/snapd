@@ -32,9 +32,11 @@ var (
 	// change
 	ValidateInstanceName = validateInstanceName
 	ProcessArguments     = processArguments
+
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
+
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
