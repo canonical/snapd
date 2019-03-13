@@ -76,8 +76,7 @@ func (ctx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	return as
 }
 
-func applySystemFstab(instanceName string, fromSnapConfine bool) error {
-	ctx := NewSystemProfileUpdateContext(instanceName, fromSnapConfine)
+func applySystemFstab(ctx MountProfileUpdateContext, instanceName string) error {
 	unlock, err := ctx.Lock()
 	if err != nil {
 		return err
