@@ -64,19 +64,6 @@ AC_ARG_ENABLE([apparmor],
     esac], [enable_apparmor=yes])
 AM_CONDITIONAL([APPARMOR], [test "x$enable_apparmor" = "xyes"])
 
-# Allow to build without seccomp support by calling:
-# ./configure --disable-seccomp
-# This is separate because seccomp support is generally very good and it
-# provides useful confinement for unsafe system calls.
-AC_ARG_ENABLE([seccomp],
-    AS_HELP_STRING([--disable-seccomp], [Disable seccomp support]),
-    [case "${enableval}" in
-        yes) enable_seccomp=yes ;;
-        no)  enable_seccomp=no ;;
-        *) AC_MSG_ERROR([bad value ${enableval} for --disable-seccomp])
-    esac], [enable_seccomp=yes])
-AM_CONDITIONAL([SECCOMP], [test "x$enable_seccomp" = "xyes"])
-
 # Allow to build with SELinux support by calling:
 # ./configure --enable-selinux
 AC_ARG_ENABLE([selinux],
@@ -90,17 +77,11 @@ AM_CONDITIONAL([SELINUX], [test "x$enable_selinux" = "xyes"])
 
 # Enable older tests only when confinement is enabled and we're building for PC
 # The tests are of smaller value as we port more and more tests to spread.
-AM_CONDITIONAL([CONFINEMENT_TESTS], [test "x$enable_apparmor" = "xyes" && test "x$enable_seccomp" = "xyes" && ((test "x$host_cpu" = "xx86_64" && test "x$build_cpu" = "xx86_64") || (test "x$host_cpu" = "xi686" && test "x$build_cpu" = "xi686"))])
+AM_CONDITIONAL([CONFINEMENT_TESTS], [test "x$enable_apparmor" = "xyes" && ((test "x$host_cpu" = "xx86_64" && test "x$build_cpu" = "xx86_64") || (test "x$host_cpu" = "xi686" && test "x$build_cpu" = "xi686"))])
 
 # Check for glib that we use for unit testing
 AS_IF([test "x$with_unit_tests" = "xyes"], [
     PKG_CHECK_MODULES([GLIB], [glib-2.0])
-])
-
-# Check if seccomp userspace library is available
-AS_IF([test "x$enable_seccomp" = "xyes"], [
-    PKG_CHECK_MODULES([SECCOMP], [libseccomp], [
-      AC_DEFINE([HAVE_SECCOMP], [1], [Build with seccomp support])])
 ])
 
 # Check if apparmor userspace library is available.
@@ -217,15 +198,6 @@ AC_ARG_ENABLE([static-libapparmor],
         *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libapparmor])
     esac], [enable_static_libapparmor=no])
 AM_CONDITIONAL([STATIC_LIBAPPARMOR], [test "x$enable_static_libapparmor" = "xyes"])
-
-AC_ARG_ENABLE([static-libseccomp],
-    AS_HELP_STRING([--enable-static-libseccomp], [Link libseccomp statically]),
-    [case "${enableval}" in
-        yes) enable_static_libseccomp=yes ;;
-        no)  enable_static_libseccomp=no ;;
-        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libseccomp])
-    esac], [enable_static_libseccomp=no])
-AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes"])
 
 AC_ARG_ENABLE([static-libselinux],
 AS_HELP_STRING([--enable-static-libselinux], [Link libselinux statically]),
