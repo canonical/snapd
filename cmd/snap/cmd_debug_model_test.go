@@ -39,7 +39,7 @@ func (s *SnapSuite) TestGetModel(c *check.C) {
 			c.Check(r.URL.RawQuery, check.Equals, "")
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
-			c.Check(data, check.DeepEquals, []byte(`{"action":"model"}`))
+			c.Check(string(data), check.Equals, `{"action":"get-model"}`)
 			fmt.Fprintln(w, `{"type": "sync", "result": {"model": "some-model-json"}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
@@ -52,4 +52,5 @@ func (s *SnapSuite) TestGetModel(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "some-model-json\n")
 	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
 }

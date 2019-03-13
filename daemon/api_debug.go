@@ -123,7 +123,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(true, nil)
 	case "get-base-declaration":
 		return getBaseDeclaration(st)
-	case "model":
+	case "get-model":
 		model, err := devicestate.Model(st)
 		if err != nil {
 			return InternalError("cannot get model: %v", err)

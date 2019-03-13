@@ -7775,7 +7775,7 @@ func (s *apiSuite) testPostRemodel(c *check.C, newModel map[string]interface{}, 
 	c.Assert(err, check.IsNil)
 	rsp := postModel(appsCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 202)
-	c.Check(mockModel, check.DeepEquals, devicestateRemodelGotModel)
+	c.Check(devicestateRemodelGotModel, check.DeepEquals, mockModel)
 
 	st.Lock()
 	defer st.Unlock()

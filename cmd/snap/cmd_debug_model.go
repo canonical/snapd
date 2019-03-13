@@ -46,7 +46,7 @@ func (x *cmdGetModel) Execute(args []string) error {
 	var resp struct {
 		Model string `json:"model"`
 	}
-	if err := x.client.Debug("model", nil, &resp); err != nil {
+	if err := x.client.Debug("get-model", nil, &resp); err != nil {
 		return err
 	}
 	fmt.Fprintf(Stdout, "%s\n", resp.Model)
