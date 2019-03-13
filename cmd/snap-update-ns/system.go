@@ -35,6 +35,8 @@ type SystemProfileUpdate struct {
 }
 
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
+	up := &SystemProfileUpdate{}
+
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
 	lock, err := mount.OpenLock(instanceName)
@@ -98,10 +100,10 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
-	return computeAndSaveSystemChanges(instanceName, as)
+	return computeAndSaveSystemChanges(up, instanceName, as)
 }
 
-func computeAndSaveSystemChanges(snapName string, as *Assumptions) error {
+func computeAndSaveSystemChanges(up MountProfileUpdate, snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -123,7 +125,6 @@ func computeAndSaveSystemChanges(snapName string, as *Assumptions) error {
 		as.AddChange(&Change{Action: Mount, Entry: entry})
 	}
 
-	up := &TransitionalMountProfileUpdate{}
 	currentAfter, err := applyProfile(up, snapName, currentBefore, desired, as)
 	if err != nil {
 		return err
