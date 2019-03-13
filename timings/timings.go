@@ -32,7 +32,7 @@ var timeNow = func() time.Time {
 // followed by starting at least one Span, and then saved at the end of the activity.
 //
 // Calling StartSpan on the Timings objects creates a Span and starts new
-// performance measurement. Measurement needs to be finished by calling Stop
+// performance measurement. Measurer needs to be finished by calling Stop
 // function on the Span object.
 // Nested measurements may be collected by calling StartSpan on Span objects. Similar
 // to the above, nested measurements need to be finished by calling Stop on them.
@@ -68,9 +68,9 @@ type Span struct {
 	timings        []*Span
 }
 
-type Measurement interface {
+type Measurer interface {
 	StartSpan(label, summary string) *Span
-	Run(label, summary string, f func(nestedTiming Measurement))
+	Run(label, summary string, f func(nestedTiming Measurer))
 }
 
 // New creates a Timings object. Tags provide extra information (such as "task-id" and "change-id")
@@ -91,7 +91,7 @@ func startSpan(label, summary string) *Span {
 }
 
 // StartSpan creates a Span and initiates performance measurement.
-// Measurement needs to be stopped by calling Stop on it.
+// Measurer needs to be stopped by calling Stop on it.
 func (t *Timings) StartSpan(label, summary string) *Span {
 	tmeas := startSpan(label, summary)
 	t.timings = append(t.timings, tmeas)

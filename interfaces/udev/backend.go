@@ -63,7 +63,7 @@ func snapRulesFilePath(snapName string) string {
 // UDev has no concept of a complain mode so confinment options are ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurement) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {

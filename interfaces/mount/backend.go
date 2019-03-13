@@ -55,7 +55,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 }
 
 // Setup creates mount mount profile files specific to a given snap.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurement) error {
+func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
 	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)

@@ -44,7 +44,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, tm timings.Measurement) error {
+func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, tm timings.Measurer) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -153,7 +153,7 @@ var profilesNeedRegeneration = profilesNeedRegenerationImpl
 var writeSystemKey = interfaces.WriteSystemKey
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
-func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurement) error {
+func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -198,7 +198,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurement)
 				continue // Test backends have no name, skip them to simplify testing.
 			}
 			// Refresh security of this snap and backend
-			tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
+			tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 				if err := backend.Setup(snapInfo, opts, m.repo, nesttm); err != nil {
 					// Let's log this but carry on without writing the system key.
 					logger.Noticef("cannot regenerate %s profile for snap %q: %s",
@@ -360,7 +360,7 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurement) error {
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 
 	// Setup all affected snaps, start with the most important security
@@ -369,7 +369,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 		for i, snapInfo := range snaps {
 			st.Unlock()
 			var err error
-			tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
+			tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 				err = backend.Setup(snapInfo, opts[i], m.repo, nesttm)
 			})
 			st.Lock()
@@ -383,14 +383,14 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 	return nil
 }
 
-func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurement) error {
+func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 	instanceName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		var err error
-		tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
+		tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 			err = backend.Setup(snapInfo, opts, m.repo, nesttm)
 		})
 		st.Lock()

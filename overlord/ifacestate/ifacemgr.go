@@ -189,6 +189,7 @@ type ConnectionState struct {
 	DynamicPlugAttrs map[string]interface{}
 	StaticSlotAttrs  map[string]interface{}
 	DynamicSlotAttrs map[string]interface{}
+	HotplugGone      bool
 }
 
 // ConnectionStates return the state of connections tracked by the manager
@@ -211,6 +212,7 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 			DynamicPlugAttrs: cstate.DynamicPlugAttrs,
 			StaticSlotAttrs:  cstate.StaticSlotAttrs,
 			DynamicSlotAttrs: cstate.DynamicSlotAttrs,
+			HotplugGone:      cstate.HotplugGone,
 		}
 	}
 	return connStateByRef, nil

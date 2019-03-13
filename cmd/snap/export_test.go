@@ -78,6 +78,8 @@ var (
 	LintDesc = lintDesc
 
 	FixupArg = fixupArg
+
+	InterfacesDeprecationNotice = interfacesDeprecationNotice
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
