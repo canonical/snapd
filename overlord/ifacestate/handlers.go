@@ -80,7 +80,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	defer task.State().Unlock()
 
 	perfTimings := timings.NewForTask(task)
-	defer perfTimings.Save(task.State()) // XXX: should the error from save be returned from handler?
+	defer perfTimings.Save(task.State())
 
 	// Get snap.Info from bits handed by the snap manager.
 	snapsup, err := snapstate.TaskSnapSetup(task)
@@ -209,7 +209,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	defer st.Unlock()
 
 	perfTimings := timings.NewForTask(task)
-	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer perfTimings.Save(st)
 
 	// Get SnapSetup for this snap. This is gives us the name of the snap.
 	snapSetup, err := snapstate.TaskSnapSetup(task)
@@ -254,7 +254,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	defer st.Unlock()
 
 	perfTimings := timings.NewForTask(task)
-	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer perfTimings.Save(st)
 
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
@@ -386,7 +386,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	perfTimings := timings.NewForTask(task)
-	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer perfTimings.Save(st)
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
@@ -504,7 +504,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	perfTimings := timings.NewForTask(task)
-	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer perfTimings.Save(st)
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
@@ -593,7 +593,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	defer st.Unlock()
 
 	perfTimings := timings.NewForTask(task)
-	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
+	defer perfTimings.Save(st)
 
 	var oldconn connState
 	err := task.Get("old-conn", &oldconn)
