@@ -27,6 +27,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// UserProfileUpdate contains information about update to per-user mount namespace.
+type UserProfileUpdate struct {
+	TransitionalMountProfileUpdate
+}
+
 func applyUserFstab(snapName string) error {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)

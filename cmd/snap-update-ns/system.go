@@ -29,6 +29,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// SystemProfileUpdate contains information about update to system-wide mount namespace.
+type SystemProfileUpdate struct {
+	TransitionalMountProfileUpdate
+}
+
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
