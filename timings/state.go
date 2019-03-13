@@ -21,9 +21,9 @@ package timings
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -86,15 +86,17 @@ func flattenRecursive(data *rootTimingsJson, timings []*Span, nestLevel int, max
 // Save appends Timings data to the "timings" list in the state and purges old timings, ensuring
 // that up to MaxTimings are kept.
 // It's responsibility of the caller to lock the state before calling this function.
-func (t *Timings) Save(st *state.State) error {
+func (t *Timings) Save(st *state.State) {
 	var stateTimings []*json.RawMessage
 	if err := st.Get("timings", &stateTimings); err != nil && err != state.ErrNoState {
-		return err
+		logger.Noticef("could not get timings data from the state: %v", err)
+		return
 	}
 
 	serialized, err := json.Marshal(t.flatten())
 	if err != nil {
-		return fmt.Errorf("internal error: could not marshal timings: %v", err)
+		logger.Noticef("could not marshal timings: %v", err)
+		return
 	}
 	entryJSON := json.RawMessage(serialized)
 
@@ -103,5 +105,4 @@ func (t *Timings) Save(st *state.State) error {
 		stateTimings = stateTimings[len(stateTimings)-MaxTimings:]
 	}
 	st.Set("timings", stateTimings)
-	return nil
 }
