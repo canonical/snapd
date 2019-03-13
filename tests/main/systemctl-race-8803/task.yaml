@@ -1,0 +1,27 @@
+summary: Ensure that the systemctl from PR#8803 is fixed
+
+description: |
+    See https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1819728
+    for details about this issue.
+
+# FIXME: add ubuntu-core-18-* once we have the update there
+systems: [ubuntu-core-16-*]
+
+kill-timeout: 2m
+
+execute: |
+    echo "When running a bunch of systemctl commands and daemon-reloads"
+    for i in $(seq 50); do
+        systemctl daemon-reload &
+        systemctl start ssh &
+    done
+
+    echo "Then the system will eventually recover and no systemctl are left"
+    for i in $(seq 10); do
+        if ! ps afx|grep [s]ystemctl; then
+            break
+        fi
+        sleep 6
+    done
+    echo "No systemctl left"
+    ! ps afx|grep [s]ystemctl
