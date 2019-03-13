@@ -55,6 +55,7 @@ var (
 
 	// user
 	DesiredUserProfilePath = desiredUserProfilePath
+	CurrentUserProfilePath = currentUserProfilePath
 	ApplyUserFstab         = applyUserFstab
 
 	// xdg
