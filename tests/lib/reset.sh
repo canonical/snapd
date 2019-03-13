@@ -145,6 +145,13 @@ reset_all_snap() {
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
     fi
+
+    # Exit in case there is a snap in broken state after restoring the snapd state
+    if [ snap list | grep -E "broken$"]; then
+        echo "snap in broken state"
+        exit 1
+    fi
+
 }
 
 if is_core_system; then
