@@ -72,8 +72,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		hotplugDevicePaths:   make(map[string][]deviceData),
 	}
 
-	meas := perftimings.StartSpan("initialize", "interface manager backends init")
-	if err := m.initialize(extraInterfaces, extraBackends, meas); err != nil {
+	if err := m.initialize(extraInterfaces, extraBackends, perftimings); err != nil {
 		return nil, err
 	}
 
@@ -122,7 +121,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return false
 	})
 
-	meas.Stop()
 	s.Lock()
 	perftimings.Save(s) // xxx: should the error be returned?
 	s.Unlock()
