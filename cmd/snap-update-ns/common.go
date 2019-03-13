@@ -33,6 +33,14 @@ func (up *CommonProfileUpdate) Assumptions() *Assumptions {
 	return nil
 }
 
+func (up *CommonProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*Change {
+	return NeededChanges(old, new)
+}
+
+func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
+	return changePerform(change, as)
+}
+
 func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	return nil, nil
 }
@@ -43,12 +51,4 @@ func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error
 
 func (up *CommonProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
 	return nil
-}
-
-func (up *CommonProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*Change {
-	return NeededChanges(old, new)
-}
-
-func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
-	return changePerform(change, as)
 }
