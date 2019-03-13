@@ -54,6 +54,9 @@ func (c *Compiler) VersionInfo() (string, error) {
 		return "", osutil.OutputErr(output, err)
 	}
 	raw := bytes.TrimSpace(output)
+	// Example valid output:
+	// 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c
+	// 111 chars + wiggle room
 	if len(raw) > 120 {
 		return "", fmt.Errorf("invalid version-info length: %q", raw)
 	}
