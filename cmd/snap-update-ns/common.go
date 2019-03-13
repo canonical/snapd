@@ -33,10 +33,12 @@ func (up *CommonProfileUpdate) Assumptions() *Assumptions {
 	return nil
 }
 
-func (up *CommonProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*Change {
-	return NeededChanges(old, new)
+// NeededChanges computes the sequence of mount changes needed to transform current profile to desired profile.
+func (up *CommonProfileUpdate) NeededChanges(current, desired *osutil.MountProfile) []*Change {
+	return NeededChanges(current, desired)
 }
 
+// PerformChange performs a given mount namespace change under given filesystem assumptions.
 func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
 	return changePerform(change, as)
 }
