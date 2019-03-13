@@ -87,7 +87,7 @@ func (s *timingsSuite) TestSave(c *C) {
 		meas := timing.StartSpan(fmt.Sprintf("doing something-%d", i), "...")
 		nested := meas.StartSpan("nested measurement", "...")
 		var called bool
-		nested.Run("nested more", "...", func(span *timings.Span) {
+		nested.Run("nested more", "...", func(span timings.Measurement) {
 			called = true
 		})
 		c.Check(called, Equals, true)

@@ -67,6 +67,11 @@ type Span struct {
 	timings        []*Span
 }
 
+type Measurement interface {
+	StartSpan(label, summary string) *Span
+	Run(label, summary string, f func(nestedTiming Measurement))
+}
+
 // New creates a Timings object. Tags provide extra information (such as "task-id" and "change-id")
 // that can be used by the client when retrieving timings.
 func New(tags map[string]string) *Timings {
