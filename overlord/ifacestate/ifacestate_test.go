@@ -4966,8 +4966,8 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(conn.Slot.Attr("number", &number), IsNil)
 	c.Check(number, Equals, int64(1))
 
-	var isAuto, byGadget, isUndesired bool
-	ifacestate.UpdateConnectionInConnState(conns, conn, isAuto, byGadget, isUndesired)
+	var isAuto, byGadget, isUndesired, hotplugGone bool
+	ifacestate.UpdateConnectionInConnState(conns, conn, isAuto, byGadget, isUndesired, hotplugGone)
 	ifacestate.SetConns(st, conns)
 
 	// restore connection from conns state
@@ -6035,7 +6035,7 @@ func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
 	}
 }
 
-func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undesired bool, expected map[string]ifacestate.ConnectionState) {
+func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undesired, hotplugGone bool, expected map[string]ifacestate.ConnectionState) {
 	slotSnap := s.mockSnap(c, producerYaml)
 	plugSnap := s.mockSnap(c, consumerYaml)
 
@@ -6061,7 +6061,7 @@ func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undes
 		Plug: interfaces.NewConnectedPlug(plug, nil, dynamicPlugAttrs),
 		Slot: interfaces.NewConnectedSlot(slot, nil, dynamicSlotAttrs),
 	}
-	ifacestate.UpdateConnectionInConnState(sc, conn, auto, byGadget, undesired)
+	ifacestate.UpdateConnectionInConnState(sc, conn, auto, byGadget, undesired, hotplugGone)
 	ifacestate.SetConns(st, sc)
 	st.Unlock()
 
@@ -6072,8 +6072,8 @@ func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undes
 }
 
 func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
-	var isAuto, byGadget, isUndesired bool = true, false, false
-	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
+	var isAuto, byGadget, isUndesired, hotplugGone bool = true, false, false, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
@@ -6093,8 +6093,8 @@ func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
-	var isAuto, byGadget, isUndesired bool = true, true, false
-	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
+	var isAuto, byGadget, isUndesired, hotplugGone bool = true, true, false, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
@@ -6115,12 +6115,33 @@ func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
-	var isAuto, byGadget, isUndesired bool = true, false, true
-	s.testConnectionStates(c, isAuto, byGadget, isUndesired, map[string]ifacestate.ConnectionState{
+	var isAuto, byGadget, isUndesired, hotplugGone bool = true, false, true, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
 		"consumer:plug producer:slot": {
 			Interface: "test",
 			Auto:      true,
 			Undesired: true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
+		}})
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesHotplugGone(c *C) {
+	var isAuto, byGadget, isUndesired, hotplugGone bool = false, false, false, true
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface:   "test",
+			HotplugGone: true,
 			StaticPlugAttrs: map[string]interface{}{
 				"attr1": "value1",
 			},
