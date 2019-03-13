@@ -78,14 +78,14 @@ func (ctx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile,
 	return profile, nil
 }
 
-func applyUserFstab(ctx MountProfileUpdateContext, instanceName string) error {
+func applyUserFstab(ctx MountProfileUpdateContext) error {
 	desired, err := ctx.LoadDesiredProfile()
 	if err != nil {
-		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", instanceName, err)
+		return err
 	}
 	debugShowProfile(desired, "desired mount profile")
 	as := ctx.Assumptions()
-	_, err = applyProfile(ctx, instanceName, &osutil.MountProfile{}, desired, as)
+	_, err = applyProfile(ctx, &osutil.MountProfile{}, desired, as)
 	return err
 }
 
