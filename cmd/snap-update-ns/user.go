@@ -30,17 +30,42 @@ import (
 // UserProfileUpdateContext contains information about update to per-user mount namespace.
 type UserProfileUpdateContext struct {
 	CommonProfileUpdateContext
+	// uid is the numeric user identifier associated with the user for which
+	// the update operation is occurring. It may be the current UID but doesn't
+	// need to be.
+	uid int
+}
+
+// NewUserProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
+func NewUserProfileUpdateContext(instanceName string, uid int) *UserProfileUpdateContext {
+	return &UserProfileUpdateContext{
+		CommonProfileUpdateContext: CommonProfileUpdateContext{
+			instanceName:       instanceName,
+			desiredProfilePath: desiredUserProfilePath(instanceName),
+		},
+		uid: uid,
+	}
+}
+
+// LoadDesiredProfile loads the desired, per-user mount profile, expanding user-specific variables.
+func (ctx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	profile, err := ctx.CommonProfileUpdateContext.LoadDesiredProfile()
+	if err != nil {
+		return nil, err
+	}
+	// TODO: when SNAP_USER_DATA, SNAP_USER_COMMON or other variables relating
+	// to the user name and their home directory need to be expanded then
+	// handle them here.
+	expandXdgRuntimeDir(profile, ctx.uid)
+	return profile, nil
 }
 
 func applyUserFstab(snapName string) error {
-	upCtx := &UserProfileUpdateContext{}
-	desiredProfilePath := desiredUserProfilePath(snapName)
-	desired, err := osutil.LoadMountProfile(desiredProfilePath)
+	ctx := NewUserProfileUpdateContext(snapName, os.Getuid())
+	desired, err := ctx.LoadDesiredProfile()
 	if err != nil {
 		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
 	}
-
-	expandXdgRuntimeDir(desired, os.Getuid())
 	debugShowProfile(desired, "desired mount profile")
 
 	// TODO: configure the secure helper and inform it about directories that
@@ -49,7 +74,7 @@ func applyUserFstab(snapName string) error {
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
-	_, err = applyProfile(upCtx, snapName, &osutil.MountProfile{}, desired, as)
+	_, err = applyProfile(ctx, snapName, &osutil.MountProfile{}, desired, as)
 	return err
 }
 
