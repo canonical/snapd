@@ -70,7 +70,6 @@ type Span struct {
 
 type Measurer interface {
 	StartSpan(label, summary string) *Span
-	Run(label, summary string, f func(nestedTiming Measurer))
 }
 
 // New creates a Timings object. Tags provide extra information (such as "task-id" and "change-id")
