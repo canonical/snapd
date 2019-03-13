@@ -630,6 +630,7 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
 	c.Assert(err, IsNil)
 
+	// compilation from this first Setup()
 	c.Check(s.snapSeccomp.Calls(), HasLen, 1)
 
 	// change version reported by snap-seccomp
@@ -647,7 +648,7 @@ fi`)
 
 	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
-		// previous compilation
+		// compilation from first Setup()
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 		// initialization with new version
 		{"snap-seccomp", "version-info"},
@@ -660,7 +661,7 @@ fi`)
 
 	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
-		// previous compilation
+		// compilation from first Setup()
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 		// initialization with new version
 		{"snap-seccomp", "version-info"},
