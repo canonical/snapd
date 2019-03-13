@@ -68,10 +68,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		tm.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", affectedSnapInfo.InstanceName()), func(nesttm timings.Measurement) {
-			err = m.setupSnapSecurity(task, affectedSnapInfo, opts, nesttm)
-		})
-		if err != nil {
+		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts, tm); err != nil {
 			return err
 		}
 	}
