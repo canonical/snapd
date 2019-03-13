@@ -198,7 +198,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurement)
 				continue // Test backends have no name, skip them to simplify testing.
 			}
 			// Refresh security of this snap and backend
-			tm.Run("setup security backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
+			tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
 				if err := backend.Setup(snapInfo, opts, m.repo, nesttm); err != nil {
 					// Let's log this but carry on without writing the system key.
 					logger.Noticef("cannot regenerate %s profile for snap %q: %s",
@@ -369,7 +369,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 		for i, snapInfo := range snaps {
 			st.Unlock()
 			var err error
-			tm.Run("setup security backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
+			tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
 				err = backend.Setup(snapInfo, opts[i], m.repo, nesttm)
 			})
 			st.Lock()
@@ -390,7 +390,7 @@ func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.In
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		var err error
-		tm.Run("setup security backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
+		tm.Run("setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurement) {
 			err = backend.Setup(snapInfo, opts, m.repo, nesttm)
 		})
 		st.Lock()

@@ -23,16 +23,15 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// NewForTask creates a new Timings tree for given task and starts a
-// measurement (Span) for it. Returned Timings tree has "task-id" and "change-id"
+// NewForTask creates a new Timings tree for given task.
+// Returned Timings tree has "task-id" and "change-id"
 // tags set automatically from the respective task.
-func NewForTask(task *state.Task) (*Timings, *Span) {
+func NewForTask(task *state.Task) (*Timings) {
 	tags := map[string]string{"task-id": task.ID()}
 	if chg := task.Change(); chg != nil {
 		tags["change-id"] = chg.ID()
 	}
-	t := New(tags)
-	return t, t.StartSpan(task.Kind(), task.Summary())
+	return New(tags)
 }
 
 // Run creates, starts and then stops a nested Span under parent span. The nested
