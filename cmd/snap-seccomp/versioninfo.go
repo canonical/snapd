@@ -471,7 +471,7 @@ var seccompSyscalls = []string{
 func versionInfo() (string, error) {
 	myBuildID, err := osutil.MyBuildID()
 	if err != nil {
-		return "", fmt.Errorf("cannot read own build-id: %v", err)
+		return "", fmt.Errorf("cannot get build-id of snap-seccomp: %v", err)
 	}
 	// Calculate the checksum of all syscall names supported by libseccomp
 	// library. We add that to the version info to cover the case when
