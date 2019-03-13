@@ -58,11 +58,10 @@ func (s *mainSuite) TestComputeAndSaveSystemChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
-	up := &testProfileUpdate{
-		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			return update.NeededChanges(old, new)
-		},
-	}
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		return nil, nil
+	})
+	defer restore()
 
 	snapName := "foo"
 	desiredProfileContent := `/var/lib/snapd/hostfs/usr/share/fonts /usr/share/fonts none bind,ro 0 0
@@ -80,6 +79,7 @@ func (s *mainSuite) TestComputeAndSaveSystemChanges(c *C) {
 	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
+	up := update.NewSystemProfileUpdate(snapName)
 	err = update.ComputeAndSaveSystemChanges(up, snapName, s.as)
 	c.Assert(err, IsNil)
 
@@ -91,51 +91,6 @@ func (s *mainSuite) TestComputeAndSaveSystemChanges(c *C) {
 func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-
-	up := &testProfileUpdate{
-		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			return update.NeededChanges(old, new)
-		},
-		// In order to make that work, /usr/share had to be converted to a writable
-		// mimic. Some actions were performed under the hood and now we see a
-		// subset of them as synthetic changes here.
-		//
-		// Note that if you compare this to the code that plans a writable mimic
-		// you will see that there are additional changes that are _not_
-		// represented here. The changes have only one goal: tell
-		// snap-update-ns how the mimic can be undone in case it is no longer
-		// needed.
-		performChange: func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			// The change that we were asked to perform is to create a bind mount
-			// from within the snap to /usr/share/mysnap.
-			c.Assert(chg, DeepEquals, &update.Change{
-				Action: update.Mount, Entry: osutil.MountEntry{
-					Name: "/snap/mysnap/42/usr/share/mysnap",
-					Dir:  "/usr/share/mysnap", Type: "none",
-					Options: []string{"bind", "ro"}}})
-			synthetic := []*update.Change{
-				// The original directory (which was a part of the core snap and is
-				// read only) was hidden with a tmpfs.
-				{Action: update.Mount, Entry: osutil.MountEntry{
-					Dir: "/usr/share", Name: "tmpfs", Type: "tmpfs",
-					Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
-				// For the sake of brevity we will only represent a few of the
-				// entries typically there. Normally this list can get quite long.
-				// Also note that the entry is a little fake. In reality it was
-				// constructed using a temporary bind mount that contained the
-				// original mount entries of /usr/share but this fact was lost.
-				// Again, the only point of this entry is to correctly perform an
-				// undo operation when /usr/share/mysnap is no longer needed.
-				{Action: update.Mount, Entry: osutil.MountEntry{
-					Dir: "/usr/share/adduser", Name: "/usr/share/adduser",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
-				{Action: update.Mount, Entry: osutil.MountEntry{
-					Dir: "/usr/share/awk", Name: "/usr/share/awk",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
-			}
-			return synthetic, nil
-		},
-	}
 
 	// The snap `mysnap` wishes to export it's usr/share/mysnap directory and
 	// make it appear as if it was in /usr/share/mysnap directly.
@@ -151,6 +106,48 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
+	// In order to make that work, /usr/share had to be converted to a writable
+	// mimic. Some actions were performed under the hood and now we see a
+	// subset of them as synthetic changes here.
+	//
+	// Note that if you compare this to the code that plans a writable mimic
+	// you will see that there are additional changes that are _not_
+	// represented here. The changes have only one goal: tell
+	// snap-update-ns how the mimic can be undone in case it is no longer
+	// needed.
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		// The change that we were asked to perform is to create a bind mount
+		// from within the snap to /usr/share/mysnap.
+		c.Assert(chg, DeepEquals, &update.Change{
+			Action: update.Mount, Entry: osutil.MountEntry{
+				Name: "/snap/mysnap/42/usr/share/mysnap",
+				Dir:  "/usr/share/mysnap", Type: "none",
+				Options: []string{"bind", "ro"}}})
+		synthetic := []*update.Change{
+			// The original directory (which was a part of the core snap and is
+			// read only) was hidden with a tmpfs.
+			{Action: update.Mount, Entry: osutil.MountEntry{
+				Dir: "/usr/share", Name: "tmpfs", Type: "tmpfs",
+				Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
+			// For the sake of brevity we will only represent a few of the
+			// entries typically there. Normally this list can get quite long.
+			// Also note that the entry is a little fake. In reality it was
+			// constructed using a temporary bind mount that contained the
+			// original mount entries of /usr/share but this fact was lost.
+			// Again, the only point of this entry is to correctly perform an
+			// undo operation when /usr/share/mysnap is no longer needed.
+			{Action: update.Mount, Entry: osutil.MountEntry{
+				Dir: "/usr/share/adduser", Name: "/usr/share/adduser",
+				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
+			{Action: update.Mount, Entry: osutil.MountEntry{
+				Dir: "/usr/share/awk", Name: "/usr/share/awk",
+				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
+		}
+		return synthetic, nil
+	})
+	defer restore()
+
+	up := update.NewSystemProfileUpdate(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals,
@@ -164,54 +161,6 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-
-	n := -1
-	up := &testProfileUpdate{
-		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			return update.NeededChanges(old, new)
-		},
-		performChange: func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			n++
-			switch n {
-			case 0:
-				c.Assert(chg, DeepEquals, &update.Change{
-					Action: update.Unmount,
-					Entry: osutil.MountEntry{
-						Name: "/snap/mysnap/42/usr/share/mysnap",
-						Dir:  "/usr/share/mysnap", Type: "none",
-						Options: []string{"bind", "ro"},
-					},
-				})
-			case 1:
-				c.Assert(chg, DeepEquals, &update.Change{
-					Action: update.Unmount,
-					Entry: osutil.MountEntry{
-						Name: "/usr/share/awk", Dir: "/usr/share/awk", Type: "none",
-						Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
-					},
-				})
-			case 2:
-				c.Assert(chg, DeepEquals, &update.Change{
-					Action: update.Unmount,
-					Entry: osutil.MountEntry{
-						Name: "/usr/share/adduser", Dir: "/usr/share/adduser", Type: "none",
-						Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
-					},
-				})
-			case 3:
-				c.Assert(chg, DeepEquals, &update.Change{
-					Action: update.Unmount,
-					Entry: osutil.MountEntry{
-						Name: "tmpfs", Dir: "/usr/share", Type: "tmpfs",
-						Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
-					},
-				})
-			default:
-				panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
-			}
-			return nil, nil
-		},
-	}
 
 	// The snap `mysnap` no longer wishes to export it's usr/share/mysnap
 	// directory. All the synthetic changes that were associated with that mount
@@ -232,6 +181,51 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Unmount,
+				Entry: osutil.MountEntry{
+					Name: "/snap/mysnap/42/usr/share/mysnap",
+					Dir:  "/usr/share/mysnap", Type: "none",
+					Options: []string{"bind", "ro"},
+				},
+			})
+		case 1:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Unmount,
+				Entry: osutil.MountEntry{
+					Name: "/usr/share/awk", Dir: "/usr/share/awk", Type: "none",
+					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+				},
+			})
+		case 2:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Unmount,
+				Entry: osutil.MountEntry{
+					Name: "/usr/share/adduser", Dir: "/usr/share/adduser", Type: "none",
+					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+				},
+			})
+		case 3:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Unmount,
+				Entry: osutil.MountEntry{
+					Name: "tmpfs", Dir: "/usr/share", Type: "tmpfs",
+					Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+				},
+			})
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+		return nil, nil
+	})
+	defer restore()
+
+	up := update.NewSystemProfileUpdate(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -240,30 +234,6 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-
-	n := -1
-	up := &testProfileUpdate{
-		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			return update.NeededChanges(old, new)
-		},
-		performChange: func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			n++
-			switch n {
-			case 0:
-				c.Assert(chg, DeepEquals, &update.Change{
-					Action: update.Mount,
-					Entry: osutil.MountEntry{
-						Name: "/snap/mysnap/42/usr/share/mysnap",
-						Dir:  "/usr/share/mysnap", Type: "none",
-						Options: []string{"bind", "ro", "x-snapd.origin=layout"},
-					},
-				})
-				return nil, fmt.Errorf("testing")
-			default:
-				panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
-			}
-		},
-	}
 
 	const snapName = "mysnap"
 	const currentProfileContent = ""
@@ -277,7 +247,28 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Mount,
+				Entry: osutil.MountEntry{
+					Name: "/snap/mysnap/42/usr/share/mysnap",
+					Dir:  "/usr/share/mysnap", Type: "none",
+					Options: []string{"bind", "ro", "x-snapd.origin=layout"},
+				},
+			})
+			return nil, fmt.Errorf("testing")
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+	})
+	defer restore()
+
 	// The error was not ignored, we bailed out.
+	up := update.NewSystemProfileUpdate(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -286,30 +277,6 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-
-	n := -1
-	up := &testProfileUpdate{
-		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			return update.NeededChanges(old, new)
-		},
-		performChange: func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			n++
-			switch n {
-			case 0:
-				c.Assert(chg, DeepEquals, &update.Change{
-					Action: update.Mount,
-					Entry: osutil.MountEntry{
-						Name: "/snap/mysnap_foo",
-						Dir:  "/snap/mysnap", Type: "none",
-						Options: []string{"rbind", "x-snapd.origin=overname"},
-					},
-				})
-				return nil, fmt.Errorf("testing")
-			default:
-				panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
-			}
-		},
-	}
 
 	const snapName = "mysnap"
 	const currentProfileContent = ""
@@ -323,7 +290,28 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Mount,
+				Entry: osutil.MountEntry{
+					Name: "/snap/mysnap_foo",
+					Dir:  "/snap/mysnap", Type: "none",
+					Options: []string{"rbind", "x-snapd.origin=overname"},
+				},
+			})
+			return nil, fmt.Errorf("testing")
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+	})
+	defer restore()
+
 	// The error was not ignored, we bailed out.
+	up := update.NewSystemProfileUpdate(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, nil), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -332,31 +320,6 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-
-	n := -1
-	up := &testProfileUpdate{
-		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			return update.NeededChanges(old, new)
-		},
-		performChange: func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			n++
-			switch n {
-			case 0:
-				c.Assert(chg, DeepEquals, &update.Change{
-					Action: update.Mount,
-					Entry: osutil.MountEntry{
-						Name:    "/source",
-						Dir:     "/target",
-						Type:    "none",
-						Options: []string{"bind", "x-snapd.ignore-missing"},
-					},
-				})
-				return nil, update.ErrIgnoredMissingMount
-			default:
-				panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
-			}
-		},
-	}
 
 	const snapName = "mysnap"
 	const currentProfileContent = ""
@@ -370,7 +333,29 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Mount,
+				Entry: osutil.MountEntry{
+					Name:    "/source",
+					Dir:     "/target",
+					Type:    "none",
+					Options: []string{"bind", "x-snapd.ignore-missing"},
+				},
+			})
+			return nil, update.ErrIgnoredMissingMount
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+	})
+	defer restore()
+
 	// The error was ignored, and no mount was recorded in the profile
+	up := update.NewSystemProfileUpdate(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), IsNil)
 	c.Check(s.log.String(), Equals, "")
 	c.Check(currentProfilePath, testutil.FileEquals, "")

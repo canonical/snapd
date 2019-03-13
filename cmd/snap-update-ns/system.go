@@ -34,8 +34,17 @@ type SystemProfileUpdate struct {
 	CommonProfileUpdate
 }
 
+// NewSystemProfileUpdate returns encapsulated information for performing a per-user mount namespace update.
+func NewSystemProfileUpdate(instanceName string) *SystemProfileUpdate {
+	return &SystemProfileUpdate{CommonProfileUpdate: CommonProfileUpdate{
+		instanceName:       instanceName,
+		currentProfilePath: currentSystemProfilePath(instanceName),
+		desiredProfilePath: desiredSystemProfilePath(instanceName),
+	}}
+}
+
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
-	up := &SystemProfileUpdate{}
+	up := NewSystemProfileUpdate(instanceName)
 
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
@@ -107,17 +116,15 @@ func computeAndSaveSystemChanges(up MountProfileUpdate, snapName string, as *Ass
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
-	desiredProfilePath := desiredSystemProfilePath(snapName)
-	desired, err := osutil.LoadMountProfile(desiredProfilePath)
+	desired, err := up.LoadDesiredProfile()
 	if err != nil {
-		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
+		return err
 	}
 	debugShowProfile(desired, "desired mount profile")
 
-	currentProfilePath := currentSystemProfilePath(snapName)
-	currentBefore, err := osutil.LoadMountProfile(currentProfilePath)
+	currentBefore, err := up.LoadCurrentProfile()
 	if err != nil {
-		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
+		return err
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
@@ -131,10 +138,7 @@ func computeAndSaveSystemChanges(up MountProfileUpdate, snapName string, as *Ass
 	}
 
 	logger.Debugf("saving current mount profile of snap %q", snapName)
-	if err := currentAfter.Save(currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
-	}
-	return nil
+	return up.SaveCurrentProfile(currentAfter)
 }
 
 // desiredSystemProfilePath returns the path of the fstab-like file with the desired, system-wide mount profile for a snap.
