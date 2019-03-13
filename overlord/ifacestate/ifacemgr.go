@@ -55,7 +55,6 @@ type InterfaceManager struct {
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	perftimings := timings.New(map[string]string{"startup": "interface manager"})
-	meas := perftimings.StartSpan("manager init", "interface manager ctor")
 
 	delayedCrossMgrInit()
 
@@ -73,11 +72,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		hotplugDevicePaths:   make(map[string][]deviceData),
 	}
 
-	var err error
-	meas.Run("initialize", "initialization of interface manager", func(nesttm *timings.Span) {
-		err = m.initialize(extraInterfaces, extraBackends, nesttm)
-	})
-	if err != nil {
+	meas := perftimings.StartSpan("initialize", "interface manager backends init")
+	if err := m.initialize(extraInterfaces, extraBackends, meas); err != nil {
 		return nil, err
 	}
 
