@@ -1,8 +1,8 @@
 summary: Check that upgrade works
 
 # arch: there is no snapd in arch repos
-# amazon, centos: enable when snapd hits EPEL
-systems: [-debian-sid-*, -arch-*, -amazon-*, -centos-*]
+# amazon: enable once it's possible to install snapd from EPEL
+systems: [-debian-sid-*, -arch-*, -amazon-*]
 
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
