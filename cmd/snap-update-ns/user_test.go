@@ -35,6 +35,12 @@ type userSuite struct{}
 
 var _ = Suite(&userSuite{})
 
+func (s *userSuite) TestAssumptions(c *C) {
+	ctx := update.NewUserProfileUpdateContext("foo", 1234)
+	as := ctx.Assumptions()
+	c.Check(as.UnrestrictedPaths(), IsNil)
+}
+
 func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	// Mock directories but to simplify testing use the real value for XDG.
 	dirs.SetRootDir(c.MkDir())

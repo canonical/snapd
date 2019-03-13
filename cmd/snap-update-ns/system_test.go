@@ -37,6 +37,18 @@ type systemSuite struct{}
 
 var _ = Suite(&systemSuite{})
 
+func (s *systemSuite) TestAssumptions(c *C) {
+	// Non-instances can access /tmp, /var/snap and /snap/$SNAP_NAME
+	ctx := update.NewSystemProfileUpdateContext("foo")
+	as := ctx.Assumptions()
+	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo"})
+
+	// Instances can, in addition, access /snap/$SNAP_INSTANCE_NAME
+	ctx = update.NewSystemProfileUpdateContext("foo_instance")
+	as = ctx.Assumptions()
+	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo_instance", "/snap/foo"})
+}
+
 func (s *systemSuite) TestLoadDesiredProfile(c *C) {
 	// Mock directories.
 	dirs.SetRootDir(c.MkDir())
