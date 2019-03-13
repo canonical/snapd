@@ -224,6 +224,10 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/mount-support.h \
 	snap-confine/ns-support.c \
 	snap-confine/ns-support.h \
+	snap-confine/seccomp-support-ext.c \
+	snap-confine/seccomp-support-ext.h \
+	snap-confine/seccomp-support.c \
+	snap-confine/seccomp-support.h \
 	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args.h \
 	snap-confine/snap-confine.c \
@@ -262,20 +266,6 @@ snap-confine/snap-confine$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_snap_con
 # https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
 snap_confine_snap_confine_CFLAGS += $(SUID_CFLAGS)
 snap_confine_snap_confine_LDFLAGS += $(SUID_LDFLAGS)
-
-if SECCOMP
-snap_confine_snap_confine_SOURCES += \
-	snap-confine/seccomp-support-ext.c \
-	snap-confine/seccomp-support-ext.h \
-	snap-confine/seccomp-support.c \
-	snap-confine/seccomp-support.h
-snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
-if STATIC_LIBSECCOMP
-snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libseccomp)
-else
-snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
-endif  # STATIC_LIBSECCOMP
-endif  # SECCOMP
 
 if APPARMOR
 snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
