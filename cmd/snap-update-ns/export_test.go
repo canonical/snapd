@@ -50,6 +50,10 @@ var (
 	IsReadOnly                   = isReadOnly
 	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
 
+	// system
+	DesiredSystemProfilePath = desiredSystemProfilePath
+	CurrentSystemProfilePath = currentSystemProfilePath
+
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable

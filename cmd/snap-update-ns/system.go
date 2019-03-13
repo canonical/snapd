@@ -107,14 +107,14 @@ func computeAndSaveSystemChanges(up MountProfileUpdate, snapName string, as *Ass
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
-	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+	desiredProfilePath := desiredSystemProfilePath(snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(desired, "desired mount profile")
 
-	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	currentProfilePath := currentSystemProfilePath(snapName)
 	currentBefore, err := osutil.LoadMountProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
@@ -135,4 +135,14 @@ func computeAndSaveSystemChanges(up MountProfileUpdate, snapName string, as *Ass
 		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
 	}
 	return nil
+}
+
+// desiredSystemProfilePath returns the path of the fstab-like file with the desired, system-wide mount profile for a snap.
+func desiredSystemProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+}
+
+// currentSystemProfilePath returns the path of the fstab-like file with the applied, system-wide mount profile for a snap.
+func currentSystemProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
 }
