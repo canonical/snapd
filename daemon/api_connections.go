@@ -89,6 +89,19 @@ func (b byPlugRef) Less(i, j int) bool {
 	return b[i].SortsBefore(b[j])
 }
 
+// mergeAttrs merges attributes from 2 disjoint sets of static and dynamic slot or
+// plug attributes into a single map.
+func mergeAttrs(one map[string]interface{}, other map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{}, len(one)+len(other))
+	for k, v := range one {
+		merged[k] = v
+	}
+	for k, v := range other {
+		merged[k] = v
+	}
+	return merged
+}
+
 func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFilter) (*connectionsJSON, error) {
 	repo := ifaceMgr.Repository()
 	ifaces := repo.Interfaces()
@@ -133,6 +146,8 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 			Manual:    cstate.Auto == false,
 			Gadget:    cstate.ByGadget,
 			Interface: cstate.Interface,
+			PlugAttrs: mergeAttrs(cstate.StaticPlugAttrs, cstate.DynamicPlugAttrs),
+			SlotAttrs: mergeAttrs(cstate.StaticSlotAttrs, cstate.DynamicSlotAttrs),
 		}
 		if cstate.Undesired {
 			// explicitly disconnected are always manual

@@ -42,7 +42,7 @@ func Test(t *testing.T) {
 type backendSuite struct {
 	ifacetest.BackendSuite
 	modprobeCmd *testutil.MockCmd
-	meas *timings.Span
+	meas        *timings.Span
 }
 
 var _ = Suite(&backendSuite{})

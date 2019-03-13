@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/timings"
 )
 
 // overridden in the tests
@@ -645,32 +644,19 @@ func (m *SnapManager) localInstallCleanup() error {
 
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
-	perftimings := timings.New(map[string]string{"ensure": "snap manager"})
-	measure := func(f func() error, label, summary string) error {
-		meas := perftimings.StartSpan(label, summary)
-		err := f()
-		meas.Stop()
-		return err
-	}
-
 	// do not exit right away on error
 	errs := []error{
 		m.atSeed(),
-		measure(m.ensureAliasesV2, "aliases", ""),
+		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
-		measure(m.ensureUbuntuCoreTransition, "ubuntu core transition", ""),
+		m.ensureUbuntuCoreTransition(),
 		// we should check for full regular refreshes before
 		// considering issuing a hint only refresh request
 		m.autoRefresh.Ensure(),
 		m.refreshHints.Ensure(),
-		measure(m.catalogRefresh.Ensure, "catalog refresh", ""),
-		measure(m.localInstallCleanup, "local install cleanup", ""),
+		m.catalogRefresh.Ensure(),
+		m.localInstallCleanup(),
 	}
-
-
-	m.state.Lock()
-	defer m.state.Unlock()
-	perftimings.Save(m.state)
 
 	//FIXME: use firstErr helper
 	for _, e := range errs {
@@ -678,5 +664,6 @@ func (m *SnapManager) Ensure() error {
 			return e
 		}
 	}
+
 	return nil
 }

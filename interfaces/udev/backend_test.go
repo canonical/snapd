@@ -39,7 +39,7 @@ type backendSuite struct {
 	ifacetest.BackendSuite
 
 	udevadmCmd *testutil.MockCmd
-	meas *timings.Span
+	meas       *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
