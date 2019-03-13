@@ -217,11 +217,12 @@ func (s *timingsSuite) TestNewForTask(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	task := s.st.NewTask("foo", "bar")
+	task := s.st.NewTask("...", "...")
 	chg := s.st.NewChange("change", "...")
 	chg.AddTask(task)
 
-	troot, span := timings.NewForTask(task)
+	troot := timings.NewForTask(task)
+	span := troot.StartSpan("foo", "bar")
 	span.Stop()
 	troot.Save(s.st)
 

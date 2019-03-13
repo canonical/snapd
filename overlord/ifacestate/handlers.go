@@ -82,9 +82,8 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	task.State().Lock()
 	defer task.State().Unlock()
 
-	perfTimings, meas := timings.NewForTask(task)
+	perfTimings := timings.NewForTask(task)
 	defer perfTimings.Save(task.State()) // XXX: should the error from save be returned from handler?
-	defer meas.Stop()
 
 	// Get snap.Info from bits handed by the snap manager.
 	snapsup, err := snapstate.TaskSnapSetup(task)
@@ -111,11 +110,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	}
 
 	opts := confinementOptions(snapsup.Flags)
-
-	meas.Run("setup profiles", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm timings.Measurement) {
-		err = m.setupProfilesForSnap(task, tomb, snapInfo, opts, tm)
-	})
-	return err
+	return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurement) error {
@@ -216,9 +211,8 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings, meas := timings.NewForTask(task)
+	perfTimings := timings.NewForTask(task)
 	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
-	defer meas.Stop()
 
 	// Get SnapSetup for this snap. This is gives us the name of the snap.
 	snapSetup, err := snapstate.TaskSnapSetup(task)
@@ -227,7 +221,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 	snapName := snapSetup.InstanceName()
 
-	return m.removeProfilesForSnap(task, tomb, snapName, meas)
+	return m.removeProfilesForSnap(task, tomb, snapName, perfTimings)
 }
 
 func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurement) error {
@@ -262,9 +256,8 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings, meas := timings.NewForTask(task)
+	perfTimings := timings.NewForTask(task)
 	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
-	defer meas.Stop()
 
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
@@ -291,10 +284,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		// The snap was not installed before so undo should remove security profiles.
-		meas.Run("remove profiles for snap", fmt.Sprintf("remove profiles of snap %q", snapName), func(tm timings.Measurement) {
-			err = m.removeProfilesForSnap(task, tomb, snapName, tm)
-		})
-		return err
+		return m.removeProfilesForSnap(task, tomb, snapName, perfTimings)
 	} else {
 		// The snap was installed before so undo should setup the old security profiles.
 		snapInfo, err := snap.ReadInfo(snapName, sideInfo)
@@ -302,10 +292,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		meas.Run("setup profiles for snap", fmt.Sprintf("setup profiles of snap %q", snapInfo.InstanceName()), func(tm timings.Measurement) {
-			err = m.setupProfilesForSnap(task, tomb, snapInfo, opts, tm)
-		})
-		return err
+		return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 	}
 }
 
@@ -401,9 +388,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings, meas := timings.NewForTask(task)
+	perfTimings := timings.NewForTask(task)
 	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
-	defer meas.Stop()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
@@ -488,12 +474,12 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, meas); err != nil {
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
 
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, meas); err != nil {
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
 
@@ -520,9 +506,8 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings, meas := timings.NewForTask(task)
+	perfTimings := timings.NewForTask(task)
 	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
-	defer meas.Stop()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
@@ -558,10 +543,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slotRef.Snap), func(tm timings.Measurement) {
-			err = m.setupSnapSecurity(task, snapInfo, opts, tm)
-		})
-		if err != nil {
+		if err := m.setupSnapSecurity(task, snapInfo, opts, perfTimings); err != nil {
 			return err
 		}
 	}
@@ -613,9 +595,8 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings, meas := timings.NewForTask(task)
+	perfTimings := timings.NewForTask(task)
 	defer perfTimings.Save(st) // XXX: should the error from save be returned from handler?
-	defer meas.Stop()
 
 	var oldconn connState
 	err := task.Get("old-conn", &oldconn)
@@ -662,17 +643,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", slot.Snap.InstanceName()), func(tm timings.Measurement) {
-		err = m.setupSnapSecurity(task, slot.Snap, slotOpts, tm)
-	})
-	if err != nil {
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	meas.Run("setup snap security", fmt.Sprintf("setup snap security of snap %q", plug.Snap.InstanceName()), func(tm timings.Measurement) {
-		err = m.setupSnapSecurity(task, plug.Snap, plugOpts, tm)
-	})
-	if err != nil {
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
 
