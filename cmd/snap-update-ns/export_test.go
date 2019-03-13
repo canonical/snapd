@@ -62,7 +62,7 @@ var (
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
 
 	// update
-	ApplyFstab = applyFstab
+	ExecuteMountProfileUpdate = executeMountProfileUpdate
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
