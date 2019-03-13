@@ -54,6 +54,9 @@ var (
 	DesiredSystemProfilePath = desiredSystemProfilePath
 	CurrentSystemProfilePath = currentSystemProfilePath
 
+	// user
+	DesiredUserProfilePath = desiredUserProfilePath
+
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable

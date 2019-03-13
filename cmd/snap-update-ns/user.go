@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,7 +34,7 @@ type UserProfileUpdate struct {
 
 func applyUserFstab(snapName string) error {
 	up := &UserProfileUpdate{}
-	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+	desiredProfilePath := desiredUserProfilePath(snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
@@ -51,4 +51,9 @@ func applyUserFstab(snapName string) error {
 	// SNAP_USER_COMMON.
 	_, err = applyProfile(up, snapName, &osutil.MountProfile{}, desired, as)
 	return err
+}
+
+// desiredUserProfilePath returns the path of the fstab-like file with the desired, user-specific mount profile for a snap.
+func desiredUserProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 }
