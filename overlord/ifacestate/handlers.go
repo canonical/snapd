@@ -46,7 +46,7 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	}
 }
 
-func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm timings.Measurement) error {
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm timings.Measurer) error {
 	st := task.State()
 
 	// Setup security of the affected snaps.
@@ -110,7 +110,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 }
 
-func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurement) error {
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 
 	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
@@ -221,7 +221,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	return m.removeProfilesForSnap(task, tomb, snapName, perfTimings)
 }
 
-func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurement) error {
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup

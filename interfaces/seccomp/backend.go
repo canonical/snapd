@@ -151,7 +151,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurement) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
