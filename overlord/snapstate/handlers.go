@@ -444,7 +444,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
 
-	dlOpts := &store.DownloadOptions{}
+	dlOpts := &store.DownloadOptions{IsAutoRefresh: snapsup.IsAutoRefresh}
 	if snapsup.IsAutoRefresh && rate > 0 {
 		dlOpts.RateLimit = rate
 	}
