@@ -1413,7 +1413,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
-func reqOptions(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
+func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
 	reqOptions := requestOptions{
 		Method:       "GET",
 		URL:          storeURL,
@@ -1453,7 +1453,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
-		reqOptions := reqOptions(storeURL, cdnHeader, dlOpts)
+		reqOptions := downloadReqOpts(storeURL, cdnHeader, dlOpts)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -2410,7 +2410,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		return hosts, err
 	}
 
-	reqOptions := reqOptions(dlURL, cdnHeader, nil)
+	reqOptions := downloadReqOpts(dlURL, cdnHeader, nil)
 	reqOptions.Method = "HEAD" // not actually a download
 
 	// TODO: We need the HEAD here so that we get redirected to the

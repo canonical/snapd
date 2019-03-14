@@ -774,8 +774,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		return nil, nil, err
 	}
 
-	refreshFlags := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
-	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshFlags)
+	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
 	}
