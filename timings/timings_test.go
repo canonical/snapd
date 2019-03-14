@@ -49,6 +49,7 @@ func (s *timingsSuite) SetUpTest(c *C) {
 	s.duration = 0
 
 	s.mockTimeNow(c)
+	s.mockDurationThreshold(0)
 }
 
 func (s *timingsSuite) TearDownTest(c *C) {
@@ -62,6 +63,15 @@ func (s *timingsSuite) mockDuration(c *C) {
 		s.duration += time.Millisecond
 		return s.duration
 	}))
+}
+
+func (s *timingsSuite) mockDurationThreshold(threshold time.Duration) {
+	oldDurationThreshold := timings.DurationThreshold
+	timings.DurationThreshold = threshold
+	restore := func() {
+		timings.DurationThreshold = oldDurationThreshold
+	}
+	s.AddCleanup(restore)
 }
 
 func (s *timingsSuite) mockTimeNow(c *C) {
@@ -183,6 +193,96 @@ func (s *timingsSuite) TestDuration(c *C) {
 					"duration": float64(1000000),
 				},
 			}}})
+}
+
+func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expected interface{}) {
+	s.mockDurationThreshold(threshold)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	timing := timings.New(nil)
+	meas := timing.StartSpan("main", "...")
+	nested := meas.StartSpan("nested", "...")
+	nestedMore := nested.StartSpan("nested more", "...")
+	nestedMore.Stop()
+	nested.Stop()
+
+	meas.Stop()
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	if expected == nil {
+		c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
+		c.Assert(stateTimings, IsNil)
+		return
+	}
+	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
+	c.Check(stateTimings, DeepEquals, expected)
+}
+
+func (s *timingsSuite) TestDurationThresholdAll(c *C) {
+	s.testDurationThreshold(c, 0, []interface{}{
+		map[string]interface{}{
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "main",
+					"summary":  "...",
+					"duration": float64(5000000),
+				},
+				map[string]interface{}{
+					"level":    float64(1),
+					"label":    "nested",
+					"summary":  "...",
+					"duration": float64(3000000),
+				},
+				map[string]interface{}{
+					"level":    float64(2),
+					"label":    "nested more",
+					"summary":  "...",
+					"duration": float64(1000000),
+				},
+			}}})
+}
+
+func (s *timingsSuite) TestDurationThreshold(c *C) {
+	s.testDurationThreshold(c, 3000000, []interface{}{
+		map[string]interface{}{
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "main",
+					"summary":  "...",
+					"duration": float64(5000000),
+				},
+				map[string]interface{}{
+					"level":    float64(1),
+					"label":    "nested",
+					"summary":  "...",
+					"duration": float64(3000000),
+				},
+			}}})
+}
+
+func (s *timingsSuite) TestDurationThresholdRootOnly(c *C) {
+	s.testDurationThreshold(c, 4000000, []interface{}{
+		map[string]interface{}{
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "main",
+					"summary":  "...",
+					"duration": float64(5000000),
+				},
+			}}})
+}
+
+func (s *timingsSuite) TestDurationThresholdNone(c *C) {
+	s.testDurationThreshold(c, time.Hour, nil)
 }
 
 func (s *timingsSuite) TestPurgeOnSave(c *C) {

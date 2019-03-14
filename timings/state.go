@@ -47,6 +47,9 @@ type RootTimingsJson struct {
 // Maximum number of timings to keep in state. It can be changed only while holding state lock.
 var MaxTimings = 100
 
+// Duration threshold - timings below the threshold will not be saved in the state.
+var DurationThreshold = 5 * time.Millisecond
+
 var timeDuration = func(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
@@ -60,6 +63,9 @@ func (t *Timings) flatten() interface{} {
 	var maxStopTime time.Time
 	if len(t.timings) > 0 {
 		flattenRecursive(data, t.timings, 0, &maxStopTime)
+		if len(data.NestedTimings) == 0 {
+			return nil
+		}
 		data.StartTime = t.timings[0].start
 		data.StopTime = maxStopTime
 	}
@@ -68,12 +74,15 @@ func (t *Timings) flatten() interface{} {
 
 func flattenRecursive(data *RootTimingsJson, timings []*Span, nestLevel int, maxStopTime *time.Time) {
 	for _, tm := range timings {
-		data.NestedTimings = append(data.NestedTimings, &TimingJson{
-			Level:    nestLevel,
-			Label:    tm.label,
-			Summary:  tm.summary,
-			Duration: timeDuration(tm.start, tm.stop),
-		})
+		dur := timeDuration(tm.start, tm.stop)
+		if dur >= DurationThreshold {
+			data.NestedTimings = append(data.NestedTimings, &TimingJson{
+				Level:    nestLevel,
+				Label:    tm.label,
+				Summary:  tm.summary,
+				Duration: dur,
+			})
+		}
 		if tm.stop.After(*maxStopTime) {
 			*maxStopTime = tm.stop
 		}
@@ -93,7 +102,11 @@ func (t *Timings) Save(st *state.State) {
 		return
 	}
 
-	serialized, err := json.Marshal(t.flatten())
+	data := t.flatten()
+	if data == nil {
+		return
+	}
+	serialized, err := json.Marshal(data)
 	if err != nil {
 		logger.Noticef("could not marshal timings: %v", err)
 		return

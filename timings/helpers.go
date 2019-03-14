@@ -26,7 +26,7 @@ import (
 // NewForTask creates a new Timings tree for given task.
 // Returned Timings tree has "task-id" and "change-id"
 // tags set automatically from the respective task.
-func NewForTask(task *state.Task) (*Timings) {
+func NewForTask(task *state.Task) *Timings {
 	tags := map[string]string{"task-id": task.ID()}
 	if chg := task.Change(); chg != nil {
 		tags["change-id"] = chg.ID()
