@@ -499,6 +499,10 @@ prepare: |
         echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
         rm -f gai.conf
     fi
+    if command -v restorecon ; then
+        # restore proper context otherwise SELinux may complain
+        restorecon -v /etc/gai.conf
+    fi
 
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
