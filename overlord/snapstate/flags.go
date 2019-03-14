@@ -60,6 +60,10 @@ type Flags struct {
 
 	// IsAutoRefresh is true if the snap is currently auto-refreshed
 	IsAutoRefresh bool `json:"is-auto-refresh,omitempty"`
+
+	// NoReRefresh forces a refresh to skip adding "rerefresh" tasks.
+	// This is important for the Remodel() use-case.
+	NoReRefresh bool `json:"no-rerefresh,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
