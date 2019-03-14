@@ -39,8 +39,19 @@ type Compiler struct {
 	snapSeccomp string
 }
 
-func NewAtPath(path string) *Compiler {
-	return &Compiler{snapSeccomp: path}
+// New returns a wrapper for the compiler binary. The path to the binary is
+// looked up using the lookupTool helper.
+func New(lookupTool func(name string) (string, error)) (*Compiler, error) {
+	if lookupTool == nil {
+		panic("lookup tool func not provided")
+	}
+
+	path, err := lookupTool("snap-seccomp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &Compiler{snapSeccomp: path}, nil
 }
 
 // VersionInfo returns the version information of the compiler. The format of
