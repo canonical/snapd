@@ -34,16 +34,10 @@ func NewForTask(task *state.Task) (*Timings) {
 	return New(tags)
 }
 
-// Run creates, starts and then stops a nested Span under parent span. The nested
-// Span is passed to the measured function and it can used to create further spans.
-func (t *Span) Run(label, summary string, f func(nestedTiming Measurer)) {
-	meas := t.StartSpan(label, summary)
-	f(meas)
-	meas.Stop()
-}
-
-func (t *Timings) Run(label, summary string, f func(nestedTiming Measurer)) {
-	meas := t.StartSpan(label, summary)
-	f(meas)
-	meas.Stop()
+// Run creates, starts and then stops a nested Span under parent Measurer. The nested
+// Span is passed to the measured function and can used to create further spans.
+func Run(meas Measurer, label, summary string, f func(nestedTiming Measurer)) {
+	nested := meas.StartSpan(label, summary)
+	f(nested)
+	nested.Stop()
 }
