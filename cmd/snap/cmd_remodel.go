@@ -31,7 +31,11 @@ import (
 var (
 	shortRemodelHelp = i18n.G("Remodel this device")
 	longRemodelHelp  = i18n.G(`
-The remodel command changes the model assertion of the device.
+The remodel command changes the model assertion of the device, either to a new
+revision or a full new model.
+
+In the process it applies any implied changes to the device: new required
+snaps, new kernel or gadget etc.
 `)
 )
 
