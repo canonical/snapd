@@ -58,7 +58,7 @@ execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have the right model assertion"
-    snap debug get-model|MATCH "model: my-model"
+    snap debug model|MATCH "model: my-model"
 
     echo "Now we remodel"
     snap remodel "$TESTSLIB"/assertions/developer1-pc-revno2.model
@@ -68,4 +68,4 @@ execute: |
 
     # FIXME: check that this is the active model assertion
     echo "and we got the new model assertion"
-    snap debug get-model|MATCH "revision: 2"
+    snap debug model|MATCH "revision: 2"
