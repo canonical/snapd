@@ -206,7 +206,9 @@ func (s *cmdSuite) TestInternalToolPathNoReexec(c *C) {
 	})
 	defer restore()
 
-	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
 
 func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
@@ -216,16 +218,43 @@ func (s *cmdSuite) TestInternalToolPathWithReexec(c *C) {
 	})
 	defer restore()
 
-	c.Check(cmd.InternalToolPath("potato"), Equals, filepath.Join(dirs.SnapMountDir, "snapd/42/usr/lib/snapd/potato"))
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, filepath.Join(dirs.SnapMountDir, "snapd/42/usr/lib/snapd/potato"))
 }
 
-func (s *cmdSuite) TestInternalToolPathFromIncorrectHelper(c *C) {
+func (s *cmdSuite) TestInternalToolPathWithOtherLocation(c *C) {
+	s.fakeInternalTool(c, s.snapdPath, "potato")
 	restore := cmd.MockOsReadlink(func(string) (string, error) {
-		return "/usr/bin/potato", nil
+		return filepath.Join("/tmp/tmp.foo_1234/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
-	c.Check(func() { cmd.InternalToolPath("potato") }, PanicMatches, "InternalToolPath can only be used from snapd, got: /usr/bin/potato")
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, "/tmp/tmp.foo_1234/usr/lib/snapd/potato")
+}
+
+func (s *cmdSuite) TestInternalToolSnapPathWithOtherLocation(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join("/tmp/tmp.foo_1234/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, "/tmp/tmp.foo_1234/usr/lib/snapd/potato")
+}
+
+func (s *cmdSuite) TestInternalToolPathWithOtherCrazyLocation(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join("/usr/foo/usr/tmp/tmp.foo_1234/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, "/usr/foo/usr/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 }
 
 func (s *cmdSuite) TestExecInSnapdOrCoreSnap(c *C) {
