@@ -42,9 +42,9 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -52,33 +52,12 @@ import (
 )
 
 var (
-	osReadlink               = os.Readlink
 	kernelFeatures           = release.SecCompActions
 	ubuntuKernelArchitecture = arch.UbuntuKernelArchitecture
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
 )
-
-func seccompToBpfPath() string {
-	// FIXME: use cmd.InternalToolPath here once:
-	//   https://github.com/snapcore/snapd/pull/3512
-	// is merged
-	snapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
-
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v, using default snap-seccomp command", err)
-		return snapSeccomp
-	}
-	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
-		return snapSeccomp
-	}
-
-	// if we are re-execed, then snap-seccomp is at the same location
-	// as snapd
-	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
-}
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
 type Backend struct{}
@@ -174,11 +153,14 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 
+	seccompToBpf, err := cmd.InternalToolPath("snap-seccomp")
+	if err != nil {
+		return err
+	}
 	for baseName := range content {
 		in := filepath.Join(dirs.SnapSeccompDir, baseName)
 		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
 
-		seccompToBpf := seccompToBpfPath()
 		cmd := exec.Command(seccompToBpf, "compile", in, out)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)

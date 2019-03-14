@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -117,7 +118,7 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 
-	restore := seccomp.MockOsReadlink(func(string) (string, error) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
 		// simulate that we run snapd from core
 		return filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snapd"), nil
 	})
