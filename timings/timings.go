@@ -27,14 +27,14 @@ var timeNow = func() time.Time {
 	return time.Now()
 }
 
-// Timings represents a tree of Timing measurements for a single execution of measured activity.
+// Timings represents a tree of Span measurements for a single execution of measured activity.
 // A Timings tree object should be created at the beginning of the activity,
-// followed by starting at least one Timing measurement, and then saved at the end of the activity.
+// followed by starting at least one Span, and then saved at the end of the activity.
 //
-// Calling Start on the Timings objects creates a Timing and starts new
-// performance measurement. Measurement needs to be finished by calling Stop
-// function on the Timing object.
-// Nested measurements may be collected by calling Start on Timing objects. Similar
+// Calling StartSpan on the Timings objects creates a Span and starts new
+// performance measurement. Measurer needs to be finished by calling Stop
+// function on the Span object.
+// Nested measurements may be collected by calling StartSpan on Span objects. Similar
 // to the above, nested measurements need to be finished by calling Stop on them.
 //
 // Typical usage:
@@ -44,6 +44,16 @@ var timeNow = func() time.Time {
 //   nestedTiming := t1.StartSpan("sub-computation", "...")
 //   ....
 //   nestedTiming.Stop()
+//   t1.Stop()
+//   troot.Save()
+//
+// In addition, a few helpers exist to simplify typical use cases, for example the above example
+// can be reduced to:
+//   troot := timings.NewForTask(task) // tags set automatically, label and summary derived from task
+//   t1 := troot.StartSpan("computation", "...")
+//   t1.Run("sub-computation", "...", func(nested *Span) {
+//          ... expensive computation
+//   })
 //   t1.Stop()
 //   troot.Save()
 type Timings struct {
@@ -56,6 +66,10 @@ type Span struct {
 	label, summary string
 	start, stop    time.Time
 	timings        []*Span
+}
+
+type Measurer interface {
+	StartSpan(label, summary string) *Span
 }
 
 // New creates a Timings object. Tags provide extra information (such as "task-id" and "change-id")
@@ -75,15 +89,15 @@ func startSpan(label, summary string) *Span {
 	return tmeas
 }
 
-// Starts creates a Timing and initiates performance measurement.
-// Measurement needs to be stopped by calling Stop on it.
+// StartSpan creates a Span and initiates performance measurement.
+// Measurer needs to be stopped by calling Stop on it.
 func (t *Timings) StartSpan(label, summary string) *Span {
 	tmeas := startSpan(label, summary)
 	t.timings = append(t.timings, tmeas)
 	return tmeas
 }
 
-// Start creates a new nested Timing and initiates performance measurement.
+// StartSpan creates a new nested Span and initiates performance measurement.
 // Nested measurements need to be stopped by calling Stop on it.
 func (t *Span) StartSpan(label, summary string) *Span {
 	tmeas := startSpan(label, summary)
@@ -91,7 +105,7 @@ func (t *Span) StartSpan(label, summary string) *Span {
 	return tmeas
 }
 
-// Stops the measurement.
+// Stop stops the measurement.
 func (t *Span) Stop() {
 	if t.stop.IsZero() {
 		t.stop = timeNow()

@@ -21,9 +21,9 @@ package timings
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -47,6 +47,9 @@ type rootTimingsJson struct {
 // Maximum number of timings to keep in state. It can be changed only while holding state lock.
 var MaxTimings = 100
 
+// Duration threshold - timings below the threshold will not be saved in the state.
+var DurationThreshold = 5 * time.Millisecond
+
 var timeDuration = func(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
@@ -60,6 +63,9 @@ func (t *Timings) flatten() interface{} {
 	var maxStopTime time.Time
 	if len(t.timings) > 0 {
 		flattenRecursive(data, t.timings, 0, &maxStopTime)
+		if len(data.NestedTimings) == 0 {
+			return nil
+		}
 		data.StartTime = t.timings[0].start
 		data.StopTime = maxStopTime
 	}
@@ -68,12 +74,15 @@ func (t *Timings) flatten() interface{} {
 
 func flattenRecursive(data *rootTimingsJson, timings []*Span, nestLevel int, maxStopTime *time.Time) {
 	for _, tm := range timings {
-		data.NestedTimings = append(data.NestedTimings, &timingJson{
-			Level:    nestLevel,
-			Label:    tm.label,
-			Summary:  tm.summary,
-			Duration: timeDuration(tm.start, tm.stop),
-		})
+		dur := timeDuration(tm.start, tm.stop)
+		if dur >= DurationThreshold {
+			data.NestedTimings = append(data.NestedTimings, &timingJson{
+				Level:    nestLevel,
+				Label:    tm.label,
+				Summary:  tm.summary,
+				Duration: dur,
+			})
+		}
 		if tm.stop.After(*maxStopTime) {
 			*maxStopTime = tm.stop
 		}
@@ -86,15 +95,21 @@ func flattenRecursive(data *rootTimingsJson, timings []*Span, nestLevel int, max
 // Save appends Timings data to the "timings" list in the state and purges old timings, ensuring
 // that up to MaxTimings are kept.
 // It's responsibility of the caller to lock the state before calling this function.
-func (t *Timings) Save(st *state.State) error {
+func (t *Timings) Save(st *state.State) {
 	var stateTimings []*json.RawMessage
 	if err := st.Get("timings", &stateTimings); err != nil && err != state.ErrNoState {
-		return err
+		logger.Noticef("could not get timings data from the state: %v", err)
+		return
 	}
 
-	serialized, err := json.Marshal(t.flatten())
+	data := t.flatten()
+	if data == nil {
+		return
+	}
+	serialized, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("internal error: could not marshal timings: %v", err)
+		logger.Noticef("could not marshal timings: %v", err)
+		return
 	}
 	entryJSON := json.RawMessage(serialized)
 
@@ -103,5 +118,4 @@ func (t *Timings) Save(st *state.State) error {
 		stateTimings = stateTimings[len(stateTimings)-MaxTimings:]
 	}
 	st.Set("timings", stateTimings)
-	return nil
 }
