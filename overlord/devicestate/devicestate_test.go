@@ -2606,9 +2606,24 @@ type testModel struct {
 	arch, base, kernel, gadget string
 }
 
+func (s *deviceMgrSuite) TestRemodelUnhappyNotSeeded(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", false)
+
+	newModel := s.makeModelAssertion(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	_, err := devicestate.Remodel(s.state, newModel)
+	c.Assert(err, ErrorMatches, "cannot remodel until fully seeded")
+}
+
 func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 
 	// set a model assertion
 	cur := map[string]string{

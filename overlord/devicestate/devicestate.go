@@ -325,6 +325,12 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
 func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
+	var seeded bool
+	st.Get("seeded", &seeded)
+	if !seeded {
+		return nil, fmt.Errorf("cannot remodel until fully seeded")
+	}
+
 	current, err := Model(st)
 	if err != nil {
 		return nil, err
