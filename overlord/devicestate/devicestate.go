@@ -307,6 +307,12 @@ func CanManageRefreshes(st *state.State) bool {
 //   files (also get assertions), which means also dealing with new bases
 //   and content providers
 func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
+	var seeded bool
+	st.Get("seeded", &seeded)
+	if !seeded {
+		return nil, fmt.Errorf("cannot remodel until fully seeded")
+	}
+
 	current, err := Model(st)
 	if err != nil {
 		return nil, err
