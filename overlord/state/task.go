@@ -526,6 +526,20 @@ func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
 	}
 }
 
+// AddAllWithEdges adds all the tasks in the argument set to the target
+// set ts and also adds all TaskSetEddges. Duplicated TaskSetEdges are
+// an error.
+func (ts *TaskSet) AddAllWithEdges(anotherTs *TaskSet) error {
+	ts.AddAll(anotherTs)
+	for edge, t := range anotherTs.edges {
+		if tex, ok := ts.edges[edge]; ok && t != tex {
+			return fmt.Errorf("cannot add taskset: duplicated edge %q", edge)
+		}
+		ts.MarkEdge(t, edge)
+	}
+	return nil
+}
+
 // JoinLane adds all the tasks in the current taskset to the given lane
 func (ts *TaskSet) JoinLane(lane int) {
 	for _, t := range ts.tasks {

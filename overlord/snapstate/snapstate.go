@@ -1299,7 +1299,9 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 	flat := state.NewTaskSet()
 	for _, ts := range tts {
-		flat.AddAll(ts)
+		if err := flat.AddAllWithEdges(ts); err != nil {
+			return nil, err
+		}
 	}
 	return flat, nil
 }
