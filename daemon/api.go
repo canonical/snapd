@@ -258,12 +258,6 @@ var (
 		POST:     ackWarnings,
 	}
 
-	modelCmd = &Command{
-		Path: "/v2/model",
-		POST: postModel,
-		// TODO: provide GET here too once we decided on the details of the API
-	}
-
 	buildID = "unknown"
 )
 
@@ -944,8 +938,6 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
-
-	devicestateRemodel = devicestate.Remodel
 
 	snapshotList    = snapshotstate.List
 	snapshotCheck   = snapshotstate.Check
@@ -2810,53 +2802,6 @@ var (
 	stateAllWarnings     = (*state.State).AllWarnings
 	statePendingWarnings = (*state.State).PendingWarnings
 )
-
-type postModelData struct {
-	NewModel string `json:"new-model"`
-}
-
-func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
-	defer r.Body.Close()
-	var data postModelData
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&data); err != nil {
-		return BadRequest("cannot decode request body into remodel operation: %v", err)
-	}
-	rawNewModel, err := asserts.Decode([]byte(data.NewModel))
-	if err != nil {
-		return BadRequest("cannot decode new model assertion: %v", err)
-	}
-	newModel, ok := rawNewModel.(*asserts.Model)
-	if !ok {
-		return BadRequest("new model is not a model assertion: %v", newModel.Type())
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	tss, err := devicestateRemodel(st, newModel)
-	if err != nil {
-		return BadRequest("cannot remodel device: %v", err)
-	}
-	model, err := devicestate.Model(st)
-	if err != nil {
-		return InternalError("cannot get model: %v", err)
-	}
-
-	var msg string
-	if model.BrandID() == newModel.BrandID() && model.Model() == newModel.Model() {
-		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), model.Revision(), newModel.Revision())
-	} else {
-		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), newModel.BrandID(), newModel.Model(), newModel.Revision())
-	}
-	chg := newChange(st, "remodel", msg, tss, nil)
-
-	ensureStateSoon(st)
-
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-
-}
 
 func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	defer r.Body.Close()

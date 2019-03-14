@@ -34,12 +34,12 @@ func (s *SnapSuite) TestGetModel(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
-			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
-			c.Check(r.URL.RawQuery, check.Equals, "")
+			c.Check(r.URL.RawQuery, check.Equals, "aspect=model")
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
-			c.Check(string(data), check.Equals, `{"action":"get-model"}`)
+			c.Check(string(data), check.Equals, "")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"model": "some-model-json"}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
