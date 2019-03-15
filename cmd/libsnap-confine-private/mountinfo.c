@@ -174,6 +174,10 @@ static char *parse_next_string_field(struct sc_mountinfo_entry *entry,
 		case '\\':
 			// Three *more* octal digits required for the escape sequence.
 			// For reference see mangle_path() in fs/seq_file.c.
+			// Note that isoctal returns false on the string terminator
+			// character NUL and the short-circuiting behavior of && makes
+			// this check correct even if '\\' is the last character of
+			// the string.
 			s = &input[input_idx];
 			if (isoctal(s[1]) && isoctal(s[2]) && isoctal(s[3])) {
 				output[output_idx] =

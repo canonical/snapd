@@ -204,7 +204,7 @@ static void test_parse_mountinfo_entry__broken_octal_escaping(void)
 {
 	// The kernel escapes some things as octal \012
 	const char *line =
-	    "2074 27 0:54 / /tmp/strange-dir rw,relatime shared:1039 - tmpfs no\\888thing rw";
+	    "2074 27 0:54 / /tmp/strange-dir rw,relatime shared:1039 - tmpfs no\\888thing rw\\";
 	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
 	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
@@ -218,7 +218,7 @@ static void test_parse_mountinfo_entry__broken_octal_escaping(void)
 	g_assert_cmpstr(entry->optional_fields, ==, "shared:1039");
 	g_assert_cmpstr(entry->fs_type, ==, "tmpfs");
 	g_assert_cmpstr(entry->mount_source, ==, "no\\888thing");
-	g_assert_cmpstr(entry->super_opts, ==, "rw");
+	g_assert_cmpstr(entry->super_opts, ==, "rw\\");
 	g_assert_null(entry->next);
 }
 
