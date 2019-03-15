@@ -88,8 +88,6 @@ backends:
                 workers: 4
             - opensuse-tumbleweed-64:
                 workers: 4
-                # tumbleweed image not available at the moment
-                manual: true
             - arch-linux-64:
                 workers: 4
 
@@ -497,6 +495,10 @@ prepare: |
     if ! mv gai.conf /etc/gai.conf; then
         echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
         rm -f gai.conf
+    fi
+    if command -v restorecon ; then
+        # restore proper context otherwise SELinux may complain
+        restorecon -v /etc/gai.conf
     fi
 
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
