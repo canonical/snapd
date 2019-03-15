@@ -36,7 +36,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -47,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -57,7 +57,12 @@ var (
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
+	seccompCompilerLookup    = cmd.InternalToolPath
 )
+
+type Compiler interface {
+	Compile(in, out string) error
+}
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
 type Backend struct{}
@@ -153,17 +158,16 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 
-	seccompToBpf, err := cmd.InternalToolPath("snap-seccomp")
+	compiler, err := seccomp_compiler.New(seccompCompilerLookup)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
 	}
 	for baseName := range content {
 		in := filepath.Join(dirs.SnapSeccompDir, baseName)
 		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
 
-		cmd := exec.Command(seccompToBpf, "compile", in, out)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if err := compiler.Compile(in, out); err != nil {
+			return fmt.Errorf("cannot compile %s: %v", in, err)
 		}
 	}
 
