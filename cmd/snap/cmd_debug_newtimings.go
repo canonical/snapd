@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -59,6 +60,21 @@ func init() {
 	}, nil, nil)
 }
 
+type byTimingTag []string
+
+func (s byTimingTag) Len() int {
+	return len(s)
+}
+func (s byTimingTag) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s byTimingTag) Less(i, j int) bool {
+	if s[i] == "task-kind" {
+		return true
+	}
+	return len(s[i]) < len(s[j])
+}
+
 func (cmd *cmdTimings) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -76,7 +92,20 @@ func (cmd *cmdTimings) Execute(args []string) error {
 
 	for _, timing := range resp.Timings {
 		dur := timing.StopTime.Sub(timing.StartTime)
-		if tid, ok := timing.Tags["task-id"]; ok {
+		var tags []string
+		for k, _ := range timing.Tags {
+			tags = append(tags, k)
+		}
+		sort.Sort(byTimingTag(tags))
+		fmt.Fprintf(w, "%12s", dur)
+		for i, t := range tags {
+			fmt.Fprintf(w, " %s: %s", t, timing.Tags[t])
+			if i < len(tags) - 1 {
+				fmt.Fprintf(w, ", ")
+			}
+		}
+		fmt.Fprintf(w, "\n")
+		/*if tid, ok := timing.Tags["task-id"]; ok {
 			chg, _ := timing.Tags["change-id"]
 			if doingTime, hasTaskDoingTimes := timing.Tags["doing-time"]; hasTaskDoingTimes {
 				undoingTime, _ := timing.Tags["undoing-time"]
@@ -90,7 +119,7 @@ func (cmd *cmdTimings) Execute(args []string) error {
 		}
 		if mgr, ok := timing.Tags["ensure"]; ok {
 			fmt.Fprintf(w, "%12s\tEnsure loop of %s, start: %s\n", dur, mgr, timing.StartTime)
-		}
+		}*/
 
 		for _, span := range timing.NestedTimings {
 			fmt.Fprintf(w, "%12s\t", span.Duration)
