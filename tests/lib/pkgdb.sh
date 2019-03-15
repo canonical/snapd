@@ -465,6 +465,17 @@ distro_install_build_snapd(){
         # shellcheck disable=SC2086
         distro_install_local_package $packages
 
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*)
+                # systemd caches SELinux policy data and subsequently attempts
+                # to create sockets with incorrect context, this installation of
+                # socket activated snaps fails, see:
+                # https://bugzilla.redhat.com/show_bug.cgi?id=1660141
+                # https://github.com/systemd/systemd/issues/9997
+                systemctl daemon-reexec
+                ;;
+        esac
+
         if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts

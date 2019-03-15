@@ -48,6 +48,7 @@ type RootTimingsJson struct {
 var MaxTimings = 100
 
 // Duration threshold - timings below the threshold will not be saved in the state.
+// It can be changed only while holding state lock.
 var DurationThreshold = 5 * time.Millisecond
 
 var timeDuration = func(start, end time.Time) time.Duration {
@@ -93,7 +94,8 @@ func flattenRecursive(data *RootTimingsJson, timings []*Span, nestLevel int, max
 }
 
 // Save appends Timings data to the "timings" list in the state and purges old timings, ensuring
-// that up to MaxTimings are kept.
+// that up to MaxTimings are kept. Timings are only stored in state if their duration is greater
+// than or equal to DurationThreshold.
 // It's responsibility of the caller to lock the state before calling this function.
 func (t *Timings) Save(st *state.State) {
 	var stateTimings []*json.RawMessage

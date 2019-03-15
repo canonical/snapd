@@ -77,6 +77,14 @@ func MockReleaseInfoVersionId(s string) (restore func()) {
 	}
 }
 
+func MockSeccompCompilerLookup(f func(string) (string, error)) (restore func()) {
+	old := seccompCompilerLookup
+	seccompCompilerLookup = f
+	return func() {
+		seccompCompilerLookup = old
+	}
+}
+
 var (
 	RequiresSocketcall = requiresSocketcall
 

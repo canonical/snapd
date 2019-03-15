@@ -317,7 +317,7 @@ func (s *timingsSuite) TestNewForTask(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	task := s.st.NewTask("...", "...")
+	task := s.st.NewTask("kind", "...")
 	chg := s.st.NewChange("change", "...")
 	chg.AddTask(task)
 
@@ -330,7 +330,7 @@ func (s *timingsSuite) TestNewForTask(c *C) {
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 	c.Assert(stateTimings, DeepEquals, []interface{}{
 		map[string]interface{}{
-			"tags":       map[string]interface{}{"change-id": chg.ID(), "task-id": task.ID()},
+			"tags":       map[string]interface{}{"change-id": chg.ID(), "task-id": task.ID(), "task-kind": "kind"},
 			"start-time": "2019-03-11T09:01:00.001Z",
 			"stop-time":  "2019-03-11T09:01:00.002Z",
 			"timings": []interface{}{

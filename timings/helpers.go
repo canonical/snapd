@@ -23,11 +23,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// NewForTask creates a new Timings tree for given task.
-// Returned Timings tree has "task-id" and "change-id"
+// NewForTask creates a new Timings tree for the given task.
+// Returned Timings tree has "task-id", "change-id" and "task-kind"
 // tags set automatically from the respective task.
 func NewForTask(task *state.Task) *Timings {
-	tags := map[string]string{"task-id": task.ID()}
+	tags := map[string]string{"task-id": task.ID(), "task-kind": task.Kind()}
 	if chg := task.Change(); chg != nil {
 		tags["change-id"] = chg.ID()
 	}
