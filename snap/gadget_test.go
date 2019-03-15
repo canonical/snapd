@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"bytes"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -119,6 +120,36 @@ defaults:
       bar: baz
 `)
 
+var mockVolumeUpdateGadgetYaml = []byte(`
+volumes:
+  bootloader:
+    schema: mbr
+    bootloader: u-boot
+    id:     id,guid
+    structure:
+      - filesystem-label: system-boot
+        offset: 12345
+        offset-write: 777
+        size: 88888
+        type: id,guid
+        id:   id,guid
+        filesystem: vfat
+        content:
+          - source: subdir/
+            target: /
+            unpack: false
+          - image: foo.img
+            offset: 4321
+            offset-write: 8888
+            size: 88888
+            unpack: false
+        update:
+          edition: 5
+          preserve:
+           - env.txt
+           - config.txt
+`)
+
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
@@ -168,7 +199,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
 		Defaults: map[string]map[string]interface{}{
-			"system": {"something": true},
+			"system":                           {"something": true},
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
 		},
 	})
@@ -359,4 +390,62 @@ connections:
 		_, err = snap.ReadGadgetInfo(info, false)
 		c.Check(err, ErrorMatches, t.expectedErr)
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockVolumeUpdateGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	ginfo, err := snap.ReadGadgetInfo(info, false)
+	c.Check(err, IsNil)
+	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
+		Volumes: map[string]snap.GadgetVolume{
+			"bootloader": {
+				Schema:     "mbr",
+				Bootloader: "u-boot",
+				ID:         "id,guid",
+				Structure: []snap.VolumeStructure{
+					{
+						Label:       "system-boot",
+						Offset:      "12345",
+						OffsetWrite: "777",
+						Size:        "88888",
+						Type:        "id,guid",
+						ID:          "id,guid",
+						Filesystem:  "vfat",
+						Content: []snap.VolumeContent{{
+							Source: "subdir/",
+							Target: "/",
+							Unpack: false,
+						}, {
+							Image:       "foo.img",
+							Offset:      "4321",
+							OffsetWrite: "8888",
+							Size:        "88888",
+							Unpack:      false,
+						}},
+						Update: snap.VolumeUpdate{
+							Edition: 5,
+							Preserve: []string{
+								"env.txt",
+								"config.txt",
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+
+	broken := bytes.Replace(mockVolumeUpdateGadgetYaml, []byte("edition: 5"), []byte("edition: borked"), 1)
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), broken, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Check(err, ErrorMatches, `cannot read gadget snap details: "edition" must be a number, not "borked"`)
 }
