@@ -297,6 +297,8 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	snapstateTryPath = nil
 	snapstateUpdate = nil
 	snapstateUpdateMany = nil
+
+	devicestateRemodel = nil
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
@@ -320,6 +322,38 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	snapstateUpdateMany = snapstate.UpdateMany
 }
 
+func makeMockModelHdrs() map[string]interface{} {
+	return map[string]interface{}{
+		"type":         "model",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"brand-id":     "can0nical",
+		"model":        "pc",
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+}
+
+func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
+	// realistic model setup
+	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, makeMockModelHdrs(), nil, "")
+	c.Assert(err, check.IsNil)
+	model := a.(*asserts.Model)
+
+	snapstate.Model = devicestate.Model
+
+	err = assertstate.Add(st, model)
+	c.Assert(err, check.IsNil)
+
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
+}
+
 func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	if s.d != nil {
 		panic("called daemon() twice")
@@ -335,32 +369,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
-	// realistic model setup
-	modelHdrs := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "can0nical",
-		"series":       "16",
-		"brand-id":     "can0nical",
-		"model":        "pc",
-		"architecture": "amd64",
-		"gadget":       "gadget",
-		"kernel":       "kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, modelHdrs, nil, "")
-	c.Assert(err, check.IsNil)
-	model := a.(*asserts.Model)
-
-	snapstate.Model = devicestate.Model
-
-	err = assertstate.Add(st, model)
-	c.Assert(err, check.IsNil)
-
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "can0nical",
-		Model:  "pc",
-		Serial: "serialserial",
-	})
+	s.mockModel(c, st)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which

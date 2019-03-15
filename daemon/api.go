@@ -101,6 +101,7 @@ var api = []*Command{
 	debugCmd,
 	snapshotCmd,
 	connectionsCmd,
+	modelCmd,
 }
 
 var (
@@ -2385,6 +2386,7 @@ func convertBuyError(err error) Response {
 		return InternalError("%v", err)
 	}
 }
+
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 

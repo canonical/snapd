@@ -75,6 +75,7 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
+	IsAutoRefresh  bool
 
 	PrivacyKey string
 }
@@ -1296,7 +1297,8 @@ func (e HashError) Error() string {
 }
 
 type DownloadOptions struct {
-	RateLimit int64
+	RateLimit     int64
+	IsAutoRefresh bool
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1411,7 +1413,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
-func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
 	reqOptions := requestOptions{
 		Method:       "GET",
 		URL:          storeURL,
@@ -1419,6 +1421,9 @@ func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 	}
 	if cdnHeader != "" {
 		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
+	}
+	if opts != nil && opts.IsAutoRefresh {
+		reqOptions.ExtraHeaders["Snap-Refresh-Reason"] = "scheduled"
 	}
 
 	return &reqOptions
@@ -1448,7 +1453,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	var dlSize float64
 	startTime := time.Now()
 	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
-		reqOptions := reqOptions(storeURL, cdnHeader)
+		reqOptions := downloadReqOpts(storeURL, cdnHeader, dlOpts)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -2228,6 +2233,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		APILevel:    apiV2Endps,
 	}
 
+	if opts.IsAutoRefresh {
+		logger.Debugf("Auto-refresh; adding header Snap-Refresh-Reason: scheduled")
+		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
+	}
+
 	if useDeltas() {
 		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", s.deltaFormat)
 		reqOptions.addHeader("Snap-Accept-Delta-Format", s.deltaFormat)
@@ -2400,7 +2410,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		return hosts, err
 	}
 
-	reqOptions := reqOptions(dlURL, cdnHeader)
+	reqOptions := downloadReqOpts(dlURL, cdnHeader, nil)
 	reqOptions.Method = "HEAD" // not actually a download
 
 	// TODO: We need the HEAD here so that we get redirected to the
