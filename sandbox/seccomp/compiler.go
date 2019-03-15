@@ -39,8 +39,19 @@ type Compiler struct {
 	snapSeccomp string
 }
 
-func NewAtPath(path string) *Compiler {
-	return &Compiler{snapSeccomp: path}
+// New returns a wrapper for the compiler binary. The path to the binary is
+// looked up using the lookupTool helper.
+func New(lookupTool func(name string) (string, error)) (*Compiler, error) {
+	if lookupTool == nil {
+		panic("lookup tool func not provided")
+	}
+
+	path, err := lookupTool("snap-seccomp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &Compiler{snapSeccomp: path}, nil
 }
 
 // VersionInfo returns the version information of the compiler. The format of
@@ -54,6 +65,9 @@ func (c *Compiler) VersionInfo() (string, error) {
 		return "", osutil.OutputErr(output, err)
 	}
 	raw := bytes.TrimSpace(output)
+	// Example valid output:
+	// 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c
+	// 111 chars + wiggle room
 	if len(raw) > 120 {
 		return "", fmt.Errorf("invalid version-info length: %q", raw)
 	}

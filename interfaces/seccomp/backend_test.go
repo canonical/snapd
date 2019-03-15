@@ -21,6 +21,7 @@ package seccomp_test
 
 import (
 	"bytes"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -706,4 +707,14 @@ fi`)
 	sb, ok := s.Backend.(*seccomp.Backend)
 	c.Assert(ok, Equals, true)
 	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef")
+}
+
+func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
+	restore := seccomp.MockSeccompCompilerLookup(func(name string) (string, error) {
+		c.Check(name, Equals, "snap-seccomp")
+		return "", errors.New("failed")
+	})
+	defer restore()
+	err := s.Backend.Initialize()
+	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
 }

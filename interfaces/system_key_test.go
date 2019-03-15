@@ -107,7 +107,10 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	buildID, err := osutil.ReadBuildID("/proc/self/exe")
 	c.Assert(err, IsNil)
 
-	compiler := seccomp_compiler.NewAtPath(filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"))
+	compiler, err := seccomp_compiler.New(func(name string) (string, error) {
+		return filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), nil
+	})
+	c.Assert(err, IsNil)
 	seccompCompilerVersion, err := compiler.VersionInfo()
 	c.Assert(err, IsNil)
 	c.Assert(seccompCompilerVersion, Equals, s.seccompCompilerVersion)

@@ -102,7 +102,10 @@ func findSnapdPath() (string, error) {
 }
 
 func seccompCompilerVersionInfoImpl(path string) (string, error) {
-	compiler := seccomp_compiler.NewAtPath(path)
+	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
+	if err != nil {
+		return "", err
+	}
 	return compiler.VersionInfo()
 }
 

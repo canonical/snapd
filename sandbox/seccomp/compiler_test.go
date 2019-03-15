@@ -19,6 +19,7 @@
 package seccomp_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -33,6 +34,13 @@ type compilerSuite struct{}
 var _ = Suite(&compilerSuite{})
 
 func TestSeccomp(t *testing.T) { TestingT(t) }
+
+func fromCmd(c *C, cmd *testutil.MockCmd) func(string) (string, error) {
+	return func(name string) (string, error) {
+		c.Check(name, Equals, "snap-seccomp")
+		return cmd.Exe(), nil
+	}
+}
 
 func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 
@@ -60,7 +68,8 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 	} {
 		c.Logf("tc: %v", i)
 		cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf("echo \"%s\"", tc.v))
-		compiler := seccomp.NewAtPath(cmd.Exe())
+		compiler, err := seccomp.New(fromCmd(c, cmd))
+		c.Assert(err, IsNil)
 
 		v, err := compiler.VersionInfo()
 		if tc.err != "" {
@@ -84,9 +93,10 @@ if [ "$1" = "version-info" ]; then echo "unknown command version-info"; exit 1; 
 exit 0
 `)
 	defer cmd.Restore()
-	compiler := seccomp.NewAtPath(cmd.Exe())
+	compiler, err := seccomp.New(fromCmd(c, cmd))
+	c.Assert(err, IsNil)
 
-	_, err := compiler.VersionInfo()
+	_, err = compiler.VersionInfo()
 	c.Assert(err, ErrorMatches, "unknown command version-info")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "version-info"},
@@ -99,9 +109,10 @@ if [ "$1" = "compile" ]; then exit 0; fi
 exit 1
 `)
 	defer cmd.Restore()
-	compiler := seccomp.NewAtPath(cmd.Exe())
+	compiler, err := seccomp.New(fromCmd(c, cmd))
+	c.Assert(err, IsNil)
 
-	err := compiler.Compile("foo.src", "foo.bin")
+	err = compiler.Compile("foo.src", "foo.bin")
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "compile", "foo.src", "foo.bin"},
@@ -114,11 +125,20 @@ if [ "$1" = "compile" ]; then echo "i will not"; exit 1; fi
 exit 0
 `)
 	defer cmd.Restore()
-	compiler := seccomp.NewAtPath(cmd.Exe())
+	compiler, err := seccomp.New(fromCmd(c, cmd))
+	c.Assert(err, IsNil)
 
-	err := compiler.Compile("foo.src", "foo.bin")
+	err = compiler.Compile("foo.src", "foo.bin")
 	c.Assert(err, ErrorMatches, "i will not")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "compile", "foo.src", "foo.bin"},
 	})
+}
+
+func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
+	compiler, err := seccomp.New(func(name string) (string, error) { return "", errors.New("failed") })
+	c.Assert(err, ErrorMatches, "failed")
+	c.Assert(compiler, IsNil)
+
+	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
 }

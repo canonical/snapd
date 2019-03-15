@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
@@ -59,26 +58,25 @@ var (
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
 	snapSeccompVersionInfo   = snapSeccompVersionInfoImpl
+	seccompCompilerLookup    = snapSeccompPath
 )
 
 func snapSeccompVersionInfoImpl(c Compiler) (string, error) {
 	return c.VersionInfo()
 }
 
-func snapSeccompPath() string {
+func snapSeccompPath(compiler string) (string, error) {
 	// FIXME: use cmd.InternalToolPath here once:
 	//   https://github.com/snapcore/snapd/pull/3512
 	// is merged
-	defaultSnapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
 
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v, using default snap-seccomp command", err)
-		return defaultSnapSeccomp
+		return "", err
 	}
 
 	// snap-seccomp is at the same location as snapd
-	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
+	return filepath.Join(filepath.Dir(exe), "snap-seccomp"), nil
 }
 
 type Compiler interface {
@@ -149,7 +147,11 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
 	}
 
-	b.snapSeccomp = seccomp_compiler.NewAtPath(snapSeccompPath())
+	b.snapSeccomp, err = seccomp_compiler.New(seccompCompilerLookup)
+	if err != nil {
+		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
+	}
+
 	versionInfo, err := snapSeccompVersionInfo(b.snapSeccomp)
 	if err != nil {
 		return fmt.Errorf("cannot obtain snap-seccomp version information: %v", err)

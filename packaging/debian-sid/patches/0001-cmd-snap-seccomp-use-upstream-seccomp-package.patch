@@ -1,4 +1,4 @@
-From 3a69acb3a080615d54e61643755a36ba7b9f234a Mon Sep 17 00:00:00 2001
+From cb851cfe883af568e56e50b492579b49869928ab Mon Sep 17 00:00:00 2001
 From: Zygmunt Krynicki <me@zygoon.pl>
 Date: Thu, 17 Jan 2019 15:48:46 +0200
 Subject: [PATCH 1/9] cmd/snap-seccomp: use upstream seccomp package
@@ -22,7 +22,7 @@ Signed-off-by: Maciej Borzecki <maciej.zenon.borzecki@canonical.com>
  4 files changed, 4 insertions(+), 7 deletions(-)
 
 diff --git a/cmd/snap-seccomp/main.go b/cmd/snap-seccomp/main.go
-index 136261e81425c85fe2ca04dbf884d8dafb64ca05..ba0f80d98f72bea8069171160da35caa6f19bc7d 100644
+index 7056c0309dbcc1b6bf9f3b69e6adf454bed4fcbd..dce0f086bde290839a108d90945c880d5f387e5d 100644
 --- a/cmd/snap-seccomp/main.go
 +++ b/cmd/snap-seccomp/main.go
 @@ -181,10 +181,7 @@ import (
@@ -51,7 +51,7 @@ index 9a8a28fbfbbf733bcc31963c4b90f2385bd801b6..5c64abf52e006ad25da5de2897d68cf7
  	"github.com/snapcore/snapd/arch"
  	main "github.com/snapcore/snapd/cmd/snap-seccomp"
 diff --git a/cmd/snap-seccomp/versioninfo.go b/cmd/snap-seccomp/versioninfo.go
-index 92e7cc1cef2e2e146387cf35ff0cdfc07ee18067..10ce174a1d98b33fdce495e0f394222926069526 100644
+index e60b26363c39355f95a8ad2878bc672528cc1f5b..a2840f04830c24692539d8b7b4467a007fbbd537 100644
 --- a/cmd/snap-seccomp/versioninfo.go
 +++ b/cmd/snap-seccomp/versioninfo.go
 @@ -24,7 +24,7 @@ import (
@@ -61,8 +61,8 @@ index 92e7cc1cef2e2e146387cf35ff0cdfc07ee18067..10ce174a1d98b33fdce495e0f3942229
 -	"github.com/mvo5/libseccomp-golang"
 +	"github.com/seccomp/libseccomp-golang"
  
+ 	"github.com/snapcore/snapd/cmd/snap-seccomp/syscalls"
  	"github.com/snapcore/snapd/osutil"
- )
 diff --git a/cmd/snap-seccomp/versioninfo_test.go b/cmd/snap-seccomp/versioninfo_test.go
 index 0fb23757019c517a3881cd4c9325b6ec864da3f6..f55f7cf6ff7508bb7fae3a5389341a1a01e46630 100644
 --- a/cmd/snap-seccomp/versioninfo_test.go
