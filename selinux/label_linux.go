@@ -80,5 +80,9 @@ func RestoreContext(aPath string, mode RestoreMode) error {
 
 // SnapMountContext finds out the right context for mounting snaps
 func SnapMountContext() string {
+	// TODO: consider reading this from an external configuration file, such
+	// as per app contexts, from
+	// /etc/selinux/targeted/contexts/snapd_contexts like go-selinux and
+	// podman do for container volumes.
 	return "system_u:object_r:snappy_snap_t:s0"
 }
