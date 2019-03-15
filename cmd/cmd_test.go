@@ -257,6 +257,17 @@ func (s *cmdSuite) TestInternalToolPathWithOtherCrazyLocation(c *C) {
 	c.Check(path, Equals, "/usr/foo/usr/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 }
 
+func (s *cmdSuite) TestInternalToolPathWithDevLocation(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join("/home/dev/snapd/snapd"), nil
+	})
+	defer restore()
+
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+}
+
 func (s *cmdSuite) TestExecInSnapdOrCoreSnap(c *C) {
 	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
