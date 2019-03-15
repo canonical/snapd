@@ -139,6 +139,10 @@ ptrace (read, trace) peer=docker-default,
 
 #cf bug 1502785
 / r,
+
+# needed by runc for mitigation of CVE-2019-5736
+# see apparmor bug 1820344
+/ ix,
 `
 
 const dockerSupportConnectedPlugSecComp = `
