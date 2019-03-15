@@ -582,6 +582,6 @@ func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
 	defer restore()
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
 }
