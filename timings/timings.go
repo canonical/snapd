@@ -27,7 +27,7 @@ var timeNow = func() time.Time {
 	return time.Now()
 }
 
-// Timings represents a tree of Span measurements for a single execution of measured activity.
+// Timings represents a tree of Span time measurements for a single execution of measured activity.
 // A Timings tree object should be created at the beginning of the activity,
 // followed by starting at least one Span, and then saved at the end of the activity.
 //
@@ -49,13 +49,13 @@ var timeNow = func() time.Time {
 //
 // In addition, a few helpers exist to simplify typical use cases, for example the above example
 // can be reduced to:
-//   troot := timings.NewForTask(task) // tags set automatically, label and summary derived from task
+//   troot := timings.NewForTask(task) // tags set automatically from task
 //   t1 := troot.StartSpan("computation", "...")
-//   t1.Run("sub-computation", "...", func(nested *Span) {
+//   timings.Run(t1, "sub-computation", "...", func(nested *Span) {
 //          ... expensive computation
 //   })
 //   t1.Stop()
-//   troot.Save()
+//   troot.Save(task.State())
 type Timings struct {
 	tags    map[string]string
 	timings []*Span
