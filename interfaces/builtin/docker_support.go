@@ -141,7 +141,7 @@ ptrace (read, trace) peer=docker-default,
 / r,
 
 # needed by runc for mitigation of CVE-2019-5736
-# see apparmor bug 1820344
+# For details see https://bugs.launchpad.net/apparmor/+bug/1820344
 / ix,
 `
 
