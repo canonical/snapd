@@ -139,6 +139,11 @@ ptrace (read, trace) peer=docker-default,
 
 #cf bug 1502785
 / r,
+
+# recent versions of docker make a symlink from /dev/ptmx to /dev/pts/ptmx
+# and so to allow allocating a new shell we need this
+/dev/pts/ptmx rw,
+
 `
 
 const dockerSupportConnectedPlugSecComp = `
