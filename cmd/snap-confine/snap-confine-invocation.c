@@ -19,7 +19,9 @@
 
 #include <string.h>
 
+#include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
 void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance) {
@@ -55,14 +57,27 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
 
     /* Invocation helps to pass relevant data to various parts of snap-confine. */
     memset(inv, 0, sizeof *inv);
-    inv->base_snap_name = base_snap_name;
-    inv->executable = executable;
-    inv->security_tag = security_tag;
-    inv->snap_instance = snap_instance;
+    inv->base_snap_name = sc_strdup(base_snap_name);
+    inv->executable = sc_strdup(executable);
+    inv->security_tag = sc_strdup(security_tag);
+    inv->snap_instance = sc_strdup(snap_instance);
     inv->classic_confinement = sc_args_is_classic_confinement(args);
 
     debug("security tag: %s", inv->security_tag);
     debug("executable:   %s", inv->executable);
     debug("confinement:  %s", inv->classic_confinement ? "classic" : "non-classic");
     debug("base snap:    %s", inv->base_snap_name);
+}
+
+void sc_fini_invocation(sc_invocation *inv) {
+    sc_cleanup_string(&inv->snap_instance);
+    sc_cleanup_string(&inv->base_snap_name);
+    sc_cleanup_string(&inv->security_tag);
+    sc_cleanup_string(&inv->executable);
+}
+
+void sc_cleanup_invocation(sc_invocation *inv) {
+    if (inv != NULL) {
+        sc_fini_invocation(inv);
+    }
 }

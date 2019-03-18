@@ -118,9 +118,8 @@ int main(int argc, char **argv)
 
 	/* Collect all invocation parameters. This gives us authoritative
 	 * information about what needs to be invoked and how. The data comes
-	 * from either the environment or from command line arguments and
-	 * doesn't have a separate life-cycle. */
-	sc_invocation invocation;
+	 * from either the environment or from command line arguments */
+	sc_invocation SC_CLEANUP(sc_cleanup_invocation) invocation;
 	sc_init_invocation(&invocation, args, getenv("SNAP_INSTANCE_NAME"));
 
 	// Who are we?
