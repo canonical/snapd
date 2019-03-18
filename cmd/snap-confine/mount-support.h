@@ -19,7 +19,7 @@
 #define SNAP_MOUNT_SUPPORT_H
 
 #include "../libsnap-confine-private/apparmor-support.h"
-#include "snap-confine.h"
+#include "snap-confine-invocation.h"
 
 /**
  * Return a file descriptor referencing the snap-update-ns utility
