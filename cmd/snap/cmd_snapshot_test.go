@@ -36,6 +36,9 @@ var snapshotsTests = []getCmdArgs{{
 	args:  "saved --id=x",
 	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
+	args:  "saved",
+	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n1    htop  .*  2        1168      1B  -\n",
+}, {
 	args:  "forget x",
 	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
@@ -76,7 +79,7 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 		} else {
 			c.Check(err, IsNil)
 			c.Check(s.Stderr(), Equals, test.stderr)
-			c.Check(s.Stdout(), Equals, test.stdout)
+			c.Check(s.Stdout(), Matches, test.stdout)
 		}
 	}
 }
@@ -85,7 +88,11 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/snapshots":
-			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
+			if r.Method == "GET" {
+				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":"2019-03-18T16:15:20.48905909Z","snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`)
+			} else {
+				fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
+			}
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
 		default:
