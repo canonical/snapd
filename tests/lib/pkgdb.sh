@@ -438,6 +438,13 @@ distro_install_build_snapd(){
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
+    elif [ ! -z "$PPA_VALIDATION" ]; then
+        apt install -y snapd
+        add-apt-repository -y "$PPA_VALIDATION"
+        apt update
+        apt install -y --only-upgrade snapd
+        add-apt-repository --remove "$PPA_VALIDATION"
+        apt update
     else
         packages=
         case "$SPREAD_SYSTEM" in
