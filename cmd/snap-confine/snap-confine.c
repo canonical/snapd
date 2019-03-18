@@ -479,7 +479,7 @@ void sc_apply_invocation_fallback(sc_invocation *inv) {
     if (sc_streq(inv->base_snap_name, "core") && access(mount_point, F_OK) != 0) {
         sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, "ubuntu-core");
         if (access(mount_point, F_OK) == 0) {
-            inv->base_snap_name = "ubuntu-core";
+            inv->base_snap_name = sc_strdup("ubuntu-core");
             debug("falling back to ubuntu-core instead of unavailable core snap");
         }
     }
