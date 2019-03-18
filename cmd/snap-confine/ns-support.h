@@ -21,7 +21,7 @@
 #include <stdbool.h>
 
 #include "../libsnap-confine-private/apparmor-support.h"
-#include "snap-confine.h"
+#include "snap-confine-invocation.h"
 
 /**
  * Re-associate the current process with the mount namespace of pid 1.
