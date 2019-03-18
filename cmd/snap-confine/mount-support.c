@@ -563,17 +563,17 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		char rootfs_dir[PATH_MAX] = { 0 };
 		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
 				 "%s/%s/current/", SNAP_MOUNT_DIR,
-				 inv->base_snap_name);
+				 sc_effective_base_snap_name(inv));
 		if (access(rootfs_dir, F_OK) != 0) {
 			die("cannot locate the base snap: %s",
-			    inv->base_snap_name);
+			    sc_effective_base_snap_name(inv));
 		}
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,
 			.mounts = mounts,
 			.distro = distro,
 			.normal_mode = true,
-			.base_snap_name = inv->base_snap_name,
+			.base_snap_name = sc_effective_base_snap_name(inv),
 		};
 		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
@@ -589,7 +589,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			.mounts = mounts,
 			.distro = distro,
 			.normal_mode = false,
-			.base_snap_name = inv->base_snap_name,
+			.base_snap_name = sc_effective_base_snap_name(inv),
 		};
 		sc_bootstrap_mount_namespace(&legacy_config);
 	}

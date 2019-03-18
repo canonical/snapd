@@ -31,6 +31,7 @@ typedef struct sc_invocation {
     /* Things declared by the system. */
     char *snap_instance;
     char *base_snap_name;
+    char *fallback_base_snap_name;
     char *security_tag;
     char *executable;
     bool classic_confinement;
@@ -75,5 +76,13 @@ void sc_cleanup_invocation(sc_invocation *inv);
  * of SNAP_MOUNT_DIR.
  **/
 void sc_apply_invocation_fallback(sc_invocation *inv);
+
+/**
+ * sc_effective_base_snap_name returns the name of the base snap to use.
+ *
+ * The returned value may be the vanilla base snap, or, in case of
+ * a fallback, another snap name that offers equivalent content.
+ **/
+const char *sc_effective_base_snap_name(const sc_invocation *inv);
 
 #endif
