@@ -140,6 +140,39 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 }
 
+func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
+	// pretend to be a grub system
+	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
+	partition.ForceBootloader(mockGrub)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"force-kernel-extraction", ""},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = boot.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is extracted
+	kernimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, true)
+	// initrd
+	initrdimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	c.Assert(osutil.FileExists(initrdimg), Equals, true)
+}
+
 func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
 	info := &snap.Info{}
 	info.Type = snap.TypeApp
