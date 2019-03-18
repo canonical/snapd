@@ -453,6 +453,7 @@ debug-each: |
         cat "$RUNTIME_STATE_PATH/runs" || true
         echo '# free space'
         df -h || true
+        find /var/snap -ls || true
     fi
 
 rename:
