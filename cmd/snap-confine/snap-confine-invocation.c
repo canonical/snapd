@@ -44,7 +44,10 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     /* The base snap name is conveyed via untrusted, optional, command line
      * argument. It may be omitted where it implies the "core" snap is the
      * base. */
-    const char *base_snap_name = sc_args_base_snap(args) ?: "core";
+    const char *base_snap_name = sc_args_base_snap(args);
+    if (base_snap_name == NULL) {
+        base_snap_name = "core";
+    }
     sc_snap_name_validate(base_snap_name, NULL);
 
     /* The executable is conveyed via untrusted command lne. It must be set
