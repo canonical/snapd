@@ -454,6 +454,8 @@ debug-each: |
         echo '# free space'
         df -h || true
         find /var/snap -ls || true
+        snap list --all || true
+        snap changes || true
     fi
 
 rename:
