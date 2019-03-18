@@ -50,7 +50,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     }
     sc_snap_name_validate(base_snap_name, NULL);
 
-    /* The executable is conveyed via untrusted command lne. It must be set
+    /* The executable is conveyed via untrusted command line. It must be set
      * but cannot be validated further than that at this time. It might be
      * arguable to validate it to be snap-exec in one of the well-known
      * locations or one of the special-cases like strace / gdb but this is
