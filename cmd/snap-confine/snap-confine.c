@@ -247,6 +247,7 @@ int main(int argc, char **argv)
 		sc_apply_global_seccomp_profile();
 	}
 #ifdef HAVE_SELINUX
+	// For classic and confined snaps
 	sc_selinux_set_snap_execcon();
 #endif
 	if (snap_context != NULL) {

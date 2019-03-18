@@ -39,7 +39,9 @@ static void sc_context_free(context_t *ctx) {
 }
 
 /**
- * Set security context for the snap
+ * Set security context for the snap.
+ *
+ * Sets up SELinux context transition to unconfined_service_t.
  **/
 int sc_selinux_set_snap_execcon(void) {
     if (is_selinux_enabled() < 1) {
