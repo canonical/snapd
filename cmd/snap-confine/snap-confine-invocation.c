@@ -56,7 +56,9 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
      * locations or one of the special-cases like strace / gdb but this is
      * not done at this time. */
     const char *executable = sc_args_executable(args);
-    /* TODO: validate NULL */
+    if (executable == NULL) {
+        die("cannot run with NULL executable");
+    }
 
     /* Invocation helps to pass relevant data to various parts of snap-confine. */
     memset(inv, 0, sizeof *inv);
