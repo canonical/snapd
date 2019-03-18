@@ -552,7 +552,7 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 		fstype = newFsType
 		if release.SELinuxLevel() != release.NoSELinux {
 			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
-				options = append(options, fmt.Sprintf("context=%s", mountCtx))
+				options = append(options, "context="+mountCtx)
 			}
 		}
 	}
