@@ -20,6 +20,7 @@
 package seccomp_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -116,7 +117,6 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
-
 	restore := seccomp.MockOsReadlink(func(string) (string, error) {
 		// simulate that we run snapd from core
 		return filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snapd"), nil
@@ -567,4 +567,16 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 	for _, baseSnap := range testBases {
 		c.Assert(seccomp.RequiresSocketcall(baseSnap), Equals, false)
 	}
+}
+
+func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
+	restore := seccomp.MockSeccompCompilerLookup(func(name string) (string, error) {
+		c.Check(name, Equals, "snap-seccomp")
+		return "", errors.New("failed")
+	})
+	defer restore()
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
 }
