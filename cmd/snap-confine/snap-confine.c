@@ -31,23 +31,23 @@
 
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
+#include "../libsnap-confine-private/cgroup-pids-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/feature.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "cookie-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
+#include "seccomp-support.h"
+#include "snap-confine-args.h"
+#include "snap-confine.h"
 #include "udev-support.h"
 #include "user-support.h"
-#include "cookie-support.h"
-#include "snap-confine-args.h"
-#include "snap-confine-invocation.h"
-#ifdef HAVE_SECCOMP
-#include "seccomp-support.h"
-#endif				// ifdef HAVE_SECCOMP
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -119,9 +119,8 @@ int main(int argc, char **argv)
 
 	/* Collect all invocation parameters. This gives us authoritative
 	 * information about what needs to be invoked and how. The data comes
-	 * from either the environment or from command line arguments and
-	 * doesn't have a separate life-cycle. */
-	sc_invocation invocation;
+	 * from either the environment or from command line arguments */
+	sc_invocation SC_CLEANUP(sc_cleanup_invocation) invocation;
 	sc_init_invocation(&invocation, args, getenv("SNAP_INSTANCE_NAME"));
 
 	// Who are we?
@@ -204,13 +203,11 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
-#ifdef HAVE_SECCOMP
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
 		sc_apply_global_seccomp_profile();
 	}
-#endif				// ifdef HAVE_SECCOMP
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
@@ -355,9 +352,14 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			}
 		}
 	}
-	// Associate each snap process with a dedicated snap freezer control group.
+	// Associate each snap process with a dedicated snap freezer cgroup and
+	// snap pids cgroup. All snap processes belonging to one snap share the
+	// freezer cgroup. All snap processes belonging to one app or one hook
+	// share the pids cgroup.
+	//
 	// This simplifies testing if any processes belonging to a given snap are
-	// still alive.  See the documentation of the function for details.
+	// still alive as well as to properly account for each application and
+	// service.
 	if (getegid() != 0 && saved_gid == 0) {
 		// Temporarily raise egid so we can chown the freezer cgroup under LXD.
 		if (setegid(0) != 0) {
@@ -365,6 +367,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		}
 	}
 	sc_cgroup_freezer_join(inv->snap_instance, getpid());
+	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+		sc_cgroup_pids_join(inv->security_tag, getpid());
+	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {
 			die("cannot set effective group id to %d", real_gid);
@@ -402,4 +407,80 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
 		setup_devices_cgroup(inv->security_tag, &udev_s);
 	snappy_udev_cleanup(&udev_s);
+}
+
+void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance) {
+    /* Snap instance name is conveyed via untrusted environment. It may be
+     * unset (typically when experimenting with snap-confine by hand). It
+     * must also be a valid snap instance name. */
+    if (snap_instance == NULL) {
+        die("SNAP_INSTANCE_NAME is not set");
+    }
+    sc_instance_name_validate(snap_instance, NULL);
+
+    /* The security tag is conveyed via untrusted command line. It must be
+     * in agreement with snap instance name and must be a valid security
+     * tag. */
+    const char *security_tag = sc_args_security_tag(args);
+    if (!verify_security_tag(security_tag, snap_instance)) {
+        die("security tag %s not allowed", security_tag);
+    }
+
+    /* The base snap name is conveyed via untrusted, optional, command line
+     * argument. It may be omitted where it implies the "core" snap is the
+     * base. */
+    const char *base_snap_name = sc_args_base_snap(args);
+    if (base_snap_name == NULL) {
+        base_snap_name = "core";
+    }
+    sc_snap_name_validate(base_snap_name, NULL);
+
+    /* The executable is conveyed via untrusted command line. It must be set
+     * but cannot be validated further than that at this time. It might be
+     * arguable to validate it to be snap-exec in one of the well-known
+     * locations or one of the special-cases like strace / gdb but this is
+     * not done at this time. */
+    const char *executable = sc_args_executable(args);
+    /* TODO: validate NULL */
+
+    /* Invocation helps to pass relevant data to various parts of snap-confine. */
+    memset(inv, 0, sizeof *inv);
+    inv->base_snap_name = sc_strdup(base_snap_name);
+    inv->executable = sc_strdup(executable);
+    inv->security_tag = sc_strdup(security_tag);
+    inv->snap_instance = sc_strdup(snap_instance);
+    inv->classic_confinement = sc_args_is_classic_confinement(args);
+
+    debug("security tag: %s", inv->security_tag);
+    debug("executable:   %s", inv->executable);
+    debug("confinement:  %s", inv->classic_confinement ? "classic" : "non-classic");
+    debug("base snap:    %s", inv->base_snap_name);
+}
+
+void sc_fini_invocation(sc_invocation *inv) {
+    sc_cleanup_string(&inv->snap_instance);
+    sc_cleanup_string(&inv->base_snap_name);
+    sc_cleanup_string(&inv->security_tag);
+    sc_cleanup_string(&inv->executable);
+}
+
+void sc_cleanup_invocation(sc_invocation *inv) {
+    if (inv != NULL) {
+        sc_fini_invocation(inv);
+    }
+}
+
+void sc_apply_invocation_fallback(sc_invocation *inv) {
+    /* As a special fallback, allow the base snap to degrade from "core" to
+     * "ubuntu-core". This is needed for the migration tests. */
+    char mount_point[PATH_MAX] = {0};
+    sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, inv->base_snap_name);
+
+    if (sc_streq(inv->base_snap_name, "core") && access(mount_point, F_OK) != 0) {
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, "ubuntu-core");
+        if (access(mount_point, F_OK) == 0) {
+            inv->base_snap_name = "ubuntu-core";
+            debug("falling back to ubuntu-core instead of unavailable core snap");
+        }
+    }
 }

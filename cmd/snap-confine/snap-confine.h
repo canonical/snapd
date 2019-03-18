@@ -15,8 +15,8 @@
  *
  */
 
-#ifndef SC_INVOCATION_H
-#define SC_INVOCATION_H
+#ifndef SC_SNAP_CONFINE_H
+#define SC_SNAP_CONFINE_H
 
 #include <stdbool.h>
 
@@ -29,10 +29,10 @@
  **/
 typedef struct sc_invocation {
     /* Things declared by the system. */
-    const char *snap_instance;
-    const char *base_snap_name;
-    const char *security_tag;
-    const char *executable;
+    char *snap_instance;
+    char *base_snap_name;
+    char *security_tag;
+    char *executable;
     bool classic_confinement;
     /* Things derived at runtime. */
     bool is_normal_mode;
@@ -42,10 +42,25 @@ typedef struct sc_invocation {
  * sc_init_invocation initializes the invocation object.
  *
  * Invocation is constructed based on command line arguments as well as
- * environment value (SNAP_INSTANCE_NAME). All input is untrustee and is
+ * environment value (SNAP_INSTANCE_NAME). All input is untrusted and is
  * validated internally.
  **/
 void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance);
+
+/**
+ * sc_fini_invocation releases memory used by its constituents.
+ **/
+void sc_fini_invocation(sc_invocation *inv);
+
+/**
+ * sc_cleanup_invocation is a cleanup function for sc_invocation.
+ *
+ * Cleanup functions are automaticallty called by the compiler whenever a
+ * variable gets out of scope, like C++ destructors would.
+ *
+ * This function is designed to be used with SC_CLEANUP(sc_cleanup_invocation).
+ **/
+void sc_cleanup_invocation(sc_invocation *inv);
 
 /**
  * sc_apply_invocation_fallback implements special fallback behavior.
