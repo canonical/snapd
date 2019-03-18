@@ -61,8 +61,7 @@ new_format = \
 	 libsnap-confine-private/cgroup-support.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
-	 snap-confine/snap-confine-invocation.c \
-	 snap-confine/snap-confine-invocation.h \
+	 snap-confine/snap-confine.h \
 	 snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
 fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
@@ -232,8 +231,7 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/seccomp-support.h \
 	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args.h \
-	snap-confine/snap-confine-invocation.c \
-	snap-confine/snap-confine-invocation.h \
+	snap-confine/snap-confine.h \
 	snap-confine/snap-confine.c \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \

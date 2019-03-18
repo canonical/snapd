@@ -15,8 +15,8 @@
  *
  */
 
-#ifndef SC_INVOCATION_H
-#define SC_INVOCATION_H
+#ifndef SC_SNAP_CONFINE_H
+#define SC_SNAP_CONFINE_H
 
 #include <stdbool.h>
 
