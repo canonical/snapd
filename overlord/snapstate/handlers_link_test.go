@@ -802,12 +802,14 @@ func (s *linkSnapSuite) TestLinkSnapResetsRefreshPostponedTime(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	instant := time.Now()
+
 	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
 	sup := &snapstate.SnapSetup{SideInfo: si}
 	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
-		RefreshPostponedTime: time.Unix(123, 0),
+		RefreshPostponedTime: instant,
 	})
 
 	task := s.state.NewTask("link-snap", "")
@@ -834,19 +836,21 @@ func (s *linkSnapSuite) TestLinkSnapResetsRefreshPostponedTime(c *C) {
 
 	var oldTime time.Time
 	c.Assert(task.Get("old-refresh-postponed-time", &oldTime), IsNil)
-	c.Check(oldTime, Equals, time.Unix(123, 0))
+	c.Check(oldTime.Equal(instant), Equals, true)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshPostponedTime(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	instant := time.Now()
+
 	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
 	sup := &snapstate.SnapSetup{SideInfo: si}
 	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
-		RefreshPostponedTime: time.Unix(123, 0),
+		RefreshPostponedTime: instant,
 	})
 
 	task := s.state.NewTask("link-snap", "")
@@ -874,5 +878,5 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshPostponedTime(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.RefreshPostponedTime, Equals, time.Unix(123, 0))
+	c.Check(snapst.RefreshPostponedTime.Equal(instant), Equals, true)
 }
