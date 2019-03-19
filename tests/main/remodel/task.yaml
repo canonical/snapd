@@ -71,10 +71,12 @@ execute: |
     snap debug model|MATCH "revision: 2"
 
     # FIXME: this fails (meaning, the remove does not fail)
-    # echo "We can't remove a required snap
+    # echo "We can't remove a required snap"
     # ! snap remove test-snapd-tools
 
-    # when the above no longer fails, this will fail, so you'll have
-    # to re-remodel:
+    # when the above no longer fails, this will fail, so you'll have to
+    # re-remodel to be able to remove the snap (or clean up manually in restore
+    # -- but better to check here for the expected required -> non-required
+    # behaviour):
     echo "Remove the ex-required snap"
     snap remove test-snapd-tools
