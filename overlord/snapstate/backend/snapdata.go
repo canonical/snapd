@@ -38,6 +38,7 @@ func (b Backend) RemoveSnapData(snap *snap.Info) error {
 	if err != nil {
 		return err
 	}
+	logger.Debugf("*** going to remove %q", dirs)
 
 	return removeDirs(dirs)
 }
@@ -48,6 +49,7 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
 	if err != nil {
 		return err
 	}
+	logger.Debugf("*** going to remove %q", dirs)
 
 	return removeDirs(dirs)
 }
