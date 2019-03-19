@@ -47,3 +47,7 @@ execute: |
     # check removal works
     snap forget "$SET_ID"
     snap saved --id="$SET_ID" | grep "No snapshots found"
+
+    # check automatic snapshot is created on snap remove
+    snap remove test-snapd-tools
+    snap saved | MATCH test-snapd-tools

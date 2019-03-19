@@ -369,6 +369,11 @@ apps:
 `
 	snapInfo := ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 
+	// set config
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("foo", "key", "value"), IsNil)
+	tr.Commit()
+
 	ts, err := snapstate.Remove(st, "foo", snap.R(0))
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
@@ -395,7 +400,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(ms.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", nil, nil}})
+	c.Assert(ms.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key":"value"}, nil}})
 }
 
 func fakeSnapID(name string) string {
