@@ -69,6 +69,7 @@ type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig map[string]interface{}
 	Usernames []string
+	Auto bool
 }
 
 type mgrsSuite struct {
@@ -140,8 +141,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
 	ms.automaticSnapshots = nil
-	restoreBackendSave := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
-		ms.automaticSnapshots = append(ms.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames})
+	restoreBackendSave := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
+		ms.automaticSnapshots = append(ms.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Auto: auto})
 		return nil, nil
 	})
 
@@ -400,7 +401,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(ms.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key":"value"}, nil}})
+	c.Assert(ms.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key":"value"}, nil, true}})
 }
 
 func fakeSnapID(name string) string {

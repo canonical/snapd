@@ -50,4 +50,4 @@ execute: |
 
     # check automatic snapshot is created on snap remove
     snap remove test-snapd-tools
-    snap saved | MATCH test-snapd-tools
+    snap saved | MATCH "test-snapd-tools .* auto"
