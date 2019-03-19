@@ -36,7 +36,7 @@ var snapshotsTests = []getCmdArgs{{
 	args:  "saved --id=x",
 	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
-	args:  "saved",
+	args:   "saved",
 	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n1    htop  .*  2        1168      1B  -\n",
 }, {
 	args:  "forget x",
