@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -47,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -515,10 +515,10 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.ForceBootloader(loader)
+	defer bootloader.ForceBootloader(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -656,10 +656,10 @@ func writeAssertionsToFile(fn string, assertions []asserts.Assertion) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.ForceBootloader(loader)
+	defer bootloader.ForceBootloader(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -814,10 +814,10 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, modName string, extra
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedConfigureHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.ForceBootloader(loader)
+	defer bootloader.ForceBootloader(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -985,10 +985,10 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.ForceBootloader(loader)
+	defer bootloader.ForceBootloader(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -1310,10 +1310,10 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	})
 	defer systemctlRestorer()
 
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.ForceBootloader(loader)
+	defer bootloader.ForceBootloader(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core18_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -1577,10 +1577,10 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.ForceBootloader(loader)
+	defer bootloader.ForceBootloader(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})

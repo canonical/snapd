@@ -30,7 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/partition/ubootenv"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 )
 
 // Hook up check.v1 into the "go test" runner

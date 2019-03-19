@@ -36,11 +36,11 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -88,7 +88,7 @@ var _ = Suite(&imageSuite{})
 func (s *imageSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
-	partition.ForceBootloader(s.bootloader)
+	bootloader.ForceBootloader(s.bootloader)
 
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -173,7 +173,7 @@ func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string, publisher st
 
 func (s *imageSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
-	partition.ForceBootloader(nil)
+	bootloader.ForceBootloader(nil)
 	image.Stdout = os.Stdout
 	image.Stderr = os.Stderr
 	s.storeActions = nil

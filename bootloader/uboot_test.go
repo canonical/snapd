@@ -17,7 +17,7 @@
  *
  */
 
-package partition
+package bootloader
 
 import (
 	"os"
@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/partition/ubootenv"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 )
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {

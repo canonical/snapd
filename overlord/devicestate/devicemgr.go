@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -35,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -380,11 +380,11 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		bootloader, err := partition.FindBootloader()
+		loader, err := bootloader.FindBootloader()
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 		}
-		if err := partition.MarkBootSuccessful(bootloader); err != nil {
+		if err := bootloader.MarkBootSuccessful(loader); err != nil {
 			return err
 		}
 		m.bootOkRan = true

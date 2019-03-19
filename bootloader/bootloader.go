@@ -17,7 +17,7 @@
  *
  */
 
-package partition
+package bootloader
 
 import (
 	"errors"
