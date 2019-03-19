@@ -33,6 +33,61 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type refreshCheckDelegate interface {
+	canAppRunDuringRefresh(app *snap.AppInfo) bool
+	canHookRunDuringRefresh(hook *snap.HookInfo) bool
+}
+
+func genericRefreshCheck(info *snap.Info, delegate refreshCheckDelegate) error {
+	// TODO: grab per-snap lock to prevent new processes from
+	// starting. This is sufficient to perform the check, even though
+	// individual processes may fork or exit, we will have
+	// per-security-tag information about what is running.
+	var busyAppNames []string
+	var busyHookNames []string
+	var busyPIDs []int
+
+	for name, app := range info.Apps {
+		if delegate.canAppRunDuringRefresh(app) {
+			continue
+		}
+		PIDs, err := pidsOfSecurityTag(app.SecurityTag())
+		if err != nil {
+			return err
+		}
+		if len(PIDs) > 0 {
+			busyAppNames = append(busyAppNames, name)
+			busyPIDs = append(busyPIDs, PIDs...)
+		}
+	}
+
+	for name, hook := range info.Hooks {
+		if delegate.canHookRunDuringRefresh(hook) {
+			continue
+		}
+		PIDs, err := pidsOfSecurityTag(hook.SecurityTag())
+		if err != nil {
+			return err
+		}
+		if len(PIDs) > 0 {
+			busyHookNames = append(busyHookNames, name)
+			busyPIDs = append(busyPIDs, PIDs...)
+		}
+	}
+	if len(busyAppNames) == 0 && len(busyHookNames) == 0 {
+		return nil
+	}
+	sort.Strings(busyAppNames)
+	sort.Strings(busyHookNames)
+	sort.Ints(busyPIDs)
+	return &BusySnapError{
+		snapName:      info.SnapName(),
+		busyAppNames:  busyAppNames,
+		busyHookNames: busyHookNames,
+		pids:          busyPIDs,
+	}
+}
+
 // SoftNothingRunningRefreshCheck looks if there are at most only service processes alive.
 //
 // The check is designed to run early in the refresh pipeline. Before
@@ -47,71 +102,17 @@ import (
 // doesn't require this since it would serve no purpose. After the soft check
 // passes the user is free to start snap applications and block the hard check.
 func SoftNothingRunningRefreshCheck(info *snap.Info) error {
-	// Find the set of PIDs that belong to the snap, excluding any that belong
-	// to services since services are stopped for refresh and will likely not
-	// interfere.
-	snapName := info.SnapName()
-	pidSet, err := pidSetOfSnap(snapName)
-	if err != nil {
-		return err
-	}
-	for _, app := range info.Apps {
-		if app.IsService() {
-			pids, err := pidsOfSecurityTag(app.SecurityTag())
-			if err != nil {
-				return err
-			}
-			for _, pid := range pids {
-				delete(pidSet, pid)
-			}
-		}
-	}
-	if len(pidSet) == 0 {
-		return nil
-	}
+	return genericRefreshCheck(info, &softRefreshCheckDelegate{})
+}
 
-	// Some PIDs belong to non-service applications. Let's find out what we
-	// can and produce an informative error.
-	pids := make([]int, 0, len(pidSet))
-	for pid := range pidSet {
-		pids = append(pids, pid)
-	}
-	sort.Ints(pids)
+type softRefreshCheckDelegate struct{}
 
-	var busyAppNames []string
-	for name, app := range info.Apps {
-		// Skip services since those are filtered out above.
-		if app.IsService() {
-			continue
-		}
-		isBusy, err := isSecurityTagBusy(app.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if isBusy {
-			busyAppNames = append(busyAppNames, name)
-		}
-	}
-	sort.Strings(busyAppNames)
+func (*softRefreshCheckDelegate) canAppRunDuringRefresh(app *snap.AppInfo) bool {
+	return app.IsService()
+}
 
-	var busyHookNames []string
-	for name, hook := range info.Hooks {
-		isBusy, err := isSecurityTagBusy(hook.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if isBusy {
-			busyHookNames = append(busyHookNames, name)
-		}
-	}
-	sort.Strings(busyHookNames)
-
-	return &BusySnapError{
-		pids:          pids,
-		snapName:      snapName,
-		busyAppNames:  busyAppNames,
-		busyHookNames: busyHookNames,
-	}
+func (*softRefreshCheckDelegate) canHookRunDuringRefresh(hook *snap.HookInfo) bool {
+	return false
 }
 
 // HardNothingRunningRefreshCheck looks if there are any processes alive.
@@ -124,20 +125,19 @@ func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 // The check looks at the set of PIDs in the freezer cgroup associated with a
 // given snap. Presence of any processes indicates that a snap is busy and
 // refresh cannot proceed.
-func HardNothingRunningRefreshCheck(snapName string) error {
-	pidSet, err := pidSetOfSnap(snapName)
-	if err != nil {
-		return err
-	}
-	if len(pidSet) > 0 {
-		pids := make([]int, 0, len(pidSet))
-		for pid := range pidSet {
-			pids = append(pids, pid)
-		}
-		sort.Ints(pids)
-		return &BusySnapError{pids: pids, snapName: snapName}
-	}
-	return nil
+func HardNothingRunningRefreshCheck(info *snap.Info) error {
+	return genericRefreshCheck(info, &hardRefreshCheckDelegate{})
+}
+
+type hardRefreshCheckDelegate struct{}
+
+func (*hardRefreshCheckDelegate) canAppRunDuringRefresh(app *snap.AppInfo) bool {
+	// TODO: use a constant instead of "endure"
+	return app.IsService() && app.RefreshMode == "endure"
+}
+
+func (*hardRefreshCheckDelegate) canHookRunDuringRefresh(hook *snap.HookInfo) bool {
+	return false
 }
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
@@ -175,12 +175,6 @@ func (err *BusySnapError) Error() string {
 // refresh scenario.
 func (err BusySnapError) Pids() []int {
 	return err.pids
-}
-
-// isSecurityTagBusy returns true if there are any processes belonging to a given security tag.
-func isSecurityTagBusy(securityTag string) (bool, error) {
-	pids, err := pidsOfSecurityTag(securityTag)
-	return len(pids) > 0, err
 }
 
 // parsePid parses a string as a process identifier.
