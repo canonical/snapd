@@ -239,7 +239,7 @@ type editionNumber uint32
 func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var es string
 	if err := unmarshal(&es); err != nil {
-		return errors.New(`failed to unmarshal "edition"`)
+		return errors.New(`cannot unmarshal "edition"`)
 	}
 
 	u, err := strconv.ParseUint(es, 10, 32)
