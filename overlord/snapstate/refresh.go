@@ -214,33 +214,6 @@ func parsePids(reader io.Reader) ([]int, error) {
 	return pids, nil
 }
 
-// pidSetOfSnap returns a set of PIDs belonging to a given snap.
-//
-// The set is obtained from a freezer cgroup. It is designed for ease of
-// modification by the caller.
-func pidSetOfSnap(snapName string) (map[int]bool, error) {
-	fname := filepath.Join(dirs.FreezerCgroupDir, "snap."+snapName, "cgroup.procs")
-	file, err := os.Open(fname)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	pids, err := parsePids(bufio.NewReader(file))
-	if err != nil {
-		return nil, err
-	}
-
-	pidSet := make(map[int]bool, len(pids))
-	for _, pid := range pids {
-		pidSet[pid] = true
-	}
-	return pidSet, nil
-}
-
 // pidsOfSecurityTag returns a list of PIDs belonging to a given security tag.
 //
 // The list is obtained from a pids cgroup.
