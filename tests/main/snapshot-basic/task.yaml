@@ -17,8 +17,8 @@ execute: |
     SET_ID=$( snap save test-snapd-tools test-snapd-rsync | cut -d\  -f1 | tail -n1 )
 
     # check it includes both snaps
-    snap saved | grep test-snapd-tools
-    snap saved | grep test-snapd-rsync
+    snap saved | MATCH test-snapd-tools
+    snap saved | MATCH test-snapd-rsync
     snap saved --id="$SET_ID" | grep test-snapd-tools
     snap saved --id="$SET_ID" | grep test-snapd-rsync
     # and is valid
