@@ -69,3 +69,12 @@ execute: |
     # FIXME: check that this is the active model assertion
     echo "and we got the new model assertion"
     snap debug model|MATCH "revision: 2"
+
+    # FIXME: this fails (meaning, the remove does not fail)
+    # echo "We can't remove a required snap
+    # ! snap remove test-snapd-tools
+
+    # when the above no longer fails, this will fail, so you'll have
+    # to re-remodel:
+    echo "Remove the ex-required snap"
+    snap remove test-snapd-tools
