@@ -23,16 +23,16 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaplock"
 )
 
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
-	lock, err := mount.OpenLock(instanceName)
+	lock, err := snaplock.OpenLock(instanceName)
 	if err != nil {
 		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
 	}
