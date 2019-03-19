@@ -229,6 +229,15 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	defer restore()
 	time.Sleep(10 * time.Millisecond)
 
+	// nothing really happens yet
+	err = af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 1)
+
+	// pretend the time for next refresh is here
+	snapstate.MockNextRefresh(af, time.Now())
+
+	// now yes it happens again
 	err = af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 2)

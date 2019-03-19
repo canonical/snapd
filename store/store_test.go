@@ -3229,7 +3229,7 @@ func (s *storeTestSuite) TestAssertion500(c *C) {
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
-	c.Assert(n, Equals, 5)
+	c.Assert(n, Equals, 3)
 }
 
 func (s *storeTestSuite) TestSuggestedCurrency(c *C) {

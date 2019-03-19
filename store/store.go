@@ -89,6 +89,15 @@ var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	},
 ))
 
+// like default, but retrying less
+// TODO: add jitter
+var autoRetryStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
+	retry.Exponential{
+		Initial: 350 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
 var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
 	retry.Exponential{
 		Initial: 500 * time.Millisecond,
@@ -748,11 +757,15 @@ func decodeJSONBody(resp *http.Response, success interface{}, failure interface{
 
 // retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
 func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	retryStrategy := defaultRetryStrategy
+	if reqOptions.ExtraHeaders["Snap-Refresh-Reason"] == "scheduled" {
+		retryStrategy = autoRetryStrategy
+	}
 	return httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
 		return s.doRequest(ctx, s.client, reqOptions, user)
 	}, func(resp *http.Response) error {
 		return decodeJSONBody(resp, success, failure)
-	}, defaultRetryStrategy)
+	}, retryStrategy)
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -1250,7 +1263,7 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 		return decodeCatalog(resp, names, adder)
 	}
 
-	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, autoRetryStrategy)
 	if err != nil {
 		return err
 	}
@@ -1728,7 +1741,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 			}
 		}
 		return e
-	}, defaultRetryStrategy)
+	}, autoRetryStrategy)
 
 	if err != nil {
 		return nil, err

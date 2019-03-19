@@ -288,12 +288,7 @@ func (m *autoRefresh) Ensure() error {
 		}
 
 		err = m.launchAutoRefresh()
-		// clear nextRefresh only if the refresh worked. There is
-		// still the lastRefreshAttempt rate limit so things will
-		// not go into a busy store loop
-		if err == nil {
-			m.nextRefresh = time.Time{}
-		}
+		m.nextRefresh = time.Time{}
 	}
 
 	return err
@@ -372,14 +367,11 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	m.state.Set("last-refresh", time.Now())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
-
-	// Set last refresh time only if the store (in AutoRefresh) gave
-	// us no error.
-	m.state.Set("last-refresh", time.Now())
 
 	var msg string
 	switch len(updated) {
