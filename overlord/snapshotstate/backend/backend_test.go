@@ -454,7 +454,11 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
-	s.testHappyRoundtrip(c, "marker")
+	s.testHappyRoundtrip(c, "marker", false)
+}
+
+func (s *snapshotSuite) TestHappyRoundtripAutomaticSnapshot(c *check.C) {
+	s.testHappyRoundtrip(c, "marker", true)
 }
 
 func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
@@ -463,7 +467,7 @@ func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
 			c.Assert(os.RemoveAll(t.dir), check.IsNil)
 		}
 	}
-	s.testHappyRoundtrip(c, "marker")
+	s.testHappyRoundtrip(c, "marker", false)
 }
 
 func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
@@ -472,10 +476,10 @@ func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
 			c.Assert(os.RemoveAll(t.dir), check.IsNil)
 		}
 	}
-	s.testHappyRoundtrip(c, "../common/marker")
+	s.testHappyRoundtrip(c, "../common/marker", false)
 }
 
-func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
+func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -486,7 +490,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, false)
+	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, auto)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
@@ -495,7 +499,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Check(shw.Epoch, check.DeepEquals, epoch)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
-	c.Check(shw.Auto, check.Equals, false)
+	c.Check(shw.Auto, check.Equals, auto)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
@@ -518,6 +522,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		c.Check(sh.Revision, check.Equals, info.Revision, comm)
 		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
 		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
+		c.Check(sh.Auto, check.Equals, auto)
 	}
 	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
