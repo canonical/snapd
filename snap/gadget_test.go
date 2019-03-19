@@ -21,11 +21,13 @@ package snap_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -58,31 +60,27 @@ volumes:
   volumename:
     schema: mbr
     bootloader: u-boot
-    id:     id,guid
+    id:     0C
     structure:
       - filesystem-label: system-boot
         offset: 12345
         offset-write: 777
         size: 88888
-        type: id,guid
-        id:   id,guid
+        type: 0C
         filesystem: vfat
         content:
           - source: subdir/
             target: /
             unpack: false
-          - image: foo.img
-            offset: 4321
-            offset-write: 8888
-            size: 88888
-            unpack: false
+          - source: foo
+            target: /
 `)
 
 var mockMultiVolumeGadgetYaml = []byte(`
 device-tree: frobinator-3000.dtb
 device-tree-origin: kernel
 volumes:
-  frobinator-3000-image:
+  frobinator-image:
     bootloader: u-boot
     schema: mbr
     structure:
@@ -101,7 +99,7 @@ volumes:
         filesystem-label: writable
         size: 380M
         role: system-data
-  u-boot-frobinator-3000:
+  u-boot-frobinator:
     structure:
       - name: u-boot
         type: bare
@@ -125,14 +123,13 @@ volumes:
   bootloader:
     schema: mbr
     bootloader: u-boot
-    id:     id,guid
+    id:     0C
     structure:
       - filesystem-label: system-boot
         offset: 12345
         offset-write: 777
         size: 88888
-        type: id,guid
-        id:   id,guid
+        type: 0C
         filesystem: vfat
         content:
           - source: subdir/
@@ -144,6 +141,66 @@ volumes:
            - env.txt
            - config.txt
 `)
+
+var gadgetYamlPC = []byte(`
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 50M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+          - source: grub.cfg
+            target: EFI/ubuntu/grub.cfg
+`)
+
+var gadgetYamlRPi = []byte(`
+device-tree: bcm2709-rpi-2-b
+volumes:
+  pi:
+    schema: mbr
+    bootloader: u-boot
+    structure:
+      - type: 0C
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 128M
+        content:
+          - source: boot-assets/
+            target: /
+`)
+
+func mustParseGadgetSize(c *C, s string) snap.GadgetSize {
+	gs, err := snap.ParseGadgetSize(s)
+	c.Assert(err, IsNil)
+	return gs
+}
+
+func mustParseGadgetRelativeOffset(c *C, s string) snap.GadgetRelativeOffset {
+	grs, err := snap.ParseGadgetRelativeOffset(s)
+	c.Assert(err, IsNil)
+	c.Assert(grs, NotNil)
+	return *grs
+}
 
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
@@ -220,15 +277,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 			"volumename": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
-				ID:         "id,guid",
+				ID:         "0C",
 				Structure: []snap.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      "12345",
-						OffsetWrite: "777",
-						Size:        "88888",
-						Type:        "id,guid",
-						ID:          "id,guid",
+						Offset:      12345,
+						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
+						Size:        88888,
+						Type:        "0C",
 						Filesystem:  "vfat",
 						Content: []snap.VolumeContent{
 							{
@@ -237,11 +293,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 								Unpack: false,
 							},
 							{
-								Image:       "foo.img",
-								Offset:      "4321",
-								OffsetWrite: "8888",
-								Size:        "88888",
-								Unpack:      false,
+								Source: "foo",
+								Target: "/",
+								Unpack: false,
 							},
 						},
 					},
@@ -261,13 +315,15 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Check(ginfo.Volumes, HasLen, 2)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
 		Volumes: map[string]snap.GadgetVolume{
-			"frobinator-3000-image": {
+			"frobinator-image": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				Structure: []snap.VolumeStructure{
 					{
+						Name:       "system-boot",
+						Role:       "system-boot",
 						Label:      "system-boot",
-						Size:       "128M",
+						Size:       mustParseGadgetSize(c, "128M"),
 						Filesystem: "vfat",
 						Type:       "0C",
 						Content: []snap.VolumeContent{
@@ -278,19 +334,22 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						},
 					},
 					{
+						Role:       "system-data",
+						Name:       "writable",
 						Label:      "writable",
 						Type:       "83",
 						Filesystem: "ext4",
-						Size:       "380M",
+						Size:       mustParseGadgetSize(c, "380M"),
 					},
 				},
 			},
-			"u-boot-frobinator-3000": {
+			"u-boot-frobinator": {
 				Structure: []snap.VolumeStructure{
 					{
+						Name:   "u-boot",
 						Type:   "bare",
-						Size:   "623000",
-						Offset: "0",
+						Size:   623000,
+						Offset: 0,
 						Content: []snap.VolumeContent{
 							{
 								Image: "u-boot.imz",
@@ -399,15 +458,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 			"bootloader": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
-				ID:         "id,guid",
+				ID:         "0C",
 				Structure: []snap.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      "12345",
-						OffsetWrite: "777",
-						Size:        "88888",
-						Type:        "id,guid",
-						ID:          "id,guid",
+						Offset:      12345,
+						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
+						Size:        88888,
+						Type:        "0C",
 						Filesystem:  "vfat",
 						Content: []snap.VolumeContent{{
 							Source: "subdir/",
@@ -437,4 +495,429 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
 
 	_, err = snap.ReadGadgetInfo(info, false)
 	c.Check(err, ErrorMatches, `cannot read gadget snap details: "edition" must be a number, not "borked"`)
+}
+
+func (s *gadgetYamlTestSuite) TestUnmarshalGadgetSize(c *C) {
+	type foo struct {
+		Size snap.GadgetSize `yaml:"size"`
+	}
+
+	for i, tc := range []struct {
+		s   string
+		sz  snap.GadgetSize
+		err string
+	}{
+		{"1234", 1234, ""},
+		{"1234M", 1234 * 2 << 20, ""},
+		{"1234G", 1234 * 2 << 30, ""},
+		{"0", 0, ""},
+		{"a0M", 0, `cannot parse size "a0M": no numerical prefix.*`},
+		{"-123", 0, `cannot parse size "-123": size cannot be negative`},
+		{"123a", 0, `cannot parse size "123a": invalid suffix "a"`},
+	} {
+		c.Logf("tc: %v", i)
+
+		var f foo
+		err := yaml.Unmarshal([]byte(fmt.Sprintf("size: %s", tc.s)), &f)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(f.Size, Equals, tc.sz)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
+	type foo struct {
+		OffsetWrite snap.GadgetRelativeOffset `yaml:"offset-write"`
+	}
+
+	for i, tc := range []struct {
+		s   string
+		sz  *snap.GadgetRelativeOffset
+		err string
+	}{
+		{"1234", &snap.GadgetRelativeOffset{"", 1234}, ""},
+		{"1234M", &snap.GadgetRelativeOffset{"", 1234 * 2 << 20}, ""},
+		{"4096M", &snap.GadgetRelativeOffset{"", 4096 * 2 << 20}, ""},
+		{"0", &snap.GadgetRelativeOffset{"", 0}, ""},
+		{"mbr+0", &snap.GadgetRelativeOffset{"mbr", 0}, ""},
+		{"foo+1234M", &snap.GadgetRelativeOffset{"foo", 1234 * 2 << 20}, ""},
+		{"foo+1G", &snap.GadgetRelativeOffset{"foo", 1 * 2 << 30}, ""},
+		{"foo+1G", &snap.GadgetRelativeOffset{"foo", 1 * 2 << 30}, ""},
+		{"foo+4097M", nil, `cannot parse relative offset "foo\+4097M": offset above 4G limit`},
+		{"foo+", nil, `cannot parse relative offset "foo\+": missing offset`},
+		{"foo+++12", nil, `cannot parse relative offset "foo\+\+\+12": cannot parse offset "\+\+12": .*`},
+		{"+12", nil, `cannot parse relative offset "\+12": missing volume name`},
+		{"a0M", nil, `cannot parse relative offset "a0M": cannot parse offset "a0M": no numerical prefix.*`},
+		{"-123", nil, `cannot parse relative offset "-123": cannot parse offset "-123": size cannot be negative`},
+		{"123a", nil, `cannot parse relative offset "123a": cannot parse offset "123a": invalid suffix "a"`},
+	} {
+		c.Logf("tc: %v", i)
+
+		var f foo
+		err := yaml.Unmarshal([]byte(fmt.Sprintf("offset-write: %s", tc.s)), &f)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+			c.Assert(tc.sz, NotNil, Commentf("test case %v data must be not-nil", i))
+			c.Check(f.OffsetWrite, Equals, *tc.sz)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), gadgetYamlPC, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), gadgetYamlRPi, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
+	for i, tc := range []struct {
+		s      string
+		err    string
+		schema string
+	}{
+		// legacy
+		{"mbr", "", ""},
+		// special case
+		{"bare", "", ""},
+		// plain MBR type
+		{"0C", "", "mbr"},
+		// plain MBR type without mbr schema
+		{"0C", `MBR structure ID "0C" with non-MBR schema ""`, ""},
+		// GPT UUID
+		{"21686148-6449-6E6F-744E-656564454649", "", "gpt"},
+		// hybrid ID
+		{"EF,21686148-6449-6E6F-744E-656564454649", "", ""},
+		// invalid
+		{"1234", "invalid format of type ID", ""},
+		// outside of hex range
+		{"FG", "invalid format of type ID", ""},
+		{"GG686148-6449-6E6F-744E-656564454649", "invalid format of type ID", ""},
+		// too long
+		{"AA686148-6449-6E6F-744E-656564454649123", "invalid format of type ID", ""},
+		// hybrid, missing MBR type
+		{",AA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", ""},
+		// hybrid, missing GPT UUID
+		{"EF,", "invalid format of hybrid type ID", ""},
+		// hybrid, MBR type too long
+		{"EFC,AA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", ""},
+		// hybrid, GPT UUID too long
+		{"EF,AAAA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", ""},
+		// GPT schema with non GPT type
+		{"EF,AAAA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", "gpt"},
+	} {
+		c.Logf("tc: %v %q", i, tc.s)
+
+		err := snap.ValidateStructureType(tc.s, &snap.GadgetVolume{Schema: tc.schema})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func mustParseStructure(c *C, s string) *snap.VolumeStructure {
+	var v snap.VolumeStructure
+	err := yaml.Unmarshal([]byte(s), &v)
+	c.Assert(err, IsNil)
+	return &v
+}
+
+func (s *gadgetYamlTestSuite) TestValidateRole(c *C) {
+	invalidSystemDataLabel := `
+role: system-data
+filesystem-label: foobar
+`
+	mbrTooLarge := `
+role: mbr
+size: 467`
+	mbrBadOffset := `
+role: mbr
+offset: 123`
+	mbrBadID := `
+role: mbr
+id: 123`
+	mbrBadFilesystem := `
+role: mbr
+filesystem: vfat`
+	mbrNoneFilesystem := `
+role: mbr
+filesystem: none`
+	typeAsMBRTooLarge := `
+type: mbr
+size: 467`
+	for i, tc := range []struct {
+		s   *snap.VolumeStructure
+		v   *snap.GadgetVolume
+		err string
+	}{
+		{mustParseStructure(c, `role: system-boot`), nil, ""},
+		// empty, ok too
+		{mustParseStructure(c, `role:`), nil, ""},
+		// invalid role name
+		{mustParseStructure(c, `role: foobar`), nil, `invalid role "foobar"`},
+		// system-data, but improper label
+		{mustParseStructure(c, invalidSystemDataLabel), nil, `role "system-data" must have an implicit label or "writable", not "foobar"`},
+		// mbr
+		{mustParseStructure(c, mbrTooLarge), nil, `mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, mbrBadOffset), nil, `mbr structure must start at offset 0`},
+		{mustParseStructure(c, mbrBadID), nil, `mbr structure must not specify partition ID`},
+		{mustParseStructure(c, mbrBadFilesystem), nil, `mbr structures must not specify a file system`},
+		// filesystem: none is ok for MBR
+		{mustParseStructure(c, mbrNoneFilesystem), nil, ""},
+		// legacy, type: mbr treated like role: mbr
+		{mustParseStructure(c, `type: mbr`), nil, ""},
+		{mustParseStructure(c, typeAsMBRTooLarge), nil, `mbr structures cannot be larger than 446 bytes`},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+
+		err := snap.ValidateRole(tc.s, tc.v)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
+
+	for i, tc := range []struct {
+		s   string
+		err string
+	}{
+		{"vfat", ""},
+		{"ext4", ""},
+		{"none", ""},
+		{"btrfs", `invalid filesystem "btrfs"`},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+
+		err := snap.ValidateVolumeStructure(&snap.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649"}, &snap.GadgetVolume{})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
+
+	for i, tc := range []struct {
+		s   string
+		err string
+	}{
+		{"gpt", ""},
+		{"mbr", ""},
+		// implicit GPT
+		{"", ""},
+		// invalid
+		{"some", `invalid volume schema "some"`},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+
+		err := snap.ValidateVolume("name", &snap.GadgetVolume{Schema: tc.s})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
+
+	for i, tc := range []struct {
+		s   string
+		err string
+	}{
+		{"valid", ""},
+		{"still-valid", ""},
+		// invalid
+		{"in+valid", "invalid volume name"},
+		{"123volume", "invalid volume name"},
+		{"volume123", "invalid volume name"},
+		{"with whitespace", "invalid volume name"},
+		{"UPCASE", "invalid volume name"},
+		{"", "invalid volume name"},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+
+		err := snap.ValidateVolume(tc.s, &snap.GadgetVolume{})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateStructureContent(c *C) {
+	bareOnlyOk := `
+type: bare
+content:
+  - image: foo.img
+`
+	bareMixed := `
+type: bare
+content:
+  - image: foo.img
+  - source: foo
+    target: bar
+`
+	bareMissing := `
+type: bare
+content:
+  - offset: 123
+`
+	fsOk := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: ext4
+content:
+  - source: foo
+    target: bar
+`
+	fsMixed := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: ext4
+content:
+  - source: foo
+    target: bar
+  - image: foo.img
+`
+	fsMissing := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: ext4
+content:
+  - source: foo
+`
+
+	for i, tc := range []struct {
+		s   *snap.VolumeStructure
+		v   *snap.GadgetVolume
+		err string
+	}{
+		{mustParseStructure(c, bareOnlyOk), nil, ""},
+		{mustParseStructure(c, bareMixed), nil, `invalid content #1: cannot use non-image content for bare file system`},
+		{mustParseStructure(c, bareMissing), nil, `invalid content #0: missing image file name`},
+		{mustParseStructure(c, fsOk), nil, ""},
+		{mustParseStructure(c, fsMixed), nil, `invalid content #1: cannot use image content for non-bare file system`},
+		{mustParseStructure(c, fsMissing), nil, `invalid content #0: missing source or target`},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+
+		err := snap.ValidateVolumeStructure(tc.s, &snap.GadgetVolume{})
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateStructureAndContentRelativeOffset(c *C) {
+	gadgetYamlHeader := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: my-name-is
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img`
+
+	gadgetYamlBadStructureName := gadgetYamlHeader + `
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: bad-name+92
+        content:
+          - image: pc-core.img
+`
+	gadgetYamlBadContentName := gadgetYamlHeader + `
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: my-name-is+92
+        content:
+          - image: pc-core.img
+            offset-write: bad-name+123
+`
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), []byte(gadgetYamlBadStructureName), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) refers to an unknown structure "bad-name"`)
+
+	info = snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), []byte(gadgetYamlBadContentName), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
+
+	gv := &snap.GadgetVolume{}
+
+	err := snap.ValidateVolumeStructure(&snap.VolumeStructure{
+		Type:   "bare",
+		Update: snap.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
+
+	err = snap.ValidateVolumeStructure(&snap.VolumeStructure{
+		Type:   "21686148-6449-6E6F-744E-656564454649",
+		Update: snap.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
+
+	err = snap.ValidateVolumeStructure(&snap.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		Update:     snap.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C) {
+
+	gv := &snap.GadgetVolume{}
+
+	err := snap.ValidateVolumeStructure(&snap.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		Update:     snap.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
+	}, gv)
+	c.Check(err, IsNil)
+
+	err = snap.ValidateVolumeStructure(&snap.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		Update:     snap.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
+	}, gv)
+	c.Check(err, ErrorMatches, `duplicate preserve entry "foo"`)
 }
