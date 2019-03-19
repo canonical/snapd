@@ -240,6 +240,9 @@ const (
 
 var snapReadInfo = snap.ReadInfo
 
+// AutomaticSnapshot allows to hook snapshot manager's AutomaticSnapshot.
+var AutomaticSnapshot func(st *state.State, instanceName string, revision snap.Revision) (ts *state.TaskSet, err error)
+
 func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)
 	if err != nil && flags&errorOnBroken != 0 {

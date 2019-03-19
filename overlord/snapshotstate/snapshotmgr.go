@@ -20,6 +20,7 @@
 package snapshotstate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -53,6 +54,8 @@ type SnapshotManager struct{}
 
 // Manager returns a new SnapshotManager
 func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
+	delayedCrossMgrInit()
+
 	runner.AddHandler("save-snapshot", doSave, doForget)
 	runner.AddHandler("forget-snapshot", doForget, nil)
 	runner.AddHandler("check-snapshot", doCheck, nil)
@@ -88,6 +91,7 @@ type snapshotSetup struct {
 	Users    []string      `json:"users,omitempty"`
 	Filename string        `json:"filename,omitempty"`
 	Current  snap.Revision `json:"current"`
+	Auto     bool          `json:"auto,omitempty"`
 }
 
 func filename(setID uint64, si *snap.Info) string {
@@ -304,4 +308,17 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	return osRemove(snapshot.Filename)
+}
+
+func delayedCrossMgrInit() {
+	// hook automatic snapshots into snapstate logic
+	snapstate.AutomaticSnapshot = AutomaticSnapshot
+}
+
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
+	old := backendSave
+	backendSave = f
+	return func() {
+		backendSave = old
+	}
 }

@@ -1710,13 +1710,33 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		addNext(state.NewTaskSet(tasks...))
 	}
 
+
+	var createSnapshot bool
+	if tp, _ := snapst.Type(); tp == snap.TypeApp {
+		createSnapshot = true
+	}
+
 	if removeAll {
 		seq := snapst.Sequence
 		for i := len(seq) - 1; i >= 0; i-- {
 			si := seq[i]
+			if createSnapshot {
+				ts, err := AutomaticSnapshot(st, name, si.Revision)
+				if err != nil {
+					return nil, err
+				}
+				addNext(ts)
+			}
 			addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
 		}
 	} else {
+		if createSnapshot {
+			ts, err := AutomaticSnapshot(st, name, revision)
+			if err != nil {
+				return nil, err
+			}
+			addNext(ts)
+		}
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
 	}
 

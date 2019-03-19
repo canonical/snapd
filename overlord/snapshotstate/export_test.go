@@ -97,14 +97,6 @@ func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error)
 	}
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
-	old := backendSave
-	backendSave = f
-	return func() {
-		backendSave = old
-	}
-}
-
 func MockBackendOpen(f func(string) (*backend.Reader, error)) (restore func()) {
 	old := backendOpen
 	backendOpen = f

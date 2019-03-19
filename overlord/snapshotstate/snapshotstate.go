@@ -203,6 +203,28 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 	return setID, instanceNames, ts, nil
 }
 
+
+func AutomaticSnapshot(st *state.State, snapName string, revision snap.Revision) (ts *state.TaskSet, err error) {
+	setID, err := newSnapshotSetID(st)
+	if err != nil {
+		return nil, err
+	}
+
+	ts = state.NewTaskSet()
+	desc := fmt.Sprintf("Save data of snap %q in automatic snapshot set #%d", snapName, setID)
+	task := st.NewTask("save-snapshot", desc)
+	snapshot := snapshotSetup{
+		SetID: setID,
+		Snap:  snapName,
+		Current: revision,
+		Auto: true,
+	}
+	task.Set("snapshot-setup", &snapshot)
+	ts.AddTask(task)
+
+	return ts, nil
+}
+
 // Restore creates a taskset for restoring a snapshot's data.
 // Note that the state must be locked by the caller.
 func Restore(st *state.State, setID uint64, snapNames []string, users []string) (snapsFound []string, ts *state.TaskSet, err error) {
