@@ -138,11 +138,6 @@ volumes:
           - source: subdir/
             target: /
             unpack: false
-          - image: foo.img
-            offset: 4321
-            offset-write: 8888
-            size: 88888
-            unpack: false
         update:
           edition: 5
           preserve:
@@ -418,12 +413,6 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 							Source: "subdir/",
 							Target: "/",
 							Unpack: false,
-						}, {
-							Image:       "foo.img",
-							Offset:      "4321",
-							OffsetWrite: "8888",
-							Size:        "88888",
-							Unpack:      false,
 						}},
 						Update: snap.VolumeUpdate{
 							Edition: 5,
