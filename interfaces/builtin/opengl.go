@@ -77,8 +77,11 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 @{PROC}/sys/vm/mmap_min_addr r,
 @{PROC}/devices r,
 /sys/devices/system/memory/block_size_bytes r,
+/sys/module/tegra_fuse/parameters/tegra_* r,
 unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /{dev,run}/shm/cuda.* rw,
+/dev/nvhost-* rw,
+/dev/nvmap rw,
 
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
