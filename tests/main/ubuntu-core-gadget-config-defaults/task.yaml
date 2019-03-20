@@ -121,5 +121,11 @@ execute: |
 
     echo "The configuration for core is applied"
     snap get core "service.$SERVICE.disable" | MATCH true
-    echo "And the service is masked"
-    systemctl status "$SERVICE.service" | MATCH masked
+
+    if [ "$SERVICE" = ssh ]; then
+        echo "And the ssh service is disabled"
+        MATCH "SSH has been disabled by snapd system configuration" < /etc/ssh/sshd_not_to_be_run
+    else
+        echo "And the service is masked"
+        systemctl status "$SERVICE.service" | MATCH masked
+    fi
