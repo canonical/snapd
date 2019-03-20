@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -118,23 +117,31 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 // it into the number and non-number parts (123,"unit").
 func SplitUnit(inp string) (number int64, unit string, err error) {
 	// go after the number first, break on first non-digit
-	lastDigit := -1
+	nonDigit := -1
 	for i, c := range inp {
-		if unicode.IsDigit(c) || c == '-' {
-			lastDigit = i
-		} else {
+		// ASCII digits and - only
+		if (c < '0' || c > '9') && c != '-' {
+			nonDigit = i
 			break
 		}
 	}
-	if lastDigit == -1 {
+	var prefix string
+	switch {
+	case nonDigit == 0:
 		return 0, "", fmt.Errorf("no numerical prefix")
+	case nonDigit == -1:
+		// no unit
+		prefix = inp
+	default:
+		unit = inp[nonDigit:]
+		prefix = inp[:nonDigit]
 	}
-	number, err = strconv.ParseInt(inp[:lastDigit+1], 10, 64)
+	number, err = strconv.ParseInt(prefix, 10, 64)
 	if err != nil {
-		return 0, "", fmt.Errorf("%q is not a number", inp[:lastDigit+1])
+		return 0, "", fmt.Errorf("%q is not a number", prefix)
 	}
 
-	return number, inp[lastDigit+1:], nil
+	return number, unit, nil
 }
 
 // ParseByteSize parses a value like 500kB and returns the number

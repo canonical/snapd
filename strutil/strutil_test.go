@@ -169,7 +169,6 @@ func (ts *strutilSuite) TestParseByteSizeUnhappy(c *check.C) {
 		str    string
 		errStr string
 	}{
-		{"", `cannot parse "": no numerical prefix`},
 		{"B", `cannot parse "B": no numerical prefix`},
 		{"1", `cannot parse "1": need a number with a unit as input`},
 		{"11", `cannot parse "11": need a number with a unit as input`},
@@ -181,6 +180,11 @@ func (ts *strutilSuite) TestParseByteSizeUnhappy(c *check.C) {
 		{"-200B", `cannot parse "-200B": size cannot be negative`},
 		{"-B", `cannot parse "-B": "-" is not a number`},
 		{"-", `cannot parse "-": "-" is not a number`},
+		{"", `cannot parse "": "" is not a number`},
+		// Digits outside of Latin1 range
+		// ARABIC-INDIC DIGIT SEVEN
+		{"٧kB", `cannot parse "٧kB": no numerical prefix`},
+		{"1٧kB", `cannot parse "1٧kB": try 'kB' or 'MB'`},
 	} {
 		_, err := strutil.ParseByteSize(t.str)
 		c.Check(err, check.ErrorMatches, t.errStr, check.Commentf("incorrect error for %q", t.str))
