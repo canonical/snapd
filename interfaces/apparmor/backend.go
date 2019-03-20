@@ -398,7 +398,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	var errReloadChanged error
-	timings.Run(tm, "load-profiles", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadChanged = loadProfiles(pathnames, cache, skipReadCache)
 	})
 
@@ -411,7 +411,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	var errReloadOther error
-	timings.Run(tm, "load-profiles", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadOther = loadProfiles(pathnames, cache, 0)
 	})
 	errUnload := unloadProfiles(removed, cache)
