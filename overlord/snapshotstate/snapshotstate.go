@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
@@ -36,6 +37,9 @@ var (
 	snapstateAll                     = snapstate.All
 	snapstateCheckChangeConflictMany = snapstate.CheckChangeConflictMany
 	backendIter                      = backend.Iter
+
+	// Default expiration time for automatic snapshots, if not set by the user
+	DefaultAutomaticSnapshotExpiration = time.Hour * 24 * 31
 )
 
 func newSnapshotSetID(st *state.State) (uint64, error) {
@@ -67,6 +71,70 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	sort.Strings(names)
 
 	return names, nil
+}
+
+func automaticSnapshotExpiration(st *state.State) time.Duration {
+	// TODO: get from config
+	return DefaultAutomaticSnapshotExpiration
+}
+
+// saveExpiration saves expiration date of the given snapshot set in the state.
+// The state needs to be locked by the caller.
+func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
+	// note, expirations actually map to time.Time, use string here as we don't need parsed times here.
+	var expirations map[uint64]string
+	err := st.Get("snapshots-expiry", &expirations)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if expirations == nil {
+		expirations = make(map[uint64]string)
+	}
+	expirations[setID] = expiryTime.Format(time.RFC3339)
+	st.Set("snapshots-expiry", expirations)
+	return nil
+}
+
+// removeExpirations removes expirations of the given set IDs from the state.
+func removeExpirations(st *state.State, setIDs ...uint64) error {
+	// note, expirations actually map to time.Time, use string here as we don't need parsed times here.
+	var expirations map[uint64]string
+	err := st.Get("snapshots-expiry", &expirations)
+	if err != nil {
+		if err == state.ErrNoState {
+			return nil
+		}
+		return err
+	}
+
+	for _, setID := range setIDs {
+		delete(expirations, setID)
+	}
+
+	st.Set("snapshots-expiry", expirations)
+	return nil
+}
+
+// expiredSnapshotSets returns a list of expired snapshot sets from the state, based on the given cutoffTime.
+// The state needs to be locked by the caller.
+func expiredSnapshotSets(st *state.State, cutoffTime time.Time) ([]uint64, error) {
+	var expirations map[uint64]time.Time
+	err := st.Get("snapshots-expiry", &expirations)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	var expired []uint64
+	for setID, tm := range expirations {
+		if tm.Before(cutoffTime) {
+			expired = append(expired, setID)
+		}
+	}
+
+	return expired, nil
 }
 
 // snapshotSnapSummaries are used internally to get useful data from a

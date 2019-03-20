@@ -42,6 +42,9 @@ var (
 	CleanupRestore             = cleanupRestore
 	DoCheck                    = doCheck
 	DoForget                   = doForget
+	SaveExpiration             = saveExpiration
+	ExpiredSnapshotSets        = expiredSnapshotSets
+	RemoveExpirations          = removeExpirations
 )
 
 func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {
