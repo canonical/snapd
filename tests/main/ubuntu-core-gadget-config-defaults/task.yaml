@@ -59,10 +59,10 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    echo "Undo the rsyslog disable"
-    systemctl unmask rsyslog.service || true
-    systemctl enable rsyslog.service || true
-    systemctl start rsyslog.service || true
+    echo "Undo the service disable"
+    systemctl unmask "$SERVICE.service" || true
+    systemctl enable "$SERVICE.service" || true
+    systemctl start "$SERVICE.service" || true
 
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
@@ -97,7 +97,6 @@ restore: |
     rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
     rm -f /var/lib/snapd/seed/assertions/test-snapd-with-configure_*.assert
     cp model.bak /var/lib/snapd/seed/assertions/model
-    rm -f ./*.bak
     # kick first boot again
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
@@ -121,6 +120,6 @@ execute: |
     snap get test-snapd-with-configure b|MATCH "^B$"
 
     echo "The configuration for core is applied"
-    snap get core service.rsyslog.disable|MATCH true
+    snap get core "service.$SERVICE.disable" | MATCH true
     echo "And the service is masked"
-    systemctl status rsyslog.service|MATCH masked
+    systemctl status "$SERVICE.service" | MATCH masked
