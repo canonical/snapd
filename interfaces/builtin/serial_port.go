@@ -244,7 +244,7 @@ func (iface *serialPortInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo,
 	// if the slot has vendor, product and interface number set, check if they match
 	var usbVendor, usbProduct, usbInterfaceNumber int64
 	if err := slot.Attr("usb-vendor", &usbVendor); err == nil {
-		if !compareSlotAndDeviceAttribute(usbVendor, di, "ID_VENDOR_ID") {
+		if !slotDeviceAttrEqual(di, "ID_VENDOR_ID", usbVendor) {
 			return false
 		}
 		if err := slot.Attr("usb-product", &usbProduct); err != nil {
