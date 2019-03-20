@@ -46,16 +46,6 @@ func (s *commonSuite) SetUpTest(c *C) {
 		filepath.Join(s.dir, "desired.fstab"))
 }
 
-func (s *commonSuite) TestNeededChanges(c *C) {
-	// Smoke test for computing needed changes.
-	// Complete tests for the algorithm are in changes_test.go
-	entry := osutil.MountEntry{Dir: "/tmp", Name: "none", Type: "tmpfs"}
-	current := &osutil.MountProfile{}
-	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{entry}}
-	changes := s.up.NeededChanges(current, desired)
-	c.Check(changes, DeepEquals, []*update.Change{{Action: update.Mount, Entry: entry}})
-}
-
 func (s *commonSuite) TestLoadDesiredProfile(c *C) {
 	up := s.up
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"

@@ -658,7 +658,7 @@ func applyProfile(up MountProfileUpdate, snapName string, currentBefore, desired
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
-	changesNeeded := up.NeededChanges(currentBefore, desired)
+	changesNeeded := NeededChanges(currentBefore, desired)
 	debugShowChanges(changesNeeded, "mount changes needed")
 
 	logger.Debugf("performing mount changes:")

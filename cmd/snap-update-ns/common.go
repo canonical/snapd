@@ -41,11 +41,6 @@ func (up *CommonProfileUpdate) Assumptions() *Assumptions {
 	return nil
 }
 
-// NeededChanges computes the sequence of mount changes needed to transform current profile to desired profile.
-func (up *CommonProfileUpdate) NeededChanges(current, desired *osutil.MountProfile) []*Change {
-	return NeededChanges(current, desired)
-}
-
 // LoadDesiredProfile loads the desired mount profile.
 func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.desiredProfilePath)

@@ -35,6 +35,4 @@ type MountProfileUpdate interface {
 	LoadCurrentProfile() (*osutil.MountProfile, error)
 	// SaveCurrentProfile saves the mount profile that is currently applied.
 	SaveCurrentProfile(*osutil.MountProfile) error
-	// NeededChanges computes the set of changes between a pair of profiles.
-	NeededChanges(old, new *osutil.MountProfile) []*Change
 }
