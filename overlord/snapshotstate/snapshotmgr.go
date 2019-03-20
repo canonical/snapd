@@ -88,6 +88,7 @@ type snapshotSetup struct {
 	Users    []string      `json:"users,omitempty"`
 	Filename string        `json:"filename,omitempty"`
 	Current  snap.Revision `json:"current"`
+	Auto     bool          `json:"auto,omitempty"`
 }
 
 func filename(setID uint64, si *snap.Info) string {
@@ -136,7 +137,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users)
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Auto)
 	return err
 }
 
