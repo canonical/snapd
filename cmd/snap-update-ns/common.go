@@ -26,7 +26,7 @@ import (
 )
 
 type CommonProfileUpdateContext struct {
-	// instanceName is the name of the snap or instance to update.
+	// instanceName is the name of the snap instance to update.
 	instanceName string
 
 	currentProfilePath string
