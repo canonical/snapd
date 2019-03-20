@@ -229,7 +229,8 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	defer restore()
 	time.Sleep(10 * time.Millisecond)
 
-	// nothing really happens yet
+	// nothing really happens yet: the previous autorefresh failed
+	// but it still counts as having tried to autorefresh
 	err = af.Ensure()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 1)

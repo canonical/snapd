@@ -49,7 +49,7 @@ var (
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
-var refreshRetryDelay = 10 * time.Minute
+var refreshRetryDelay = 30 * time.Minute
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -201,13 +201,6 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
-	// Check that we have reasonable delays between attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
-		return nil
-	}
-
 	// get lastRefresh and schedule
 	lastRefresh, err := m.LastRefresh()
 	if err != nil {
@@ -284,6 +277,13 @@ func (m *autoRefresh) Ensure() error {
 		if !can {
 			// clear nextRefresh so that another refresh time is calculated
 			m.nextRefresh = time.Time{}
+			return nil
+		}
+
+		// Check that we have reasonable delays between attempts.
+		// If the store is under stress we need to make sure we do not
+		// hammer it too often
+		if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
 			return nil
 		}
 
