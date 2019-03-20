@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -141,6 +142,12 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Auto)
+	if err == nil && snapshot.Auto {
+		// XXX: we should probably lock state at the beginning (and remove it from prepareSave)
+		task.State().Lock()
+		defer task.State().Unlock()
+		return saveExpiration(task.State(), snapshot.SetID, time.Now().Add(automaticSnapshotExpiration(task.State())))
+	}
 	return err
 }
 
