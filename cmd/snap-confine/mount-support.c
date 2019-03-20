@@ -90,9 +90,8 @@ static void setup_private_mount(const char *snap_name)
 	char tmp_dir[MAX_BUF] = { 0 };
 	int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "/tmp/snap.%s/tmp",
-			 snap_name);
 	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
+	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
 
 	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
 	// to reuse and we will open with O_NOFOLLOW, below.
