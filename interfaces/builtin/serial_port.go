@@ -250,7 +250,7 @@ func (iface *serialPortInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo,
 		if err := slot.Attr("usb-product", &usbProduct); err != nil {
 			return false
 		}
-		if !compareSlotAndDeviceAttribute(usbProduct, di, "ID_MODEL_ID") {
+		if !slotDeviceAttrEqual(di, "ID_MODEL_ID", usbProduct) {
 			return false
 		}
 		if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
