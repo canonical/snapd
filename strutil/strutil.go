@@ -114,26 +114,27 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 	return data
 }
 
-// splitUnit takes a string of the form "123unit" and splits
+// SplitUnit takes a string of the form "123unit" and splits
 // it into the number and non-number parts (123,"unit").
-func splitUnit(inp string) (number int64, unit string, err error) {
+func SplitUnit(inp string) (number int64, unit string, err error) {
 	// go after the number first, break on first non-digit
-	var nonDigit int
+	lastDigit := -1
 	for i, c := range inp {
-		if !unicode.IsDigit(c) {
-			number, err = strconv.ParseInt(inp[0:i], 10, 64)
-			if err != nil {
-				return 0, "", err
-			}
-			nonDigit = i
+		if unicode.IsDigit(c) || c == '-' {
+			lastDigit = i
+		} else {
 			break
 		}
 	}
-	if nonDigit == 0 {
-		return 0, "", fmt.Errorf("need a number with a unit as input")
+	if lastDigit == -1 {
+		return 0, "", fmt.Errorf("no numerical prefix")
+	}
+	number, err = strconv.ParseInt(inp[:lastDigit+1], 10, 64)
+	if err != nil {
+		return 0, "", fmt.Errorf("%q is not a number", inp[:lastDigit+1])
 	}
 
-	return number, inp[nonDigit:], nil
+	return number, inp[lastDigit+1:], nil
 }
 
 // ParseByteSize parses a value like 500kB and returns the number
@@ -152,12 +153,15 @@ func ParseByteSize(inp string) (int64, error) {
 
 	errPrefix := fmt.Sprintf("cannot parse %q: ", inp)
 
-	val, unit, err := splitUnit(inp)
+	val, unit, err := SplitUnit(inp)
 	if err != nil {
 		return 0, fmt.Errorf(errPrefix+"%s", err)
 	}
 	if unit == "" {
 		return 0, fmt.Errorf(errPrefix + "need a number with a unit as input")
+	}
+	if val < 0 {
+		return 0, fmt.Errorf(errPrefix + "size cannot be negative")
 	}
 
 	mul, ok := unitMultiplier[strings.ToUpper(unit)]
