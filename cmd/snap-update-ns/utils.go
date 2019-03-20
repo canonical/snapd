@@ -665,7 +665,7 @@ func applyProfile(up MountProfileUpdate, snapName string, currentBefore, desired
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := up.PerformChange(change, as)
+		synthesised, err := change.Perform(as)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")

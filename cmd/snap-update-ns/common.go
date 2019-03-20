@@ -46,11 +46,6 @@ func (up *CommonProfileUpdate) NeededChanges(current, desired *osutil.MountProfi
 	return NeededChanges(current, desired)
 }
 
-// PerformChange performs a given mount namespace change under given filesystem assumptions.
-func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
-	return changePerform(change, as)
-}
-
 // LoadDesiredProfile loads the desired mount profile.
 func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.desiredProfilePath)

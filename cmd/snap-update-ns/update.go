@@ -37,8 +37,4 @@ type MountProfileUpdate interface {
 	SaveCurrentProfile(*osutil.MountProfile) error
 	// NeededChanges computes the set of changes between a pair of profiles.
 	NeededChanges(old, new *osutil.MountProfile) []*Change
-	// PerformChange performs a single change.
-	// The returned changes represent any additional synthesized changes that
-	// were made as a prerequisite to complete the desired operation.
-	PerformChange(*Change, *Assumptions) ([]*Change, error)
 }

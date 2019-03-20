@@ -56,29 +56,6 @@ func (s *commonSuite) TestNeededChanges(c *C) {
 	c.Check(changes, DeepEquals, []*update.Change{{Action: update.Mount, Entry: entry}})
 }
 
-func (s *commonSuite) TestPerformChange(c *C) {
-	// Smoke test for performing mount namespace change.
-	// Complete tests for the algorithm are in changes_test.go
-	entry := osutil.MountEntry{Dir: "/tmp", Name: "none", Type: "tmpfs"}
-	change := &update.Change{Action: update.Mount, Entry: entry}
-	as := &update.Assumptions{}
-	var changeSeen *update.Change
-	var assumptionsSeen *update.Assumptions
-	restore := update.MockChangePerform(func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-		changeSeen = change
-		assumptionsSeen = as
-		return nil, nil
-	})
-	defer restore()
-
-	synth, err := s.up.PerformChange(change, as)
-	c.Assert(err, IsNil)
-	c.Check(synth, HasLen, 0)
-	// NOTE: we're using Equals to check that the exact objects were passed.
-	c.Check(changeSeen, Equals, change)
-	c.Check(assumptionsSeen, Equals, as)
-}
-
 func (s *commonSuite) TestLoadDesiredProfile(c *C) {
 	up := s.up
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
