@@ -65,9 +65,9 @@ static void setup_private_mount(const char *snap_name)
 	// TODO: remove after switching to global umask handling.
 	mode_t old_mask = umask(0);
 
-	// Create a 0700 base directory, this is the base dir that is protected
-	// from other users. This directory name is NOT randomly generated. This
-	// has several properties:
+	// Create a 0700 base directory. This is the "base" directory that is
+	// protected from other users. This directory name is NOT randomly
+	// generated. This has several properties:
 	//
 	// Users can relate to the name and can find the temporary directory as
 	// visible from within the snap. If this directory was random it would be
@@ -79,6 +79,13 @@ static void setup_private_mount(const char *snap_name)
 	// avoiding runaway disk use on a machine that either never reboots or uses
 	// persistent /tmp directory.
 	//
+	// Underneath the base directory there is a "tmp" sub-directory that has
+	// mode 1777 and behaves as a typical /tmp directory would. That directory
+	// is used as a bind-mounted /tmp directory.
+	//
+	// Because the directories are reused across invocations by distinct users
+	// and because the directories are trivially guessable, each invocation
+	// unconditionally chowns/chmods them to appropriate values.
 	char base_dir[MAX_BUF] = { 0 };
 	char tmp_dir[MAX_BUF] = { 0 };
 	int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -87,7 +94,8 @@ static void setup_private_mount(const char *snap_name)
 			 snap_name);
 	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
 
-	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root
+	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
+	// to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdir(base_dir, 0700) < 0 && errno != EEXIST) {
 		die("cannot create base directory %s", base_dir);
 	}
@@ -102,7 +110,8 @@ static void setup_private_mount(const char *snap_name)
 	if (fchown(base_dir_fd, 0, 0) < 0) {
 		die("cannot chown base directory %s to root.root", base_dir);
 	}
-	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root
+	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
+	// want to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
 		die("cannot create private tmp directory %s/tmp", base_dir);
 	}
