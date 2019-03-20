@@ -121,7 +121,11 @@ int main(int argc, char **argv)
 	 * information about what needs to be invoked and how. The data comes
 	 * from either the environment or from command line arguments */
 	sc_invocation SC_CLEANUP(sc_cleanup_invocation) invocation;
-	sc_init_invocation(&invocation, args, getenv("SNAP_INSTANCE_NAME"));
+	const char *snap_instance_name_env = getenv("SNAP_INSTANCE_NAME");
+	if (snap_instance_name_env == NULL) {
+		die("SNAP_INSTANCE_NAME is not set");
+	}
+	sc_init_invocation(&invocation, args, snap_instance_name_env);
 
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;

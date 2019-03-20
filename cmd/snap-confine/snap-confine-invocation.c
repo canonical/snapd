@@ -29,7 +29,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
      * unset (typically when experimenting with snap-confine by hand). It
      * must also be a valid snap instance name. */
     if (snap_instance == NULL) {
-        die("SNAP_INSTANCE_NAME is not set");
+        die("cannot use NULL snap instance name");
     }
     sc_instance_name_validate(snap_instance, NULL);
 
