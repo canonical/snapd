@@ -108,9 +108,13 @@ type savedCmd struct {
 }
 
 func (x *savedCmd) Execute([]string) error {
-	setID, err := x.ID.ToUint()
-	if err != nil {
-		return err
+	var setID uint64
+	var err error
+	if x.ID != "" {
+		setID, err = x.ID.ToUint()
+		if err != nil {
+			return err
+		}
 	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	list, err := x.client.SnapshotSets(setID, snaps)

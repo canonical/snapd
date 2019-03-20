@@ -39,6 +39,9 @@ var snapshotsTests = []getCmdArgs{{
 	args:   "saved --id=3",
 	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n3    htop  .*  2        1168      1B  auto\n",
 }, {
+	args:   "saved",
+	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n1    htop  .*  2        1168      1B  -\n",
+}, {
 	args:  "forget x",
 	error: "invalid argument for set id: expected a non-negative integer argument",
 }, {
@@ -93,6 +96,7 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 					fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":3,"snapshots":[{"set":3,"time":"2019-03-18T16:15:20.48905909Z","snap":"htop","revision":"1168","snap-id":"Z","auto":true,"epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`)
 					return
 				}
+				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":"2019-03-18T16:15:20.48905909Z","snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`)
 			} else {
 				fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
 			}
