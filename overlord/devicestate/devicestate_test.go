@@ -2683,6 +2683,7 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, true)
 		ts := state.NewTaskSet()
 		ts.AddTask(s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name)))
 		return ts, nil
@@ -2733,6 +2734,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, true)
 		ts := state.NewTaskSet()
 		ts.AddTask(s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name)))
 		return ts, nil
@@ -2740,6 +2742,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	defer restore()
 
 	restore = devicestate.MockSnapstateUpdate(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, false)
 		ts := state.NewTaskSet()
 		ts.AddTask(s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, channel)))
 		return ts, nil

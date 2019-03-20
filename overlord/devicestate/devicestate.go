@@ -293,6 +293,28 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
+func getAllRequiredSnapsForModel(model *asserts.Model) map[string]bool {
+	reqSnaps := model.RequiredSnaps()
+	// +4 for (snapd, base, gadget, kernel)
+	required := make(map[string]bool, len(reqSnaps)+4)
+	for _, snap := range reqSnaps {
+		required[snap] = true
+	}
+	if model.Base() != "" {
+		required["snapd"] = true
+		required[model.Base()] = true
+	} else {
+		required["core"] = true
+	}
+	if model.Kernel() != "" {
+		required[model.Kernel()] = true
+	}
+	if model.Gadget() != "" {
+		required[model.Gadget()] = true
+	}
+	return required
+}
+
 // Remodel takes a new model assertion and generates a change that
 // takes the device from the old to the new model or an error if the
 // transition is not possible.
@@ -371,18 +393,38 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 		}
 		addTss(ts)
 	}
-	// adjust snaps
+	// add new required-snaps
 	for _, snapName := range new.RequiredSnaps() {
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// if the snap is not installed we need to install it now
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{})
+			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{Required: true})
 			if err != nil {
 				return nil, err
 			}
 			addTss(ts)
 		} else if err != nil {
 			return nil, err
+		}
+	}
+	// unmark no-longer required snaps
+	requiredSnaps := getAllRequiredSnapsForModel(new)
+	snapStates, err := snapstate.All(st)
+	for snapName, snapst := range snapStates {
+		// TODO: remove this type restriction once we remodel
+		//       bases/kernels/gadgets and add tests that ensure
+		//       that the required flag is properly set/unset
+		typ, err := snapst.Type()
+		if err != nil {
+			return nil, err
+		}
+		if typ != snap.TypeApp {
+			continue
+		}
+		// clean required flag if no-longer needed
+		if snapst.Flags.Required && !requiredSnaps[snapName] {
+			snapst.Flags.Required = false
+			snapstate.Set(st, snapName, snapst)
 		}
 	}
 

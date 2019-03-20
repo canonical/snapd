@@ -259,6 +259,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 		},
 		Current:  snap.R(1),
 		SnapType: "os",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
 	})
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
@@ -3125,7 +3128,7 @@ func makeModelAssertion(c *C, brandSigning *assertstest.SigningDB, modelExtra ma
 	return model.(*asserts.Model)
 }
 
-func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
+func (ms *mgrsSuite) TestRemodelRequiredSnapsAddedRemoved(c *C) {
 	// make "foo" snap available in the store
 	ms.prereqSnapAssertions(c)
 	snapYamlContent := `name: foo
@@ -3139,6 +3142,16 @@ version: 1.0`
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// pretend we have an old required snap installed
+	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
+	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
 
 	// create/set custom model assertion
 	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
@@ -3182,10 +3195,26 @@ version: 1.0`
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
-	info, err := snapstate.CurrentInfo(st, "foo")
+	// the new required-snap "foo" is installed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.Version, Equals, "1.0")
+	// and marked required
+	c.Check(snapst.Required, Equals, true)
+
+	// and core is still marked required
+	err = snapstate.Get(st, "core", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, true)
+
+	// but old-required-snap-1 is no longer marked required
+	err = snapstate.Get(st, "old-required-snap-1", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, false)
 }
 
 func (ms *mgrsSuite) TestRemodelDifferentBase(c *C) {
