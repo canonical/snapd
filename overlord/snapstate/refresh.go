@@ -34,12 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaplock"
 )
 
-type refreshCheckDelegate interface {
-	canAppRunDuringRefresh(app *snap.AppInfo) bool
-	canHookRunDuringRefresh(hook *snap.HookInfo) bool
-}
-
-func genericRefreshCheck(info *snap.Info, delegate refreshCheckDelegate) error {
+func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
 	// Grab per-snap lock to prevent new processes from starting. This is
 	// sufficient to perform the check, even though individual processes
 	// may fork or exit, we will have per-security-tag information about
@@ -57,8 +52,12 @@ func genericRefreshCheck(info *snap.Info, delegate refreshCheckDelegate) error {
 	var busyHookNames []string
 	var busyPIDs []int
 
+	canHookRunDuringRefresh := func(hook *snap.HookInfo) bool {
+		return false
+	}
+
 	for name, app := range info.Apps {
-		if delegate.canAppRunDuringRefresh(app) {
+		if canAppRunDuringRefresh(app) {
 			continue
 		}
 		PIDs, err := pidsOfSecurityTag(app.SecurityTag())
@@ -72,7 +71,7 @@ func genericRefreshCheck(info *snap.Info, delegate refreshCheckDelegate) error {
 	}
 
 	for name, hook := range info.Hooks {
-		if delegate.canHookRunDuringRefresh(hook) {
+		if canHookRunDuringRefresh(hook) {
 			continue
 		}
 		PIDs, err := pidsOfSecurityTag(hook.SecurityTag())
@@ -112,17 +111,9 @@ func genericRefreshCheck(info *snap.Info, delegate refreshCheckDelegate) error {
 // doesn't require this since it would serve no purpose. After the soft check
 // passes the user is free to start snap applications and block the hard check.
 func SoftNothingRunningRefreshCheck(info *snap.Info) error {
-	return genericRefreshCheck(info, &softRefreshCheckDelegate{})
-}
-
-type softRefreshCheckDelegate struct{}
-
-func (*softRefreshCheckDelegate) canAppRunDuringRefresh(app *snap.AppInfo) bool {
-	return app.IsService()
-}
-
-func (*softRefreshCheckDelegate) canHookRunDuringRefresh(hook *snap.HookInfo) bool {
-	return false
+	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
+		return app.IsService()
+	})
 }
 
 // HardNothingRunningRefreshCheck looks if there are any processes alive.
@@ -136,18 +127,10 @@ func (*softRefreshCheckDelegate) canHookRunDuringRefresh(hook *snap.HookInfo) bo
 // given snap. Presence of any processes indicates that a snap is busy and
 // refresh cannot proceed.
 func HardNothingRunningRefreshCheck(info *snap.Info) error {
-	return genericRefreshCheck(info, &hardRefreshCheckDelegate{})
-}
-
-type hardRefreshCheckDelegate struct{}
-
-func (*hardRefreshCheckDelegate) canAppRunDuringRefresh(app *snap.AppInfo) bool {
-	// TODO: use a constant instead of "endure"
-	return app.IsService() && app.RefreshMode == "endure"
-}
-
-func (*hardRefreshCheckDelegate) canHookRunDuringRefresh(hook *snap.HookInfo) bool {
-	return false
+	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
+		// TODO: use a constant instead of "endure"
+		return app.IsService() && app.RefreshMode == "endure"
+	})
 }
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
