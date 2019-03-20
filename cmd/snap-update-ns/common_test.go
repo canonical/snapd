@@ -34,14 +34,14 @@ import (
 
 type commonSuite struct {
 	dir string
-	up  *update.CommonProfileUpdate
+	up  *update.CommonProfileUpdateContext
 }
 
 var _ = Suite(&commonSuite{})
 
 func (s *commonSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-	s.up = update.NewCommonProfileUpdate("foo",
+	s.up = update.NewCommonProfileUpdateContext("foo",
 		filepath.Join(s.dir, "current.fstab"),
 		filepath.Join(s.dir, "desired.fstab"))
 }

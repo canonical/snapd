@@ -79,7 +79,7 @@ func (s *mainSuite) TestComputeAndSaveSystemChanges(c *C) {
 	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	up := update.NewSystemProfileUpdate(snapName)
+	up := update.NewSystemProfileUpdateContext(snapName)
 	err = update.ComputeAndSaveSystemChanges(up, snapName, s.as)
 	c.Assert(err, IsNil)
 
@@ -147,7 +147,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	up := update.NewSystemProfileUpdate(snapName)
+	up := update.NewSystemProfileUpdateContext(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals,
@@ -225,7 +225,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	up := update.NewSystemProfileUpdate(snapName)
+	up := update.NewSystemProfileUpdateContext(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -268,7 +268,7 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	up := update.NewSystemProfileUpdate(snapName)
+	up := update.NewSystemProfileUpdateContext(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -311,7 +311,7 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	up := update.NewSystemProfileUpdate(snapName)
+	up := update.NewSystemProfileUpdateContext(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, nil), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -355,7 +355,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	defer restore()
 
 	// The error was ignored, and no mount was recorded in the profile
-	up := update.NewSystemProfileUpdate(snapName)
+	up := update.NewSystemProfileUpdateContext(snapName)
 	c.Assert(update.ComputeAndSaveSystemChanges(up, snapName, s.as), IsNil)
 	c.Check(s.log.String(), Equals, "")
 	c.Check(currentProfilePath, testutil.FileEquals, "")

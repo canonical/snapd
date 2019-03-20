@@ -27,13 +27,13 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// UserProfileUpdate contains information about update to per-user mount namespace.
-type UserProfileUpdate struct {
-	CommonProfileUpdate
+// UserProfileUpdateContext contains information about update to per-user mount namespace.
+type UserProfileUpdateContext struct {
+	CommonProfileUpdateContext
 }
 
 func applyUserFstab(snapName string) error {
-	up := &UserProfileUpdate{}
+	up := &UserProfileUpdateContext{}
 	desiredProfilePath := desiredUserProfilePath(snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {

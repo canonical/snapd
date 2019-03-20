@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type CommonProfileUpdate struct {
+type CommonProfileUpdateContext struct {
 	// instanceName is the name of the snap or instance to update.
 	instanceName string
 
@@ -33,16 +33,16 @@ type CommonProfileUpdate struct {
 	desiredProfilePath string
 }
 
-func (up *CommonProfileUpdate) Lock() (unlock func(), err error) {
+func (up *CommonProfileUpdateContext) Lock() (unlock func(), err error) {
 	return func() {}, nil
 }
 
-func (up *CommonProfileUpdate) Assumptions() *Assumptions {
+func (up *CommonProfileUpdateContext) Assumptions() *Assumptions {
 	return nil
 }
 
 // LoadDesiredProfile loads the desired mount profile.
-func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
+func (up *CommonProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.desiredProfilePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", up.instanceName, err)
@@ -51,7 +51,7 @@ func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error
 }
 
 // LoadCurrentProfile loads the current mount profile.
-func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
+func (up *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
 	profile, err := osutil.LoadMountProfile(up.currentProfilePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", up.instanceName, err)
@@ -60,7 +60,7 @@ func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error
 }
 
 // SaveCurrentProfile saves the current mount profile.
-func (up *CommonProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
+func (up *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
 	if err := profile.Save(up.currentProfilePath); err != nil {
 		return fmt.Errorf("cannot save current mount profile of snap %q: %s", up.instanceName, err)
 	}

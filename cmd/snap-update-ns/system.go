@@ -29,14 +29,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// SystemProfileUpdate contains information about update to system-wide mount namespace.
-type SystemProfileUpdate struct {
-	CommonProfileUpdate
+// SystemProfileUpdateContext contains information about update to system-wide mount namespace.
+type SystemProfileUpdateContext struct {
+	CommonProfileUpdateContext
 }
 
-// NewSystemProfileUpdate returns encapsulated information for performing a per-user mount namespace update.
-func NewSystemProfileUpdate(instanceName string) *SystemProfileUpdate {
-	return &SystemProfileUpdate{CommonProfileUpdate: CommonProfileUpdate{
+// NewSystemProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
+func NewSystemProfileUpdateContext(instanceName string) *SystemProfileUpdateContext {
+	return &SystemProfileUpdateContext{CommonProfileUpdateContext: CommonProfileUpdateContext{
 		instanceName:       instanceName,
 		currentProfilePath: currentSystemProfilePath(instanceName),
 		desiredProfilePath: desiredSystemProfilePath(instanceName),
@@ -44,7 +44,7 @@ func NewSystemProfileUpdate(instanceName string) *SystemProfileUpdate {
 }
 
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
-	up := NewSystemProfileUpdate(instanceName)
+	up := NewSystemProfileUpdateContext(instanceName)
 
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
@@ -112,7 +112,7 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	return computeAndSaveSystemChanges(up, instanceName, as)
 }
 
-func computeAndSaveSystemChanges(up MountProfileUpdate, snapName string, as *Assumptions) error {
+func computeAndSaveSystemChanges(up MountProfileUpdateContext, snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.

@@ -23,8 +23,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// MountProfileUpdate abstracts the operations around mount namespace updates.
-type MountProfileUpdate interface {
+// MountProfileUpdateContext provides the context of a mount namespace update.
+// The context provides a way to synchronize the operation with other users of
+// the snap system, to load and save the mount profiles and to provide the file
+// system assumptions with which the mount namespace will be modified.
+type MountProfileUpdateContext interface {
 	// Lock obtains locks appropriate for the update.
 	Lock() (unlock func(), err error)
 	// Assumptions computes filesystem assumptions under which the update shall operate.
