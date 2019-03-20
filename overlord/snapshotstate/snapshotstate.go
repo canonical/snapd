@@ -204,7 +204,7 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 }
 
 
-func AutomaticSnapshot(st *state.State, snapName string, revision snap.Revision) (ts *state.TaskSet, err error) {
+func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err error) {
 	setID, err := newSnapshotSetID(st)
 	if err != nil {
 		return nil, err
@@ -216,7 +216,6 @@ func AutomaticSnapshot(st *state.State, snapName string, revision snap.Revision)
 	snapshot := snapshotSetup{
 		SetID: setID,
 		Snap:  snapName,
-		Current: revision,
 		Auto: true,
 	}
 	task.Set("snapshot-setup", &snapshot)

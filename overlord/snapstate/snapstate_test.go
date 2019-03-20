@@ -150,7 +150,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}))
 
 	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
-	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string, revision snap.Revision) (ts *state.TaskSet, err error) {
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
 		task := st.NewTask("save-snapshot", "...")
 		ts = state.NewTaskSet(task)
 		return ts, nil
@@ -460,10 +460,10 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"stop-snap-services",
 		"run-hook[remove]",
 		"auto-disconnect",
+		"save-snapshot",
 		"remove-aliases",
 		"unlink-snap",
 		"remove-profiles",
-		"save-snapshot",
 		"clear-snap",
 		"discard-snap",
 	})
