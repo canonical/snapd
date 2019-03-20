@@ -48,11 +48,6 @@ typedef struct sc_invocation {
 void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const char *snap_instance);
 
 /**
- * sc_fini_invocation releases memory used by its constituents.
- **/
-void sc_fini_invocation(sc_invocation *inv);
-
-/**
  * sc_cleanup_invocation is a cleanup function for sc_invocation.
  *
  * Cleanup functions are automatically called by the compiler whenever a
