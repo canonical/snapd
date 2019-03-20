@@ -111,19 +111,19 @@ func (cmd *cmdWarnings) Execute(args []string) error {
 			fmt.Fprintln(w, "---")
 		}
 		if cmd.Verbose {
-			fmt.Fprintf(w, "%s:\t%s\n", i18n.G("First occurrence"), cmd.fmtTime(warning.FirstAdded))
+			fmt.Fprintf(w, "first-occurrence:\t%s\n", cmd.fmtTime(warning.FirstAdded))
 		}
-		fmt.Fprintf(w, "%s:\t%s\n", i18n.G("Last occurrence"), cmd.fmtTime(warning.LastAdded))
+		fmt.Fprintf(w, "last-occurrence:\t%s\n", cmd.fmtTime(warning.LastAdded))
 		if cmd.Verbose {
 			lastShown := esc.dash
 			if !warning.LastShown.IsZero() {
 				lastShown = cmd.fmtTime(warning.LastShown)
 			}
-			fmt.Fprintf(w, "%s:\t%s\n", i18n.G("Expires after"), quantity.FormatDuration(warning.ExpireAfter.Seconds()))
-			fmt.Fprintf(w, "%s:\t%s\n", i18n.G("Acknowledged"), lastShown)
-			fmt.Fprintf(w, "%s:\t%s\n", i18n.G("Repeats after"), quantity.FormatDuration(warning.RepeatAfter.Seconds()))
+			fmt.Fprintf(w, "expires-after:\t%s\n", quantity.FormatDuration(warning.ExpireAfter.Seconds()))
+			fmt.Fprintf(w, "acknowledged:\t%s\n", lastShown)
+			fmt.Fprintf(w, "repeats-after:\t%s\n", quantity.FormatDuration(warning.RepeatAfter.Seconds()))
 		}
-		fmt.Fprintf(w, "%s: |\n", i18n.G("Warning"))
+		fmt.Fprintln(w, "warning: |")
 		printDescr(w, warning.Message, termWidth)
 		w.Flush()
 	}
