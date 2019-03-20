@@ -36,7 +36,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -47,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -58,26 +58,31 @@ var (
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
+	seccompCompilerLookup    = seccompToBpfPath
 )
 
-func seccompToBpfPath() string {
+func seccompToBpfPath(compiler string) (string, error) {
 	// FIXME: use cmd.InternalToolPath here once:
 	//   https://github.com/snapcore/snapd/pull/3512
 	// is merged
-	snapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+	snapSeccomp := filepath.Join(dirs.DistroLibExecDir, compiler)
 
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
 		logger.Noticef("cannot read /proc/self/exe: %v, using default snap-seccomp command", err)
-		return snapSeccomp
+		return snapSeccomp, nil
 	}
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
-		return snapSeccomp
+		return snapSeccomp, nil
 	}
 
 	// if we are re-execed, then snap-seccomp is at the same location
 	// as snapd
-	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
+	return filepath.Join(filepath.Dir(exe), compiler), nil
+}
+
+type Compiler interface {
+	Compile(in, out string) error
 }
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
@@ -174,14 +179,16 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 
+	compiler, err := seccomp_compiler.New(seccompCompilerLookup)
+	if err != nil {
+		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
+	}
 	for baseName := range content {
 		in := filepath.Join(dirs.SnapSeccompDir, baseName)
 		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
 
-		seccompToBpf := seccompToBpfPath()
-		cmd := exec.Command(seccompToBpf, "compile", in, out)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if err := compiler.Compile(in, out); err != nil {
+			return fmt.Errorf("cannot compile %s: %v", in, err)
 		}
 	}
 
