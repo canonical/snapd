@@ -230,7 +230,7 @@ func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDevic
 	return &slot, nil
 }
 
-func compareSlotAndDeviceAttribute(slotAttributeValue int64, di *hotplug.HotplugDeviceInfo, devinfoAttribute string) bool {
+func slotDeviceAttrEqual(di *hotplug.HotplugDeviceInfo, devinfoAttribute string, slotAttributeValue int64) bool {
 	var attr string
 	var ok bool
 	if attr, ok = di.Attribute(devinfoAttribute); !ok {
