@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/snap/snaplock"
 )
 
 func Test(t *testing.T) {

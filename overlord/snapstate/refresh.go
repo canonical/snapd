@@ -29,9 +29,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaplock"
 )
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {

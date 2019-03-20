@@ -22,11 +22,11 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaplock"
 )
 
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
