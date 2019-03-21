@@ -32,34 +32,34 @@ type testProfileUpdateContext struct {
 	assumptions        func() *update.Assumptions
 }
 
-func (up *testProfileUpdateContext) Lock() (unlock func(), err error) {
+func (upCtx *testProfileUpdateContext) Lock() (unlock func(), err error) {
 	return func() {}, nil
 }
 
-func (up *testProfileUpdateContext) Assumptions() *update.Assumptions {
-	if up.assumptions != nil {
-		return up.assumptions()
+func (upCtx *testProfileUpdateContext) Assumptions() *update.Assumptions {
+	if upCtx.assumptions != nil {
+		return upCtx.assumptions()
 	}
 	return &update.Assumptions{}
 }
 
-func (up *testProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
-	if up.loadCurrentProfile != nil {
-		return up.loadCurrentProfile()
+func (upCtx *testProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	if upCtx.loadCurrentProfile != nil {
+		return upCtx.loadCurrentProfile()
 	}
 	return &osutil.MountProfile{}, nil
 }
 
-func (up *testProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	if up.loadDesiredProfile != nil {
-		return up.loadDesiredProfile()
+func (upCtx *testProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	if upCtx.loadDesiredProfile != nil {
+		return upCtx.loadDesiredProfile()
 	}
 	return &osutil.MountProfile{}, nil
 }
 
-func (up *testProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
-	if up.saveCurrentProfile != nil {
-		return up.saveCurrentProfile(profile)
+func (upCtx *testProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	if upCtx.saveCurrentProfile != nil {
+		return upCtx.saveCurrentProfile(profile)
 	}
 	return nil
 }

@@ -44,7 +44,7 @@ func NewSystemProfileUpdateContext(instanceName string) *SystemProfileUpdateCont
 }
 
 func applySystemFstab(instanceName string, fromSnapConfine bool) error {
-	up := NewSystemProfileUpdateContext(instanceName)
+	upCtx := NewSystemProfileUpdateContext(instanceName)
 
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
@@ -109,20 +109,20 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
-	return computeAndSaveSystemChanges(up, instanceName, as)
+	return computeAndSaveSystemChanges(upCtx, instanceName, as)
 }
 
-func computeAndSaveSystemChanges(up MountProfileUpdateContext, snapName string, as *Assumptions) error {
+func computeAndSaveSystemChanges(upCtx MountProfileUpdateContext, snapName string, as *Assumptions) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
-	desired, err := up.LoadDesiredProfile()
+	desired, err := upCtx.LoadDesiredProfile()
 	if err != nil {
 		return err
 	}
 	debugShowProfile(desired, "desired mount profile")
 
-	currentBefore, err := up.LoadCurrentProfile()
+	currentBefore, err := upCtx.LoadCurrentProfile()
 	if err != nil {
 		return err
 	}
@@ -132,13 +132,13 @@ func computeAndSaveSystemChanges(up MountProfileUpdateContext, snapName string, 
 		as.AddChange(&Change{Action: Mount, Entry: entry})
 	}
 
-	currentAfter, err := applyProfile(up, snapName, currentBefore, desired, as)
+	currentAfter, err := applyProfile(upCtx, snapName, currentBefore, desired, as)
 	if err != nil {
 		return err
 	}
 
 	logger.Debugf("saving current mount profile of snap %q", snapName)
-	return up.SaveCurrentProfile(currentAfter)
+	return upCtx.SaveCurrentProfile(currentAfter)
 }
 
 // desiredSystemProfilePath returns the path of the fstab-like file with the desired, system-wide mount profile for a snap.

@@ -33,7 +33,7 @@ type UserProfileUpdateContext struct {
 }
 
 func applyUserFstab(snapName string) error {
-	up := &UserProfileUpdateContext{}
+	upCtx := &UserProfileUpdateContext{}
 	desiredProfilePath := desiredUserProfilePath(snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
@@ -49,7 +49,7 @@ func applyUserFstab(snapName string) error {
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
-	_, err = applyProfile(up, snapName, &osutil.MountProfile{}, desired, as)
+	_, err = applyProfile(upCtx, snapName, &osutil.MountProfile{}, desired, as)
 	return err
 }
 
