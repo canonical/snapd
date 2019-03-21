@@ -24,40 +24,40 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// testProfileUpdate implements MountProfileUpdate and is suitable for testing.
-type testProfileUpdate struct {
+// testProfileUpdateContext implements MountProfileUpdate and is suitable for testing.
+type testProfileUpdateContext struct {
 	loadCurrentProfile func() (*osutil.MountProfile, error)
 	loadDesiredProfile func() (*osutil.MountProfile, error)
 	saveCurrentProfile func(*osutil.MountProfile) error
 	assumptions        func() *update.Assumptions
 }
 
-func (up *testProfileUpdate) Lock() (unlock func(), err error) {
+func (up *testProfileUpdateContext) Lock() (unlock func(), err error) {
 	return func() {}, nil
 }
 
-func (up *testProfileUpdate) Assumptions() *update.Assumptions {
+func (up *testProfileUpdateContext) Assumptions() *update.Assumptions {
 	if up.assumptions != nil {
 		return up.assumptions()
 	}
 	return &update.Assumptions{}
 }
 
-func (up *testProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
+func (up *testProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
 	if up.loadCurrentProfile != nil {
 		return up.loadCurrentProfile()
 	}
 	return &osutil.MountProfile{}, nil
 }
 
-func (up *testProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
+func (up *testProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	if up.loadDesiredProfile != nil {
 		return up.loadDesiredProfile()
 	}
 	return &osutil.MountProfile{}, nil
 }
 
-func (up *testProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
+func (up *testProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
 	if up.saveCurrentProfile != nil {
 		return up.saveCurrentProfile(profile)
 	}
