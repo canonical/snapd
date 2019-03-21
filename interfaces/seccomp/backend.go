@@ -199,6 +199,15 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
 	}
+	// There is a delicate interaction between `snap run`, `snap-confine`
+	// and compilation of profiles:
+	// - whenever profiles need to be rebuilt due to system-key change,
+	//   `snap run` detects the system-key mismatch and waits for snapd
+	//   (system key is only updated once all security backends have
+	//   finished their job)
+	// - whenever the binary file does not exist, `snap-confine` will poll
+	//   and wait for SNAP_CONFINE_MAX_PROFILE_WAIT, if the profile does not
+	//   appear in that time, `snap-confine` will fail and die
 	changed, removed, err := osutil.EnsureDirState(dir, glob+".src", content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
@@ -219,6 +228,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 			return err
 		}
 
+		// snap-seccomp uses AtomicWriteFile internally, on failure the
+		// output file is unlinked
 		if err := b.snapSeccomp.Compile(in, out); err != nil {
 			return fmt.Errorf("cannot compile %s: %v", in, err)
 		}
