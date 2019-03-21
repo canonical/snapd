@@ -105,27 +105,26 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 // currently running.
 //
 // Since services are stopped during the update this provides a good early
-// precondition check.  The check is also deliberately racy, both at the level
-// of processes forking and exiting and at the level of snap-confine launching
-// new commands. The hard check needs to be synchronized but the soft check
-// doesn't require this since it would serve no purpose. After the soft check
-// passes the user is free to start snap applications and block the hard check.
+// precondition check. The check is also deliberately racy as existing snap
+// commands can fork new processes or existing processes can die. After the
+// soft check passes the user is free to start snap applications and block the
+// hard check.
 func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
 		return app.IsService()
 	})
 }
 
-// HardNothingRunningRefreshCheck looks if there are any processes alive.
+// HardNothingRunningRefreshCheck looks if there are any undesired processes alive.
 //
 // The check is designed to run late in the refresh pipeline, after stopping
-// snap services. At this point services should be stopped, hooks should no
-// longer run, and applications should be barred from running externally (e.g.
-// by grabbing the per-snap lock around that phase of the update).
+// snap services. At this point non-enduring services should be stopped, hooks
+// should no longer run, and applications should be barred from running
+// externally (e.g. by using a new inhibition mechanism for snap run).
 //
-// The check looks at the set of PIDs in the freezer cgroup associated with a
-// given snap. Presence of any processes indicates that a snap is busy and
-// refresh cannot proceed.
+// The check fails if any process belonging to the snap, apart from services
+// that are enduring refresh, is still alive. If a snap is busy it cannot be
+// refreshed and the refresh process is aborted.
 func HardNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
 		// TODO: use a constant instead of "endure"
