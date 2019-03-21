@@ -57,8 +57,9 @@ var (
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
-	snapSeccompVersionInfo   = snapSeccompVersionInfoImpl
-	seccompCompilerLookup    = snapSeccompPath
+
+	snapSeccompVersionInfo = snapSeccompVersionInfoImpl
+	seccompCompilerLookup  = snapSeccompPath
 )
 
 func snapSeccompVersionInfoImpl(c Compiler) (string, error) {

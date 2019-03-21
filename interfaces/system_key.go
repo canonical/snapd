@@ -75,9 +75,10 @@ type systemKey struct {
 }
 
 var (
-	isHomeUsingNFS             = osutil.IsHomeUsingNFS
-	mockedSystemKey            *systemKey
-	osReadlink                 = os.Readlink
+	isHomeUsingNFS  = osutil.IsHomeUsingNFS
+	mockedSystemKey *systemKey
+	osReadlink      = os.Readlink
+
 	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
 )
 
