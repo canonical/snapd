@@ -1,4 +1,6 @@
 #!/bin/sh
+set -e
+
 check_access() {
     DEVPATH=$1
     DATA=$2
@@ -9,6 +11,5 @@ check_access() {
     fi
 }
 
-DATA="$1"
-check_access /dev/ttyUSB0 "$DATA"
-check_access /dev/ttyUSB1 "$DATA"
+check_access /dev/ttyUSB0 "$1"
+check_access /dev/ttyUSB1 "$1"

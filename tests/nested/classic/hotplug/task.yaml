@@ -9,7 +9,7 @@ prepare: |
     execute_remote "sudo apt update"
     execute_remote "sudo apt install -y ./snapd_*.deb"
     #shellcheck disable=SC2016
-    execute_remote 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y linux-image-extra-$(uname -r) || DEBIAN_FRONTEND=noninteractive sudo -E apt install -y linux-modules-extra-$(uname -r)'
+    execute_remote 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-(image|modules)-extra-$(uname -r)"'
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
     copy_remote serial-port-hotplug_1.0_all.snap
@@ -22,26 +22,27 @@ restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm
-    rm -rf /tmp/serialport{0,1}
+    rm -f /tmp/serialport{0,1}
 
 debug: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    execute_remote "snap connections --all" || true
-    execute_remote "snap list" || true
-    execute_remote "dmesg" || true
-    execute_remote 'sudo jq -r ".data[\"hotplug-slots\"] /var/lib/snapd/state.json' || true
+    set +e
+    execute_remote "snap connections --all"
+    execute_remote "snap list"
+    execute_remote "dmesg"
+    execute_remote 'sudo jq -r ".data[\"hotplug-slots\"] /var/lib/snapd/state.json'
 
 execute: |
     hotplug_add_dev1() {
-        add_tty_chardev my-chardev /tmp/serialport1
-        add_usb_serial_device my-usb-serial my-chardev 1234
+        add_tty_chardev my-chardev1 /tmp/serialport1
+        add_usb_serial_device my-usb-serial my-chardev1 1234
     }
 
     hotplug_del_dev1() {
         del_device my-usb-serial
-        remove_chardev my-chardev
+        remove_chardev my-chardev1
     }
 
     hotplug_add_dev2() {
@@ -142,7 +143,7 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    if execute_remote "udevadm info -e" | MATCH "ID_MODEL.QEMU_USB_SERIAL"; then
+    if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial already registered, exiting..."
         exit 1
     fi
@@ -157,7 +158,7 @@ execute: |
 
     # sanity checks to make sure qemu setup is correct
     for _ in $(seq 5); do
-        if execute_remote "udevadm info -e" | MATCH "ID_MODEL.QEMU_USB_SERIAL"; then
+        if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
             break
         fi
         sleep 1
@@ -175,13 +176,13 @@ execute: |
 
     # sanity check to make sure qemu event was triggered correctly
     for _ in $(seq 5); do
-        if execute_remote "udevadm info -e" | MATCH "ID_MODEL.QEMU_USB_SERIAL"; then
+        if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
             sleep 1
         else
             break
         fi
     done
-    if execute_remote "udevadm info -e" | MATCH "ID_MODEL.QEMU_USB_SERIAL"; then
+    if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial should not be registered anymore, exiting..."
         exit 1
     fi
