@@ -74,15 +74,11 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     debug("base snap:    %s", inv->base_snap_name);
 }
 
-static void sc_fini_invocation(sc_invocation *inv) {
-    sc_cleanup_string(&inv->snap_instance);
-    sc_cleanup_string(&inv->base_snap_name);
-    sc_cleanup_string(&inv->security_tag);
-    sc_cleanup_string(&inv->executable);
-}
-
 void sc_cleanup_invocation(sc_invocation *inv) {
     if (inv != NULL) {
-        sc_fini_invocation(inv);
+        sc_cleanup_string(&inv->snap_instance);
+        sc_cleanup_string(&inv->base_snap_name);
+        sc_cleanup_string(&inv->security_tag);
+        sc_cleanup_string(&inv->executable);
     }
 }
