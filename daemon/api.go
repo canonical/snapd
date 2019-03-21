@@ -617,6 +617,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	query := r.URL.Query()
 	q := query.Get("q")
+	commonID := query.Get("common-id")
 	section := query.Get("section")
 	name := query.Get("name")
 	scope := query.Get("scope")
@@ -626,6 +627,9 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	if name != "" {
 		if q != "" {
 			return BadRequest("cannot use 'q' and 'name' together")
+		}
+		if commonID != "" {
+			return BadRequest("cannot use 'common-id' and 'name' together")
 		}
 
 		if name[len(name)-1] != '*' {
@@ -639,6 +643,9 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	if sel := query.Get("select"); sel != "" {
 		switch sel {
 		case "refresh":
+			if commonID != "" {
+				return BadRequest("cannot use 'common-id' and 'select=refresh'")
+			}
 			if prefix {
 				return BadRequest("cannot use 'name' with 'select=refresh'")
 			}
@@ -653,11 +660,12 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := getStore(c)
 	found, err := theStore.Find(&store.Search{
-		Query:   q,
-		Section: section,
-		Private: private,
-		Prefix:  prefix,
-		Scope:   scope,
+		Query:    q,
+		Section:  section,
+		Private:  private,
+		Prefix:   prefix,
+		Scope:    scope,
+		CommonID: commonID,
 	}, user)
 	switch err {
 	case nil:
