@@ -29,8 +29,6 @@ type testProfileUpdate struct {
 	loadCurrentProfile func() (*osutil.MountProfile, error)
 	loadDesiredProfile func() (*osutil.MountProfile, error)
 	saveCurrentProfile func(*osutil.MountProfile) error
-	neededChanges      func(old, new *osutil.MountProfile) []*update.Change
-	performChange      func(*update.Change, *update.Assumptions) ([]*update.Change, error)
 	assumptions        func() *update.Assumptions
 }
 
@@ -57,20 +55,6 @@ func (up *testProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) 
 		return up.loadDesiredProfile()
 	}
 	return &osutil.MountProfile{}, nil
-}
-
-func (up *testProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*update.Change {
-	if up.neededChanges != nil {
-		return up.neededChanges(old, new)
-	}
-	return nil
-}
-
-func (up *testProfileUpdate) PerformChange(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-	if up.performChange != nil {
-		return up.performChange(change, as)
-	}
-	return nil, nil
 }
 
 func (up *testProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
