@@ -571,7 +571,7 @@ type FatalError struct {
 func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
-		if _, err := changePerform(change, as); err != nil {
+		if _, err := change.Perform(as); err != nil {
 			// Drat, we failed! Let's undo everything according to our own undo
 			// plan, by following it in reverse order.
 
@@ -594,7 +594,7 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 				if recoveryUndoChange.Entry.OptBool("rbind") {
 					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
-				if _, err2 := changePerform(recoveryUndoChange, as); err2 != nil {
+				if _, err2 := recoveryUndoChange.Perform(as); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
 					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
