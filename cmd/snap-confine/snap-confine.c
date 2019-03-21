@@ -103,6 +103,42 @@ typedef struct sc_invocation {
 	bool is_normal_mode;
 } sc_invocation;
 
+/**
+ * sc_preservation_context remembers clobbered state to restore.
+ *
+ * The umask is preserved and restored to ensure consistent permissions for
+ * runtime system. The value is preserved and restored perfectly.
+ *
+ * The current working directory is preserved and possibly restored, if it
+ * exists in the runtime execution environment. The limitation on the current
+ * working directory is that not all paths that exist on the host filesystem
+ * exist in the execution environment. When the current working directory
+ * cannot be restored then a special substitute of /var/lib/snapd/void is used
+ * instead.
+**/
+typedef struct sc_preservation_context {
+	mode_t orig_umask;
+} sc_preservation_context;
+
+/**
+ * sc_remember_preservation context stores values to restore later.
+**/
+static void sc_remember_preservation_context(sc_preservation_context * ctx)
+{
+	/* Reset umask to zero, storing the old value. */
+	ctx->orig_umask = umask(0);
+	debug("umask reset, old umask was %#4o", ctx->orig_umask);
+}
+
+/**
+ *  sc_restore_preservation_context restores values stored earlier.
+**/
+static void sc_restore_preservation_context(const sc_preservation_context * ctx)
+{
+	umask(ctx->orig_umask);
+	debug("umask restored to %#4o", ctx->orig_umask);
+}
+
 static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    struct sc_apparmor *aa,
@@ -115,8 +151,14 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
+	sc_preservation_context prsv_ctx;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
+
+	// Remember certain properties of the process that are clobbered by
+	// snap-confine during execution. Those are restored just before calling
+	// execv.
+	sc_remember_preservation_context(&prsv_ctx);
 
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
@@ -268,6 +310,8 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
+	// Restore properties stored in the preservation context.
+	sc_restore_preservation_context(&prsv_ctx);
 	execv(executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;

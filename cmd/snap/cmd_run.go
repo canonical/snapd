@@ -313,6 +313,9 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 }
 
 func createUserDataDirs(info *snap.Info) error {
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	usr, err := userCurrent()
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)

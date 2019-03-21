@@ -74,7 +74,6 @@ static void setup_private_mount(const char *snap_name)
 		die("cannot create temporary directory essential for private /tmp");
 	}
 	// now we create a 1777 /tmp inside our private dir
-	mode_t old_mask = umask(0);
 	char *d = sc_strdup(tmpdir);
 	sc_must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
 	free(d);
@@ -82,7 +81,6 @@ static void setup_private_mount(const char *snap_name)
 	if (mkdir(tmpdir, 01777) != 0) {
 		die("cannot create temporary directory for private /tmp");
 	}
-	umask(old_mask);
 
 	// chdir to '/' since the mount won't apply to the current directory
 	char *pwd = get_current_dir_name();
