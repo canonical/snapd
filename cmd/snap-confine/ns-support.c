@@ -133,7 +133,7 @@ void sc_initialize_mount_ns(void)
 
 	/* Read and analyze the mount table. We need to see whether /run/snapd/ns
 	 * is a mount point with private event propagation. */
-	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	info = sc_parse_mountinfo(NULL);
 	if (info == NULL) {
 		die("cannot parse /proc/self/mountinfo");
@@ -141,7 +141,7 @@ void sc_initialize_mount_ns(void)
 
 	bool is_mnt = false;
 	bool is_private = false;
-	for (struct sc_mountinfo_entry * entry = sc_first_mountinfo_entry(info);
+	for (sc_mountinfo_entry * entry = sc_first_mountinfo_entry(info);
 	     entry != NULL; entry = sc_next_mountinfo_entry(entry)) {
 		/* Find /run/snapd/ns */
 		if (!sc_streq(entry->mount_dir, sc_ns_dir)) {
@@ -239,13 +239,13 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	sc_must_snprintf(base_squashfs_path,
 			 sizeof base_squashfs_path, "%s/%s/%s",
 			 SNAP_MOUNT_DIR, base_snap_name, base_snap_rev);
-	struct sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	mi = sc_parse_mountinfo(NULL);
 	if (mi == NULL) {
 		die("cannot parse mountinfo of the current process");
 	}
 	bool found = false;
-	for (struct sc_mountinfo_entry * mie =
+	for (sc_mountinfo_entry * mie =
 	     sc_first_mountinfo_entry(mi); mie != NULL;
 	     mie = sc_next_mountinfo_entry(mie)) {
 		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
@@ -272,8 +272,8 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 	// The namespace may become "stale" when the rootfs is not the same
 	// device we found above. This will happen whenever the base snap is
 	// refreshed since the namespace was first created.
-	struct sc_mountinfo_entry *mie;
-	struct sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo_entry *mie;
+	sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 
 	mi = sc_parse_mountinfo(NULL);
 	if (mi == NULL) {

@@ -121,7 +121,11 @@ int main(int argc, char **argv)
 	 * information about what needs to be invoked and how. The data comes
 	 * from either the environment or from command line arguments */
 	sc_invocation SC_CLEANUP(sc_cleanup_invocation) invocation;
-	sc_init_invocation(&invocation, args, getenv("SNAP_INSTANCE_NAME"));
+	const char *snap_instance_name_env = getenv("SNAP_INSTANCE_NAME");
+	if (snap_instance_name_env == NULL) {
+		die("SNAP_INSTANCE_NAME is not set");
+	}
+	sc_init_invocation(&invocation, args, snap_instance_name_env);
 
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;
@@ -344,7 +348,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			 * entirely ephemeral. In addition the call
 			 * sc_join_preserved_user_ns() will never find a preserved mount
 			 * namespace and will always enter this code branch. */
-			if (sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE)) {
+			if (sc_feature_enabled
+			    (SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
 				sc_preserve_populated_per_user_mount_ns(group);
 			} else {
 				debug

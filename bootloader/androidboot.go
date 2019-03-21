@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,53 +17,47 @@
  *
  */
 
-package partition
+package bootloader
 
 import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/androidbootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/partition/grubenv"
 )
 
-type grub struct{}
+type androidboot struct{}
 
-// newGrub create a new Grub bootloader object
-func newGrub() Bootloader {
-	g := &grub{}
-	if !osutil.FileExists(g.ConfigFile()) {
+// newAndroidboot creates a new Androidboot bootloader object
+func newAndroidBoot() Bootloader {
+	a := &androidboot{}
+	if !osutil.FileExists(a.ConfigFile()) {
 		return nil
 	}
-
-	return g
+	return a
 }
 
-func (g *grub) Name() string {
-	return "grub"
+func (a *androidboot) Name() string {
+	return "androidboot"
 }
 
-func (g *grub) Dir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/grub")
+func (a *androidboot) Dir() string {
+	return filepath.Join(dirs.GlobalRootDir, "/boot/androidboot")
 }
 
-func (g *grub) ConfigFile() string {
-	return filepath.Join(g.Dir(), "grub.cfg")
+func (a *androidboot) ConfigFile() string {
+	return filepath.Join(a.Dir(), "androidboot.env")
 }
 
-func (g *grub) envFile() string {
-	return filepath.Join(g.Dir(), "grubenv")
-}
-
-func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
-	out := make(map[string]string)
-
-	env := grubenv.NewEnv(g.envFile())
+func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
+	env := androidbootenv.NewEnv(a.ConfigFile())
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
 
+	out := make(map[string]string, len(names))
 	for _, name := range names {
 		out[name] = env.Get(name)
 	}
@@ -71,8 +65,8 @@ func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
 	return out, nil
 }
 
-func (g *grub) SetBootVars(values map[string]string) error {
-	env := grubenv.NewEnv(g.envFile())
+func (a *androidboot) SetBootVars(values map[string]string) error {
+	env := androidbootenv.NewEnv(a.ConfigFile())
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}

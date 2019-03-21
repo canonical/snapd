@@ -94,6 +94,14 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getBaseDeclaration(st)
 	case "connectivity":
 		return checkConnectivity(st)
+	case "model":
+		model, err := devicestate.Model(st)
+		if err != nil {
+			return InternalError("cannot get model: %v", err)
+		}
+		return SyncResponse(map[string]interface{}{
+			"model": string(asserts.Encode(model)),
+		}, nil)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}

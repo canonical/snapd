@@ -431,7 +431,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// This way we can remove the temporary directory we created and "clean up"
 	// after ourselves nicely.
 	sc_must_snprintf(dst, sizeof dst, "%s/%s", SC_HOSTFS_DIR, scratch_dir);
-	sc_do_umount(dst, 0);
+	sc_do_umount(dst, UMOUNT_NOFOLLOW);
 	// Remove the scratch directory. Note that we are using the path that is
 	// based on the old root filesystem as after pivot_root we cannot guarantee
 	// what is present at the same location normally. (It is probably an empty
@@ -622,12 +622,12 @@ static bool is_mounted_with_shared_option(const char *dir)
 
 static bool is_mounted_with_shared_option(const char *dir)
 {
-	struct sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	sm = sc_parse_mountinfo(NULL);
 	if (sm == NULL) {
 		die("cannot parse /proc/self/mountinfo");
 	}
-	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
+	sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
 	while (entry != NULL) {
 		const char *mount_dir = entry->mount_dir;
 		if (sc_streq(mount_dir, dir)) {
