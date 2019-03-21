@@ -1220,7 +1220,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 		SnapChannels: map[string]string{
-			"core":                              "candidate",
+			"core": "candidate",
 			s.downloadedSnaps["required-snap1"]: "edge",
 		},
 	}
