@@ -15,10 +15,12 @@ kill-timeout: 5m
 
 prepare: |
     systemctl stop user@"$(id -u test)".service
+    snap set system experimental.user-daemons=true
 
 restore: |
     systemctl stop user@"$(id -u test)".service
     rm -rf /run/user/"$(id -u test)"/*
+    snap set system experimental.user-daemons=null
 
 execute: |
     echo "Create XDG_RUNTIME_DIR for test user"

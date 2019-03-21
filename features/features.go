@@ -47,6 +47,8 @@ const (
 	ClassicPreservesXdgRuntimeDir
 	// RobustMountNamespaceUpdates controls how snap-update-ns updates existing mount namespaces.
 	RobustMountNamespaceUpdates
+	// UserDaemons controls availability of user mode systemd services
+	UserDaemons
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -72,6 +74,8 @@ var featureNames = map[SnapdFeature]string{
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
 	RobustMountNamespaceUpdates:   "robust-mount-namespace-updates",
+
+	UserDaemons: "user-daemons",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

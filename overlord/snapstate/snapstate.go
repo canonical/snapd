@@ -564,6 +564,23 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 	}
 
+	var hasUserService bool
+	for _, app := range info.Apps {
+		if app.IsService() && app.ServiceMode() == snap.UserDaemon {
+			hasUserService = true
+			break
+		}
+	}
+	if hasUserService {
+		flag, err := config.GetFeatureFlag(tr, features.UserDaemons)
+		if err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+		}
+	}
+
 	return nil
 }
 
