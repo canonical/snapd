@@ -67,10 +67,6 @@ func snapSeccompVersionInfoImpl(c Compiler) (string, error) {
 }
 
 func snapSeccompPath(compiler string) (string, error) {
-	// FIXME: use cmd.InternalToolPath here once:
-	//   https://github.com/snapcore/snapd/pull/3512
-	// is merged
-
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
 		return "", err
@@ -194,7 +190,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 
-	glob := interfaces.SecurityTagGlob(snapName)
+	glob := interfaces.SecurityTagGlob(snapName) + ".src"
 	dir := dirs.SnapSeccompDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
@@ -208,7 +204,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// - whenever the binary file does not exist, `snap-confine` will poll
 	//   and wait for SNAP_CONFINE_MAX_PROFILE_WAIT, if the profile does not
 	//   appear in that time, `snap-confine` will fail and die
-	changed, removed, err := osutil.EnsureDirState(dir, glob+".src", content)
+	changed, removed, err := osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
