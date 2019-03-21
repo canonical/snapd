@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package main
 var (
 	Compile         = compile
 	SeccompResolver = seccompResolver
+	VersionInfo     = versionInfo
 )
 
 func MockArchUbuntuArchitecture(f func() string) (restore func()) {
@@ -45,5 +46,13 @@ func MockErrnoOnDenial(i int16) (retore func()) {
 	errnoOnDenial = i
 	return func() {
 		errnoOnDenial = origErrnoOnDenial
+	}
+}
+
+func MockSeccompSyscalls(syscalls []string) (resture func()) {
+	old := seccompSyscalls
+	seccompSyscalls = syscalls
+	return func() {
+		seccompSyscalls = old
 	}
 }
