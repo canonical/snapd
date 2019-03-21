@@ -1425,8 +1425,8 @@ version: @VERSION@
 
 func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.ForceBootloader(loader)
-	defer bootloader.ForceBootloader(nil)
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1512,8 +1512,8 @@ type: os
 
 func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.ForceBootloader(loader)
-	defer bootloader.ForceBootloader(nil)
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()

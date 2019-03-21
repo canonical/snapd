@@ -69,7 +69,7 @@ func UpdateBootRevisions(st *state.State) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	loader, err := bootloader.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
@@ -145,7 +145,7 @@ func CurrentBootNameAndRevision(typ snap.Type) (name string, revision snap.Revis
 		return "", snap.Revision{}, fmt.Errorf(errorPrefix + "classic system")
 	}
 
-	loader, err := bootloader.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return "", snap.Revision{}, fmt.Errorf(errorPrefix+"%s", err)
 	}

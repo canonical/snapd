@@ -88,7 +88,7 @@ var _ = Suite(&imageSuite{})
 func (s *imageSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
-	bootloader.ForceBootloader(s.bootloader)
+	bootloader.Force(s.bootloader)
 
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -173,7 +173,7 @@ func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string, publisher st
 
 func (s *imageSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
-	bootloader.ForceBootloader(nil)
+	bootloader.Force(nil)
 	image.Stdout = os.Stdout
 	image.Stderr = os.Stderr
 	s.storeActions = nil
@@ -1220,7 +1220,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 		SnapChannels: map[string]string{
-			"core": "candidate",
+			"core":                              "candidate",
 			s.downloadedSnaps["required-snap1"]: "edge",
 		},
 	}

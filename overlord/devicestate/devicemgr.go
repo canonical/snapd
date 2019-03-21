@@ -380,7 +380,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		loader, err := bootloader.FindBootloader()
+		loader, err := bootloader.Find()
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 		}

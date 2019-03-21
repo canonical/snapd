@@ -86,9 +86,9 @@ func InstallBootConfig(gadgetDir string) error {
 
 var forcedBootloader Bootloader
 
-// FindBootloader returns the bootloader for the given system
+// Find returns the bootloader for the given system
 // or an error if no bootloader is found
-func FindBootloader() (Bootloader, error) {
+func Find() (Bootloader, error) {
 	if forcedBootloader != nil {
 		return forcedBootloader, nil
 	}
@@ -112,8 +112,9 @@ func FindBootloader() (Bootloader, error) {
 	return nil, ErrBootloader
 }
 
-// ForceBootloader can be used to force setting a booloader to that FindBootloader will not use the usual lookup process, use nil to reset to normal lookup.
-func ForceBootloader(booloader Bootloader) {
+// Force can be used to force setting a booloader to that Find will not use the
+// usual lookup process, use nil to reset to normal lookup.
+func Force(booloader Bootloader) {
 	forcedBootloader = booloader
 }
 

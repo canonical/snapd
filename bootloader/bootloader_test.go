@@ -83,10 +83,10 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 
 func (s *PartitionTestSuite) TestForceBootloader(c *C) {
 	b := newMockBootloader()
-	ForceBootloader(b)
-	defer ForceBootloader(nil)
+	Force(b)
+	defer Force(nil)
 
-	got, err := FindBootloader()
+	got, err := Find()
 	c.Assert(err, IsNil)
 	c.Check(got, Equals, b)
 }

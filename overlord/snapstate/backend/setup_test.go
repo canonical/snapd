@@ -67,7 +67,7 @@ func (s *setupSuite) SetUpTest(c *C) {
 func (s *setupSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-	bootloader.ForceBootloader(nil)
+	bootloader.Force(nil)
 	s.umount.Restore()
 	s.systemctlRestorer()
 }
@@ -145,7 +145,7 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 
 func (s *setupSuite) TestSetupDoUndoKernelUboot(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.ForceBootloader(loader)
+	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -190,7 +190,7 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 	// this cannot check systemd own behavior though around mounts!
 
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.ForceBootloader(loader)
+	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -239,7 +239,7 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 	// this cannot check systemd own behavior though around mounts!
 
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.ForceBootloader(loader)
+	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")

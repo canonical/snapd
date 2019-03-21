@@ -33,7 +33,7 @@ import (
 // RemoveKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap.
 func RemoveKernelAssets(s snap.PlaceInfo) error {
-	loader, err := bootloader.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("no not remove kernel assets: %s", err)
 	}
@@ -56,7 +56,7 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
 	}
 
-	loader, err := bootloader.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
@@ -104,7 +104,7 @@ func SetNextBoot(s *snap.Info) error {
 		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.Type)
 	}
 
-	bootloader, err := bootloader.FindBootloader()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot set next boot: %s", err)
 	}
@@ -154,7 +154,7 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 		return false
 	}
 
-	bootloader, err := bootloader.FindBootloader()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
@@ -187,7 +187,7 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.FindBootloader()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false

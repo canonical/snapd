@@ -68,7 +68,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	bs.bootloader.BootVars["snap_core"] = "core_2.snap"
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
-	bootloader.ForceBootloader(bs.bootloader)
+	bootloader.Force(bs.bootloader)
 
 	bs.fakeBackend = &fakeSnappyBackend{}
 	bs.o = overlord.Mock()
@@ -94,7 +94,7 @@ func (bs *bootedSuite) TearDownTest(c *C) {
 	snapstate.Model = nil
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
-	bootloader.ForceBootloader(nil)
+	bootloader.Force(nil)
 }
 
 var osSI1 = &snap.SideInfo{RealName: "core", Revision: snap.R(1)}

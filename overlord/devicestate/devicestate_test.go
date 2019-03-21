@@ -117,7 +117,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.ForceBootloader(s.bootloader)
+	bootloader.Force(s.bootloader)
 
 	s.restoreOnClassic = release.MockOnClassic(false)
 
@@ -169,7 +169,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
-	bootloader.ForceBootloader(nil)
+	bootloader.Force(nil)
 	dirs.SetRootDir("")
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()

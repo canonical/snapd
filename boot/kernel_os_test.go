@@ -50,13 +50,13 @@ func (s *kernelOSSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.ForceBootloader(s.bootloader)
+	bootloader.Force(s.bootloader)
 }
 
 func (s *kernelOSSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-	bootloader.ForceBootloader(nil)
+	bootloader.Force(nil)
 }
 
 const packageKernel = `
@@ -114,7 +114,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	// pretend to be a grub system
 	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
-	bootloader.ForceBootloader(mockGrub)
+	bootloader.Force(mockGrub)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
