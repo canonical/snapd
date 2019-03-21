@@ -51,7 +51,11 @@ var (
 )
 
 // SnapshotManager takes snapshots of active snaps
-type SnapshotManager struct{}
+type SnapshotManager struct {
+	state *state.State
+
+	lastForgetExpiredSnapshotTime time.Time
+}
 
 // Manager returns a new SnapshotManager
 func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
@@ -63,14 +67,63 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
 	runner.AddCleanup("restore-snapshot", cleanupRestore)
 
-	manager := &SnapshotManager{}
+	manager := &SnapshotManager{
+		state:                         st,
+	}
 	snapstate.AddAffectedSnapsByAttr("snapshot-setup", manager.affectedSnaps)
 
 	return manager
 }
 
 // Ensure is part of the overlord.StateManager interface.
-func (SnapshotManager) Ensure() error { return nil }
+func (mgr SnapshotManager) Ensure() error {
+	// process expired snapshots once a day.
+	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(time.Hour * 24)) {
+		return mgr.forgetExpiredSnapshots()
+	}
+	return nil
+}
+
+func (mgr SnapshotManager) forgetExpiredSnapshots() error {
+	mgr.state.Lock()
+	defer mgr.state.Unlock()
+
+	sets, err := expiredSnapshotSets(mgr.state, time.Now())
+	if err != nil {
+		return fmt.Errorf("internal error: cannot determine expired snapshots: %v", err)
+	}
+
+	if len(sets) == 0 {
+		return nil
+	}
+
+	// forget needs to conflict with check and restore
+	for _, setID := range sets {
+		if err := checkSnapshotTaskConflict(mgr.state, setID, "check-snapshot", "restore-snapshot"); err != nil {
+			// there is a conflict, do nothing and we will retry on next Ensure().
+			return nil
+		}
+	}
+
+	mgr.lastForgetExpiredSnapshotTime = time.Now()
+
+	for _, setID := range sets {
+		summaries, err := snapSummariesInSnapshotSet(setID, nil)
+		if err != nil {
+			return fmt.Errorf("cannot get snapshot summaries: %v", err)
+		}
+
+		for _, summary := range summaries {
+			if err := osRemove(summary.filename); err != nil {
+				return fmt.Errorf("cannot remove snapshot file %q: %v", summary.filename, err)
+			}
+		}
+	}
+	if err := removeExpirations(mgr.state, sets...); err != nil {
+		return fmt.Errorf("internal error: cannot remove snapshot exiration times: %v", err)
+	}
+	return nil
+}
 
 func (SnapshotManager) affectedSnaps(t *state.Task) ([]string, error) {
 	if k := t.Kind(); k == "check-snapshot" || k == "forget-snapshot" {

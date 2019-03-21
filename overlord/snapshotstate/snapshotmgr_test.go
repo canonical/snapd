@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -52,6 +53,44 @@ func (snapshotSuite) TestManager(c *check.C) {
 		"restore-snapshot",
 		"save-snapshot",
 	})
+}
+
+func (snapshotSuite) TestEnsure(c *check.C) {
+	restoreOsRemove := snapshotstate.MockOsRemove(func(string) error {
+		return nil
+	})
+	defer restoreOsRemove()
+
+	shotfileA, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	c.Assert(err, check.IsNil)
+	defer shotfileA.Close()
+
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			Snapshot: client.Snapshot{SetID: 1, Snap: "a-snap", SnapID: "a-id", Epoch: snap.Epoch{Read: []uint32{42}, Write: []uint32{17}}},
+			File:     shotfileA,
+		}), check.IsNil)
+		return nil
+	}
+	defer snapshotstate.MockBackendIter(fakeIter)()
+
+	st := state.New(nil)
+	runner := state.NewTaskRunner(st)
+	mgr := snapshotstate.Manager(st, runner)
+	c.Assert(mgr, check.NotNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("snapshots-expiry", map[uint64]interface{}{
+		1: "2001-03-11T11:24:00Z",
+		2: "2037-02-12T12:50:00Z",
+	})
+
+	st.Unlock()
+	err = mgr.Ensure()
+	c.Check(err, check.IsNil)
+	st.Lock()
 }
 
 func (snapshotSuite) TestFilename(c *check.C) {
@@ -480,3 +519,4 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"remove"})
 }
+
