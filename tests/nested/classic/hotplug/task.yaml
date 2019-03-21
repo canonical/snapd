@@ -32,7 +32,7 @@ debug: |
     execute_remote "snap connections --all"
     execute_remote "snap list"
     execute_remote "dmesg"
-    execute_remote 'sudo jq -r ".data[\"hotplug-slots\"] /var/lib/snapd/state.json'
+    execute_remote 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json'
 
 execute: |
     hotplug_add_dev1() {
