@@ -1,6 +1,16 @@
-snapd (2.38~pre1) xenial; urgency=medium
+snapd (2.38) xenial; urgency=medium
 
   * New upstream release, LP: #1818648
+    - overlord/snapstate,: retry less for auto-stuff
+    - cmd/snap: fix regression of snap saved command
+    - interfaces/builtin: add dev/pts/ptmx access to docker_support
+    - overlord/snapstate, store: set a header when auto-refreshing
+    - interfaces/builtin: add add exec "/" to docker-support
+    - cmd/snap, client, daemon, ifacestate: show a leading attribute of
+      a connection
+    - interface: avahi-observe: Fixing socket permissions on 4.15
+      kernels
+    - tests: check that apt works before using it
     - apparmor: support AppArmor 2.13
     - snapstate: restart into the snapd snap on classic
     - overlord/snapstate: during refresh, re-refresh on epoch bump
@@ -217,7 +227,7 @@ snapd (2.38~pre1) xenial; urgency=medium
     - overlord: drop old v1 store api support from managers test
     - tests: new test for snapshots with more than 1 user
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 05 Mar 2019 13:00:25 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 21 Mar 2019 10:55:27 +0100
 
 snapd (2.37.4) xenial; urgency=medium
 
