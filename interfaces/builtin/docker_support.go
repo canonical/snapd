@@ -144,6 +144,9 @@ ptrace (read, trace) peer=docker-default,
 # and so to allow allocating a new shell we need this
 /dev/pts/ptmx rw,
 
+# needed by runc for mitigation of CVE-2019-5736
+# For details see https://bugs.launchpad.net/apparmor/+bug/1820344
+/ ix,
 `
 
 const dockerSupportConnectedPlugSecComp = `
