@@ -57,14 +57,20 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // setupDbusServiceForUserd will setup the service file for the new
 // `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
-	coreRoot := snapInfo.MountDir()
+	coreOrSnapdRoot := snapInfo.MountDir()
+
+	// fugly - but we need to make sure that the content of the "snapd"
+	// snap wins
+	if snapInfo.InstanceName() == "core" && osutil.FileExists(filepath.Join(coreOrSnapdRoot, "../..", "snapd/current")) {
+		return nil
+	}
 
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
 		"io.snapcraft.Settings.service",
 	} {
 		dst := filepath.Join("/usr/share/dbus-1/services/", srv)
-		src := filepath.Join(coreRoot, dst)
+		src := filepath.Join(coreOrSnapdRoot, dst)
 
 		// we only need the GlobalRootDir for testing
 		dst = filepath.Join(dirs.GlobalRootDir, dst)
