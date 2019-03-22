@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type backendSuite struct {
@@ -44,6 +45,7 @@ type backendSuite struct {
 
 	snapSeccomp   *testutil.MockCmd
 	profileHeader string
+	meas          *timings.Span
 
 	restoreReadlink func()
 }
@@ -88,6 +90,9 @@ fi`)
 		{"snap-seccomp", "version-info"},
 	})
 	s.snapSeccomp.ForgetCalls()
+
+	perf := timings.New(nil)
+	s.meas = perf.StartSpan("", "")
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -261,7 +266,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithNoHooks(c *C) {
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile + ".src")
@@ -382,7 +387,7 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
@@ -394,7 +399,7 @@ func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "\nsocketcall\n")
@@ -406,7 +411,7 @@ func (s *backendSuite) TestSocketcallIsNotAddedWhenNotRequired(c *C) {
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", Not(testutil.FileContains), "\nsocketcall\n")
@@ -619,7 +624,7 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	c.Check(profile+".src", testutil.FileEquals, s.profileHeader+"\ndefault\n")
 
@@ -628,7 +633,7 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	})
 
 	// unchanged snap-seccomp version will not trigger a rebuild
-	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 
 	// compilation from this first Setup()
@@ -656,7 +661,7 @@ fi`)
 	})
 
 	// the profile should be rebuilt now
-	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	c.Check(profile+".src", testutil.FileEquals, updatedProfileHeader+"\ndefault\n")
 

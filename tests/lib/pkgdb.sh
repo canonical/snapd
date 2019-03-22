@@ -610,8 +610,10 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                eatmydata
                 evolution-data-server
                 net-tools
+                sbuild
                 "
             ;;
     esac
