@@ -416,6 +416,7 @@ func autoRefreshRateLimited(st *state.State) (rate int64) {
 	if err != nil {
 		return 0
 	}
+	// NOTE ParseByteSize errors on negative rates
 	val, err := strutil.ParseByteSize(rateLimit)
 	if err != nil {
 		return 0
@@ -434,7 +435,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	st.Lock()
 	theStore := Store(st)
-	rate := autoRefreshRateLimited(st)
+	var rate int64
+	if snapsup.IsAutoRefresh {
+		// NOTE rate is never negative
+		rate = autoRefreshRateLimited(st)
+	}
 	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
@@ -444,9 +449,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
 
-	dlOpts := &store.DownloadOptions{}
-	if snapsup.IsAutoRefresh && rate > 0 {
-		dlOpts.RateLimit = rate
+	dlOpts := &store.DownloadOptions{
+		IsAutoRefresh: snapsup.IsAutoRefresh,
+		RateLimit:     rate,
 	}
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info

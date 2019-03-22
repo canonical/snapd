@@ -89,8 +89,6 @@ backends:
                 workers: 4
             - opensuse-tumbleweed-64:
                 workers: 4
-                # tumbleweed image not available at the moment
-                manual: true
             - arch-linux-64:
                 workers: 4
 
