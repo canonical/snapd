@@ -515,6 +515,8 @@ prepare: |
         systemctl enable --now auditd.service
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # refresh metadatadata
+        zypper ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
