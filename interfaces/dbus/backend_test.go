@@ -20,6 +20,8 @@
 package dbus_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -30,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -277,4 +280,47 @@ func (s *backendSuite) TestAppBoundIfaces(c *C) {
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"mediated-bus-access"})
+}
+
+func makeFakeDbusUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services"), 0755)
+	c.Assert(err, IsNil)
+
+	servicesPath := filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/services")
+	err = os.MkdirAll(servicesPath, 0755)
+	c.Assert(err, IsNil)
+
+	for _, fn := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		content := fmt.Sprintf("content for %s", fn)
+		err = ioutil.WriteFile(filepath.Join(servicesPath, fn), []byte(content), 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *backendSuite) testSetupWritesUsedFilesForCoreOrSnapd(c *C, coreOrSnapdYaml string) {
+	coreOrSnapdInfo := snaptest.MockInfo(c, coreOrSnapdYaml, &snap.SideInfo{Revision: snap.R(2)})
+	makeFakeDbusUserdServiceFiles(c, coreOrSnapdInfo)
+
+	err := s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+
+	for _, fn := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		c.Assert(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services/"+fn), testutil.FilePresent)
+	}
+}
+
+func (s *backendSuite) TestSetupWritesUsedFilesForCore(c *C) {
+	coreYaml := "name: core\nversion: 1\ntype: os"
+	s.testSetupWritesUsedFilesForCoreOrSnapd(c, coreYaml)
+}
+
+func (s *backendSuite) TestSetupWritesUsedFilesForSnapd(c *C) {
+	snapdYaml := "name: snapd\nversion: 1\n"
+	s.testSetupWritesUsedFilesForCoreOrSnapd(c, snapdYaml)
 }

@@ -65,6 +65,9 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	} {
 		dst := filepath.Join("/usr/share/dbus-1/services/", srv)
 		src := filepath.Join(coreRoot, dst)
+
+		// we only need the GlobalRootDir for testing
+		dst = filepath.Join(dirs.GlobalRootDir, dst)
 		if !osutil.FilesAreEqual(src, dst) {
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
 				return err
@@ -85,10 +88,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
 
-	// core on classic is special
-	//
-	// TODO: we need to deal with the "snapd" snap here soon
-	if snapName == "core" && release.OnClassic {
+	// core/snapd on classic are special
+	if (snapName == "core" || snapName == "snapd") && release.OnClassic {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}
