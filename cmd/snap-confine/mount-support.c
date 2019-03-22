@@ -514,9 +514,14 @@ static bool __attribute__ ((used))
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const char *base_snap_name, const char *snap_name,
-			  bool is_normal_mode)
+			  sc_invocation * inv)
 {
+	/* NOTE: this function makes a local modification to base snap name.
+	 * This should not be done like that but for the purpose of refactoring
+	 * being purely a refactoring, this property is preserved by copying
+	 * base_snap_name out of the invocation argument and making
+	 * modifications local. */
+	const char *base_snap_name = inv->base_snap_name;
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
 	// will try to re-locate to the same directory (if possible).
@@ -528,7 +533,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// Classify the current distribution, as claimed by /etc/os-release.
 	sc_distro distro = sc_classify_distro();
 	// Check which mode we should run in, normal or legacy.
-	if (is_normal_mode) {
+	if (inv->is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
@@ -610,14 +615,14 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 
 	// set up private mounts
 	// TODO: rename this and fold it into bootstrap
-	setup_private_mount(snap_name);
+	setup_private_mount(inv->snap_instance);
 
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
 	// setup the security backend bind mounts
-	sc_call_snap_update_ns(snap_update_ns_fd, snap_name, apparmor);
+	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
