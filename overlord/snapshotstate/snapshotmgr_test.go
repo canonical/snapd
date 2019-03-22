@@ -55,24 +55,36 @@ func (snapshotSuite) TestManager(c *check.C) {
 	})
 }
 
-func (snapshotSuite) TestEnsure(c *check.C) {
-	restoreOsRemove := snapshotstate.MockOsRemove(func(string) error {
-		return nil
-	})
-	defer restoreOsRemove()
-
-	shotfileA, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+func mockDummySnapshot(c *check.C) (restore func()) {
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
-	defer shotfileA.Close()
 
 	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
 		c.Assert(f(&backend.Reader{
 			Snapshot: client.Snapshot{SetID: 1, Snap: "a-snap", SnapID: "a-id", Epoch: snap.Epoch{Read: []uint32{42}, Write: []uint32{17}}},
-			File:     shotfileA,
+			File:     shotfile,
 		}), check.IsNil)
 		return nil
 	}
-	defer snapshotstate.MockBackendIter(fakeIter)()
+
+	restoreBackendIter := snapshotstate.MockBackendIter(fakeIter)
+
+	return func() {
+		shotfile.Close()
+		restoreBackendIter()
+	}
+}
+
+func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
+	var removedSnapshot string
+	restoreOsRemove := snapshotstate.MockOsRemove(func(fileName string) error {
+		removedSnapshot = fileName
+		return nil
+	})
+	defer restoreOsRemove()
+
+	restore := mockDummySnapshot(c)
+	defer restore()
 
 	st := state.New(nil)
 	runner := state.NewTaskRunner(st)
@@ -88,9 +100,72 @@ func (snapshotSuite) TestEnsure(c *check.C) {
 	})
 
 	st.Unlock()
-	err = mgr.Ensure()
-	c.Check(err, check.IsNil)
+	c.Assert(mgr.Ensure(), check.IsNil)
 	st.Lock()
+
+	// verify expired snapshots were removed
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots-expiry", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{2: "2037-02-12T12:50:00Z"})
+	c.Check(removedSnapshot, check.Matches, ".*/foo.zip")
+}
+
+func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskKind string) {
+	removeCalled := 0
+	restoreOsRemove := snapshotstate.MockOsRemove(func(string) error {
+		removeCalled++
+		return nil
+	})
+	defer restoreOsRemove()
+
+	restore := mockDummySnapshot(c)
+	defer restore()
+
+	st := state.New(nil)
+	runner := state.NewTaskRunner(st)
+	mgr := snapshotstate.Manager(st, runner)
+	c.Assert(mgr, check.NotNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("snapshots-expiry", map[uint64]interface{}{1: "2001-03-11T11:24:00Z"})
+
+	chg := st.NewChange("snapshot-change", "...")
+	tsk := st.NewTask(snapshotTaskKind, "...")
+	tsk.SetStatus(state.DoingStatus)
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 1})
+	chg.AddTask(tsk)
+
+	st.Unlock()
+	c.Assert(mgr.Ensure(), check.IsNil)
+	st.Lock()
+
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots-expiry", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		1: "2001-03-11T11:24:00Z",
+	})
+	c.Check(removeCalled, check.Equals, 0)
+
+	// sanity check of the test setup: snapshot gets removed once conflict goes away
+	tsk.SetStatus(state.DoneStatus)
+	st.Unlock()
+	c.Assert(mgr.Ensure(), check.IsNil)
+	st.Lock()
+
+	expirations = nil
+	c.Assert(st.Get("snapshots-expiry", &expirations), check.IsNil)
+	c.Check(removeCalled, check.Equals, 1)
+	c.Check(expirations, check.HasLen, 0)
+}
+
+func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithCheckSnapshot(c *check.C) {
+	s.testEnsureForgetSnapshotsConflict(c, "check-snapshot")
+}
+
+func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithRestoreSnapshot(c *check.C) {
+	s.testEnsureForgetSnapshotsConflict(c, "restore-snapshot")
 }
 
 func (snapshotSuite) TestFilename(c *check.C) {
@@ -519,4 +594,3 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"remove"})
 }
-
