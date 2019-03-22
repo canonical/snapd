@@ -300,12 +300,12 @@ func profileGlobs(snapName string) []string {
 // - snap.core.NNNN.usr.lib.snapd.snap-confine
 // - var.lib.snapd.snap.core.NNNN.usr.lib.snapd.snap-confine
 // - snap-confine.core.NNNN
-// TODO: also the "snapd" snap here soon
+// - snap-confine.snapd.NNNN
 func profileIsRemovableOnCoreSetup(fn string) bool {
 	bn := path.Base(fn)
 	if strings.HasPrefix(bn, ".") {
 		return false
-	} else if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
+	} else if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.HasPrefix(bn, "snap-confine.snapd.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
 		return false
 	}
 	return true
@@ -351,8 +351,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// See LP:#1460152 and
 	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
 	//
-	// TODO: we need to deal with the "snapd" snap here soon
-	if snapName == "core" && !release.OnClassic {
+	if (snapName == "core" || snapName == "snapd") && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
 			for _, p := range li {
 				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {

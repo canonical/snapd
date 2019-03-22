@@ -681,8 +681,8 @@ const snapdYaml = `name: snapd
 version: 1
 `
 
-func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreInfo *snap.Info) {
-	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreOrSnapdInfo *snap.Info) {
+	vanillaProfilePath := filepath.Join(coreOrSnapdInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
 	vanillaProfileText := []byte(`#include <tunables/global>
 /usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -832,6 +832,18 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 }
 
 func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+	s.testCoreOrSnapdOnCoreCleansApparmorCache(c, coreYaml)
+}
+
+func (s *backendSuite) TestSnapdOnCoreCleansApparmorCache(c *C) {
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+	s.testCoreOrSnapdOnCoreCleansApparmorCache(c, snapdYaml)
+}
+
+func (s *backendSuite) testCoreOrSnapdOnCoreCleansApparmorCache(c *C, coreOrSnapdYaml string) {
 	restorer := release.MockOnClassic(false)
 	defer restorer()
 
@@ -849,6 +861,9 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
 	c.Assert(err, IsNil)
 	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap-confine.core.6405")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap-confine.snapd.6405")
 	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
 	c.Assert(err, IsNil)
 	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap.core.4938.usr.lib.snapd.snap-confine")
@@ -878,7 +893,7 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 
 	// install the new core snap on classic triggers a new snap-confine
 	// for this snap-confine on core
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreYaml, 111)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreOrSnapdYaml, 111)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
 	c.Assert(err, IsNil)
