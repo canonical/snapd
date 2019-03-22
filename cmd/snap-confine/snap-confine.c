@@ -19,6 +19,7 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <glob.h>
 #include <sched.h>
 #include <signal.h>
@@ -111,16 +112,32 @@ static void sc_maybe_fixup_udev(void)
 **/
 typedef struct sc_preservation_context {
 	mode_t orig_umask;
+	int orig_cwd_fd;
 } sc_preservation_context;
 
 /**
  * sc_remember_preservation context stores values to restore later.
+ *
+ * In addition the function makes the following changes to the process:
+ *  - the umask is set to 0
+ *  - the current working directory is set to /
 **/
 static void sc_remember_preservation_context(sc_preservation_context * ctx)
 {
 	/* Reset umask to zero, storing the old value. */
 	ctx->orig_umask = umask(0);
 	debug("umask reset, old umask was %#4o", ctx->orig_umask);
+	/* Remember a file descriptor corresponding to the original working
+	 * directory. This is an O_PATH file descriptor. The descriptor is
+	 * used as explained below. */
+	ctx->orig_cwd_fd =
+	    openat(AT_FDCWD, ".", O_PATH | O_CLOEXEC | O_NOFOLLOW);
+	if (ctx->orig_cwd_fd < 0) {
+		die("cannot open path of the current working directory");
+	}
+	if (chdir("/") < 0) {
+		die("cannot move to /");
+	}
 }
 
 /**
@@ -128,8 +145,107 @@ static void sc_remember_preservation_context(sc_preservation_context * ctx)
 **/
 static void sc_restore_preservation_context(const sc_preservation_context * ctx)
 {
+	/* Restore original umask */
 	umask(ctx->orig_umask);
 	debug("umask restored to %#4o", ctx->orig_umask);
+
+	/* Restore original current working directory.
+	 *
+	 * This part is more involved for the following reasons. While we hold an
+	 * O_PATH file descriptor that still points to the original working
+	 * directory, that directory may not be representable in the target mount
+	 * namespace. A quick example may be /custom that exists on the host but
+	 * not in the base snap of the application.
+	 *
+	 * If the path of the original working directory now maps to a different
+	 * inode we cannot use fchdir(2). One example of that is the /tmp
+	 * directory, which exists in both the host mount namespace and the
+	 * per-snap mount namespace but actually represents a different directory.
+	 *
+	 * if that directory is represented it may no longer point to the same
+	 * inode. For example the /tmp directory as it exists on the host is not
+	 * represented inside the execution environment. The /tmp directory inside
+	 * the snap is a specific sub-directory of the host's /tmp directory.
+	 **/
+
+	/* Read the target of symlink at /proc/self/<fd-of-orig-cwd> */
+	char fd_path[PATH_MAX];
+	char orig_cwd[PATH_MAX];
+	ssize_t nread;
+	sc_must_snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d",
+			 ctx->orig_cwd_fd);
+	nread = readlink(fd_path, orig_cwd, sizeof orig_cwd);
+	if (nread < 0) {
+		die("cannot read symbolic link target %s", fd_path);
+	}
+	if (nread == sizeof orig_cwd) {
+		die("cannot fit symbolic link target %s", fd_path);
+	}
+
+	/* Open path corresponding to the original working directory in the
+	 * execution environment. This may normally fail if the path no longer
+	 * exists here, this is not a fatal error. */
+	int inner_cwd_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	inner_cwd_fd = open(orig_cwd, O_PATH | O_CLOEXEC | O_NOFOLLOW);
+	if (inner_cwd_fd < 0 && errno != ENOENT) {
+		die("cannot open path of the original working directory %s (%d)", orig_cwd, errno);
+	}
+
+	if (inner_cwd_fd < 0) {
+		/* The original working directory does not exist in the execution
+		 * environment. Go to /var/lib/snapd/void instead. */
+		const char *sc_void_dir = "/var/lib/snapd/void";
+		if (chdir(sc_void_dir) < 0) {
+			die("cannot move to fallback directory %s",
+			    sc_void_dir);
+		}
+		debug("cannot represent original working directory %s",
+		      orig_cwd);
+		debug("the process has been placed in special void directory");
+	} else {
+		/* The original working directory exists in the execution environment
+		 * which lets us check if it points to the same inode as before. */
+		struct stat file_info_outer, file_info_inner;
+		if (fstat(ctx->orig_cwd_fd, &file_info_outer) < 0) {
+			die("cannot stat path of working directory in the host environment");
+		}
+		if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
+			die("cannot stat path of working directory in the execution environment");
+		}
+		if (file_info_outer.st_dev == file_info_inner.st_dev &&
+		    file_info_outer.st_ino == file_info_inner.st_ino) {
+			/* The path of the original working directory points to the same
+			 * inode as before. Use fchdir to change to that directory.
+			 *
+			 * Note that we cannot use ctx->orig_cwd_fd as that points to the
+			 * directory but in another mount namespace and using that causes
+			 * weird and undesired effects. */
+			if (fchdir(inner_cwd_fd) < 0) {
+				die("cannot restore original working directory via path descriptor: %s", orig_cwd);
+			}
+			debug("working directory restored to %s", orig_cwd);
+		} else {
+			/* The path of the original working directory points to a different
+			 * inode inside inside the execution environment and the host
+			 * environment. Use path-based chdir() to change to that directory.
+			 *
+			 * By the time this code runs we are already running as the
+			 * designated user so UNIX permissions are in effect. */
+			if (chdir(orig_cwd) < 0) {
+				die("cannot restore original working directory via path");
+			}
+			debug("working directory re-interpreted to %s",
+			      orig_cwd);
+		}
+	}
+}
+
+/**
+ *  sc_cleanup_preservation_context releases system resources.
+**/
+static void sc_cleanup_preservation_context(sc_preservation_context * ctx)
+{
+	sc_cleanup_close(&ctx->orig_cwd_fd);
 }
 
 static void enter_classic_execution_environment(void);
@@ -144,7 +260,9 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
-	sc_preservation_context prsv_ctx;
+	sc_preservation_context SC_CLEANUP(sc_cleanup_preservation_context)
+	    prsv_ctx = {
+	.orig_umask = 0,.orig_cwd_fd = -1};
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 

@@ -50,14 +50,6 @@
 
 #define MAX_BUF 1000
 
-/*!
- * The void directory.
- *
- * Snap confine moves to that directory in case it cannot retain the current
- * working directory across the pivot_root call.
- **/
-#define SC_VOID_DIR "/var/lib/snapd/void"
-
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -82,13 +74,6 @@ static void setup_private_mount(const char *snap_name)
 		die("cannot create temporary directory for private /tmp");
 	}
 
-	// chdir to '/' since the mount won't apply to the current directory
-	char *pwd = get_current_dir_name();
-	if (pwd == NULL)
-		die("cannot get current working directory");
-	if (chdir("/") != 0)
-		die("cannot change directory to '/'");
-
 	// MS_BIND is there from linux 2.4
 	sc_do_mount(tmpdir, "/tmp", NULL, MS_BIND, NULL);
 	// MS_PRIVATE needs linux > 2.6.11
@@ -97,10 +82,6 @@ static void setup_private_mount(const char *snap_name)
 	if (chown("/tmp/", 0, 0) < 0) {
 		die("cannot change ownership of /tmp");
 	}
-	// chdir to original directory
-	if (chdir(pwd) != 0)
-		die("cannot change current working directory to the original directory");
-	free(pwd);
 }
 
 // TODO: fold this into bootstrap
@@ -522,14 +503,6 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	 * base_snap_name out of the invocation argument and making
 	 * modifications local. */
 	const char *base_snap_name = inv->base_snap_name;
-	// Get the current working directory before we start fiddling with
-	// mounts and possibly pivot_root.  At the end of the whole process, we
-	// will try to re-locate to the same directory (if possible).
-	char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
-	vanilla_cwd = get_current_dir_name();
-	if (vanilla_cwd == NULL) {
-		die("cannot get the current working directory");
-	}
 	// Classify the current distribution, as claimed by /etc/os-release.
 	sc_distro distro = sc_classify_distro();
 	// Check which mode we should run in, normal or legacy.
@@ -623,17 +596,6 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 
 	// setup the security backend bind mounts
 	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
-
-	// Try to re-locate back to vanilla working directory. This can fail
-	// because that directory is no longer present.
-	if (chdir(vanilla_cwd) != 0) {
-		debug("cannot remain in %s, moving to the void directory",
-		      vanilla_cwd);
-		if (chdir(SC_VOID_DIR) != 0) {
-			die("cannot change directory to %s", SC_VOID_DIR);
-		}
-		debug("successfully moved to %s", SC_VOID_DIR);
-	}
 }
 
 static bool is_mounted_with_shared_option(const char *dir)

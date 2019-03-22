@@ -47,9 +47,6 @@ int sc_open_snap_discard_ns(void);
  * - creates private /tmp
  * - creates private /dev/pts
  * - processes mount profiles
- *
- * The function will also try to preserve the current working directory but if
- * this is impossible it will chdir to SC_VOID_DIR.
  **/
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  sc_invocation * inv);

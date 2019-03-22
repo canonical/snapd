@@ -60,8 +60,9 @@ restore: |
 
 execute: |
     # Run python0 with a hello.py script and redirect the logs to /var/lib/test/hello.log
-    # Run the script as a regular user for extra (lower) permissions.
-    lxc exec xenial -- su -c "snap run python0 /var/lib/test/hello.py >/var/lib/test/hello.log" ubuntu
+    # Run the script as a regular user for extra (lower) permissions. Since we run as the
+    # ubuntu user we need to move to a directory that the user has permissions to inhabit.
+    lxc exec xenial -- su -c "cd /home/ubuntu && snap run python0 /var/lib/test/hello.py >/var/lib/test/hello.log" ubuntu
 
     # Ensure that the logging worked correctly.
     lxc exec xenial -- cat /var/lib/test/hello.log | MATCH 'Hello Python From Beyond'
