@@ -122,7 +122,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	})
 
 	s.Lock()
-	perftimings.Save(s)
+	perfTimings.Save(s)
 	s.Unlock()
 
 	return m, nil

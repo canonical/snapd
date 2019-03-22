@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -44,7 +45,9 @@ type backendSuite struct {
 	ifacetest.BackendSuite
 
 	parserCmd *testutil.MockCmd
-	meas      *timings.Span
+
+	perf *timings.Timings
+	meas *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
@@ -93,8 +96,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
-	perf := timings.New(nil)
-	s.meas = perf.StartSpan("", "")
+	s.perf = timings.New(nil)
+	s.meas = s.perf.StartSpan("", "")
 
 	err := os.MkdirAll(dirs.AppArmorCacheDir, 0700)
 	c.Assert(err, IsNil)
@@ -178,6 +181,42 @@ func (s *backendSuite) TestInstallingSnapWithoutAppsOrHooksDoesntAddProfiles(c *
 	// an execution environment and the corresponding mount namespace.
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", gadgetYaml, 1)
 	c.Check(s.parserCmd.Calls(), HasLen, 0)
+}
+
+func (s *backendSuite) TestTimings(c *C) {
+	oldDurationThreshold := timings.DurationThreshold
+	defer func() {
+		timings.DurationThreshold = oldDurationThreshold
+	}()
+	timings.DurationThreshold = 0
+
+	for _, opts := range testedConfinementOpts {
+		perf := timings.New(nil)
+		meas := perf.StartSpan("", "")
+
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		c.Assert(s.Backend.Setup(snapInfo, opts, s.Repo, meas), IsNil)
+
+		st := state.New(nil)
+		st.Lock()
+		defer st.Unlock()
+		perf.Save(st)
+
+		var allTimings []map[string]interface{}
+		c.Assert(st.Get("timings", &allTimings), IsNil)
+		c.Assert(allTimings, HasLen, 1)
+
+		timings, ok := allTimings[0]["timings"]
+		c.Assert(ok, Equals, true)
+
+		c.Assert(timings, HasLen, 2)
+		timingsList, ok := timings.([]interface{})
+		c.Assert(ok, Equals, true)
+		tm := timingsList[0].(map[string]interface{})
+		c.Check(tm["label"], Equals, "load-profiles[changed]")
+
+		s.RemoveSnap(c, snapInfo)
+	}
 }
 
 func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
