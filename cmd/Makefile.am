@@ -291,7 +291,7 @@ if STATIC_LIBSELINUX
 snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libselinux)
 else
 snap_confine_snap_confine_extra_libs += $(SELINUX_LIBS)
-endif  # STATIC_LIBSECCOMP
+endif  # STATIC_LIBSELINUX
 endif  # SELINUX
 
 # an extra build that has additional debugging enabled at compile time
