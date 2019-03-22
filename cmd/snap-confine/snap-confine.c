@@ -38,12 +38,14 @@
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "cookie-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
 #include "seccomp-support.h"
 #include "snap-confine-args.h"
+#include "snap-confine-invocation.h"
 #include "udev-support.h"
 #include "user-support.h"
 
@@ -94,15 +96,6 @@ static void sc_maybe_fixup_udev(void)
 	}
 }
 
-typedef struct sc_invocation {
-	/* Things declared by the system. */
-	const char *base_snap_name;
-	const char *security_tag;
-	const char *snap_instance;
-	/* Things derived at runtime. */
-	bool is_normal_mode;
-} sc_invocation;
-
 static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    struct sc_apparmor *aa,
@@ -124,29 +117,15 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	const char *snap_instance = getenv("SNAP_INSTANCE_NAME");
-	if (snap_instance == NULL) {
+	/* Collect all invocation parameters. This gives us authoritative
+	 * information about what needs to be invoked and how. The data comes
+	 * from either the environment or from command line arguments */
+	sc_invocation SC_CLEANUP(sc_cleanup_invocation) invocation;
+	const char *snap_instance_name_env = getenv("SNAP_INSTANCE_NAME");
+	if (snap_instance_name_env == NULL) {
 		die("SNAP_INSTANCE_NAME is not set");
 	}
-	sc_instance_name_validate(snap_instance, NULL);
-
-	// Collect and validate the security tag and a few other things passed on
-	// command line.
-	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag, snap_instance)) {
-		die("security tag %s not allowed", security_tag);
-	}
-	const char *executable = sc_args_executable(args);
-	const char *base_snap_name = sc_args_base_snap(args) ? : "core";
-	bool classic_confinement = sc_args_is_classic_confinement(args);
-
-	sc_snap_name_validate(base_snap_name, NULL);
-
-	debug("security tag: %s", security_tag);
-	debug("executable:   %s", executable);
-	debug("confinement:  %s",
-	      classic_confinement ? "classic" : "non-classic");
-	debug("base snap:    %s", base_snap_name);
+	sc_init_invocation(&invocation, args, snap_instance_name_env);
 
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;
@@ -176,9 +155,10 @@ int main(int argc, char **argv)
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
-	if (!sc_is_hook_security_tag(security_tag)) {
+	if (!sc_is_hook_security_tag(invocation.security_tag)) {
 		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-		snap_context = sc_cookie_get_from_snapd(snap_instance, &err);
+		snap_context =
+		    sc_cookie_get_from_snapd(invocation.snap_instance, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));
 		}
@@ -197,24 +177,13 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
-
-	/* Invocation helps to pass relevant data to various parts of snap-confine. */
-	sc_invocation invocation = {
-		.snap_instance = snap_instance,
-		.base_snap_name = base_snap_name,
-		.security_tag = security_tag,
-		/* is_normal_mode is not probed yet */
-	};
-	/* For the ease of introducing inv to the if branch below. */
-	sc_invocation *inv = &invocation;
-	struct sc_apparmor *aa = &apparmor;
-
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
-		if (classic_confinement) {
+		if (invocation.classic_confinement) {
 			enter_classic_execution_environment();
 		} else {
-			enter_non_classic_execution_environment(inv, aa,
+			enter_non_classic_execution_environment(&invocation,
+								&apparmor,
 								real_uid,
 								real_gid,
 								saved_gid);
@@ -237,8 +206,8 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-	sc_maybe_aa_change_onexec(aa, security_tag);
-	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
+	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
+	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
 		sc_apply_global_seccomp_profile();
@@ -263,12 +232,12 @@ int main(int argc, char **argv)
 			die("permanently dropping privs did not work");
 	}
 	// and exec the new executable
-	argv[0] = (char *)executable;
-	debug("execv(%s, %s...)", executable, argv[0]);
+	argv[0] = (char *)invocation.executable;
+	debug("execv(%s, %s...)", invocation.executable, argv[0]);
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
-	execv(executable, (char *const *)&argv[0]);
+	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
 }
@@ -337,11 +306,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */
 	sc_fork_helper(group, aa);
-	int retval = sc_join_preserved_ns(group, aa,
-					  inv->base_snap_name,
-					  inv->snap_instance,
-					  snap_discard_ns_fd,
-					  inv->is_normal_mode);
+	int retval = sc_join_preserved_ns(group, aa, inv, snap_discard_ns_fd);
 	if (retval == ESRCH) {
 		/* Create and populate the mount namespace. This performs all
 		   of the bootstrapping mounts, pivots into the new root filesystem and
@@ -350,9 +315,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		sc_populate_mount_ns(aa,
-				     snap_update_ns_fd, inv->base_snap_name,
-				     inv->snap_instance, inv->is_normal_mode);
+		sc_populate_mount_ns(aa, snap_update_ns_fd, inv);
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
