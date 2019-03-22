@@ -538,14 +538,14 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 		sz  *snap.GadgetRelativeOffset
 		err string
 	}{
-		{"1234", &snap.GadgetRelativeOffset{"", 1234}, ""},
-		{"1234M", &snap.GadgetRelativeOffset{"", 1234 * 2 << 20}, ""},
-		{"4096M", &snap.GadgetRelativeOffset{"", 4096 * 2 << 20}, ""},
-		{"0", &snap.GadgetRelativeOffset{"", 0}, ""},
-		{"mbr+0", &snap.GadgetRelativeOffset{"mbr", 0}, ""},
-		{"foo+1234M", &snap.GadgetRelativeOffset{"foo", 1234 * 2 << 20}, ""},
-		{"foo+1G", &snap.GadgetRelativeOffset{"foo", 1 * 2 << 30}, ""},
-		{"foo+1G", &snap.GadgetRelativeOffset{"foo", 1 * 2 << 30}, ""},
+		{"1234", &snap.GadgetRelativeOffset{Offset: 1234}, ""},
+		{"1234M", &snap.GadgetRelativeOffset{Offset: 1234 * 2 << 20}, ""},
+		{"4096M", &snap.GadgetRelativeOffset{Offset: 4096 * 2 << 20}, ""},
+		{"0", &snap.GadgetRelativeOffset{}, ""},
+		{"mbr+0", &snap.GadgetRelativeOffset{RelativeTo: "mbr"}, ""},
+		{"foo+1234M", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1234 * 2 << 20}, ""},
+		{"foo+1G", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * 2 << 30}, ""},
+		{"foo+1G", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * 2 << 30}, ""},
 		{"foo+4097M", nil, `cannot parse relative offset "foo\+4097M": offset above 4G limit`},
 		{"foo+", nil, `cannot parse relative offset "foo\+": missing offset`},
 		{"foo+++12", nil, `cannot parse relative offset "foo\+\+\+12": cannot parse offset "\+\+12": .*`},
