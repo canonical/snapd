@@ -20,10 +20,12 @@
 package snap
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -58,6 +60,7 @@ type VolumeStructure struct {
 	ID          string          `yaml:"id"`
 	Filesystem  string          `yaml:"filesystem"`
 	Content     []VolumeContent `yaml:"content"`
+	Update      VolumeUpdate    `yaml:"update"`
 }
 
 type VolumeContent struct {
@@ -70,6 +73,11 @@ type VolumeContent struct {
 	Size        string `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
+}
+
+type VolumeUpdate struct {
+	Edition  editionNumber `yaml:"edition"`
+	Preserve []string      `yaml:"preserve"`
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
@@ -224,4 +232,20 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	}
 
 	return &gi, nil
+}
+
+type editionNumber uint32
+
+func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var es string
+	if err := unmarshal(&es); err != nil {
+		return errors.New(`cannot unmarshal "edition"`)
+	}
+
+	u, err := strconv.ParseUint(es, 10, 32)
+	if err != nil {
+		return fmt.Errorf(`"edition" must be a number, not %q`, es)
+	}
+	*e = editionNumber(u)
+	return nil
 }
