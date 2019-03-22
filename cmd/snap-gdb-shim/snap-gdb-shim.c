@@ -29,6 +29,13 @@ int main(int argc, char **argv)
 			printf("-%s-\n", argv[i]);
 		}
 	}
+        // check if we run as SUDO and if so switch to a normal user
+        const char *sudo_uid_env = getenv("SUDO_UID");
+        if (sudo_uid_env != NULL) {
+           int sudo_uid = atoi(sudo_uid_env);
+           if (sudo_uid != 0)
+              setuid(sudo_uid);
+        }
 	// signal gdb to stop here
 	printf("\n\n");
 	printf("Welcome to `snap run --gdb`.\n");
