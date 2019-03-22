@@ -620,7 +620,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s}, &gadget.Volume{Schema: tc.schema})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123}, &gadget.Volume{Schema: tc.schema})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -639,13 +639,16 @@ func mustParseStructure(c *C, s string) *gadget.VolumeStructure {
 func (s *gadgetYamlTestSuite) TestValidateRole(c *C) {
 	uuidType := `
 type: 21686148-6449-6E6F-744E-656564454649
+size: 1023
 `
 	bareType := `
 type: mbr
+size: 446
 `
 	invalidSystemDataLabel := uuidType + `
 role: system-data
 filesystem-label: foobar
+size: 123M
 `
 	mbrTooLarge := bareType + `
 role: mbr
@@ -655,14 +658,16 @@ role: mbr
 offset: 123`
 	mbrBadID := bareType + `
 role: mbr
-id: 123`
+id: 123
+size: 446`
 	mbrBadFilesystem := bareType + `
 role: mbr
 filesystem: vfat`
 	mbrNoneFilesystem := `
 type: bare
 role: mbr
-filesystem: none`
+filesystem: none
+size: 446`
 	typeAsMBRTooLarge := `
 type: mbr
 size: 467`
@@ -675,10 +680,15 @@ role: system-boot
 `
 	emptyRole := uuidType + `
 role: system-boot
+size: 123M
 `
 	bogusRole := uuidType + `
 role: foobar
+size: 123M
 `
+	legacyMBR := `
+type: mbr
+size: 446`
 	vol := &gadget.Volume{}
 	mbrVol := &gadget.Volume{Schema: "mbr"}
 	for i, tc := range []struct {
@@ -701,7 +711,7 @@ role: foobar
 		// filesystem: none is ok for MBR
 		{mustParseStructure(c, mbrNoneFilesystem), mbrVol, ""},
 		// legacy, type: mbr treated like role: mbr
-		{mustParseStructure(c, `type: mbr`), mbrVol, ""},
+		{mustParseStructure(c, legacyMBR), mbrVol, ""},
 		{mustParseStructure(c, typeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
 		// conflicting type/role
 		{mustParseStructure(c, typeConflictsRole), vol, `invalid role "system-data": conflicting type: "bare"`},
@@ -729,7 +739,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649"}, &gadget.Volume{})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123}, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -829,11 +839,13 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 func (s *gadgetYamlTestSuite) TestValidateStructureContent(c *C) {
 	bareOnlyOk := `
 type: bare
+size: 1M
 content:
   - image: foo.img
 `
 	bareMixed := `
 type: bare
+size: 1M
 content:
   - image: foo.img
   - source: foo
@@ -841,12 +853,14 @@ content:
 `
 	bareMissing := `
 type: bare
+size: 1M
 content:
   - offset: 123
 `
 	fsOk := `
 type: 21686148-6449-6E6F-744E-656564454649
 filesystem: ext4
+size: 1M
 content:
   - source: foo
     target: bar
@@ -854,6 +868,7 @@ content:
 	fsMixed := `
 type: 21686148-6449-6E6F-744E-656564454649
 filesystem: ext4
+size: 1M
 content:
   - source: foo
     target: bar
@@ -862,6 +877,7 @@ content:
 	fsMissing := `
 type: 21686148-6449-6E6F-744E-656564454649
 filesystem: ext4
+size: 1M
 content:
   - source: foo
 `
@@ -920,6 +936,25 @@ volumes:
           - image: pc-core.img
             offset-write: bad-name+123
 `
+	gadgetYamlBadOffsetWriteCrossingSize := gadgetYamlHeader + `
+      - name: other-name
+        type: bare
+        size: 1M
+        offset: 1M
+        offset-write: my-name-is+438
+        content:
+          - image: pc-core.img
+`
+	gadgetYamlBadContentOffsetWriteCrossingSize := gadgetYamlHeader + `
+      - name: other-name
+        type: bare
+        size: 1M
+        offset: 1M
+        content:
+          - image: pc-core.img
+            offset-write: my-name-is+438
+`
+
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
 
@@ -931,6 +966,19 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
+
+	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadOffsetWriteCrossingSize), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) offset-write crosses structure #0 \("my-name-is"\) size`)
+
+	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadContentOffsetWriteCrossingSize), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) offset-write crosses structure "my-name-is" size`)
+
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
@@ -939,12 +987,14 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "bare",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:   512,
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "21686148-6449-6E6F-744E-656564454649",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:   512,
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
@@ -952,6 +1002,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:       512,
 	}, gv)
 	c.Check(err, IsNil)
 }
@@ -963,6 +1014,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
+		Size:       512,
 	}, gv)
 	c.Check(err, IsNil)
 
@@ -970,6 +1022,86 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
+		Size:       512,
 	}, gv)
 	c.Check(err, ErrorMatches, `duplicate "preserve" entry "foo"`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
+
+	gv := &gadget.Volume{}
+
+	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:   "bare",
+		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, ErrorMatches, "missing size")
+
+	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, ErrorMatches, "missing size")
+
+	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		Size:       mustParseGadgetSize(c, "123M"),
+		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapPreceding(c *C) {
+	overlappingGadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        offset: 0
+        content:
+          - image: pc-boot.img
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 200
+        content:
+          - image: pc-core.img
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) overlaps with the preceding structure #0 \("mbr"\)`)
+
+}
+
+func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapOutOfOrder(c *C) {
+	outOfOrderGadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: overlaps-with-foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 200
+        content:
+          - image: pc-core.img
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454648
+        size: 1M
+        offset: 100
+        filesystem: vfat
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(outOfOrderGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #0 \("overlaps-with-foo"\) overlaps with the preceding structure #1 \("foo"\)`)
+
 }

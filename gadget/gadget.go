@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -284,6 +285,23 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	return &gi, nil
 }
 
+// PositionedStructure describes a VolumeStructure that has been positioned
+// within the volume
+type PositionedStructure struct {
+	*VolumeStructure
+	// StartOffset defines the start offset of the structure within the
+	// enclosing volume
+	StartOffset Size
+	// index of the structure definition in gadget YAML
+	index int
+}
+
+type byStartOffset []PositionedStructure
+
+func (b byStartOffset) Len() int           { return len(b) }
+func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
+
 func fmtIndexAndName(idx int, name string) string {
 	if name != "" {
 		return fmt.Sprintf("#%v (%q)", idx, name)
@@ -299,34 +317,89 @@ func validateVolume(name string, vol *Volume) error {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
-	structureNames := make(map[string]bool, len(vol.Structure))
+	// named structures, for cross-referencing relative offset-write names
+	knownStructures := make(map[string]*PositionedStructure, len(vol.Structure))
+	// for validating structure overlap
+	structures := make([]PositionedStructure, len(vol.Structure))
+
+	lastOffset := Size(0)
+	farthestEnd := Size(0)
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
-			return fmt.Errorf("invalid structure %s: %v", fmtIndexAndName(idx, s.Name), err)
+			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
+		start := s.Offset
+		if start == 0 {
+			start = lastOffset
+		}
+		end := start + s.Size
+		ps := PositionedStructure{
+			VolumeStructure: &vol.Structure[idx],
+			StartOffset:     start,
+			index:           idx,
+		}
+		structures[idx] = ps
 		if s.Name != "" {
-			if structureNames[s.Name] {
+			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
-			structureNames[s.Name] = true
+			// keep track of named structures
+			knownStructures[s.Name] = &ps
 		}
+
+		if end > farthestEnd {
+			farthestEnd = end
+		}
+		lastOffset = end
 	}
 
-	// validate relative offsets that reference other structures by name
-	for idx, s := range vol.Structure {
-		if s.OffsetWrite.RelativeTo != "" && !structureNames[s.OffsetWrite.RelativeTo] {
-			return fmt.Errorf("structure %v refers to an unknown structure %q",
-				fmtIndexAndName(idx, s.Name), s.OffsetWrite.RelativeTo)
+	// sort by starting offset
+	sort.Sort(byStartOffset(structures))
+
+	lastEnd := Size(0)
+	// cross structure validation:
+	// - relative offsets that reference other structures by name
+	// - positioned structure overlap
+	// use structures positioned within the volume
+	for pidx, ps := range structures {
+		if ps.OffsetWrite.RelativeTo != "" {
+			// offset-write using a named structure
+			other := knownStructures[ps.OffsetWrite.RelativeTo]
+			if other == nil {
+				return fmt.Errorf("structure %v refers to an unknown structure %q",
+					fmtIndexAndName(ps.index, ps.Name), ps.OffsetWrite.RelativeTo)
+			}
+			// offset is written as a 4-byte pointer value at offset-write address
+			if ps.OffsetWrite.Offset > (other.Size - SizeLBA48Pointer) {
+				return fmt.Errorf("structure %v offset-write crosses structure %v size",
+					fmtIndexAndName(ps.index, ps.Name), fmtIndexAndName(other.index, other.Name))
+			}
+
 		}
 
-		if !s.IsBare() {
+		if ps.StartOffset < lastEnd {
+			previous := structures[pidx-1]
+			return fmt.Errorf("structure %v overlaps with the preceding structure %v", fmtIndexAndName(ps.index, ps.Name), fmtIndexAndName(previous.index, previous.Name))
+		}
+		lastEnd = ps.StartOffset + ps.Size
+
+		if !ps.IsBare() {
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
-		for cidx, c := range s.Content {
-			if c.OffsetWrite.RelativeTo != "" && !structureNames[c.OffsetWrite.RelativeTo] {
+		for cidx, c := range ps.Content {
+			if c.OffsetWrite.RelativeTo == "" {
+				continue
+			}
+			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
+			if relativeToStructure == nil {
 				return fmt.Errorf("structure %v, content %v refers to an unknown structure %q",
-					fmtIndexAndName(idx, s.Name), fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
+					fmtIndexAndName(ps.index, ps.Name), fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
+			}
+			// offset is written as a 4-byte pointer value at offset-write address
+			if c.OffsetWrite.Offset > (relativeToStructure.Size - SizeLBA48Pointer) {
+				return fmt.Errorf("structure %v, content %v offset-write crosses structure %q size",
+					fmtIndexAndName(ps.index, ps.Name), fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}
 	}
@@ -334,6 +407,9 @@ func validateVolume(name string, vol *Volume) error {
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
+	if vs.Size == 0 {
+		return errors.New("missing size")
+	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
@@ -454,7 +530,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
 		}
 	case "mbr":
-		if vs.Size > 446 {
+		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}
 		if vs.Offset != 0 {
@@ -532,6 +608,9 @@ type Size uint64
 const (
 	SizeMiB = Size(2 << 20)
 	SizeGiB = Size(2 << 30)
+
+	SizeMBR          = Size(446)
+	SizeLBA48Pointer = Size(4)
 )
 
 func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
