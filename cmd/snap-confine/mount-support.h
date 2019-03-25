@@ -19,6 +19,7 @@
 #define SNAP_MOUNT_SUPPORT_H
 
 #include "../libsnap-confine-private/apparmor-support.h"
+#include "snap-confine-invocation.h"
 
 /**
  * Return a file descriptor referencing the snap-update-ns utility
@@ -51,7 +52,7 @@ int sc_open_snap_discard_ns(void);
  * this is impossible it will chdir to SC_VOID_DIR.
  **/
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const char *base_snap_name, const char *snap_name);
+			  sc_invocation * inv);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option.

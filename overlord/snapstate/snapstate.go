@@ -249,7 +249,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		var retain int
 		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
-			retain = 3
+			// on classic we only keep 2 copies by default
+			if release.OnClassic {
+				retain = 2
+			} else {
+				retain = 3
+			}
 		}
 		retain-- //  we're adding one
 
@@ -769,7 +774,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		return nil, nil, err
 	}
 
-	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
+	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -81,6 +81,7 @@ var api = []*Command{
 	findCmd,
 	snapsCmd,
 	snapCmd,
+	snapFileCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -100,6 +101,7 @@ var api = []*Command{
 	debugCmd,
 	snapshotCmd,
 	connectionsCmd,
+	modelCmd,
 }
 
 var (
@@ -180,20 +182,6 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage-interfaces",
 		GET:      interfacesConnectionsMultiplexer,
 		POST:     changeInterfaces,
-	}
-
-	// TODO: allow to post assertions for UserOK? they are verified anyway
-	assertsCmd = &Command{
-		Path:   "/v2/assertions",
-		UserOK: true,
-		GET:    getAssertTypeNames,
-		POST:   doAssert,
-	}
-
-	assertsFindManyCmd = &Command{
-		Path:   "/v2/assertions/{assertType}",
-		UserOK: true,
-		GET:    assertsFindMany,
 	}
 
 	stateChangeCmd = &Command{
@@ -1907,59 +1895,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
-	return SyncResponse(map[string][]string{
-		"types": asserts.TypeNames(),
-	}, nil)
-}
-
-func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	batch := assertstate.NewBatch()
-	_, err := batch.AddStream(r.Body)
-	if err != nil {
-		return BadRequest("cannot decode request body into assertions: %v", err)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-
-	if err := batch.Commit(state); err != nil {
-		return BadRequest("assert failed: %v", err)
-	}
-	// TODO: what more info do we want to return on success?
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: 200,
-	}
-}
-
-func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
-	assertTypeName := muxVars(r)["assertType"]
-	assertType := asserts.Type(assertTypeName)
-	if assertType == nil {
-		return BadRequest("invalid assert type: %q", assertTypeName)
-	}
-	headers := map[string]string{}
-	q := r.URL.Query()
-	for k := range q {
-		headers[k] = q.Get(k)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	db := assertstate.DB(state)
-	state.Unlock()
-
-	assertions, err := db.FindMany(assertType, headers)
-	if asserts.IsNotFound(err) {
-		return AssertResponse(nil, true)
-	} else if err != nil {
-		return InternalError("searching assertions failed: %v", err)
-	}
-	return AssertResponse(assertions, true)
-}
-
 type changeInfo struct {
 	ID      string      `json:"id"`
 	Kind    string      `json:"kind"`
@@ -2451,6 +2386,7 @@ func convertBuyError(err error) Response {
 		return InternalError("%v", err)
 	}
 }
+
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 
