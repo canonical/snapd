@@ -195,7 +195,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 		}
 		debug("cannot represent original working directory %s",
 		      orig_cwd);
-		debug("the process has been placed in special void directory");
+		debug("the process has been placed in the special void directory");
 	} else {
 		/* The original working directory exists in the execution environment
 		 * which lets us check if it points to the same inode as before. */
