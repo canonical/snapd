@@ -106,6 +106,7 @@ static void sc_maybe_fixup_udev(void)
 typedef struct sc_preserved_process_state {
 	mode_t orig_umask;
 	int orig_cwd_fd;
+	struct stat file_info_orig_cwd;
 } sc_preserved_process_state;
 
 /**
@@ -128,9 +129,13 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * 
 	 * directory. This is an O_PATH file descriptor. The descriptor is
 	 * used as explained below. */
 	proc_state->orig_cwd_fd =
-	    openat(AT_FDCWD, ".", O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	    openat(AT_FDCWD, ".",
+		   O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (proc_state->orig_cwd_fd < 0) {
 		die("cannot open path of the current working directory");
+	}
+	if (fstat(proc_state->orig_cwd_fd, &proc_state->file_info_orig_cwd) < 0) {
+		die("cannot stat path of the current working directory");
 	}
 	if (chdir("/") < 0) {
 		die("cannot move to /");
@@ -180,7 +185,8 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 * execution environment. This may normally fail if the path no longer
 	 * exists here, this is not a fatal error. */
 	int inner_cwd_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	inner_cwd_fd = open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	inner_cwd_fd =
+	    open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (inner_cwd_fd < 0 && errno != ENOENT) {
 		die("cannot open path of the original working directory %s (%d)", orig_cwd, errno);
 	}
@@ -195,19 +201,19 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 		}
 		debug("cannot represent original working directory %s",
 		      orig_cwd);
-		debug("the process has been placed in the special void directory");
+		debug
+		    ("the process has been placed in the special void directory");
 	} else {
 		/* The original working directory exists in the execution environment
 		 * which lets us check if it points to the same inode as before. */
-		struct stat file_info_outer, file_info_inner;
-		if (fstat(proc_state->orig_cwd_fd, &file_info_outer) < 0) {
-			die("cannot stat path of working directory in the host environment");
-		}
+		struct stat file_info_inner;
 		if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
 			die("cannot stat path of working directory in the execution environment");
 		}
-		if (file_info_outer.st_dev == file_info_inner.st_dev &&
-		    file_info_outer.st_ino == file_info_inner.st_ino) {
+		if (proc_state->file_info_orig_cwd.st_dev ==
+		    file_info_inner.st_dev
+		    && proc_state->file_info_orig_cwd.st_ino ==
+		    file_info_inner.st_ino) {
 			/* The path of the original working directory points to the same
 			 * inode as before. Use fchdir to change to that directory.
 			 *
