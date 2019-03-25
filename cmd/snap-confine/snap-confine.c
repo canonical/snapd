@@ -97,7 +97,7 @@ static void sc_maybe_fixup_udev(void)
 }
 
 /**
- * sc_preservation_context remembers clobbered state to restore.
+ * sc_preserved_process_state remembers clobbered state to restore.
  *
  * The umask is preserved and restored to ensure consistent permissions for
  * runtime system. The value is preserved and restored perfectly.
@@ -109,27 +109,32 @@ static void sc_maybe_fixup_udev(void)
  * cannot be restored then a special substitute of /var/lib/snapd/void is used
  * instead.
 **/
-typedef struct sc_preservation_context {
+typedef struct sc_preserved_process_state {
 	mode_t orig_umask;
-} sc_preservation_context;
+} sc_preserved_process_state;
 
 /**
- * sc_remember_preservation context stores values to restore later.
+ * sc_preserve_and_sanitize_process_state sanitizes process state.
+ *
+ * The original values are stored to be restored later. Currently only the
+ * umask is altered. It is set to zero to make the ownership of created files
+ * and directories more predictable.
 **/
-static void sc_remember_preservation_context(sc_preservation_context * ctx)
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * proc_state)
 {
 	/* Reset umask to zero, storing the old value. */
-	ctx->orig_umask = umask(0);
-	debug("umask reset, old umask was %#4o", ctx->orig_umask);
+	proc_state->orig_umask = umask(0);
+	debug("umask reset, old umask was %#4o", proc_state->orig_umask);
 }
 
 /**
- *  sc_restore_preservation_context restores values stored earlier.
+ *  sc_restore_process_state restores values stored earlier.
 **/
-static void sc_restore_preservation_context(const sc_preservation_context * ctx)
+static void sc_restore_process_state(const sc_preserved_process_state *
+				     proc_state)
 {
-	umask(ctx->orig_umask);
-	debug("umask restored to %#4o", ctx->orig_umask);
+	umask(proc_state->orig_umask);
+	debug("umask restored to %#4o", proc_state->orig_umask);
 }
 
 static void enter_classic_execution_environment(void);
@@ -144,14 +149,14 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
-	sc_preservation_context prsv_ctx;
+	sc_preserved_process_state proc_state;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
 	// Remember certain properties of the process that are clobbered by
 	// snap-confine during execution. Those are restored just before calling
 	// execv.
-	sc_remember_preservation_context(&prsv_ctx);
+	sc_preserve_and_sanitize_process_state(&proc_state);
 
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
@@ -279,8 +284,8 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
-	// Restore properties stored in the preservation context.
-	sc_restore_preservation_context(&prsv_ctx);
+	// Restore process state that was recorded earlier.
+	sc_restore_process_state(&proc_state);
 	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
