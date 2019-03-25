@@ -102,7 +102,6 @@ func (cmd *cmdWarnings) Execute(args []string) error {
 		// any wider than this and it gets hard to read
 		termWidth = 100
 	}
-	termWidth -= 3
 
 	esc := cmd.getEscapes()
 	w := tabWriter()
@@ -119,9 +118,10 @@ func (cmd *cmdWarnings) Execute(args []string) error {
 			if !warning.LastShown.IsZero() {
 				lastShown = cmd.fmtTime(warning.LastShown)
 			}
-			fmt.Fprintf(w, "expires-after:\t%s\n", quantity.FormatDuration(warning.ExpireAfter.Seconds()))
 			fmt.Fprintf(w, "acknowledged:\t%s\n", lastShown)
+			// TODO: cmd.fmtDuration() using timeutil.HumanDuration
 			fmt.Fprintf(w, "repeats-after:\t%s\n", quantity.FormatDuration(warning.RepeatAfter.Seconds()))
+			fmt.Fprintf(w, "expires-after:\t%s\n", quantity.FormatDuration(warning.ExpireAfter.Seconds()))
 		}
 		fmt.Fprintln(w, "warning: |")
 		printDescr(w, warning.Message, termWidth)

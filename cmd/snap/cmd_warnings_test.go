@@ -127,17 +127,17 @@ func (s *warningSuite) TestVerboseWarnings(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `
 first-occurrence:  2018-09-19T12:41:18Z
 last-occurrence:   2018-09-19T12:41:18Z
-expires-after:     28d0h
 acknowledged:      --
 repeats-after:     1d00h
+expires-after:     28d0h
 warning: |
   hello world number one
 ---
 first-occurrence:  2018-09-19T12:44:19Z
 last-occurrence:   2018-09-19T12:44:19Z
-expires-after:     28d0h
 acknowledged:      --
 repeats-after:     1d00h
+expires-after:     28d0h
 warning: |
   hello world number two
 `[1:])
