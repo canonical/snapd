@@ -120,7 +120,8 @@ typedef struct sc_preserved_process_state {
  * umask is altered. It is set to zero to make the ownership of created files
  * and directories more predictable.
 **/
-static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * proc_state)
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
+						   proc_state)
 {
 	/* Reset umask to zero, storing the old value. */
 	proc_state->orig_umask = umask(0);
@@ -237,7 +238,8 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 /**
  *  sc_cleanup_preserved_process_state releases system resources.
 **/
-static void sc_cleanup_preserved_process_state(sc_preserved_process_state * proc_state)
+static void sc_cleanup_preserved_process_state(sc_preserved_process_state *
+					       proc_state)
 {
 	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
@@ -254,8 +256,9 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
-	sc_preserved_process_state proc_state SC_CLEANUP(sc_cleanup_preserved_process_state) = {
-		.orig_umask = 0,.orig_cwd_fd = -1};
+	sc_preserved_process_state proc_state
+	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {
+	.orig_umask = 0,.orig_cwd_fd = -1};
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
