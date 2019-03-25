@@ -135,7 +135,10 @@ var adbSupportConnectedPlugAppArmor = `
 /run/udev/data/c189:* r,
 
 # Allow reading the serial number of all the USB devices.
-/sys/devices/**/usb*/*/serial r,
+# Note that this path encodes the physical connection topology (e.g. any USB
+# hubs you are using) and as such there are more recursive patterns than one
+# might otherwise see necessary on their own system.
+/sys/devices/**/usb*/**/serial r,
 `
 
 type adbSupportInterface struct {
