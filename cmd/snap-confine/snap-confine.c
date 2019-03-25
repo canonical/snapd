@@ -224,7 +224,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 			debug("working directory restored to %s", orig_cwd);
 		} else {
 			/* The path of the original working directory points to a different
-			 * inode inside inside the execution environment and the host
+			 * inode inside inside the execution environment than the host
 			 * environment. Use path-based chdir() to change to that directory.
 			 *
 			 * By the time this code runs we are already running as the
