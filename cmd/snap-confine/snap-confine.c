@@ -98,41 +98,38 @@ static void sc_maybe_fixup_udev(void)
 }
 
 /**
- * sc_preservation_context remembers clobbered state to restore.
+ * sc_preserved_process_state remembers clobbered state to restore.
  *
  * The umask is preserved and restored to ensure consistent permissions for
  * runtime system. The value is preserved and restored perfectly.
- *
- * The current working directory is preserved and possibly restored, if it
- * exists in the runtime execution environment. The limitation on the current
- * working directory is that not all paths that exist on the host filesystem
- * exist in the execution environment. When the current working directory
- * cannot be restored then a special substitute of /var/lib/snapd/void is used
- * instead.
 **/
-typedef struct sc_preservation_context {
+typedef struct sc_preserved_process_state {
 	mode_t orig_umask;
 	int orig_cwd_fd;
-} sc_preservation_context;
+} sc_preserved_process_state;
 
 /**
- * sc_remember_preservation context stores values to restore later.
+ * sc_preserve_and_sanitize_process_state sanitizes process state.
  *
- * In addition the function makes the following changes to the process:
+ * The following process state is sanitised:
  *  - the umask is set to 0
  *  - the current working directory is set to /
+ *
+ * The original values are stored to be restored later. Currently only the
+ * umask is altered. It is set to zero to make the ownership of created files
+ * and directories more predictable.
 **/
-static void sc_remember_preservation_context(sc_preservation_context * ctx)
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * proc_state)
 {
 	/* Reset umask to zero, storing the old value. */
-	ctx->orig_umask = umask(0);
-	debug("umask reset, old umask was %#4o", ctx->orig_umask);
+	proc_state->orig_umask = umask(0);
+	debug("umask reset, old umask was %#4o", proc_state->orig_umask);
 	/* Remember a file descriptor corresponding to the original working
 	 * directory. This is an O_PATH file descriptor. The descriptor is
 	 * used as explained below. */
-	ctx->orig_cwd_fd =
+	proc_state->orig_cwd_fd =
 	    openat(AT_FDCWD, ".", O_PATH | O_CLOEXEC | O_NOFOLLOW);
-	if (ctx->orig_cwd_fd < 0) {
+	if (proc_state->orig_cwd_fd < 0) {
 		die("cannot open path of the current working directory");
 	}
 	if (chdir("/") < 0) {
@@ -141,13 +138,14 @@ static void sc_remember_preservation_context(sc_preservation_context * ctx)
 }
 
 /**
- *  sc_restore_preservation_context restores values stored earlier.
+ *  sc_restore_process_state restores values stored earlier.
 **/
-static void sc_restore_preservation_context(const sc_preservation_context * ctx)
+static void sc_restore_process_state(const sc_preserved_process_state *
+				     proc_state)
 {
 	/* Restore original umask */
-	umask(ctx->orig_umask);
-	debug("umask restored to %#4o", ctx->orig_umask);
+	umask(proc_state->orig_umask);
+	debug("umask restored to %#4o", proc_state->orig_umask);
 
 	/* Restore original current working directory.
 	 *
@@ -173,7 +171,7 @@ static void sc_restore_preservation_context(const sc_preservation_context * ctx)
 	char orig_cwd[PATH_MAX];
 	ssize_t nread;
 	sc_must_snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d",
-			 ctx->orig_cwd_fd);
+			 proc_state->orig_cwd_fd);
 	nread = readlink(fd_path, orig_cwd, sizeof orig_cwd);
 	if (nread < 0) {
 		die("cannot read symbolic link target %s", fd_path);
@@ -206,7 +204,7 @@ static void sc_restore_preservation_context(const sc_preservation_context * ctx)
 		/* The original working directory exists in the execution environment
 		 * which lets us check if it points to the same inode as before. */
 		struct stat file_info_outer, file_info_inner;
-		if (fstat(ctx->orig_cwd_fd, &file_info_outer) < 0) {
+		if (fstat(proc_state->orig_cwd_fd, &file_info_outer) < 0) {
 			die("cannot stat path of working directory in the host environment");
 		}
 		if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
@@ -217,7 +215,7 @@ static void sc_restore_preservation_context(const sc_preservation_context * ctx)
 			/* The path of the original working directory points to the same
 			 * inode as before. Use fchdir to change to that directory.
 			 *
-			 * Note that we cannot use ctx->orig_cwd_fd as that points to the
+			 * Note that we cannot use proc_state->orig_cwd_fd as that points to the
 			 * directory but in another mount namespace and using that causes
 			 * weird and undesired effects. */
 			if (fchdir(inner_cwd_fd) < 0) {
@@ -241,11 +239,11 @@ static void sc_restore_preservation_context(const sc_preservation_context * ctx)
 }
 
 /**
- *  sc_cleanup_preservation_context releases system resources.
+ *  sc_cleanup_preserved_process_state releases system resources.
 **/
-static void sc_cleanup_preservation_context(sc_preservation_context * ctx)
+static void sc_cleanup_preserved_process_state(sc_preserved_process_state * proc_state)
 {
-	sc_cleanup_close(&ctx->orig_cwd_fd);
+	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
 
 static void enter_classic_execution_environment(void);
@@ -260,16 +258,15 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
-	sc_preservation_context SC_CLEANUP(sc_cleanup_preservation_context)
-	    prsv_ctx = {
-	.orig_umask = 0,.orig_cwd_fd = -1};
+	sc_preserved_process_state proc_state SC_CLEANUP(sc_cleanup_preserved_process_state) = {
+		.orig_umask = 0,.orig_cwd_fd = -1};
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
 	// Remember certain properties of the process that are clobbered by
 	// snap-confine during execution. Those are restored just before calling
 	// execv.
-	sc_remember_preservation_context(&prsv_ctx);
+	sc_preserve_and_sanitize_process_state(&proc_state);
 
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
@@ -397,8 +394,8 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
-	// Restore properties stored in the preservation context.
-	sc_restore_preservation_context(&prsv_ctx);
+	// Restore process state that was recorded earlier.
+	sc_restore_process_state(&proc_state);
 	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;

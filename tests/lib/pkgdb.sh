@@ -275,8 +275,16 @@ distro_install_package() {
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             ;;
         opensuse-*)
+            # packages may be downgraded in the repositories, which would be
+            # picked up next time we ran `zypper dup` and applied locally;
+            # however we only update the images periodically, in the meantime,
+            # when downgrades affect packages we need or have installed, `zypper
+            # in` may stop with the prompt asking the user about either breaking
+            # the installed packages or allowing downgrades, passing
+            # --allow-downgrade will make the installation proceed
+
             # shellcheck disable=SC2086
-            quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
+            quiet zypper install -y --allow-downgrade $ZYPPER_FLAGS "${pkg_names[@]}"
             ;;
         arch-*)
             # shellcheck disable=SC2086
