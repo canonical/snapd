@@ -62,9 +62,6 @@
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
 {
-	// TODO: remove after switching to global umask handling.
-	mode_t old_mask = umask(0);
-
 	// Create a 0700 base directory. This is the "base" directory that is
 	// protected from other users. This directory name is NOT randomly
 	// generated. This has several properties:
@@ -144,8 +141,6 @@ static void setup_private_mount(const char *snap_name)
 	if (chdir(pwd) < 0) {
 		die("cannot restore working directory to %s", pwd);
 	}
-	// TODO: remove after switching to global umask handling.
-	umask(old_mask);
 }
 
 // TODO: fold this into bootstrap
