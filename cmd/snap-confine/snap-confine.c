@@ -210,30 +210,26 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 		if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
 			die("cannot stat path of working directory in the execution environment");
 		}
+		/* Note that we cannot use proc_state->orig_cwd_fd as that points to the
+		 * directory but in another mount namespace and using that causes
+		 * weird and undesired effects.
+		 *
+		 * By the time this code runs we are already running as the
+		 * designated user so UNIX permissions are in effect. */
+		if (fchdir(inner_cwd_fd) < 0) {
+			die("cannot restore original working directory via path");
+		}
 		if (proc_state->file_info_orig_cwd.st_dev ==
 		    file_info_inner.st_dev
 		    && proc_state->file_info_orig_cwd.st_ino ==
 		    file_info_inner.st_ino) {
 			/* The path of the original working directory points to the same
-			 * inode as before. Use fchdir to change to that directory.
-			 *
-			 * Note that we cannot use proc_state->orig_cwd_fd as that points to the
-			 * directory but in another mount namespace and using that causes
-			 * weird and undesired effects. */
-			if (fchdir(inner_cwd_fd) < 0) {
-				die("cannot restore original working directory via path descriptor: %s", orig_cwd);
-			}
+			 * inode as before. */
 			debug("working directory restored to %s", orig_cwd);
 		} else {
 			/* The path of the original working directory points to a different
 			 * inode inside inside the execution environment than the host
-			 * environment. Use path-based chdir() to change to that directory.
-			 *
-			 * By the time this code runs we are already running as the
-			 * designated user so UNIX permissions are in effect. */
-			if (chdir(orig_cwd) < 0) {
-				die("cannot restore original working directory via path");
-			}
+			 * environment. */
 			debug("working directory re-interpreted to %s",
 			      orig_cwd);
 		}
