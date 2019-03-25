@@ -100,6 +100,7 @@ create_nested_core_vm(){
         echo "ssh not stablished, exiting..."
         exit 1
     fi
+    add_debug_output_on_nested_core_vm
 }
 
 start_nested_core_vm(){
@@ -114,6 +115,23 @@ start_nested_core_vm(){
     if ! wait_for_ssh; then
         systemctl restart nested-vm
     fi
+}
+
+add_debug_output_on_nested_core_vm(){
+    cat <<EOF > local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1
+ExecStartPre=/bin/touch /dev/iio:device0
+EOF
+    copy_remote local.conf
+    execute_remote "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+    execute_remote "sudo mv local.conf /etc/systemd/system/snapd.service.d"
+    execute_remote "sudo systemctl daemon-reload"
+    execute_remote "sudo systemctl stop snapd.socket snapd.service"
+    execute_remote "sudo systemctl start snapd.socket snapd.service"
+    rm -f local.conf
 }
 
 create_nested_classic_vm(){
