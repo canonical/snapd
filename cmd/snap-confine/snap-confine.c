@@ -128,7 +128,7 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * 
 	 * directory. This is an O_PATH file descriptor. The descriptor is
 	 * used as explained below. */
 	proc_state->orig_cwd_fd =
-	    openat(AT_FDCWD, ".", O_PATH | O_CLOEXEC | O_NOFOLLOW);
+	    openat(AT_FDCWD, ".", O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (proc_state->orig_cwd_fd < 0) {
 		die("cannot open path of the current working directory");
 	}
@@ -184,7 +184,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 * execution environment. This may normally fail if the path no longer
 	 * exists here, this is not a fatal error. */
 	int inner_cwd_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	inner_cwd_fd = open(orig_cwd, O_PATH | O_CLOEXEC | O_NOFOLLOW);
+	inner_cwd_fd = open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (inner_cwd_fd < 0 && errno != ENOENT) {
 		die("cannot open path of the original working directory %s (%d)", orig_cwd, errno);
 	}
