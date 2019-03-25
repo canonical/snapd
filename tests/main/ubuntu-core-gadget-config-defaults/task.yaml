@@ -6,7 +6,11 @@ systems: [ubuntu-core-16-64]
 
 environment:
     SERVICE/rsyslog: rsyslog
-    SERVICE/ssh: ssh
+    GADGET_FILE/rsyslog: gadget-rsyslog.yaml
+    SERVICE/ssh_common: ssh
+    GADGET_FILE/ssh_common: gadget-ssh-common.yaml
+    SERVICE/ssh_oneline: ssh
+    GADGET_FILE/ssh_oneline: gadget-ssh-oneline.yaml
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -21,6 +25,7 @@ prepare: |
     rm -rf /var/lib/snapd/state.json
     snap download --edge test-snapd-with-configure
     unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
+
     # fill in defaults
     TEST_SNAP_ID=
     if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
@@ -28,17 +33,11 @@ prepare: |
     else
         TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
     fi
-    cat >> squashfs-root/meta/gadget.yaml <<EOF
 
-    defaults:
-       ${TEST_SNAP_ID}:
-         a: A
-         b: B
-       system:
-         service:
-           $SERVICE:
-             disable: true
-    EOF
+    # Update hte gadget config file
+    cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
+    sed -i -e "s/TEST_SNAP_ID/$TEST_SNAP_ID/" squashfs-root/meta/gadget.yaml
+
     mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
@@ -51,6 +50,7 @@ prepare: |
     cp "$TESTSLIB"/assertions/developer1-pc-w-config.model /var/lib/snapd/seed/assertions
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
     cp test-snapd-with-configure_*.assert /var/lib/snapd/seed/assertions
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
 
@@ -60,9 +60,13 @@ restore: |
         exit
     fi
     echo "Undo the service disable"
-    systemctl unmask "$SERVICE.service" || true
-    systemctl enable "$SERVICE.service" || true
-    systemctl start "$SERVICE.service" || true
+    if [ "$SERVICE" = ssh ]; then
+        rm -f /etc/ssh/sshd_not_to_be_run
+    else
+        systemctl unmask "$SERVICE.service" || true
+        systemctl enable "$SERVICE.service" || true
+        systemctl start "$SERVICE.service" || true
+    fi
 
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
