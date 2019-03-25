@@ -160,11 +160,6 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 * that is the /tmp directory, which exists in both the host mount
 	 * namespace and the per-snap mount namespace but actually represents a
 	 * different directory.
-	 *
-	 * if that directory is represented it may no longer point to the same
-	 * inode. For example the /tmp directory as it exists on the host is not
-	 * represented inside the execution environment. The /tmp directory inside
-	 * the snap is a specific sub-directory of the host's /tmp directory.
 	 **/
 
 	/* Read the target of symlink at /proc/self/fd/<fd-of-orig-cwd> */
