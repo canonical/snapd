@@ -101,13 +101,6 @@ static void sc_maybe_fixup_udev(void)
  *
  * The umask is preserved and restored to ensure consistent permissions for
  * runtime system. The value is preserved and restored perfectly.
- *
- * The current working directory is preserved and possibly restored, if it
- * exists in the runtime execution environment. The limitation on the current
- * working directory is that not all paths that exist on the host filesystem
- * exist in the execution environment. When the current working directory
- * cannot be restored then a special substitute of /var/lib/snapd/void is used
- * instead.
 **/
 typedef struct sc_preserved_process_state {
 	mode_t orig_umask;
