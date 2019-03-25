@@ -10,7 +10,14 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local network-consumer
 
-    version_info="$(sed -n '2 s/# //p' < /var/lib/snapd/seccomp/bpf/snap.network-consumer.network-consumer.src)"
+    version_info="$($LIBEXECDIR/snapd/snap-seccomp version-info)"
+    if [ -d "$SNAP_MOUNT_DIR/core" ]; then
+        # core snap is not repacked with built snapd on core18
+        version_info="$($SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp version-info || true)"
+    fi
+    if [ -d "$SNAP_MOUNT_DIR/snapd" ]; then
+        version_info="$($SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp version-info || true)"
+    fi
     test -n "$version_info"
     cat <<EOF > bad-snap-seccomp
     #!/bin/sh
