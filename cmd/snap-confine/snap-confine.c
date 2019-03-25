@@ -189,9 +189,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	    open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (inner_cwd_fd < 0 && errno != ENOENT) {
 		die("cannot open path of the original working directory %s (%d)", orig_cwd, errno);
-	}
-
-	if (inner_cwd_fd < 0) {
+	} else if (inner_cwd_fd < 0 && errno == ENOENT) {
 		/* The original working directory does not exist in the execution
 		 * environment. Go to /var/lib/snapd/void instead. */
 		const char *sc_void_dir = "/var/lib/snapd/void";
