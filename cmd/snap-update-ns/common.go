@@ -33,36 +33,36 @@ type CommonProfileUpdateContext struct {
 	desiredProfilePath string
 }
 
-func (up *CommonProfileUpdateContext) Lock() (unlock func(), err error) {
+func (ctx *CommonProfileUpdateContext) Lock() (unlock func(), err error) {
 	return func() {}, nil
 }
 
-func (up *CommonProfileUpdateContext) Assumptions() *Assumptions {
+func (ctx *CommonProfileUpdateContext) Assumptions() *Assumptions {
 	return nil
 }
 
 // LoadDesiredProfile loads the desired mount profile.
-func (up *CommonProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(up.desiredProfilePath)
+func (ctx *CommonProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(ctx.desiredProfilePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", up.instanceName, err)
+		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", ctx.instanceName, err)
 	}
 	return profile, nil
 }
 
 // LoadCurrentProfile loads the current mount profile.
-func (up *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(up.currentProfilePath)
+func (ctx *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(ctx.currentProfilePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", up.instanceName, err)
+		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", ctx.instanceName, err)
 	}
 	return profile, nil
 }
 
 // SaveCurrentProfile saves the current mount profile.
-func (up *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
-	if err := profile.Save(up.currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", up.instanceName, err)
+func (ctx *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	if err := profile.Save(ctx.currentProfilePath); err != nil {
+		return fmt.Errorf("cannot save current mount profile of snap %q: %s", ctx.instanceName, err)
 	}
 	return nil
 }
