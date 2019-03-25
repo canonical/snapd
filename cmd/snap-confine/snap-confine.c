@@ -155,10 +155,11 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 * namespace. A quick example may be /custom that exists on the host but
 	 * not in the base snap of the application.
 	 *
-	 * If the path of the original working directory now maps to a different
-	 * inode we cannot use fchdir(2). One example of that is the /tmp
-	 * directory, which exists in both the host mount namespace and the
-	 * per-snap mount namespace but actually represents a different directory.
+	 * Also consider when the path of the original working directory now
+	 * maps to a different inode we cannot use fchdir(2). One example of
+	 * that is the /tmp directory, which exists in both the host mount
+	 * namespace and the per-snap mount namespace but actually represents a
+	 * different directory.
 	 *
 	 * if that directory is represented it may no longer point to the same
 	 * inode. For example the /tmp directory as it exists on the host is not
