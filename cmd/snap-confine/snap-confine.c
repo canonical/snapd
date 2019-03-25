@@ -138,6 +138,7 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
 	if (fstat(proc_state->orig_cwd_fd, &proc_state->file_info_orig_cwd) < 0) {
 		die("cannot stat path of the current working directory");
 	}
+	/* Move to the root directory. */
 	if (chdir("/") < 0) {
 		die("cannot move to /");
 	}
