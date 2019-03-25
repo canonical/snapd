@@ -166,7 +166,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 * the snap is a specific sub-directory of the host's /tmp directory.
 	 **/
 
-	/* Read the target of symlink at /proc/self/<fd-of-orig-cwd> */
+	/* Read the target of symlink at /proc/self/fd/<fd-of-orig-cwd> */
 	char fd_path[PATH_MAX];
 	char orig_cwd[PATH_MAX];
 	ssize_t nread;
