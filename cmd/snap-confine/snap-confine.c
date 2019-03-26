@@ -173,6 +173,10 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	char fd_path[PATH_MAX];
 	char orig_cwd[PATH_MAX];
 	ssize_t nread;
+	/* If the original working directory cannot be used for whatever reason then
+	 * move the process to a special void directory. */
+	const char *sc_void_dir = "/var/lib/snapd/void";
+
 	sc_must_snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d",
 			 proc_state->orig_cwd_fd);
 	nread = readlink(fd_path, orig_cwd, sizeof orig_cwd);
@@ -191,49 +195,52 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	    open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (inner_cwd_fd < 0 && errno != ENOENT) {
 		die("cannot open path of the original working directory %s (%d)", orig_cwd, errno);
-	} else if (inner_cwd_fd < 0 && errno == ENOENT) {
-		/* The original working directory does not exist in the execution
-		 * environment. Go to /var/lib/snapd/void instead. */
-		const char *sc_void_dir = "/var/lib/snapd/void";
-		if (chdir(sc_void_dir) < 0) {
-			die("cannot move to fallback directory %s",
-			    sc_void_dir);
-		}
-		debug("cannot represent original working directory %s",
-		      orig_cwd);
-		debug
-		    ("the process has been placed in the special void directory");
-	} else {
-		/* The original working directory exists in the execution environment
-		 * which lets us check if it points to the same inode as before. */
-		struct stat file_info_inner;
-		if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
-			die("cannot stat path of working directory in the execution environment");
-		}
-		/* Note that we cannot use proc_state->orig_cwd_fd as that points to the
-		 * directory but in another mount namespace and using that causes
-		 * weird and undesired effects.
-		 *
-		 * By the time this code runs we are already running as the
-		 * designated user so UNIX permissions are in effect. */
-		if (fchdir(inner_cwd_fd) < 0) {
-			die("cannot restore original working directory via path");
-		}
-		if (proc_state->file_info_orig_cwd.st_dev ==
-		    file_info_inner.st_dev
-		    && proc_state->file_info_orig_cwd.st_ino ==
-		    file_info_inner.st_ino) {
-			/* The path of the original working directory points to the same
-			 * inode as before. */
-			debug("working directory restored to %s", orig_cwd);
-		} else {
-			/* The path of the original working directory points to a different
-			 * inode inside inside the execution environment than the host
-			 * environment. */
-			debug("working directory re-interpreted to %s",
-			      orig_cwd);
-		}
 	}
+	if (inner_cwd_fd < 0) {
+		debug("cannot represent original working directory %s", orig_cwd);
+		goto the_void;
+	}
+
+	/* The original working directory exists in the execution environment
+	 * which lets us check if it points to the same inode as before. */
+	struct stat file_info_inner;
+	if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
+		die("cannot stat path of working directory in the execution environment");
+	}
+
+	/* Note that we cannot use proc_state->orig_cwd_fd as that points to the
+	 * directory but in another mount namespace and using that causes
+	 * weird and undesired effects.
+	 *
+	 * By the time this code runs we are already running as the
+	 * designated user so UNIX permissions are in effect. */
+	if (fchdir(inner_cwd_fd) < 0) {
+		if (errno == EPERM || errno == EACCES) {
+			debug("cannot access original working directory %s", orig_cwd);
+			goto the_void;
+		}
+		die("cannot restore original working directory via path");
+	}
+	if (proc_state->file_info_orig_cwd.st_dev ==
+		file_info_inner.st_dev
+		&& proc_state->file_info_orig_cwd.st_ino ==
+		file_info_inner.st_ino) {
+		/* The path of the original working directory points to the same
+		 * inode as before. */
+		debug("working directory restored to %s", orig_cwd);
+	} else {
+		/* The path of the original working directory points to a different
+		 * inode inside inside the execution environment than the host
+		 * environment. */
+		debug("working directory re-interpreted to %s",
+			  orig_cwd);
+	}
+	return;
+the_void:
+	if (chdir(sc_void_dir) < 0) {
+		die("cannot move to fallback directory %s", sc_void_dir);
+	}
+	debug("the process has been placed in the special void directory");
 }
 
 /**

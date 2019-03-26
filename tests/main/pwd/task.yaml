@@ -25,3 +25,8 @@ execute: |
     # The current working directory that does not exist in the snap mount
     # namespace is re-mapped to a special directory.
     test "$(mkdir -p /tmp/test && cd /tmp/test && test-snapd-sh -c pwd)" = "/var/lib/snapd/void" 
+    # The current working directory that does exist in the snap mount
+    # namespace but has permissions preventing the user to enter it (e.g.
+    # via a symlink attack in /tmp) is remapped to a special directory.
+    # FIXME: su doesn't have /snap/bin in PATH.
+    test "$(cd /root && su -c "snap run test-snapd-sh -c pwd" test)" = "/var/lib/snapd/void"
