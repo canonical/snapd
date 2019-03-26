@@ -251,7 +251,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
 		Defaults: map[string]map[string]interface{}{
-			"system":                           {"something": true},
+			"system": {"something": true},
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
 		},
 	})
