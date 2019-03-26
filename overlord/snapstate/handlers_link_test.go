@@ -795,8 +795,8 @@ func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 }
 
-func (s *linkSnapSuite) TestLinkSnapResetsRefreshPostponedTime(c *C) {
-	// When a snap is linked the refresh-postponed-time is reset to zero
+func (s *linkSnapSuite) TestLinkSnapResetsRefreshInhibitedTime(c *C) {
+	// When a snap is linked the refresh-inhibited-time is reset to zero
 	// to indicate a successful refresh. The old value is stored in task
 	// state for task undo logic.
 	s.state.Lock()
@@ -809,7 +809,7 @@ func (s *linkSnapSuite) TestLinkSnapResetsRefreshPostponedTime(c *C) {
 	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
-		RefreshPostponedTime: instant,
+		RefreshInhibitedTime: instant,
 	})
 
 	task := s.state.NewTask("link-snap", "")
@@ -832,14 +832,14 @@ func (s *linkSnapSuite) TestLinkSnapResetsRefreshPostponedTime(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.RefreshPostponedTime.IsZero(), Equals, true)
+	c.Check(snapst.RefreshInhibitedTime.IsZero(), Equals, true)
 
 	var oldTime time.Time
-	c.Assert(task.Get("old-refresh-postponed-time", &oldTime), IsNil)
+	c.Assert(task.Get("old-refresh-inhibited-time", &oldTime), IsNil)
 	c.Check(oldTime.Equal(instant), Equals, true)
 }
 
-func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshPostponedTime(c *C) {
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshInhibitedTime(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -850,7 +850,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshPostponedTime(c *C) {
 	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
-		RefreshPostponedTime: instant,
+		RefreshInhibitedTime: instant,
 	})
 
 	task := s.state.NewTask("link-snap", "")
@@ -878,5 +878,5 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshPostponedTime(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.RefreshPostponedTime.Equal(instant), Equals, true)
+	c.Check(snapst.RefreshInhibitedTime.Equal(instant), Equals, true)
 }

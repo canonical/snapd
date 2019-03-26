@@ -140,10 +140,10 @@ type SnapState struct {
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
 
-	// RefreshPostponedTime records the time when the refresh was first
-	// attempted but postponed because the snap was busy. This value is
+	// RefreshInhibitedime records the time when the refresh was first
+	// attempted but inhibited because the snap was busy. This value is
 	// reset on each successful refresh.
-	RefreshPostponedTime time.Time `json:"refresh-postponed-time,omitempty"`
+	RefreshInhibitedTime time.Time `json:"refresh-inhibited-time,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
