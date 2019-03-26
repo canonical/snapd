@@ -248,8 +248,8 @@
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ rw,
-    /tmp/snap.*/ w,
-    /tmp/snap.*/tmp/ w,
+    /tmp/snap.*/ rw,
+    /tmp/snap.*/tmp/ rw,
     mount options=(rw private) ->  /tmp/,
     mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
     mount fstype=devpts options=(rw) devpts -> /dev/pts/,

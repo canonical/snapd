@@ -494,7 +494,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadGadgetInfo(info, false)
-	c.Check(err, ErrorMatches, `cannot read gadget snap details: "edition" must be a number, not "borked"`)
+	c.Check(err, ErrorMatches, `cannot read gadget snap details: "edition" must be a positive number, not "borked"`)
+
+	broken = bytes.Replace(mockVolumeUpdateGadgetYaml, []byte("edition: 5"), []byte("edition: -5"), 1)
+	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), broken, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Check(err, ErrorMatches, `cannot read gadget snap details: "edition" must be a positive number, not "-5"`)
 }
 
 func (s *gadgetYamlTestSuite) TestUnmarshalGadgetSize(c *C) {
