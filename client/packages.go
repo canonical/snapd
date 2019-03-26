@@ -121,9 +121,9 @@ type FindOptions struct {
 	Private  bool
 	Prefix   bool
 	Query    string
+	CommonID string
 	Section  string
 	Scope    string
-	CommonID string
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")

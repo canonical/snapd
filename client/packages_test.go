@@ -191,12 +191,6 @@ func (cs *clientSuite) TestClientFindCommonID(c *check.C) {
 	c.Check(cs.req.URL.RawQuery, check.Equals, "common-id=org.kde.ktuberling.desktop")
 }
 
-func (cs *clientSuite) TestClientFindCommonIDAndQuery(c *check.C) {
-	_, _, _ = cs.cli.Find(&client.FindOptions{CommonID: "org.kde.ktuberling.desktop", Query: "potato"})
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
-	c.Check(cs.req.URL.RawQuery, check.Equals, "common-id=org.kde.ktuberling.desktop&q=potato")
-}
-
 func (cs *clientSuite) TestClientFindOne(c *check.C) {
 	_, _, _ = cs.cli.FindOne("foo")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
