@@ -20,11 +20,11 @@ execute: |
     # The current working directory that is visible in the snap mount namespace
     # but represents a different inode is re-interpreted to give the view on
     # the inside.
-    test "$(cd /tmp && test-snapd-sh -c pwd)" = "/tmp" 
+    test "$(cd /tmp && test-snapd-sh -c pwd)" = "/tmp"
     test "$(cd /tmp && test-snapd-sh -c 'stat -c %i .')" != "$(cd /tmp && stat -c %i .)"
     # The current working directory that does not exist in the snap mount
     # namespace is re-mapped to a special directory.
-    test "$(mkdir -p /tmp/test && cd /tmp/test && test-snapd-sh -c pwd)" = "/var/lib/snapd/void" 
+    test "$(mkdir -p /tmp/test && cd /tmp/test && test-snapd-sh -c pwd)" = "/var/lib/snapd/void"
     # The current working directory that does exist in the snap mount
     # namespace but has permissions preventing the user to enter it (e.g.
     # via a symlink attack in /tmp) is remapped to a special directory.
