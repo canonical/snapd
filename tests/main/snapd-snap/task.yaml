@@ -6,12 +6,13 @@ systems: [ubuntu-16.04-64]
 # Start early as it takes a long time.
 priority: 100
 
+prepare: |
+    snap install --classic snapcraft
+
 restore: |
-    apt autoremove -y snapcraft
+    snap remove snapcraft
 
 execute: |
-    echo "Installing snapscraft"
-    apt install -y snapcraft
     # shellcheck disable=SC2164
     cd "$PROJECT_PATH"
     snapcraft

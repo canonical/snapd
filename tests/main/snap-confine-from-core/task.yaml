@@ -11,7 +11,7 @@ prepare: |
 
 restore: |
     echo "Restoring host snap-confine"
-    chmod 4755 /usr/lib/snapd/snap-confine
+    chmod 6755 /usr/lib/snapd/snap-confine
 
 execute: |
     # shellcheck source=tests/lib/journalctl.sh

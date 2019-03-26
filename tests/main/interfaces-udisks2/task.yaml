@@ -17,6 +17,7 @@ environment:
 restore: |
     losetup -d "$MMCBLK_PATH" || true
     rm -f "$MMCBLK_PATH" "$FS_PATH"
+    rmdir -v "/media/$(id -un)" || true
 
 execute: |
     echo "The interface is not connected by default"

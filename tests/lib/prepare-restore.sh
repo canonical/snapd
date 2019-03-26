@@ -482,6 +482,13 @@ prepare_suite_each() {
             ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
+
+    find "$SNAP_MOUNT_DIR" "$LIBEXECDIR" "$MEDIA_DIR" "/var/snap/" -printf "%M %k %u:%g %p\n" > "$RUNTIME_STATE_PATH/invar.new"
+    if [ -e "$RUNTIME_STATE_PATH/invar" ]; then
+        diff -u "$RUNTIME_STATE_PATH/invar" "$RUNTIME_STATE_PATH/invar.new" || exit 1
+    else
+        mv "$RUNTIME_STATE_PATH/invar.new" "$RUNTIME_STATE_PATH/invar"
+    fi
 }
 
 restore_suite_each() {
