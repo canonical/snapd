@@ -194,6 +194,10 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			break;
 		}
 	}
+	// Terminate the parsed string. Note that the loop above does not copy
+	// the character.  The output is only explicitly terminated if the loop
+	// above encounters a space or an octal escape code that encodes the
+	// NIL character (which the kernel does not allow for).
 	output[output_idx] = '\0';
 	*offset += input_idx;
 #ifdef MOUNTINFO_DEBUG
