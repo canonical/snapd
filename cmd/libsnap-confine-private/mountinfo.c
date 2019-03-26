@@ -43,35 +43,34 @@
  * (10) mount source:  filesystem specific information or "none"
  * (11) super options:  per super block options
  **/
-static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
+static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
     __attribute__ ((nonnull(1)));
 
 /**
  * Free a sc_mountinfo structure and all its entries.
  **/
-static void sc_free_mountinfo(struct sc_mountinfo *info)
+static void sc_free_mountinfo(sc_mountinfo * info)
     __attribute__ ((nonnull(1)));
 
 /**
  * Free a sc_mountinfo entry.
  **/
-static void sc_free_mountinfo_entry(struct sc_mountinfo_entry *entry)
+static void sc_free_mountinfo_entry(sc_mountinfo_entry * entry)
     __attribute__ ((nonnull(1)));
 
-struct sc_mountinfo_entry *sc_first_mountinfo_entry(struct sc_mountinfo *info)
+sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo * info)
 {
 	return info->first;
 }
 
-struct sc_mountinfo_entry *sc_next_mountinfo_entry(struct sc_mountinfo_entry
-						   *entry)
+sc_mountinfo_entry *sc_next_mountinfo_entry(sc_mountinfo_entry * entry)
 {
 	return entry->next;
 }
 
-struct sc_mountinfo *sc_parse_mountinfo(const char *fname)
+sc_mountinfo *sc_parse_mountinfo(const char *fname)
 {
-	struct sc_mountinfo *info = calloc(1, sizeof *info);
+	sc_mountinfo *info = calloc(1, sizeof *info);
 	if (info == NULL) {
 		return NULL;
 	}
@@ -86,7 +85,7 @@ struct sc_mountinfo *sc_parse_mountinfo(const char *fname)
 	}
 	char *line SC_CLEANUP(sc_cleanup_string) = NULL;
 	size_t line_size = 0;
-	struct sc_mountinfo_entry *entry, *last = NULL;
+	sc_mountinfo_entry *entry, *last = NULL;
 	for (;;) {
 		errno = 0;
 		if (getline(&line, &line_size, f) == -1) {
@@ -112,7 +111,7 @@ struct sc_mountinfo *sc_parse_mountinfo(const char *fname)
 }
 
 static void show_buffers(const char *line, int offset,
-			 struct sc_mountinfo_entry *entry)
+			 sc_mountinfo_entry * entry)
 {
 #ifdef MOUNTINFO_DEBUG
 	fprintf(stderr, "Input buffer (first), with offset arrow\n");
@@ -142,7 +141,7 @@ static void show_buffers(const char *line, int offset,
 #endif				// MOUNTINFO_DEBUG
 }
 
-static char *parse_next_string_field(struct sc_mountinfo_entry *entry,
+static char *parse_next_string_field(sc_mountinfo_entry * entry,
 				     const char *line, int *offset)
 {
 	int offset_delta = 0;
@@ -165,7 +164,7 @@ static char *parse_next_string_field(struct sc_mountinfo_entry *entry,
 	return field;
 }
 
-static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
+static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 {
 	// NOTE: the sc_mountinfo structure is allocated along with enough extra
 	// storage to hold the whole line we are parsing. This is used as backing
@@ -189,8 +188,7 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	//
 	// If MOUNTINFO_DEBUG is defined then extra debugging is printed to stderr
 	// and this allows for visual analysis of what is going on.
-	struct sc_mountinfo_entry *entry =
-	    calloc(1, sizeof *entry + strlen(line) + 1);
+	sc_mountinfo_entry *entry = calloc(1, sizeof *entry + strlen(line) + 1);
 	if (entry == NULL) {
 		return NULL;
 	}
@@ -250,7 +248,7 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	return NULL;
 }
 
-void sc_cleanup_mountinfo(struct sc_mountinfo **ptr)
+void sc_cleanup_mountinfo(sc_mountinfo ** ptr)
 {
 	if (*ptr != NULL) {
 		sc_free_mountinfo(*ptr);
@@ -258,9 +256,9 @@ void sc_cleanup_mountinfo(struct sc_mountinfo **ptr)
 	}
 }
 
-static void sc_free_mountinfo(struct sc_mountinfo *info)
+static void sc_free_mountinfo(sc_mountinfo * info)
 {
-	struct sc_mountinfo_entry *entry, *next;
+	sc_mountinfo_entry *entry, *next;
 	for (entry = info->first; entry != NULL; entry = next) {
 		next = entry->next;
 		sc_free_mountinfo_entry(entry);
@@ -268,7 +266,7 @@ static void sc_free_mountinfo(struct sc_mountinfo *info)
 	free(info);
 }
 
-static void sc_free_mountinfo_entry(struct sc_mountinfo_entry *entry)
+static void sc_free_mountinfo_entry(sc_mountinfo_entry * entry)
 {
 	free(entry);
 }

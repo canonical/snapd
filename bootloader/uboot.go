@@ -17,14 +17,14 @@
  *
  */
 
-package partition
+package bootloader
 
 import (
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/partition/ubootenv"
 )
 
 type uboot struct{}

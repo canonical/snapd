@@ -275,8 +275,16 @@ distro_install_package() {
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             ;;
         opensuse-*)
+            # packages may be downgraded in the repositories, which would be
+            # picked up next time we ran `zypper dup` and applied locally;
+            # however we only update the images periodically, in the meantime,
+            # when downgrades affect packages we need or have installed, `zypper
+            # in` may stop with the prompt asking the user about either breaking
+            # the installed packages or allowing downgrades, passing
+            # --allow-downgrade will make the installation proceed
+
             # shellcheck disable=SC2086
-            quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
+            quiet zypper install -y --allow-downgrade $ZYPPER_FLAGS "${pkg_names[@]}"
             ;;
         arch-*)
             # shellcheck disable=SC2086
@@ -465,6 +473,17 @@ distro_install_build_snapd(){
         # shellcheck disable=SC2086
         distro_install_local_package $packages
 
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*)
+                # systemd caches SELinux policy data and subsequently attempts
+                # to create sockets with incorrect context, this installation of
+                # socket activated snaps fails, see:
+                # https://bugzilla.redhat.com/show_bug.cgi?id=1660141
+                # https://github.com/systemd/systemd/issues/9997
+                systemctl daemon-reexec
+                ;;
+        esac
+
         if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
@@ -599,8 +618,10 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                eatmydata
                 evolution-data-server
                 net-tools
+                sbuild
                 "
             ;;
     esac

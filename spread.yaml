@@ -86,10 +86,9 @@ backends:
                 manual: true
             - opensuse-15.0-64:
                 workers: 4
+                manual: true
             - opensuse-tumbleweed-64:
                 workers: 4
-                # tumbleweed image not available at the moment
-                manual: true
             - arch-linux-64:
                 workers: 4
 
@@ -498,6 +497,10 @@ prepare: |
         echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
         rm -f gai.conf
     fi
+    if command -v restorecon ; then
+        # restore proper context otherwise SELinux may complain
+        restorecon -v /etc/gai.conf
+    fi
 
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
@@ -513,6 +516,8 @@ prepare: |
         systemctl enable --now auditd.service
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # refresh metadatadata
+        zypper ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.

@@ -24,8 +24,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -33,14 +33,14 @@ import (
 // RemoveKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap.
 func RemoveKernelAssets(s snap.PlaceInfo) error {
-	bootloader, err := partition.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("no not remove kernel assets: %s", err)
 	}
 
 	// remove the kernel blob
 	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(bootloader.Dir(), blobName)
+	dstDir := filepath.Join(loader.Dir(), blobName)
 	if err := os.RemoveAll(dstDir); err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
 	}
 
-	bootloader, err := partition.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
@@ -67,13 +67,13 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 		forceKernelExtraction = true
 	}
 
-	if !forceKernelExtraction && bootloader.Name() == "grub" {
+	if !forceKernelExtraction && loader.Name() == "grub" {
 		return nil
 	}
 
 	// now do the kernel specific bits
 	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(bootloader.Dir(), blobName)
+	dstDir := filepath.Join(loader.Dir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func SetNextBoot(s *snap.Info) error {
 		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.Type)
 	}
 
-	bootloader, err := partition.FindBootloader()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot set next boot: %s", err)
 	}
@@ -160,7 +160,7 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 		return false
 	}
 
-	bootloader, err := partition.FindBootloader()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
@@ -193,7 +193,7 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := partition.FindBootloader()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false

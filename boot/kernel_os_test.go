@@ -27,9 +27,9 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -50,13 +50,13 @@ func (s *kernelOSSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(s.bootloader)
+	bootloader.Force(s.bootloader)
 }
 
 func (s *kernelOSSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-	partition.ForceBootloader(nil)
+	bootloader.Force(nil)
 }
 
 const packageKernel = `
@@ -114,7 +114,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	// pretend to be a grub system
 	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
-	partition.ForceBootloader(mockGrub)
+	bootloader.Force(mockGrub)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -143,7 +143,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	// pretend to be a grub system
 	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
-	partition.ForceBootloader(mockGrub)
+	bootloader.Force(mockGrub)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
