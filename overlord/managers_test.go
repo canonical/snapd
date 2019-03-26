@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -53,7 +54,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -1427,9 +1427,9 @@ version: @VERSION@
 // core & kernel
 
 func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1494,15 +1494,15 @@ type: os
 	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	// this is already set
-	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
+	c.Assert(loader.BootVars, DeepEquals, map[string]string{
 		"snap_try_core": "core_x1.snap",
 		"snap_mode":     "try",
 	})
 
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
-	bootloader.BootVars["snap_mode"] = ""
-	bootloader.BootVars["snap_core"] = "core_x1.snap"
+	loader.BootVars["snap_mode"] = ""
+	loader.BootVars["snap_core"] = "core_x1.snap"
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -1514,9 +1514,9 @@ type: os
 }
 
 func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1583,7 +1583,7 @@ type: kernel`
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
+	c.Assert(loader.BootVars, DeepEquals, map[string]string{
 		"snap_try_kernel": "pc-kernel_x1.snap",
 		"snap_mode":       "try",
 	})
