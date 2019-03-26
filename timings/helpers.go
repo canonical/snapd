@@ -34,6 +34,11 @@ func NewForTask(task *state.Task) *Timings {
 	return New(tags)
 }
 
+// SetTagFromChange sets "change-id" tag from the given change.
+func (t *Timings) SetTagFromChange(change *state.Change) {
+	t.SetTag("change-id", change.ID())
+}
+
 // Run creates, starts and then stops a nested Span under parent Measurer. The nested
 // Span is passed to the measured function and can used to create further spans.
 func Run(meas Measurer, label, summary string, f func(nestedTiming Measurer)) {

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 // the default refresh pattern
@@ -365,6 +366,9 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
+	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
+	tm := perfTimings.StartSpan("auto-refresh", "prepare auto-refresh change")
+
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
 	m.state.Set("last-refresh", time.Now())
@@ -389,11 +393,15 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
+	perfTimings.SetTagFromChange(chg)
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
+	tm.Stop()
+	perfTimings.Save(m.state)
 
 	return nil
 }

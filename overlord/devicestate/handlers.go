@@ -20,6 +20,7 @@ package devicestate
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
 
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
@@ -188,6 +190,9 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	device, err := auth.Device(st)
 	if err != nil {
 		return err
@@ -199,7 +204,10 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
-	keyPair, err := generateRSAKey(keyLength)
+	var keyPair *rsa.PrivateKey
+	timings.Run(perfTimings, "generate-key", "generating rsa key", func(tm timings.Measurer) {
+		keyPair, err = generateRSAKey(keyLength)
+	})
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
@@ -549,6 +557,9 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	device, err := auth.Device(st)
 	if err != nil {
 		return err
@@ -581,7 +592,10 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
 	}
 
-	serial, err := getSerial(t, privKey, device)
+	var serial *asserts.Serial
+	timings.Run(perfTimings, "get-serial", "", func(timings.Measurer) {
+		serial, err = getSerial(t, privKey, device)
+	})
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: retryInterval}

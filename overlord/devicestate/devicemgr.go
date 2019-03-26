@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -195,6 +196,8 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
+
 	device, err := auth.Device(m.state)
 	if err != nil {
 		return err
@@ -329,6 +332,9 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
+	perfTimings.SetTagFromChange(chg)
+	perfTimings.Save(m.state)
+
 	return nil
 }
 
@@ -339,6 +345,8 @@ var populateStateFromSeed = populateStateFromSeedImpl
 func (m *DeviceManager) ensureSeedYaml() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -353,7 +361,10 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := populateStateFromSeed(m.state)
+	var tsAll []*state.TaskSet
+	timings.Run(perfTimings, "state-from-seed", "", func(timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state)
+	})
 	if err != nil {
 		return err
 	}
@@ -363,11 +374,13 @@ func (m *DeviceManager) ensureSeedYaml() error {
 
 	msg := fmt.Sprintf("Initialize system state")
 	chg := m.state.NewChange("seed", msg)
+	perfTimings.SetTagFromChange(chg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
 	m.state.EnsureBefore(0)
 
+	perfTimings.Save(m.state)
 	return nil
 }
 
@@ -467,6 +480,7 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeedYaml(); err != nil {
 		errs = append(errs, err)
 	}
+
 	if err := m.ensureOperational(); err != nil {
 		errs = append(errs, err)
 	}
@@ -478,6 +492,9 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeedInConfig(); err != nil {
 		errs = append(errs, err)
 	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
 
 	if len(errs) > 0 {
 		return &ensureError{errs}
