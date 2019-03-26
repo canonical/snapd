@@ -1093,9 +1093,9 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 // A Search is what you do in order to Find something
 type Search struct {
 	Query    string
+	CommonID string
 	Section  string
 	Scope    string
-	CommonID string
 	Private  bool
 	Prefix   bool
 }
