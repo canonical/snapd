@@ -141,7 +141,7 @@ type SnapState struct {
 	InstanceKey string `json:"instance-key,omitempty"`
 
 	// RefreshPostponedTime records the time when the refresh was first
-	// attempted but postponed for because the snap was busy. This value is
+	// attempted but postponed because the snap was busy. This value is
 	// reset on each successful refresh.
 	RefreshPostponedTime time.Time `json:"refresh-postponed-time,omitempty"`
 }
