@@ -100,7 +100,9 @@ func checkSquashfsMount() error {
 	}
 	options := []string{"-t", fstype}
 	if release.SELinuxLevel() != release.NoSELinux {
-		options = append(options, "-o", fmt.Sprintf("context=%s", selinux.SnapMountContext()))
+		if ctx := selinux.SnapMountContext(); ctx != "" {
+			options = append(options, "-o", "context="+ctx)
+		}
 	}
 	options = append(options, tmpSquashfsFile.Name(), tmpMountDir)
 	cmd := exec.Command("mount", options...)
