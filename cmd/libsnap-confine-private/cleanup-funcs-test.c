@@ -66,7 +66,7 @@ static void test_cleanup_file(void)
 	sc_cleanup_file(&f);
 
 	/* It is safe to use with a non-NULL FILE. */
-	f = fmemopen(NULL, 0, "rt");
+	f = fmemopen(NULL, 10, "rt");
 	g_assert_nonnull(f);
 	sc_cleanup_file(&f);
 	g_assert_null(f);
