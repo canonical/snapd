@@ -809,7 +809,7 @@ func (s *linkSnapSuite) TestLinkSnapResetsRefreshInhibitedTime(c *C) {
 	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
-		RefreshInhibitedTime: instant,
+		RefreshInhibitedTime: &instant,
 	})
 
 	task := s.state.NewTask("link-snap", "")
@@ -832,7 +832,7 @@ func (s *linkSnapSuite) TestLinkSnapResetsRefreshInhibitedTime(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.RefreshInhibitedTime.IsZero(), Equals, true)
+	c.Check(snapst.RefreshInhibitedTime, IsNil)
 
 	var oldTime time.Time
 	c.Assert(task.Get("old-refresh-inhibited-time", &oldTime), IsNil)
@@ -850,7 +850,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshInhibitedTime(c *C) {
 	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
-		RefreshInhibitedTime: instant,
+		RefreshInhibitedTime: &instant,
 	})
 
 	task := s.state.NewTask("link-snap", "")

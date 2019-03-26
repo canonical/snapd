@@ -944,8 +944,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
 
 	// Record the fact that the snap was refreshed successfully.
-	var zeroTime time.Time
-	snapst.RefreshInhibitedTime = zeroTime
+	snapst.RefreshInhibitedTime = nil
 
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.InstanceName(), snapst)
@@ -1097,7 +1096,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-candidate-index", &oldCandidateIndex); err != nil {
 		return err
 	}
-	var oldRefreshInhibitedTime time.Time
+	var oldRefreshInhibitedTime *time.Time
 	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && err != state.ErrNoState {
 		return err
 	}
