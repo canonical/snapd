@@ -210,15 +210,15 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
+#ifdef HAVE_SELINUX
+	// For classic and confined snaps
+	sc_selinux_set_snap_execcon();
+#endif
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
 		sc_apply_global_seccomp_profile();
 	}
-#ifdef HAVE_SELINUX
-	// For classic and confined snaps
-	sc_selinux_set_snap_execcon();
-#endif
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
