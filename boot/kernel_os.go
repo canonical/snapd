@@ -63,7 +63,7 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 
 	// XXX: should we use "kernel.yaml" for this?
 	var forceKernelExtraction bool
-	if _, err := snapf.ReadFile("force-kernel-extraction"); err == nil {
+	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
 		forceKernelExtraction = true
 	}
 

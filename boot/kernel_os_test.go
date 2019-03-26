@@ -148,7 +148,7 @@ func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"force-kernel-extraction", ""},
+		{"meta/force-kernel-extraction", ""},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	si := &snap.SideInfo{
