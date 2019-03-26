@@ -171,6 +171,13 @@ func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	// initrd
 	initrdimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
+
+	// ensure that removal of assets also works
+	err = boot.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
 }
 
 func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
