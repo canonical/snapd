@@ -624,6 +624,24 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	private := false
 	prefix := false
 
+	if sel := query.Get("select"); sel != "" {
+		switch sel {
+		case "refresh":
+			if commonID != "" {
+				return BadRequest("cannot use 'common-id' with 'select=refresh'")
+			}
+			if name != "" {
+				return BadRequest("cannot use 'name' with 'select=refresh'")
+			}
+			if q != "" {
+				return BadRequest("cannot use 'q' with 'select=refresh'")
+			}
+			return storeUpdates(c, r, user)
+		case "private":
+			private = true
+		}
+	}
+
 	if name != "" {
 		if q != "" {
 			return BadRequest("cannot use 'q' and 'name' together")
@@ -640,22 +658,8 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		q = name[:len(name)-1]
 	}
 
-	if sel := query.Get("select"); sel != "" {
-		switch sel {
-		case "refresh":
-			if commonID != "" {
-				return BadRequest("cannot use 'common-id' and 'select=refresh'")
-			}
-			if prefix {
-				return BadRequest("cannot use 'name' with 'select=refresh'")
-			}
-			if q != "" {
-				return BadRequest("cannot use 'q' with 'select=refresh'")
-			}
-			return storeUpdates(c, r, user)
-		case "private":
-			private = true
-		}
+	if commonID != "" && q != "" {
+		return BadRequest("cannot use 'common-id' and 'q' together")
 	}
 
 	theStore := getStore(c)

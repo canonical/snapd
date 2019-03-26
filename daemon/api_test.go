@@ -1943,33 +1943,6 @@ func (s *apiSuite) TestFindByCommonID(c *check.C) {
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{CommonID: "org.foo"})
 }
 
-func (s *apiSuite) TestFindByCommonIDAndQuery(c *check.C) {
-	s.daemon(c)
-
-	s.rsnaps = []*snap.Info{{
-		SideInfo: snap.SideInfo{
-			RealName: "store",
-		},
-		Publisher: snap.StoreAccount{
-			ID:          "foo-id",
-			Username:    "foo",
-			DisplayName: "Foo",
-			Validation:  "unproven",
-		},
-		CommonIDs: []string{"org.foo"},
-	}}
-	s.mockSnap(c, "name: store\nversion: 1.0")
-
-	req, err := http.NewRequest("GET", "/v2/find?common-id=org.foo&q=foo", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := searchStore(findCmd, req, nil).(*resp)
-
-	snaps := snapList(rsp.Result)
-	c.Assert(snaps, check.HasLen, 1)
-	c.Check(s.storeSearch, check.DeepEquals, store.Search{CommonID: "org.foo", Query: "foo"})
-}
-
 func (s *apiSuite) TestFindOne(c *check.C) {
 	s.daemon(c)
 
@@ -2029,14 +2002,37 @@ func (s *apiSuite) TestFindOneNotFound(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 404)
 }
 
-func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/find?select=refresh&q=foo", nil)
-	c.Assert(err, check.IsNil)
+func (s *apiSuite) TestFindRefreshNotOther(c *check.C) {
+	for _, other := range []string{"name", "q", "common-id"} {
+		req, err := http.NewRequest("GET", "/v2/find?select=refresh&"+other+"=foo*", nil)
+		c.Assert(err, check.IsNil)
 
-	rsp := searchStore(findCmd, req, nil).(*resp)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
+		rsp := searchStore(findCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot use '"+other+"' with 'select=refresh'")
+	}
+}
+
+func (s *apiSuite) TestFindNotTogether(c *check.C) {
+	queries := map[string]string{"q": "foo", "name": "foo*", "common-id": "foo"}
+	for ki, vi := range queries {
+		for kj, vj := range queries {
+			if ki == kj {
+				continue
+			}
+
+			req, err := http.NewRequest("GET", fmt.Sprintf("/v2/find?%s=%s&%s=%s", ki, vi, kj, vj), nil)
+			c.Assert(err, check.IsNil)
+
+			rsp := searchStore(findCmd, req, nil).(*resp)
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Status, check.Equals, 400)
+			exp1 := "cannot use '" + ki + "' and '" + kj + "' together"
+			exp2 := "cannot use '" + kj + "' and '" + ki + "' together"
+			c.Check(rsp.Result.(*errorResult).Message, check.Matches, exp1+"|"+exp2)
+		}
+	}
 }
 
 func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
