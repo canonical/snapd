@@ -590,11 +590,11 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide,context=%s
+Options=nodev,ro,x-gdu.hide,context=system_u:object_r:snappy_snap_t:s0
 
 [Install]
 WantedBy=multi-user.target
-`[1:], mockSnapPath, "system_u:object_r:snappy_snap_t:s0"))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
