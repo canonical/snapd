@@ -1,8 +1,8 @@
 summary: Check that upgrade works
 
 # arch: there is no snapd in arch repos
-# amazon, centos: enable when snapd hits EPEL
-systems: [-debian-sid-*, -arch-*, -amazon-*, -centos-*]
+# amazon: enable once it's possible to install snapd from EPEL
+systems: [-debian-sid-*, -arch-*, -amazon-*]
 
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
@@ -26,19 +26,24 @@ execute: |
 
         echo "Remove snapd and snap-confine"
         distro_purge_package snapd snap-confine || true
-        if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
-            distro_purge_package snapd-selinux || true
-        fi
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*)
+                distro_purge_package snapd-selinux || true
+                ;;
+        esac
 
         echo "Install previous snapd version from the store"
         distro_install_package snap-confine snapd
 
-        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-            # Services are not auto enabled or started on Arch
-            systemctl daemon-reload
-            systemctl restart snapd.socket
-            systemctl enable snapd.socket
-        fi
+        case "$SPREAD_SYSTEM" in
+            arch-*|centos-*)
+                # start the services on distros where that doesn't happen
+                # automnatically
+                systemctl daemon-reload
+                systemctl restart snapd.socket
+                systemctl enable snapd.socket
+                ;;
+        esac
 
         # need to be seeded to allow snap install
         if ! snap wait 2>&1|MATCH "unknown command" ; then

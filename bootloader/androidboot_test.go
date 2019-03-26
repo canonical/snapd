@@ -17,13 +17,13 @@
  *
  */
 
-package partition_test
+package bootloader_test
 
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/partition"
 )
 
 type androidBootTestSuite struct {
@@ -35,7 +35,7 @@ func (g *androidBootTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	// the file needs to exist for androidboot object to be created
-	partition.MockAndroidBootFile(c, 0644)
+	bootloader.MockAndroidBootFile(c, 0644)
 }
 
 func (g *androidBootTestSuite) TearDownTest(c *C) {
@@ -44,17 +44,17 @@ func (g *androidBootTestSuite) TearDownTest(c *C) {
 
 func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
 	dirs.GlobalRootDir = "/something/not/there"
-	a := partition.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot()
 	c.Assert(a, IsNil)
 }
 
 func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
-	a := partition.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot()
 	c.Assert(a, NotNil)
 }
 
 func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
-	a := partition.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot()
 	bootVars := map[string]string{"snap_mode": "try"}
 	a.SetBootVars(bootVars)
 

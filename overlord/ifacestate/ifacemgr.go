@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
 
 type deviceData struct{ ifaceName, hotplugKey string }
@@ -55,6 +56,8 @@ type InterfaceManager struct {
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	delayedCrossMgrInit()
 
+	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
+
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
@@ -69,7 +72,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		hotplugDevicePaths:   make(map[string][]deviceData),
 	}
 
-	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
+	if err := m.initialize(extraInterfaces, extraBackends, perfTimings); err != nil {
 		return nil, err
 	}
 
@@ -117,6 +120,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 		return false
 	})
+
+	s.Lock()
+	perfTimings.Save(s)
+	s.Unlock()
 
 	return m, nil
 }
@@ -182,6 +189,7 @@ type ConnectionState struct {
 	DynamicPlugAttrs map[string]interface{}
 	StaticSlotAttrs  map[string]interface{}
 	DynamicSlotAttrs map[string]interface{}
+	HotplugGone      bool
 }
 
 // ConnectionStates return the state of connections tracked by the manager
@@ -204,6 +212,7 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 			DynamicPlugAttrs: cstate.DynamicPlugAttrs,
 			StaticSlotAttrs:  cstate.StaticSlotAttrs,
 			DynamicSlotAttrs: cstate.DynamicSlotAttrs,
+			HotplugGone:      cstate.HotplugGone,
 		}
 	}
 	return connStateByRef, nil

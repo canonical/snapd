@@ -39,7 +39,9 @@ static void sc_context_free(context_t *ctx) {
 }
 
 /**
- * Set security context for the snap
+ * Set security context for the snap.
+ *
+ * Sets up SELinux context transition to unconfined_service_t.
  **/
 int sc_selinux_set_snap_execcon(void) {
     if (is_selinux_enabled() < 1) {
@@ -84,7 +86,7 @@ int sc_selinux_set_snap_execcon(void) {
         if (new_ctx_str == NULL) {
             die("cannot obtain updated SELinux context string");
         }
-        if (setexeccon(new_ctx_str) == -1) {
+        if (setexeccon(new_ctx_str) < 0) {
             die("cannot set SELinux exec context to %s", new_ctx_str);
         }
         debug("SELinux context after next exec: %s", new_ctx_str);

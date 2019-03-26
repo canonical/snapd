@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/interfaces"
@@ -57,7 +58,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -117,7 +117,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(s.bootloader)
+	bootloader.Force(s.bootloader)
 
 	s.restoreOnClassic = release.MockOnClassic(false)
 
@@ -169,7 +169,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
-	partition.ForceBootloader(nil)
+	bootloader.Force(nil)
 	dirs.SetRootDir("")
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
@@ -2606,9 +2606,24 @@ type testModel struct {
 	arch, base, kernel, gadget string
 }
 
+func (s *deviceMgrSuite) TestRemodelUnhappyNotSeeded(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", false)
+
+	newModel := s.makeModelAssertion(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	_, err := devicestate.Remodel(s.state, newModel)
+	c.Assert(err, ErrorMatches, "cannot remodel until fully seeded")
+}
+
 func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 
 	// set a model assertion
 	cur := map[string]string{

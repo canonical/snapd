@@ -119,6 +119,7 @@ var adbSupportVendors = map[int]string{
 	0x2a45: "MEIZU",
 	0x2a47: "BQ",
 	0x2a49: "UNOWHY",
+	0x2a70: "OnePlus",
 	0x2ae5: "FAIRPHONE",
 	0x413c: "DELL",
 	0x8087: "INTEL", // https://twitter.com/zygoon/status/1032233406564913152
