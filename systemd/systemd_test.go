@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
@@ -591,11 +590,11 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide,context=%s
+Options=nodev,ro,x-gdu.hide,context=system_u:object_r:snappy_snap_t:s0
 
 [Install]
 WantedBy=multi-user.target
-`[1:], mockSnapPath, selinux.SnapMountContext()))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {

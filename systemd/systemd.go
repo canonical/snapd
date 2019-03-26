@@ -551,8 +551,9 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 		options = append(options, newOptions...)
 		fstype = newFsType
 		if release.SELinuxLevel() != release.NoSELinux {
-			mountCtx := selinux.SnapMountContext()
-			options = append(options, fmt.Sprintf("context=%s", mountCtx))
+			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
+				options = append(options, "context="+mountCtx)
+			}
 		}
 	}
 	if osutil.IsDirectory(what) {
