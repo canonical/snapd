@@ -251,7 +251,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
 		Defaults: map[string]map[string]interface{}{
-			"system": {"something": true},
+			"system":                           {"something": true},
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
 		},
 	})
@@ -508,8 +508,8 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetSize(c *C) {
 		err string
 	}{
 		{"1234", 1234, ""},
-		{"1234M", 1234 * 2 << 20, ""},
-		{"1234G", 1234 * 2 << 30, ""},
+		{"1234M", 1234 * snap.SizeMiB, ""},
+		{"1234G", 1234 * snap.SizeGiB, ""},
 		{"0", 0, ""},
 		{"a0M", 0, `cannot parse size "a0M": no numerical prefix.*`},
 		{"-123", 0, `cannot parse size "-123": size cannot be negative`},
@@ -539,13 +539,13 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 		err string
 	}{
 		{"1234", &snap.GadgetRelativeOffset{Offset: 1234}, ""},
-		{"1234M", &snap.GadgetRelativeOffset{Offset: 1234 * 2 << 20}, ""},
-		{"4096M", &snap.GadgetRelativeOffset{Offset: 4096 * 2 << 20}, ""},
+		{"1234M", &snap.GadgetRelativeOffset{Offset: 1234 * snap.SizeMiB}, ""},
+		{"4096M", &snap.GadgetRelativeOffset{Offset: 4096 * snap.SizeMiB}, ""},
 		{"0", &snap.GadgetRelativeOffset{}, ""},
 		{"mbr+0", &snap.GadgetRelativeOffset{RelativeTo: "mbr"}, ""},
-		{"foo+1234M", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1234 * 2 << 20}, ""},
-		{"foo+1G", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * 2 << 30}, ""},
-		{"foo+1G", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * 2 << 30}, ""},
+		{"foo+1234M", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1234 * snap.SizeMiB}, ""},
+		{"foo+1G", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * snap.SizeGiB}, ""},
+		{"foo+1G", &snap.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * snap.SizeGiB}, ""},
 		{"foo+4097M", nil, `cannot parse relative offset "foo\+4097M": offset above 4G limit`},
 		{"foo+", nil, `cannot parse relative offset "foo\+": missing offset`},
 		{"foo+++12", nil, `cannot parse relative offset "foo\+\+\+12": cannot parse offset "\+\+12": .*`},
@@ -751,12 +751,15 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	}{
 		{"valid", ""},
 		{"still-valid", ""},
+		{"123volume", ""},
+		{"volume123", ""},
+		{"PC", ""},
+		{"PC123", ""},
+		{"UPCASE", ""},
 		// invalid
+		{"-valid", "invalid volume name"},
 		{"in+valid", "invalid volume name"},
-		{"123volume", "invalid volume name"},
-		{"volume123", "invalid volume name"},
 		{"with whitespace", "invalid volume name"},
-		{"UPCASE", "invalid volume name"},
 		{"", "invalid volume name"},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)

@@ -35,7 +35,7 @@ import (
 )
 
 var (
-	validVolumeName = regexp.MustCompile("^[a-z-]+$")
+	validVolumeName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]+$")
 	validTypeID     = regexp.MustCompile("^[0-9A-F]{2}$")
 	validGUUID      = regexp.MustCompile("^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
 )
@@ -74,6 +74,7 @@ type VolumeStructure struct {
 	Update      VolumeUpdate         `yaml:"update"`
 }
 
+// IsBare returns true if the structure is not using a filesystem.
 func (vs *VolumeStructure) IsBare() bool {
 	return vs.Filesystem == "none" || vs.Filesystem == ""
 }
@@ -244,7 +245,6 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 		default:
 			return nil, fmt.Errorf(errorFormat, "bootloader must be one of grub, u-boot or android-boot")
 		}
-
 	}
 	switch {
 	case bootloadersFound == 0:
@@ -256,7 +256,7 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	return &gi, nil
 }
 
-func indexAndName(idx int, name string) string {
+func fmtIndexAndName(idx int, name string) string {
 	if name != "" {
 		return fmt.Sprintf("#%v (%q)", idx, name)
 	}
@@ -274,11 +274,7 @@ func validateVolume(name string, vol *GadgetVolume) error {
 	structureNames := make(map[string]bool, len(vol.Structure))
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
-			maybeName := ""
-			if s.Name != "" {
-				maybeName = fmt.Sprintf("(%q)", s.Name)
-			}
-			return fmt.Errorf("invalid structure %v%s: %v", idx, maybeName, err)
+			return fmt.Errorf("invalid structure %s: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		if s.Name != "" {
 			structureNames[s.Name] = true
@@ -289,17 +285,17 @@ func validateVolume(name string, vol *GadgetVolume) error {
 	for idx, s := range vol.Structure {
 		if s.OffsetWrite.RelativeTo != "" && !structureNames[s.OffsetWrite.RelativeTo] {
 			return fmt.Errorf("structure %v refers to an unknown structure %q",
-				indexAndName(idx, s.Name), s.OffsetWrite.RelativeTo)
+				fmtIndexAndName(idx, s.Name), s.OffsetWrite.RelativeTo)
 		}
 
-		if s.Filesystem != "" && s.Filesystem != "none" {
+		if !s.IsBare() {
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
 		for cidx, c := range s.Content {
 			if c.OffsetWrite.RelativeTo != "" && !structureNames[c.OffsetWrite.RelativeTo] {
 				return fmt.Errorf("structure %v, content %v refers to an unknown structure %q",
-					indexAndName(idx, s.Name), indexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
+					fmtIndexAndName(idx, s.Name), fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}
 	}
@@ -495,6 +491,11 @@ func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // structure.
 type GadgetSize uint64
 
+const (
+	SizeMiB = GadgetSize(2 << 20)
+	SizeGiB = GadgetSize(2 << 30)
+)
+
 func (s *GadgetSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var gs string
 	if err := unmarshal(&gs); err != nil {
@@ -519,21 +520,21 @@ func ParseGadgetSize(gs string) (GadgetSize, error) {
 	if number < 0 {
 		return 0, errors.New("size cannot be negative")
 	}
-	var size uint64
+	var size GadgetSize
 	switch unit {
 	case "M":
 		// MiB
-		size = uint64(number) * 2 << 20
+		size = GadgetSize(number) * SizeMiB
 	case "G":
 		// GiB
-		size = uint64(number) * 2 << 30
+		size = GadgetSize(number) * SizeGiB
 	case "":
 		// straight bytes
-		size = uint64(number)
+		size = GadgetSize(number)
 	default:
 		return 0, fmt.Errorf("invalid suffix %q", unit)
 	}
-	return GadgetSize(size), nil
+	return size, nil
 }
 
 // GadgetRelativeOffset describes an offset where structure data is written at.
@@ -544,14 +545,13 @@ type GadgetRelativeOffset struct {
 	Offset     GadgetSize
 }
 
+// ParseGadgetRelativeOffset parses a string describing an offset that can be
+// expressed relative to a named structure, with the format: [<name>+]<size>.
 func ParseGadgetRelativeOffset(grs string) (*GadgetRelativeOffset, error) {
 	toWhat := ""
 	sizeSpec := grs
-	idx := strings.IndexRune(grs, '+')
-	if idx != -1 {
-		toWhat = grs[:idx]
-		sizeSpec = grs[idx+1:]
-
+	if idx := strings.IndexRune(grs, '+'); idx != -1 {
+		toWhat, sizeSpec = grs[:idx], grs[idx+1:]
 		if toWhat == "" {
 			return nil, errors.New("missing volume name")
 		}
@@ -564,8 +564,8 @@ func ParseGadgetRelativeOffset(grs string) (*GadgetRelativeOffset, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
 	}
-	if size > 4*2<<30 {
-		// above 4G
+	if size > 4*SizeGiB {
+		// above 4GB
 		return nil, fmt.Errorf("offset above 4G limit")
 	}
 
