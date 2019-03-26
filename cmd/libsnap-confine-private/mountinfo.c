@@ -194,7 +194,7 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			break;
 		}
 	}
-	output[output_idx] = 0;
+	output[output_idx] = '\0';
 	*offset += input_idx;
 #ifdef MOUNTINFO_DEBUG
 	fprintf(stderr,
