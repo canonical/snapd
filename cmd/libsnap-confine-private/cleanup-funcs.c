@@ -22,7 +22,7 @@
 
 void sc_cleanup_string(char **ptr)
 {
-	if (ptr != NULL) {
+	if (ptr != NULL && *ptr != NULL) {
 		free(*ptr);
 		*ptr = NULL;
 	}
