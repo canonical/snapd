@@ -1,5 +1,5 @@
 #!/usr/bin/make -f
-# This program allows one to, relatively easily, iterate on debian packaging in
+# This program allows one to, relatively easily, iterate on Debian packaging in
 # a way that is extremely close to that occurring in the real Debian archive.
 #
 # The key aspect is that packaging is done on a machine running Debian (either
