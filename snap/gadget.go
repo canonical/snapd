@@ -322,15 +322,15 @@ func validateVolumeStructure(vs *VolumeStructure, vol *GadgetVolume) error {
 		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
 	}
 
-	bare := vs.IsBare()
+	var contentChecker func(*VolumeContent) error
+
+	if vs.IsBare() {
+		contentChecker = validateBareContent
+	} else {
+		contentChecker = validateFilesystemContent
+	}
 	for i, c := range vs.Content {
-		var err error
-		if bare {
-			err = validateBareContent(&c)
-		} else {
-			err = validateFilesystemContent(&c)
-		}
-		if err != nil {
+		if err := contentChecker(&c); err != nil {
 			return fmt.Errorf("invalid content #%v: %v", i, err)
 		}
 	}
