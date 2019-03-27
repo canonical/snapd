@@ -46,7 +46,7 @@ jobs:
       script:
         - ./tests/lib/cla_check.py
     - stage: integration
-      name: spread
+      name: spread on ubuntu systems
       dist: xenial
       addons:
         apt:
@@ -56,7 +56,19 @@ jobs:
         # override the default install for language:go
         - true
       script:
-        - ./run-checks --spread
+        - ./run-checks --spread-ubuntu
+    - stage: integration
+      name: spread on other systems than ubuntu
+      dist: xenial
+      addons:
+        apt:
+          packages:
+          - xdelta3
+      install:
+        # override the default install for language:go
+        - true
+      script:
+        - ./run-checks --spread-no-ubuntu
 env:
   global:
     # SPREAD_LINODE_KEY
