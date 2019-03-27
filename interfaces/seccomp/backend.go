@@ -290,6 +290,7 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 	}
 
 	buffer.Write(defaultTemplate)
+	buffer.WriteString(barePrivDropSyscalls)
 	buffer.WriteString(snippetForTag)
 
 	// For systems with force-devmode we need to apply a workaround

@@ -278,7 +278,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
 		"open\n",
 		"getuid\n",
-		"setgroups 0 0\n",
+		"setresuid\n", // this is not random
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
