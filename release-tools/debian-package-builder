@@ -14,6 +14,13 @@
 # - prepare host environment:
 #   $ snap install multipass --classic --edge
 #   $ apt install apt-cacher-ng
+#		On Debian/Ubuntu:
+#		- apt install apt-cacher-ng
+#		On openSUSE:
+#		- zypper install apt-cacher-ng
+#		- echo "Remap-debrep: deb.debian.org/debian ; http://deb.debian.org/debian" >> /etc/apt-cacher-ng/acng.conf
+#		- systemctl enable --now apt-cacher-ng.service
+#
 # - prepare scratch build machine:
 #   $ ./debian-package-builder create-debian-10
 #   $ ./debian-package-builder prepare-debian-10
