@@ -33,7 +33,7 @@
 #   TIP: you can iterate on the packing and repeat this step!
 #   If you need to make patches to upstream snapd parts use the "debian-patches"
 #   branch from the same repository, where history is broken down. Then use
-#   $ git format-patches 2.37..HEAD
+#   $ git format-patches 2.37..HEAD (where 2.37 is the release you are working on)
 #   ...to export any changes made and place the generated patches as files in the
 #   "debian" branch, inside the directory ./debian/patches. Make sure each
 #   patch is listed in the file ./debian/patches/series. Then re-run
