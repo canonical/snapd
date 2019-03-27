@@ -1092,23 +1092,22 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 
 // A Search is what you do in order to Find something
 type Search struct {
-	Query   string
-	Section string
-	Scope   string
-	Private bool
-	Prefix  bool
+	Query    string
+	CommonID string
+	Section  string
+	Scope    string
+	Private  bool
+	Prefix   bool
 }
 
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
 func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
-	searchTerm := search.Query
-
 	if search.Private && user == nil {
 		return nil, ErrUnauthenticated
 	}
 
-	searchTerm = strings.TrimSpace(searchTerm)
+	searchTerm := strings.TrimSpace(search.Query)
 
 	// these characters might have special meaning on the search
 	// server, and don't form part of a reasonable search, so
@@ -1135,7 +1134,12 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	if search.Prefix {
 		q.Set("name", searchTerm)
 	} else {
-		q.Set("q", searchTerm)
+		if search.CommonID != "" {
+			q.Set("common_id", search.CommonID)
+		}
+		if searchTerm != "" {
+			q.Set("q", searchTerm)
+		}
 	}
 	if search.Section != "" {
 		q.Set("section", search.Section)
