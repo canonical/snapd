@@ -72,7 +72,7 @@ help:
 	@echo "NOTE: You must provide the source package yourself"
 	@echo "Please read the script for additional instructions."
 
-debian-9-url=https://cdimage.debian.org/mirror/cdimage/openstack/current/debian-9.6.4-20190118-openstack-amd64.qcow2
+debian-9-url=https://cdimage.debian.org/mirror/cdimage/openstack/current-9/debian-9-openstack-amd64.qcow2
 debian-10-url=https://cdimage.debian.org/mirror/cdimage/openstack/testing/debian-testing-openstack-amd64.qcow2
 
 .PHONY: create-debian-9
