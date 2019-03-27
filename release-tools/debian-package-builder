@@ -4,7 +4,7 @@
 #
 # The key aspect is that packaging is done on a machine running Debian (either
 # 9 or 10), with the real Debian kernel, with real build-packages (that is,
-# devoid of any patches potentially present only in Debian), with correct
+# devoid of any patches potentially present only in Ubuntu), with correct
 # pristine build environment, unspoiled by convenience packages often present on
 # workstation environments. 
 #
