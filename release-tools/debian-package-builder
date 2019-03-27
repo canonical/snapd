@@ -83,7 +83,7 @@ create-debian-10:
 .PHONY: prepare-debian-9 prepare-debian-10
 prepare-debian-9 prepare-debian-10: prepare-%:
 	$(remote) sudo mkdir -p /etc/apt/apt.conf.d/
-	$(remote) sudo sh -c 'echo "Acquire::HTTP::Proxy \"$(proxy_url)\";" > /etc/apt/apt.conf.d/00proxy'
+	$(remote) sudo sh -c 'echo "Acquire::http::Proxy \"$(proxy_url)\";" > /etc/apt/apt.conf.d/00proxy'
 	-$(remote) sudo apt-get update
 	$(remote) sudo apt-get dist-upgrade -y
 	$(remote) sudo apt-get install -y eatmydata $(packages)
