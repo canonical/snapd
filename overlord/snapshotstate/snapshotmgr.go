@@ -137,7 +137,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Auto)
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, &backend.Flags{Auto: snapshot.Auto})
 	return err
 }
 

@@ -490,7 +490,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, auto)
+	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, &backend.Flags{Auto: auto})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
@@ -564,7 +564,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, false)
+	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
