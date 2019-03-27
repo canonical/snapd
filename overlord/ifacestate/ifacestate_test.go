@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -220,6 +221,10 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.log = buf
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
+	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+		return "abcdef 1.2.3 1234abcd", nil
+	})
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -4053,6 +4058,45 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
 }
 
+func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
+	restore := interfaces.MockSystemKey(`{"core": "123"}`)
+	defer restore()
+
+	s.extraBackends = []interfaces.SecurityBackend{&ifacetest.TestSecurityBackend{BackendName: "fake"}}
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+
+	oldDurationThreshold := timings.DurationThreshold
+	defer func() {
+		timings.DurationThreshold = oldDurationThreshold
+	}()
+	timings.DurationThreshold = 0
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var allTimings []map[string]interface{}
+	c.Assert(s.state.Get("timings", &allTimings), IsNil)
+	c.Check(allTimings, HasLen, 1)
+
+	timings, ok := allTimings[0]["timings"]
+	c.Assert(ok, Equals, true)
+
+	// one backed expected; the other fake backend from test setup doesn't have a name and is ignored by regenerateAllSecurityProfiles
+	c.Assert(timings, HasLen, 1)
+	timingsList, ok := timings.([]interface{})
+	c.Assert(ok, Equals, true)
+	tm := timingsList[0].(map[string]interface{})
+	c.Check(tm["label"], Equals, "setup-security-backend")
+	c.Check(tm["summary"], Matches, `setup security backend "fake" for snap "consumer"`)
+
+	tags, ok := allTimings[0]["tags"]
+	c.Assert(ok, Equals, true)
+	c.Check(tags, DeepEquals, map[string]interface{}{"startup": "ifacemgr"})
+}
+
 func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
 	s.MockModel(c, nil)
 
@@ -5993,6 +6037,9 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
+	restore := ifacestate.MockHotplugRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
 	var order []int
 	_ = s.manager(c)
 	s.o.TaskRunner().AddHandler("witness", func(task *state.Task, tomb *tomb.Tomb) error {
