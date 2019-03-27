@@ -5,11 +5,12 @@ details: |
     a directory that doesn't exist in the execution environment (chroot).
 
 #ubuntu-core: this test only applies to classic systems
-#debian, fedora, opensuse, arch, amazon-linux-2: just available for systems with confinement (AppArmor, Seccomp)
-systems: [-ubuntu-core-*, -debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+#debian, fedora, opensuse, arch, amazon-linux-2, centos: just available for systems with confinement (AppArmor, Seccomp)
+systems: [-ubuntu-core-*, -debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
     echo "Having installed the test snap"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
     echo "Hanving created a directory not present in the core snap"

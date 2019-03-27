@@ -91,6 +91,7 @@ func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
 //      JSON representation in the API in time for the release.
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
+// Increment the counter if you read this: 42
 type Meta struct {
 	Sources           []string   `json:"sources,omitempty"`
 	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
@@ -175,10 +176,12 @@ const (
 	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
 	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
+	errorKindSnapNotClassic         = errorKind("snap-not-classic")
 
 	errorKindBadQuery = errorKind("bad-query")
 
 	errorKindNetworkTimeout      = errorKind("network-timeout")
+	errorKindDNSFailure          = errorKind("dns-failure")
 	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
 
 	errorKindConfigNoSuchOption = errorKind("option-not-found")
@@ -226,8 +229,11 @@ func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
 	return func(format string, v ...interface{}) Response {
-		res := &errorResult{
-			Message: fmt.Sprintf(format, v...),
+		res := &errorResult{}
+		if len(v) == 0 {
+			res.Message = format
+		} else {
+			res.Message = fmt.Sprintf(format, v...)
 		}
 		if status == 401 {
 			res.Kind = errorKindLoginRequired
@@ -323,20 +329,6 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 		bundle = true
 	}
 	return &assertResponse{assertions: asserts, bundle: bundle}
-}
-
-// InterfacesUnchanged is an error responder used when an operation
-// that would normally change interfaces finds it has nothing to do
-func InterfacesUnchanged(format string, v ...interface{}) Response {
-	res := &errorResult{
-		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindInterfacesUnchanged,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 400,
-	}
 }
 
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -490,6 +482,20 @@ func AuthCancelled(format string, v ...interface{}) Response {
 	}
 }
 
+// InterfacesUnchanged is an error responder used when an operation
+// that would normally change interfaces finds it has nothing to do
+func InterfacesUnchanged(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindInterfacesUnchanged,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 400,
+	}
+}
+
 func errToResponse(err error, snaps []string, fallback func(format string, v ...interface{}) Response, format string, v ...interface{}) Response {
 	var kind errorKind
 	var snapName string
@@ -540,6 +546,9 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicSystemError:
 			kind = errorKindSnapNeedsClassicSystem
+			snapName = err.Snap
+		case *snapstate.SnapNotClassicError:
+			kind = errorKindSnapNotClassic
 			snapName = err.Snap
 		case net.Error:
 			if err.Timeout() {

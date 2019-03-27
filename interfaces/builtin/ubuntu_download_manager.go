@@ -230,7 +230,6 @@ func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmo
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(downloadConnectedSlotAppArmor, old, new, -1)
 	old = "###PLUG_NAME###"
-	// TODO parallel-install: use of proper instance/store name
 	new = plug.Snap().InstanceName()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)

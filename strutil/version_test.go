@@ -37,6 +37,7 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 		res  int
 		err  error
 	}{
+		{"20000000000000000000", "020000000000000000000", 0, nil},
 		{"1.0", "2.0", -1, nil},
 		{"1.3", "1.2.2.2", 1, nil},
 		{"1.3", "1.3.1", -1, nil},
@@ -115,8 +116,11 @@ func (s *VersionTestSuite) TestVersionInvalid(c *C) {
 		valid bool
 	}{
 		{"1:2", false},
+		{"12:34", false},
+		{"1234:", false},
 		{"1--1", false},
 		{"1.0", true},
+		{"1234", true},
 	} {
 		res := strutil.VersionIsValid(t.ver)
 		c.Check(res, Equals, t.valid, Commentf("%q: %v but expected %v", t.ver, res, t.valid))

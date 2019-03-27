@@ -34,7 +34,7 @@ environment:
     SNAPD_CHANNEL: "$(HOST: echo ${SPREAD_SNAPD_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
-    DELTA_REF: 2.32.5
+    DELTA_REF: 2.37.4
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
     HTTP_PROXY: "$(HOST: echo $SPREAD_HTTP_PROXY)"
@@ -60,7 +60,9 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 6
-
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
@@ -72,18 +74,20 @@ backends:
                 workers: 6
             - debian-sid-64:
                 workers: 6
-                manual: true
 
-            - fedora-26-64:
-                workers: 4
-                manual: true
-            - fedora-27-64:
-                workers: 4
-                manual: true
             - fedora-28-64:
                 workers: 4
-
+                manual: true
+            - fedora-29-64:
+                workers: 6
             - opensuse-42.3-64:
+                workers: 4
+                # golang stack cannot compile anything, needs investigation
+                manual: true
+            - opensuse-15.0-64:
+                workers: 4
+                manual: true
+            - opensuse-tumbleweed-64:
                 workers: 4
             - arch-linux-64:
                 workers: 4
@@ -92,36 +96,69 @@ backends:
                 workers: 4
                 storage: preserve-size
 
+            - centos-7-64:
+                workers: 4
+                image: centos-7-64
+
+    google-upgrade:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-14.04-64:
+                workers: 1
+            - ubuntu-16.04-32:
+                workers: 1
+            - ubuntu-16.04-64:
+                workers: 1
+            - ubuntu-18.04-64:
+                workers: 1
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
+                workers: 1
+            - debian-9-64:
+                workers: 1
+            - fedora-29-64:
+                workers: 1
+            - arch-linux-64:
+                workers: 1
+            - amazon-linux-2-64:
+                workers: 1
+                storage: preserve-size
+            - centos-7-64:
+                workers: 1
+
+
     google-sru:
         type: google
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
+        halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
                 workers: 4
             - ubuntu-16.04-64:
                 workers: 4
-            - ubuntu-17.10-64:
-                workers: 4
             - ubuntu-18.04-64:
                 workers: 4
-
-    linode:
-        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        plan: 4GB
-        location: Fremont
-        halt-timeout: 2h
-        environment:
-            # Using proxy can help to accelerate testing in local conditions
-            # but it is unlikely anyone has a proxy that is addressable from
-            # Linode network. As such, don't honor host's SPREAD_HTTP_PROXY
-            # that was set globally above.
-            HTTP_PROXY: null
-            HTTPS_PROXY: null
-        systems:
-            - fedora-25-64:
+            - ubuntu-18.10-64:
+                image: ubuntu-1810
                 workers: 4
-                manual: true
+
+    google-nested:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        plan: n1-standard-2
+        halt-timeout: 2h
+        systems:
+            - ubuntu-16.04-64:
+                image: ubuntu-1604-64-virt-enabled
+                workers: 1
+            - ubuntu-18.04-64:
+                image: ubuntu-1804-64-virt-enabled
+                workers: 1
 
     qemu:
         systems:
@@ -160,6 +197,24 @@ backends:
             - ubuntu-18.10-32:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-19.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-32:
+                username: ubuntu
+                password: ubuntu
             - debian-sid-64:
                 username: debian
                 password: debian
@@ -169,10 +224,10 @@ backends:
             - debian-sid-64:
                 username: debian
                 password: debian
-            - fedora-26-64:
+            - fedora-27-64:
                 username: fedora
                 password: fedora
-            - fedora-27-64:
+            - fedora-28-64:
                 username: fedora
                 password: fedora
     autopkgtest:
@@ -265,6 +320,64 @@ backends:
             - ubuntu-18.10-arm64:
                 username: ubuntu
                 password: ubuntu
+            # Disco
+            - ubuntu-19.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Eccentric Eel (not final name!)
+            - ubuntu-19.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-19.10-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Flaming Falcon (not final name!)
+            - ubuntu-20.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-20.04-arm64:
+                username: ubuntu
+                password: ubuntu
+
     external:
         type: adhoc
         environment:
@@ -320,14 +433,27 @@ debug-each: |
 
         echo '# journal messages for snapd'
         get_journalctl_log -u snapd
-        echo '# apparmor denials '
-        dmesg --ctime | grep DENIED || true
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*|amazon-*)
+                if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
+                    ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
+                else
+                    ausearch -m AVC || true
+                fi
+                ;;
+            *)
+               echo '# apparmor denials '
+               dmesg --ctime | grep DENIED || true
+               ;;
+        esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
         echo '# snap interfaces'
         snap interfaces || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
+        echo '# free space'
+        df -h || true
     fi
 
 rename:
@@ -351,7 +477,7 @@ repack: |
         tar c current.delta >&4
     fi
 
-kill-timeout: 20m
+kill-timeout: 30m
 
 prepare: |
     # NOTE: This part of the code needs to be in spread.yaml as it runs before
@@ -371,6 +497,10 @@ prepare: |
         echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
         rm -f gai.conf
     fi
+    if command -v restorecon ; then
+        # restore proper context otherwise SELinux may complain
+        restorecon -v /etc/gai.conf
+    fi
 
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
@@ -381,18 +511,35 @@ prepare: |
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
         dnf --refresh -y makecache
+
+        # enable audit daemon
+        systemctl enable --now auditd.service
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # refresh metadatadata
+        zypper ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
         cat <<-EOF >> /etc/zypp/zypp.conf
-
     # added by spread tests
     download.max_silent_tries = 20
     EOF
-
     fi
+
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Possible that AppArmor was not started and is not enabled in the
+        # image, do both now
+        if systemctl show -p LoadState apparmor.service | MATCH 'LoadState=loaded' ; then
+            if ! systemctl is-enabled apparmor.service; then
+                systemctl enable apparmor.service
+            fi
+            systemctl start apparmor.service
+        else
+            exit 1
+        fi
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -407,7 +554,7 @@ prepare: |
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
-            amazon-*)
+            amazon-*|centos-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
@@ -434,6 +581,19 @@ prepare: |
     type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
 
+    if [ -e /etc/profile.d/go.sh ]; then
+        # Up until recently openSUSE golang packaging injected environment
+        # variables into the global shell profile. This caused issues across
+        # updates and was, in fact, entirely useless. As such, if we are
+        # working against an older image that still has that file, we can
+        # remove it and unset certain variables to avoid the problem.
+        unset GOBIN
+        unset GOARCH
+        unset GOROOT
+        unset GOOS
+        rm -f /etc/profile.d/go.sh
+    fi
+
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
@@ -443,12 +603,27 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
-    # XXX: something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
 
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        debug: |
+            systemctl status snapd.socket || true
+            journalctl -xe
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+    # Essential tests run inside the autopkgtest environment on each
+    # platform. Autopkgtest can be very slow so we cannot run all
+    # tests there without running into timeouts.
+    tests/smoke/:
+        summary: Essenial system level tests for snapd
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -494,6 +669,7 @@ suites:
           # _/twisted: _
           _/func: _
           _/funkyfunc: _
+          _/funcarg: _
 
     tests/regression/:
         summary: Regression tests for snapd
@@ -514,7 +690,16 @@ suites:
         systems: [-ubuntu-core-*, -opensuse-*]
         # autopkgtest runs against localhost which causes problems with
         # this test prepare
-        backends: [-autopkgtest]
+        backends: [google-upgrade]
+        prepare-each: |
+            # FIXME: this should really use prepare-restore.sh --prepare-suite-each
+            # like other suites, needs more investigation
+
+            # shellcheck source=tests/lib/state.sh
+            . "$TESTSLIB"/state.sh
+            mkdir -p "$RUNTIME_STATE_PATH"
+            # save the job which is going to be executed in the system
+            echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -529,13 +714,16 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package snapd
             distro_purge_package snapd-xdg-open || true
+    tests/cross/:
+        summary: Cross-compile tests
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -580,7 +768,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -590,28 +778,41 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
-    tests/nested/:
+    tests/nested/classic/:
         summary: Tests for nested images
-        # Test cases are not yet ported to Fedora/openSUSE that is why
-        # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -amazon-*]
+        backends: [google-nested]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
-            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
-        halt-timeout: 2h
-        kill-timeout: 2h
+            NESTED_SYSTEM: "$(HOST: echo ${SPREAD_NESTED_SYSTEM:-xenial})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+    tests/nested/core/:
+        summary: Tests for nested images
+        backends: [google-nested]
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+            CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
+            CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass
-            snap install --classic --beta ubuntu-image
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass
-            snap remove ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
 # vim:ts=4:sw=4:et

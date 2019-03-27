@@ -488,7 +488,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliases(c *C) {
 	expected := fakeOps{
 		{
 			op:      "update-aliases",
-			aliases: []*backend.Alias{{"manual1", "alias-snap.cmd1"}},
+			aliases: []*backend.Alias{{Name: "manual1", Target: "alias-snap.cmd1"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -544,7 +544,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliases(c *C) {
 	expected := fakeOps{
 		{
 			op:      "update-aliases",
-			aliases: []*backend.Alias{{"manual1", "alias-snap.cmd1"}},
+			aliases: []*backend.Alias{{Name: "manual1", Target: "alias-snap.cmd1"}},
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -598,7 +598,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesAuto(c *C) {
 	expected := fakeOps{
 		{
 			op:      "update-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+			aliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd1"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -654,7 +654,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAuto(c *C) {
 	expected := fakeOps{
 		{
 			op:      "update-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+			aliases: []*backend.Alias{{Name: "alias1", Target: "alias-snap.cmd1"}},
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -812,8 +812,8 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesAuto(c *C) {
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 		},
 	}
@@ -981,12 +981,12 @@ func (s *snapmgrTestSuite) TestDoRefreshAliases(c *C) {
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2x"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias2", Target: "alias-snap.cmd2x"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 			aliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias4", Target: "alias-snap.cmd4"},
 			},
 		},
 	}
@@ -1060,23 +1060,23 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliases(c *C) {
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2x"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias2", Target: "alias-snap.cmd2x"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 			aliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias4", Target: "alias-snap.cmd4"},
 			},
 		},
 		{
 			op: "update-aliases",
 			aliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2x"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias2", Target: "alias-snap.cmd2x"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 			rmAliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias4", Target: "alias-snap.cmd4"},
 			},
 		},
 	}
@@ -1145,17 +1145,17 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesFromEmpty(c *C) {
 		{
 			op: "update-aliases",
 			aliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
+				{Name: "alias1", Target: "alias-snap.cmd1"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias4", Target: "alias-snap.cmd4"},
 			},
 		},
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
+				{Name: "alias1", Target: "alias-snap.cmd1"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias4", Target: "alias-snap.cmd4"},
 			},
 		},
 	}
@@ -1429,20 +1429,20 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesConflict(c *C) {
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2x"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias2", Target: "alias-snap.cmd2x"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 			aliases: []*backend.Alias{
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias4", Target: "alias-snap.cmd4"},
 			},
 		},
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
+				{Name: "alias1", Target: "alias-snap.cmd1"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias4", Target: "alias-snap.cmd4"},
 			},
 		},
 	}
@@ -1516,17 +1516,17 @@ func (s *snapmgrTestSuite) TestDoUndoDisableAliases(c *C) {
 		{
 			op: "update-aliases",
 			rmAliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd5"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias1", Target: "alias-snap.cmd5"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 		},
 		{
 			op: "update-aliases",
 			aliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd5"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias3", "alias-snap.cmd3"},
+				{Name: "alias1", Target: "alias-snap.cmd5"},
+				{Name: "alias2", Target: "alias-snap.cmd2"},
+				{Name: "alias3", Target: "alias-snap.cmd3"},
 			},
 		},
 	}
@@ -1621,9 +1621,9 @@ func (s *snapmgrTestSuite) TestDoPreferAliases(c *C) {
 	c.Assert(s.fakeBackend.ops[2], DeepEquals, fakeOp{
 		op: "update-aliases",
 		aliases: []*backend.Alias{
-			{"alias1", "alias-snap.cmd1"},
-			{"alias2", "alias-snap.cmd2"},
-			{"alias3", "alias-snap.cmd3"},
+			{Name: "alias1", Target: "alias-snap.cmd1"},
+			{Name: "alias2", Target: "alias-snap.cmd2"},
+			{Name: "alias3", Target: "alias-snap.cmd3"},
 		},
 	})
 
@@ -1745,9 +1745,9 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliases(c *C) {
 	c.Assert(s.fakeBackend.ops[3], DeepEquals, fakeOp{
 		op: "update-aliases",
 		rmAliases: []*backend.Alias{
-			{"alias1", "alias-snap.cmd1"},
-			{"alias2", "alias-snap.cmd2"},
-			{"alias3", "alias-snap.cmd3"},
+			{Name: "alias1", Target: "alias-snap.cmd1"},
+			{Name: "alias2", Target: "alias-snap.cmd2"},
+			{Name: "alias3", Target: "alias-snap.cmd3"},
 		},
 	})
 	c.Assert(s.fakeBackend.ops[4].aliases, HasLen, 1)
@@ -1898,15 +1898,15 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesConflict(c *C) {
 	c.Assert(s.fakeBackend.ops[3], DeepEquals, fakeOp{
 		op: "update-aliases",
 		rmAliases: []*backend.Alias{
-			{"alias1", "alias-snap.cmd1"},
-			{"alias2", "alias-snap.cmd2"},
-			{"alias3", "alias-snap.cmd3"},
+			{Name: "alias1", Target: "alias-snap.cmd1"},
+			{Name: "alias2", Target: "alias-snap.cmd2"},
+			{Name: "alias3", Target: "alias-snap.cmd3"},
 		},
 	})
 	c.Assert(s.fakeBackend.ops[4], DeepEquals, fakeOp{
 		op: "update-aliases",
 		aliases: []*backend.Alias{
-			{"alias3", "other-alias-snap3.cmd5"},
+			{Name: "alias3", Target: "other-alias-snap3.cmd5"},
 		},
 	})
 

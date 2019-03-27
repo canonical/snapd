@@ -131,7 +131,7 @@ func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error
 }
 
 func (c *getCommand) Execute(args []string) error {
-	if c.Positional.PlugOrSlotSpec == "" && len(c.Positional.Keys) == 0 {
+	if len(c.Positional.Keys) == 0 && c.Positional.PlugOrSlotSpec == "" {
 		return fmt.Errorf(i18n.G("get which option?"))
 	}
 
@@ -152,6 +152,9 @@ func (c *getCommand) Execute(args []string) error {
 		}
 		if snap != "" {
 			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, parts[1])
+		}
+		if len(c.Positional.Keys) == 0 {
+			return fmt.Errorf(i18n.G("get which attribute?"))
 		}
 
 		return c.getInterfaceSetting(context, name)
@@ -175,7 +178,7 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 
 	return c.printValues(func(key string) (interface{}, bool, error) {
 		var value interface{}
-		err := transaction.Get(c.context().SnapName(), key, &value)
+		err := transaction.Get(c.context().InstanceName(), key, &value)
 		if err == nil {
 			return value, true, nil
 		}
@@ -320,17 +323,14 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value interface{}
-		err = config.GetFromChange(context.SnapName(), subkeys, 0, staticAttrs, &value)
+		err = getAttribute(context.InstanceName(), subkeys, 0, staticAttrs, &value)
 		if err == nil {
 			return value, true, nil
 		}
-		if config.IsNoOption(err) {
-			err = config.GetFromChange(context.SnapName(), subkeys, 0, dynamicAttrs, &value)
+		if isNoAttribute(err) {
+			err = getAttribute(context.InstanceName(), subkeys, 0, dynamicAttrs, &value)
 			if err == nil {
 				return value, true, nil
-			}
-			if config.IsNoOption(err) {
-				return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
 			}
 		}
 		return nil, false, err

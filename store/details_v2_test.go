@@ -121,7 +121,7 @@ const (
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
   "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\n",
   "summary": "useful thingy",
-  "title": "thingy",
+  "title": "This Is The Most Fantastical Snap of Thingy",
   "type": "app",
   "version": "9.50",
   "media": [
@@ -163,7 +163,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			Private:           false,
 			Paid:              false,
 		},
-		Epoch:       *snap.E("0"),
+		Epoch:       snap.E("0"),
 		Type:        snap.TypeOS,
 		Version:     "16-2.30",
 		Confinement: snap.StrictConfinement,
@@ -205,7 +205,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			SnapID:            "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
 			Revision:          snap.R(21),
 			Contact:           "https://thingy.com",
-			EditedTitle:       "thingy",
+			EditedTitle:       "This Is The Most Fantastical Snap of Th…",
 			EditedSummary:     "useful thingy",
 			EditedDescription: "Useful thingy for thinging",
 			Private:           false,
@@ -243,10 +243,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		Prices: map[string]float64{
 			"USD": 9.99,
 		},
-		IconURL: "https://dashboard.snapcraft.io/site_media/appmedia/2017/12/Thingy.png",
-		Screenshots: []snap.ScreenshotInfo{
-			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
-			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
+		Media: []snap.MediaInfo{
+			{Type: "icon", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2017/12/Thingy.png"},
+			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
+			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
 		CommonIDs: []string{"org.thingy"},
 	})
@@ -304,6 +304,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		t := x.Type()
 		for i := 0; i < x.NumField(); i++ {
 			f := t.Field(i)
+			if f.PkgPath != "" {
+				// not exported, ignore
+				continue
+			}
 			v := x.Field(i)
 			if f.Anonymous {
 				checker(pfx+f.Name+".", v)
@@ -353,7 +357,7 @@ func fillStruct(a interface{}, c *C) {
 				Sha3_384: "foo",
 			}
 		case snap.Epoch:
-			x = *snap.E("1")
+			x = snap.E("1")
 		case map[string]string:
 			x = map[string]string{"foo": "bar"}
 		case bool:

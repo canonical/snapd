@@ -27,6 +27,9 @@ execute: |
     distro_purge_package snapd
     distro_install_build_snapd
 
+    # need to be seeded to allow snap install
+    snap wait system seed.loaded
+
     snap download "--${CORE_CHANNEL}" ubuntu-core
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap

@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -82,16 +83,36 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 				logger.Debugf("Retrying because of: %s", opErr)
 				return true
 			}
+			// FIXME: code below is not (unit) tested and
+			// it is unclear if we need it with the new
+			// opErr.Temporary() "if" below
 			if opErr.Op == "dial" {
 				logger.Debugf("Retrying because of: %#v (syscall error: %#v)", opErr, syscallErr.Err)
 				return true
 			}
 			logger.Debugf("Encountered syscall error: %#v", syscallErr)
 		}
-		if opNetErr, ok := opErr.Err.(net.Error); ok {
-			// TODO: some DNS errors? just log for now
-			logger.Debugf("Not retrying: %#v", opNetErr)
+
+		// If we are unable to talk to a DNS go1.9+ will set
+		// opErr.IsTemporary - we also support go1.6 so we need to
+		// add a workaround here. This block can go away once we
+		// use go1.9+ only.
+		if dnsErr, ok := opErr.Err.(*net.DNSError); ok {
+			// The horror, the horror
+			// TODO: stop Arch to use the cgo resolver
+			// which requires the right side of the OR
+			if strings.Contains(dnsErr.Err, "connection refused") || strings.Contains(dnsErr.Err, "Temporary failure in name resolution") {
+				logger.Debugf("Retrying because of temporary net error (DNS): %#v", dnsErr)
+				return true
+			}
 		}
+
+		// Retry for temporary network errors (like dns errors in 1.9+)
+		if opErr.Temporary() {
+			logger.Debugf("Retrying because of temporary net error: %#v", opErr)
+			return true
+		}
+		logger.Debugf("Encountered non temporary net.OpError: %#v", opErr)
 	}
 
 	if err == io.ErrUnexpectedEOF || err == io.EOF {

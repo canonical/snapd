@@ -140,12 +140,13 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":       true,
-		"core-support":  true,
-		"home":          true,
-		"lxd-support":   true,
-		"snapd-control": true,
-		"dummy":         true,
+		"content":           true,
+		"core-support":      true,
+		"home":              true,
+		"lxd-support":       true,
+		"multipass-support": true,
+		"snapd-control":     true,
+		"dummy":             true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -471,6 +472,42 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionMultipassSupportOverride(c *C) {
+	cand := s.connectCand(c, "multipass-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"multipass-support\"")
+
+	plugsSlots := `
+plugs:
+  multipass-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "multipass-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionBlockDevicesOverride(c *C) {
+	cand := s.connectCand(c, "block-devices", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"block-devices\"")
+
+	plugsSlots := `
+plugs:
+  block-devices:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -522,6 +559,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"adb-support":             {"core"},
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
@@ -548,6 +586,7 @@ var (
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
 		"network-manager":         {"app", "core"},
+		"network-manager-observe": {"app", "core"},
 		"network-status":          {"app"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},
@@ -639,13 +678,17 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"block-devices":         true,
 		"classic-support":       true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"multipass-support":     true,
+		"personal-files":        true,
 		"snapd-control":         true,
+		"system-files":          true,
 		"unity8":                true,
 	}
 
@@ -763,6 +806,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"block-devices":         true,
 		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,
@@ -770,7 +814,10 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"multipass-support":     true,
+		"personal-files":        true,
 		"snapd-control":         true,
+		"system-files":          true,
 		"udisks2":               true,
 		"unity8":                true,
 		"wayland":               true,

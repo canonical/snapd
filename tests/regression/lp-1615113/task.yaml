@@ -2,6 +2,7 @@ summary: Check that entire snap can be shared with the content interface
 
 prepare: |
     echo "Having installed a pair of snaps that share content"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-content-slot
     install_local test-snapd-content-plug

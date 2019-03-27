@@ -20,11 +20,11 @@
 package storetest
 
 import (
+	"context"
 	"io"
 
-	"golang.org/x/net/context"
-
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/progress"
@@ -61,7 +61,7 @@ func (Store) SuggestedCurrency() string {
 	panic("Store.SuggestedCurrency not expected")
 }
 
-func (Store) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
+func (Store) Buy(*client.BuyOptions, *auth.UserState) (*client.BuyResult, error) {
 	panic("Store.Buy not expected")
 }
 
@@ -83,4 +83,12 @@ func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 
 func (Store) ConnectivityCheck() (map[string]bool, error) {
 	panic("ConnectivityCheck not expected")
+}
+
+func (Store) LoginUser(username, password, otp string) (string, string, error) {
+	panic("LoginUser not expected")
+}
+
+func (Store) UserInfo(email string) (userinfo *store.User, err error) {
+	panic("UserInfo not expected")
 }

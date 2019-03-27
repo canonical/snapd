@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -66,92 +67,6 @@ func (s *ValidateSuite) SetUpTest(c *C) {
 
 func (s *ValidateSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
-}
-
-func (s *ValidateSuite) TestValidateName(c *C) {
-	validNames := []string{
-		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		"a0", "a-0", "a-0a",
-		"01game", "1-or-2",
-		// a regexp stresser
-		"u-94903713687486543234157734673284536758",
-	}
-	for _, name := range validNames {
-		err := ValidateName(name)
-		c.Assert(err, IsNil)
-	}
-	invalidNames := []string{
-		// name cannot be empty
-		"",
-		// names cannot be too long
-		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
-		"1111111111111111111111111111111111111111x",
-		"x1111111111111111111111111111111111111111",
-		"x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x",
-		// a regexp stresser
-		"u-9490371368748654323415773467328453675-",
-		// dashes alone are not a name
-		"-", "--",
-		// double dashes in a name are not allowed
-		"a--a",
-		// name should not end with a dash
-		"a-",
-		// name cannot have any spaces in it
-		"a ", " a", "a a",
-		// a number alone is not a name
-		"0", "123",
-		// identifier must be plain ASCII
-		"日本語", "한글", "ру́сский язы́к",
-	}
-	for _, name := range invalidNames {
-		err := ValidateName(name)
-		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
-	}
-}
-
-func (s *ValidateSuite) TestValidateInstanceName(c *C) {
-	validNames := []string{
-		// plain names are also valid instance names
-		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		// snap instance
-		"foo_bar",
-		"foo_0123456789",
-		"01game_0123456789",
-		"foo_1", "foo_1234abcd",
-	}
-	for _, name := range validNames {
-		err := ValidateInstanceName(name)
-		c.Assert(err, IsNil)
-	}
-	invalidNames := []string{
-		// invalid names are also invalid instance names, just a few
-		// samples
-		"",
-		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
-		"a--a",
-		"a-",
-		"a ", " a", "a a",
-		"_",
-		"ру́сский_язы́к",
-	}
-	for _, name := range invalidNames {
-		err := ValidateInstanceName(name)
-		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
-	}
-	invalidInstanceKeys := []string{
-		// the snap names are valid, but instance keys are not
-		"foo_", "foo_1-23", "foo_01234567890", "foo_123_456",
-		"foo__bar",
-	}
-	for _, name := range invalidInstanceKeys {
-		err := ValidateInstanceName(name)
-		c.Assert(err, ErrorMatches, `invalid instance key: ".*"`)
-	}
-
 }
 
 func (s *ValidateSuite) TestValidateVersion(c *C) {
@@ -256,24 +171,6 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 
 // ValidateApp
 
-func (s *ValidateSuite) TestValidateAppName(c *C) {
-	validAppNames := []string{
-		"1", "a", "aa", "aaa", "aaaa", "Aa", "aA", "1a", "a1", "1-a", "a-1",
-		"a-a", "aa-a", "a-aa", "a-b-c", "0a-a", "a-0a",
-	}
-	for _, name := range validAppNames {
-		c.Check(ValidateApp(&AppInfo{Name: name}), IsNil)
-	}
-	invalidAppNames := []string{
-		"", "-", "--", "a--a", "a-", "a ", " a", "a a", "日本語", "한글",
-		"ру́сский язы́к", "ໄຂ່​ອີ​ສ​ເຕີ້", ":a", "a:", "a:a", "_a", "a_", "a_a",
-	}
-	for _, name := range invalidAppNames {
-		err := ValidateApp(&AppInfo{Name: name})
-		c.Assert(err, ErrorMatches, `cannot have ".*" as app name.*`)
-	}
-}
-
 func (s *ValidateSuite) TestValidateAppSockets(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].SocketMode = 0600
@@ -289,7 +186,7 @@ func (s *ValidateSuite) TestValidateAppSocketsWrongPerms(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].SocketMode = 1234
 	err := ValidateApp(app)
-	c.Assert(err, ErrorMatches, `cannot use socket mode: 2322`)
+	c.Assert(err, ErrorMatches, `invalid definition of socket "sock": cannot use mode: 2322`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
@@ -305,14 +202,14 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].ListenStream = ""
 	err := ValidateApp(app)
-	c.Assert(err, ErrorMatches, `socket "sock" must define "listen-stream"`)
+	c.Assert(err, ErrorMatches, `invalid definition of socket "sock": "listen-stream" is not defined`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].Name = "invalid name"
 	err := ValidateApp(app)
-	c.Assert(err, ErrorMatches, `invalid socket name: "invalid name"`)
+	c.Assert(err, ErrorMatches, `invalid definition of socket "invalid name": invalid socket name: "invalid name"`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
@@ -351,7 +248,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream": only.*are allowed`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": must have a prefix of .*`)
 	}
 }
 
@@ -361,7 +258,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathContainsDot
 	err := ValidateApp(app)
 	c.Assert(
 		err, ErrorMatches,
-		`socket "sock" has invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
+		`invalid definition of socket "sock": invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C) {
@@ -376,7 +273,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 		err := ValidateApp(app)
 		c.Assert(
 			err, ErrorMatches,
-			`socket "sock" has invalid "listen-stream": only \$SNAP_DATA and \$SNAP_COMMON prefixes are allowed`)
+			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA or \$SNAP_COMMON`)
 	}
 }
 
@@ -393,7 +290,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" path for "listen-stream" must be prefixed with.*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": path for "listen-stream" must be prefixed with.*`)
 	}
 }
 
@@ -409,7 +306,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" address.*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" address ".*", must be one of: 127\.0\.0\.1, \[::1\], \[::\]`)
 	}
 }
 
@@ -429,7 +326,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 	for _, invalidPort := range invalidPorts {
 		socket.ListenStream = invalidPort
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" port number.*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number.*`)
 	}
 }
 
@@ -668,31 +565,56 @@ apps:
 	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use only letters, digits, dash, underscore and dot characters`)
 }
 
-func (s *ValidateSuite) TestValidateAlias(c *C) {
-	validAliases := []string{
-		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		"a0", "a-0", "a-0a",
-		"a_a", "aa_a", "a_aa", "a_b_c",
-		"a0", "a_0", "a_0a",
-		"01game", "1-or-2",
-		"0.1game", "1_or_2",
-	}
-	for _, alias := range validAliases {
-		err := ValidateAlias(alias)
-		c.Assert(err, IsNil)
-	}
-	invalidAliases := []string{
-		"",
-		"_foo",
-		"-foo",
-		".foo",
-		"foo$",
-	}
-	for _, alias := range invalidAliases {
-		err := ValidateAlias(alias)
-		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
-	}
+func (s *ValidateSuite) TestValidatePlugSlotName(c *C) {
+	const yaml1 = `
+name: invalid-plugs
+version: 1
+plugs:
+  p--lug: null
+`
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid plug name: "p--lug"`)
+
+	const yaml2 = `
+name: invalid-slots
+version: 1
+slots:
+  s--lot: null
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Slots, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid slot name: "s--lot"`)
+
+	const yaml3 = `
+name: invalid-plugs-iface
+version: 1
+plugs:
+  plug:
+    interface: i--face
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for plug "plug"`)
+
+	const yaml4 = `
+name: invalid-slots-iface
+version: 1
+slots:
+  slot:
+    interface: i--face
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil)
+	c.Assert(err, IsNil)
+	c.Assert(info.Slots, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for slot "slot"`)
 }
 
 type testConstraint string
@@ -763,6 +685,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/var/lib/snapd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd/hostfs", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/var/lib/snapd/hostfs" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/firmware", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/firmware" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/modules", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/modules" in an off-limits area`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
@@ -999,41 +925,6 @@ layout:
 	c.Assert(err, IsNil)
 }
 
-func (s *ValidateSuite) TestValidateSocketName(c *C) {
-	validNames := []string{
-		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		"a0", "a-0", "a-0a",
-		"01game", "1-or-2",
-	}
-	for _, name := range validNames {
-		err := ValidateSocketName(name)
-		c.Assert(err, IsNil)
-	}
-	invalidNames := []string{
-		// name cannot be empty
-		"",
-		// dashes alone are not a name
-		"-", "--",
-		// double dashes in a name are not allowed
-		"a--a",
-		// name should not end with a dash
-		"a-",
-		// name cannot have any spaces in it
-		"a ", " a", "a a",
-		// a number alone is not a name
-		"0", "123",
-		// identifier must be plain ASCII
-		"日本語", "한글", "ру́сский язы́к",
-		// no null chars in the string are allowed
-		"aa-a\000-b",
-	}
-	for _, name := range invalidNames {
-		err := ValidateSocketName(name)
-		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
-	}
-}
-
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
 	meta := []byte(`
 name: foo
@@ -1154,19 +1045,19 @@ apps:
 	}{{
 		name: "foo after baz",
 		desc: fooAfterBaz,
-		err:  `application "foo" refers to missing application "baz" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a missing application "baz"`,
 	}, {
 		name: "foo before baz",
 		desc: fooBeforeBaz,
-		err:  `application "foo" refers to missing application "baz" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a missing application "baz"`,
 	}, {
 		name: "foo not a daemon",
 		desc: fooNotADaemon,
-		err:  `cannot define before/after in application "foo" as it's not a service`,
+		err:  `invalid definition of application "foo": must be a service to define before/after ordering`,
 	}, {
 		name: "foo wants bar, bar not a daemon",
 		desc: fooBarNotADaemon,
-		err:  `application "foo" refers to non-service application "bar" in before/after`,
+		err:  `invalid definition of application "foo": before/after references a non-service application "bar"`,
 	}, {
 		name: "bad order 1",
 		desc: badOrder1,
@@ -1204,29 +1095,40 @@ apps:
 	}
 }
 
-func (s *ValidateSuite) TestValidateAppWatchdog(c *C) {
+func (s *ValidateSuite) TestValidateAppWatchdogTimeout(c *C) {
+	s.testValidateAppTimeout(c, "watchdog")
+}
+func (s *ValidateSuite) TestValidateAppStartTimeout(c *C) {
+	s.testValidateAppTimeout(c, "start")
+}
+func (s *ValidateSuite) TestValidateAppStopTimeout(c *C) {
+	s.testValidateAppTimeout(c, "stop")
+}
+
+func (s *ValidateSuite) testValidateAppTimeout(c *C, timeout string) {
+	timeout += "-timeout"
 	meta := []byte(`
 name: foo
 version: 1.0
 `)
-	fooAllGood := []byte(`
+	fooAllGood := []byte(fmt.Sprintf(`
 apps:
   foo:
     daemon: simple
-    watchdog-timeout: 12s
-`)
-	fooNotADaemon := []byte(`
+    %s: 12s
+`, timeout))
+	fooNotADaemon := []byte(fmt.Sprintf(`
 apps:
   foo:
-    watchdog-timeout: 12s
-`)
+    %s: 12s
+`, timeout))
 
-	fooNegative := []byte(`
+	fooNegative := []byte(fmt.Sprintf(`
 apps:
   foo:
     daemon: simple
-    watchdog-timeout: -12s
-`)
+    %s: -12s
+`, timeout))
 
 	tcs := []struct {
 		name string
@@ -1238,11 +1140,11 @@ apps:
 	}, {
 		name: "foo not a service",
 		desc: fooNotADaemon,
-		err:  `cannot define watchdog-timeout in application "foo" as it's not a service`,
+		err:  timeout + ` is only applicable to services`,
 	}, {
 		name: "negative timeout",
 		desc: fooNegative,
-		err:  `cannot use a negative watchdog-timeout in application "foo"`,
+		err:  timeout + ` cannot be negative`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
@@ -1252,7 +1154,7 @@ apps:
 
 		err = Validate(info)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
 		} else {
 			c.Assert(err, IsNil)
 		}
@@ -1292,11 +1194,11 @@ apps:
 	}, {
 		name: "not a service",
 		desc: notAService,
-		err:  `cannot use timer with application "foo" as it's not a service`,
+		err:  `timer is only applicable to services`,
 	}, {
 		name: "invalid timer",
 		desc: badTimer,
-		err:  `application "foo" timer has invalid format: cannot parse "mon2-wed3": invalid schedule fragment`,
+		err:  `timer has invalid format: cannot parse "mon2-wed3": invalid schedule fragment`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
@@ -1305,7 +1207,7 @@ apps:
 
 		err = Validate(info)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
 		} else {
 			c.Assert(err, IsNil)
 		}
@@ -1378,6 +1280,29 @@ apps:
 	}
 }
 
+func (s *validateSuite) TestValidateDescription(c *C) {
+	for _, s := range []string{
+		"xx", // boringest ASCII
+		"🐧🐧", // len("🐧🐧") == 8
+		"á", // á (combining)
+	} {
+		c.Check(ValidateDescription(s), IsNil)
+		c.Check(ValidateDescription(strings.Repeat(s, 2049)), ErrorMatches, `description can have up to 4096 codepoints, got 4098`)
+		c.Check(ValidateDescription(strings.Repeat(s, 2048)), IsNil)
+	}
+}
+
+func (s *validateSuite) TestValidateTitle(c *C) {
+	for _, s := range []string{
+		"xx", // boringest ASCII
+		"🐧🐧", // len("🐧🐧") == 8
+		"á", // á (combining)
+	} {
+		c.Check(ValidateTitle(strings.Repeat(s, 21)), ErrorMatches, `title can have up to 40 codepoints, got 42`)
+		c.Check(ValidateTitle(strings.Repeat(s, 20)), IsNil)
+	}
+}
+
 func (s *validateSuite) TestValidatePlugSlotName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
@@ -1431,6 +1356,87 @@ version: 1.0
 	for _, s := range []string{"toolonginstance", "ABCD", "_", "inst@nce", "012345678901"} {
 		info.InstanceKey = s
 		err = Validate(info)
-		c.Check(err, ErrorMatches, fmt.Sprintf("invalid instance key: %q", s))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid instance key: %q`, s))
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppRestart(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-condition: on-abort
+    restart-delay: 12s
+`)
+	fooAllGoodDefault := []byte(`
+apps:
+  foo:
+    daemon: simple
+`)
+	fooAllGoodJustDelay := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-delay: 12s
+`)
+	fooConditionNotADaemon := []byte(`
+apps:
+  foo:
+    restart-condition: on-abort
+`)
+	fooDelayNotADaemon := []byte(`
+apps:
+  foo:
+    restart-delay: 12s
+`)
+	fooNegativeDelay := []byte(`
+apps:
+  foo:
+    daemon: simple
+    restart-delay: -12s
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo all good with default values",
+		desc: fooAllGoodDefault,
+	}, {
+		name: "foo all good with restart-delay only",
+		desc: fooAllGoodJustDelay,
+	}, {
+		name: "foo restart-delay but not a service",
+		desc: fooDelayNotADaemon,
+		err:  `restart-delay is only applicable to services`,
+	}, {
+		name: "foo restart-delay but not a service",
+		desc: fooConditionNotADaemon,
+		err:  `restart-condition is only applicable to services`,
+	}, {
+		name: "negative restart-delay",
+		desc: fooNegativeDelay,
+		err:  `restart-delay cannot be negative`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
 	}
 }

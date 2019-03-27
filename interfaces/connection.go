@@ -95,7 +95,7 @@ func getAttribute(snapName string, ifaceName string, staticAttrs map[string]inte
 	}
 
 	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, path)
+		return fmt.Errorf("snap %q has interface %q with invalid value type %T for %q attribute: %T", snapName, ifaceName, v, path, val)
 	}
 	rv := reflect.ValueOf(val)
 	rv.Elem().Set(reflect.ValueOf(v))

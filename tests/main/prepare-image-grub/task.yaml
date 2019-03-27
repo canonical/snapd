@@ -1,6 +1,6 @@
 summary: Check that prepare-image works for grub-systems
 
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 backends: [-autopkgtest]
 
@@ -47,11 +47,12 @@ execute: |
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
     echo Running prepare-image
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
+    #shellcheck disable=SC2086
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap test-snapd-tools $TESTSLIB/assertions/developer1-pc.model $ROOT" test
 
     echo Verifying the result
     ls -lR "$IMAGE"
-    for f in pc pc-kernel core snapweb; do
+    for f in pc pc-kernel core test-snapd-tools; do
         ls "$IMAGE"/var/lib/snapd/seed/snaps/"${f}"*.snap
     done
     MATCH snap_core=core < "$IMAGE/boot/grub/grubenv"

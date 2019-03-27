@@ -1,9 +1,6 @@
 summary: Checks for parallel installation of snaps from the store
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     ! snap install test-snapd-tools_foo 2> run.err
     MATCH 'experimental feature disabled' < run.err
 
@@ -13,16 +10,22 @@ execute: |
 
     echo "The snap is listed"
     snap list | MATCH '^test-snapd-tools_foo '
-    # TODO parallel-install: extend the test to run a snap when the remaining
-    # bits land.
 
-    # TODO parallel-install: extend the test once we can install more than one
-    # instance of a snap from the store
-    ! snap install test-snapd-tools 2> run.err
-    # exact error message:
-    # error: cannot install "test-snapd-tools": cannot refresh, install, or download: The Snap is present
-    #   more than once in the request.
-    MATCH 'cannot install "test-snapd-tools"' < run.err
+    echo "The snap application can be run"
+    #shellcheck disable=SC2016
+    test-snapd-tools_foo.cmd sh -c 'echo hello data from $SNAP_INSTANCE_NAME > $SNAP_DATA/data'
+    MATCH 'hello data from test-snapd-tools_foo' < /var/snap/test-snapd-tools_foo/current/data
+    su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
+    MATCH 'hello user data from test-snapd-tools_foo' < /home/test/snap/test-snapd-tools_foo/current/data
 
-restore:
+    echo "Installing another instance, without instance key, succeeds"
+    snap install test-snapd-tools
+
+    echo "And so does another one, but with different instance key"
+    snap install test-snapd-tools_bar
+
+    echo "Installing more than one instance at a time works too"
+    snap install test-snapd-tools_baz test-snapd-tools_zed
+
+restore: |
     snap set system experimental.parallel-instances=

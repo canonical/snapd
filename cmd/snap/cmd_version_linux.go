@@ -20,12 +20,26 @@
 package main
 
 import (
+	"fmt"
+	"runtime"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
-func serverVersion() *client.ServerVersion {
-	sv, err := Client().ServerVersion()
+func serverVersion(cli *client.Client) *client.ServerVersion {
+	if release.OnWSL {
+		return &client.ServerVersion{
+			Version:       i18n.G("unavailable"),
+			Series:        release.Series,
+			OSID:          "Windows Subsystem for Linux",
+			OnClassic:     true,
+			KernelVersion: fmt.Sprintf("%s (%s)", osutil.KernelVersion(), runtime.GOARCH),
+		}
+	}
+	sv, err := cli.ServerVersion()
 
 	if err != nil {
 		sv = &client.ServerVersion{

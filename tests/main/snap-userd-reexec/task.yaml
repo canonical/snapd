@@ -10,7 +10,7 @@ execute: |
     mv /usr/share/dbus-1/services/io.snapcraft.Launcher.service /usr/share/dbus-1/services/io.snapcraft.Launcher.service.orig
 
     echo "Install new core"
-    snap install --dangerous /var/lib/snapd/snaps/core_$(cat prevBoot).snap
+    snap install --dangerous "/var/lib/snapd/snaps/core_$(cat prevBoot).snap"
 
     echo "Ensure the dbus service file got created"
     test -f /usr/share/dbus-1/services/io.snapcraft.Launcher.service

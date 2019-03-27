@@ -10,12 +10,13 @@ details: |
     edge channel.
 
 environment:
+    SNAP_NAME/parallel_strict_fake,parallel_strict_remote: test-snapd-tools_instance
     SNAP_NAME/strict_fake,strict_remote: test-snapd-tools
     SNAP_NAME/classic_fake,classic_remote: test-snapd-classic-confinement
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
     BLOB_DIR: $(pwd)/fake-store-blobdir
-    STORE_TYPE/strict_fake,classic_fake: fake
-    STORE_TYPE/strict_remote,classic_remote: ${REMOTE_STORE}
+    STORE_TYPE/parallel_strict_fake,strict_fake,classic_fake: fake
+    STORE_TYPE/parallel_strict_remote,strict_remote,classic_remote: ${REMOTE_STORE}
 
 prepare: |
     #shellcheck source=tests/lib/systems.sh
@@ -34,11 +35,15 @@ prepare: |
     flags=
     if [[ "$SNAP_NAME" =~ classic ]]; then
         case "$SPREAD_SYSTEM" in
-            ubuntu-core-*|fedora-*|arch-*)
+            ubuntu-core-*|fedora-*|arch-*|centos-*)
                 exit
                 ;;
         esac
         flags=--classic
+    fi
+
+    if [[ "$SPREAD_VARIANT" =~ parallel ]]; then
+        snap set system experimental.parallel-instances=true
     fi
 
     echo "Given a snap is installed"
@@ -59,7 +64,6 @@ restore: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
         if is_core_system; then
             exit
@@ -71,6 +75,10 @@ restore: |
         #shellcheck source=tests/lib/store.sh
         . "$TESTSLIB"/store.sh
         teardown_fake_store "$BLOB_DIR"
+    fi
+
+    if [[ "$SPREAD_VARIANT" =~ parallel ]]; then
+        snap set system experimental.parallel-instances=null
     fi
 
 execute: |
@@ -89,7 +97,7 @@ execute: |
 
     if [[ "$SNAP_NAME" =~ classic ]]; then
         case "$SPREAD_SYSTEM" in
-            ubuntu-core-*|fedora-*|arch-*)
+            ubuntu-core-*|fedora-*|arch-*|centos-*)
                 exit
                 ;;
         esac

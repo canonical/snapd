@@ -82,7 +82,11 @@ func (s *SnapSuite) TestCanUnicode(c *check.C) {
 		restore := setEnviron(map[string]string{"LANG": t.lang, "LC_ALL": t.lcAll, "LC_MESSAGES": t.lcMsg})
 		c.Check(cmdsnap.CanUnicode("never"), check.Equals, false)
 		c.Check(cmdsnap.CanUnicode("always"), check.Equals, true)
+		restoreIsTTY := cmdsnap.MockIsStdoutTTY(true)
 		c.Check(cmdsnap.CanUnicode("auto"), check.Equals, t.expected)
+		cmdsnap.MockIsStdoutTTY(false)
+		c.Check(cmdsnap.CanUnicode("auto"), check.Equals, false)
+		restoreIsTTY()
 		restore()
 	}
 }

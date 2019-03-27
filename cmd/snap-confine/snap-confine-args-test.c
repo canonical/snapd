@@ -42,7 +42,7 @@ static void
 		argv = realloc(argv, sizeof(const char **) * (argc + 1));
 		g_assert_nonnull(argv);
 		if (arg != NULL) {
-			char *arg_copy = strdup(arg);
+			char *arg_copy = sc_strdup(arg);
 			g_test_queue_free(arg_copy);
 			argv[argc] = arg_copy;
 			argc += 1;

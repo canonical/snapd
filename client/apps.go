@@ -31,15 +31,26 @@ import (
 	"time"
 )
 
+// AppActivator is a thing that activates the app that is a service in the
+// system.
+type AppActivator struct {
+	Name string
+	// Type describes the type of the unit, either timer or socket
+	Type    string
+	Active  bool
+	Enabled bool
+}
+
 // AppInfo describes a single snap application.
 type AppInfo struct {
-	Snap        string `json:"snap,omitempty"`
-	Name        string `json:"name"`
-	DesktopFile string `json:"desktop-file,omitempty"`
-	Daemon      string `json:"daemon,omitempty"`
-	Enabled     bool   `json:"enabled,omitempty"`
-	Active      bool   `json:"active,omitempty"`
-	CommonID    string `json:"common-id,omitempty"`
+	Snap        string         `json:"snap,omitempty"`
+	Name        string         `json:"name"`
+	DesktopFile string         `json:"desktop-file,omitempty"`
+	Daemon      string         `json:"daemon,omitempty"`
+	Enabled     bool           `json:"enabled,omitempty"`
+	Active      bool           `json:"active,omitempty"`
+	CommonID    string         `json:"common-id,omitempty"`
+	Activators  []AppActivator `json:"activators,omitempty"`
 }
 
 // IsService returns true if the application is a background daemon.

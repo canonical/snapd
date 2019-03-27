@@ -10,6 +10,7 @@ systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 
 prepare: |
     echo "Having installed the test snap"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     # NOTE: devmode is required because there's no interface for reading /usr/src/.canary
     install_local_devmode test-snapd-tools

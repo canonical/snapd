@@ -1,7 +1,7 @@
 summary: Test that snapd reexecs itself into the snapd snap
 
 # Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 restore: |
     umount /snap/snapd/current/usr/lib/snapd/info || true
@@ -15,6 +15,15 @@ execute: |
     echo "Enable installing the snapd snap"
     snap set core experimental.snapd-snap=true
     snap install --edge snapd
+
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+    # installing the snapd snap should result in a daemon restart so that
+    # the snapd from the snap can be used. It won't be used in this test
+    # because the version of the snapd from the store is lower than the
+    # version of the installed snapd.
+    check_journalctl_log "Requested daemon restart."
+
     # We need to pretend the version of snapd in the snapd snap is the same
     # as the installed one so that it re-execs. We use a higher version in
     # the local snap and "tweak" the core snap to get re-exec but this will
@@ -23,4 +32,3 @@ execute: |
 
     echo "Ensure we re-exec by default"
     /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH 'DEBUG: restarting into "/snap/snapd/current/usr/bin/snap"'
-

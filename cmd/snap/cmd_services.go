@@ -26,16 +26,19 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 )
 
 type svcStatus struct {
+	clientMixin
 	Positional struct {
 		ServiceNames []serviceName
 	} `positional-args:"yes"`
 }
 
 type svcLogs struct {
+	clientMixin
 	N          string `short:"n" default:"10"`
 	Follow     bool   `short:"f"`
 	Positional struct {
@@ -49,7 +52,7 @@ var (
 The services command lists information about the services specified, or about
 the services in all currently installed snaps.
 `)
-	shortLogsHelp = i18n.G("Retrieve logs of services")
+	shortLogsHelp = i18n.G("Retrieve logs for services")
 	longLogsHelp  = i18n.G(`
 The logs command fetches logs of the given services and displays them in
 chronological order.
@@ -73,27 +76,33 @@ command, a reload is performed instead of a restart.
 
 func init() {
 	argdescs := []argDesc{{
-		// TRANSLATORS: This needs to be wrapped in <>s.
+		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<service>"),
+		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("A service specification, which can be just a snap name (for all services in the snap), or <snap>.<app> for a single service."),
 	}}
 	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, nil, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
 		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"n": i18n.G("Show only the given number of lines, or 'all'."),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"f": i18n.G("Wait for new lines and print them as they come in."),
 		}, argdescs)
 
 	addCommand("start", shortStartHelp, longStartHelp, func() flags.Commander { return &svcStart{} },
 		waitDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"enable": i18n.G("As well as starting the service now, arrange for it to be started on boot."),
 		}), argdescs)
 	addCommand("stop", shortStopHelp, longStopHelp, func() flags.Commander { return &svcStop{} },
 		waitDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"disable": i18n.G("As well as stopping the service now, arrange for it to no longer be started on boot."),
 		}), argdescs)
 	addCommand("restart", shortRestartHelp, longRestartHelp, func() flags.Commander { return &svcRestart{} },
 		waitDescs.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"reload": i18n.G("If the service has a reload command, use it instead of restarting."),
 		}), argdescs)
 }
@@ -111,15 +120,20 @@ func (s *svcStatus) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	services, err := Client().Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{Service: true})
+	services, err := s.client.Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{Service: true})
 	if err != nil {
 		return err
+	}
+
+	if len(services) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("There are no services provided by installed snaps."))
+		return nil
 	}
 
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent"))
+	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 
 	for _, svc := range services {
 		startup := i18n.G("disabled")
@@ -130,7 +144,7 @@ func (s *svcStatus) Execute(args []string) error {
 		if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current)
+		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, cmd.ClientAppInfoNotes(svc))
 	}
 
 	return nil
@@ -150,7 +164,7 @@ func (s *svcLogs) Execute(args []string) error {
 		sN = int(n)
 	}
 
-	logs, err := Client().Logs(svcNames(s.Positional.ServiceNames), client.LogOptions{N: sN, Follow: s.Follow})
+	logs, err := s.client.Logs(svcNames(s.Positional.ServiceNames), client.LogOptions{N: sN, Follow: s.Follow})
 	if err != nil {
 		return err
 	}
@@ -174,13 +188,12 @@ func (s *svcStart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	cli := Client()
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := cli.Start(names, client.StartOptions{Enable: s.Enable})
+	changeID, err := s.client.Start(names, client.StartOptions{Enable: s.Enable})
 	if err != nil {
 		return err
 	}
-	if _, err := s.wait(cli, changeID); err != nil {
+	if _, err := s.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
@@ -204,13 +217,12 @@ func (s *svcStop) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	cli := Client()
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := cli.Stop(names, client.StopOptions{Disable: s.Disable})
+	changeID, err := s.client.Stop(names, client.StopOptions{Disable: s.Disable})
 	if err != nil {
 		return err
 	}
-	if _, err := s.wait(cli, changeID); err != nil {
+	if _, err := s.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}
@@ -234,13 +246,12 @@ func (s *svcRestart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	cli := Client()
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := cli.Restart(names, client.RestartOptions{Reload: s.Reload})
+	changeID, err := s.client.Restart(names, client.RestartOptions{Reload: s.Reload})
 	if err != nil {
 		return err
 	}
-	if _, err := s.wait(cli, changeID); err != nil {
+	if _, err := s.wait(changeID); err != nil {
 		if err == noWait {
 			return nil
 		}

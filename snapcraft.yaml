@@ -10,9 +10,9 @@ description: |
 version: set-by-version-script-thxbye
 version-script: |
   ./mkversion.sh --output-only
-grade: devel
-# FIXME: enable once the store was updated
+#FIXME: enable once snapcraft understands this
 #type: snapd
+grade: stable
 
 parts:
   snapd:

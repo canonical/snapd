@@ -80,6 +80,9 @@ const (
 	RestartUnset RestartType = iota
 	RestartDaemon
 	RestartSystem
+	// RestartSocket will restart the daemon so that it goes into
+	// socket activation mode.
+	RestartSocket
 )
 
 // State represents an evolving system state that persists across restarts.
@@ -472,7 +475,7 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	d := json.NewDecoder(r)
 	err := d.Decode(&s)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read state: %s", err)
 	}
 	s.backend = backend
 	s.modified = false

@@ -1,7 +1,7 @@
 summary: Check snap web servers
 
 # arch: there is no ip6-localhost
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 environment:
     SNAP_NAME/pythonServer: test-snapd-python-webserver
@@ -27,9 +27,6 @@ prepare: |
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
     wait_listen_port "$PORT"
-
-restore: |
-    rm -f request.txt
 
 execute: |
     response=$(nc -w 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)

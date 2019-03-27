@@ -33,7 +33,7 @@ if [ "$1" = "--output-only" ]; then
 fi
 
 # If the version is passed in as an argument to mkversion.sh, let's use that.
-if [ ! -z "$1" ]; then
+if [ -n "$1" ]; then
     v="$1"
     o=shell
 fi

@@ -2,18 +2,17 @@ summary: Run snap sign to sign a model assertion
 
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
 # amazon: requires extra gpg-agent setup
-systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*]
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*, -centos-*]
 
 prepare: |
+    #shellcheck source=tests/lib/mkpinentry.sh
     . "$TESTSLIB"/mkpinentry.sh
+    #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
     kill_gpg_agent
 
-restore: |
-    rm -f pi3.model
-    rm -f pi3-model.json
-
 debug: |
+    #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
     debug_random
 

@@ -20,7 +20,7 @@ export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on trusty
-export PATH:=/usr/lib/go-1.6/bin:${PATH}
+export PATH:=/usr/lib/go-1.10/bin:${PATH}
 
 include /etc/os-release
 
@@ -30,9 +30,6 @@ include /etc/os-release
 # ignore /lib/systemd/system and instead consider only selected units
 # from /lib/systemd/upstart.
 SYSTEMD_UNITS_DESTDIR="lib/systemd/upstart/"
-
-# make sure that trusty's golang-1.6 is picked up correctly.
-export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
@@ -128,14 +125,16 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
-	# Generate static snap-exec - it somehow includes CGO so we must
-	# force a static build here. We need a static snap-exec inside
+	# Generate static snap-exec, snapctl and snap-udpate-ns - it somehow includes CGO so we must
+	# force a static build here. We need a static snap-{exec,update-ns}/snapctl inside
 	# the core snap because not all bases will have a libc
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
+	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
@@ -178,6 +177,8 @@ override_dh_install:
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
+	# chrorder generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the

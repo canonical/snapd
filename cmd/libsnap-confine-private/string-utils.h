@@ -32,6 +32,11 @@ bool sc_streq(const char *a, const char *b);
 bool sc_endswith(const char *str, const char *suffix);
 
 /**
+ * Allocate and return a copy of a string.
+**/
+char *sc_strdup(const char *str);
+
+/**
  * Safer version of snprintf.
  *
  * This version dies on any error condition.

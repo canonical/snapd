@@ -8,6 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
+  adb-support:
+    command: bin/run
+    plugs: [ adb-support ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
@@ -20,6 +23,9 @@ apps:
   avahi-observe:
     command: bin/run
     plugs: [ avahi-observe ]
+  block-devices:
+    command: bin/run
+    plugs: [ block-devices ]
   bluetooth-control:
     command: bin/run
     plugs: [ bluetooth-control ]
@@ -77,12 +83,24 @@ apps:
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
+  device-buttons:
+    command: bin/run
+    plugs: [ device-buttons ]
+  display-control:
+    command: bin/run
+    plugs: [ display-control ]
   docker:
     command: bin/run
     plugs: [ docker ]
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  system-files:
+    command: bin/run
+    plugs: [ system-files ]
+  personal-files:
+    command: bin/run
+    plugs: [ personal-files ]
   dvb:
     command: bin/run
     plugs: [ dvb ]
@@ -131,6 +149,9 @@ apps:
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
+  intel-mei:
+    command: bin/run
+    plugs: [ intel-mei ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
@@ -143,6 +164,9 @@ apps:
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
+  kernel-module-observe:
+    command: bin/run
+    plugs: [ kernel-module-observe ]
   kubernetes-support:
     command: bin/run
     plugs: [ kubernetes-support ]
@@ -188,6 +212,9 @@ apps:
   mpris:
     command: bin/run
     plugs: [ mpris ]
+  multipass-support:
+    command: bin/run
+    plugs: [ multipass-support ]
   netlink-audit:
     command: bin/run
     plugs: [ netlink-audit ]
@@ -206,6 +233,9 @@ apps:
   network-manager:
     command: bin/run
     plugs: [ network-manager ]
+  network-manager-observe:
+    command: bin/run
+    plugs: [ network-manager-observe ]
   network-observe:
     command: bin/run
     plugs: [ network-observe ]
@@ -311,6 +341,9 @@ apps:
   tpm:
     command: bin/run
     plugs: [ tpm ]
+  u2f-devices:
+    command: bin/run
+    plugs: [ u2f-devices ]
   ubuntu-download-manager:
     command: bin/run
     plugs: [ ubuntu-download-manager ]
@@ -358,5 +391,13 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  system-files:
+    interface: system-files
+    read: [/file1]
+    write: [/dir1]
+  personal-files:
+    interface: personal-files
+    read: [$HOME/file1]
+    write: [$HOME/dir1]
   dummy:
     interface: dummy

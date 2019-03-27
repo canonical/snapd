@@ -41,15 +41,13 @@ If no interface name is provided, a list of interface names with at least
 one connection is shown, or a list of all interfaces if --all is provided.
 
 [interface command options]
-          --attrs        Show interface attributes
-          --all          Include unused interfaces
+      --attrs          Show interface attributes
+      --all            Include unused interfaces
 
 [interface command arguments]
-  <interface>:           Show details of a specific interface
+  <interface>:         Show details of a specific interface
 `
-	rest, err := Parser().ParseArgs([]string{"interface", "--help"})
-	c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{})
+	s.testSubCommandHelp(c, "interface", msg)
 }
 
 func (s *SnapSuite) TestInterfaceListEmpty(c *C) {
@@ -65,7 +63,7 @@ func (s *SnapSuite) TestInterfaceListEmpty(c *C) {
 			"result": []*client.Interface{},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interface"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interface"})
 	c.Assert(err, ErrorMatches, "no interfaces currently connected")
 	c.Assert(rest, DeepEquals, []string{"interface"})
 	c.Assert(s.Stdout(), Equals, "")
@@ -85,7 +83,7 @@ func (s *SnapSuite) TestInterfaceListAllEmpty(c *C) {
 			"result": []*client.Interface{},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interface", "--all"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--all"})
 	c.Assert(err, ErrorMatches, "no interfaces found")
 	c.Assert(rest, DeepEquals, []string{"--all"}) // XXX: feels like a bug in go-flags.
 	c.Assert(s.Stdout(), Equals, "")
@@ -111,7 +109,7 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interface"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interface"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -144,7 +142,7 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interface", "--all"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--all"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -178,7 +176,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interface", "network"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interface", "network"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -224,7 +222,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 			}},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"interface", "--attrs", "serial-port"})
+	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--attrs", "serial-port"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
@@ -262,7 +260,7 @@ func (s *SnapSuite) TestInterfaceCompletion(c *C) {
 	defer os.Unsetenv("GO_FLAGS_COMPLETION")
 
 	expected := []flags.Completion{}
-	parser := Parser()
+	parser := Parser(Client())
 	parser.CompletionHandler = func(obtained []flags.Completion) {
 		c.Check(obtained, DeepEquals, expected)
 	}

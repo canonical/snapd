@@ -158,8 +158,8 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *
 	}{
 		{"foo/bar", `cannot use \".*\" as notify socket path: not absolute`},
 		{"[", `cannot use ".*" as notify socket path: not absolute`},
-		{"@^", `cannot use \".*\" as notify socket path: contains one of .*`},
-		{`/foo/bar"[]`, `cannot use \".*\" as notify socket path: contains one of .*`},
+		{"@^", `cannot use \".*\" as notify socket path: \".*\" contains a reserved apparmor char from .*`},
+		{`/foo/bar"[]`, `cannot use \".*\" as notify socket path: \".*\" contains a reserved apparmor char from .*`},
 	} {
 		c.Logf("trying %d: %v", idx, tc)
 		socketPath = tc.format

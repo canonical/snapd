@@ -93,7 +93,6 @@ func snapEnv(info *snap.Info) map[string]string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) map[string]string {
-	// TODO parallel-install: use of proper instance/store name
 	return map[string]string{
 		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which

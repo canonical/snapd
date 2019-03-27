@@ -31,6 +31,7 @@ import (
 )
 
 type cmdAliases struct {
+	clientMixin
 	Positionals struct {
 		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"true"`
@@ -89,7 +90,7 @@ func (x *cmdAliases) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	allStatuses, err := Client().Aliases()
+	allStatuses, err := x.client.Aliases()
 	if err != nil {
 		return err
 	}

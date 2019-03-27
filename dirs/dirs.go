@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -74,10 +75,11 @@ var (
 	SnapRepairAssertsDir string
 	SnapRunRepairDir     string
 
-	SnapCacheDir     string
-	SnapNamesFile    string
-	SnapSectionsFile string
-	SnapCommandsDB   string
+	SnapCacheDir        string
+	SnapNamesFile       string
+	SnapSectionsFile    string
+	SnapCommandsDB      string
+	SnapAuxStoreInfoDir string
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
@@ -98,7 +100,6 @@ var (
 
 	CompletionHelper string
 	CompletersDir    string
-	CompleteSh       string
 
 	SystemFontsDir           string
 	SystemLocalFontsDir      string
@@ -109,6 +110,8 @@ var (
 
 	ErrtrackerDbDir string
 	SysfsDir        string
+
+	FeaturesDir string
 )
 
 const (
@@ -122,6 +125,11 @@ const (
 
 	// Directory with snap data inside user's home
 	UserHomeSnapDir = "snap"
+
+	// LocalInstallBlobTempPrefix is used by local install code:
+	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
+	// * in snapstate to auto-cleans them up using the same prefix
+	LocalInstallBlobTempPrefix = ".local-install-"
 )
 
 var (
@@ -197,7 +205,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	isInsideBase, _ := isInsideBaseSnap()
-	if !isInsideBase && release.DistroLike("fedora", "arch", "manjaro", "antergos") {
+	if !isInsideBase && release.DistroLike("fedora", "arch", "archlinux", "manjaro", "antergos") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -235,6 +243,7 @@ func SetRootDir(rootdir string) {
 	SnapNamesFile = filepath.Join(SnapCacheDir, "names")
 	SnapSectionsFile = filepath.Join(SnapCacheDir, "sections")
 	SnapCommandsDB = filepath.Join(SnapCacheDir, "commands.db")
+	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
@@ -252,6 +261,12 @@ func SetRootDir(rootdir string) {
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
+	exists, isDir, _ := osutil.DirExists(SystemApparmorCacheDir)
+	if !exists || !isDir {
+		// some systems use a single cache dir instead of splitting
+		// out the system cache
+		SystemApparmorCacheDir = AppArmorCacheDir
+	}
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
@@ -276,15 +291,51 @@ func SetRootDir(rootdir string) {
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
-	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
 
+	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
+	// The cache path is true for Ubuntu, Debian, openSUSE, Arch
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
+	if release.DistroLike("fedora") && !release.DistroLike("amzn") {
+		// Applies to Fedora and CentOS, Amazon Linux 2 is behind with
+		// updates to fontconfig and uses /var/cache/fontconfig instead,
+		// see:
+		// https://fedoraproject.org/wiki/Changes/FontconfigCacheDirChange
+		// https://bugzilla.redhat.com/show_bug.cgi?id=1416380
+		// https://bugzilla.redhat.com/show_bug.cgi?id=1377367
+		SystemFontconfigCacheDir = filepath.Join(rootdir, "/usr/lib/fontconfig/cache")
+	}
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
+
+	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
+}
+
+// what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
+func libExecOutside(base string) string {
+	if base == "" {
+		// no explicit base; core is it
+		return filepath.Join(SnapMountDir, "core/current/usr/lib/snapd")
+	}
+	// if a base is set, libexec comes from the snapd snap if it's
+	// installed, and otherwise from the distro.
+	p := filepath.Join(SnapMountDir, "snapd/current/usr/lib/snapd")
+	if st, err := os.Stat(p); err == nil && st.IsDir() {
+		return p
+	}
+	return DistroLibExecDir
+}
+
+func CompleteShPath(base string) string {
+	return filepath.Join(libExecOutside(base), "complete.sh")
+}
+
+func IsCompleteShSymlink(compPath string) bool {
+	target, err := os.Readlink(compPath)
+	return err == nil && filepath.Base(target) == "complete.sh"
 }

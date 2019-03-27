@@ -18,7 +18,7 @@ export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on trusty
-export PATH:=/usr/lib/go-1.6/bin:${PATH}
+export PATH:=/usr/lib/go-1.10/bin:${PATH}
 
 include /etc/os-release
 
@@ -85,7 +85,7 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # for stability, predicability and easy of deployment. We need to link some
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
-    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
+    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
 ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH),amd64)
 		VENDOR_ARGS+= --with-host-arch-32bit-triplet=$(shell dpkg-architecture -f -ai386 -qDEB_HOST_MULTIARCH)
 endif
@@ -113,9 +113,13 @@ override_dh_fixperms:
 #
 # Because both the usual and the .real profile describe the same binary the
 # .real profile takes priority (as it is loaded later).
-override_dh_installdeb:
+#
+# We need run dh_apparmor *before* dh_systemd_enable to ensure the postinst
+# snippets are added in the right order (first the new apparmor profile
+# is loaded, then we restart the service).
+override_dh_systemd_enable:
 	dh_apparmor --profile-name=usr.lib.snapd.snap-confine.real -psnapd
-	dh_installdeb
+	dh_systemd_enable
 
 override_dh_clean:
 ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
@@ -148,15 +152,17 @@ override_dh_auto_build:
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
-	# Generate static snap-exec and snap-update-ns - it somehow includes CGO so
-	# we must force a static build here. We need a static snap-{exec,update-ns}
+	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
+	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
+	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
 endif
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
@@ -217,6 +223,8 @@ override_dh_install:
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
+	# chrorder generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
@@ -228,6 +236,12 @@ override_dh_install:
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
+
+	# We have to disable the systemd generator on bionic because of
+	# the systemd bug LP: 1771858. Enabling it caused bug #1811233
+ifeq (${VERSION_ID},"18.04")
+	chmod -x ${CURDIR}/debian/tmp/usr/lib/systemd/system-environment-generators/snapd-env-generator
+endif
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real

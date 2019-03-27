@@ -22,6 +22,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/base64"
 	"encoding/json"
@@ -40,12 +41,11 @@ import (
 	"time"
 
 	"github.com/juju/ratelimit"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -75,15 +75,23 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
+	IsAutoRefresh  bool
 
 	PrivacyKey string
 }
 
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 300 * time.Millisecond,
+		Initial: 350 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
+var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
+	retry.Exponential{
+		Initial: 500 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -428,8 +436,8 @@ func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
-func LoginUser(username, password, otp string) (string, string, error) {
-	macaroon, err := requestStoreMacaroon()
+func (s *Store) LoginUser(username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon(s.client)
 	if err != nil {
 		return "", "", err
 	}
@@ -444,7 +452,7 @@ func LoginUser(username, password, otp string) (string, string, error) {
 		return "", "", err
 	}
 
-	discharge, err := dischargeAuthCaveat(loginCaveat, username, password, otp)
+	discharge, err := dischargeAuthCaveat(s.client, loginCaveat, username, password, otp)
 	if err != nil {
 		return "", "", err
 	}
@@ -501,7 +509,7 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 }
 
 // refreshDischarges will request refreshed discharge macaroons for the user
-func refreshDischarges(user *auth.UserState) ([]string, error) {
+func refreshDischarges(httpClient *http.Client, user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
 		discharge, err := auth.MacaroonDeserialize(d)
@@ -513,7 +521,7 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 			continue
 		}
 
-		refreshedDischarge, err := refreshDischargeMacaroon(d)
+		refreshedDischarge, err := refreshDischargeMacaroon(httpClient, d)
 		if err != nil {
 			return nil, err
 		}
@@ -527,7 +535,7 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 	if s.authContext == nil {
 		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
 	}
-	newDischarges, err := refreshDischarges(user)
+	newDischarges, err := refreshDischarges(s.client, user)
 	if err != nil {
 		return err
 	}
@@ -548,7 +556,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := requestStoreDeviceNonce(s.endpointURL(deviceNonceEndpPath, nil).String())
+	nonce, err := requestStoreDeviceNonce(s.client, s.endpointURL(deviceNonceEndpPath, nil).String())
 	if err != nil {
 		return err
 	}
@@ -558,7 +566,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := requestDeviceSession(s.endpointURL(deviceSessionEndpPath, nil).String(), devSessReqParams, device.SessionMacaroon)
+	session, err := requestDeviceSession(s.client, s.endpointURL(deviceSessionEndpPath, nil).String(), devSessReqParams, device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -755,13 +763,11 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 		if err != nil {
 			return nil, err
 		}
-
-		var resp *http.Response
 		if ctx != nil {
-			resp, err = ctxhttp.Do(ctx, client, req)
-		} else {
-			resp, err = client.Do(req)
+			req = req.WithContext(ctx)
 		}
+
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -1260,7 +1266,6 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
-	Epoch    snap.Epoch
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1270,45 +1275,6 @@ type RefreshCandidate struct {
 
 	// try to refresh a local snap to a store revision
 	Amend bool
-}
-
-// the exact bits that we need to send to the store
-type currentSnapJSON struct {
-	SnapID           string     `json:"snap_id"`
-	Channel          string     `json:"channel"`
-	Revision         int        `json:"revision,omitempty"`
-	Epoch            snap.Epoch `json:"epoch"`
-	Confinement      string     `json:"confinement"`
-	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
-}
-
-func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
-	// the store gets confused if we send snaps without a snapid
-	// (like local ones)
-	if cs.SnapID == "" {
-		if cs.Revision.Store() {
-			logger.Noticef("store.currentSnap got given a RefreshCandidate with an empty SnapID but a store revision!")
-		}
-		return nil
-	}
-	if !cs.Revision.Store() && !cs.Amend {
-		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
-		return nil
-	}
-
-	channel := cs.Channel
-	if channel == "" {
-		channel = "stable"
-	}
-
-	return &currentSnapJSON{
-		SnapID:           cs.SnapID,
-		Channel:          channel,
-		Epoch:            cs.Epoch,
-		Revision:         cs.Revision.N,
-		IgnoreValidation: cs.IgnoreValidation,
-		// confinement purposely left empty
-	}
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1331,7 +1297,8 @@ func (e HashError) Error() string {
 }
 
 type DownloadOptions struct {
-	RateLimit int64
+	RateLimit     int64
+	IsAutoRefresh bool
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1446,7 +1413,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
-func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions) *requestOptions {
 	reqOptions := requestOptions{
 		Method:       "GET",
 		URL:          storeURL,
@@ -1454,6 +1421,9 @@ func reqOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
 	}
 	if cdnHeader != "" {
 		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
+	}
+	if opts != nil && opts.IsAutoRefresh {
+		reqOptions.ExtraHeaders["Snap-Refresh-Reason"] = "scheduled"
 	}
 
 	return &reqOptions
@@ -1482,8 +1452,8 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	var finalErr error
 	var dlSize float64
 	startTime := time.Now()
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := reqOptions(storeURL, cdnHeader)
+	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
+		reqOptions := downloadReqOpts(storeURL, cdnHeader, dlOpts)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -1621,7 +1591,7 @@ func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	case osutil.ExecutableExists("xdelta3"):
 		return exec.Command("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
+		return osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", args...)
 	}
 	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }
@@ -1651,6 +1621,10 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
 		}
+		return err
+	}
+
+	if err := os.Chmod(partialTargetPath, 0600); err != nil {
 		return err
 	}
 
@@ -1778,18 +1752,6 @@ func (s *Store) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-// BuyOptions specifies parameters to buy from the store.
-type BuyOptions struct {
-	SnapID   string  `json:"snap-id"`
-	Price    float64 `json:"price"`
-	Currency string  `json:"currency"` // ISO 4217 code as string
-}
-
-// BuyResult holds the state of a buy attempt.
-type BuyResult struct {
-	State string `json:"state,omitempty"`
-}
-
 // orderInstruction holds data sent to the store for orders.
 type orderInstruction struct {
 	SnapID   string `json:"snap_id"`
@@ -1824,13 +1786,13 @@ func (s *storeErrors) Error() string {
 	return s.Errors[0].Error()
 }
 
-func buyOptionError(message string) (*BuyResult, error) {
+func buyOptionError(message string) (*client.BuyResult, error) {
 	return nil, fmt.Errorf("cannot buy snap: %s", message)
 }
 
 // Buy sends a buy request for the specified snap.
 // Returns the state of the order: Complete, Cancelled.
-func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
+func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError("snap ID missing")
 	}
@@ -1877,7 +1839,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 			return buyOptionError("payment cancelled")
 		}
 
-		return &BuyResult{
+		return &client.BuyResult{
 			State: orderDetails.State,
 		}, nil
 	case 400:
@@ -1977,6 +1939,7 @@ type CurrentSnap struct {
 	RefreshedDate    time.Time
 	IgnoreValidation bool
 	Block            []snap.Revision
+	Epoch            snap.Epoch
 }
 
 type currentSnapV2JSON struct {
@@ -1984,6 +1947,7 @@ type currentSnapV2JSON struct {
 	InstanceKey      string     `json:"instance-key"`
 	Revision         int        `json:"revision"`
 	TrackingChannel  string     `json:"tracking-channel"`
+	Epoch            snap.Epoch `json:"epoch"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 }
@@ -2002,7 +1966,7 @@ type SnapAction struct {
 	Channel      string
 	Revision     snap.Revision
 	Flags        SnapActionFlags
-	Epoch        *snap.Epoch
+	Epoch        snap.Epoch
 }
 
 func isValidAction(action string) bool {
@@ -2015,14 +1979,21 @@ func isValidAction(action string) bool {
 }
 
 type snapActionJSON struct {
-	Action           string      `json:"action"`
-	InstanceKey      string      `json:"instance-key"`
-	Name             string      `json:"name,omitempty"`
-	SnapID           string      `json:"snap-id,omitempty"`
-	Channel          string      `json:"channel,omitempty"`
-	Revision         int         `json:"revision,omitempty"`
-	Epoch            *snap.Epoch `json:"epoch,omitempty"`
-	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
+	Action           string `json:"action"`
+	InstanceKey      string `json:"instance-key"`
+	Name             string `json:"name,omitempty"`
+	SnapID           string `json:"snap-id,omitempty"`
+	Channel          string `json:"channel,omitempty"`
+	Revision         int    `json:"revision,omitempty"`
+	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
+
+	// NOTE the store needs an epoch (even if null) for the "install" and "download"
+	// actions, to know the client handles epochs at all.  "refresh" actions should
+	// send nothing, not even null -- the snap in the context should have the epoch
+	// already.  We achieve this by making Epoch be an `interface{}` with omitempty,
+	// and then setting it to a (possibly nil) epoch for install and download. As a
+	// nil epoch is not an empty interface{}, you'll get the null in the json.
+	Epoch interface{} `json:"epoch,omitempty"`
 }
 
 type snapRelease struct {
@@ -2171,6 +2142,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			TrackingChannel:  channel,
 			IgnoreValidation: curSnap.IgnoreValidation,
 			RefreshedDate:    refreshedDate,
+			Epoch:            curSnap.Epoch,
 		}
 	}
 
@@ -2202,12 +2174,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
-			Epoch:            a.Epoch,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
 			a.Channel = ""
 		}
+
 		if a.Action == "install" {
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
@@ -2226,6 +2198,15 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if a.Action != "refresh" {
 			aJSON.Name = snap.InstanceSnap(a.InstanceName)
+			if a.Epoch.IsZero() {
+				// Let the store know we can handle epochs, by sending the `epoch`
+				// field in the request.  A nil epoch is not an empty interface{},
+				// you'll get the null in the json. See comment in snapActionJSON.
+				aJSON.Epoch = (*snap.Epoch)(nil)
+			} else {
+				// this is the amend case
+				aJSON.Epoch = &a.Epoch
+			}
 		}
 
 		aJSON.InstanceKey = instanceKey
@@ -2250,6 +2231,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		ContentType: jsonContentType,
 		Data:        jsonData,
 		APILevel:    apiV2Endps,
+	}
+
+	if opts.IsAutoRefresh {
+		logger.Debugf("Auto-refresh; adding header Snap-Refresh-Reason: scheduled")
+		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
 	}
 
 	if useDeltas() {
@@ -2293,6 +2279,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			} else {
 				if cur := curSnaps[res.InstanceKey]; cur != nil {
 					a := refreshes[res.InstanceKey]
+					if a == nil {
+						// got an error for a snap that was not part of an 'action'
+						otherErrors = append(otherErrors, translateSnapActionError("", "", res.Error.Code, fmt.Sprintf("snap %q: %s", cur.InstanceName, res.Error.Message), nil))
+						logger.Debugf("Unexpected error for snap %q, instance key %v: [%v] %v", cur.InstanceName, res.InstanceKey, res.Error.Code, res.Error.Message)
+						continue
+					}
 					channel := a.Channel
 					if channel == "" && a.Revision.Unset() {
 						channel = cur.TrackingChannel
@@ -2418,7 +2410,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		return hosts, err
 	}
 
-	reqOptions := reqOptions(dlURL, cdnHeader)
+	reqOptions := downloadReqOpts(dlURL, cdnHeader, nil)
 	reqOptions.Method = "HEAD" // not actually a download
 
 	// TODO: We need the HEAD here so that we get redirected to the

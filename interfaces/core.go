@@ -51,6 +51,14 @@ func (ref PlugRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
+// SortsBefore returns true when plug should be sorted before the other
+func (ref PlugRef) SortsBefore(other PlugRef) bool {
+	if ref.Snap != other.Snap {
+		return ref.Snap < other.Snap
+	}
+	return ref.Name < other.Name
+}
+
 // Sanitize slot with a given snapd interface.
 func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 	if iface.Name() != slotInfo.Interface {
@@ -73,6 +81,14 @@ type SlotRef struct {
 // String returns the "snap:slot" representation of a slot reference.
 func (ref SlotRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
+}
+
+// SortsBefore returns true when slot should be sorted before the other
+func (ref SlotRef) SortsBefore(other SlotRef) bool {
+	if ref.Snap != other.Snap {
+		return ref.Snap < other.Snap
+	}
+	return ref.Name < other.Name
 }
 
 // Interfaces holds information about a list of plugs, slots and their connections.
@@ -108,6 +124,14 @@ func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 // ID returns a string identifying a given connection.
 func (conn *ConnRef) ID() string {
 	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+}
+
+// SortsBefore returns true when connection should be sorted before the other
+func (conn *ConnRef) SortsBefore(other *ConnRef) bool {
+	if conn.PlugRef != other.PlugRef {
+		return conn.PlugRef.SortsBefore(other.PlugRef)
+	}
+	return conn.SlotRef.SortsBefore(other.SlotRef)
 }
 
 // ParseConnRef parses an ID string
@@ -216,6 +240,8 @@ const (
 	SecuritySystemd SecuritySystem = "systemd"
 )
 
+var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString
+
 // ValidateDBusBusName checks if a string conforms to
 // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
 func ValidateDBusBusName(busName string) error {
@@ -225,8 +251,7 @@ func ValidateDBusBusName(busName string) error {
 		return fmt.Errorf("DBus bus name is too long (must be <= 255)")
 	}
 
-	validBusName := regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*(\\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$")
-	if !validBusName.MatchString(busName) {
+	if !isValidBusName(busName) {
 		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil

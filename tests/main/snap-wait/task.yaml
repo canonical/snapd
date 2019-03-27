@@ -3,6 +3,7 @@ summary: Check that `snap wait` works
 kill-timeout: 2m
 
 prepare: |
+    # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local basic-hooks
 
@@ -16,7 +17,7 @@ execute: |
     # keep track
     start=$(date +%s)
     # ensure we wait 3s before the false value becomes true
-    ((sleep 3; snap set basic-hooks foo=1)&)
+    ( (sleep 3; snap set basic-hooks foo=1)& )
     snap wait basic-hooks foo
     end=$(date +%s)
     # ensure we waited 

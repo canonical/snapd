@@ -56,13 +56,13 @@ func (s *SnapSuite) TestChangeSimple(c *check.C) {
 	expectedChange := `(?ms)Status +Spawn +Ready +Summary
 Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 `
-	rest, err := snap.Parser().ParseArgs([]string{"change", "--abs-time", "42"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"change", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, expectedChange)
 	c.Check(s.Stderr(), check.Equals, "")
 
-	rest, err = snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "42"})
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, expectedChange)
@@ -83,7 +83,7 @@ func (s *SnapSuite) TestChangeSimpleRebooting(c *check.C) {
 		n++
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"change", "42"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"change", "42"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "WARNING: snapd is about to reboot the system\n")
 }
@@ -144,13 +144,13 @@ func (s *SnapSuite) TestTasksLast(c *check.C) {
 	expectedChange := `(?ms)Status +Spawn +Ready +Summary
 Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 `
-	rest, err := snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=install"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--abs-time", "--last=install"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, expectedChange)
 	c.Check(s.Stderr(), check.Equals, "")
 
-	_, err = snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=foobar"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--abs-time", "--last=foobar"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
 }
@@ -171,13 +171,13 @@ func (s *SnapSuite) TestTasksLastQuestionmark(c *check.C) {
 		}
 	})
 	for i := 0; i < 2; i++ {
-		rest, err := snap.Parser().ParseArgs([]string{"tasks", "--last=foobar?"})
+		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--last=foobar?"})
 		c.Assert(err, check.IsNil)
 		c.Assert(rest, check.DeepEquals, []string{})
 		c.Check(s.Stdout(), check.Matches, "")
 		c.Check(s.Stderr(), check.Equals, "")
 
-		_, err = snap.Parser().ParseArgs([]string{"tasks", "--last=foobar"})
+		_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--last=foobar"})
 		if i == 0 {
 			c.Assert(err, check.ErrorMatches, `no changes found`)
 		} else {
@@ -189,11 +189,11 @@ func (s *SnapSuite) TestTasksLastQuestionmark(c *check.C) {
 }
 
 func (s *SnapSuite) TestTasksSyntaxError(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=install", "42"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--abs-time", "--last=install", "42"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `cannot use change ID and type together`)
 
-	_, err = snap.Parser().ParseArgs([]string{"tasks"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `please provide change ID or type with --last=<type>`)
 }
@@ -223,7 +223,7 @@ func (s *SnapSuite) TestChangeProgress(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"change", "--abs-time", "42"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"change", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?ms)Status +Spawn +Ready +Summary

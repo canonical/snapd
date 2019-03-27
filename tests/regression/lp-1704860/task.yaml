@@ -19,7 +19,8 @@ details: |
     this is safe to do.
 
 execute: |
-    . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local_classic test-snapd-classic-confinement
     # We don't want to see SNAP_DID_REEXEC being set.
     if snap run --shell test-snapd-classic-confinement ./snap-env-query.sh | grep 'SNAP_DID_REEXEC='; then

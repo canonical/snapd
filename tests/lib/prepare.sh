@@ -81,9 +81,12 @@ $START_LIMIT_INTERVAL
 EOF
 
     # We change the service configuration so reload and restart
-    # the snapd socket unit to get them applied
+    # the units to get them applied
     systemctl daemon-reload
-    systemctl restart snapd.socket
+    # stop the socket (it pulls down the service)
+    systemctl stop snapd.socket
+    # start the service (it pulls up the socket)
+    systemctl start snapd.service
 }
 
 update_core_snap_for_classic_reexec() {
@@ -107,14 +110,20 @@ update_core_snap_for_classic_reexec() {
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs -no-progress "$snap"
     # clean the old snapd binaries, just in case
-    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/{snap,snapctl}
+    rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            # RPM can rewrite shebang to #!/usr/bin/sh
+            sed -i -e '1 s;#!/usr/bin/sh;#!/bin/sh;' squashfs-root/usr/lib/snapd/snap-device-helper
+            ;;
+    esac
     # also the binaries themselves
-    cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
     if [ ! -L squashfs-root/usr/bin/snapctl ]; then
-        mv squashfs-root/usr/bin/snapctl squashfs-root/usr/lib/snapd
+        rm -f squashfs-root/usr/bin/snapctl
         ln -s ../lib/snapd/snapctl squashfs-root/usr/bin/snapctl
     fi
 
@@ -133,6 +142,19 @@ update_core_snap_for_classic_reexec() {
         ubuntu-*)
             # also load snap-confine's apparmor profile
             apparmor_parser -r squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+            ;;
+    esac
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            if selinuxenabled ; then
+                # On these systems just unpacking core snap to $HOME will
+                # automatically apply user_home_t label on all the contents of the
+                # snap; since we cannot drop xattrs when calling mksquashfs, make
+                # sure that we relabel the contents in way that a squashfs image
+                # without any labels would look like: system_u:object_r:unlabeled_t
+                chcon -R -u system_u -r object_r -t unlabeled_t squashfs-root
+            fi
             ;;
     esac
 
@@ -230,22 +252,13 @@ prepare_classic() {
 
     # Snapshot the state including core.
     if ! is_snapd_state_saved; then
-        # Pre-cache a few heavy snaps so that they can be installed by tests
-        # quickly. This relies on a behavior of snapd where .partial files are
-        # used for resuming downloads.
-        (
-            set -x
-            cd "$TESTSLIB/cache/"
-            # Download each of the snaps we want to pre-cache. Note that `snap download`
-            # a quick no-op if the file is complete.
-            for snap_name in ${PRE_CACHE_SNAPS:-}; do
-                snap download "$snap_name"
-            done
-            # Copy all of the snaps back to the spool directory. From there we
-            # will reuse them during subsequent `snap install` operations.
-            cp -- *.snap /var/lib/snapd/snaps/
-            set +x
-        )
+        # need to be seeded to proceed with snap install
+        # also make sure the captured state is seeded
+        snap wait system seed.loaded
+
+        # Cache snaps
+        # shellcheck disable=SC2086
+        cache_snaps ${PRE_CACHE_SNAPS}
 
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
@@ -290,6 +303,9 @@ setup_reflash_magic() {
     distro_install_package kpartx busybox-static
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
+
+    # need to be seeded to proceed with snap install
+    snap wait system seed.loaded
 
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
@@ -508,6 +524,10 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
+    # we do not need console-conf, so prevent it from running
+    mkdir -p /mnt/system-data/var/lib/console-conf
+    touch /mnt/system-data/var/lib/console-conf/complete
+
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
     umount /mnt
@@ -596,6 +616,13 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
+    echo "Ensure the core snap is cached"
+    if is_core18_system; then
+        if ! snap list core; then
+            cache_snaps core
+        fi
+    fi
+
     disable_refreshes
     setup_systemd_snapd_overrides
 
@@ -607,4 +634,23 @@ prepare_ubuntu_core() {
     fi
 
     disable_kernel_rate_limiting
+}
+
+cache_snaps(){
+    # Pre-cache snaps so that they can be installed by tests quickly.
+    # This relies on a behavior of snapd where .partial files are
+    # used for resuming downloads.
+    (
+        set -x
+        cd "$TESTSLIB/cache/"
+        # Download each of the snaps we want to pre-cache. Note that `snap download`
+        # a quick no-op if the file is complete.
+        for snap_name in "$@"; do
+            snap download "$snap_name"
+        done
+        # Copy all of the snaps back to the spool directory. From there we
+        # will reuse them during subsequent `snap install` operations.
+        cp -- *.snap /var/lib/snapd/snaps/
+        set +x
+    )
 }

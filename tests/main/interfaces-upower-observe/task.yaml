@@ -11,7 +11,7 @@ details: |
     it without error while the plug is connected.
 
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
-systems: [-ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -arch-*, -amazon-*]
+systems: [-ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
@@ -23,9 +23,6 @@ prepare: |
         echo "And a snap providing a upower-observe slot is installed"
         snap install upower
     fi
-
-restore: |
-    rm -f upower.error
 
 execute: |
     SLOT_PROVIDER=
@@ -47,14 +44,16 @@ execute: |
     done
     test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected"
 
-    if [ "$(snap debug confinement)" = strict ] ; then
-        echo "When the plug is disconnected"
-        snap disconnect test-snapd-upower-observe-consumer:upower-observe
-
-        echo "Then the snap is not able to dump info about the upower devices"
-        if test-snapd-upower-observe-consumer.upower --dump 2>"${PWD}"/upower.error; then
-            echo "Expected permission error accessing upower info with disconnected plug"
-            exit 1
-        fi
-        MATCH "Permission denied" < upower.error
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
     fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-upower-observe-consumer:upower-observe
+
+    echo "Then the snap is not able to dump info about the upower devices"
+    if test-snapd-upower-observe-consumer.upower --dump 2> upower.error; then
+        echo "Expected permission error accessing upower info with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < upower.error

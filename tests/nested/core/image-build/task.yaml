@@ -1,0 +1,27 @@
+summary: create ubuntu-core image and execute the suite in a nested qemu instance
+
+systems: [ubuntu-16.04-64]
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    create_nested_core_vm
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+
+execute: |
+    cd "$SPREAD_PATH"
+
+    tmp=$(mktemp -d)
+    trap 'rm -rf $tmp' EXIT
+    curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread "$tmp"
+
+    set +x
+    export SPREAD_EXTERNAL_ADDRESS=localhost:8022
+    "$tmp/spread" -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
+                            external:ubuntu-core-16-64:tests/main/install-store \
+                            external:ubuntu-core-16-64:tests/main/interfaces-system-observe \
+                            external:ubuntu-core-16-64:tests/main/op-remove-retry | while read -r line; do echo "> $line"; done

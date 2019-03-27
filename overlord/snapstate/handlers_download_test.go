@@ -65,7 +65,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 		// code path in the task is hit and the store is queried
 		// in the task (instead of using the new
 		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
-		// snapstate.{Install,Update} directely.
+		// snapstate.{Install,Update} directly.
 		DownloadInfo: nil,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
@@ -150,6 +150,15 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	t.Get("snap-setup", &snapsup)
 	c.Check(snapsup.SideInfo, DeepEquals, si)
 	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check no IsAutoRefresh was passed in
+	c.Assert(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{
+			name:   "foo",
+			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
+			opts:   nil,
+		},
+	})
 }
 
 func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
@@ -229,7 +238,8 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 			name:   "foo",
 			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
 			opts: &store.DownloadOptions{
-				RateLimit: 1234,
+				RateLimit:     1234,
+				IsAutoRefresh: true,
 			},
 		},
 	})

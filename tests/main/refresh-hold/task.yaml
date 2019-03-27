@@ -10,7 +10,7 @@ summary: Check that the refresh hold works
 # - fixed version: 2018-07-27T08:05:00+00:00
 
 # ubuntu-14.04 and amazon are shipped with buggy date
-systems: [-ubuntu-14.04-*, -amazon-*]
+systems: [-ubuntu-14.04-*, -amazon-*, -centos-*]
 
 execute: |
     echo "Ensure snap set core refresh.hold works"

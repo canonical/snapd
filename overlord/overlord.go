@@ -71,6 +71,7 @@ type Overlord struct {
 	ensureTimer *time.Timer
 	ensureNext  time.Time
 	pruneTicker *time.Ticker
+	numEnsure   uint64
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
@@ -247,9 +248,20 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 	now := time.Now()
 	next := now.Add(d)
-	if next.Before(o.ensureNext) || o.ensureNext.Before(now) {
+	if next.Before(o.ensureNext) {
 		o.ensureTimer.Reset(d)
 		o.ensureNext = next
+		return
+	}
+
+	if o.ensureNext.Before(now) {
+		// timer already expired, it will be reset in Loop() and
+		// next Ensure() will be called shortly.
+		if !o.ensureTimer.Stop() {
+			return
+		}
+		o.ensureTimer.Reset(0)
+		o.ensureNext = now
 	}
 }
 
@@ -276,6 +288,7 @@ func (o *Overlord) Loop() {
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
+			o.numEnsure++
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -288,6 +301,10 @@ func (o *Overlord) Loop() {
 			}
 		}
 	})
+}
+
+func (o *Overlord) CanStandby() bool {
+	return o.numEnsure > 0
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.

@@ -40,11 +40,20 @@ var (
 	ExecWritableMimic = execWritableMimic
 
 	// main
-	ComputeAndSaveChanges = computeAndSaveChanges
-	ApplyUserFstab        = applyUserFstab
+	ComputeAndSaveSystemChanges = computeAndSaveSystemChanges
+	ApplyUserFstab              = applyUserFstab
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
+
+	// trespassing
+	IsReadOnly                   = isReadOnly
+	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
+
+	// xdg
+	XdgRuntimeDir        = xdgRuntimeDir
+	ExpandPrefixVariable = expandPrefixVariable
+	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -142,7 +151,20 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockFreezing(freeze, thaw func(snapName string) error) (restore func()) {
+	oldFreeze := freezeSnapProcesses
+	oldThaw := thawSnapProcesses
+
+	freezeSnapProcesses = freeze
+	thawSnapProcesses = thaw
+
+	return func() {
+		freezeSnapProcesses = oldFreeze
+		thawSnapProcesses = oldThaw
+	}
+}
+
+func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {
@@ -164,4 +186,16 @@ func MockReadlink(fn func(string) (string, error)) (restore func()) {
 	return func() {
 		osReadlink = old
 	}
+}
+
+func (as *Assumptions) IsRestricted(path string) bool {
+	return as.isRestricted(path)
+}
+
+func (as *Assumptions) PastChanges() []*Change {
+	return as.pastChanges
+}
+
+func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
+	return as.canWriteToDirectory(dirFd, dirName)
 }

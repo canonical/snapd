@@ -1,21 +1,21 @@
 # Norwegian Bokmal translation for snapd
-# Copyright (c) 2016 Rosetta Contributors and Canonical Ltd 2016
+# Copyright (c) 2018 Rosetta Contributors and Canonical Ltd 2018
 # This file is distributed under the same license as the snapd package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2016.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2017-10-14 00:51+0000\n"
-"PO-Revision-Date: 2016-10-25 11:43+0000\n"
-"Last-Translator: Åka Sikrom <Unknown>\n"
+"POT-Creation-Date: 2018-04-03 12:06+0200\n"
+"PO-Revision-Date: 2018-09-27 14:02+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Norwegian Bokmal <nb@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2017-10-18 08:37+0000\n"
-"X-Generator: Launchpad (build 18476)\n"
+"X-Launchpad-Export-Date: 2018-10-05 14:20+0000\n"
+"X-Generator: Launchpad (build 18785)\n"
 
 #, c-format
 msgid ""
@@ -67,22 +67,27 @@ msgstr ""
 msgid "%s removed\n"
 msgstr "%s fjernet\n"
 
+#. TRANSLATORS: first %s is a snap name, second %s is a revision
 #, c-format
 msgid "%s reverted to %s\n"
 msgstr "%s tilbakestilt til %s\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
 #, c-format
 msgid "%s%s %s from '%s' installed\n"
 msgstr "%s%s %s fra «%s» installert\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
 #, c-format
 msgid "%s%s %s from '%s' refreshed\n"
 msgstr ""
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 #, c-format
 msgid "%s%s %s installed\n"
 msgstr "%s%s %s installert\n"
 
+#. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 #, c-format
 msgid "%s%s %s refreshed\n"
 msgstr ""
@@ -96,61 +101,92 @@ msgstr ""
 msgid "-r can only be used with --hook"
 msgstr "«-r» kan bare brukes sammen med «--hook»"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<alias-or-snap>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<alias>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion file>"
 msgstr "<forutsetningsfil>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<assertion type>"
 msgstr "<forutsetningstype>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<change-id>"
 msgstr "<endrings-ID>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<conf value>"
 msgstr "<oppsettsverdi>"
 
-#. TRANSLATORS: noun
-#. TRANSLATORS: noun
+#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
+#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 msgid "<email>"
 msgstr "<e-post>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<filename>"
 msgstr "<filnavn>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<header filter>"
 msgstr "<hodefilter>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<interface>"
 msgstr ""
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<key-name>"
 msgstr "<nøkkelnavn>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<key>"
 msgstr "<nøkkel>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<model-assertion>"
 msgstr "<modellforutsetning>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<query>"
 msgstr "<spørring>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<root-dir>"
 msgstr "<rotmappe>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+msgid "<service>"
+msgstr ""
+
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<plug>"
 msgstr "<snap>:<plugg>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<slot or plug>"
 msgstr "<snap>:<spor eller or plugg>"
 
+#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to be wrapped in <>s.
 msgid "<snap>:<slot>"
 msgstr "<snap>:<spor>"
+
+msgid ""
+"A service specification, which can be just a snap name (for all services in "
+"the snap), or <snap>.<app> for a single service."
+msgstr ""
 
 msgid "Abort a pending change"
 msgstr "Avbryt pågående endring"
@@ -161,11 +197,34 @@ msgstr ""
 msgid "Adds an assertion to the system"
 msgstr "Legger til en forutsetning i systemet"
 
+msgid "Advise on available snaps."
+msgstr ""
+
+msgid "Advise on snaps that provide the given command"
+msgstr ""
+
 msgid "Alias for --dangerous (DEPRECATED)"
 msgstr "Alias for «--dangerous» (UTGÅTT)"
 
 msgid "All snaps up to date."
 msgstr "Alle snap-pakker er oppdatert."
+
+msgid "Allow opening file?"
+msgstr ""
+
+msgid "Allow refresh attempt on snap unknown to the store"
+msgstr ""
+
+msgid "Allow settings change?"
+msgstr ""
+
+#, c-format
+msgid "Allow snap %q to change %q to %q ?"
+msgstr ""
+
+#, c-format
+msgid "Allow snap %q to open file %q?"
+msgstr ""
 
 msgid "Alternative command to run"
 msgstr "Alternativ kommando som skal kjøres"
@@ -173,13 +232,27 @@ msgstr "Alternativ kommando som skal kjøres"
 msgid "Always return document, even with single key"
 msgstr "Vis alltid dokument, selv med enkeltknapp"
 
-#. TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+msgid "Always return list, even with single key"
+msgstr ""
+
+#. TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
 msgid "An email of a user on login.ubuntu.com"
 msgstr "E-postadresse til en bruker på login.ubuntu.com"
 
+msgid ""
+"As well as starting the service now, arrange for it to be started on boot."
+msgstr ""
+
+msgid ""
+"As well as stopping the service now, arrange for it to no longer be started "
+"on boot."
+msgstr ""
+
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Assertion file"
 msgstr "Forutsetningsfil"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Assertion type name"
 msgstr "Forutsetningstypenavn"
 
@@ -199,30 +272,27 @@ msgstr ""
 msgid "Auto-refresh snaps %s"
 msgstr ""
 
+#, c-format
+msgid "Automatically connect eligible plugs and slots of snap %q"
+msgstr ""
+
 msgid "Bad code. Try again: "
 msgstr "Ugyldig kode. Prøv igjen: "
 
 msgid "Buys a snap"
 msgstr "Kjøper en snap"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Change ID"
 msgstr ""
 
 msgid "Changes configuration options"
 msgstr ""
 
-msgid ""
-"Classic dimension disabled on this system.\n"
-"Use \"sudo snap install --devmode classic && sudo classic.create\" to enable "
-"it."
-msgstr ""
-"Klassisk dimensjon er slått av på dette systemet.\n"
-"Bruk «sudo snap install --devmode classic && sudo classic.create» for å slå "
-"på."
-
 msgid "Command\tAlias\tNotes"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Configuration value (key=value)"
 msgstr "Oppsettsverdi (nøkkel=verdi)"
 
@@ -236,12 +306,14 @@ msgstr "Koble %s:%s til %s:%s"
 msgid "Connects a plug to a slot"
 msgstr "Kobler en plugg til et spor"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Constrain listing to a specific snap or snap:name"
 msgstr "Begrens visning til bestemt snap eller snap:navn"
 
 msgid "Constrain listing to specific interfaces"
 msgstr "Begrens visning til bestemt grensesnitt"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Constrain listing to those matching header=value"
 msgstr "Begrens visning til elementer som samsvarer med hode=verdi"
 
@@ -323,8 +395,9 @@ msgstr "Slå på %q snap"
 msgid "Enables a snap in the system"
 msgstr "Slår på en snap i systemet"
 
-msgid "Entering classic dimension"
-msgstr "Går inn i klassisk dimensjon"
+#, c-format
+msgid "Ensure prerequisites for %q are available"
+msgstr ""
 
 msgid ""
 "Export a public key assertion body that may be imported by other systems."
@@ -347,6 +420,7 @@ msgstr "Henter forutsetninger for %q\n"
 msgid "Fetching snap %q\n"
 msgstr "Henter snap %q\n"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Filename of the snap you want to assert a build for"
 msgstr "Filnavn på snap som du vil bygge for"
 
@@ -392,6 +466,9 @@ msgstr "Signatur-identifisering"
 
 msgid "Identifier of the snap package associated with the build"
 msgstr "Identifisering av snap-pakke som er knyttet til bygget"
+
+msgid "If the service has a reload command, use it instead of restarting."
+msgstr ""
 
 msgid "Ignore validation by other snaps blocking the refresh"
 msgstr ""
@@ -469,9 +546,18 @@ msgstr ""
 msgid "Install the given snap without enabling its automatic aliases"
 msgstr ""
 
+#, c-format
+msgid ""
+"Install the snap with:\n"
+"   snap ack %s\n"
+"   snap install %s\n"
+msgstr ""
+
 msgid "Installs a snap to the system"
 msgstr "Installerer en snap på systemet"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Key of interest within the configuration"
 msgstr "Interessenøkkel i oppsettet"
 
@@ -492,6 +578,9 @@ msgid "List system changes"
 msgstr "Vis systemendringer"
 
 msgid "Lists aliases in the system"
+msgstr ""
+
+msgid "Lists all repairs"
 msgstr ""
 
 msgid "Lists interfaces in the system"
@@ -533,12 +622,15 @@ msgstr ""
 msgid "Mount snap %q%s"
 msgstr "Monter snap %q%s"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to create; defaults to 'default'"
 msgstr "Navn på nøkkel som skal lages (standard er «default»)"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to delete"
 msgstr "Navn på nøkkel du vil slette"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Name of key to export"
 msgstr "Navn på nøkkel du vil eksportere"
 
@@ -561,14 +653,60 @@ msgstr "Navn\tVersjon\tUtvikler\tMerknader\tSammendrag"
 msgid "Name\tVersion\tRev\tDeveloper\tNotes"
 msgstr "Navn\tVersjon\tRev\tUtvikler\tMerknader"
 
+msgid "Name\tVersion\tRev\tTracking\tDeveloper\tNotes"
+msgstr ""
+
+#, c-format
+msgid "No aliases are currently defined for snap %q.\n"
+msgstr ""
+
+msgid "No aliases are currently defined."
+msgstr ""
+
+#, c-format
+msgid "No command %q found, did you mean:\n"
+msgstr ""
+
+msgid "No connections to disconnect"
+msgstr ""
+
+#. TRANSLATORS: the %q is the (quoted) name of the section the user entered
+#, c-format
+msgid "No matching section %q, use --section to list existing sections"
+msgstr ""
+
+#. TRANSLATORS: the first %q is the (quoted) query, the
+#. second %q is the (quoted) name of the section the
+#. user entered
+#, c-format
+msgid "No matching snaps for %q in section %q\n"
+msgstr ""
+
+#. TRANSLATORS: the %q is the (quoted) query the user entered
+#, c-format
+msgid "No matching snaps for %q\n"
+msgstr ""
+
+msgid ""
+"No search term specified. Here are some interesting snaps:\n"
+"\n"
+msgstr ""
+
+msgid "No section specified. Available sections:\n"
+msgstr ""
+
 msgid "No snaps are installed yet. Try \"snap install hello-world\"."
 msgstr "Ingen snap-er er installert enda. Prøv «snap install hello-world»."
 
-msgid "No snaps to auto-refresh found"
-msgstr ""
-
 msgid "Output results in JSON format"
 msgstr "Skriv ut treff i JSON-format"
+
+msgid "Pack the given target dir as a snap"
+msgstr ""
+
+#, c-format
+msgid "Packages matching %q:\n"
+msgstr ""
 
 msgid "Passphrase: "
 msgstr "Passordfrase: "
@@ -582,6 +720,9 @@ msgstr ""
 msgid ""
 "Please re-enter your Ubuntu One password to purchase %q from %q\n"
 "for %s. Press ctrl-c to cancel."
+msgstr ""
+
+msgid "Please try: snap find --section=<selected section>\n"
 msgstr ""
 
 #, c-format
@@ -615,7 +756,7 @@ msgstr ""
 msgid "Prints the confinement mode the system operates in"
 msgstr ""
 
-msgid "Prints the email the user is logged in with."
+msgid "Prints the email the user is logged in with"
 msgstr ""
 
 msgid "Prints whether system is managed"
@@ -743,6 +884,9 @@ msgstr "Tilbakestiller valgt snap til tidligere tilstand"
 msgid "Run a shell instead of the command (useful for debugging)"
 msgstr "Kjør skall i stedet for kommando (nyttig ved feilsøking)"
 
+msgid "Run as a timer service with given schedule"
+msgstr ""
+
 #, c-format
 msgid "Run configure hook of %q snap"
 msgstr ""
@@ -763,11 +907,23 @@ msgstr ""
 msgid "Run post-refresh hook of %q snap if present"
 msgstr ""
 
+#, c-format
+msgid "Run pre-refresh hook of %q snap if present"
+msgstr ""
+
 msgid "Run prepare-device hook"
 msgstr ""
 
 #, c-format
 msgid "Run remove hook of %q snap if present"
+msgstr ""
+
+msgid ""
+"Run the command under strace (useful for debugging). Extra strace options "
+"can be specified as well here."
+msgstr ""
+
+msgid "Run the command with gdb"
 msgstr ""
 
 msgid "Run the given snap command"
@@ -785,6 +941,9 @@ msgstr "Søk etter private snap-er"
 msgid ""
 "Select last change of given type (install, refresh, remove, try, auto-"
 "refresh etc.)"
+msgstr ""
+
+msgid "Service\tStartup\tCurrent"
 msgstr ""
 
 #, c-format
@@ -827,14 +986,24 @@ msgstr ""
 msgid "Show available snaps for refresh but do not perform a refresh"
 msgstr ""
 
+msgid "Show detailed information about a snap"
+msgstr ""
+
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Show details of a specific interface"
 msgstr ""
 
 msgid "Show interface attributes"
 msgstr ""
 
+msgid "Show only the given number of lines, or 'all'."
+msgstr ""
+
 msgid "Shows known assertions of the provided type"
 msgstr "Viser kjente forutsetninger av aktuell type"
+
+msgid "Shows specific repairs"
+msgstr ""
 
 msgid "Shows version details"
 msgstr ""
@@ -854,11 +1023,15 @@ msgstr ""
 msgid "Slot\tPlug"
 msgstr "Spor\tPlugg"
 
+#. TRANSLATORS: first %s is a snap name, following %s is a channel name
+#, c-format
+msgid "Snap %s is no longer tracking %s.\n"
+msgstr ""
+
+#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "Snap name"
 msgstr "Snapnavn"
-
-msgid "Snap\tService\tStartup\tCurrent"
-msgstr ""
 
 msgid ""
 "Sorry, your payment method has been declined by the issuer. Please review "
@@ -941,24 +1114,28 @@ msgid ""
 "The get command prints configuration and interface connection settings."
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The login.ubuntu.com email to login as"
 msgstr ""
 "Brukernavn/e-postadresse (login.ubuntu.com) som skal brukes til innlogging"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The model assertion name"
 msgstr "Modell-forutsetningsnavn"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The output directory"
 msgstr "Utdata-mappe"
 
-#. TRANSLATORS: the %q is the (quoted) query the user entered
 #, c-format
-msgid "The search %q returned 0 snaps\n"
+msgid "The program %q can be found in the following snaps:\n"
 msgstr ""
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The snap to configure (e.g. hello-world)"
 msgstr "Snap som skal settes opp (f.eks. «hello-world»)"
 
+#. TRANSLATORS: This should probably not start with a lowercase letter.
 msgid "The snap whose conf is being requested"
 msgstr "Snap som oppsett blir forespurt for"
 
@@ -967,6 +1144,13 @@ msgstr ""
 
 msgid "This command logs the current user out of the store"
 msgstr "Denne kommandoen logger gjeldende bruker ut av butikken"
+
+msgid "This dialog will close automatically after 5 minutes of inactivity."
+msgstr ""
+
+#, c-format
+msgid "Toggle snap %q flags"
+msgstr ""
 
 msgid "Tool to interact with snaps"
 msgstr "Interaksjonsverktøy for snap-er"
@@ -982,6 +1166,9 @@ msgstr ""
 msgid "Try %q snap from %s"
 msgstr ""
 
+msgid "Try: snap install <selected snap>\n"
+msgstr ""
+
 msgid "Two-factor code: "
 msgstr "Toveis-autentiseringskode: "
 
@@ -994,12 +1181,23 @@ msgstr "Bruk bestemt snap-revisjon ved kjørng av krok"
 msgid "Use known assertions for user creation"
 msgstr ""
 
+msgid "Use the given output format (pretty or json)"
+msgstr ""
+
 msgid "Use this channel instead of stable"
 msgstr "Bruk denne kanalen i stedet for «stable» (stabil)"
+
+msgid ""
+"WARNING: The output of \"snap get\" will become a list with columns - use -d "
+"or -l to force the output format.\n"
+msgstr ""
 
 #, c-format
 msgid "WARNING: failed to activate logging: %v\n"
 msgstr "ADVARSEL: klarte ikke å slå på loggføring: %v\n"
+
+msgid "Wait for new lines and print them as they come in."
+msgstr ""
 
 msgid "Waiting for server to restart"
 msgstr "Venter på omstart av tjener"
@@ -1050,6 +1248,11 @@ msgstr ""
 
 msgid ""
 "\n"
+"Provide a search term for more specific results.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The abort command attempts to abort a change that still has pending tasks.\n"
 msgstr ""
 "\n"
@@ -1078,6 +1281,12 @@ msgstr ""
 "For at dette skal gå bra må forutsetninga være gyldig, signatur må være "
 "bekreftet med en kjent offentlig nøkkel og forutsetninga må passe med "
 "foregående forutsetning som ligger i systemdatabasen.\n"
+
+msgid ""
+"\n"
+"The advise-snap command shows what snaps with the given command are\n"
+"available.\n"
+msgstr ""
 
 msgid ""
 "\n"
@@ -1399,8 +1608,19 @@ msgstr ""
 
 msgid ""
 "\n"
+"The logs command fetches logs of the given services and displays them in "
+"chronological order.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The managed command will print true or false informing whether\n"
 "snapd has registered users.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The pack command packs the given snap-dir as a snap."
 msgstr ""
 
 msgid ""
@@ -1448,6 +1668,31 @@ msgstr ""
 
 msgid ""
 "\n"
+"The repair command shows the details about one or multiple repairs.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The repairs command lists all processed repairs for this device.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The restart command restarts the given services of the snap. If executed "
+"from the\n"
+"\"configure\" hook, the services will be restarted after the hook finishes."
+msgstr ""
+
+msgid ""
+"\n"
+"The restart command restarts the given services.\n"
+"\n"
+"If the --reload option is given, for each service whose app has a reload "
+"command, a reload is performed instead of a restart.\n"
+msgstr ""
+
+msgid ""
+"\n"
 "The revert command reverts the given snap to its state before\n"
 "the latest refresh. This will reactivate the previous snap revision,\n"
 "and will use the original data that was associated with that revision,\n"
@@ -1461,6 +1706,12 @@ msgstr ""
 "snap-revisjon og bruker data som var tilknyttet denne revisjonen.\n"
 "Dataendringer utført i seneste revisjon blir forkastet, unntatt data\n"
 "som snap-en uttrykkelig velger å dele på tvers av revisjoner.\n"
+
+msgid ""
+"\n"
+"The services command lists information about the services specified, or "
+"about the services in all currently installed snaps.\n"
+msgstr ""
 
 msgid ""
 "\n"
@@ -1494,6 +1745,29 @@ msgid ""
 "naming the respective plug or slot:\n"
 "\n"
 "    $ snapctl set :myplug path=/dev/ttyS0\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The start command starts the given services of the snap. If executed from "
+"the\n"
+"\"configure\" hook, the services will be started after the hook finishes."
+msgstr ""
+
+msgid ""
+"\n"
+"The start command starts, and optionally enables, the given services.\n"
+msgstr ""
+
+msgid ""
+"\n"
+"The stop command stops the given services of the snap. If executed from the\n"
+"\"configure\" hook, the services will be stopped after the hook finishes."
+msgstr ""
+
+msgid ""
+"\n"
+"The stop command stops, and optionally disables, the given services.\n"
 msgstr ""
 
 msgid ""
@@ -1563,13 +1837,8 @@ msgstr ""
 
 msgid ""
 "\n"
-"\n"
-"The home directory is shared between snappy and the classic dimension.\n"
-"Run \"exit\" to leave the classic shell.\n"
+"Use snap alias --help to learn how to create aliases manually."
 msgstr ""
-"\n"
-"\n"
-"Hjemmemappe deles mellom dimensjonene «snappy» og «classic».\n"
 
 msgid "a single snap name is needed to specify mode or channel flags"
 msgstr "du må oppgi et snap-navn for å bruke modus- eller kanalvalg"
@@ -1583,12 +1852,19 @@ msgstr ""
 msgid "active"
 msgstr ""
 
+msgid "auto-refresh: all snaps are up-to-date"
+msgstr ""
+
 msgid "bought"
 msgstr "kjøpt"
 
 #. TRANSLATORS: if possible, a single short word
 msgid "broken"
 msgstr "ødelagt"
+
+#, c-format
+msgid "cannot %s without a context"
+msgstr ""
 
 #, c-format
 msgid "cannot buy snap: %v"
@@ -1622,7 +1898,6 @@ msgstr "fant ikke program %q i %q"
 msgid "cannot find hook %q in %q"
 msgstr ""
 
-#. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
 #. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
 #, c-format
 msgid "cannot get data for %q: %v"
@@ -1675,9 +1950,6 @@ msgstr ""
 msgid "cannot use %q key: %v"
 msgstr "klarte ikke å bruke nøkkelen %q: %v"
 
-msgid "cannot use --hook and --command together"
-msgstr "du kan ikke velge både «--hook» og «--command» samtidig"
-
 msgid "cannot use change ID and type together"
 msgstr ""
 
@@ -1705,6 +1977,10 @@ msgstr ""
 msgid "created user %q\n"
 msgstr ""
 
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
+msgid "d"
+msgstr ""
+
 #. TRANSLATORS: if possible, a single short word
 msgid "disabled"
 msgstr "slått av"
@@ -1724,6 +2000,13 @@ msgid ""
 msgstr ""
 
 msgid "get which option?"
+msgstr ""
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
+msgid "h"
+msgstr ""
+
+msgid "ignore-validation"
 msgstr ""
 
 msgid "inactive"
@@ -1785,6 +2068,14 @@ msgstr ""
 "nøkkelnavn %q er ugyldig. Du kan bare bruke ASCII-bokstaver, sifre og "
 "bindestreker"
 
+#, c-format
+msgid "local snap %q is unknown to the store, use --amend to proceed anyway"
+msgstr ""
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
+msgid "m"
+msgstr ""
+
 msgid "missing snap-confine: try updating your snapd package"
 msgstr ""
 
@@ -1813,9 +2104,6 @@ msgstr ""
 msgid "no valid snaps given"
 msgstr ""
 
-msgid "not a valid snap"
-msgstr ""
-
 msgid "please provide change ID or type with --last=<type>"
 msgstr ""
 
@@ -1830,14 +2118,19 @@ msgstr ""
 "omstart er planlagt for å oppdatere systemet. Avbryt dette midlertidig med "
 "kommandoen «sudo shutdown -c»"
 
+msgid "repairs are not available on a classic system"
+msgstr ""
+
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
+#. (I fully expect this to always be "s", given it's a SI unit)
+msgid "s"
+msgstr ""
+
 #, c-format
 msgid "set failed: %v"
 msgstr ""
 
 msgid "set which option?"
-msgstr ""
-
-msgid "show detailed information about a snap"
 msgstr ""
 
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
@@ -1856,10 +2149,6 @@ msgstr ""
 
 #, c-format
 msgid "snap %q is already installed, see \"snap refresh --help\""
-msgstr ""
-
-#, c-format
-msgid "snap %q is local"
 msgstr ""
 
 #, c-format
@@ -1883,6 +2172,9 @@ msgstr "du har brukt for mange argumenter for krok %q: %s"
 msgid "too many arguments: %s"
 msgstr "du har brukt for mange argumenter: %s"
 
+msgid "unable to contact snap store"
+msgstr ""
+
 msgid "unavailable"
 msgstr "utilgjengelig"
 
@@ -1899,21 +2191,31 @@ msgid "unknown plug or slot %q"
 msgstr ""
 
 #, c-format
-msgid "unsupported shell %v"
-msgstr "skallet %v støttes ikke"
+msgid "unknown service: %q"
+msgstr ""
 
-#~ msgid ""
-#~ "\n"
-#~ "The change command displays a summary of tasks associated to an individual "
-#~ "change."
-#~ msgstr ""
-#~ "\n"
-#~ "Kommandoen «change» viser sammendrag av oppgaver som er knyttet til en "
-#~ "enkeltendring."
+#, c-format
+msgid "warning:\tno snap found for %q\n"
+msgstr ""
 
-#~ msgid ""
-#~ "\n"
-#~ "The find command queries the store for available packages.\n"
-#~ msgstr ""
-#~ "\n"
-#~ "Kommandoen «find» ser etter tilgjengelige pakker i butikken.\n"
+#. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
+msgid "y"
+msgstr ""
+
+msgid "Authenticate on snap daemon"
+msgstr ""
+
+msgid "Authorization is required to authenticate on the snap daemon"
+msgstr ""
+
+msgid "Install, update, or remove packages"
+msgstr ""
+
+msgid "Authentication is required to install, update, or remove packages"
+msgstr ""
+
+msgid "Connect, disconnect interfaces"
+msgstr ""
+
+msgid "Authentication is required to connect or disconnect interfaces"
+msgstr ""

@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -93,6 +94,15 @@ var (
 	userLookupId = user.LookupId
 )
 
+func isUnknownUser(err error) bool {
+	switch err.(type) {
+	case user.UnknownUserError, user.UnknownUserIdError:
+		return true
+	default:
+		return false
+	}
+}
+
 func usersForUsernames(usernames []string) ([]*user.User, error) {
 	if len(usernames) == 0 {
 		return allUsers()
@@ -101,7 +111,7 @@ func usersForUsernames(usernames []string) ([]*user.User, error) {
 	for _, username := range usernames {
 		usr, err := userLookup(username)
 		if err != nil {
-			if _, ok := err.(*user.UnknownUserError); !ok {
+			if !isUnknownUser(err) {
 				return nil, err
 			}
 			u, e := userLookupId(username)
@@ -142,36 +152,72 @@ func allUsers() ([]*user.User, error) {
 			continue
 		}
 		seen[st.Uid] = true
-		usr, err := user.LookupId(strconv.FormatUint(uint64(st.Uid), 10))
+		usr, err := userLookupId(strconv.FormatUint(uint64(st.Uid), 10))
 		if err != nil {
-			return nil, err
+			if !isUnknownUser(err) {
+				return nil, err
+			}
+		} else {
+			users = append(users, usr)
 		}
-		users = append(users, usr)
 	}
 
 	return users, nil
 }
 
-// maybeRunuserCommand returns an exec.Cmd that will, if the current
-// effective user id is 0 and username is not "root", call runuser(1)
-// to change to the given username before running the given command.
-//
-// If username is "root", or the effective user id is 0, the given
-// command is passed directly to exec.Command.
-//
-// TODO: maybe move this to osutil
-func maybeRunuserCommand(username string, args ...string) *exec.Cmd {
-	if username == "root" || sys.Geteuid() != 0 {
-		// runuser only works for euid 0, and doesn't make sense for root
-		return exec.Command(args[0], args[1:]...)
-	}
-	sudoArgs := make([]string, len(args)+3)
-	copy(sudoArgs[3:], args)
-	sudoArgs[0] = "-u"
-	sudoArgs[1] = username
-	sudoArgs[2] = "--"
+var (
+	sysGeteuid   = sys.Geteuid
+	execLookPath = exec.LookPath
+)
 
-	return exec.Command("runuser", sudoArgs...)
+func pickUserWrapper() string {
+	// runuser and sudo happen to work the same way in this case.  The main
+	// reason to prefer runuser over sudo is that runuser is part of
+	// util-linux, which is considered essential, whereas sudo is an addon
+	// which could be removed.  However util-linux < 2.23 does not have
+	// runuser, and we support some distros that ship things older than that
+	// (e.g. Ubuntu 14.04)
+	for _, cmd := range []string{"runuser", "sudo"} {
+		if lp, err := execLookPath(cmd); err == nil {
+			return lp
+		}
+	}
+	return ""
+}
+
+var userWrapper = pickUserWrapper()
+
+// tarAsUser returns an exec.Cmd that will, if the current effective user id is
+// 0 and username is not "root", and if either runuser(1) or sudo(8) are found
+// on the PATH, run tar as the given user.
+//
+// If the effective user id is not 0, or username is "root", exec.Command is
+// used directly; changing the user id would fail (in the first case) or be a
+// no-op (in the second).
+//
+// If neither runuser nor sudo are found on the path, exec.Command is also used
+// directly. This will result in tar running as root in this situation (so it
+// will fail if on NFS; I don't think there's an attack vector though).
+func tarAsUser(username string, args ...string) *exec.Cmd {
+	if sysGeteuid() == 0 && username != "root" {
+		if userWrapper != "" {
+			uwArgs := make([]string, len(args)+5)
+			uwArgs[0] = userWrapper
+			uwArgs[1] = "-u"
+			uwArgs[2] = username
+			uwArgs[3] = "--"
+			uwArgs[4] = "tar"
+			copy(uwArgs[5:], args)
+			return &exec.Cmd{
+				Path: userWrapper,
+				Args: uwArgs,
+			}
+		}
+		// TODO: use warnings instead
+		logger.Noticef("No user wrapper found; running tar for user data as root. Please make sure 'sudo' or 'runuser' (from util-linux) is on $PATH to avoid this.")
+	}
+
+	return exec.Command("tar", args...)
 }
 
 func MockUserLookup(newLookup func(string) (*user.User, error)) func() {

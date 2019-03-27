@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -102,6 +103,18 @@ type TestInterface struct {
 	SystemdConnectedSlotCallback func(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	SystemdPermanentPlugCallback func(spec *systemd.Specification, plug *snap.PlugInfo) error
 	SystemdPermanentSlotCallback func(spec *systemd.Specification, slot *snap.SlotInfo) error
+}
+
+// TestHotplugInterface is an interface for various kinds of tests
+// needing a hotplug-aware interface.  It is public so that it can be
+// consumed from other packages.
+type TestHotplugInterface struct {
+	TestInterface
+
+	// Support for interacting with hotplug subsystem.
+	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error)
+	HandledByGadgetCallback       func(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool
+	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error)
 }
 
 // String() returns the same value as Name().
@@ -397,4 +410,27 @@ func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *
 		return t.SystemdPermanentPlugCallback(spec, plug)
 	}
 	return nil
+}
+
+// Support for interacting with hotplug subsystem.
+
+func (t *TestHotplugInterface) HotplugKey(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+	if t.HotplugKeyCallback != nil {
+		return t.HotplugKeyCallback(deviceInfo)
+	}
+	return "", nil
+}
+
+func (t *TestHotplugInterface) HotplugDeviceDetected(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+	if t.HotplugDeviceDetectedCallback != nil {
+		return t.HotplugDeviceDetectedCallback(deviceInfo)
+	}
+	return nil, nil
+}
+
+func (t *TestHotplugInterface) HandledByGadget(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+	if t.HandledByGadgetCallback != nil {
+		return t.HandledByGadgetCallback(deviceInfo, slot)
+	}
+	return false
 }

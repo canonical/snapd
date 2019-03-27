@@ -20,9 +20,8 @@
 package snapshotstate
 
 import (
+	"context"
 	"encoding/json"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
@@ -32,18 +31,31 @@ import (
 )
 
 var (
-	NewSnapshotSetID          = newSnapshotSetID
-	AllActiveSnapNames        = allActiveSnapNames
-	SnapNamesInSnapshotSet    = snapNamesInSnapshotSet
-	CheckSnapshotTaskConflict = checkSnapshotTaskConflict
-	Filename                  = filename
-	DoSave                    = doSave
-	DoRestore                 = doRestore
-	UndoRestore               = undoRestore
-	CleanupRestore            = cleanupRestore
-	DoCheck                   = doCheck
-	DoForget                  = doForget
+	NewSnapshotSetID           = newSnapshotSetID
+	AllActiveSnapNames         = allActiveSnapNames
+	SnapSummariesInSnapshotSet = snapSummariesInSnapshotSet
+	CheckSnapshotTaskConflict  = checkSnapshotTaskConflict
+	Filename                   = filename
+	DoSave                     = doSave
+	DoRestore                  = doRestore
+	UndoRestore                = undoRestore
+	CleanupRestore             = cleanupRestore
+	DoCheck                    = doCheck
+	DoForget                   = doForget
 )
+
+func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {
+	out := make([]map[string]string, len(summaries))
+	for i, summary := range summaries {
+		out[i] = map[string]string{
+			"snap":     summary.snap,
+			"snapID":   summary.snapID,
+			"filename": summary.filename,
+			"epoch":    summary.epoch.String(),
+		}
+	}
+	return out
+}
 
 func MockOsRemove(f func(string) error) (restore func()) {
 	old := osRemove
@@ -101,7 +113,7 @@ func MockBackendOpen(f func(string) (*backend.Reader, error)) (restore func()) {
 	}
 }
 
-func MockBackendRestore(f func(*backend.Reader, context.Context, []string, backend.Logf) (*backend.RestoreState, error)) (restore func()) {
+func MockBackendRestore(f func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf) (*backend.RestoreState, error)) (restore func()) {
 	old := backendRestore
 	backendRestore = f
 	return func() {

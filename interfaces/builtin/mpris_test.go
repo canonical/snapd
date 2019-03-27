@@ -97,7 +97,7 @@ slots:
 	slot := info.Slots["mpris-slot"]
 	name, err := builtin.MprisGetName(s.iface, slot.Attrs)
 	c.Assert(err, IsNil)
-	c.Assert(name, Equals, "@{SNAP_NAME}")
+	c.Assert(name, Equals, "@{SNAP_INSTANCE_NAME}")
 }
 func (s *MprisInterfaceSuite) TestGetNameBadDot(c *C) {
 	const mockSnapYaml = `name: mpris-client
@@ -281,7 +281,7 @@ func (s *MprisInterfaceSuite) TestPermanentSlotAppArmor(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
 
 	// verify bind rule
-	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}\",\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_INSTANCE_NAME}{,.*}\",\n")
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorWithName(c *C) {

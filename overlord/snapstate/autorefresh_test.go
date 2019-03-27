@@ -20,12 +20,11 @@
 package snapstate_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
-
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -50,6 +49,10 @@ type autoRefreshStore struct {
 }
 
 func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if !opts.IsAutoRefresh {
+		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
+	}
+
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
@@ -100,13 +103,16 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	}
 	snapstate.IsOnMeteredConnection = func() (bool, error) { return false, nil }
 
+	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
 	s.state.Set("refresh-privacy-key", "privacy-key")
+	snapstate.SetDefaultModel()
 }
 
 func (s *autoRefreshTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
+	snapstate.Model = nil
 	dirs.SetRootDir("")
 }
 
@@ -210,7 +216,10 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	err := af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 1)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	// override next refresh to be here already
+	now := time.Now()
+	snapstate.MockNextRefresh(af, now)
 
 	// call ensure again, our back-off will prevent the store from
 	// being hit again
@@ -218,14 +227,45 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 1)
 
+	// nextRefresh unchanged
+	c.Check(af.NextRefresh().Equal(now), Equals, true)
+
 	// fake that the retryRefreshDelay is over
 	restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
 	defer restore()
 	time.Sleep(10 * time.Millisecond)
 
+	// ensure hits the store again
 	err = af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 2)
+
+	// nextRefresh now zero
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+	// set it to something in the future
+	snapstate.MockNextRefresh(af, time.Now().Add(time.Minute))
+
+	// nothing really happens yet: the previous autorefresh failed
+	// but it still counts as having tried to autorefresh
+	err = af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 2)
+
+	// pretend the time for next refresh is here
+	snapstate.MockNextRefresh(af, time.Now())
+	// including the wait for the retryRefreshDelay backoff
+	time.Sleep(10 * time.Millisecond)
+
+	// now yes it happens again
+	err = af.Ensure()
+	c.Check(err, ErrorMatches, "random store error")
+	c.Check(s.store.ops, HasLen, 3)
+	// and not *again* again
+	err = af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 3)
+
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh", "list-refresh"})
 }
 
 func (s *autoRefreshTestSuite) TestDefaultScheduleIsRandomized(c *C) {

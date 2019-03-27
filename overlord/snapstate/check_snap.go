@@ -41,6 +41,8 @@ var featureSet = map[string]bool{
 	"common-data-dir": true,
 	// Support for the "Environment:" feature in snap.yaml
 	"snap-env": true,
+	// Support for the "command-chain" feature for apps and hooks in snap.yaml
+	"command-chain": true,
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -124,9 +126,21 @@ func (e *SnapNeedsClassicSystemError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", e.Snap)
 }
 
+type SnapNotClassicError struct {
+	Snap string
+}
+
+func (e *SnapNotClassicError) Error() string {
+	return fmt.Sprintf("snap %q is not a classic confined snap", e.Snap)
+}
+
 // determine whether the flags (and system overrides thereof) are
 // compatible with the given *snap.Info
 func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error {
+	if flags.Classic && !info.NeedsClassic() {
+		return &SnapNotClassicError{Snap: info.InstanceName()}
+	}
+
 	switch c := info.Confinement; c {
 	case snap.StrictConfinement, "":
 		// strict is always fine
@@ -273,7 +287,6 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 	// transition we will end up with not connected interface
 	// connections in the "core" snap. But the transition will
 	// kick in automatically quickly so an extra flag is overkill.
-	// TODO parallel-install: use instance name
 	if snapInfo.InstanceName() == "core" && core.InstanceName() == "ubuntu-core" {
 		return nil
 	}
@@ -356,8 +369,43 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) erro
 	return fmt.Errorf("cannot find required base %q", snapInfo.Base)
 }
 
+func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags) error {
+	if curInfo == nil {
+		return nil
+	}
+	if snapInfo.Epoch.CanRead(curInfo.Epoch) {
+		return nil
+	}
+	desc := "local snap"
+	if snapInfo.SideInfo.Revision.Store() {
+		desc = fmt.Sprintf("new revision %s", snapInfo.SideInfo.Revision)
+	}
+
+	return fmt.Errorf("cannot refresh %q to %s with epoch %s, because it can't read the current epoch of %s", snapInfo.InstanceName(), desc, snapInfo.Epoch, curInfo.Epoch)
+}
+
+// check that the snap installed in the system (via snapst) can be
+// upgraded to info (i.e. that info's epoch can read sanpst's epoch)
+func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
+	if snapst == nil {
+		// no snapst, no problem
+		return nil
+	}
+	cur, err := snapst.CurrentInfo()
+	if err != nil {
+		if err == ErrNoCurrent {
+			// refreshing a disabled snap (maybe via InstallPath)
+			return nil
+		}
+		return err
+	}
+
+	return checkEpochs(nil, info, cur, Flags{})
+}
+
 func init() {
 	AddCheckSnapCallback(checkCoreName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
+	AddCheckSnapCallback(checkEpochs)
 }

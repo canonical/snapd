@@ -1,10 +1,10 @@
 summary: Ensure that the ubuntu-core -> core transition works
 
-# we never test on core because the transition can only happen on "classic"
-# we disable on ppc64el because the downloads are very slow there
-# Fedora, openSUSE and Arch are disabled at the moment as there is something
-# fishy going on and the snapd service gets terminated during the process.
-systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386, -arch-*, -amazon-*]
+# we never test on core because the transition can only happen on "classic" we
+# disable on ppc64el because the downloads are very slow there Fedora, openSUSE,
+# Arch, CentOS are disabled at the moment as there is something fishy going on
+# and the snapd service gets terminated during the process.
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386, -arch-*, -amazon-*, -centos-*, -debian-sid-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -12,9 +12,6 @@ backends: [-autopkgtest]
 
 warn-timeout: 1m
 kill-timeout: 5m
-
-restore: |
-    rm -f state.json.new
 
 debug: |
     snap list || true
@@ -46,6 +43,9 @@ execute: |
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
     distro_install_build_snapd
+
+    # need to be seeded to allow snap install
+    snap wait system seed.loaded
 
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the
     # current time to prevent the ubuntu-core transition before the test snap is

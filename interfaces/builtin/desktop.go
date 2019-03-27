@@ -240,7 +240,6 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	// Allow mounting document portal
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "  # Mount the document portal\n")
-	// TODO parallel-install: use of proper instance/store name
 	fmt.Fprintf(&buf, "  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 	fmt.Fprintf(&buf, "  umount /run/user/[0-9]*/doc/,\n\n")
 	spec.AddUpdateNS(buf.String())
@@ -282,6 +281,10 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
+		// Since /etc/fonts/fonts.conf in the snap mount ns is the same
+		// as on the host, we need to preserve the original directory
+		// paths for the fontconfig runtime to poke the correct
+		// locations
 		spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
 			Dir:     dirs.StripRootDir(dir),

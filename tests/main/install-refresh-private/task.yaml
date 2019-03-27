@@ -19,7 +19,7 @@ execute: |
 
     echo "Given account store credentials are available"
     # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
-    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ]; then
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
         echo "And the user has logged in"
         expect -f "$TESTSLIB"/successful_login.exp
 

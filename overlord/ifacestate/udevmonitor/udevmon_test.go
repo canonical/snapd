@@ -38,7 +38,7 @@ type udevMonitorSuite struct{}
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	mon := udevmonitor.New(nil, nil)
+	mon := udevmonitor.New(nil, nil, nil)
 	c.Assert(mon, NotNil)
 	c.Assert(mon.Connect(), IsNil)
 	c.Assert(mon.Run(), IsNil)
@@ -48,6 +48,7 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 func (s *udevMonitorSuite) TestDiscovery(c *C) {
 	var addInfos []*hotplug.HotplugDeviceInfo
 	var remInfo *hotplug.HotplugDeviceInfo
+	var enumerationDone bool
 
 	callbackChannel := make(chan struct{})
 	defer close(callbackChannel)
@@ -57,7 +58,18 @@ func (s *udevMonitorSuite) TestDiscovery(c *C) {
 		callbackChannel <- struct{}{}
 	}
 	removed := func(inf *hotplug.HotplugDeviceInfo) {
+		// we should see just one removal
+		c.Check(remInfo, IsNil)
 		remInfo = inf
+		callbackChannel <- struct{}{}
+	}
+	enumerationFinished := func() {
+		// enumerationDone is signalled after udevadm parsing ends and before other devices are reported
+		c.Assert(addInfos, HasLen, 2)
+		c.Check(addInfos[0].DevicePath(), Equals, "/sys/a/path")
+		c.Check(addInfos[1].DevicePath(), Equals, "/sys/def")
+
+		enumerationDone = true
 		callbackChannel <- struct{}{}
 	}
 
@@ -81,7 +93,7 @@ E: DEVTYPE=bzz
 `)
 	defer cmd.Restore()
 
-	udevmon := udevmonitor.New(added, removed).(*udevmonitor.Monitor)
+	udevmon := udevmonitor.New(added, removed, enumerationFinished).(*udevmonitor.Monitor)
 	events := udevmon.EventsChannel()
 
 	c.Assert(udevmon.Run(), IsNil)
@@ -123,26 +135,38 @@ E: DEVTYPE=bzz
 		}
 	}()
 
-	// expect three add events - one from udev event, two from enumeration.
-	const numExpectedDevices = 3
+	calls := 0
 Loop:
 	for {
 		select {
 		case <-callbackChannel:
-			if len(addInfos) == numExpectedDevices && remInfo != nil {
+			calls++
+			if calls == 5 {
 				break Loop
 			}
 		case <-time.After(3 * time.Second):
 			c.Error("Did not receive expected devices before timeout")
 			break Loop
-		default:
 		}
 	}
 
+	c.Check(calls, Equals, 5)
+	c.Check(enumerationDone, Equals, true)
+	// expect three add events - one from udev event, two from enumeration.
+	c.Assert(addInfos, HasLen, 3)
 	c.Assert(remInfo, NotNil)
-	c.Assert(addInfos, HasLen, numExpectedDevices)
 
-	c.Assert(udevmon.Stop(), IsNil)
+	stopChannel := make(chan struct{})
+	defer close(stopChannel)
+	go func() {
+		c.Assert(udevmon.Stop(), IsNil)
+		stopChannel <- struct{}{}
+	}()
+	select {
+	case <-stopChannel:
+	case <-time.After(3 * time.Second):
+		c.Error("udev monitor did not stop before timeout")
+	}
 
 	addInfo := addInfos[0]
 	c.Assert(addInfo.DeviceName(), Equals, "name")

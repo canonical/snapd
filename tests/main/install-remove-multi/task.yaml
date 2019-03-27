@@ -10,3 +10,12 @@ execute: |
     snap remove test-snapd-tools test-snapd-control-consumer
     snap list | MATCH -v test-snapd-tools
     snap list | MATCH -v test-snapd-control-consumer
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    echo "Installing of a snap with a desktop file creates the desktop file"
+    install_local basic-desktop 
+    test -e /var/lib/snapd/desktop/applications/basic-desktop_io.snapcraft.echoecho.desktop
+    echo "Removing a snap with a desktop file removes the desktop file again"
+    snap remove  basic-desktop
+    ! test -e /var/lib/snapd/desktop/applications/basic-desktop_io.snapcraft.echoecho.desktop

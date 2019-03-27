@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 var proxyConfigKeys = map[string]bool{
@@ -69,7 +70,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func handleProxyConfiguration(tr Conf) error {
+func handleProxyConfiguration(tr config.Conf) error {
 	config := map[string]string{}
 	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {
@@ -93,7 +94,7 @@ func handleProxyConfiguration(tr Conf) error {
 	return nil
 }
 
-func validateProxyStore(tr Conf) error {
+func validateProxyStore(tr config.Conf) error {
 	proxyStore, err := coreCfg(tr, "proxy.store")
 	if err != nil {
 		return err
@@ -106,9 +107,13 @@ func validateProxyStore(tr Conf) error {
 	st := tr.State()
 	st.Lock()
 	defer st.Unlock()
-	_, err = assertstate.Store(st, proxyStore)
+
+	store, err := assertstate.Store(st, proxyStore)
 	if asserts.IsNotFound(err) {
 		return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
+	}
+	if err == nil && store.URL() == nil {
+		return fmt.Errorf("cannot set proxy.store to %q with a matching store assertion with url unset", proxyStore)
 	}
 	return err
 }

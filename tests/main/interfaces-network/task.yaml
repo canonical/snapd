@@ -10,7 +10,7 @@ details: |
     A snap declaring a plug on this interface must be able to access network services.
 
 # amazon: uses nmap-netcat
-systems: [-fedora-*, -opensuse-*, -amazon-*]
+systems: [-fedora-*, -opensuse-*, -amazon-*, -centos-*]
 
 environment:
     SNAP_NAME: network-consumer
@@ -36,7 +36,6 @@ restore: |
     . "$TESTSLIB"/systemd.sh
     #shellcheck disable=SC2153
     systemd_stop_and_destroy_unit "$SERVICE_NAME"
-    rm -f "$SERVICE_FILE"
 
 execute: |
     echo "The interface is connected by default"

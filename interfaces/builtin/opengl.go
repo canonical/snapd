@@ -42,6 +42,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}vdpau/libvdpau_nvidia.so{,.*} rm,
 
 # Support reading the Vulkan ICD files
 /var/lib/snapd/lib/vulkan/ r,
@@ -54,7 +55,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
 /dev/dri/ r,
 /dev/dri/card0 rw,
@@ -69,11 +70,22 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 # eglfs
 /dev/vchiq rw,
 
+# va-api
+/dev/dri/renderD[0-9]* rw,
+
 # cuda
 @{PROC}/sys/vm/mmap_min_addr r,
 @{PROC}/devices r,
 /sys/devices/system/memory/block_size_bytes r,
+/sys/module/tegra_fuse/parameters/tegra_* r,
 unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
+/{dev,run}/shm/cuda.* rw,
+/dev/nvhost-* rw,
+/dev/nvmap rw,
+
+# OpenCL ICD files
+/etc/OpenCL/vendors/ r,
+/etc/OpenCL/vendors/** r,
 
 # Parallels guest tools 3D acceleration (video toolgate)
 @{PROC}/driver/prl_vtg rw,
@@ -101,11 +113,14 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
-// The nvidia modules don't use sysfs (therefore they can't be udev tagged) and
+// Some nvidia modules don't use sysfs (therefore they can't be udev tagged) and
 // will be added by snap-confine.
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`KERNEL=="renderD[0-9]*"`,
+	`KERNEL=="nvhost-*"`,
+	`KERNEL=="nvmap"`,
 }
 
 func init() {

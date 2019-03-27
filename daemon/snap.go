@@ -28,40 +28,36 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var errNoSnap = errors.New("snap not installed")
 
 // snapIcon tries to find the icon inside the snap
-func snapIcon(info *snap.Info) string {
-	// XXX: copy of snap.Snap.Icon which will go away
+func snapIcon(info snap.PlaceInfo) string {
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return info.IconURL
+		return ""
 	}
 
 	return found[0]
 }
 
-func publisherAccount(st *state.State, info *snap.Info) (*snap.StoreAccount, error) {
-	if info.SnapID == "" {
-		return nil, nil
+func publisherAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+	if snapID == "" {
+		return snap.StoreAccount{}, nil
 	}
 
-	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	pubAcct, err := assertstate.Publisher(st, snapID)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find publisher details: %v", err)
+		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
 	}
-	return &snap.StoreAccount{
+	return snap.StoreAccount{
 		ID:          pubAcct.AccountID(),
 		Username:    pubAcct.Username(),
 		DisplayName: pubAcct.DisplayName(),
@@ -70,9 +66,8 @@ func publisherAccount(st *state.State, info *snap.Info) (*snap.StoreAccount, err
 }
 
 type aboutSnap struct {
-	info      *snap.Info
-	snapst    *snapstate.SnapState
-	publisher *snap.StoreAccount
+	info   *snap.Info
+	snapst *snapstate.SnapState
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -94,15 +89,14 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		return aboutSnap{}, fmt.Errorf("cannot read snap details: %v", err)
 	}
 
-	publisher, err := publisherAccount(st, info)
+	info.Publisher, err = publisherAccount(st, info.SnapID)
 	if err != nil {
 		return aboutSnap{}, err
 	}
 
 	return aboutSnap{
-		info:      info,
-		snapst:    &snapst,
-		publisher: publisher,
+		info:   info,
+		snapst: &snapst,
 	}, nil
 }
 
@@ -124,23 +118,32 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		}
 		var aboutThis []aboutSnap
 		var info *snap.Info
-		var publisher *snap.StoreAccount
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
 				info, err = snap.ReadInfo(name, seq)
 				if err != nil {
-					break
+					// single revision may be broken
+					_, instanceKey := snap.SplitInstanceName(name)
+					info = &snap.Info{
+						SideInfo:    *seq,
+						InstanceKey: instanceKey,
+						Broken:      err.Error(),
+					}
+					// clear the error
+					err = nil
 				}
-				publisher, err = publisherAccount(st, info)
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
+				info.Publisher, err = publisherAccount(st, seq.SnapID)
+				if err != nil && firstErr == nil {
+					firstErr = err
+				}
+				aboutThis = append(aboutThis, aboutSnap{info, snapst})
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
-				var publisher *snap.StoreAccount
-				publisher, err = publisherAccount(st, info)
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
+				info.Publisher, err = publisherAccount(st, info.SnapID)
+				aboutThis = append(aboutThis, aboutSnap{info, snapst})
 			}
 		}
 
@@ -155,19 +158,6 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	}
 
 	return about, firstErr
-}
-
-type bySnapApp []*snap.AppInfo
-
-func (a bySnapApp) Len() int      { return len(a) }
-func (a bySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a bySnapApp) Less(i, j int) bool {
-	iName := a[i].Snap.InstanceName()
-	jName := a[j].Snap.InstanceName()
-	if iName == jName {
-		return a[i].Name < a[j].Name
-	}
-	return iName < jName
 }
 
 // this differs from snap.SplitSnapApp in the handling of the
@@ -264,97 +254,34 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 		}
 	}
 
-	sort.Sort(bySnapApp(appInfos))
+	sort.Sort(cmd.BySnapApp(appInfos))
 
 	return appInfos, nil
 }
 
-func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
-	// TODO: pass in an actual notifier here instead of null
-	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
-
-	out := make([]client.AppInfo, len(apps))
-	for i, app := range apps {
-		out[i] = client.AppInfo{
-			Snap:     app.Snap.InstanceName(),
-			Name:     app.Name,
-			CommonID: app.CommonID,
-		}
-		if fn := app.DesktopFile(); osutil.FileExists(fn) {
-			out[i].DesktopFile = fn
-		}
-
-		out[i].Daemon = app.Daemon
-		if app.IsService() && app.Snap.IsActive() {
-			// TODO: look into making a single call to Status for all services
-			if sts, err := sysd.Status(app.ServiceName()); err != nil {
-				logger.Noticef("cannot get status of service %q: %v", app.Name, err)
-			} else if len(sts) != 1 {
-				logger.Noticef("cannot get status of service %q: expected 1 result, got %d", app.Name, len(sts))
-			} else {
-				out[i].Enabled = sts[0].Enabled
-				out[i].Active = sts[0].Active
-			}
-		}
-	}
-
-	return out
-}
-
 func mapLocal(about aboutSnap) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
-	status := "installed"
+	result, err := cmd.ClientSnapFromSnapInfo(localSnap)
+	if err != nil {
+		logger.Noticef("cannot get full app info for snap %q: %v", localSnap.InstanceName(), err)
+	}
+	result.InstalledSize = localSnap.Size
+
+	if icon := snapIcon(localSnap); icon != "" {
+		result.Icon = icon
+	}
+
+	result.Status = "installed"
 	if snapst.Active && localSnap.Revision == snapst.Current {
-		status = "active"
+		result.Status = "active"
 	}
 
-	snapapps := make([]*snap.AppInfo, 0, len(localSnap.Apps))
-	for _, app := range localSnap.Apps {
-		snapapps = append(snapapps, app)
-	}
-	sort.Sort(bySnapApp(snapapps))
-
-	apps := clientAppInfosFromSnapAppInfos(snapapps)
-
-	// TODO: expose aliases information and state?
-
-	publisherUsername := ""
-	if about.publisher != nil {
-		publisherUsername = about.publisher.Username
-	}
-	result := &client.Snap{
-		Description:      localSnap.Description(),
-		Developer:        publisherUsername,
-		Publisher:        about.publisher,
-		Icon:             snapIcon(localSnap),
-		ID:               localSnap.SnapID,
-		InstallDate:      localSnap.InstallDate(),
-		InstalledSize:    localSnap.Size,
-		Name:             localSnap.InstanceName(),
-		Revision:         localSnap.Revision,
-		Status:           status,
-		Summary:          localSnap.Summary(),
-		Type:             string(localSnap.Type),
-		Base:             localSnap.Base,
-		Version:          localSnap.Version,
-		Channel:          localSnap.Channel,
-		TrackingChannel:  snapst.Channel,
-		IgnoreValidation: snapst.IgnoreValidation,
-		Confinement:      string(localSnap.Confinement),
-		DevMode:          snapst.DevMode,
-		TryMode:          snapst.TryMode,
-		JailMode:         snapst.JailMode,
-		Private:          localSnap.Private,
-		Apps:             apps,
-		Broken:           localSnap.Broken,
-		Contact:          localSnap.Contact,
-		Title:            localSnap.Title(),
-		License:          localSnap.License,
-		CommonIDs:        localSnap.CommonIDs,
-		MountedFrom:      localSnap.MountFile(),
-	}
-
+	result.TrackingChannel = snapst.Channel
+	result.IgnoreValidation = snapst.IgnoreValidation
+	result.DevMode = snapst.DevMode
+	result.TryMode = snapst.TryMode
+	result.JailMode = snapst.JailMode
+	result.MountedFrom = localSnap.MountFile()
 	if result.TryMode {
 		// Readlink instead of EvalSymlinks because it's only expected
 		// to be one level, and should still resolve if the target does
@@ -367,51 +294,15 @@ func mapLocal(about aboutSnap) *client.Snap {
 }
 
 func mapRemote(remoteSnap *snap.Info) *client.Snap {
-	status := "available"
+	result, err := cmd.ClientSnapFromSnapInfo(remoteSnap)
+	if err != nil {
+		logger.Noticef("cannot get full app info for snap %q: %v", remoteSnap.SnapName(), err)
+	}
+	result.DownloadSize = remoteSnap.Size
 	if remoteSnap.MustBuy {
-		status = "priced"
-	}
-
-	confinement := remoteSnap.Confinement
-	if confinement == "" {
-		confinement = snap.StrictConfinement
-	}
-
-	screenshots := make([]client.Screenshot, len(remoteSnap.Screenshots))
-	for i, screenshot := range remoteSnap.Screenshots {
-		screenshots[i] = client.Screenshot{
-			URL:    screenshot.URL,
-			Width:  screenshot.Width,
-			Height: screenshot.Height,
-		}
-	}
-
-	publisher := remoteSnap.Publisher
-	result := &client.Snap{
-		Description:  remoteSnap.Description(),
-		Developer:    remoteSnap.Publisher.Username,
-		Publisher:    &publisher,
-		DownloadSize: remoteSnap.Size,
-		Icon:         snapIcon(remoteSnap),
-		ID:           remoteSnap.SnapID,
-		Name:         remoteSnap.InstanceName(),
-		Revision:     remoteSnap.Revision,
-		Status:       status,
-		Summary:      remoteSnap.Summary(),
-		Type:         string(remoteSnap.Type),
-		Base:         remoteSnap.Base,
-		Version:      remoteSnap.Version,
-		Channel:      remoteSnap.Channel,
-		Private:      remoteSnap.Private,
-		Confinement:  string(confinement),
-		Contact:      remoteSnap.Contact,
-		Title:        remoteSnap.Title(),
-		License:      remoteSnap.License,
-		Screenshots:  screenshots,
-		Prices:       remoteSnap.Prices,
-		Channels:     remoteSnap.Channels,
-		Tracks:       remoteSnap.Tracks,
-		CommonIDs:    remoteSnap.CommonIDs,
+		result.Status = "priced"
+	} else {
+		result.Status = "available"
 	}
 
 	return result

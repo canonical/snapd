@@ -27,22 +27,22 @@ extra_opts=
 . /etc/os-release
 case "$ID" in
 	arch)
-		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-biarch --enable-merged-usr"
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-apparmor --enable-nvidia-biarch --enable-merged-usr"
 		;;
 	debian)
 		extra_opts="--libexecdir=/usr/lib/snapd"
 		;;
 	ubuntu)
-		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 		if [ "$(dpkg-architecture -qDEB_HOST_ARCH)" = "amd64" ]; then
 			extra_opts="$extra_opts --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH)"
 		fi
 		;;
 	fedora|centos|rhel)
-		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
+		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor --enable-selinux"
 		;;
-	opensuse)
-		extra_opts="--libexecdir=/usr/lib/snapd"
+	opensuse|opensuse-tumbleweed)
+		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-biarch --with-32bit-libdir=/usr/lib --enable-merged-usr"
 		;;
 	solus)
 		extra_opts="--enable-nvidia-biarch"

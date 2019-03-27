@@ -25,7 +25,9 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdConnectivityCheck struct{}
+type cmdConnectivityCheck struct {
+	clientMixin
+}
 
 func init() {
 	addDebugCommand("connectivity",
@@ -41,13 +43,10 @@ func (x *cmdConnectivityCheck) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	cli := Client()
-
 	var status struct {
-		Connectivity bool
-		Unreachable  []string
+		Unreachable []string
 	}
-	if err := cli.Debug("connectivity", nil, &status); err != nil {
+	if err := x.client.DebugGet("connectivity", &status); err != nil {
 		return err
 	}
 

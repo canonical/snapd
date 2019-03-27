@@ -42,7 +42,10 @@ assertions.
 `),
 		func() flags.Commander {
 			return &cmdKeys{}
-		}, map[string]string{"json": i18n.G("Output results in JSON format")}, nil)
+		}, map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"json": i18n.G("Output results in JSON format"),
+		}, nil)
 	cmd.hidden = true
 }
 
@@ -63,7 +66,7 @@ func outputJSON(keys []Key) error {
 
 func outputText(keys []Key) error {
 	if len(keys) == 0 {
-		fmt.Fprintf(Stdout, "No keys registered, see `snapcraft create-key`")
+		fmt.Fprintf(Stderr, "No keys registered, see `snapcraft create-key`\n")
 		return nil
 	}
 

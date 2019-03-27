@@ -14,7 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
 #include "mount-support.h"
 
 #include <errno.h>
@@ -33,18 +36,17 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <libgen.h>
 
+#include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
-#include "apparmor-support.h"
-#include "quirks.h"
 
 #define MAX_BUF 1000
 
@@ -60,53 +62,85 @@
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
 {
-	uid_t uid = getuid();
-	gid_t gid = getgid();
-	char tmpdir[MAX_BUF] = { 0 };
-
-	// Create a 0700 base directory, this is the base dir that is
-	// protected from other users.
+	// Create a 0700 base directory. This is the "base" directory that is
+	// protected from other users. This directory name is NOT randomly
+	// generated. This has several properties:
 	//
-	// Under that basedir, we put a 1777 /tmp dir that is then bind
-	// mounted for the applications to use
-	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-			 snap_name);
-	if (mkdtemp(tmpdir) == NULL) {
-		die("cannot create temporary directory essential for private /tmp");
-	}
-	// now we create a 1777 /tmp inside our private dir
-	mode_t old_mask = umask(0);
-	char *d = strdup(tmpdir);
-	if (!d) {
-		die("cannot allocate memory for string copy");
-	}
-	sc_must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
-	free(d);
+	// Users can relate to the name and can find the temporary directory as
+	// visible from within the snap. If this directory was random it would be
+	// harder to find because there may be situations in which multiple
+	// directories related to the same snap name would exist.
+	//
+	// Snapd can partially manage the directory. Specifically on snap remove
+	// snapd could remove the directory and everything in it, potentially
+	// avoiding runaway disk use on a machine that either never reboots or uses
+	// persistent /tmp directory.
+	//
+	// Underneath the base directory there is a "tmp" sub-directory that has
+	// mode 1777 and behaves as a typical /tmp directory would. That directory
+	// is used as a bind-mounted /tmp directory.
+	//
+	// Because the directories are reused across invocations by distinct users
+	// and because the directories are trivially guessable, each invocation
+	// unconditionally chowns/chmods them to appropriate values.
+	char base_dir[MAX_BUF] = { 0 };
+	char tmp_dir[MAX_BUF] = { 0 };
+	int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
+	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
 
-	if (mkdir(tmpdir, 01777) != 0) {
-		die("cannot create temporary directory for private /tmp");
+	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
+	// to reuse and we will open with O_NOFOLLOW, below.
+	if (mkdir(base_dir, 0700) < 0 && errno != EEXIST) {
+		die("cannot create base directory %s", base_dir);
 	}
-	umask(old_mask);
-
+	base_dir_fd = open(base_dir,
+			   O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (base_dir_fd < 0) {
+		die("cannot open base directory %s", base_dir);
+	}
+	if (fchmod(base_dir_fd, 0700) < 0) {
+		die("cannot chmod base directory %s to 0700", base_dir);
+	}
+	if (fchown(base_dir_fd, 0, 0) < 0) {
+		die("cannot chown base directory %s to root.root", base_dir);
+	}
+	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
+	// want to reuse and we will open with O_NOFOLLOW, below.
+	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
+		die("cannot create private tmp directory %s/tmp", base_dir);
+	}
+	tmp_dir_fd = openat(base_dir_fd, "tmp",
+			    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (tmp_dir_fd < 0) {
+		die("cannot open private tmp directory %s/tmp", base_dir);
+	}
+	if (fchmod(tmp_dir_fd, 01777) < 0) {
+		die("cannot chmod private tmp directory %s/tmp to 01777",
+		    base_dir);
+	}
+	if (fchown(tmp_dir_fd, 0, 0) < 0) {
+		die("cannot chown private tmp directory %s/tmp to root.root",
+		    base_dir);
+	}
+	// TODO: move cwd jump to main of snap-confine.
 	// chdir to '/' since the mount won't apply to the current directory
-	char *pwd = get_current_dir_name();
-	if (pwd == NULL)
+	char *pwd SC_CLEANUP(sc_cleanup_string) = NULL;
+	pwd = get_current_dir_name();
+	if (pwd == NULL) {
 		die("cannot get current working directory");
-	if (chdir("/") != 0)
-		die("cannot change directory to '/'");
-
-	// MS_BIND is there from linux 2.4
-	sc_do_mount(tmpdir, "/tmp", NULL, MS_BIND, NULL);
-	// MS_PRIVATE needs linux > 2.6.11
-	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
-	// do the chown after the bind mount to avoid potential shenanigans
-	if (chown("/tmp/", uid, gid) < 0) {
-		die("cannot change ownership of /tmp");
 	}
-	// chdir to original directory
-	if (chdir(pwd) != 0)
-		die("cannot change current working directory to the original directory");
-	free(pwd);
+	if (chdir("/") < 0) {
+		die("cannot change directory to \"/\"");
+	}
+	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
+	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
+
+	// TODO: Remove after switching to global handling of working directory.
+	if (chdir(pwd) < 0) {
+		die("cannot restore working directory to %s", pwd);
+	}
 }
 
 // TODO: fold this into bootstrap
@@ -138,62 +172,6 @@ static void setup_private_pts(void)
 	sc_do_mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
 		    "newinstance,ptmxmode=0666,mode=0620,gid=5");
 	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
-}
-
-/**
- * Setup mount profiles by running snap-update-ns.
- *
- * The first argument is an open file descriptor (though opened with O_PATH, so
- * not as powerful), to a copy of snap-update-ns. The program is opened before
- * the root filesystem is pivoted so that it is easier to pick the right copy.
- **/
-static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
-				    int snap_update_ns_fd,
-				    const char *snap_name)
-{
-	debug("calling snap-update-ns to initialize mount namespace");
-	pid_t child = fork();
-	if (child < 0) {
-		die("cannot fork to run snap-update-ns");
-	}
-	if (child == 0) {
-		// We are the child, execute snap-update-ns under a dedicated profile.
-		char profile[PATH_MAX] = { 0 };
-		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
-				 snap_name);
-		debug("launching snap-update-ns under per-snap profile %s",
-		      profile);
-		sc_maybe_aa_change_onexec(apparmor, profile);
-		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot copy snap name");
-		}
-		char *argv[] = {
-			"snap-update-ns", "--from-snap-confine", snap_name_copy,
-			NULL
-		};
-		char *envp[3] = { NULL };
-		if (sc_is_debug_enabled()) {
-			envp[0] = "SNAPD_DEBUG=1";
-		}
-		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
-		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
-		fexecve(snap_update_ns_fd, argv, envp);
-		die("cannot execute snap-update-ns");
-	}
-	// We are the parent, so wait for snap-update-ns to finish.
-	int status = 0;
-	debug("waiting for snap-update-ns to finish...");
-	if (waitpid(child, &status, 0) < 0) {
-		die("waitpid() failed for snap-update-ns process");
-	}
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		die("snap-update-ns killed by signal %i", WTERMSIG(status));
-	}
-	debug("snap-update-ns finished successfully");
 }
 
 struct sc_mount {
@@ -400,7 +378,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		}
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
-			die("cannot use result from readlink: %s", src);
+			die("cannot use result from readlink: %s", self);
 		}
 		src = dirname(self);
 		// dirname(path) might return '.' depending on path.
@@ -412,17 +390,6 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 
 		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
-
-		// FIXME: snapctl tool - our apparmor policy wants it in
-		//        /usr/bin/snapctl, we will need an empty file
-		//        here from the base snap or we need to move it
-		//        into a different location and just symlink it
-		//        (/usr/lib/snapd/snapctl -> /usr/bin/snapctl)
-		//        and in the base snap case adjust PATH
-		//src = "/usr/bin/snapctl";
-		//sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, src);
-		//sc_do_mount(src, dst, NULL, MS_REC | MS_BIND, NULL);
-		//sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
@@ -502,7 +469,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// This way we can remove the temporary directory we created and "clean up"
 	// after ourselves nicely.
 	sc_must_snprintf(dst, sizeof dst, "%s/%s", SC_HOSTFS_DIR, scratch_dir);
-	sc_do_umount(dst, 0);
+	sc_do_umount(dst, UMOUNT_NOFOLLOW);
 	// Remove the scratch directory. Note that we are using the path that is
 	// based on the old root filesystem as after pivot_root we cannot guarantee
 	// what is present at the same location normally. (It is probably an empty
@@ -586,37 +553,15 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-int sc_open_snap_update_ns(void)
-{
-	// +1 is for the case where the link is exactly PATH_MAX long but we also
-	// want to store the terminating '\0'. The readlink system call doesn't add
-	// terminating null, but our initialization of buf handles this for us.
-	char buf[PATH_MAX + 1] = { 0 };
-	if (readlink("/proc/self/exe", buf, sizeof buf) < 0) {
-		die("cannot readlink /proc/self/exe");
-	}
-	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
-		die("readlink /proc/self/exe returned relative path");
-	}
-	char *bufcopy SC_CLEANUP(sc_cleanup_string) = NULL;
-	bufcopy = strdup(buf);
-	if (bufcopy == NULL) {
-		die("cannot copy buffer");
-	}
-	char *dname = dirname(bufcopy);
-	sc_must_snprintf(buf, sizeof buf, "%s/%s", dname, "snap-update-ns");
-	debug("snap-update-ns executable: %s", buf);
-	int fd = open(buf, O_PATH | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-	if (fd < 0) {
-		die("cannot open snap-update-ns executable");
-	}
-	debug("opened snap-update-ns executable as file descriptor %d", fd);
-	return fd;
-}
-
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const char *base_snap_name, const char *snap_name)
+			  sc_invocation * inv)
 {
+	/* NOTE: this function makes a local modification to base snap name.
+	 * This should not be done like that but for the purpose of refactoring
+	 * being purely a refactoring, this property is preserved by copying
+	 * base_snap_name out of the invocation argument and making
+	 * modifications local. */
+	const char *base_snap_name = inv->base_snap_name;
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
 	// will try to re-locate to the same directory (if possible).
@@ -628,7 +573,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// Classify the current distribution, as claimed by /etc/os-release.
 	sc_distro distro = sc_classify_distro();
 	// Check which mode we should run in, normal or legacy.
-	if (sc_should_use_normal_mode(distro, base_snap_name)) {
+	if (inv->is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
@@ -677,7 +622,10 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 					die("cannot locate the core or legacy core snap (current symlink missing?)");
 				}
 			}
-			die("cannot locate the base snap: %s", base_snap_name);
+			// If after the special case handling above we are
+			// still not ok, die
+			if (access(rootfs_dir, F_OK) != 0)
+			        die("cannot locate the base snap: %s", base_snap_name);
 		}
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,
@@ -707,18 +655,14 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 
 	// set up private mounts
 	// TODO: rename this and fold it into bootstrap
-	setup_private_mount(snap_name);
+	setup_private_mount(inv->snap_instance);
 
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
-	// setup quirks for specific snaps
-	if (distro == SC_DISTRO_CLASSIC) {
-		sc_setup_quirks();
-	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(apparmor, snap_update_ns_fd, snap_name);
+	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
@@ -737,12 +681,12 @@ static bool is_mounted_with_shared_option(const char *dir)
 
 static bool is_mounted_with_shared_option(const char *dir)
 {
-	struct sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	sm = sc_parse_mountinfo(NULL);
 	if (sm == NULL) {
 		die("cannot parse /proc/self/mountinfo");
 	}
-	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
+	sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
 	while (entry != NULL) {
 		const char *mount_dir = entry->mount_dir;
 		if (sc_streq(mount_dir, dir)) {
@@ -799,58 +743,5 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 
 	sc_make_slave_mount_ns();
-
-	debug("calling snap-update-ns to initialize user mounts");
-	pid_t child = fork();
-	if (child < 0) {
-		die("cannot fork to run snap-update-ns");
-	}
-	if (child == 0) {
-		// We are the child, execute snap-update-ns under a dedicated profile.
-		char profile[PATH_MAX] = { 0 };
-		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
-				 snap_name);
-		debug("launching snap-update-ns under per-snap profile %s",
-		      profile);
-		sc_maybe_aa_change_onexec(apparmor, profile);
-		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-		snap_name_copy = strdup(snap_name);
-		if (snap_name_copy == NULL) {
-			die("cannot allocate memory for snap name");
-		}
-		char *argv[] = {
-			"snap-update-ns", "--user-mounts", snap_name_copy,
-			NULL
-		};
-		char *envp[3] = { NULL };
-		int last_env = 0;
-		if (sc_is_debug_enabled()) {
-			envp[last_env++] = "SNAPD_DEBUG=1";
-		}
-		const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-		char xdg_runtime_dir_env[PATH_MAX];
-		if (xdg_runtime_dir != NULL) {
-			sc_must_snprintf(xdg_runtime_dir_env,
-					 sizeof(xdg_runtime_dir_env),
-					 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
-			envp[last_env++] = xdg_runtime_dir_env;
-		}
-
-		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
-		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
-		fexecve(snap_update_ns_fd, argv, envp);
-		die("cannot execute snap-update-ns");
-	}
-	// We are the parent, so wait for snap-update-ns to finish.
-	int status = 0;
-	debug("waiting for snap-update-ns to finish...");
-	if (waitpid(child, &status, 0) < 0) {
-		die("waitpid() failed for snap-update-ns process");
-	}
-	if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		die("snap-update-ns failed with code %i", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		die("snap-update-ns killed by signal %i", WTERMSIG(status));
-	}
-	debug("snap-update-ns finished successfully");
+	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }

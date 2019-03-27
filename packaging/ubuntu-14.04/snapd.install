@@ -1,5 +1,5 @@
 usr/bin/snap
-usr/bin/snapctl
+usr/bin/snapctl /usr/lib/snapd/
 usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/

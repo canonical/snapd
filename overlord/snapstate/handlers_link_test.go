@@ -72,27 +72,31 @@ func (s *linkSnapSuite) TearDownTest(c *C) {
 	snapstate.Model = nil
 }
 
-func checkHasCookieForSnap(c *C, st *state.State, snapName string) {
+func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
 	var contexts map[string]interface{}
 	err := st.Get("snap-cookies", &contexts)
 	c.Assert(err, IsNil)
 	c.Check(contexts, HasLen, 1)
 
 	for _, snap := range contexts {
-		if snapName == snap {
+		if instanceName == snap {
 			return
 		}
 	}
-	panic(fmt.Sprintf("Cookie missing for snap %q", snapName))
+	panic(fmt.Sprintf("Cookie missing for snap %q", instanceName))
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
+	// we start without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			Revision: snap.R(33),
+			SnapID:   "foo-id",
 		},
 		Channel: "beta",
 		UserID:  2,
@@ -123,6 +127,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+
+	// we end with the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessNoUserID(c *C) {
@@ -425,8 +432,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartWithoutBase(c *C) {
-	restore := release.MockOnClassic(false)
+func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
 	defer restore()
 
 	s.state.Lock()
@@ -457,18 +464,28 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartWithoutBase(c *C) {
 	c.Check(typ, Equals, snap.TypeApp)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.stateBackend.restartRequested, IsNil)
-	c.Check(t.Log(), HasLen, 0)
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
+	c.Check(t.Log(), HasLen, 1)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartOnClassic(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNoCoreRestart(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
 	s.state.Lock()
-	si := &snap.SideInfo{
+	siSnapd := &snap.SideInfo{
 		RealName: "snapd",
-		Revision: snap.R(22),
+		Revision: snap.R(64),
+	}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{siSnapd},
+		Current:  siSnapd.Revision,
+		Active:   true,
+	})
+
+	si := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(33),
 	}
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -485,12 +502,12 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdNoRestartOnClassic(c *C) {
 	defer s.state.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "snapd", &snapst)
+	err := snapstate.Get(s.state, "core", &snapst)
 	c.Assert(err, IsNil)
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeOS)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, IsNil)
@@ -741,4 +758,39 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
 	c.Assert(autoconnectSup.InstanceName(), Equals, "snap2")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
+	// this is very chummy with the order of LinkSnap
+	c.Assert(ioutil.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
+
+	// we start without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Channel: "beta",
+		UserID:  2,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+
+	// we end without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 }

@@ -20,11 +20,14 @@
 package ctlcmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -45,6 +48,10 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	info, err := snapst.CurrentInfo()
 	if err != nil {
 		return nil, err
+	}
+	if len(serviceNames) == 0 {
+		// all services
+		return info.Services(), nil
 	}
 
 	var svcs []*snap.AppInfo
@@ -112,7 +119,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	st := context.State()
-	appInfos, err := getServiceInfos(st, context.SnapName(), serviceNames)
+	appInfos, err := getServiceInfos(st, context.InstanceName(), serviceNames)
 	if err != nil {
 		return err
 	}
@@ -128,7 +135,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	st.Lock()
-	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.SnapName()))
+	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.InstanceName()))
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
@@ -143,4 +150,66 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	case <-time.After(configstate.ConfigureHookTimeout() / 2):
 		return fmt.Errorf("%s command is taking too long", inst.Action)
 	}
+}
+
+// NoAttributeError indicates that an interface attribute is not set.
+type NoAttributeError struct {
+	Attribute string
+}
+
+func (e *NoAttributeError) Error() string {
+	return fmt.Sprintf("no %q attribute", e.Attribute)
+}
+
+// isNoAttribute returns whether the provided error is a *NoAttributeError.
+func isNoAttribute(err error) bool {
+	_, ok := err.(*NoAttributeError)
+	return ok
+}
+
+func jsonRaw(v interface{}) *json.RawMessage {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Errorf("internal error: cannot marshal attributes: %v", err))
+	}
+	raw := json.RawMessage(data)
+	return &raw
+}
+
+// getAttribute unmarshals into result the value of the provided key from attributes map.
+// If the key does not exist, an error of type *NoAttributeError is returned.
+// The provided key may be formed as a dotted key path through nested maps.
+// For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
+func getAttribute(snapName string, subkeys []string, pos int, attrs map[string]interface{}, result interface{}) error {
+	if pos >= len(subkeys) {
+		return fmt.Errorf("internal error: invalid subkeys index %d for subkeys %q", pos, subkeys)
+	}
+	value, ok := attrs[subkeys[pos]]
+	if !ok {
+		return &NoAttributeError{Attribute: strings.Join(subkeys[:pos+1], ".")}
+	}
+
+	if pos+1 == len(subkeys) {
+		raw, ok := value.(*json.RawMessage)
+		if !ok {
+			raw = jsonRaw(value)
+		}
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
+			key := strings.Join(subkeys, ".")
+			return fmt.Errorf("internal error: cannot unmarshal snap %s attribute %q into %T: %s, json: %s", snapName, key, result, err, *raw)
+		}
+		return nil
+	}
+
+	attrsm, ok := value.(map[string]interface{})
+	if !ok {
+		raw, ok := value.(*json.RawMessage)
+		if !ok {
+			raw = jsonRaw(value)
+		}
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &attrsm); err != nil {
+			return fmt.Errorf("snap %q attribute %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
+		}
+	}
+	return getAttribute(snapName, subkeys, pos+1, attrsm, result)
 }

@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -82,8 +83,11 @@ var (
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
+	ResolveChannel         = resolveChannel
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
+
+	HasOtherInstances = hasOtherInstances
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -109,8 +113,11 @@ var (
 var (
 	NewAutoRefresh                = newAutoRefresh
 	NewRefreshHints               = newRefreshHints
-	NewCatalogRefresh             = newCatalogRefresh
 	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
+
+	NewCatalogRefresh            = newCatalogRefresh
+	CatalogRefreshDelayBase      = catalogRefreshDelayBase
+	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -123,6 +130,10 @@ func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
 
 func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 	cr.nextCatalogRefresh = when
+}
+
+func NextCatalogRefresh(cr *catalogRefresh) time.Time {
+	return cr.nextCatalogRefresh
 }
 
 func MockRefreshRetryDelay(d time.Duration) func() {
@@ -138,6 +149,22 @@ func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
 	IsOnMeteredConnection = mock
 	return func() {
 		IsOnMeteredConnection = old
+	}
+}
+
+func MockLocalInstallCleanupWait(d time.Duration) (restore func()) {
+	old := localInstallCleanupWait
+	localInstallCleanupWait = d
+	return func() {
+		localInstallCleanupWait = old
+	}
+}
+
+func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
+	old := localInstallLastCleanup
+	localInstallLastCleanup = t
+	return func() {
+		localInstallLastCleanup = old
 	}
 }
 
@@ -183,3 +210,37 @@ func setModel(override map[string]string) {
 		return a.(*asserts.Model), nil
 	}
 }
+
+// re-refresh related
+var (
+	RefreshedSnaps  = refreshedSnaps
+	ReRefreshFilter = reRefreshFilter
+)
+
+type UpdateFilter = updateFilter
+
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+	old := reRefreshUpdateMany
+	reRefreshUpdateMany = f
+	return func() {
+		reRefreshUpdateMany = old
+	}
+}
+
+func MockReRefreshRetryTimeout(d time.Duration) (restore func()) {
+	old := reRefreshRetryTimeout
+	reRefreshRetryTimeout = d
+	return func() {
+		reRefreshRetryTimeout = old
+	}
+}
+
+// aux store info
+var (
+	AuxStoreInfoFilename = auxStoreInfoFilename
+	RetrieveAuxStoreInfo = retrieveAuxStoreInfo
+	KeepAuxStoreInfo     = keepAuxStoreInfo
+	DiscardAuxStoreInfo  = discardAuxStoreInfo
+)
+
+type AuxStoreInfo = auxStoreInfo

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // Backend is responsible for maintaining mount files for snap-confine
@@ -54,7 +55,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 }
 
 // Setup creates mount mount profile files specific to a given snap.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
 	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
@@ -127,7 +128,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 func (b *Backend) SandboxFeatures() []string {
 	return []string{
 		"freezer-cgroup-v1",       /* Snapd creates a freezer cgroup (v1) for each snap */
-		"layouts-beta",            /* Mount profiles take layout data into account (experimental) */
+		"layouts",                 /* Mount profiles take layout data into account */
 		"mount-namespace",         /* Snapd creates a mount namespace for each snap */
 		"per-snap-persistency",    /* Per-snap profiles are persisted across invocations */
 		"per-snap-profiles",       /* Per-snap profiles allow changing mount namespace of a given snap */

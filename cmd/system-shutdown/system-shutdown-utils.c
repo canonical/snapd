@@ -96,7 +96,7 @@ static void detach_loop(const char *src)
 		     strerror(errno));
 	} else {
 		if (ioctl(fd, LOOP_CLR_FD) < 0) {
-			kmsg("* unable to disassociate loop device %ss: %s",
+			kmsg("* unable to disassociate loop device %s: %s",
 			     src, strerror(errno));
 		}
 		close(fd);
@@ -111,13 +111,12 @@ bool umount_all(void)
 	bool had_writable = false;
 
 	for (int i = 0; i < 10 && did_umount; i++) {
-		struct sc_mountinfo *mounts = sc_parse_mountinfo(NULL);
+		sc_mountinfo *mounts = sc_parse_mountinfo(NULL);
 		if (!mounts) {
 			// oh dear
 			die("unable to get mount info; giving up");
 		}
-		struct sc_mountinfo_entry *cur =
-		    sc_first_mountinfo_entry(mounts);
+		sc_mountinfo_entry *cur = sc_first_mountinfo_entry(mounts);
 
 		had_writable = false;
 		did_umount = false;

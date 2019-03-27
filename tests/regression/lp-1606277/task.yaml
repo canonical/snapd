@@ -5,6 +5,7 @@ details: |
     even if the log-observe interface is being used.
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     echo "Having installed a test snap"
     install_local log-observe-consumer

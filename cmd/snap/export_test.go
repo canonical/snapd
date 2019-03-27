@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,16 +26,22 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
 )
 
 var RunMain = run
 
 var (
+	Client = mkClient
+
+	FirstNonOptionIsRun = firstNonOptionIsRun
+
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
-	IsReexeced         = isReexeced
+	SnapdHelperPath    = snapdHelperPath
 	MaybePrintServices = maybePrintServices
 	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
@@ -43,6 +49,7 @@ var (
 	Antialias          = antialias
 	FormatChannel      = fmtChannel
 	PrintDescr         = printDescr
+	WrapFlow           = wrapFlow
 	TrueishJSON        = trueishJSON
 
 	CanUnicode           = canUnicode
@@ -56,6 +63,23 @@ var (
 	ShortPublisher       = shortPublisher
 
 	ReadRpc = readRpc
+
+	WriteWarningTimestamp = writeWarningTimestamp
+	MaybePresentWarnings  = maybePresentWarnings
+
+	LongSnapDescription     = longSnapDescription
+	SnapUsage               = snapUsage
+	SnapHelpCategoriesIntro = snapHelpCategoriesIntro
+	SnapHelpAllFooter       = snapHelpAllFooter
+	SnapHelpFooter          = snapHelpFooter
+	HelpCategories          = helpCategories
+
+	LintArg  = lintArg
+	LintDesc = lintDesc
+
+	FixupArg = fixupArg
+
+	InterfacesDeprecationNotice = interfacesDeprecationNotice
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -185,13 +209,60 @@ func MockWaitConfTimeout(d time.Duration) (restore func()) {
 }
 
 func Wait(cli *client.Client, id string) (*client.Change, error) {
-	return waitMixin{}.wait(cli, id)
+	wmx := waitMixin{}
+	wmx.client = cli
+	return wmx.wait(id)
 }
 
 func ColorMixin(cmode, umode string) colorMixin {
-	return colorMixin{Color: cmode, Unicode: umode}
+	return colorMixin{
+		Color:        cmode,
+		unicodeMixin: unicodeMixin{Unicode: umode},
+	}
 }
 
 func CmdAdviseSnap() *cmdAdviseSnap {
 	return &cmdAdviseSnap{}
 }
+
+func MockSELinuxIsEnabled(isEnabled func() (bool, error)) (restore func()) {
+	old := selinuxIsEnabled
+	selinuxIsEnabled = isEnabled
+	return func() {
+		selinuxIsEnabled = old
+	}
+}
+
+func MockSELinuxVerifyPathContext(verifypathcon func(string) (bool, error)) (restore func()) {
+	old := selinuxVerifyPathContext
+	selinuxVerifyPathContext = verifypathcon
+	return func() {
+		selinuxVerifyPathContext = old
+	}
+}
+
+func MockSELinuxRestoreContext(restorecon func(string, selinux.RestoreMode) error) (restore func()) {
+	old := selinuxRestoreContext
+	selinuxRestoreContext = restorecon
+	return func() {
+		selinuxRestoreContext = old
+	}
+}
+
+func MockTermSize(newTermSize func() (int, int)) (restore func()) {
+	old := termSize
+	termSize = newTermSize
+	return func() {
+		termSize = old
+	}
+}
+
+func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func()) {
+	old := imagePrepare
+	imagePrepare = newImagePrepare
+	return func() {
+		imagePrepare = old
+	}
+}
+
+type ServiceName = serviceName

@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -45,7 +46,9 @@ import (
 
 func TestOverlord(t *testing.T) { TestingT(t) }
 
-type overlordSuite struct{}
+type overlordSuite struct {
+	restoreBackends func()
+}
 
 var _ = Suite(&overlordSuite{})
 
@@ -54,10 +57,12 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
+	ovs.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	ovs.restoreBackends()
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
@@ -108,7 +113,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -128,6 +133,12 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(fakeState, &expected)
 	c.Assert(err, IsNil)
+
+	// make sure "timings" are present in the state, but exclude them from the check
+	data, _ := got["data"].(map[string]interface{})
+	c.Assert(data, NotNil)
+	c.Assert(data["timings"], NotNil)
+	delete(data, "timings")
 
 	c.Check(got, DeepEquals, expected)
 }
@@ -156,7 +167,7 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = overlord.New()
-	c.Assert(err, ErrorMatches, "EOF")
+	c.Assert(err, ErrorMatches, "cannot read state: EOF")
 }
 
 func (ovs *overlordSuite) TestNewWithPatches(c *C) {
@@ -361,6 +372,35 @@ func (ovs *overlordSuite) TestEnsureBeforeSleepy(c *C) {
 	ensure := func(s *state.State) error {
 		overlord.MockEnsureNext(o, time.Now().Add(-10*time.Hour))
 		s.EnsureBefore(0)
+		return nil
+	}
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 2,
+		ensureCalled:   make(chan struct{}),
+		ensureCallback: ensure,
+	}
+	o.AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+}
+
+func (ovs *overlordSuite) TestEnsureBeforeLater(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
+	defer restoreIntv()
+	o := overlord.Mock()
+
+	ensure := func(s *state.State) error {
+		overlord.MockEnsureNext(o, time.Now().Add(-10*time.Hour))
+		s.EnsureBefore(time.Second * 5)
 		return nil
 	}
 
@@ -783,4 +823,30 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(restartRequested, Equals, true)
+}
+
+func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Millisecond)
+	defer restoreIntv()
+	o := overlord.Mock()
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 3,
+		ensureCalled:   make(chan struct{}),
+	}
+	o.AddManager(witness)
+
+	// can only standby after loop ran once
+	c.Assert(o.CanStandby(), Equals, false)
+
+	o.Loop()
+	defer o.Stop()
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+
+	c.Assert(o.CanStandby(), Equals, true)
 }

@@ -17,12 +17,22 @@ import os
 
 import snapcraft
 
-# cowboy baby, see https://bugs.launchpad.net/snapcraft/+bug/1772584
+# cowboy baby :(
+# see https://bugs.launchpad.net/snapcraft/+bug/1772584
+# and https://bugs.launchpad.net/snapcraft/+bug/1791871
+#
+# This will be fixed by snapcraft - the agreement is that they
+# will look for a .snap/ directory with "snapcraft" in it and
+# use that when available.
 def patch_snapcraft():
     import snapcraft.internal.common
+    import snapcraft.internal.sources._local
     # very hacky but gets the job done for now, right now
     # SNAPCRAFT_FILES is only used to know what to exclude
     snapcraft.internal.common.SNAPCRAFT_FILES.remove("snap")
+    def _patched_check(self, target):
+        return False
+    snapcraft.internal.sources._local.Local._check = _patched_check
 patch_snapcraft()
 
 
@@ -32,9 +42,13 @@ class XBuildDeb(snapcraft.BasePlugin):
     def build(self):
         super().build()
         self.run(["sudo", "apt-get", "build-dep", "-y", "./"])
-        # XXX: get this from "debian/gbp.conf:postexport"
-        self.run(["./get-deps.sh", "--skip-unused-check"])
+        # ensure we have go in our PATH
         env=os.environ.copy()
+        # ensure build with go-1.10 if available
+        if os.path.exists("/usr/lib/go-1.10/bin"):
+            env["PATH"] = "/usr/lib/go-1.10/bin:{}".format(env["PATH"])
+        # XXX: get this from "debian/gbp.conf:postexport"
+        self.run(["./get-deps.sh", "--skip-unused-check"], env=env)
         if os.getuid() == 0:
             # disable running the tests during the build when run as root
             # because quite a few of them will break

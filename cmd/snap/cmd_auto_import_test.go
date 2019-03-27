@@ -88,7 +88,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `created user "foo"`+"\n")
@@ -120,7 +120,7 @@ func (s *SnapSuite) TestAutoImportAssertsNotImportedFromLoop(c *C) {
 	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
@@ -175,7 +175,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappyNotOnClassic(c *C) {
 	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
@@ -204,7 +204,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
@@ -261,7 +261,7 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `created user "foo"`+"\n")
@@ -297,6 +297,6 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
-	_, err = snap.Parser().ParseArgs([]string{"auto-import"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, ErrorMatches, "cannot queue .*, file size too big: 656384")
 }

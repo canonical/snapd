@@ -7,9 +7,6 @@ systems: [-ubuntu-*-ppc64el, -ubuntu-*-s390x]
 # with the distro
 backends: [-autopkgtest]
 
-restore: |
-    rm -f featured.txt
-
 execute: |
     echo "List all featured snaps"
     expected='(?s).*Name +Version +Publisher +Notes +Summary *\n(.*?\n)?.*'
@@ -52,9 +49,12 @@ execute: |
     # TODO: discuss with the store how we can make this test stable, i.e.
     #       that section/snap changes do not break us
     if [ "$(uname -m)" = "x86_64" ]; then
-        snap find --section=video vlc | MATCH vlc
+        snap find --section=photo-and-video vlc | MATCH vlc
     else
-        snap find --section=video vlc 2>&1 | MATCH 'No matching snaps'
+        # actual output:
+        # Name           Version  Publisher  Notes  Summary
+        # mjpg-streamer  2.0      ogra       -      UVC webcam streaming tool
+        snap find --section=photo-and-video vlc 2>&1 | MATCH -v vlc
     fi
 
     # LP: 1740605
@@ -62,3 +62,7 @@ execute: |
         echo 'snap find " " returns non user friendly error with whitespace query'
         exit 1
     fi
+
+    echo "List of snaps in edge and beta channels"
+    snap find test-snapd-just- | MATCH "test-snapd-just-edge"
+    snap find test-snapd-just- | MATCH "test-snapd-just-beta"

@@ -109,7 +109,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 			value = parts[1]
 		}
 
-		tr.Set(s.context().SnapName(), key, value)
+		tr.Set(s.context().InstanceName(), key, value)
 	}
 
 	return nil
@@ -118,7 +118,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.SnapName(), key, err)
+		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.InstanceName(), key, err)
 	}
 	raw := json.RawMessage(data)
 
@@ -134,16 +134,16 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 		return fmt.Errorf("internal error: unexpected empty subkeys for key %q", key)
 	}
 	var existing interface{}
-	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, staticAttrs, &existing)
+	err = getAttribute(context.InstanceName(), subkeys[:1], 0, staticAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
 	}
-	// we expect NoOptionError here, any other error is unexpected (a real error)
-	if !config.IsNoOption(err) {
+	// we expect NoAttributeError here, any other error is unexpected (a real error)
+	if !isNoAttribute(err) {
 		return err
 	}
 
-	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, dynamicAttrs, &raw)
+	_, err = config.PatchConfig(context.InstanceName(), subkeys, 0, dynamicAttrs, &raw)
 	return err
 }
 

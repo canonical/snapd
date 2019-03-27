@@ -57,6 +57,13 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		return snapType, err
 	}
 
+	if s.InstanceKey != "" {
+		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0755)
+		if err != nil && !os.IsExist(err) {
+			return snapType, err
+		}
+	}
+
 	if err := snapf.Install(s.MountFile(), instdir); err != nil {
 		return snapType, err
 	}
@@ -88,10 +95,6 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 		return err
 	}
 
-	// try to remove parent dir, failure is ok, means some other
-	// revisions are still in there
-	os.Remove(filepath.Dir(mountDir))
-
 	// snapPath may either be a file or a (broken) symlink to a dir
 	snapPath := s.MountFile()
 	if _, err := os.Lstat(snapPath); err == nil {
@@ -108,6 +111,23 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 		}
 	}
 
+	return nil
+}
+
+func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
+	mountDir := s.MountDir()
+
+	snapName, instanceKey := snap.SplitInstanceName(s.InstanceName())
+	if instanceKey != "" {
+		// always ok to remove instance specific one, failure to remove
+		// is ok, there may be other revisions
+		os.Remove(filepath.Dir(mountDir))
+	}
+	if !hasOtherInstances {
+		// remove only if not used by other instances of the same snap,
+		// failure to remove is ok, there may be other revisions
+		os.Remove(snap.BaseDir(snapName))
+	}
 	return nil
 }
 

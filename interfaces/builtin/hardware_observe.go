@@ -37,6 +37,9 @@ const hardwareObserveConnectedPlugAppArmor = `
 # used by lscpu and 'lspci -A intel-conf1/intel-conf2'
 capability sys_rawio,
 
+# see loaded kernel modules
+@{PROC}/modules r,
+
 # used by lspci
 capability sys_admin,
 /etc/modprobe.d/{,*} r,
@@ -54,6 +57,7 @@ capability sys_admin,
 
 # power information
 /sys/power/{,**} r,
+/run/udev/data/+power_supply:* r,
 
 # interrupts
 @{PROC}/interrupts r,

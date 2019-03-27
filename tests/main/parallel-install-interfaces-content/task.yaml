@@ -1,5 +1,8 @@
 summary: check that content interface works with parallel instances
 
+# takes >1.5min to run in total
+backends: [-autopkgtest]
+
 details: |
     Use the content interface along with parallel instances of snaps. Verify
     that the content is made available to each snap instance when connected.
@@ -22,16 +25,9 @@ execute: |
 
     install_local test-snapd-content-advanced-slot
 
-    devmode=
-    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
-        # TODO parallel-install: disable devmode once AppArmor profile updates
-        # are in
-        devmode=--devmode
-    fi
-
     install_local test-snapd-content-advanced-plug
-    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_foo $devmode
-    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_bar $devmode
+    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_foo
+    install_local_as test-snapd-content-advanced-plug test-snapd-content-advanced-plug_bar
 
     test-snapd-content-advanced-plug.sh -c "$(printf 'test ! -e $%s/target' "$VAR")"
 

@@ -238,7 +238,7 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 	// check if we haven't already reported this error
 	db, err := newReportsDB(dirs.ErrtrackerDbDir)
 	if err != nil {
-		logger.Noticef("cannot open error reports database: %v", err)
+		return "", fmt.Errorf("cannot open error reports database: %v", err)
 	}
 	defer db.Close()
 
@@ -252,7 +252,7 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 		return "", err
 	}
 	if err := db.MarkReported(dupSig); err != nil {
-		logger.Noticef("cannot mark %s as reported", oopsID)
+		logger.Noticef("cannot mark %s as reported: %s", oopsID, err)
 	}
 
 	return oopsID, nil

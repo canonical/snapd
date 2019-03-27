@@ -49,6 +49,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdUserd{}
 		}, map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"autostart": i18n.G("Autostart user applications"),
 		}, nil)
 	cmd.hidden = true
@@ -68,7 +69,7 @@ func (x *cmdUserd) Execute(args []string) error {
 	}
 	x.userd.Start()
 
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 3)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 	select {
 	case sig := <-ch:

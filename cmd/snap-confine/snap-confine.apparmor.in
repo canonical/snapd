@@ -25,6 +25,9 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
     # normal libs in order
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -63,6 +66,13 @@
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/tasks w,
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs r,
+
+    # cgroup: pids
+    # allow creating per snap-security-tag hierarchy and adding snap command (task)
+    # invocations to the controller.
+    /sys/fs/cgroup/pids/ r,
+    /sys/fs/cgroup/pids/snap.*/ w,
+    /sys/fs/cgroup/pids/snap.*/tasks w,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -118,9 +128,6 @@
 
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
-
-    # ensuring correct permissions in sc_quirk_create_writable_mimic
-    /{tmp/snap.rootfs_*/,}var/lib/ rw,
 
     # LP: #1668659
     mount options=(rw rbind) /snap/ -> /snap/,
@@ -220,6 +227,7 @@
     # pivot_root preparation and execution
     mount options=(rw bind) /tmp/snap.rootfs_*/var/lib/snapd/hostfs/ -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
     mount options=(rw private) -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
+    # pivot_root mediation in AppArmor is not complete. See LP: #1791711
     pivot_root,
     # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
@@ -234,11 +242,14 @@
     # Allow reading the os-release file (possibly a symlink to /usr/lib).
     /{etc/,usr/lib/}os-release r,
 
+    # Allow creating /var/lib/snapd/hostfs, if missing
+    /var/lib/snapd/hostfs/ rw,
+
     # set up snap-specific private /tmp dir
     capability chown,
-    /tmp/ w,
-    /tmp/snap.*/ w,
-    /tmp/snap.*/tmp/ w,
+    /tmp/ rw,
+    /tmp/snap.*/ rw,
+    /tmp/snap.*/tmp/ rw,
     mount options=(rw private) ->  /tmp/,
     mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
     mount fstype=devpts options=(rw) devpts -> /dev/pts/,
@@ -309,6 +320,18 @@
     @{HOME}/ r,
     @{HOME}/snap/{,*/,*/*/} rw,
 
+    # Special case for *classic* snaps that are used by users with existing dirs
+    # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...
+    # (see https://forum.snapcraft.io/t/9717)
+    # TODO: this can be removed once we support home-dirs outside of /home
+    #       better
+    /var/ r,
+    /var/lib/ r,
+    # These should both have 'owner' match but due to LP: #1466234, we can't
+    # yet
+    /var/lib/*/ r,
+    /var/lib/*/snap/{,*/,*/*/} rw,
+
     # for creating the user shared memory directories
     /{dev,run}/{,shm/} r,
     # This should both have 'owner' match but due to LP: #1466234, we can't yet
@@ -335,34 +358,10 @@
 
     # Allow snap-confine to unmount stale mount namespaces.
     umount /run/snapd/ns/*.mnt,
+    /run/snapd/ns/snap.*.fstab w,
     # Required to correctly unmount bound mount namespace.
     # See LP: #1735459 for details.
     umount /,
-
-    # Support for the quirk system
-    /var/ r,
-    /var/lib/ r,
-    /var/lib/** rw,
-    /tmp/ r,
-    /tmp/snapd.quirks_*/ rw,
-    mount options=(move) /var/lib/snapd/ -> /tmp/snapd.quirks_*/,
-    mount fstype=tmpfs options=(rw nodev nosuid) none -> /var/lib/,
-    mount options=(ro rbind) /snap/{,ubuntu-}core/*/var/lib/** -> /var/lib/**,
-    umount /var/lib/snapd/,
-    mount options=(move) /tmp/snapd.quirks_*/ -> /var/lib/snapd/,
-    # On classic systems with a setuid root snap-confine when run by non-root
-    # user, the mimic_dir is created with the gid of the calling user (ie,
-    # not '0') so when setting the permissions (chmod) of the mimicked
-    # directory to that of the reference directory, a CAP_FSETID is triggered.
-    # snap-confine sets the directory up correctly, so simply silence the
-    # denial since we don't want to grant the capability as a whole to
-    # snap-confine.
-    deny capability fsetid,
-
-    # support for the LXD quirk
-    mount options=(rw rbind nodev nosuid noexec) /var/lib/snapd/hostfs/var/lib/lxd/ -> /var/lib/lxd/,
-    /var/lib/lxd/ w,
-    /var/lib/snapd/hostfs/var/lib/lxd r,
 
     # support for locking
     /run/snapd/lock/ rw,
@@ -396,8 +395,18 @@
     # https://forum.snapcraft.io/t/snapd-2-27-6-2-in-debian-sid-blocked-on-apparmor-in-kernel-4-13-0-1/2813/3
     ptrace (trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
 
+    # Allow reading snap cookies.
+    /var/lib/snapd/cookie/snap.* r,
+
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
+
+    # As a special exception allow snap-confine to write to anything in /var/lib.
+    # This code should be changed to allow delegation so that snap-confine can
+    # inherit any file descriptor and pass it to the invoked application but
+    # this is not possible in apparmor yet.
+    # See https://bugs.launchpad.net/snapd/+bug/1815869
+    /var/lib/** rw,
 
     ^mount-namespace-capture-helper (attach_disconnected) {
         # We run privileged, so be fanatical about what we include and don't use
@@ -414,6 +423,9 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
         # normal libs in order
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -498,4 +510,17 @@
     # reported as (LP: #1716339). The variants here represent different
     # locations of snap mount directory across distributions.
     /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+
+    # Allow executing snap-discard-ns, just like the set for snap-update-ns
+    # above but with the key difference that snap-discard-ns does not
+    # have a dedicated profile so we need to inherit snap-confine's profile.
+
+    /usr/lib{,exec,64}/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-discard-ns rix,
+    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+
+    # Allow mounting /var/lib/jenkinks from the host into the snap.
+    mount options=(rw rbind) /var/lib/jenkins/ -> /tmp/snap.rootfs_*/var/lib/jenkins/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/lib/jenkins/,
 }

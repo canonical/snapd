@@ -114,7 +114,7 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 
 func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
-	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance_foobar.desktop")
+	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
@@ -131,7 +131,7 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
-	// foo_instance file is still there
+	// foo+instance file is still there
 	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
 
 	// restore the non-instance file
@@ -214,6 +214,7 @@ Icon=${SNAP}/meep
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=foo
 Name=foo
 Icon=%s/foo/12/meep
 
@@ -237,6 +238,7 @@ Exec=baz
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 `)
 }
@@ -251,12 +253,14 @@ apps:
 `))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 Exec=snap.app.evil.evil
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 `)
 }
@@ -271,12 +275,14 @@ apps:
 `))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 Exec=snap.app.evil.evil
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop %s/bin/snap.app
 `, dirs.SnapMountDir))
@@ -298,6 +304,7 @@ Exec=snap.app %U
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
 `, dirs.SnapMountDir))
@@ -321,12 +328,13 @@ TryExec=snap.app %U
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 `)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeWorthWithI18n(c *C) {
-	snap := &snap.Info{}
+	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "snap"}}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 GenericName=bar
@@ -339,6 +347,7 @@ Invalid[i18n]=key
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
+X-SnapInstanceName=snap
 Name=foo
 GenericName=bar
 GenericName[de]=einsehrlangeszusammengesetzteswort
@@ -356,9 +365,10 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileAyatana(c *C) {
-	snap := &snap.Info{}
+	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "snap"}}
 
 	desktopContent := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
 Version=1.0
 Name=Firefox Web Browser
 X-Ayatana-Desktop-Shortcuts=NewWindow;Private
@@ -393,6 +403,7 @@ Exec=snap.app
 	df := filepath.Base(snap.Apps["app"].DesktopFile())
 	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=snap_bar
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
 `, dirs.SnapMountDir))
@@ -416,6 +427,7 @@ Exec=snap.app %U
 	df := filepath.Base(snap.Apps["app"].DesktopFile())
 	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=snap_bar
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app %%U
 `, dirs.SnapMountDir))
@@ -467,5 +479,46 @@ func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 	}
 	for _, t := range langs {
 		c.Assert(wrappers.IsValidDesktopFileLine([]byte(t.line)), Equals, t.isValid)
+	}
+}
+
+func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
+	var tests = []struct {
+		instance                string
+		upstreamDesktopFileName string
+
+		expectedDesktopFileName string
+	}{
+		// normal cases
+		{"", "upstream.desktop", "foo_upstream.desktop"},
+		{"instance", "upstream.desktop", "foo+instance_upstream.desktop"},
+		// pathological cases are handled
+		{"", "instance.desktop", "foo_instance.desktop"},
+		{"instance", "instance.desktop", "foo+instance_instance.desktop"},
+	}
+
+	for _, t := range tests {
+		expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, t.expectedDesktopFileName)
+		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+
+		info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
+		info.InstanceKey = t.instance
+
+		// generate .desktop file in the package baseDir
+		baseDir := info.MountDir()
+		err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
+		c.Assert(err, IsNil)
+
+		err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644)
+		c.Assert(err, IsNil)
+
+		err = wrappers.AddSnapDesktopFiles(info)
+		c.Assert(err, IsNil)
+		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+
+		// remove it again
+		err = wrappers.RemoveSnapDesktopFiles(info)
+		c.Assert(err, IsNil)
+		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 	}
 }

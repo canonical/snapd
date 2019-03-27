@@ -37,6 +37,7 @@ import (
 type userInfoSuite struct {
 	testutil.BaseTest
 
+	store         *store.Store
 	restoreLogger func()
 }
 
@@ -54,10 +55,16 @@ var mockServerJSON = `{
     "openid_identifier": "xDPXBdB"
 }`
 
+var mockServerNoSSHJSON = `{
+    "username": "mvo",
+    "openid_identifier": "xDPXBdB"
+}`
+
 func (t *userInfoSuite) SetUpTest(c *check.C) {
 	t.BaseTest.SetUpTest(c)
 
 	_, t.restoreLogger = logger.MockLogger()
+	t.store = store.New(nil, nil)
 
 	store.MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
 		retry.Exponential{
@@ -80,6 +87,31 @@ func (s *userInfoSuite) redirectToTestSSO(handler func(http.ResponseWriter, *htt
 	s.BaseTest.AddCleanup(func() { os.Unsetenv("SNAPPY_FORCE_SSO_URL") })
 }
 
+func (s *userInfoSuite) TestCreateUserNoSSHKeys(c *check.C) {
+	n := 0
+	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0, 1:
+			w.WriteHeader(500) // force retry of the request
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/api/v2/keys/popper@lse.ac.uk")
+			fmt.Fprintln(w, mockServerNoSSHJSON)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	info, err := s.store.UserInfo("popper@lse.ac.uk")
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 3) // number of requests after retries
+	c.Check(info.Username, check.Equals, "mvo")
+	c.Check(info.OpenIDIdentifier, check.Equals, "xDPXBdB")
+	c.Check(info.SSHKeys, check.HasLen, 0)
+}
+
 func (s *userInfoSuite) TestCreateUser(c *check.C) {
 	n := 0
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +129,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 		n++
 	})
 
-	info, err := store.UserInfo("popper@lse.ac.uk")
+	info, err := s.store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 3) // number of requests after retries
 	c.Check(info.Username, check.Equals, "mvo")
@@ -113,7 +145,7 @@ func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 		n++
 	})
 
-	_, err := store.UserInfo("popper@lse.ac.uk")
+	_, err := s.store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `cannot look up user.*?got unexpected HTTP status code 500.*`)
 	c.Assert(n, check.Equals, 6)

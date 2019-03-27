@@ -21,6 +21,8 @@ package release
 
 import (
 	"bufio"
+	"bytes"
+	"io/ioutil"
 	"os"
 	"strings"
 	"unicode"
@@ -44,6 +46,7 @@ func (o *OS) ForceDevMode() bool {
 	return AppArmorLevel() != FullAppArmor
 }
 
+// DistroLike checks if the distribution ID or ID_LIKE matches one of the given names.
 func DistroLike(distros ...string) bool {
 	for _, distro := range distros {
 		if ReleaseInfo.ID == distro || strutil.ListContains(ReleaseInfo.IDLike, distro) {
@@ -108,9 +111,24 @@ func readOSRelease() OS {
 	return osRelease
 }
 
+var ioutilReadFile = ioutil.ReadFile
+
+func isWSL() bool {
+	version, err := ioutilReadFile("/proc/version")
+	if err == nil && bytes.Contains(version, []byte("Microsoft")) {
+		return true
+	}
+
+	return false
+}
+
 // OnClassic states whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool
+
+// OnWSL states whether the process is running inside the Windows
+// Subsystem for Linux
+var OnWSL bool
 
 // ReleaseInfo contains data loaded from /etc/os-release on startup.
 var ReleaseInfo OS
@@ -119,6 +137,8 @@ func init() {
 	ReleaseInfo = readOSRelease()
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
+
+	OnWSL = isWSL()
 }
 
 // MockOnClassic forces the process to appear inside a classic

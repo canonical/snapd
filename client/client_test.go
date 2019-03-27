@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,6 +52,7 @@ type clientSuite struct {
 	doCalls int
 	header  http.Header
 	status  int
+	restore func()
 }
 
 var _ = Suite(&clientSuite{})
@@ -70,10 +72,13 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
+
+	cs.restore = client.MockDoRetry(time.Millisecond, 10*time.Millisecond)
 }
 
 func (cs *clientSuite) TearDownTest(c *C) {
 	os.Unsetenv(client.TestAuthFileEnvKey)
+	cs.restore()
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
@@ -99,8 +104,6 @@ func (cs *clientSuite) TestNewPanics(c *C) {
 }
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
-	restore := client.MockDoRetry(10*time.Millisecond, 100*time.Millisecond)
-	defer restore()
 	cs.err = errors.New("ouchie")
 	err := cs.cli.Do("GET", "/", nil, nil, nil)
 	c.Check(err, ErrorMatches, "cannot communicate with server: ouchie")
@@ -420,6 +423,15 @@ func (cs *clientSuite) TestIsTwoFactor(c *C) {
 	c.Check(client.IsTwoFactorError((*client.Error)(nil)), Equals, false)
 }
 
+func (cs *clientSuite) TestIsRetryable(c *C) {
+	// unhappy
+	c.Check(client.IsRetryable(nil), Equals, false)
+	c.Check(client.IsRetryable(errors.New("some-error")), Equals, false)
+	c.Check(client.IsRetryable(&client.Error{Kind: "something-else"}), Equals, false)
+	// happy
+	c.Check(client.IsRetryable(&client.Error{Kind: client.ErrorKindChangeConflict}), Equals, true)
+}
+
 func (cs *clientSuite) TestClientCreateUser(c *C) {
 	_, err := cs.cli.CreateUser(&client.CreateUserOptions{})
 	c.Assert(err, ErrorMatches, "cannot create a user without providing an email")
@@ -546,4 +558,17 @@ func (cs *clientSuite) TestDebugGeneric(c *C) {
 	data, err := ioutil.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 	c.Check(string(data), DeepEquals, `{"action":"do-something","params":["param1","param2"]}`)
+}
+
+func (cs *clientSuite) TestDebugGet(c *C) {
+	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
+
+	var result []string
+	err := cs.cli.DebugGet("do-something", &result)
+	c.Check(err, IsNil)
+	c.Check(result, DeepEquals, []string{"res1", "res2"})
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "GET")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}})
 }

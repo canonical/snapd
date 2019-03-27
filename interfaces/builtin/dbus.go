@@ -78,12 +78,16 @@ dbus (bind)
     bus=###DBUS_BUS###
     name=###DBUS_NAME###,
 
-# For KDE applications, also support alternation since they use org.kde.foo-PID
-# as their 'well-known' name. snapd does not allow declaring a 'well-known'
-# name that ends with '-[0-9]+', so this is ok.
+# For KDE applications and some other cases, also support alternation for:
+# - using org.kde.foo-PID as the 'well-known' name
+# - using org.foo.cmd_<num>_<num> as the 'well-known' name
+# Note, snapd does not allow declaring a 'well-known' name that ends with
+# '-[0-9]+' or that contains '_'. Parallel installs of DBus services aren't
+# supported at this time, but if they were, this could allow a parallel
+# install'swell-known name to overlap with the normal install.
 dbus (bind)
     bus=###DBUS_BUS###
-    name=###DBUS_NAME###-[1-9]{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]},
+    name=###DBUS_NAME###{_,-}[1-9]{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9]}{,_[1-9]{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9]}},
 
 # Allow us to talk to dbus-daemon
 dbus (receive)
@@ -220,6 +224,12 @@ func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
+// snapd has AppArmor rules (see above) allowing binds to busName-PID
+// so to avoid overlap with different snaps (eg, busName running as PID
+// 123 and busName-123), don't allow busName to end with -PID. If that
+// rule is removed, this limitation can be lifted.
+var isInvalidSnappyBusName = regexp.MustCompile("-[0-9]+$").MatchString
+
 // Obtain yaml-specified bus well-known name
 func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (string, string, error) {
 	// bus attribute
@@ -243,12 +253,7 @@ func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (string, strin
 		return "", "", err
 	}
 
-	// snapd has AppArmor rules (see above) allowing binds to busName-PID
-	// so to avoid overlap with different snaps (eg, busName running as PID
-	// 123 and busName-123), don't allow busName to end with -PID. If that
-	// rule is removed, this limitation can be lifted.
-	invalidSnappyBusName := regexp.MustCompile("-[0-9]+$")
-	if invalidSnappyBusName.MatchString(name) {
+	if isInvalidSnappyBusName(name) {
 		return "", "", fmt.Errorf("DBus bus name must not end with -NUMBER")
 	}
 

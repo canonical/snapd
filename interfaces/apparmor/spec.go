@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,6 +43,28 @@ type Specification struct {
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
 	// on behalf of a given snap.
 	updateNS []string
+
+	// AppArmor deny rules cannot be undone by allow rules which makes
+	// deny rules difficult to work with arbitrary combinations of
+	// interfaces. Sometimes it is useful to suppress noisy denials and
+	// because that can currently only be done with explicit deny rules,
+	// adding explicit deny rules unconditionally makes it difficult for
+	// interfaces to be used in combination. Define the suppressPtraceTrace
+	// to allow an interface to request suppression and define
+	// usesPtraceTrace to omit the explicit deny rules such that:
+	//   if suppressPtraceTrace && !usesPtraceTrace {
+	//       add 'deny ptrace (trace),'
+	//   }
+	suppressPtraceTrace bool
+	usesPtraceTrace     bool
+
+	// The home interface typically should have 'ix' as part of its rules,
+	// but specifying certain change_profile rules with these rules cases
+	// a 'conflicting x modifiers' parser error. Allow interfaces that
+	// require this type of change_profile rule to suppress 'ix' so that
+	// the calling interface can be used with the home interface. Ideally,
+	// we would not need this, but we currently do (LP: #1797786)
+	suppressHomeIx bool
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -136,25 +158,25 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 			fmt.Fprintf(&buf, "  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
 			fmt.Fprintf(&buf, "  umount %s/,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
-			WritableProfile(&buf, path)
-			WritableProfile(&buf, bind)
+			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
+			WritableProfile(&buf, bind, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
 		case l.BindFile != "":
 			bindFile := si.ExpandSnapVariables(l.BindFile)
 			// Allow bind mounting the layout element.
 			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
 			fmt.Fprintf(&buf, "  umount %s,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
-			WritableFileProfile(&buf, path)
-			WritableFileProfile(&buf, bindFile)
+			WritableFileProfile(&buf, path, 2)     // At least / and /some-top-level-directory
+			WritableFileProfile(&buf, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
 		case l.Type == "tmpfs":
 			fmt.Fprintf(&buf, "  mount fstype=tmpfs tmpfs -> %s/,\n", path)
 			fmt.Fprintf(&buf, "  umount %s/,\n", path)
 			// Allow constructing writable mimic to mount point.
-			WritableProfile(&buf, path)
+			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
 		case l.Symlink != "":
 			// Allow constructing writable mimic to symlink parent directory.
 			fmt.Fprintf(&buf, "  %s rw,\n", path)
-			WritableProfile(&buf, path)
+			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
 		}
 		spec.AddUpdateNS(buf.String())
 	}
@@ -195,94 +217,65 @@ func isProbablyPresent(path string) bool {
 	return path == "/" || path == "/snap" || path == "/var" || path == "/var/snap" || path == "/tmp" || path == "/usr" || path == "/etc"
 }
 
-// chopTree takes a path and depth and returns two lists of apparmor path expressions.
-//
-// The returned lists of expressions are referred to as left and right.
-//
-// The left list describes directories at depth up to and including
-// assumedPrefixDepth and can be used to grant read permission to them (by
-// appending the string "r, " to each element). This corresponds to an
-// assumption about those directories being present in the system and being
-// just traversed. Note that depth is defined as the number of directories
-// traversed, including the root directory.
-//
-// The right list describes the remaining directories and the leaf entry
-// (either file or directory) and is somewhat subtle. At each depth level the
-// expression describes all the files and directories at that level. Coupled
-// with the string "rw ," it can be used to create a rule that allows write
-// access to any file therein, but not deeper.
-//
-// For example, with path: "/foo/bar/froz/baz" and depth 3 the result is:
-// []string{"/", "/foo/", "/foo/bar/"} and []string{"/foo/bar/*",
-// "/foo/bar/*/", "/foo/bar/froz/*", "/foo/bar/froz/*/"}. Coupled with the
-// aforementioned constants this translates to the following apparmor rules:
-//
-//   / r,
-//   /foo/ r,
-//   /foo/bar/ r,
-//
-//   /foo/bar/* rw,
-//   /foo/bar/*/ rw,
-//   /foo/bar/froz/* rw,
-//   /foo/bar/froz/*/ rw,
-//
-// Those rules are useful for constructing the apparmor profile for a writable
-// mimic that needs to be present in a specific directory (e.g. in
-// /foo/bar/froz/baz) assuming that part of that directory already exists (e.g.
-// /foo/bar/) but may need to be created earlier (e.g. in /foo/bar/froz).
-//
-// The mimic works by mounting a tmpfs over the mimicked directory and then
-// re-creating empty files and directories as mount points for the subsequent
-// bind-mount operations to latch onto. This is why the right list of
-// expressions use * and */, this allows the expressions to capture files and
-// directories at a specific path.
-func chopTree(path string, assumedPrefixDepth int) (left, right []string, err error) {
-	// NOTE: This implementation works around a bug in apparmor parser:
-	// https://bugs.launchpad.net/apparmor/+bug/1769971
-	//
-	// Due to the nature of apparmor path expressions we need to distinguish
-	// directories and files. The path expression denoting a directory must end
-	// with a trailing slash, that denoting a file must not.
-	//
-	// The iterator requires golang-clean paths which never have a trailing
-	// slash. We want to allow clean paths with an optional trailing slash.
-	isDir := strings.HasSuffix(path, "/")
-	cleanPath := filepath.Clean(path)
-	if (isDir && cleanPath+"/" != path) || (!isDir && cleanPath != path) {
-		return nil, nil, fmt.Errorf("cannot chop unclean path: %q", path)
+// WritableMimicProfile writes apparmor rules for a writable mimic at the given path.
+func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
+	fmt.Fprintf(buf, "  # Writable mimic %s\n", path)
+
+	iter, err := strutil.NewPathIterator(path)
+	if err != nil {
+		panic(err)
 	}
 
-	// Iterate over the path and construct left and right.
-	iter, _ := strutil.NewPathIterator(cleanPath)
+	// Handle the prefix that is assumed to exist first.
+	fmt.Fprintf(buf, "  # .. permissions for traversing the prefix that is assumed to exist\n")
 	for iter.Next() {
-		if iter.Depth() <= assumedPrefixDepth {
-			// The left hand side is the part that is assumed to exist.
-			// We mostly enumerate those directories as-is except for the final
-			// entry that we re-create the trailing slash if the original path
-			// was a "directory" path.
-			if iter.CurrentPath() == iter.Path() && isDir {
-				left = append(left, iter.CurrentPath()+"/")
-			} else {
-				left = append(left, iter.CurrentPath())
-			}
-		} else {
-			// The right hand side rules should not allow creation of the root
-			// directory as that itself is meaningless.
-			if iter.Depth() > 1 {
-				// The right hand side replaces the final component with a "*"
-				// and "*/", meaning any file and any directory, respectively.
-				right = append(right, iter.CurrentBase()+"*")
-				right = append(right, iter.CurrentBase()+"*/")
-			}
+		if iter.Depth() < assumedPrefixDepth {
+			fmt.Fprintf(buf, "  %s r,\n", iter.CurrentPath())
 		}
 	}
-	// Note, for completeness we could append the full path but that is
-	// guaranteed to be captured by one of the two expressions above.
-	return left, right, nil
+
+	// Rewind the iterator and handle the part that needs to be created.
+	iter.Rewind()
+	for iter.Next() {
+		if iter.Depth() < assumedPrefixDepth {
+			continue
+		}
+		// Assume that the mimic needs to be created at the given prefix of the
+		// full mimic path. This is called a mimic "variant". Both of the paths
+		// must end with a slash as this is important for apparmor file vs
+		// directory path semantics.
+		mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
+		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
+		fmt.Fprintf(buf, "  # .. variant with mimic at %s\n", mimicPath)
+		fmt.Fprintf(buf, "  # Allow reading the mimic directory, it must exist in the first place.\n")
+		fmt.Fprintf(buf, "  %s r,\n", mimicPath)
+		fmt.Fprintf(buf, "  # Allow setting the read-only directory aside via a bind mount.\n")
+		fmt.Fprintf(buf, "  %s rw,\n", mimicAuxPath)
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)
+		fmt.Fprintf(buf, "  # Allow mounting tmpfs over the read-only directory.\n")
+		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", mimicPath)
+		fmt.Fprintf(buf, "  # Allow creating empty files and directories for bind mounting things\n"+
+			"  # to reconstruct the now-writable parent directory.\n")
+		fmt.Fprintf(buf, "  %s*/ rw,\n", mimicAuxPath)
+		fmt.Fprintf(buf, "  %s*/ rw,\n", mimicPath)
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s*/ -> %s*/,\n", mimicAuxPath, mimicPath)
+		fmt.Fprintf(buf, "  %s* rw,\n", mimicAuxPath)
+		fmt.Fprintf(buf, "  %s* rw,\n", mimicPath)
+		fmt.Fprintf(buf, "  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
+		fmt.Fprintf(buf, "  # Allow unmounting the auxiliary directory.\n"+
+			"  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)\n")
+		fmt.Fprintf(buf, "  umount %s,\n", mimicAuxPath)
+		fmt.Fprintf(buf, "  # Allow unmounting the destination directory as well as anything\n"+
+			"  # inside.  This lets us perform the undo plan in case the writable\n"+
+			"  # mimic fails.\n")
+		fmt.Fprintf(buf, "  umount %s,\n", mimicPath)
+		fmt.Fprintf(buf, "  umount %s*,\n", mimicPath)
+		fmt.Fprintf(buf, "  umount %s*/,\n", mimicPath)
+	}
 }
 
 // WritableFileProfile writes a profile for snap-update-ns for making given file writable.
-func WritableFileProfile(buf *bytes.Buffer, path string) {
+func WritableFileProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}
@@ -294,33 +287,12 @@ func WritableFileProfile(buf *bytes.Buffer, path string) {
 		}
 	} else {
 		parentPath := parent(path)
-		fmt.Fprintf(buf, "  # Writable mimic %s\n", parentPath)
-		// Allow setting the read-only directory aside via a bind mount.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s/ -> /tmp/.snap%s/,\n", parentPath, parentPath)
-		// Allow mounting tmpfs over the read-only directory.
-		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s/,\n", parentPath)
-		// Allow bind mounting things to reconstruct the now-writable parent directory.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) /tmp/.snap%s/** -> %s/**,\n", parentPath, parentPath)
-		fmt.Fprintf(buf, "  mount options=(bind, rw) /tmp/.snap%s/* -> %s/*,\n", parentPath, parentPath)
-		// Allow unmounting the temporary directory.
-		fmt.Fprintf(buf, "  umount /tmp/.snap%s/,\n", parentPath)
-		// Allow unmounting the destination directory as well as anything inside.
-		// This lets us perform the undo plan in case the writable mimic fails.
-		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
-		// Allow creating directories on demand.
-		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
-		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
-		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
-		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
+		WritableMimicProfile(buf, parentPath, assumedPrefixDepth)
 	}
 }
 
 // WritableProfile writes a profile for snap-update-ns for making given directory writable.
-func WritableProfile(buf *bytes.Buffer, path string) {
+func WritableProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}
@@ -331,28 +303,7 @@ func WritableProfile(buf *bytes.Buffer, path string) {
 		}
 	} else {
 		parentPath := parent(path)
-		fmt.Fprintf(buf, "  # Writable mimic %s\n", parentPath)
-		// Allow setting the read-only directory aside via a bind mount.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s/ -> /tmp/.snap%s/,\n", parentPath, parentPath)
-		// Allow mounting tmpfs over the read-only directory.
-		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s/,\n", parentPath)
-		// Allow bind mounting things to reconstruct the now-writable parent directory.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) /tmp/.snap%s/** -> %s/**,\n", parentPath, parentPath)
-		fmt.Fprintf(buf, "  mount options=(bind, rw) /tmp/.snap%s/* -> %s/*,\n", parentPath, parentPath)
-		// Allow unmounting the temporary directory.
-		fmt.Fprintf(buf, "  umount /tmp/.snap%s/,\n", parentPath)
-		// Allow unmounting the destination directory as well as anything inside.
-		// This lets us perform the undo plan in case the writable mimic fails.
-		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
-		// Allow creating directories on demand.
-		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
-		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
-		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
-		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
+		WritableMimicProfile(buf, parentPath, assumedPrefixDepth)
 	}
 }
 
@@ -461,4 +412,31 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil
+}
+
+// SetUsesPtraceTrace records when to omit explicit ptrace deny rules
+func (spec *Specification) SetUsesPtraceTrace() {
+	spec.usesPtraceTrace = true
+}
+
+func (spec *Specification) UsesPtraceTrace() bool {
+	return spec.usesPtraceTrace
+}
+
+// SetSuppressPtraceTrace to request explicit ptrace deny rules
+func (spec *Specification) SetSuppressPtraceTrace() {
+	spec.suppressPtraceTrace = true
+}
+
+func (spec *Specification) SuppressPtraceTrace() bool {
+	return spec.suppressPtraceTrace
+}
+
+// SetSuppressHomeIx to request explicit ptrace deny rules
+func (spec *Specification) SetSuppressHomeIx() {
+	spec.suppressHomeIx = true
+}
+
+func (spec *Specification) SuppressHomeIx() bool {
+	return spec.suppressHomeIx
 }

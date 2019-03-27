@@ -41,10 +41,28 @@ type Userd struct {
 	dbusIfaces []dbusInterface
 }
 
+func dbusSessionBus() (*dbus.Conn, error) {
+	// use a private connection to the session bus, this way we can manage
+	// its lifetime without worrying of breaking other code
+	conn, err := dbus.SessionBusPrivate()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.Auth(nil); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if err := conn.Hello(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
 func (ud *Userd) Init() error {
 	var err error
 
-	ud.conn, err = dbus.SessionBus()
+	ud.conn, err = dbusSessionBus()
 	if err != nil {
 		return err
 	}

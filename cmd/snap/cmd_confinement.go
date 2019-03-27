@@ -33,7 +33,9 @@ The confinement command will print the confinement mode (strict,
 partial or none) the system operates in.
 `)
 
-type cmdConfinement struct{}
+type cmdConfinement struct {
+	clientMixin
+}
 
 func init() {
 	addDebugCommand("confinement", shortConfinementHelp, longConfinementHelp, func() flags.Commander {
@@ -46,8 +48,7 @@ func (cmd cmdConfinement) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	cli := Client()
-	sysInfo, err := cli.SysInfo()
+	sysInfo, err := cmd.client.SysInfo()
 	if err != nil {
 		return err
 	}

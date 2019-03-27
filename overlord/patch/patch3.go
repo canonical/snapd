@@ -20,8 +20,6 @@
 package patch
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -41,7 +39,7 @@ func patch3(s *state.State) error {
 		}
 
 		if t.Kind() == "link-snap" {
-			startSnapServices := s.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap services")))
+			startSnapServices := s.NewTask("start-snap-services", i18n.G("Start snap services"))
 			startSnapServices.Set("snap-setup-task", t.ID())
 			startSnapServices.WaitFor(t)
 
@@ -50,7 +48,7 @@ func patch3(s *state.State) error {
 		}
 
 		if t.Kind() == "unlink-snap" || t.Kind() == "unlink-current-snap" {
-			stopSnapServices := s.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap services")))
+			stopSnapServices := s.NewTask("stop-snap-services", i18n.G("Stop snap services"))
 			stopSnapServices.Set("snap-setup-task", t.ID())
 			t.WaitFor(stopSnapServices)
 

@@ -32,7 +32,7 @@ func (s *SnapSuite) TestSandboxFeatures(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox-features": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
 	})
-	_, err := snap.Parser().ParseArgs([]string{"debug", "sandbox-features"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
 		"apparmor:  a b c\n"+
@@ -44,7 +44,7 @@ func (s *SnapSuite) TestSandboxFeaturesRequired(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox-features": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
 	})
-	_, err := snap.Parser().ParseArgs([]string{"debug", "sandbox-features", "--required=apparmor:a", "--required=selinux:2"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features", "--required=apparmor:a", "--required=selinux:2"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
@@ -54,7 +54,7 @@ func (s *SnapSuite) TestSandboxFeaturesRequiredButMissing(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox-features": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
 	})
-	_, err := snap.Parser().ParseArgs([]string{"debug", "sandbox-features", "--required=magic:thing"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "sandbox-features", "--required=magic:thing"})
 	c.Assert(err, ErrorMatches, `sandbox feature not available: "magic:thing"`)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")

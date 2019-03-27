@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"io/ioutil"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -33,6 +34,10 @@ import (
 // evalSymlinks is either filepath.EvalSymlinks or a mocked function for
 // applicable for testing.
 var evalSymlinks = filepath.EvalSymlinks
+
+// readDir is either ioutil.ReadDir or a mocked function for applicable for
+// testing.
+var readDir = ioutil.ReadDir
 
 type commonInterface struct {
 	name    string
@@ -55,6 +60,11 @@ type commonInterface struct {
 	connectedSlotKModModules []string
 	permanentPlugKModModules []string
 	permanentSlotKModModules []string
+
+	usesPtraceTrace      bool
+	suppressPtraceTrace  bool
+	suppressHomeIx       bool
+	controlsDeviceCgroup bool
 }
 
 // Name returns the interface name.
@@ -86,6 +96,14 @@ func (iface *commonInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if iface.usesPtraceTrace {
+		spec.SetUsesPtraceTrace()
+	} else if iface.suppressPtraceTrace {
+		spec.SetSuppressPtraceTrace()
+	}
+	if iface.suppressHomeIx {
+		spec.SetSuppressHomeIx()
+	}
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)
 	}
@@ -145,8 +163,14 @@ func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 }
 
 func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	for _, rule := range iface.connectedPlugUDev {
-		spec.TagDevice(rule)
+	// don't tag devices if the interface controls it's own device cgroup
+	if iface.controlsDeviceCgroup {
+		spec.SetControlsDeviceCgroup()
+	} else {
+		for _, rule := range iface.connectedPlugUDev {
+			spec.TagDevice(rule)
+		}
 	}
+
 	return nil
 }

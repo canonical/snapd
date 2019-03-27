@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -86,53 +87,6 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		}
 	}
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", config))
-}
-
-// Get unmarshals into result the value of the provided snap's configuration key.
-// If the key does not exist, an error of type *NoOptionError is returned.
-// The provided key may be formed as a dotted key path through nested maps.
-// For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
-func GetFromChange(snapName string, subkeys []string, pos int, config map[string]interface{}, result interface{}) error {
-	// special case - get root document
-	if len(subkeys) == 0 {
-		if config == nil {
-			return &NoOptionError{SnapName: snapName, Key: ""}
-		}
-		raw := jsonRaw(config)
-
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
-		}
-		return nil
-	}
-	value, ok := config[subkeys[pos]]
-	if !ok {
-		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
-	}
-
-	if pos+1 == len(subkeys) {
-		raw, ok := value.(*json.RawMessage)
-		if !ok {
-			raw = jsonRaw(value)
-		}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			key := strings.Join(subkeys, ".")
-			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
-		}
-		return nil
-	}
-
-	configm, ok := value.(map[string]interface{})
-	if !ok {
-		raw, ok := value.(*json.RawMessage)
-		if !ok {
-			raw = jsonRaw(value)
-		}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
-			return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
-		}
-	}
-	return GetFromChange(snapName, subkeys, pos+1, configm, result)
 }
 
 // GetSnapConfig retrieves the raw configuration of a given snap.
@@ -280,4 +234,30 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 		st.Set("config", config)
 	}
 	return nil
+}
+
+// Conf is an interface describing both state and transaction.
+type Conf interface {
+	Get(snapName, key string, result interface{}) error
+	Set(snapName, key string, value interface{}) error
+	Changes() []string
+	State() *state.State
+}
+
+// GetFeatureFlag returns the value of a given feature flag.
+func GetFeatureFlag(tr Conf, feature features.SnapdFeature) (bool, error) {
+	var isEnabled interface{}
+	snapName, confName := feature.ConfigOption()
+	if err := tr.Get(snapName, confName, &isEnabled); err != nil && !IsNoOption(err) {
+		return false, err
+	}
+	switch isEnabled {
+	case true, "true":
+		return true, nil
+	case false, "false":
+		return false, nil
+	case nil, "":
+		return feature.IsEnabledWhenUnset(), nil
+	}
+	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", feature, isEnabled)
 }

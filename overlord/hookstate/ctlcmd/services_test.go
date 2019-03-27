@@ -20,13 +20,14 @@
 package ctlcmd_test
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
-	"golang.org/x/net/context"
-
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -48,19 +50,24 @@ type fakeStore struct {
 }
 
 func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
-	if len(actions) == 1 && actions[0].Action == "install" {
-		snapName, instanceKey := snap.SplitInstanceName(actions[0].InstanceName)
-		if instanceKey != "" {
-			panic(fmt.Sprintf("unexpected instance name %q in snap install action", actions[0].InstanceName))
+	if actions[0].Action == "install" {
+		installs := make([]*snap.Info, 0, len(actions))
+		for _, a := range actions {
+			snapName, instanceKey := snap.SplitInstanceName(a.InstanceName)
+			if instanceKey != "" {
+				panic(fmt.Sprintf("unexpected instance name %q in snap install action", a.InstanceName))
+			}
+
+			installs = append(installs, &snap.Info{
+				SideInfo: snap.SideInfo{
+					RealName: snapName,
+					Revision: snap.R(2),
+				},
+				Architectures: []string{"all"},
+			})
 		}
 
-		return []*snap.Info{{
-			SideInfo: snap.SideInfo{
-				RealName: snapName,
-				Revision: snap.R(2),
-			},
-			Architectures: []string{"all"},
-		}}, nil
+		return installs, nil
 	}
 
 	return []*snap.Info{{
@@ -96,6 +103,10 @@ apps:
  normal-app:
   command: bin/dummy
  test-service:
+  command: bin/service
+  daemon: simple
+  reload-command: bin/reload
+ another-service:
   command: bin/service
   daemon: simple
   reload-command: bin/reload
@@ -139,10 +150,10 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
 	// mock installed snaps
-	info1 := snaptest.MockSnap(c, string(testSnapYaml), &snap.SideInfo{
+	info1 := snaptest.MockSnapCurrent(c, string(testSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
-	info2 := snaptest.MockSnap(c, string(otherSnapYaml), &snap.SideInfo{
+	info2 := snaptest.MockSnapCurrent(c, string(otherSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
 	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
@@ -175,11 +186,16 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
+	s.st.Set("seeded", true)
 	s.st.Set("refresh-privacy-key", "privacy-key")
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
+		return sysdb.GenericClassicModel(), nil
+	}
 }
 
 func (s *servicectlSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
+	snapstate.Model = nil
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
@@ -352,15 +368,17 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	c.Assert(tts[0].Tasks(), HasLen, 18)
 	c.Assert(tts[1].Tasks(), HasLen, 18)
+	c.Assert(tts[2].Tasks(), HasLen, 1)
+	c.Assert(tts[2].Tasks()[0].Kind(), Equals, "check-rerefresh")
 	chg.AddAll(tts[0])
 	chg.AddAll(tts[1])
 
 	s.st.Unlock()
 
-	for _, ts := range tts {
+	for _, ts := range tts[:2] {
 		tsTasks := ts.Tasks()
 		// assumes configure task is last
 		task := tsTasks[len(tsTasks)-1]
@@ -425,4 +443,47 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	c.Check(laneTasks[13].Summary(), Equals, "stop of [test-snap.test-service]")
 	c.Check(laneTasks[14].Summary(), Equals, "start of [test-snap.test-service]")
 	c.Check(laneTasks[15].Summary(), Equals, "restart of [test-snap.test-service]")
+}
+
+func (s *servicectlSuite) TestTwoServices(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
+		return []byte(fmt.Sprintf(`Id=%s
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+`, args[2])), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                    Startup  Current  Notes
+test-snap.another-service  enabled  active   -
+test-snap.test-service     enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServices(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
+		return []byte(`Id=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+`), nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"services", "test-snap.test-service"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.test-service  enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
 }

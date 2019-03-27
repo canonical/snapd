@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -35,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -78,8 +78,18 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	// this *must* always run last and finalizes a remodel
+	runner.AddHandler("set-model", m.doSetModel, nil)
 
 	return m, nil
+}
+
+func (m *DeviceManager) CanStandby() bool {
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil {
+		return false
+	}
+	return seeded
 }
 
 func (m *DeviceManager) confirmRegistered() error {
@@ -168,6 +178,19 @@ func (m *DeviceManager) ensureOperationalShouldBackoff(now time.Time) bool {
 	return false
 }
 
+func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
+	err := assertstate.Add(st, sysdb.GenericClassicModel())
+	if err != nil && !asserts.IsUnaccceptedUpdate(err) {
+		return fmt.Errorf(`cannot install "generic-classic" fallback model assertion: %v`, err)
+	}
+	device.Brand = "generic"
+	device.Model = "generic-classic"
+	if err := auth.SetDevice(st, device); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -207,13 +230,8 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		// we are on classic and seeded but there is no model:
 		// use a fallback model!
-		err = assertstate.Add(m.state, sysdb.GenericClassicModel())
-		if err != nil && !asserts.IsUnaccceptedUpdate(err) {
-			return fmt.Errorf(`cannot install "generic-classic" fallback model assertion: %v`, err)
-		}
-		device.Brand = "generic"
-		device.Model = "generic-classic"
-		if err := auth.SetDevice(m.state, device); err != nil {
+		err := setClassicFallbackModel(m.state, device)
+		if err != nil {
 			return err
 		}
 	}
@@ -362,11 +380,11 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		bootloader, err := partition.FindBootloader()
+		loader, err := bootloader.Find()
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 		}
-		if err := partition.MarkBootSuccessful(bootloader); err != nil {
+		if err := bootloader.MarkBootSuccessful(loader); err != nil {
 			return err
 		}
 		m.bootOkRan = true

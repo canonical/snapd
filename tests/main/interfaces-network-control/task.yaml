@@ -40,7 +40,6 @@ restore: |
 
     #shellcheck disable=SC2153
     systemd_stop_and_destroy_unit "$SERVICE_NAME"
-    rm -f ./*.output "$SERVICE_FILE"
     arp -d "$ARP_ENTRY_ADDR" -i "$(get_default_iface)" || true
 
     ip netns delete test-ns || true
@@ -116,6 +115,9 @@ execute: |
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"
 
     if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And the policy has the ptrace suppression rule"
+        MATCH '^deny ptrace \(trace\),' < /var/lib/snapd/apparmor/profiles/snap.network-control-consumer.cmd
+
         echo "When the plug is disconnected"
         snap disconnect network-control-consumer:network-control
 

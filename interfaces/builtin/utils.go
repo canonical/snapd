@@ -35,12 +35,11 @@ const UsbMaxInterfaces = 32
 // all the apps bound to a given slot. The result has one of three forms,
 // depending on how apps are bound to the slot:
 //
-// - "snap.$snap.$app" if there is exactly one app bound
-// - "snap.$snap.{$app1,...$appN}" if there are some, but not all, apps bound
-// - "snap.$snap.*" if all apps are bound to the slot
+// - "snap.$snap_instance.$app" if there is exactly one app bound
+// - "snap.$snap_instance.{$app1,...$appN}" if there are some, but not all, apps bound
+// - "snap.$snap_instance.*" if all apps are bound to the slot
 func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
-	// TODO parallel-install: use of proper instance/store name
 	fmt.Fprintf(&buf, `"snap.%s.`, snap.InstanceName())
 	if len(apps) == 1 {
 		for appName := range apps {

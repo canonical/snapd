@@ -15,22 +15,30 @@
 
 BINDIR = /usr/bin
 SYSCONFXDGAUTOSTARTDIR = /etc/xdg/autostart
+APPLICATIONSDIR = /usr/share/applications
 
-SOURCES = snap-userd-autostart.desktop.in
-DESKTOP_FILES = $(SOURCES:.in=)
+DESKTOP_SOURCES = snap-handle-link.desktop.in
+DESKTOP_FILES = $(DESKTOP_SOURCES:.in=)
+
+AUTOSTART_SOURCES = snap-userd-autostart.desktop.in
+AUTOSTART_FILES = $(AUTOSTART_SOURCES:.in=)
 
 .PHONY: all
-all: $(DESKTOP_FILES)
+all: $(DESKTOP_FILES) $(AUTOSTART_FILES)
 
 .PHONY: install
-install: $(DESKTOP_FILES)
-	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
+# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
+install:: $(DESKTOP_FILES)
+	install -d -m 0755 $(DESTDIR)/$(APPLICATIONSDIR)
+	install -m 0644 -t $(DESTDIR)/$(APPLICATIONSDIR) $^
+
+install:: $(AUTOSTART_FILES)
 	install -d -m 0755 $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR)
 	install -m 0644 -t $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR) $^
 
 .PHONY: clean
 clean:
-	rm -f $(DESKTOP_FILES)
+	rm -f $(DESKTOP_FILES) $(AUTOSTART_FILES)
 
 %: %.in
 	cat $< | \

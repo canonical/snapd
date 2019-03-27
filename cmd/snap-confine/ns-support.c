@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
-#include <linux/kdev_t.h>
 #include <sched.h>
 #include <signal.h>
 #include <string.h>
@@ -33,6 +32,7 @@
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
@@ -44,6 +44,7 @@
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
 
@@ -67,57 +68,28 @@
  **/
 static const char *sc_ns_dir = SC_NS_DIR;
 
-/**
- * Name of the preserved mount namespace associated with SC_NS_DIR
- * and a given group identifier (typically SNAP_NAME).
- **/
-#define SC_NS_MNT_FILE ".mnt"
-
-/**
- * Read /proc/self/mountinfo and check if /run/snapd/ns is a private bind mount.
- *
- * We do this because /run/snapd/ns cannot be shared with any other peers as per:
- * https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
- **/
-static bool sc_is_ns_group_dir_private(void)
-{
-	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
-	info = sc_parse_mountinfo(NULL);
-	if (info == NULL) {
-		die("cannot parse /proc/self/mountinfo");
-	}
-	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(info);
-	while (entry != NULL) {
-		const char *mount_dir = entry->mount_dir;
-		const char *optional_fields = entry->optional_fields;
-		if (strcmp(mount_dir, sc_ns_dir) == 0
-		    && strcmp(optional_fields, "") == 0) {
-			// If /run/snapd/ns has no optional fields, we know it is mounted
-			// private and there is nothing else to do.
-			return true;
-		}
-		entry = sc_next_mountinfo_entry(entry);
-	}
-	return false;
-}
+enum {
+	HELPER_CMD_EXIT,
+	HELPER_CMD_CAPTURE_MOUNT_NS,
+	HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS,
+};
 
 void sc_reassociate_with_pid1_mount_ns(void)
 {
 	int init_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int self_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	const char *path_pid_1 = "/proc/1/ns/mnt";
+	const char *path_pid_self = "/proc/self/ns/mnt";
 
-	debug("checking if the current process shares mount namespace"
-	      " with the init process");
-
-	init_mnt_fd = open("/proc/1/ns/mnt",
+	init_mnt_fd = open(path_pid_1,
 			   O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
 	if (init_mnt_fd < 0) {
-		die("cannot open mount namespace of the init process (O_PATH)");
+		die("cannot open path %s", path_pid_1);
 	}
-	self_mnt_fd = open("/proc/self/ns/mnt",
+	self_mnt_fd = open(path_pid_self,
 			   O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
 	if (self_mnt_fd < 0) {
-		die("cannot open mount namespace of the current process (O_PATH)");
+		die("cannot open path %s", path_pid_1);
 	}
 	char init_buf[128] = { 0 };
 	char self_buf[128] = { 0 };
@@ -131,113 +103,127 @@ void sc_reassociate_with_pid1_mount_ns(void)
 			// error.
 			return;
 		}
-		die("cannot perform readlinkat() on the mount namespace file "
-		    "descriptor of the init process");
+		die("cannot read mount namespace identifier of pid 1");
 	}
 	memset(self_buf, 0, sizeof self_buf);
 	if (readlinkat(self_mnt_fd, "", self_buf, sizeof self_buf) < 0) {
-		die("cannot perform readlinkat() on the mount namespace file "
-		    "descriptor of the current process");
+		die("cannot read mount namespace identifier of the current process");
 	}
 	if (memcmp(init_buf, self_buf, sizeof init_buf) != 0) {
-		debug("the current process does not share mount namespace with "
-		      "the init process, re-association required");
-		// NOTE: we cannot use O_NOFOLLOW here because that file will always be a
+		debug("moving to mount namespace of pid 1");
+		// We cannot use O_NOFOLLOW here because that file will always be a
 		// symbolic link. We actually want to open it this way.
 		int init_mnt_fd_real SC_CLEANUP(sc_cleanup_close) = -1;
-		init_mnt_fd_real = open("/proc/1/ns/mnt", O_RDONLY | O_CLOEXEC);
+		init_mnt_fd_real = open(path_pid_1, O_RDONLY | O_CLOEXEC);
 		if (init_mnt_fd_real < 0) {
-			die("cannot open mount namespace of the init process");
+			die("cannot open %s", path_pid_1);
 		}
 		if (setns(init_mnt_fd_real, CLONE_NEWNS) < 0) {
-			die("cannot re-associate the mount namespace with the init process");
+			die("cannot join mount namespace of pid 1");
 		}
-	} else {
-		debug("re-associating is not required");
 	}
 }
 
-void sc_initialize_ns_groups(void)
+void sc_initialize_mount_ns(void)
 {
-	debug("creating namespace group directory %s", sc_ns_dir);
+	/* Ensure that /run/snapd/ns is a directory. */
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
-		die("cannot create namespace group directory %s", sc_ns_dir);
+		die("cannot create directory %s", sc_ns_dir);
 	}
-	if (!sc_is_ns_group_dir_private()) {
-		debug
-		    ("bind mounting the namespace group directory over itself");
+
+	/* Read and analyze the mount table. We need to see whether /run/snapd/ns
+	 * is a mount point with private event propagation. */
+	sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	info = sc_parse_mountinfo(NULL);
+	if (info == NULL) {
+		die("cannot parse /proc/self/mountinfo");
+	}
+
+	bool is_mnt = false;
+	bool is_private = false;
+	for (sc_mountinfo_entry * entry = sc_first_mountinfo_entry(info);
+	     entry != NULL; entry = sc_next_mountinfo_entry(entry)) {
+		/* Find /run/snapd/ns */
+		if (!sc_streq(entry->mount_dir, sc_ns_dir)) {
+			continue;
+		}
+		is_mnt = true;
+		if (strstr(entry->optional_fields, "shared:") == NULL) {
+			/* Mount event propagation is not set to shared, good. */
+			is_private = true;
+		}
+		break;
+	}
+
+	if (!is_mnt) {
 		if (mount(sc_ns_dir, sc_ns_dir, NULL, MS_BIND | MS_REC, NULL) <
 		    0) {
-			die("cannot bind mount namespace group directory over itself");
+			die("cannot self-bind mount %s", sc_ns_dir);
 		}
-		debug
-		    ("making the namespace group directory mount point private");
+	}
+
+	if (!is_private) {
 		if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
-			die("cannot make the namespace group directory mount point private");
+			die("cannot change propagation type to MS_PRIVATE in %s", sc_ns_dir);
 		}
-	} else {
-		debug
-		    ("namespace group directory does not require intialization");
 	}
 }
 
-struct sc_ns_group {
+struct sc_mount_ns {
 	// Name of the namespace group ($SNAP_NAME).
 	char *name;
 	// Descriptor to the namespace group control directory.  This descriptor is
 	// opened with O_PATH|O_DIRECTORY so it's only used for openat() calls.
 	int dir_fd;
-	// Descriptor to an eventfd that is used to notify the child that it can
-	// now complete its job and exit.
-	int event_fd;
+	// Pair of descriptors for a pair for a pipe file descriptors (read end,
+	// write end) that snap-confine uses to send messages to the helper
+	// process and back.
+	int pipe_helper[2];
+	int pipe_master[2];
 	// Identifier of the child process that is used during the one-time (per
 	// group) initialization and capture process.
 	pid_t child;
-	// Flag set when this process created a fresh namespace should populate it.
-	bool should_populate;
 };
 
-static struct sc_ns_group *sc_alloc_ns_group(void)
+static struct sc_mount_ns *sc_alloc_mount_ns(void)
 {
-	struct sc_ns_group *group = calloc(1, sizeof *group);
+	struct sc_mount_ns *group = calloc(1, sizeof *group);
 	if (group == NULL) {
-		die("cannot allocate memory for namespace group");
+		die("cannot allocate memory for sc_mount_ns");
 	}
 	group->dir_fd = -1;
-	group->event_fd = -1;
+	group->pipe_helper[0] = -1;
+	group->pipe_helper[1] = -1;
+	group->pipe_master[0] = -1;
+	group->pipe_master[1] = -1;
 	// Redundant with calloc but some functions check for the non-zero value so
 	// I'd like to keep this explicit in the code.
 	group->child = 0;
 	return group;
 }
 
-struct sc_ns_group *sc_open_ns_group(const char *group_name,
-				     const unsigned flags)
+struct sc_mount_ns *sc_open_mount_ns(const char *group_name)
 {
-	struct sc_ns_group *group = sc_alloc_ns_group();
-	debug("opening namespace group directory %s", sc_ns_dir);
-	group->dir_fd =
-	    open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
+	struct sc_mount_ns *group = sc_alloc_mount_ns();
+	group->dir_fd = open(sc_ns_dir,
+			     O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (group->dir_fd < 0) {
-		if (flags & SC_NS_FAIL_GRACEFULLY && errno == ENOENT) {
-			free(group);
-			return NULL;
-		}
-		die("cannot open directory for namespace group %s", group_name);
+		die("cannot open directory %s", sc_ns_dir);
 	}
-	group->name = strdup(group_name);
-	if (group->name == NULL) {
-		die("cannot duplicate namespace group name %s", group_name);
-	}
+	group->name = sc_strdup(group_name);
 	return group;
 }
 
-void sc_close_ns_group(struct sc_ns_group *group)
+void sc_close_mount_ns(struct sc_mount_ns *group)
 {
-	debug("releasing resources associated with namespace group %s",
-	      group->name);
+	if (group->child != 0) {
+		sc_wait_for_helper(group);
+	}
 	sc_cleanup_close(&group->dir_fd);
-	sc_cleanup_close(&group->event_fd);
+	sc_cleanup_close(&group->pipe_master[0]);
+	sc_cleanup_close(&group->pipe_master[1]);
+	sc_cleanup_close(&group->pipe_helper[0]);
+	sc_cleanup_close(&group->pipe_helper[1]);
 	free(group->name);
 	free(group);
 }
@@ -253,27 +239,28 @@ static dev_t find_base_snap_device(const char *base_snap_name,
 	sc_must_snprintf(base_squashfs_path,
 			 sizeof base_squashfs_path, "%s/%s/%s",
 			 SNAP_MOUNT_DIR, base_snap_name, base_snap_rev);
-	struct sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	mi = sc_parse_mountinfo(NULL);
 	if (mi == NULL) {
 		die("cannot parse mountinfo of the current process");
 	}
 	bool found = false;
-	for (struct sc_mountinfo_entry * mie =
+	for (sc_mountinfo_entry * mie =
 	     sc_first_mountinfo_entry(mi); mie != NULL;
 	     mie = sc_next_mountinfo_entry(mie)) {
 		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
-			base_snap_dev = MKDEV(mie->dev_major, mie->dev_minor);
-			debug("found base snap filesystem device %d:%d",
-			      mie->dev_major, mie->dev_minor);
+			base_snap_dev = makedev(mie->dev_major, mie->dev_minor);
+			debug("block device of snap %s, revision %s is %d:%d",
+			      base_snap_name, base_snap_rev, mie->dev_major,
+			      mie->dev_minor);
 			// Don't break when found, we are interested in the last
 			// entry as this is the "effective" one.
 			found = true;
 		}
 	}
 	if (!found) {
-		die("cannot find device backing the base snap %s",
-		    base_snap_name);
+		die("cannot find mount entry for snap %s revision %s",
+		    base_snap_name, base_snap_rev);
 	}
 	return base_snap_dev;
 }
@@ -285,8 +272,8 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 	// The namespace may become "stale" when the rootfs is not the same
 	// device we found above. This will happen whenever the base snap is
 	// refreshed since the namespace was first created.
-	struct sc_mountinfo_entry *mie;
-	struct sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo_entry *mie;
+	sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 
 	mi = sc_parse_mountinfo(NULL);
 	if (mi == NULL) {
@@ -301,11 +288,11 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 		// was used to do something weird. The initial rootfs was
 		// set up by snap-confine and that is the one we want to
 		// measure.
-		debug("found root filesystem inside the mount namespace %d:%d",
+		debug("block device of the root filesystem is %d:%d",
 		      mie->dev_major, mie->dev_minor);
-		return base_snap_dev != MKDEV(mie->dev_major, mie->dev_minor);
+		return base_snap_dev != makedev(mie->dev_major, mie->dev_minor);
 	}
-	die("cannot find mount entry of the root filesystem inside snap namespace");
+	die("cannot find mount entry of the root filesystem");
 }
 
 enum sc_discard_vote {
@@ -319,32 +306,28 @@ enum sc_discard_vote {
 // inspect the namespace and send information back via eventfd and then exit
 // unconditionally.
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
-						 const char *snap_name,
-						 const char *base_snap_name)
+						 const sc_invocation * inv,
+						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
 	char fname[PATH_MAX] = { 0 };
-	char mnt_fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
 	// Read the revision of the base snap by looking at the current symlink.
 	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
-			 SNAP_MOUNT_DIR, base_snap_name);
+			 SNAP_MOUNT_DIR, inv->base_snap_name);
 	if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
-		die("cannot read revision of base snap %s", fname);
+		die("cannot read current revision of snap %s",
+		    inv->snap_instance);
 	}
 	if (base_snap_rev[sizeof base_snap_rev - 1] != '\0') {
-		die("cannot use symbolic link %s - value is too long", fname);
+		die("cannot read current revision of snap %s: value too long",
+		    inv->snap_instance);
 	}
 	// Find the device that is backing the current revision of the base snap.
-	base_snap_dev = find_base_snap_device(base_snap_name, base_snap_rev);
-
-	// Check if we are running in normal mode with pivot root. Do this here
-	// because once on the inside of the transformed mount namespace we can no
-	// longer tell.
-	bool is_normal_mode =
-	    sc_should_use_normal_mode(sc_classify_distro(), base_snap_name);
+	base_snap_dev =
+	    find_base_snap_device(inv->base_snap_name, base_snap_rev);
 
 	// Store the PID of this process. This is done instead of calls to
 	// getppid() below because then we can reliably track the PID of the
@@ -354,12 +337,12 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Create an eventfd for the communication with the child.
 	event_fd = eventfd(0, EFD_CLOEXEC);
 	if (event_fd < 0) {
-		die("cannot create eventfd for communication with inspection process");
+		die("cannot create eventfd");
 	}
 	// Fork a child, it will do the inspection for us.
 	pid_t child = fork();
 	if (child < 0) {
-		die("cannot fork support process for namespace inspection");
+		die("cannot fork support process");
 	}
 
 	if (child == 0) {
@@ -376,22 +359,21 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// us up from eventfd_read() below. In the rare case that the PID
 		// numbers overflow and the now-dead parent PID is recycled we will
 		// still hang forever on the read from eventfd below.
-		debug("ensuring that parent process is still alive");
 		if (kill(parent, 0) < 0) {
 			switch (errno) {
 			case ESRCH:
-				debug("parent process has already terminated");
+				debug("parent process has terminated");
 				abort();
 			default:
-				die("cannot ensure that parent process is still alive");
+				die("cannot confirm that parent process is alive");
 				break;
 			}
 		}
 
-		debug("joining the namespace that we are about to probe");
+		debug("joining preserved mount namespace for inspection");
 		// Move to the mount namespace of the snap we're trying to inspect.
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
-			die("cannot join the mount namespace in order to inspect it");
+			die("cannot join preserved mount namespace");
 		}
 		// Check if the namespace needs to be discarded.
 		//
@@ -401,22 +383,17 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
 		bool should_discard =
+		    inv->
 		    is_normal_mode ? should_discard_current_ns(base_snap_dev) :
 		    false;
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
-		debug
-		    ("sending information about the state of the mount namespace (%s)",
-		     should_discard ? "discard" : "keep");
-		if (eventfd_write
-		    (event_fd,
-		     should_discard ? SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
-			die("cannot send information about the state of the mount namespace");
+		if (eventfd_write(event_fd, should_discard ?
+				  SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
+			die("cannot send information to %s preserved mount namespace", should_discard ? "discard" : "keep");
 		}
 		// Exit, we're done.
-		debug
-		    ("support process for mount namespace inspection is about to finish");
 		exit(0);
 	}
 	// This is back in the parent process.
@@ -426,9 +403,8 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Next, read the value written by the child process.
 	sc_enable_sanity_timeout();
 	eventfd_t value = 0;
-	debug("receiving information about the state of the mount namespace");
 	if (eventfd_read(event_fd, &value) < 0) {
-		die("cannot receive information about the state of the mount namespace");
+		die("cannot read from eventfd");
 	}
 	sc_disable_sanity_timeout();
 
@@ -443,68 +419,62 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// If the namespace is up-to-date then we are done.
 	if (value == SC_DISCARD_NO) {
-		debug("the mount namespace is up-to-date and can be reused");
+		debug("preserved mount namespace can be reused");
 		return 0;
 	}
 	// The namespace is stale, let's check if we can discard it.
-	debug("the mount namespace is stale and should be discarded");
-	if (sc_cgroup_freezer_occupied(snap_name)) {
+	if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
 		// Some processes are still using the namespace so we cannot discard it
 		// as that would fracture the view that the set of processes inside
 		// have on what is mounted.
+		debug("preserved mount namespace is stale but occupied");
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
-	debug("discarding stale and empty mount namespace");
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname,
-			 "%s/%s%s", sc_ns_dir, snap_name, SC_NS_MNT_FILE);
-
-	// Use MNT_DETACH as otherwise we get EBUSY.
-	if (umount2(mnt_fname, MNT_DETACH | UMOUNT_NOFOLLOW) < 0) {
-		die("cannot umount stale mount namespace %s", mnt_fname);
-	}
-	debug("stale mount namespace discarded");
+	sc_call_snap_discard_ns(snap_discard_ns_fd, inv->snap_instance);
 	return EAGAIN;
 }
 
-int sc_create_or_join_ns_group(struct sc_ns_group *group,
-			       struct sc_apparmor *apparmor,
-			       const char *base_snap_name,
-			       const char *snap_name)
+static void helper_fork(struct sc_mount_ns *group,
+			struct sc_apparmor *apparmor);
+static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
+			pid_t parent);
+static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
+static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
+
+int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
+			 *apparmor, const sc_invocation * inv,
+			 int snap_discard_ns_fd)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-			 SC_NS_MNT_FILE);
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.mnt", group->name);
 	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
-	//
-	// If the mounted namespace is discarded with
-	// sc_discard_preserved_ns_group() it will revert to a regular file.  If
-	// snap-confine is killed for whatever reason after the file is created but
-	// before the file is bind-mounted it will also be a regular file.
 	mnt_fd = openat(group->dir_fd, mnt_fname,
-			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
+	}
 	if (mnt_fd < 0) {
-		die("cannot open mount namespace file for namespace group %s",
-		    group->name);
+		die("cannot open preserved mount namespace %s", group->name);
 	}
 	// Check if we got an nsfs-based or procfs file or a regular file. This can
 	// be reliably tested because nsfs has an unique filesystem type
 	// NSFS_MAGIC.  On older kernels that don't support nsfs yet we can look
-	// for PROC_SUPER_MAGIC instead. 
+	// for PROC_SUPER_MAGIC instead.
 	// We can just ensure that this is the case thanks to fstatfs.
 	struct statfs ns_statfs_buf;
 	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
-		die("cannot perform fstatfs() on the mount namespace file descriptor");
+		die("cannot inspect filesystem of preserved mount namespace file");
 	}
 	// Stat the mount namespace as well, this is later used to check if the
 	// namespace is used by other processes if we are considering discarding a
 	// stale namespace.
 	struct stat ns_stat_buf;
 	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
-		die("cannot perform fstat() on the mount namespace file descriptor");
+		die("cannot inspect preserved mount namespace file");
 	}
 #ifndef NSFS_MAGIC
 // Account for kernel headers old enough to not know about NSFS_MAGIC.
@@ -515,8 +485,8 @@ int sc_create_or_join_ns_group(struct sc_ns_group *group,
 
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
-		    (mnt_fd, snap_name, base_snap_name) == EAGAIN) {
-			return EAGAIN;
+		    (mnt_fd, inv, snap_discard_ns_fd) == EAGAIN) {
+			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.
 		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
@@ -525,198 +495,318 @@ int sc_create_or_join_ns_group(struct sc_ns_group *group,
 			die("cannot get the current working directory");
 		}
 		// Move to the mount namespace of the snap we're trying to start.
-		debug
-		    ("attempting to re-associate the mount namespace with the namespace group %s",
-		     group->name);
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
-			die("cannot re-associate the mount namespace with namespace group %s", group->name);
+			die("cannot join preserved mount namespace %s",
+			    group->name);
 		}
-		debug
-		    ("successfully re-associated the mount namespace with the namespace group %s",
-		     group->name);
+		debug("joined preserved mount namespace %s", group->name);
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
-			debug
-			    ("cannot remain in %s, moving to the void directory",
-			     vanilla_cwd);
+			debug("cannot enter %s, moving to void", vanilla_cwd);
 			if (chdir(SC_VOID_DIR) != 0) {
 				die("cannot change directory to %s",
 				    SC_VOID_DIR);
 			}
-			debug("successfully moved to %s", SC_VOID_DIR);
 		}
 		return 0;
 	}
-	debug("initializing new namespace group %s", group->name);
-	// Create a new namespace and ask the caller to populate it.
-	// For rationale of forking see this:
-	// https://lists.linuxfoundation.org/pipermail/containers/2013-August/033386.html
-	//
-	// The eventfd created here is used to synchronize the child and the parent
-	// processes. It effectively tells the child to perform the capture
-	// operation.
-	group->event_fd = eventfd(0, EFD_CLOEXEC);
-	if (group->event_fd < 0) {
-		die("cannot create eventfd for mount namespace capture");
+	return ESRCH;
+}
+
+int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
+				  const char *snap_name)
+{
+	uid_t uid = getuid();
+	char mnt_fname[PATH_MAX] = { 0 };
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.%d.mnt", group->name,
+			 (int)uid);
+
+	int mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	mnt_fd = openat(group->dir_fd, mnt_fname,
+			O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (mnt_fd < 0 && errno == ENOENT) {
+		return ESRCH;
 	}
-	debug("forking support process for mount namespace capture");
+	if (mnt_fd < 0) {
+		die("cannot open preserved mount namespace %s", group->name);
+	}
+	struct statfs ns_statfs_buf;
+	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
+		die("cannot inspect filesystem of preserved mount namespace file");
+	}
+	struct stat ns_stat_buf;
+	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
+		die("cannot inspect preserved mount namespace file");
+	}
+#ifndef NSFS_MAGIC
+	/* Define NSFS_MAGIC for Ubuntu 14.04 and other older systems. */
+#define NSFS_MAGIC 0x6e736673
+#endif
+	if (ns_statfs_buf.f_type == NSFS_MAGIC
+	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
+		// TODO: refactor the cwd workflow across all of snap-confine.
+		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
+		vanilla_cwd = get_current_dir_name();
+		if (vanilla_cwd == NULL) {
+			die("cannot get the current working directory");
+		}
+		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
+			die("cannot join preserved per-user mount namespace %s",
+			    group->name);
+		}
+		debug("joined preserved mount namespace %s", group->name);
+		if (chdir(vanilla_cwd) != 0) {
+			debug("cannot enter %s, moving to void", vanilla_cwd);
+			if (chdir(SC_VOID_DIR) != 0) {
+				die("cannot change directory to %s",
+				    SC_VOID_DIR);
+			}
+		}
+		return 0;
+	}
+	return ESRCH;
+}
+
+static void setup_signals_for_helper(void)
+{
+	/* Ignore the SIGPIPE signal so that we get EPIPE on the read / write
+	 * operations attempting to work with a closed pipe. This ensures that we
+	 * are not killed by the default disposition (terminate) and can return a
+	 * non-signal-death return code to the program invoking snap-confine. */
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+		die("cannot install ignore handler for SIGPIPE");
+	}
+}
+
+static void teardown_signals_for_helper(void)
+{
+	/* Undo operations done by setup_signals_for_helper. */
+	if (signal(SIGPIPE, SIG_DFL) == SIG_ERR) {
+		die("cannot restore default handler for SIGPIPE");
+	}
+}
+
+static void helper_fork(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
+{
+	// Create a pipe for sending commands to the helper process.
+	if (pipe2(group->pipe_master, O_CLOEXEC | O_DIRECT) < 0) {
+		die("cannot create pipes for commanding the helper process");
+	}
+	if (pipe2(group->pipe_helper, O_CLOEXEC | O_DIRECT) < 0) {
+		die("cannot create pipes for responding to master process");
+	}
 	// Store the PID of the "parent" process. This done instead of calls to
 	// getppid() because then we can reliably track the PID of the parent even
 	// if the child process is re-parented.
 	pid_t parent = getpid();
-	// Glibc defines pid as a signed 32bit integer. There's no standard way to
-	// print pid's portably so this is the best we can do.
+
+	// For rationale of forking see this:
+	// https://lists.linuxfoundation.org/pipermail/containers/2013-August/033386.html
 	pid_t pid = fork();
-	debug("forked support process has pid %d", (int)pid);
 	if (pid < 0) {
-		die("cannot fork support process for mount namespace capture");
+		die("cannot fork helper process for mount namespace capture");
 	}
 	if (pid == 0) {
-		// This is the child process which will capture the mount namespace.
-		//
-		// It will do so by bind-mounting the SC_NS_MNT_FILE after the parent
-		// process calls unshare() and finishes setting up the namespace
-		// completely.
-		// Change the hat to a sub-profile that has limited permissions
-		// necessary to accomplish the capture of the mount namespace.
-		debug
-		    ("changing apparmor hat of the support process for mount namespace capture");
-		sc_maybe_aa_change_hat(apparmor,
-				       "mount-namespace-capture-helper", 0);
-		// Configure the child to die as soon as the parent dies. In an odd
-		// case where the parent is killed then we don't want to complete our
-		// task or wait for anything.
-		if (prctl(PR_SET_PDEATHSIG, SIGINT, 0, 0, 0) < 0) {
-			die("cannot set parent process death notification signal to SIGINT");
+		/* helper */
+		sc_cleanup_close(&group->pipe_master[1]);
+		sc_cleanup_close(&group->pipe_helper[0]);
+		helper_main(group, apparmor, parent);
+	} else {
+		setup_signals_for_helper();
+
+		/* master */
+		sc_cleanup_close(&group->pipe_master[0]);
+		sc_cleanup_close(&group->pipe_helper[1]);
+
+		// Glibc defines pid as a signed 32bit integer. There's no standard way to
+		// print pid's portably so this is the best we can do.
+		debug("forked support process %d", (int)pid);
+		group->child = pid;
+	}
+}
+
+static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
+			pid_t parent)
+{
+	// This is the child process which will capture the mount namespace.
+	//
+	// It will do so by bind-mounting the .mnt after the parent process calls
+	// unshare() and finishes setting up the namespace completely. Change the
+	// hat to a sub-profile that has limited permissions necessary to
+	// accomplish the capture of the mount namespace.
+	sc_maybe_aa_change_hat(apparmor, "mount-namespace-capture-helper", 0);
+	// Configure the child to die as soon as the parent dies. In an odd
+	// case where the parent is killed then we don't want to complete our
+	// task or wait for anything.
+	if (prctl(PR_SET_PDEATHSIG, SIGINT, 0, 0, 0) < 0) {
+		die("cannot set parent process death notification signal to SIGINT");
+	}
+	// Check that parent process is still alive. If this is the case then we
+	// can *almost* reliably rely on the PR_SET_PDEATHSIG signal to wake us up
+	// from read(2) below. In the rare case that the PID numbers overflow and
+	// the now-dead parent PID is recycled we will still hang forever on the
+	// read from the pipe below.
+	if (kill(parent, 0) < 0) {
+		switch (errno) {
+		case ESRCH:
+			debug("parent process has terminated");
+			abort();
+		default:
+			die("cannot confirm that parent process is alive");
+			break;
 		}
-		// Check that parent process is still alive. If this is the case then
-		// we can *almost* reliably rely on the PR_SET_PDEATHSIG signal to wake
-		// us up from eventfd_read() below. In the rare case that the PID numbers
-		// overflow and the now-dead parent PID is recycled we will still hang
-		// forever on the read from eventfd below.
-		debug("ensuring that parent process is still alive");
-		if (kill(parent, 0) < 0) {
-			switch (errno) {
-			case ESRCH:
-				debug("parent process has already terminated");
-				abort();
-			default:
-				die("cannot ensure that parent process is still alive");
-				break;
-			}
-		}
-		if (fchdir(group->dir_fd) < 0) {
-			die("cannot move process for mount namespace capture to namespace group directory");
-		}
-		debug
-		    ("waiting for a eventfd data from the parent process to continue");
-		eventfd_t value = 0;
+	}
+	if (fchdir(group->dir_fd) < 0) {
+		die("cannot move to directory with preserved namespaces");
+	}
+	int command = -1;
+	int run = 1;
+	while (run) {
+		debug("helper process waiting for command");
 		sc_enable_sanity_timeout();
-		if (eventfd_read(group->event_fd, &value) < 0) {
-			die("cannot read expected data from eventfd");
+		if (read(group->pipe_master[0], &command, sizeof command) < 0) {
+			int saved_errno = errno;
+			// This will ensure we get the correct error message
+			// if there is a read error because the timeout
+			// expired.
+			sc_disable_sanity_timeout();
+			errno = saved_errno;
+			die("cannot read command from the pipe");
 		}
 		sc_disable_sanity_timeout();
-		debug
-		    ("capturing mount namespace of process %d in namespace group %s",
-		     (int)parent, group->name);
-		char src[PATH_MAX] = { 0 };
-		char dst[PATH_MAX] = { 0 };
-		sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt",
-				 (int)parent);
-		sc_must_snprintf(dst, sizeof dst, "%s%s", group->name,
-				 SC_NS_MNT_FILE);
-		if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
-			die("cannot bind-mount the mount namespace file %s -> %s", src, dst);
+		debug("helper process received command %d", command);
+		switch (command) {
+		case HELPER_CMD_EXIT:
+			run = 0;
+			break;
+		case HELPER_CMD_CAPTURE_MOUNT_NS:
+			helper_capture_ns(group, parent);
+			break;
+		case HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS:
+			helper_capture_per_user_ns(group, parent);
+			break;
 		}
-		debug
-		    ("successfully captured mount namespace in namespace group %s",
-		     group->name);
-		exit(0);
-	} else {
-		group->child = pid;
-		// Unshare the mount namespace and set a flag instructing the caller that 
-		// the namespace is pristine and needs to be populated now.
-		debug("unsharing the mount namespace");
-		if (unshare(CLONE_NEWNS) < 0) {
-			die("cannot unshare the mount namespace");
+		if (write(group->pipe_helper[1], &command, sizeof command) < 0) {
+			die("cannot write ack");
 		}
-		group->should_populate = true;
 	}
-	return 0;
+	debug("helper process exiting");
+	exit(0);
 }
 
-bool sc_should_populate_ns_group(struct sc_ns_group * group)
+static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent)
 {
-	return group->should_populate;
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
+
+	debug("capturing per-snap mount namespace");
+	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
+	sc_must_snprintf(dst, sizeof dst, "%s.mnt", group->name);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
+	}
+	close(fd);
+
+	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
+		die("cannot preserve mount namespace of process %d as %s",
+		    (int)parent, dst);
+	}
+	debug("mount namespace of process %d preserved as %s",
+	      (int)parent, dst);
 }
 
-void sc_preserve_populated_ns_group(struct sc_ns_group *group)
+static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent)
+{
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
+	uid_t uid = getuid();
+
+	debug("capturing per-snap, per-user mount namespace");
+	sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
+	sc_must_snprintf(dst, sizeof dst, "%s.%d.mnt", group->name, (int)uid);
+
+	/* Ensure the bind mount destination exists. */
+	int fd = open(dst, O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_RDONLY, 0600);
+	if (fd < 0) {
+		die("cannot create file %s", dst);
+	}
+	close(fd);
+
+	if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
+		die("cannot preserve per-user mount namespace of process %d as %s", (int)parent, dst);
+	}
+	debug("per-user mount namespace of process %d preserved as %s",
+	      (int)parent, dst);
+}
+
+static void sc_message_capture_helper(struct sc_mount_ns *group, int command_id)
+{
+	int ack;
+	if (group->child == 0) {
+		die("precondition failed: we don't have a helper process");
+	}
+	if (group->pipe_master[1] < 0) {
+		die("precondition failed: we don't have a pipe");
+	}
+	if (group->pipe_helper[0] < 0) {
+		die("precondition failed: we don't have a pipe");
+	}
+	debug("sending command %d to helper process (pid: %d)",
+	      command_id, group->child);
+	if (write(group->pipe_master[1], &command_id, sizeof command_id) < 0) {
+		die("cannot send command %d to helper process", command_id);
+	}
+	debug("waiting for response from helper");
+	int read_n = read(group->pipe_helper[0], &ack, sizeof ack);
+	if (read_n < 0) {
+		die("cannot receive ack from helper process");
+	}
+	if (read_n == 0) {
+		die("unexpected eof from helper process");
+	}
+}
+
+static void sc_wait_for_capture_helper(struct sc_mount_ns *group)
 {
 	if (group->child == 0) {
-		die("precondition failed: we don't have a support process for mount namespace capture");
+		die("precondition failed: we don't have a helper process");
 	}
-	if (group->event_fd < 0) {
-		die("precondition failed: we don't have an eventfd for mount namespace capture");
-	}
-	debug
-	    ("asking support process for mount namespace capture (pid: %d) to perform the capture",
-	     group->child);
-	if (eventfd_write(group->event_fd, 1) < 0) {
-		die("cannot write eventfd");
-	}
-	debug
-	    ("waiting for the support process for mount namespace capture to exit");
+	debug("waiting for the helper process to exit");
 	int status = 0;
 	errno = 0;
 	if (waitpid(group->child, &status, 0) < 0) {
-		die("cannot wait for the support process for mount namespace capture");
+		die("cannot wait for the helper process");
 	}
 	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-		die("support process for mount namespace capture exited abnormally");
+		die("helper process exited abnormally");
 	}
-	debug("support process for mount namespace capture exited normally");
+	debug("helper process exited normally");
 	group->child = 0;
+	teardown_signals_for_helper();
 }
 
-void sc_discard_preserved_ns_group(struct sc_ns_group *group)
+void sc_fork_helper(struct sc_mount_ns *group, struct sc_apparmor *apparmor)
 {
-	// Remember the current working directory
-	int old_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	old_dir_fd = open(".", O_PATH | O_DIRECTORY | O_CLOEXEC);
-	if (old_dir_fd < 0) {
-		die("cannot open current directory");
-	}
-	// Move to the mount namespace directory (/run/snapd/ns)
-	if (fchdir(group->dir_fd) < 0) {
-		die("cannot move to namespace group directory");
-	}
-	// Unmount ${group_name}.mnt which holds the preserved namespace
-	char mnt_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-			 SC_NS_MNT_FILE);
-	debug("unmounting preserved mount namespace file %s", mnt_fname);
-	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) < 0) {
-		switch (errno) {
-		case EINVAL:
-			// EINVAL is returned when there's nothing to unmount (no bind-mount).
-			// Instead of checking for this explicitly (which is always racy) we
-			// just unmount and check the return code.
-			break;
-		case ENOENT:
-			// We may be asked to discard a namespace that doesn't yet
-			// exist (even the mount point may be absent). We just
-			// ignore that error and return gracefully.
-			break;
-		default:
-			die("cannot unmount preserved mount namespace file %s",
-			    mnt_fname);
-			break;
-		}
-	}
-	// Get back to the original directory
-	if (fchdir(old_dir_fd) < 0) {
-		die("cannot move back to original directory");
-	}
+	helper_fork(group, apparmor);
+}
+
+void sc_preserve_populated_mount_ns(struct sc_mount_ns *group)
+{
+	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_MOUNT_NS);
+}
+
+void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group)
+{
+	sc_message_capture_helper(group, HELPER_CMD_CAPTURE_PER_USER_MOUNT_NS);
+}
+
+void sc_wait_for_helper(struct sc_mount_ns *group)
+{
+	sc_message_capture_helper(group, HELPER_CMD_EXIT);
+	sc_wait_for_capture_helper(group);
 }

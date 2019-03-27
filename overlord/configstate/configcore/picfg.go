@@ -27,11 +27,13 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 // valid pi config keys
 var piConfigKeys = map[string]bool{
 	"disable_overscan":         true,
+	"force_turbo":              true,
 	"framebuffer_width":        true,
 	"framebuffer_height":       true,
 	"framebuffer_depth":        true,
@@ -88,7 +90,7 @@ func piConfigFile() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
 }
 
-func handlePiConfiguration(tr Conf) error {
+func handlePiConfiguration(tr config.Conf) error {
 	if osutil.FileExists(piConfigFile()) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.

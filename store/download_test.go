@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"errors"
 	"fmt"
@@ -33,8 +34,8 @@ import (
 	"time"
 
 	"github.com/juju/ratelimit"
-	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
+	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -55,6 +56,11 @@ var _ = Suite(&downloadSuite{})
 func (s *downloadSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
+	store.MockDownloadRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.Exponential{
+		Initial: time.Millisecond,
+		Factor:  2.5,
+	}))
+
 	mockXdelta := testutil.MockCommand(c, "xdelta3", "")
 	s.AddCleanup(mockXdelta.Restore)
 }
@@ -63,6 +69,7 @@ func (s *downloadSuite) TestActualDownload(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Snap-CDN"), Equals, "")
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "")
 		n++
 		io.WriteString(w, "response-data")
 	}))
@@ -74,6 +81,26 @@ func (s *downloadSuite) TestActualDownload(c *C) {
 	// keep tests happy
 	sha3 := ""
 	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+	c.Check(n, Equals, 1)
+}
+
+func (s *downloadSuite) TestActualDownloadAutoRefresh(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "scheduled")
+		n++
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := store.New(&store.Config{}, nil)
+	var buf SillyBuffer
+	// keep tests happy
+	sha3 := ""
+	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{IsAutoRefresh: true})
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
@@ -149,7 +176,7 @@ func (s *downloadSuite) TestDownloadCancellation(c *C) {
 		io.WriteString(w, "foo")
 		syncCh <- struct{}{}
 		io.WriteString(w, "bar")
-		time.Sleep(time.Duration(1) * time.Second)
+		time.Sleep(10 * time.Millisecond)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()

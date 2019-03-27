@@ -114,19 +114,21 @@ func validateInstanceName(instanceName string) int {
 //
 // This function is here only to make the C.validate_instance_name
 // code testable from go.
-func processArguments(args []string) (snapName string, shouldSetNs bool, processUserFstab bool) {
+func processArguments(args []string) (snapName string, shouldSetNs bool, processUserFstab bool, uid uint) {
 	argv := makeArgv(args)
 	defer freeArgv(argv)
 
 	var snapNameOut *C.char
 	var shouldSetNsOut C.bool
 	var processUserFstabOut C.bool
-	C.process_arguments(C.int(len(args)), &argv[0], &snapNameOut, &shouldSetNsOut, &processUserFstabOut)
+	var uidOut C.ulong
+	C.process_arguments(C.int(len(args)), &argv[0], &snapNameOut, &shouldSetNsOut, &processUserFstabOut, &uidOut)
 	if snapNameOut != nil {
 		snapName = C.GoString(snapNameOut)
 	}
 	shouldSetNs = bool(shouldSetNsOut)
 	processUserFstab = bool(processUserFstabOut)
+	uid = uint(uidOut)
 
-	return snapName, shouldSetNs, processUserFstab
+	return snapName, shouldSetNs, processUserFstab, uid
 }

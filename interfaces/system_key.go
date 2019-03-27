@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 )
 
 // ErrSystemKeyIncomparableVersions indicates that the system-key
@@ -64,16 +65,21 @@ type systemKey struct {
 	// kernel version or similar settings. If those change we may
 	// need to change the generated profiles (e.g. when the user
 	// boots into a more featureful seccomp).
-	AppArmorFeatures []string `json:"apparmor-features"`
-	NFSHome          bool     `json:"nfs-home"`
-	OverlayRoot      string   `json:"overlay-root"`
-	SecCompActions   []string `json:"seccomp-features"`
+	AppArmorFeatures       []string `json:"apparmor-features"`
+	AppArmorParserMtime    int64    `json:"apparmor-parser-mtime"`
+	AppArmorParserFeatures []string `json:"apparmor-parser-features"`
+	NFSHome                bool     `json:"nfs-home"`
+	OverlayRoot            string   `json:"overlay-root"`
+	SecCompActions         []string `json:"seccomp-features"`
+	SeccompCompilerVersion string   `json:"seccomp-compiler-version"`
 }
 
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
 	osReadlink      = os.Readlink
+
+	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
 )
 
 func findSnapdPath() (string, error) {
@@ -96,6 +102,14 @@ func findSnapdPath() (string, error) {
 	return snapdPath, nil
 }
 
+func seccompCompilerVersionInfoImpl(path string) (string, error) {
+	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
+	if err != nil {
+		return "", err
+	}
+	return compiler.VersionInfo()
+}
+
 func generateSystemKey() (*systemKey, error) {
 	// for testing only
 	if mockedSystemKey != nil {
@@ -116,7 +130,10 @@ func generateSystemKey() (*systemKey, error) {
 	sk.BuildID = buildID
 
 	// Add apparmor-features (which is already sorted)
-	sk.AppArmorFeatures = release.AppArmorFeatures()
+	sk.AppArmorFeatures, _ = release.AppArmorKernelFeatures()
+
+	// Add apparmor-parser-mtime
+	sk.AppArmorParserMtime = release.AppArmorParserMtime()
 
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our
@@ -140,6 +157,13 @@ func generateSystemKey() (*systemKey, error) {
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions()
 
+	versionInfo, err := seccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
+	if err != nil {
+		logger.Noticef("cannot determine seccomp compiler version in generateSystemKey: %v", err)
+		return nil, err
+	}
+	sk.SeccompCompilerVersion = versionInfo
+
 	return sk, nil
 }
 
@@ -149,6 +173,12 @@ func WriteSystemKey() error {
 	if err != nil {
 		return err
 	}
+
+	// We only want to calculate this when the mtime of the parser changes.
+	// Since we calculate the mtime() as part of generateSystemKey, we can
+	// simply unconditionally write this out here.
+	sk.AppArmorParserFeatures, _ = release.AppArmorParserFeatures()
+
 	sks, err := json.Marshal(sk)
 	if err != nil {
 		return err
@@ -181,6 +211,12 @@ func WriteSystemKey() error {
 //    network-manager this is of course catastrophic.
 // To prevent this, in step(4) we have this wait-for-snapd
 // step to ensure the expected profiles are on disk.
+//
+// The apparmor-parser-features system-key is handled specially
+// and not included in this comparison because it is written out
+// to disk whenever apparmor-parser-mtime changes (in this manner
+// snap run only has to obtain the mtime of apparmor_parser and
+// doesn't have to invoke it)
 func SystemKeyMismatch() (bool, error) {
 	mySystemKey, err := generateSystemKey()
 	if err != nil {
@@ -218,6 +254,13 @@ func SystemKeyMismatch() (bool, error) {
 		}
 	}
 
+	// since we always write out apparmor-parser-feature when
+	// apparmor-parser-mtime changes, we don't need to compare it here
+	// (allowing snap run to only need to check the mtime of the parser)
+	// so just set both to nil to make the DeepEqual happy
+	diskSystemKey.AppArmorParserFeatures = nil
+	mySystemKey.AppArmorParserFeatures = nil
+
 	// TODO: write custom struct compare
 	return !reflect.DeepEqual(mySystemKey, &diskSystemKey), nil
 }
@@ -230,4 +273,12 @@ func MockSystemKey(s string) func() {
 	}
 	mockedSystemKey = &sk
 	return func() { mockedSystemKey = nil }
+}
+
+func MockSeccompCompilerVersionInfo(s func(p string) (string, error)) (restore func()) {
+	old := seccompCompilerVersionInfo
+	seccompCompilerVersionInfo = s
+	return func() {
+		seccompCompilerVersionInfo = old
+	}
 }

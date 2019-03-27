@@ -26,6 +26,6 @@ execute: |
     cd "$SPREAD_PATH/cmd/"
     build_dir="$SPREAD_PATH/cmd/autogarbage"
     BUILD_DIR=$build_dir ./autogen.sh
-    cd $build_dir
+    cd "$build_dir"
     # Build and run unit tests
     make check
