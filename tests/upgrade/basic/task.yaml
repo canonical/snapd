@@ -117,6 +117,19 @@ execute: |
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$(cat prevsnapdver)" ]
 
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # all mount units should have been patched on upgrade
+            unit_prefix="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
+            for unit in /etc/systemd/system/"$unit_prefix"-*.mount; do
+                MATCH 'Options=.*context=system_u:object_r:snappy_snap_t:s0' "$unit"
+            done
+            ;;
+    esac
+
     echo "Sanity check already installed snaps after upgrade"
     snap list | grep core
     snap list | grep test-snapd-tools
