@@ -117,13 +117,13 @@ type ResultInfo struct {
 // - Private: return snaps that are private
 // - Query: only return snaps that match the query string
 type FindOptions struct {
-	Refresh  bool
-	Private  bool
-	Prefix   bool
 	Query    string
 	CommonID string
 	Section  string
 	Scope    string
+	Private  bool
+	Prefix   bool
+	Refresh  bool
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
