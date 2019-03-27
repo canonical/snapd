@@ -51,7 +51,7 @@
 #   for comparison and for generating patches..
 
 # There must be an apt-cacher-ng installation on the host.
-proxy_url=http://$(shell ip -br address show dev eth0 | awk '{print $$3}' | cut -d / -f 1):3142
+proxy_url=http://$(shell ip --json addr list scope global up | jq --raw-output '.[0].addr_info[0].local'):3142
 
 # Packages that are not required for building snapd but are useful for interactive development.
 packages=git sbuild mc devscripts avahi-daemon ssh emacs-nox vim-nox rsync
