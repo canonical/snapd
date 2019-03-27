@@ -833,7 +833,7 @@ fi
 # TODO: the trigger relies on a very specific snapd version that introduced SELinux
 # mount context, figure out how to update the trigger condition to run when needed
 %triggerun -- snapd < 2.38
-# trigger on unstall, with one version of the package being pre 2.38 see
+# trigger on uninstall, with one version of the package being pre 2.38 see
 # https://rpm-packaging-guide.github.io/#triggers-and-scriptlets for details
 # when triggers are run
 %if 0%{?with_selinux}
