@@ -369,8 +369,8 @@ setreuid
 setreuid32
 setuid
 setuid32
-#setgroups
-#setgroups32
+setgroups 0 0
+setgroups32 0 0
 
 # These break isolation but are common and can't be mediated at the seccomp
 # level with arg filtering
