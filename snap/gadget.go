@@ -277,6 +277,9 @@ func validateVolume(name string, vol *GadgetVolume) error {
 			return fmt.Errorf("invalid structure %s: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		if s.Name != "" {
+			if structureNames[s.Name] {
+				return fmt.Errorf("structure name %q is not unique", s.Name)
+			}
 			structureNames[s.Name] = true
 		}
 	}

@@ -808,6 +808,16 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	}
 }
 
+func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
+	err := snap.ValidateVolume("name", &snap.GadgetVolume{
+		Structure: []snap.VolumeStructure{
+			{Name: "duplicate", Type: "bare", Size: 1024},
+			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048},
+		},
+	})
+	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
+}
+
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 
 	err := snap.ValidateVolume("name", &snap.GadgetVolume{
