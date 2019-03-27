@@ -265,10 +265,10 @@ func fmtIndexAndName(idx int, name string) string {
 
 func validateVolume(name string, vol *GadgetVolume) error {
 	if !validVolumeName.MatchString(name) {
-		return errors.New("invalid volume name")
+		return errors.New("invalid name")
 	}
 	if vol.Schema != "" && vol.Schema != "gpt" && vol.Schema != "mbr" {
-		return fmt.Errorf("invalid volume schema %q", vol.Schema)
+		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
 	structureNames := make(map[string]bool, len(vol.Structure))
@@ -302,11 +302,52 @@ func validateVolume(name string, vol *GadgetVolume) error {
 	return nil
 }
 
+func validateVolumeStructure(vs *VolumeStructure, vol *GadgetVolume) error {
+	if err := validateStructureType(vs.Type, vol); err != nil {
+		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
+	}
+	if err := validateRole(vs, vol); err != nil {
+		var what string
+		if vs.Role != "" {
+			what = fmt.Sprintf("role %q", vs.Role)
+		} else {
+			what = fmt.Sprintf("implicit role %q", vs.Type)
+		}
+		return fmt.Errorf("invalid %s: %v", what, err)
+	}
+	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "none"}, vs.Filesystem) {
+		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
+	}
+
+	bare := vs.IsBare()
+	for i, c := range vs.Content {
+		var err error
+		if bare {
+			err = validateBareContent(&c)
+		} else {
+			err = validateFilesystemContent(&c)
+		}
+		if err != nil {
+			return fmt.Errorf("invalid content #%v: %v", i, err)
+		}
+	}
+
+	if err := validateStructureUpdate(&vs.Update, vs); err != nil {
+		return err
+	}
+
+	// TODO: validate structure size against sector-size; ubuntu-image uses
+	// a tmp file to find out the default sector size of the device the tmp
+	// file is created on
+	return nil
+}
+
 func validateStructureType(s string, vol *GadgetVolume) error {
 	// Type can be one of:
 	// - "mbr" (backwards compatible)
 	// - "bare"
 	// - [0-9A-Z]{2} - MBR type
+	// - GPT UUID
 	// - hybrid ID
 	//
 	// Hybrid ID is 2 hex digits of MBR type, followed by 36 GUUID
@@ -342,23 +383,23 @@ func validateStructureType(s string, vol *GadgetVolume) error {
 		case validGUUID.MatchString(s):
 			isGPT = true
 		default:
-			return fmt.Errorf("invalid format of type ID")
+			return fmt.Errorf("invalid format")
 		}
 	} else {
 		// hybrid ID
 		code := s[:idx]
 		guid := s[idx+1:]
 		if len(code) != 2 || len(guid) != 36 || !validTypeID.MatchString(code) || !validGUUID.MatchString(guid) {
-			return fmt.Errorf("invalid format of hybrid type ID")
+			return fmt.Errorf("invalid format of hybrid type")
 		}
 	}
 
 	if schema != "gpt" && isGPT {
 		// type: <uuid> is only valid for GPT volumes
-		return fmt.Errorf("GUID structure ID %q with non-GPT schema %q", s, vol.Schema)
+		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
 	}
 	if schema != "mbr" && isMBR {
-		return fmt.Errorf("MBR structure ID %q with non-MBR schema %q", s, vol.Schema)
+		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
 	}
 
 	return nil
@@ -367,7 +408,7 @@ func validateStructureType(s string, vol *GadgetVolume) error {
 func validateRole(vs *VolumeStructure, vol *GadgetVolume) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != "mbr" {
-			return fmt.Errorf("confclicting role/type: %q/%q", vs.Role, vs.Type)
+			return fmt.Errorf("conflicting type: %q", vs.Type)
 		}
 	}
 	vsRole := vs.Role
@@ -379,7 +420,7 @@ func validateRole(vs *VolumeStructure, vol *GadgetVolume) error {
 	switch vsRole {
 	case "system-data":
 		if vs.Label != "" && vs.Label != "writable" {
-			return fmt.Errorf(`role %q must have an implicit label or "writable", not %q`, vs.Role, vs.Label)
+			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
 		}
 	case "mbr":
 		if vs.Size > 446 {
@@ -397,42 +438,8 @@ func validateRole(vs *VolumeStructure, vol *GadgetVolume) error {
 	case "system-boot", "":
 		// noop
 	default:
-		return fmt.Errorf("invalid role %q", vs.Role)
+		return fmt.Errorf("unsupported role")
 	}
-	return nil
-}
-
-func validateVolumeStructure(vs *VolumeStructure, vol *GadgetVolume) error {
-	if err := validateStructureType(vs.Type, vol); err != nil {
-		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
-	}
-	if err := validateRole(vs, vol); err != nil {
-		return fmt.Errorf("invalid role %q: %v", vs.Role, err)
-	}
-	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "none"}, vs.Filesystem) {
-		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
-	}
-
-	bare := vs.IsBare()
-	for i, c := range vs.Content {
-		var err error
-		if bare {
-			err = validateBareContent(&c)
-		} else {
-			err = validateFilesystemContent(&c)
-		}
-		if err != nil {
-			return fmt.Errorf("invalid content #%v: %v", i, err)
-		}
-	}
-
-	if err := validateStructureUpdate(&vs.Update, vs); err != nil {
-		return err
-	}
-
-	// TODO: validate structure size against sector-size; ubuntu-image uses
-	// a tmp file to find out the default sector size of the device the tmp
-	// file is created on
 	return nil
 }
 
@@ -464,7 +471,7 @@ func validateStructureUpdate(up *VolumeUpdate, vs *VolumeStructure) error {
 	names := make(map[string]bool, len(vs.Update.Preserve))
 	for _, n := range vs.Update.Preserve {
 		if names[n] {
-			return fmt.Errorf("duplicate preserve entry %q", n)
+			return fmt.Errorf(`duplicate "preserve" entry %q`, n)
 		}
 		names[n] = true
 	}

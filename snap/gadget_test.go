@@ -605,33 +605,37 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		{"bare", "", ""},
 		// plain MBR type
 		{"0C", "", "mbr"},
-		// plain MBR type without mbr schema
-		{"0C", `MBR structure ID "0C" with non-MBR schema ""`, ""},
 		// GPT UUID
 		{"21686148-6449-6E6F-744E-656564454649", "", "gpt"},
 		// hybrid ID
 		{"EF,21686148-6449-6E6F-744E-656564454649", "", ""},
+		// no type specified
+		{"", `invalid type "": type is not specified`, ""},
+		// plain MBR type without mbr schema
+		{"0C", `invalid type "0C": MBR structure type with non-MBR schema ""`, ""},
+		// GPT UUID with non GPT schema
+		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": GUID structure type with non-GPT schema "mbr"`, "mbr"},
 		// invalid
-		{"1234", "invalid format of type ID", ""},
+		{"1234", `invalid type "1234": invalid format`, ""},
 		// outside of hex range
-		{"FG", "invalid format of type ID", ""},
-		{"GG686148-6449-6E6F-744E-656564454649", "invalid format of type ID", ""},
+		{"FG", `invalid type "FG": invalid format`, ""},
+		{"GG686148-6449-6E6F-744E-656564454649", `invalid type "GG686148-6449-6E6F-744E-656564454649": invalid format`, ""},
 		// too long
-		{"AA686148-6449-6E6F-744E-656564454649123", "invalid format of type ID", ""},
+		{"AA686148-6449-6E6F-744E-656564454649123", `invalid type "AA686148-6449-6E6F-744E-656564454649123": invalid format`, ""},
 		// hybrid, missing MBR type
-		{",AA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", ""},
+		{",AA686148-6449-6E6F-744E-656564454649", `invalid type ",AA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
 		// hybrid, missing GPT UUID
-		{"EF,", "invalid format of hybrid type ID", ""},
+		{"EF,", `invalid type "EF,": invalid format of hybrid type`, ""},
 		// hybrid, MBR type too long
-		{"EFC,AA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", ""},
+		{"EFC,AA686148-6449-6E6F-744E-656564454649", `invalid type "EFC,AA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
 		// hybrid, GPT UUID too long
-		{"EF,AAAA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", ""},
+		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
 		// GPT schema with non GPT type
-		{"EF,AAAA686148-6449-6E6F-744E-656564454649", "invalid format of hybrid type ID", "gpt"},
+		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, "gpt"},
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := snap.ValidateStructureType(tc.s, &snap.GadgetVolume{Schema: tc.schema})
+		err := snap.ValidateVolumeStructure(&snap.VolumeStructure{Type: tc.s}, &snap.GadgetVolume{Schema: tc.schema})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -648,54 +652,78 @@ func mustParseStructure(c *C, s string) *snap.VolumeStructure {
 }
 
 func (s *gadgetYamlTestSuite) TestValidateRole(c *C) {
-	invalidSystemDataLabel := `
+	uuidType := `
+type: 21686148-6449-6E6F-744E-656564454649
+`
+	bareType := `
+type: mbr
+`
+	invalidSystemDataLabel := uuidType + `
 role: system-data
 filesystem-label: foobar
 `
-	mbrTooLarge := `
+	mbrTooLarge := bareType + `
 role: mbr
 size: 467`
-	mbrBadOffset := `
+	mbrBadOffset := bareType + `
 role: mbr
 offset: 123`
-	mbrBadID := `
+	mbrBadID := bareType + `
 role: mbr
 id: 123`
-	mbrBadFilesystem := `
+	mbrBadFilesystem := bareType + `
 role: mbr
 filesystem: vfat`
 	mbrNoneFilesystem := `
+type: bare
 role: mbr
 filesystem: none`
 	typeAsMBRTooLarge := `
 type: mbr
 size: 467`
+	typeConflictsRole := `
+type: bare
+role: system-data
+size: 1M`
+	validSystemBoot := uuidType + `
+role: system-boot
+`
+	emptyRole := uuidType + `
+role: system-boot
+`
+	bogusRole := uuidType + `
+role: foobar
+`
+	vol := &snap.GadgetVolume{}
+	mbrVol := &snap.GadgetVolume{Schema: "mbr"}
 	for i, tc := range []struct {
 		s   *snap.VolumeStructure
 		v   *snap.GadgetVolume
 		err string
 	}{
-		{mustParseStructure(c, `role: system-boot`), nil, ""},
+		{mustParseStructure(c, validSystemBoot), vol, ""},
 		// empty, ok too
-		{mustParseStructure(c, `role:`), nil, ""},
+		{mustParseStructure(c, emptyRole), vol, ""},
 		// invalid role name
-		{mustParseStructure(c, `role: foobar`), nil, `invalid role "foobar"`},
+		{mustParseStructure(c, bogusRole), vol, `invalid role "foobar": unsupported role`},
 		// system-data, but improper label
-		{mustParseStructure(c, invalidSystemDataLabel), nil, `role "system-data" must have an implicit label or "writable", not "foobar"`},
+		{mustParseStructure(c, invalidSystemDataLabel), vol, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "foobar"`},
 		// mbr
-		{mustParseStructure(c, mbrTooLarge), nil, `mbr structures cannot be larger than 446 bytes`},
-		{mustParseStructure(c, mbrBadOffset), nil, `mbr structure must start at offset 0`},
-		{mustParseStructure(c, mbrBadID), nil, `mbr structure must not specify partition ID`},
-		{mustParseStructure(c, mbrBadFilesystem), nil, `mbr structures must not specify a file system`},
+		{mustParseStructure(c, mbrTooLarge), mbrVol, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, mbrBadOffset), mbrVol, `invalid role "mbr": mbr structure must start at offset 0`},
+		{mustParseStructure(c, mbrBadID), mbrVol, `invalid role "mbr": mbr structure must not specify partition ID`},
+		{mustParseStructure(c, mbrBadFilesystem), mbrVol, `invalid role "mbr": mbr structures must not specify a file system`},
 		// filesystem: none is ok for MBR
-		{mustParseStructure(c, mbrNoneFilesystem), nil, ""},
+		{mustParseStructure(c, mbrNoneFilesystem), mbrVol, ""},
 		// legacy, type: mbr treated like role: mbr
-		{mustParseStructure(c, `type: mbr`), nil, ""},
-		{mustParseStructure(c, typeAsMBRTooLarge), nil, `mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, `type: mbr`), mbrVol, ""},
+		{mustParseStructure(c, typeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
+		// conflicting type/role
+		{mustParseStructure(c, typeConflictsRole), vol, `invalid role "system-data": conflicting type: "bare"`},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := snap.ValidateRole(tc.s, tc.v)
+		err := snap.ValidateVolumeStructure(tc.s, tc.v)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -737,7 +765,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 		// implicit GPT
 		{"", ""},
 		// invalid
-		{"some", `invalid volume schema "some"`},
+		{"some", `invalid schema "some"`},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
@@ -764,10 +792,10 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 		{"PC123", ""},
 		{"UPCASE", ""},
 		// invalid
-		{"-valid", "invalid volume name"},
-		{"in+valid", "invalid volume name"},
-		{"with whitespace", "invalid volume name"},
-		{"", "invalid volume name"},
+		{"-valid", "invalid name"},
+		{"in+valid", "invalid name"},
+		{"with whitespace", "invalid name"},
+		{"", "invalid name"},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
@@ -778,6 +806,32 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 			c.Check(err, IsNil)
 		}
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
+
+	err := snap.ValidateVolume("name", &snap.GadgetVolume{
+		Structure: []snap.VolumeStructure{
+			{Type: "bare", Size: 1024},
+			{Type: "bogus", Size: 1024},
+		},
+	})
+	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
+
+	err = snap.ValidateVolume("name", &snap.GadgetVolume{
+		Structure: []snap.VolumeStructure{
+			{Type: "bare", Size: 1024},
+			{Type: "bogus", Size: 1024, Name: "foo"},
+		},
+	})
+	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
+
+	err = snap.ValidateVolume("name", &snap.GadgetVolume{
+		Structure: []snap.VolumeStructure{
+			{Type: "bare", Name: "foo", Size: 1024, Content: []snap.VolumeContent{{Source: "foo"}}},
+		},
+	})
+	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureContent(c *C) {
@@ -929,5 +983,5 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Filesystem: "vfat",
 		Update:     snap.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
 	}, gv)
-	c.Check(err, ErrorMatches, `duplicate preserve entry "foo"`)
+	c.Check(err, ErrorMatches, `duplicate "preserve" entry "foo"`)
 }
