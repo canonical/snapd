@@ -119,7 +119,7 @@ func removeSnapshotState(st *state.State, setIDs ...uint64) error {
 	return nil
 }
 
-// expiredSnapshotSets returns a list of expired snapshot sets from the state, based on the given cutoffTime.
+// expiredSnapshotSets returns a list of expired snapshot sets from the state, based on the given cutOffTime.
 // The state needs to be locked by the caller.
 func expiredSnapshotSets(st *state.State, cutoffTime time.Time) ([]uint64, error) {
 	var snapshots map[uint64]*snapshotState
