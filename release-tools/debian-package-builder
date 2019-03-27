@@ -72,13 +72,16 @@ help:
 	@echo "NOTE: You must provide the source package yourself"
 	@echo "Please read the script for additional instructions."
 
+debian-9-url=https://cdimage.debian.org/mirror/cdimage/openstack/current/debian-9.6.4-20190118-openstack-amd64.qcow2
+debian-10-url=https://cdimage.debian.org/mirror/cdimage/openstack/testing/debian-testing-openstack-amd64.qcow2
+
 .PHONY: create-debian-9
 create-debian-9:
-	multipass launch -n debian-9 -c 8 -m 4G https://cdimage.debian.org/mirror/cdimage/openstack/current/debian-9.6.4-20190118-openstack-amd64.qcow2
+	multipass launch -n debian-9 -c 8 -m 4G $(debian-9-url)
 
 .PHONY: create-debian-10
 create-debian-10:
-	multipass launch -n debian-10 -c 8 -m 4G https://cdimage.debian.org/mirror/cdimage/openstack/testing/debian-testing-openstack-amd64.qcow2
+	multipass launch -n debian-10 -c 8 -m 4G $(debian-10-url)
 
 .PHONY: prepare-debian-9 prepare-debian-10
 prepare-debian-9 prepare-debian-10: prepare-%:
