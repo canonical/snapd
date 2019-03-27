@@ -104,7 +104,7 @@ prepare-debian-9 prepare-debian-10: prepare-%:
 	$(remote) sudo rm -f /etc/schroot/chroot.d/sid-amd64-sbuild-*
 	$(remote) sudo rm -rf /srv/chroot/sid-amd64-sbuild
 	# NOTE: the chroot is always for sid, this is mainly to test the impact of the kernel.
-	$(remote) sudo eatmydata sbuild-createchroot --include=eatmydata,ccache,gnupg sid /srv/chroot/sid-amd64-sbuild $(proxy_url)/debian
+	$(remote) sudo http_proxy=$(proxy_url) eatmydata sbuild-createchroot --include=eatmydata,ccache,gnupg sid /srv/chroot/sid-amd64-sbuild http://deb.debian.org/debian
 
 .PHONY: destroy-debian-9 destroy-debian-10
 destroy-debian-9 destroy-debian-10: destroy-%:
