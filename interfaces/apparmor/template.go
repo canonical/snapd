@@ -128,6 +128,7 @@ var defaultTemplate = `
   /{,usr/}bin/bzgrep ixr,
   /{,usr/}bin/bzip2 ixr,
   /{,usr/}bin/cat ixr,
+  /{,usr/}bin/chgrp ixr,
   /{,usr/}bin/chmod ixr,
   /{,usr/}bin/chown ixr,
   /{,usr/}bin/clear ixr,
