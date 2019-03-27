@@ -113,4 +113,8 @@ destroy-debian-9 destroy-debian-10: destroy-%:
 build-on-debian-9 build-on-debian-10: build-on-%:
 	multipass copy-files snapd_*.debian.tar.xz snapd_*.dsc snapd_*.orig.tar.xz snapd-*.tar.gz $*:/home/multipass/
 	# NOTE: %s expands to a command that starts an interactive shell for debugging.
-	$(remote) sbuild -d sid --build-failed-commands=%s --run-autopkgtest $(shell ls snapd_*.dsc | sort -r -n | head -n 1)
+	$(remote) sbuild -d sid \
+		--chroot-setup-commands='echo "Acquire::http::Proxy \"$(proxy_url)\";" > /etc/apt/apt.conf.d/00proxy'\
+		--build-failed-commands=%s \
+		--run-autopkgtest \
+		$(shell ls snapd_*.dsc | sort -r -n | head -n 1)
