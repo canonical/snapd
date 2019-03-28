@@ -1092,12 +1092,15 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 
 // A Search is what you do in order to Find something
 type Search struct {
-	Query    string
+	// Query is a term to search by or a prefix (if Prefix is true)
+	Query  string
+	Prefix bool
+
 	CommonID string
-	Section  string
-	Scope    string
-	Private  bool
-	Prefix   bool
+
+	Section string
+	Private bool
+	Scope   string
 }
 
 // Find finds  (installable) snaps from the store, matching the

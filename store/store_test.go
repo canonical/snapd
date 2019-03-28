@@ -2789,7 +2789,7 @@ func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, store.ErrBadQuery)
-	_, err = sto.Find(&store.Search{Query: "foo", Private: true, Prefix: true}, s.user)
+	_, err = sto.Find(&store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
