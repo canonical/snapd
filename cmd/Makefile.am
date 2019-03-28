@@ -61,6 +61,10 @@ new_format = \
 	 libsnap-confine-private/cgroup-support.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
+	 snap-confine/snap-confine-invocation.c \
+	 snap-confine/snap-confine-invocation.h \
+	 snap-confine/selinux-support.c \
+	 snap-confine/selinux-support.h \
 	 snap-discard-ns/snap-discard-ns.c
 .PHONY: fmt
 fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
@@ -230,6 +234,8 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/seccomp-support.h \
 	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args.h \
+	snap-confine/snap-confine-invocation.c \
+	snap-confine/snap-confine-invocation.h \
 	snap-confine/snap-confine.c \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
@@ -275,6 +281,18 @@ else
 snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
+
+if SELINUX
+snap_confine_snap_confine_SOURCES += \
+	snap-confine/selinux-support.c \
+	snap-confine/selinux-support.h
+snap_confine_snap_confine_CFLAGS += $(SELINUX_CFLAGS)
+if STATIC_LIBSELINUX
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libselinux)
+else
+snap_confine_snap_confine_extra_libs += $(SELINUX_LIBS)
+endif  # STATIC_LIBSELINUX
+endif  # SELINUX
 
 # an extra build that has additional debugging enabled at compile time
 

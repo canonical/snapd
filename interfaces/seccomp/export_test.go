@@ -77,6 +77,10 @@ func MockSeccompCompilerLookup(f func(string) (string, error)) (restore func()) 
 	}
 }
 
+func (b *Backend) VersionInfo() string {
+	return b.versionInfo
+}
+
 var (
 	RequiresSocketcall = requiresSocketcall
 
