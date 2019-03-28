@@ -3,5 +3,4 @@ defaults:
      a: A
      b: B
    system:
-     service:
-       ssh.disable: true
+     service.ssh.disable: true
