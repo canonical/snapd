@@ -48,6 +48,9 @@
 #include "snap-confine-invocation.h"
 #include "udev-support.h"
 #include "user-support.h"
+#ifdef HAVE_SELINUX
+#include "selinux-support.h"
+#endif
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -247,6 +250,10 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
+#ifdef HAVE_SELINUX
+	// For classic and confined snaps
+	sc_selinux_set_snap_execcon();
+#endif
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
