@@ -166,7 +166,7 @@ package() {
   install -dm755 "$pkgdir/var/lib/snapd/lib/vulkan"
   install -dm755 "$pkgdir/var/lib/snapd/lib/glvnd"
   # these dirs have special permissions
-  install -dm000 "$pkgdir/var/lib/snapd/void"
+  install -dm111 "$pkgdir/var/lib/snapd/void"
   install -dm700 "$pkgdir/var/lib/snapd/cookie"
   install -dm700 "$pkgdir/var/lib/snapd/cache"
 

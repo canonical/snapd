@@ -335,7 +335,7 @@ fi
 %config %{_sysconfdir}/profile.d/snapd.sh
 
 # Directories
-%dir %attr(0000,root,root) %{_sharedstatedir}/snapd/void
+%dir %attr(0111,root,root) %{_sharedstatedir}/snapd/void
 %dir %{_datadir}/dbus-1
 %dir %{_datadir}/dbus-1/services
 %dir %{_datadir}/polkit-1
