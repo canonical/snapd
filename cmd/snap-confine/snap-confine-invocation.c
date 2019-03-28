@@ -64,7 +64,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     /* Invocation helps to pass relevant data to various parts of snap-confine. */
     memset(inv, 0, sizeof *inv);
     inv->base_snap_name = sc_strdup(base_snap_name);
-    inv->fallback_base_snap_name = NULL;
+    inv->orig_base_snap_name = sc_strdup(base_snap_name);
     inv->executable = sc_strdup(executable);
     inv->security_tag = sc_strdup(security_tag);
     inv->snap_instance = sc_strdup(snap_instance);
@@ -80,7 +80,7 @@ void sc_cleanup_invocation(sc_invocation *inv) {
     if (inv != NULL) {
         sc_cleanup_string(&inv->snap_instance);
         sc_cleanup_string(&inv->base_snap_name);
-        sc_cleanup_string(&inv->fallback_base_snap_name);
+        sc_cleanup_string(&inv->orig_base_snap_name);
         sc_cleanup_string(&inv->security_tag);
         sc_cleanup_string(&inv->executable);
     }
@@ -95,15 +95,9 @@ void sc_apply_invocation_fallback(sc_invocation *inv) {
     if (sc_streq(inv->base_snap_name, "core") && access(mount_point, F_OK) != 0) {
         sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, "ubuntu-core");
         if (access(mount_point, F_OK) == 0) {
-            inv->fallback_base_snap_name = sc_strdup("ubuntu-core");
+            sc_cleanup_string(&inv->base_snap_name);
+            inv->base_snap_name = sc_strdup("ubuntu-core");
             debug("falling back to ubuntu-core instead of unavailable core snap");
         }
     }
-}
-
-const char *sc_effective_base_snap_name(const sc_invocation *inv) {
-    if (inv->fallback_base_snap_name != NULL) {
-        return inv->fallback_base_snap_name;
-    }
-    return inv->base_snap_name;
 }

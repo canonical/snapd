@@ -376,7 +376,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	 **/
 	sc_distro distro = sc_classify_distro();
 	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
-		!sc_streq(inv->base_snap_name, "core");
+		!sc_streq(inv->orig_base_snap_name, "core");
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.

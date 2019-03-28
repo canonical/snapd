@@ -316,7 +316,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 
 	// Read the revision of the base snap by looking at the current symlink.
 	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
-			 SNAP_MOUNT_DIR, sc_effective_base_snap_name(inv));
+			 SNAP_MOUNT_DIR, inv->base_snap_name);
 	if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
 		die("cannot read current revision of snap %s",
 		    inv->snap_instance);
@@ -327,7 +327,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// Find the device that is backing the current revision of the base snap.
 	base_snap_dev =
-	    find_base_snap_device(sc_effective_base_snap_name(inv), base_snap_rev);
+	    find_base_snap_device(inv->base_snap_name, base_snap_rev);
 
 	// Store the PID of this process. This is done instead of calls to
 	// getppid() below because then we can reliably track the PID of the
