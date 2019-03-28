@@ -208,9 +208,10 @@ allow snappy_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 admin_pattern(snappy_t, snappy_tmp_t)
 files_tmp_filetrans(snappy_t, snappy_tmp_t, { file dir })
 
-# snap command completions
+# snap command completions, symlinks going back to snap mount directory
 gen_require(` type usr_t; ')
-allow snappy_t usr_t:dir { write };
+allow snappy_t usr_t:dir { write remove_name add_name };
+allow snappy_t usr_t:lnk_file { create unlink };
 
 # Allow snapd to use ssh-keygen
 ssh_exec_keygen(snappy_t)
@@ -420,7 +421,7 @@ allow snappy_confine_t snappy_snap_t:lnk_file read;
 allow snappy_confine_t snappy_var_lib_t:dir mounton;
 allow snappy_confine_t snappy_var_run_t:file mounton;
 allow snappy_confine_t snappy_var_t:dir mounton;
-allow snappy_confine_t tmp_t:dir { add_name create mounton remove_name rmdir setattr write };
+allow snappy_confine_t tmp_t:dir { add_name create mounton remove_name rmdir setattr write read };
 allow snappy_confine_t usr_t:dir mounton;
 allow snappy_confine_t var_log_t:dir mounton;
 allow snappy_confine_t var_run_t:dir mounton;
@@ -469,9 +470,9 @@ relabel_files_pattern(snappy_cli_t, user_home_t, snappy_home_t)
 relabel_dirs_pattern(snappy_cli_t, admin_home_t, snappy_home_t)
 relabel_files_pattern(snappy_cli_t, admin_home_t, snappy_home_t)
 
-allow snappy_cli_t snappy_home_t:dir { create_dir_perms add_entry_dir_perms list_dir_perms };
-allow snappy_cli_t snappy_home_t:file { read_file_perms };
-allow snappy_cli_t snappy_home_t:lnk_file { manage_lnk_file_perms };
+manage_files_pattern(snappy_cli_t, snappy_home_t, snappy_home_t)
+manage_lnk_files_pattern(snappy_cli_t, snappy_home_t, snappy_home_t)
+manage_dirs_pattern(snappy_cli_t, snappy_home_t, snappy_home_t)
 userdom_user_home_dir_filetrans(snappy_cli_t, snappy_home_t, dir, "snap")
 userdom_admin_home_dir_filetrans(snappy_cli_t, snappy_home_t, dir, "snap")
 
@@ -512,6 +513,10 @@ snappy_stream_connect(snappy_cli_t)
 
 # check stuff in /run/user
 userdom_search_user_tmp_dirs(snappy_cli_t)
+
+# execute snapd internal tools
+# needed to grab a version information from snap-seccomp
+can_exec(snappy_cli_t, snappy_exec_t)
 
 ########################################
 #
