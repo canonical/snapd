@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -141,9 +142,16 @@ func (x *savedCmd) Execute([]string) error {
 		i18n.G("Notes"))
 	for _, sg := range list {
 		for _, sh := range sg.Snapshots {
-			note := "-"
+			notes := []string{}
+			if sh.Auto {
+				notes = append(notes, "auto")
+			}
 			if sh.Broken != "" {
-				note = "broken: " + sh.Broken
+				notes = append(notes, "broken: "+sh.Broken)
+			}
+			note := "-"
+			if len(notes) > 0 {
+				note = strings.Join(notes, ", ")
 			}
 			size := fmtSize(sh.Size)
 			age := x.fmtDuration(sh.Time)

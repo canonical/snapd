@@ -177,7 +177,7 @@ copy_remote(){
 add_tty_chardev(){
     local CHARDEV_ID=$1
     local CHARDEV_PATH=$2
-    echo "chardev-add tty,path=$CHARDEV_PATH,id=$CHARDEV_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
+    echo "chardev-add file,path=$CHARDEV_PATH,id=$CHARDEV_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "chardev added"
 }
 
@@ -190,7 +190,8 @@ remove_chardev(){
 add_usb_serial_device(){
     local DEVICE_ID=$1
     local CHARDEV_ID=$2
-    echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
+    local SERIAL_NUM=$3
+    echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID,serial=$SERIAL_NUM" | nc -q 0 127.0.0.1 "$MON_PORT"
     echo "device added"
 }
 
