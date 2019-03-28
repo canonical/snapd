@@ -62,9 +62,9 @@ execute: |
         echo "Install sanity check snaps with it"
         snap install test-snapd-tools
         snap install test-snapd-auto-aliases
-        # transitional: drop the "snap pack" check once it's released
+
         do_classic=no
-        if is_classic_confinement_supported && snap pack --help >&/dev/null ; then
+        if is_classic_confinement_supported ; then
             install_local_classic test-snapd-classic-confinement
             do_classic=yes
             # preserve the state across reboots if necessary
