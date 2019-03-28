@@ -67,6 +67,10 @@ packages=git sbuild mc devscripts avahi-daemon ssh emacs-nox vim-nox rsync
 # Assumes that the target name ends with machine name, like below.
 remote=multipass exec $* --
 
+# URLs of openstack cloud images for our virtual machines.
+debian-9-url=https://cdimage.debian.org/mirror/cdimage/openstack/current-9/debian-9-openstack-amd64.qcow2
+debian-10-url=https://cdimage.debian.org/mirror/cdimage/openstack/testing/debian-testing-openstack-amd64.qcow2
+
 PHONY: help
 help:
 	@echo "Availale targets"
@@ -78,9 +82,6 @@ help:
 	@echo "Available names are: debian-9 debian-10"
 	@echo "NOTE: You must provide the source package yourself"
 	@echo "Please read the script for additional instructions."
-
-debian-9-url=https://cdimage.debian.org/mirror/cdimage/openstack/current-9/debian-9-openstack-amd64.qcow2
-debian-10-url=https://cdimage.debian.org/mirror/cdimage/openstack/testing/debian-testing-openstack-amd64.qcow2
 
 .PHONY: create-debian-9
 create-debian-9:
