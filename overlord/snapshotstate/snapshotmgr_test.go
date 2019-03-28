@@ -208,12 +208,12 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
 		c.Check(usernames, check.DeepEquals, []string{"a-user", "b-user"})
-		c.Check(auto, check.Equals, false)
+		c.Check(flags.Auto, check.Equals, false)
 		return nil, nil
 	})()
 
@@ -235,7 +235,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {
 		return nil, errors.New("bzzt")
 	})()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -262,7 +262,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -286,7 +286,7 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, errors.New("bzzt")
 	})()
 
@@ -315,7 +315,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
 		return nil, errors.New("bzzt")
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -346,7 +346,7 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 		buf := json.RawMessage(`"hello-there"`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 

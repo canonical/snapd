@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
+	snapshotbackend "github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -68,7 +69,7 @@ type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig   map[string]interface{}
 	Usernames    []string
-	Auto         bool
+	Flags        *snapshotbackend.Flags
 }
 
 type mgrsSuite struct {
@@ -140,8 +141,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
 	ms.automaticSnapshots = nil
-	restoreBackendSave := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, auto bool) (*client.Snapshot, error) {
-		ms.automaticSnapshots = append(ms.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Auto: auto})
+	restoreBackendSave := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *snapshotbackend.Flags) (*client.Snapshot, error) {
+		ms.automaticSnapshots = append(ms.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Flags: flags})
 		return nil, nil
 	})
 
@@ -400,7 +401,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(ms.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, true}})
+	c.Assert(ms.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, &snapshotbackend.Flags{Auto: true}}})
 }
 
 func fakeSnapID(name string) string {

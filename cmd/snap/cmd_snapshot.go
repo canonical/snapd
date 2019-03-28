@@ -21,8 +21,8 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -147,7 +147,7 @@ func (x *savedCmd) Execute([]string) error {
 				notes = append(notes, "auto")
 			}
 			if sh.Broken != "" {
-				notes = append(notes, "broken: " + sh.Broken)
+				notes = append(notes, "broken: "+sh.Broken)
 			}
 			note := "-"
 			if len(notes) > 0 {
