@@ -72,12 +72,4 @@ void sc_cleanup_invocation(sc_invocation *inv);
  **/
 void sc_apply_invocation_fallback(sc_invocation *inv);
 
-/**
- * sc_effective_base_snap_name returns the name of the base snap to use.
- *
- * The returned value may be the vanilla base snap, or, in case of
- * a fallback, another snap name that offers equivalent content.
- **/
-const char *sc_effective_base_snap_name(const sc_invocation *inv);
-
 #endif
