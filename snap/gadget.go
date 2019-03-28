@@ -244,7 +244,7 @@ func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	u, err := strconv.ParseUint(es, 10, 32)
 	if err != nil {
-		return fmt.Errorf(`"edition" must be a number, not %q`, es)
+		return fmt.Errorf(`"edition" must be a positive number, not %q`, es)
 	}
 	*e = editionNumber(u)
 	return nil

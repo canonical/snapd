@@ -1,5 +1,3 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -16,20 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package selinux
+#ifndef SNAP_CONFINE_SELINUX_SUPPORT_H
+#define SNAP_CONFINE_SELINUX_SUPPORT_H
 
-// VerifyPathContext checks whether a given path is labeled according to its default
-// SELinux context
-func VerifyPathContext(aPath string) (bool, error) {
-	return true, nil
-}
+/**
+ * Set security context for the snap
+ *
+ * Sets up SELinux context transition to unconfined_service_t.
+ **/
+int sc_selinux_set_snap_execcon(void);
 
-// RestoreContext restores the default SELinux context of given path
-func RestoreContext(aPath string, mode RestoreMode) error {
-	return nil
-}
-
-// SnapMountContext finds out the right context for mounting snaps
-func SnapMountContext() string {
-	return ""
-}
+#endif /* SNAP_CONFINE_SELINUX_SUPPORT_H */

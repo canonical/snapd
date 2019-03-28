@@ -48,6 +48,9 @@
 #include "snap-confine-invocation.h"
 #include "udev-support.h"
 #include "user-support.h"
+#ifdef HAVE_SELINUX
+#include "selinux-support.h"
+#endif
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -96,6 +99,40 @@ static void sc_maybe_fixup_udev(void)
 	}
 }
 
+/**
+ * sc_preserved_process_state remembers clobbered state to restore.
+ *
+ * The umask is preserved and restored to ensure consistent permissions for
+ * runtime system. The value is preserved and restored perfectly.
+**/
+typedef struct sc_preserved_process_state {
+	mode_t orig_umask;
+} sc_preserved_process_state;
+
+/**
+ * sc_preserve_and_sanitize_process_state sanitizes process state.
+ *
+ * The original values are stored to be restored later. Currently only the
+ * umask is altered. It is set to zero to make the ownership of created files
+ * and directories more predictable.
+**/
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * proc_state)
+{
+	/* Reset umask to zero, storing the old value. */
+	proc_state->orig_umask = umask(0);
+	debug("umask reset, old umask was %#4o", proc_state->orig_umask);
+}
+
+/**
+ *  sc_restore_process_state restores values stored earlier.
+**/
+static void sc_restore_process_state(const sc_preserved_process_state *
+				     proc_state)
+{
+	umask(proc_state->orig_umask);
+	debug("umask restored to %#4o", proc_state->orig_umask);
+}
+
 static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    struct sc_apparmor *aa,
@@ -108,8 +145,14 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
+	sc_preserved_process_state proc_state;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
+
+	// Remember certain properties of the process that are clobbered by
+	// snap-confine during execution. Those are restored just before calling
+	// execv.
+	sc_preserve_and_sanitize_process_state(&proc_state);
 
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
@@ -207,6 +250,10 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
+#ifdef HAVE_SELINUX
+	// For classic and confined snaps
+	sc_selinux_set_snap_execcon();
+#endif
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
@@ -237,6 +284,8 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
+	// Restore process state that was recorded earlier.
+	sc_restore_process_state(&proc_state);
 	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
