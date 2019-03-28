@@ -297,9 +297,9 @@ func profileGlobs(snapName string) []string {
 // or created by the administrator). snap-confine profiles are like the
 // following:
 // - usr.lib.snapd.snap-confine.real
-// - usr.lib.snapd.snap-confine
-// - snap.core.NNNN.usr.lib.snapd.snap-confine
-// - var.lib.snapd.snap.core.NNNN.usr.lib.snapd.snap-confine
+// - usr.lib.snapd.snap-confine (historic)
+// - snap.core.NNNN.usr.lib.snapd.snap-confine (historic)
+// - var.lib.snapd.snap.core.NNNN.usr.lib.snapd.snap-confine (historic)
 // - snap-confine.core.NNNN
 // - snap-confine.snapd.NNNN
 func profileIsRemovableOnCoreSetup(fn string) bool {
