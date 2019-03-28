@@ -111,7 +111,7 @@ static void test_sc_is_hook_security_tag(void)
 
 static void test_sc_snap_or_instance_name_validate(gconstpointer data)
 {
-	typedef void (*validate_func_t) (const char *, struct sc_error **);
+	typedef void (*validate_func_t)(const char *, struct sc_error **);
 
 	validate_func_t validate = (validate_func_t) data;
 	bool is_instance =
@@ -530,7 +530,7 @@ static void test_sc_snap_split_instance_name_basic(void)
 	g_assert_cmpstr(instance, ==, "");
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/snap/verify_security_tag", test_verify_security_tag);
 	g_test_add_func("/snap/sc_is_hook_security_tag",
