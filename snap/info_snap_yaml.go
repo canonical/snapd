@@ -34,24 +34,25 @@ import (
 )
 
 type snapYaml struct {
-	Name          string                 `yaml:"name"`
-	Version       string                 `yaml:"version"`
-	Type          Type                   `yaml:"type"`
-	Architectures []string               `yaml:"architectures,omitempty"`
-	Assumes       []string               `yaml:"assumes"`
-	Title         string                 `yaml:"title"`
-	Description   string                 `yaml:"description"`
-	Summary       string                 `yaml:"summary"`
-	License       string                 `yaml:"license,omitempty"`
-	Epoch         Epoch                  `yaml:"epoch,omitempty"`
-	Base          string                 `yaml:"base,omitempty"`
-	Confinement   ConfinementType        `yaml:"confinement,omitempty"`
-	Environment   strutil.OrderedMap     `yaml:"environment,omitempty"`
-	Plugs         map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots         map[string]interface{} `yaml:"slots,omitempty"`
-	Apps          map[string]appYaml     `yaml:"apps,omitempty"`
-	Hooks         map[string]hookYaml    `yaml:"hooks,omitempty"`
-	Layout        map[string]layoutYaml  `yaml:"layout,omitempty"`
+	Name            string                 `yaml:"name"`
+	Version         string                 `yaml:"version"`
+	Type            Type                   `yaml:"type"`
+	Architectures   []string               `yaml:"architectures,omitempty"`
+	Assumes         []string               `yaml:"assumes"`
+	Title           string                 `yaml:"title"`
+	Description     string                 `yaml:"description"`
+	Summary         string                 `yaml:"summary"`
+	License         string                 `yaml:"license,omitempty"`
+	Epoch           Epoch                  `yaml:"epoch,omitempty"`
+	Base            string                 `yaml:"base,omitempty"`
+	Confinement     ConfinementType        `yaml:"confinement,omitempty"`
+	Environment     strutil.OrderedMap     `yaml:"environment,omitempty"`
+	Plugs           map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots           map[string]interface{} `yaml:"slots,omitempty"`
+	Apps            map[string]appYaml     `yaml:"apps,omitempty"`
+	Hooks           map[string]hookYaml    `yaml:"hooks,omitempty"`
+	Layout          map[string]layoutYaml  `yaml:"layout,omitempty"`
+	SystemGlobalIDs []string               `yaml:"system-global-ids,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -214,6 +215,10 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if len(y.Architectures) != 0 {
 		architectures = y.Architectures
 	}
+	systemGlobalIDs := []string{}
+	if len(y.SystemGlobalIDs) > 0 {
+		systemGlobalIDs = y.SystemGlobalIDs
+	}
 	typ := TypeApp
 	if y.Type != "" {
 		typ = y.Type
@@ -254,6 +259,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
 		Environment:         y.Environment,
+		SystemGlobalIDs:     systemGlobalIDs,
 	}
 
 	sort.Strings(snap.Assumes)

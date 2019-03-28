@@ -45,6 +45,13 @@ var featureSet = map[string]bool{
 	"command-chain": true,
 }
 
+// supportedSystemGlobalIDs for now contains the hardcoded list of system
+// users (and implied system group of same name) that snaps may specify
+// https://forum.snapcraft.io/t/phase-1-of-opt-in-per-snap-users-groups-aka-the-daemon-user/10624
+var supportedSystemGlobalIDs = map[string]bool{
+	"daemon": true,
+}
+
 func checkAssumes(si *snap.Info) error {
 	missing := ([]string)(nil)
 	for _, flag := range si.Assumes {
@@ -189,6 +196,12 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 
 	// check assumes
 	if err := checkAssumes(info); err != nil {
+		return err
+	}
+
+	// check system-global-ids. TODO: decide if this should be assumes or
+	// something else
+	if err := checkSystemGlobalIDs(info); err != nil {
 		return err
 	}
 
@@ -401,6 +414,19 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	}
 
 	return checkEpochs(nil, info, cur, Flags{})
+}
+
+// check that the listed system global ids are valid
+func checkSystemGlobalIDs(si *snap.Info) error {
+	if len(si.SystemGlobalIDs) == 0 {
+		return nil
+	}
+	for _, id := range si.SystemGlobalIDs {
+		if !supportedSystemGlobalIDs[id] {
+			return fmt.Errorf(`Unsupported system global id "%s"`, id)
+		}
+	}
+	return nil
 }
 
 func init() {

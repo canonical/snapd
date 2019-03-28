@@ -821,3 +821,47 @@ func (s *checkSnapSuite) TestCheckSnapCheckEpochNonLocal(c *C) {
 	err := snapstate.CheckSnap(s.st, "snap-path", "foo", si, &snap.Info{}, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot refresh "foo" to new revision 42 with epoch 13, because it can't read the current epoch of 0`)
 }
+
+var systemGlobalIDsTests = []struct {
+	sysIDs  string
+	classic bool
+	error   string
+}{{
+	sysIDs: "[daemon]",
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+}, {
+	sysIDs: "[daemon, nonexistent]",
+	error:  `Unsupported system global id "nonexistent"`,
+}, {
+	sysIDs:  "[nonexistent, daemon]",
+	classic: true,
+	error:   `Unsupported system global id "nonexistent"`,
+}}
+
+func (s *checkSnapSuite) TestCheckSnapSystemGlobalIDs(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	for _, test := range systemGlobalIDsTests {
+		release.OnClassic = test.classic
+
+		yaml := fmt.Sprintf("name: foo\nsystem-global-ids: %s\n", test.sysIDs)
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{})
+		if test.error != "" {
+			c.Check(err, ErrorMatches, test.error)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
