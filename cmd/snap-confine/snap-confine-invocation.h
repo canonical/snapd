@@ -30,12 +30,12 @@
 typedef struct sc_invocation {
     /* Things declared by the system. */
     char *snap_instance;
-    char *base_snap_name;
     char *orig_base_snap_name;
     char *security_tag;
     char *executable;
     bool classic_confinement;
     /* Things derived at runtime. */
+    char *base_snap_name;
     bool is_normal_mode;
 } sc_invocation;
 
