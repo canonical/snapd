@@ -59,14 +59,15 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
     echo "Undo the service disable"
     if [ "$SERVICE" = ssh ]; then
         rm -f /etc/ssh/sshd_not_to_be_run
     else
         systemctl unmask "$SERVICE.service" || true
-        systemctl enable "$SERVICE.service" || true
-        systemctl start "$SERVICE.service" || true
     fi
+    systemctl enable "$SERVICE.service" || true
+    systemctl start "$SERVICE.service" || true
 
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
@@ -129,6 +130,7 @@ execute: |
     if [ "$SERVICE" = ssh ]; then
         echo "And the ssh service is disabled"
         MATCH "SSH has been disabled by snapd system configuration" < /etc/ssh/sshd_not_to_be_run
+        systemctl status "$SERVICE.service" | MATCH inactive
     else
         echo "And the service is masked"
         systemctl status "$SERVICE.service" | MATCH masked
