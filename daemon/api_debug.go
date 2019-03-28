@@ -84,23 +84,56 @@ func checkConnectivity(st *state.State) Response {
 	return SyncResponse(status, nil)
 }
 
-func getTimings(st *state.State) Response {
-	var timings []timings.RootTimingsJson
-	st.Get("timings", &timings)
-	// attach doing-time and undoing-time to tags of all task timings, if available
-	for _, tm := range timings {
-		if taskID, ok := tm.Tags["task-id"]; ok {
-			task := st.Task(taskID)
-			if task == nil {
-				continue
+type changeTimings struct {
+	DoingTime      time.Duration         `json:"doing-time,omitempty"`
+	UndoingTime    time.Duration         `json:"undoing-time,omitempty"`
+	DoingTimings   []*timings.TimingJson `json:"doing-timings,omitempty"`
+	UndoingTimings []*timings.TimingJson `json:"undoing-timings,omitempty"`
+}
+
+func getChangeTimings(st *state.State, changeID string) Response {
+	chg := st.Change(changeID)
+	if chg == nil {
+		return BadRequest("cannot find change: %v", changeID)
+	}
+
+	// lookup for filtering tasks from "timings"
+	changeTasks := make(map[string]bool)
+	for _, t := range chg.Tasks() {
+		changeTasks[t.ID()] = true
+	}
+
+	doingTimingsByTask := make(map[string][]*timings.TimingJson)
+	undoingTimingsByTask := make(map[string][]*timings.TimingJson)
+
+	// collect "timings" for task of given change
+	var stateTimings []timings.RootTimingsJson
+	st.Get("timings", &stateTimings)
+	for _, tm := range stateTimings {
+		if taskID, ok := tm.Tags["task-id"]; ok && changeTasks[taskID] {
+			if status, ok := tm.Tags["task-status"]; ok {
+				switch {
+				case status == state.DoingStatus.String():
+					doingTimingsByTask[taskID] = tm.NestedTimings
+				case status == state.UndoingStatus.String():
+					undoingTimingsByTask[taskID] = tm.NestedTimings
+				default:
+					return InternalError("unexpected task status %q for timing of task %s", status, taskID)
+				}
 			}
-			tm.Tags["doing-time"] = task.DoingTime().String()
-			tm.Tags["undoing-time"] = task.UndoingTime().String()
 		}
 	}
-	return SyncResponse(map[string]interface{}{
-		"timings": timings,
-	}, nil)
+
+	m := map[string]*changeTimings{}
+	for _, t := range chg.Tasks() {
+		m[t.ID()] = &changeTimings{
+			DoingTime:      t.DoingTime(),
+			UndoingTime:    t.UndoingTime(),
+			DoingTimings:   doingTimingsByTask[t.ID()],
+			UndoingTimings: undoingTimingsByTask[t.ID()],
+		}
+	}
+	return SyncResponse(m, nil)
 }
 
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -156,24 +189,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "connectivity":
 		return checkConnectivity(st)
 	case "change-timings":
-		chg := st.Change(a.Params.ChgID)
-		if chg == nil {
-			return BadRequest("cannot find change: %v", a.Message)
-		}
-		m := map[string]struct {
-			DoingTime, UndoingTime time.Duration
-		}{}
-		for _, t := range chg.Tasks() {
-			m[t.ID()] = struct {
-				DoingTime, UndoingTime time.Duration
-			}{
-				DoingTime:   t.DoingTime(),
-				UndoingTime: t.UndoingTime(),
-			}
-		}
-		return SyncResponse(m, nil)
-	case "timings":
-		return getTimings(st)
+		return getChangeTimings(st, a.Params.ChgID)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
