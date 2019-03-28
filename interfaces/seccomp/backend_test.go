@@ -725,3 +725,43 @@ func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
 	err := s.Backend.Initialize()
 	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
 }
+
+func (s *backendSuite) TestSystemGlobalIDsPolicy(c *C) {
+	snapYaml := `
+name: app
+version: 0.1
+system-global-ids:
+- testid
+apps:
+  cmd:
+`
+	snapInfo := snaptest.MockInfo(c, snapYaml, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
+	data, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		// NOTE: a few randomly picked lines from the real profile.  Comments
+		// and empty lines are avoided as those can be discarded in the future.
+		"# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
+		"open\n",
+		"getuid\n",
+		"setgroups 0 0\n",
+		// and a few randomly picked lines from root syscalls
+		"# allow setresgid to 0\n",
+		"# allow setresuid to 0\n",
+		"setresuid 0 0 0\n",
+		// and a few randomly picked lines from global id syscalls
+		"# allow setresgid to testid\n",
+		"# allow setresuid to testid\n",
+		"setresuid -1 u:testid -1\n",
+	} {
+		c.Assert(string(data), testutil.Contains, line)
+	}
+
+	// make sure the bare syscalls aren't present
+	c.Assert(string(data), Not(testutil.Contains), "setresuid\n")
+}

@@ -67,8 +67,9 @@ chmod
 fchmod
 fchmodat
 
-# snappy doesn't currently support per-app UID/GIDs. All daemons run as 'root'
-# so allow chown to 'root'. DAC will prevent non-root from chowning to root.
+# Daemons typically run as 'root' so allow chown to 'root'. DAC will prevent
+# non-root from chowning to root.
+# (chown root:root)
 chown - u:root g:root
 chown32 - u:root g:root
 fchown - u:root g:root
@@ -76,6 +77,22 @@ fchown32 - u:root g:root
 fchownat - - u:root g:root
 lchown - u:root g:root
 lchown32 - u:root g:root
+# (chown root)
+chown - u:root -1
+chown32 - u:root -1
+fchown - u:root -1
+fchown32 - u:root -1
+fchownat - - u:root -1
+lchown - u:root -1
+lchown32 - u:root -1
+# (chgrp root)
+chown - -1 g:root
+chown32 - -1 g:root
+fchown - -1 g:root
+fchown32 - -1 g:root
+fchownat - - -1 g:root
+lchown - -1 g:root
+lchown32 - -1 g:root
 
 clock_getres
 clock_gettime
