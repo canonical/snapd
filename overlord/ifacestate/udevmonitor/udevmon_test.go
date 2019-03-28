@@ -90,6 +90,7 @@ E: MINOR=3
 E: MAJOR=0
 E: DEVNAME=ghi
 E: DEVTYPE=bzz
+__END__
 `)
 	defer cmd.Restore()
 
