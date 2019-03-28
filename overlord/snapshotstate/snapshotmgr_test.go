@@ -94,9 +94,13 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("snapshots-expiry", map[uint64]interface{}{
-		1: "2001-03-11T11:24:00Z",
-		2: "2037-02-12T12:50:00Z",
+	st.Set("snapshots", map[uint64]interface{}{
+		1: map[string]interface{}{
+			"expiry": "2001-03-11T11:24:00Z",
+		},
+		2: map[string]interface{}{
+			"expiry": "2037-02-12T12:50:00Z",
+		},
 	})
 
 	st.Unlock()
@@ -105,8 +109,11 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 
 	// verify expired snapshots were removed
 	var expirations map[uint64]interface{}
-	c.Assert(st.Get("snapshots-expiry", &expirations), check.IsNil)
-	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{2: "2037-02-12T12:50:00Z"})
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		2: map[string]interface{}{
+			"expiry": "2037-02-12T12:50:00Z",
+		}})
 	c.Check(removedSnapshot, check.Matches, ".*/foo.zip")
 }
 
@@ -129,7 +136,9 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("snapshots-expiry", map[uint64]interface{}{1: "2001-03-11T11:24:00Z"})
+	st.Set("snapshots", map[uint64]interface{}{1: map[string]interface{}{
+		"expiry": "2001-03-11T11:24:00Z",
+	}})
 
 	chg := st.NewChange("snapshot-change", "...")
 	tsk := st.NewTask(snapshotTaskKind, "...")
@@ -142,10 +151,11 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	st.Lock()
 
 	var expirations map[uint64]interface{}
-	c.Assert(st.Get("snapshots-expiry", &expirations), check.IsNil)
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
-		1: "2001-03-11T11:24:00Z",
-	})
+		1: map[string]interface{}{
+			"expiry": "2001-03-11T11:24:00Z",
+		}})
 	c.Check(removeCalled, check.Equals, 0)
 
 	// sanity check of the test setup: snapshot gets removed once conflict goes away
@@ -155,7 +165,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	st.Lock()
 
 	expirations = nil
-	c.Assert(st.Get("snapshots-expiry", &expirations), check.IsNil)
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(removeCalled, check.Equals, 1)
 	c.Check(expirations, check.HasLen, 0)
 }

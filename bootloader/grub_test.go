@@ -17,7 +17,7 @@
  *
  */
 
-package partition
+package bootloader
 
 import (
 	"fmt"
@@ -96,7 +96,7 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	bootloader, err := FindBootloader()
+	bootloader, err := Find()
 	c.Assert(err, IsNil)
 	c.Assert(bootloader, FitsTypeOf, &grub{})
 }

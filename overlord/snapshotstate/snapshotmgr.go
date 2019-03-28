@@ -68,7 +68,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddCleanup("restore-snapshot", cleanupRestore)
 
 	manager := &SnapshotManager{
-		state:                         st,
+		state: st,
 	}
 	snapstate.AddAffectedSnapsByAttr("snapshot-setup", manager.affectedSnaps)
 
@@ -119,7 +119,7 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 			}
 		}
 	}
-	if err := removeExpirations(mgr.state, sets...); err != nil {
+	if err := removeSnapshotState(mgr.state, sets...); err != nil {
 		return fmt.Errorf("internal error: cannot remove snapshot exiration times: %v", err)
 	}
 	return nil

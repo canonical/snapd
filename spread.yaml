@@ -85,18 +85,19 @@ backends:
                 # golang stack cannot compile anything, needs investigation
                 manual: true
             - opensuse-15.0-64:
-                workers: 4
+                workers: 6
+                manual: true
             - opensuse-tumbleweed-64:
-                workers: 4
+                workers: 6
             - arch-linux-64:
-                workers: 4
+                workers: 6
 
             - amazon-linux-2-64:
-                workers: 4
+                workers: 6
                 storage: preserve-size
 
             - centos-7-64:
-                workers: 4
+                workers: 6
                 image: centos-7-64
 
     google-upgrade:
@@ -515,6 +516,8 @@ prepare: |
         systemctl enable --now auditd.service
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # refresh metadatadata
+        zypper ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
