@@ -36,9 +36,7 @@ patch_selinux_mount_context() {
     fi
     context_opt="context=$selinux_mount_context"
 
-    units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
-    # *.snap mount points
-    mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
+    mounts=$(systemctl list-unit-files --no-legend --full "$SNAP_UNIT_PREFIX-*.mount" | cut -f1 -d ' ' || true)
     changed_mounts=
     for unit in $mounts; do
         # ensure its really a snap mount unit or systemd unit
