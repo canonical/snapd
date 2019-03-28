@@ -92,12 +92,21 @@ void sc_apply_invocation_fallback(sc_invocation *inv) {
     char mount_point[PATH_MAX] = {0};
     sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, inv->base_snap_name);
 
-    if (sc_streq(inv->base_snap_name, "core") && access(mount_point, F_OK) != 0) {
+    if (access(mount_point, F_OK) == 0) {
+        return;
+    }
+    /* The mount point is missing but for some snaps we may have an alternative. */
+    if (sc_streq(inv->base_snap_name, "core")) {
+        /* For "core" we can still use the ubuntu-core snap. This is helpful in
+         * the migration path when new snap-confine runs before snapd has
+         * finished obtaining the core snap. */
         sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, "ubuntu-core");
         if (access(mount_point, F_OK) == 0) {
             sc_cleanup_string(&inv->base_snap_name);
             inv->base_snap_name = sc_strdup("ubuntu-core");
             debug("falling back to ubuntu-core instead of unavailable core snap");
+            return;
         }
     }
+    die("cannot proceed without base snap %s", inv->base_snap_name);
 }
