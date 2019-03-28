@@ -1125,12 +1125,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q := s.defaultSnapQuery()
 
 	if search.Private {
-		if search.Prefix {
-			// The store only supports "fuzzy" search for private snaps.
-			// See http://search.apps.ubuntu.com/docs/
-			return nil, ErrBadQuery
-		}
-
 		q.Set("private", "true")
 	}
 
