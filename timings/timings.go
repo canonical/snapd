@@ -80,8 +80,8 @@ func New(tags map[string]string) *Timings {
 	}
 }
 
-// SetTag sets a tag on the Timings object.
-func (t *Timings) SetTag(tag, value string) {
+// AddTag sets a tag on the Timings object.
+func (t *Timings) AddTag(tag, value string) {
 	if t.tags == nil {
 		t.tags = make(map[string]string)
 	}
