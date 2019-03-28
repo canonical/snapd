@@ -6,9 +6,6 @@ priority: 500
 systems: [debian-sid-*]
 
 execute: |
-    echo "Ensure we have sbuild"
-    apt install -y sbuild eatmydata
-
     echo "Create a sid sbuild env"
     eatmydata sbuild-createchroot --include=eatmydata,ccache,gnupg sid /srv/chroot/sid-amd64-sbuild http://deb.debian.org/debian
 
@@ -19,3 +16,7 @@ execute: |
     su -c "sbuild -d sid --run-autopkgtest $SPREAD_PATH/../*.dsc" test
     echo "..and now just 'arch: any'"
     su -c "sbuild --arch-any -d sid --run-autopkgtest $SPREAD_PATH/../*.dsc" test
+
+restore: |
+    rm --recursive --one-file-system /srv/chroot/sid-amd64-sbuild
+    rm -f /etc/schroot/chroot.d/sid-amd64-sbuild-*
