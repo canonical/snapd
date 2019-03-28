@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -653,6 +653,28 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 		return results, fmt.Errorf("while creating users:%s", buf.Bytes())
 	}
 	return results, nil
+}
+
+// RemoveUserOptions holds options for removing a local system user.
+type RemoveUserOptions struct {
+	Username string `json:"username,omitempty"`
+}
+
+// RemoveUser removes a local system user.
+func (client *Client) RemoveUser(options *RemoveUserOptions) error {
+	if options.Username == "" {
+		return fmt.Errorf("cannot remove a user without providing an username")
+	}
+
+	data, err := json.Marshal(options)
+	if err != nil {
+		return err
+	}
+
+	if _, err := client.doSync("POST", "/v2/remove-user", nil, nil, bytes.NewReader(data), nil); err != nil {
+		return fmt.Errorf("while removing user: %v", err)
+	}
+	return nil
 }
 
 // Users returns the local users.

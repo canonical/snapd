@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -132,6 +132,40 @@ func AddUser(name string, opts *AddUserOptions) error {
 	authKeysContent := strings.Join(opts.SSHKeys, "\n")
 	if err := AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, 0, uid, gid); err != nil {
 		return fmt.Errorf("cannot write %s: %s", authKeys, err)
+	}
+
+	return nil
+}
+
+type UserDelOptions struct {
+	Force     bool
+	Remove    bool
+	ExtraUser bool
+}
+
+func UserDel(name string, opts *UserDelOptions) error {
+	_, err := userLookup(name)
+	if err != nil {
+		return fmt.Errorf("cannot find user %q: %s", name, err)
+	}
+
+	cmdStr := []string{
+		"userdel",
+	}
+	if opts.Force {
+		cmdStr = append(cmdStr, "--force")
+	}
+	if opts.Remove {
+		cmdStr = append(cmdStr, "--remove")
+	}
+	if opts.ExtraUser {
+		cmdStr = append(cmdStr, "--extrauser")
+	}
+	cmdStr = append(cmdStr, name)
+
+	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("userdel failed with: %s", OutputErr(output, err))
 	}
 
 	return nil

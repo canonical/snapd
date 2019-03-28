@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,6 +39,7 @@ type createUserSuite struct {
 	restorer func()
 
 	mockAddUser *testutil.MockCmd
+	mockUserDel *testutil.MockCmd
 	mockUserMod *testutil.MockCmd
 	mockPasswd  *testutil.MockCmd
 }
@@ -59,6 +60,7 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 		}, nil
 	})
 	s.mockAddUser = testutil.MockCommand(c, "adduser", "")
+	s.mockUserDel = testutil.MockCommand(c, "userdel", "")
 	s.mockUserMod = testutil.MockCommand(c, "usermod", "")
 	s.mockPasswd = testutil.MockCommand(c, "passwd", "")
 }
@@ -66,6 +68,7 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 func (s *createUserSuite) TearDownTest(c *check.C) {
 	s.restorer()
 	s.mockAddUser.Restore()
+	s.mockUserDel.Restore()
 	s.mockUserMod.Restore()
 	s.mockPasswd.Restore()
 }
@@ -187,6 +190,28 @@ func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
 		ForcePasswordChange: true,
 	})
 	c.Assert(err, check.ErrorMatches, `cannot force password change when no password is provided`)
+}
+
+func (s *createUserSuite) TestUserDelExtraUsersFalse(c *check.C) {
+	err := osutil.UserDel("lakatos", &osutil.UserDelOptions{
+		ExtraUser: false,
+	})
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockUserDel.Calls(), check.DeepEquals, [][]string{
+		{"userdel", "lakatos"},
+	})
+}
+
+func (s *createUserSuite) TestUserDelExtraUsersTrue(c *check.C) {
+	err := osutil.UserDel("lakatos", &osutil.UserDelOptions{
+		ExtraUser: true,
+	})
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockUserDel.Calls(), check.DeepEquals, [][]string{
+		{"userdel", "--extrauser", "lakatos"},
+	})
 }
 
 func (s *createUserSuite) TestRealUser(c *check.C) {

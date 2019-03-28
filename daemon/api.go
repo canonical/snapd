@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -89,6 +89,7 @@ var api = []*Command{
 	stateChangeCmd,
 	stateChangesCmd,
 	createUserCmd,
+	removeUserCmd,
 	buyCmd,
 	readyToBuyCmd,
 	snapctlCmd,
@@ -201,6 +202,11 @@ var (
 	createUserCmd = &Command{
 		Path: "/v2/create-user",
 		POST: postCreateUser,
+	}
+
+	removeUserCmd = &Command{
+		Path: "/v2/remove-user",
+		POST: postRemoveUser,
 	}
 
 	buyCmd = &Command{
@@ -2099,9 +2105,11 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 
 var (
 	postCreateUserUcrednetGet = ucrednetGet
+	postRemoveUserUcrednetGet = ucrednetGet
 	runSnapctlUcrednetGet     = ucrednetGet
 	ctlcmdRun                 = ctlcmd.Run
 	osutilAddUser             = osutil.AddUser
+	osutilUserDel             = osutil.UserDel
 )
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
@@ -2350,6 +2358,80 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
 	}, nil)
+}
+
+type postUserRemoveData struct {
+	Username string `json:"username"`
+}
+
+func postRemoveUser(c *Command, r *http.Request, user *auth.UserState) Response {
+	_, uid, _, err := postRemoveUserUcrednetGet(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use remove-user as non-root")
+	}
+
+	var removeData postUserRemoveData
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&removeData); err != nil {
+		return BadRequest("cannot decode remove-user data from request body: %v", err)
+	}
+
+	// verify request
+	st := c.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get user count: %s", err)
+	}
+
+	username := removeData.Username
+	if username == "" {
+		return BadRequest("cannot remove user: 'username' field is empty")
+	}
+
+	// check if user can be removed
+	if _, err := userLookup(username); err != nil {
+		return BadRequest("cannot remove user %s: %s", username, err)
+	}
+	id, err := getUserID(username, users)
+	if err != nil {
+		return BadRequest("cannot remove user %s: user is a system user", username)
+	}
+
+	// TODO: check options
+	opts := &osutil.UserDelOptions{
+		Force:     false,
+		Remove:    true,
+		ExtraUser: !release.OnClassic,
+	}
+
+	// Remove user from system
+	if err := osutilUserDel(username, opts); err != nil {
+		return BadRequest("cannot remove user %s: %s", username, err)
+	}
+	// Remove user from state
+	st.Lock()
+	err = auth.RemoveUser(st, id)
+	st.Unlock()
+	if err != nil {
+		return BadRequest("cannot remove user %s from state: %s", username, err)
+	}
+
+	return SyncResponse(nil, nil)
+}
+
+func getUserID(username string, users []*auth.UserState) (int, error) {
+	for _, u := range users {
+		if username == u.Username {
+			return u.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("username %s not found", username)
 }
 
 func convertBuyError(err error) Response {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -513,6 +513,24 @@ func (cs *clientSuite) TestClientCreateUsers(c *C) {
 
 		c.Assert(bodies, DeepEquals, test.bodies)
 	}
+}
+
+func (cs *clientSuite) TestClientRemoveUser(c *C) {
+	err := cs.cli.RemoveUser(&client.RemoveUserOptions{})
+	c.Assert(err, ErrorMatches, "cannot remove a user without providing an username")
+
+	cs.rsp = `{
+		"type": "sync",
+		"result": {}
+	}`
+	err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "karl"})
+	c.Assert(cs.req.Method, Equals, "POST")
+	c.Assert(cs.req.URL.Path, Equals, "/v2/remove-user")
+	c.Assert(err, IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, `{"username":"karl"}`)
 }
 
 func (cs *clientSuite) TestClientJSONError(c *C) {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -6116,6 +6116,167 @@ func (s *postCreateUserSuite) TestSysInfoWorksDegraded(c *check.C) {
 
 	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
+}
+
+// remove user
+
+var _ = check.Suite(&postRemoveUserSuite{})
+
+type postRemoveUserSuite struct {
+	apiBaseSuite
+
+	mockUserHome string
+}
+
+func (s *postRemoveUserSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.daemon(c)
+	postRemoveUserUcrednetGet = func(string) (int32, uint32, string, error) {
+		return 100, 0, dirs.SnapdSocket, nil
+	}
+	s.mockUserHome = c.MkDir()
+	userLookup = mkUserLookup(s.mockUserHome)
+}
+
+func (s *postRemoveUserSuite) TearDownTest(c *check.C) {
+	s.apiBaseSuite.TearDownTest(c)
+
+	postRemoveUserUcrednetGet = ucrednetGet
+	userLookup = user.Lookup
+	osutilUserDel = osutil.UserDel
+}
+
+func (s *postRemoveUserSuite) TestPostRemoveUser(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	osutilUserDel = func(username string, opts *osutil.UserDelOptions) error {
+		c.Check(username, check.Equals, "karl")
+		c.Check(opts.Force, check.Equals, false)
+		c.Check(opts.Remove, check.Equals, true)
+		c.Check(opts.ExtraUser, check.Equals, true)
+		return nil
+	}
+	defer func() {
+		osutilUserDel = osutil.UserDel
+	}()
+
+	// add user to state
+	st := s.d.overlord.State()
+	st.Lock()
+	u, err := auth.NewUser(st, "karl", "popper@lse.ac.uk", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	buf := bytes.NewBufferString(`{"username": "karl"}`)
+	req, err := http.NewRequest("POST", "/v2/remove-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postRemoveUser(removeUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.IsNil)
+
+	// user was removed from state
+	state := s.d.overlord.State()
+	state.Lock()
+	_, err = auth.User(state, u.ID)
+	state.Unlock()
+	c.Check(err, check.ErrorMatches, "invalid user")
+}
+
+func (s *postRemoveUserSuite) TestPostRemoveUserEmpty(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	buf := bytes.NewBufferString(`{"username": ""}`)
+	req, err := http.NewRequest("POST", "/v2/remove-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postRemoveUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot remove user: 'username' field is empty")
+}
+
+func (s *postRemoveUserSuite) TestPostRemoveUserUnknown(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	userLookup = func(username string) (*user.User, error) {
+		return nil, fmt.Errorf("unknown user")
+	}
+	defer func() {
+		userLookup = user.Lookup
+	}()
+
+	buf := bytes.NewBufferString(`{"username": "karl"}`)
+	req, err := http.NewRequest("POST", "/v2/remove-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postRemoveUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot remove user karl: unknown user")
+}
+
+func (s *postRemoveUserSuite) TestPostRemoveUserSystem(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	userLookup = func(username string) (*user.User, error) {
+		user := &user.User{
+			Uid:      "1",
+			Gid:      "1",
+			Username: "daemon",
+		}
+		return user, nil
+	}
+	defer func() {
+		userLookup = user.Lookup
+	}()
+
+	buf := bytes.NewBufferString(`{"username": "daemon"}`)
+	req, err := http.NewRequest("POST", "/v2/remove-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postRemoveUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot remove user daemon: user is a system user")
+}
+
+func (s *postRemoveUserSuite) TestPostRemoveUserError(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	osutilUserDel = func(username string, opts *osutil.UserDelOptions) error {
+		c.Check(username, check.Equals, "karl")
+		c.Check(opts.Force, check.Equals, false)
+		c.Check(opts.Remove, check.Equals, true)
+		c.Check(opts.ExtraUser, check.Equals, true)
+		return fmt.Errorf("something wrong happened")
+	}
+	defer func() {
+		osutilUserDel = osutil.UserDel
+	}()
+
+	// add user to state
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "karl", "popper@lse.ac.uk", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	buf := bytes.NewBufferString(`{"username": "karl"}`)
+	req, err := http.NewRequest("POST", "/v2/remove-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postRemoveUser(removeUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot remove user karl: something wrong happened")
 }
 
 // aliases
