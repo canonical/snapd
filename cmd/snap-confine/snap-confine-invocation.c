@@ -80,7 +80,7 @@ void sc_cleanup_invocation(sc_invocation *inv) {
     if (inv != NULL) {
         sc_cleanup_string(&inv->snap_instance);
         sc_cleanup_string(&inv->base_snap_name);
-		sc_cleanup_string(&inv->fallback_base_snap_name);
+        sc_cleanup_string(&inv->fallback_base_snap_name);
         sc_cleanup_string(&inv->security_tag);
         sc_cleanup_string(&inv->executable);
     }
