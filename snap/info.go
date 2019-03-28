@@ -254,6 +254,10 @@ type Info struct {
 
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
+
+	// List of system users (usernames) this snap may use. The group
+	// of the same name must also exist.
+	SystemUsernames map[string]*UsernameInfo
 }
 
 // StoreAccount holds information about a store account, for example
@@ -771,6 +775,12 @@ type MediaInfo struct {
 }
 
 type MediaInfos []MediaInfo
+
+type UsernameInfo struct {
+	Name  string
+	Scope string
+	Attrs map[string]interface{}
+}
 
 const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
 

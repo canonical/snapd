@@ -1819,3 +1819,101 @@ apps:
 	c.Assert(app, NotNil)
 	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
 }
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo: shared
+  bar:
+    scope: external
+  baz:
+    scope: private
+    attr1: norf
+    attr2: corge
+    attr3: ""
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.SystemUsernames, HasLen, 3)
+	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.UsernameInfo{
+		Name:  "foo",
+		Scope: "shared",
+	})
+	c.Assert(info.SystemUsernames["bar"], DeepEquals, &snap.UsernameInfo{
+		Name:  "bar",
+		Scope: "external",
+	})
+	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.UsernameInfo{
+		Name:  "baz",
+		Scope: "private",
+		Attrs: map[string]interface{}{
+			"attr1": "norf",
+			"attr2": "corge",
+			"attr3": "",
+		},
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadType(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: true
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `"a" has malformed definition \(found bool\)`)
+	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValue(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: [b, c]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `"a" has malformed definition \(found \[\]interface {}\)`)
+	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  "": shared
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.SystemUsernames, HasLen, 0)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: ""
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.SystemUsernames, HasLen, 0)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrKeyEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    "": bar
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.SystemUsernames, HasLen, 1)
+	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.UsernameInfo{
+		Name:  "foo",
+		Scope: "shared",
+	})
+}
