@@ -294,21 +294,20 @@ func CanManageRefreshes(st *state.State) bool {
 }
 
 // extractDownloadInstallEdgesFromTs is a helper that extract the first, last
-// download and install tasks from a TaskSet
+// download phase and install phase tasks from a TaskSet
 func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task) {
 	edgeTask := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
-	for _, t := range ts.Tasks() {
-		if firstDl == nil {
-			firstDl = t
-		}
+	tasks := ts.Tasks()
+	// we know we always start with downloads
+	firstDl = tasks[0]
+	// and always end with installs
+	lastInst = tasks[len(tasks)-1]
+	for _, t := range tasks {
 		if firstInst == nil && lastDl != nil {
 			firstInst = t
 		}
 		if t == edgeTask {
 			lastDl = t
-		}
-		if firstInst != nil {
-			lastInst = t
 		}
 	}
 	return firstDl, lastDl, firstInst, lastInst
@@ -338,9 +337,9 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
-	// FIXME: we need language in the model assertion to declare
-	// what transitions are ok across device services (aka serial
-	// vaults) before we allow remodel like this.
+	// TODO: we need dedicated assertion language to permit for
+	// model transitions before we allow that cross vault
+	// transitions.
 	//
 	// Right now we only allow "remodel" to a different revision of
 	// the same model.
@@ -410,32 +409,40 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	var lastDownloadInChain, firstInstallInChain *state.Task
 	var prevDownload, prevInstall *state.Task
 	for _, ts := range tss {
-		// make sure all things happen sequentially:
+		// make sure all things happen sequentially
+		// Terminology
+		// A <- B means B waits for A
+		// "download,verify" are part of the "Download" phase
+		// "link,start" is part of "Install" phase
+		//
 		// - all tasks inside ts{Download,Install} already wait for
-		//   each other
-		//   Out chains look like this:
-		//     install1 <- verify1 <- download1
-		//     install2 <- verify2 <- download2
+		//   each other so the chains look something like this:
+		//     download1 <- verify1 <- install1
+		//     download2 <- verify2 <- install2
+		//     download3 <- verify3 <- install3
 		// - add wait of each first ts{Download,Install} task for
 		//   the last previous ts{Download,Install} task
 		//   Our chains now looks like:
-		//     download1 (no waits)
-		//     download2 <- verify1
-		//     install1 <- verify1 <- download1
-		//     install2 <- verify2 <- install1
-		firstDownload, lastDownload, firstInstall, lastInstall := extractDownloadInstallEdgesFromTs(ts)
+		//     download1 <- verify1 <- install1 (as before)
+		//     download2 <- verify2 <- install2 (as before)
+		//     download3 <- verify3 <- install3 (as before)
+		//     verify1 <- download2 (added)
+		//     verify2 <- download3 (added)
+		//     install1  <- install2 (added)
+		//     install2  <- install3 (added)
+		downloadStart, downloadLast, installFirst, installLast := extractDownloadInstallEdgesFromTs(ts)
 		if prevDownload != nil {
-			firstDownload.WaitFor(prevDownload)
+			downloadStart.WaitFor(prevDownload)
 		}
 		if prevInstall != nil {
-			firstInstall.WaitFor(prevInstall)
+			installFirst.WaitFor(prevInstall)
 		}
-		prevDownload = lastDownload
-		prevInstall = lastInstall
+		prevDownload = downloadLast
+		prevInstall = installLast
 		// update global state
-		lastDownloadInChain = lastDownload
+		lastDownloadInChain = downloadLast
 		if firstInstallInChain == nil {
-			firstInstallInChain = firstInstall
+			firstInstallInChain = installFirst
 		}
 	}
 	// Make sure the first install waits for the last download. With this
