@@ -393,10 +393,11 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 		}
 		addTss(ts)
 	}
-	// add new required-snaps
+	// add new required-snaps, no longer required snaps will be cleaned
+	// in "set-model"
 	for _, snapName := range new.RequiredSnaps() {
 		_, err := snapstate.CurrentInfo(st, snapName)
-		// if the snap is not installed we need to install it now
+		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{Required: true})
 			if err != nil {
@@ -405,26 +406,6 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 			addTss(ts)
 		} else if err != nil {
 			return nil, err
-		}
-	}
-	// unmark no-longer required snaps
-	requiredSnaps := getAllRequiredSnapsForModel(new)
-	snapStates, err := snapstate.All(st)
-	for snapName, snapst := range snapStates {
-		// TODO: remove this type restriction once we remodel
-		//       bases/kernels/gadgets and add tests that ensure
-		//       that the required flag is properly set/unset
-		typ, err := snapst.Type()
-		if err != nil {
-			return nil, err
-		}
-		if typ != snap.TypeApp {
-			continue
-		}
-		// clean required flag if no-longer needed
-		if snapst.Flags.Required && !requiredSnaps[snapName] {
-			snapst.Flags.Required = false
-			snapstate.Set(st, snapName, snapst)
 		}
 	}
 
