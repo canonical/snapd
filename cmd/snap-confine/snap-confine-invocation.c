@@ -86,7 +86,7 @@ void sc_cleanup_invocation(sc_invocation *inv) {
     }
 }
 
-void sc_apply_invocation_fallback(sc_invocation *inv) {
+void sc_maybe_pick_alt_base_snap(sc_invocation *inv) {
     /* As a special fallback, allow the base snap to degrade from "core" to
      * "ubuntu-core". This is needed for the migration tests. */
     char mount_point[PATH_MAX] = {0};

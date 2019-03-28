@@ -59,7 +59,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
 void sc_cleanup_invocation(sc_invocation *inv);
 
 /**
- * sc_apply_invocation_fallback implements special fallback behavior.
+ * sc_maybe_pick_alt_base_snap enables fall-back base in absence of primary.
  *
  * When performing ubuntu-core to core migration, the  snap "core" may not be
  * mounted yet. In that mode when snapd instructs us to use "core" as the base
@@ -70,6 +70,6 @@ void sc_cleanup_invocation(sc_invocation *inv);
  * of the init process) because it relies on the value of compile-time-choice
  * of SNAP_MOUNT_DIR.
  **/
-void sc_apply_invocation_fallback(sc_invocation *inv);
+void sc_maybe_pick_alternate_base_snap(sc_invocation *inv);
 
 #endif
