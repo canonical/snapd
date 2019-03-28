@@ -133,8 +133,8 @@ execute: |
     echo "Sanity check already installed snaps after upgrade"
     snap list | grep core
     snap list | grep test-snapd-tools
-    test-snapd-tools.echo Hello | grep Hello
-    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    test-snapd-tools.echo Hello | MATCH "Hello"
+    test-snapd-tools.env | MATCH "SNAP_NAME=test-snapd-tools"
     if [ "$do_classic" = yes ]; then
         test-snapd-classic-confinement.recurse 5
     fi
