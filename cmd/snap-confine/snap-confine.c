@@ -221,6 +221,10 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 		}
 		die("cannot restore original working directory via path");
 	}
+	/* The distinction below is only logged and not acted upon. Perhaps someday
+	 * this will be somehow communicated to cooperating applications that can
+	 * instruct the user and avoid potential confusion. This mostly applies to
+	 * tools that are invoked from /tmp. */
 	if (proc_state->file_info_orig_cwd.st_dev ==
 		file_info_inner.st_dev
 		&& proc_state->file_info_orig_cwd.st_ino ==
