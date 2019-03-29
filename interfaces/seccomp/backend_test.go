@@ -751,9 +751,9 @@ apps:
 		"getuid\n",
 		"setgroups 0 0\n",
 		// and a few randomly picked lines from root syscalls
-		"# allow setresgid to 0\n",
-		"# allow setresuid to 0\n",
-		"setresuid 0 0 0\n",
+		"# allow setresgid to root\n",
+		"# allow setresuid to root\n",
+		"setresuid u:root u:root u:root\n",
 		// and a few randomly picked lines from global id syscalls
 		"# allow setresgid to testid\n",
 		"# allow setresuid to testid\n",

@@ -235,8 +235,8 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// TODO
-func calcUidGidChownSyscalls(name string) (string, error) {
+// Obtain the privilege dropping snippet
+func uidGidChownSnippet(name string) (string, error) {
 	tmp := strings.Replace(privDropAndChownSyscalls, "###USERNAME###", name, -1)
 	return strings.Replace(tmp, "###GROUP###", name, -1), nil
 }
@@ -253,13 +253,15 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		uidGidChownSyscalls.WriteString(barePrivDropSyscalls)
 	} else {
 		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
-		for _, id := range snapInfo.SystemGlobalIDs {
-			syscalls, err := calcUidGidChownSyscalls(id)
+		for i, id := range snapInfo.SystemGlobalIDs {
+			if i > 0 {
+				uidGidChownSyscalls.WriteRune('\n')
+			}
+			syscalls, err := uidGidChownSnippet(id)
 			if err != nil {
 				return nil, fmt.Errorf(`cannot calculate syscalls for "%s": %s`, id, err)
 			}
 			uidGidChownSyscalls.WriteString(syscalls)
-			uidGidChownSyscalls.WriteRune('\n')
 		}
 	}
 

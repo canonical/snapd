@@ -466,13 +466,72 @@ func (sc *SeccompData) SetArgs(args [6]uint64) {
 	}
 }
 
-func readNumber(token string) (uint64, error) {
+// Only support negative args for syscalls where we understand the glibc/kernel
+// prototypes and behavior. This lists all the syscalls that support negative
+// arguments.
+var syscallsWithNegArgs = map[string]bool{
+	"chown":       true,
+	"chown32":     true,
+	"fchown":      true,
+	"fchown32":    true,
+	"fchownat":    true,
+	"fchownat32":  true,
+	"lchown":      true,
+	"lchown32":    true,
+	"setregid":    true,
+	"setregid32":  true,
+	"setresgid":   true,
+	"setresgid32": true,
+	"setreuid":    true,
+	"setreuid32":  true,
+	"setresuid":   true,
+	"setresuid32": true,
+}
+
+// This lists the syscalls where we want to ignore the high 32 bits (ie, we'll
+// masq it) since the arg is known to be 32 bit and the kernel accepts one or
+// both of uint32(-1) and uint64(-1)
+var syscallsWithNegArgsMasqHi32 = map[string]bool{
+	"setregid":    true,
+	"setregid32":  true,
+	"setresgid":   true,
+	"setresgid32": true,
+	"setreuid":    true,
+	"setreuid32":  true,
+	"setresuid":   true,
+	"setresuid32": true,
+}
+
+// The kernel uses uint32 for all syscall arguments, but seccomp takes a
+// uint64. For unsigned ints in our policy, just read straight into uint32
+// since we don't need to worry about sign extending.
+//
+// For negative signed ints in our policy, we first read in as int32, convert
+// to uint32 and then again uint64 to avoid sign extension woes (see
+// https://github.com/seccomp/libseccomp/issues/69). For syscalls that take
+// a 64bit arg that we want to express in our policy, we can add an exception
+// for reading into a uint64. For now there are no exceptions, so don't need to
+// do anything extra.
+func readNumber(token string, syscallName string) (uint64, error) {
 	if value, ok := seccompResolver[token]; ok {
 		return value, nil
 	}
-	// Negative numbers are not supported yet, but when they are,
-	// adjust this accordingly
-	return strconv.ParseUint(token, 10, 64)
+
+	if value, err := strconv.ParseUint(token, 10, 32); err == nil {
+		return value, nil
+	}
+
+	// Not a positive integer, see if negative
+	if !syscallsWithNegArgs[syscallName] {
+		return 0, fmt.Errorf(`negative argument not supported with "%s"`, syscallName)
+	}
+
+	value, err := strconv.ParseInt(token, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	// convert the int64 to uint32 then to uint64 (see above)
+	return uint64(uint32(value)), nil
 }
 
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
@@ -488,7 +547,8 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	}
 
 	// fish out syscall
-	secSyscall, err := seccomp.GetSyscallFromName(tokens[0])
+	syscallName := tokens[0]
+	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
 	if err != nil {
 		// FIXME: use structed error in libseccomp-golang when
 		//   https://github.com/seccomp/libseccomp-golang/pull/26
@@ -509,22 +569,22 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 		if strings.HasPrefix(arg, ">=") {
 			cmpOp = seccomp.CompareGreaterEqual
-			value, err = readNumber(arg[2:])
+			value, err = readNumber(arg[2:], syscallName)
 		} else if strings.HasPrefix(arg, "<=") {
 			cmpOp = seccomp.CompareLessOrEqual
-			value, err = readNumber(arg[2:])
+			value, err = readNumber(arg[2:], syscallName)
 		} else if strings.HasPrefix(arg, "!") {
 			cmpOp = seccomp.CompareNotEqual
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, "<") {
 			cmpOp = seccomp.CompareLess
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, ">") {
 			cmpOp = seccomp.CompareGreater
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, "|") {
 			cmpOp = seccomp.CompareMaskedEqual
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, "u:") {
 			cmpOp = seccomp.CompareEqual
 			value, err = findUid(arg[2:])
@@ -539,15 +599,25 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 			}
 		} else {
 			cmpOp = seccomp.CompareEqual
-			value, err = readNumber(arg)
+			value, err = readNumber(arg, syscallName)
 		}
 		if err != nil {
 			return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
 		}
 
+		// For now only support EQ with negative args. If change this,
+		// be sure to adjust readNumber accordingly.
+		if syscallsWithNegArgs[syscallName] {
+			if cmpOp != seccomp.CompareEqual {
+				return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
+			}
+		}
+
 		var scmpCond seccomp.ScmpCondition
 		if cmpOp == seccomp.CompareMaskedEqual {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value, value)
+		} else if syscallsWithNegArgsMasqHi32[syscallName] && cmpOp == seccomp.CompareEqual {
+			scmpCond, err = seccomp.MakeCondition(uint(pos), seccomp.CompareMaskedEqual, 0xFFFFFFFF, value)
 		} else {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value)
 		}
