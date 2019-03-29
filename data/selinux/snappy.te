@@ -134,6 +134,9 @@ allow snappy_t NetworkManager_var_run_t:dir search;
 kernel_read_net_sysctls(snappy_t)
 kernel_search_network_sysctl(snappy_t)
 
+# Allow snapd to query SELinux status
+selinux_get_enforce_mode(snappy_t)
+
 # Allow snapd to manage D-Bus config files for snaps
 optional_policy(`
   dbus_read_config(snappy_t)
@@ -156,6 +159,10 @@ systemd_config_all_services(snappy_t)
 systemd_manage_all_unit_files(snappy_t)
 systemd_manage_all_unit_lnk_files(snappy_t)
 systemd_exec_systemctl(snappy_t)
+systemd_reload_all_services(snappy_t)
+init_reload_services(snappy_t)
+init_enable_services(snappy_t)
+init_disable_services(snappy_t)
 
 # Allow snapd to execute unsquashfs
 corecmd_exec_bin(snappy_t)
@@ -301,6 +308,23 @@ files_var_filetrans(snappy_t, fonts_cache_t, dir, "fontconfig")
 libs_manage_lib_dirs(snappy_t)
 libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
+
+# snapd attempts to read /run/cloud-init/instance-data.json
+sysnet_read_config(snappy_t)
+# however older policy may be missing the transition rules, and
+# /run/cloud-init/instance-data.json ends up as var_run_t
+files_read_generic_pids(snappy_t)
+
+# snapd attempts to check /proc/sys/fs/may_detach_mounts during sanity testing
+kernel_read_fs_sysctls(snappy_t)
+
+# socket activated services may have their socket files created under
+# $SNAP_COMMON, but lacking auto transition, they end up labeled as var_t
+allow snappy_t var_t:sock_file unlink;
+
+# snapd picks the process start time from /proc/<pid>/stat for polkit
+allow snappy_t unconfined_t:dir search;
+allow snappy_t unconfined_t:file { open read };
 
 ########################################
 #
@@ -503,6 +527,7 @@ optional_policy(`
 seutil_domtrans_setfiles(snappy_cli_t)
 seutil_read_file_contexts(snappy_cli_t)
 seutil_read_default_contexts(snappy_cli_t)
+seutil_read_config(snappy_cli_t)
 selinux_load_policy(snappy_cli_t)
 selinux_validate_context(snappy_cli_t)
 corecmd_exec_bin(snappy_cli_t)
