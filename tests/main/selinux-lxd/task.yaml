@@ -1,0 +1,52 @@
+summary: Check that LXD snap works on a system using SELinux in enforcing mode
+
+description: |
+    Make sure that LXD snap can be installed and used on a SELinux enable
+    system, with enforcing mode on.
+
+# Systems with SELinux enabled out of the box.
+systems: [fedora-*, centos-*]
+
+# lxd downloads can be quite slow
+kill-timeout: 25m
+
+# Start before anything else as it can take a really long time.
+priority: 1000
+
+prepare: |
+    # Enable enforcing mode, our policy is already marked as permissive, so we
+    # will get audit entries but the program will not be stopped by SELinux
+    setenforce 1
+    ausearch --checkpoint stamp -m AVC || true
+
+restore: |
+    rm -f stamp
+    setenforce 0
+
+execute: |
+    snap install lxd
+    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    echo "Create a trivial container using the lxd snap"
+    snap set lxd waitready.timeout=240
+    lxd waitready
+    lxd init --auto
+
+    echo "Setting up proxy for lxc"
+    if [ -n "${http_proxy:-}" ]; then
+        lxd.lxc config set core.proxy_http "$http_proxy"
+    fi
+    if [ -n "${https_proxy:-}" ]; then
+        lxd.lxc config set core.proxy_https "$http_proxy"
+    fi
+
+    lxd.lxc launch "ubuntu:18.04" my-ubuntu
+
+    echo "Ensure we can run things inside"
+    lxd.lxc exec my-ubuntu echo hello | MATCH hello
+
+    echo "Stop the container"
+    lxd.lxc stop --force my-ubuntu
+
+    snap remove lxd
+    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
