@@ -393,7 +393,7 @@ allow snappy_confine_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
 
 files_pid_filetrans(snappy_confine_t, snappy_var_run_t, {file dir})
 
-allow snappy_confine_t snappy_home_t:dir { create_dir_perms list_dir_perms };
+allow snappy_confine_t snappy_home_t:dir { create_dir_perms list_dir_perms add_entry_dir_perms };
 allow snappy_confine_t snappy_home_t:file { read_file_perms };
 allow snappy_confine_t snappy_home_t:lnk_file { manage_lnk_file_perms };
 userdom_user_home_dir_filetrans(snappy_confine_t, snappy_home_t, dir, "snap")
@@ -534,6 +534,7 @@ corecmd_exec_bin(snappy_cli_t)
 
 allow snappy_cli_t proc_t:file { getattr open read };
 allow snappy_cli_t snappy_exec_t:file { read_file_perms };
+allow snappy_cli_t self:capability { dac_override };
 
 # go runtime poking at things
 init_ioctl_stream_sockets(snappy_cli_t)
