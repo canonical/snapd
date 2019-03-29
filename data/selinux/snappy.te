@@ -198,7 +198,11 @@ mmap_rw_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
 admin_pattern(snappy_t, snappy_var_lib_t)
 # for r/w to errtracker.db
 mmap_rw_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+# snap data files
 admin_pattern(snappy_t, snappy_var_t)
+# some snaps may create character files, eg. lxd creates /dev/full in the
+# container's rootfs
+manage_chr_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
 # And search/read mounted snaps
 allow snappy_t snappy_snap_t:dir { list_dir_perms };
 allow snappy_t snappy_snap_t:file { read_file_perms };
@@ -226,7 +230,7 @@ allow snappy_t snappy_confine_t:file getattr;
 
 logging_send_syslog_msg(snappy_t);
 
-allow snappy_t self:capability { dac_read_search dac_override };
+allow snappy_t self:capability { dac_read_search dac_override fowner };
 allow snappy_t self:process { setpgid };
 
 # Various socket permissions
@@ -333,6 +337,9 @@ fs_getattr_xattr_fs(snappy_mount_t)
 # freezer
 fs_manage_cgroup_dirs(snappy_mount_t)
 fs_manage_cgroup_files(snappy_mount_t)
+# TODO: further tweaks may be needed for layouts
+# reading tmpfs symlinks, eg. /etc/os-release
+fs_read_tmpfs_symlinks(snappy_mount_t)
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 gen_require(` type unconfined_t; ')
