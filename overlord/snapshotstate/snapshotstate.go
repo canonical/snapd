@@ -83,7 +83,7 @@ func automaticSnapshotExpiration(st *state.State) time.Duration {
 	return defaultAutomaticSnapshotExpiration
 }
 
-// saveExpiration saves expiration date of the given snapshot set in the state.
+// saveExpiration saves expiration date of the given snapshot set, in the state.
 // The state needs to be locked by the caller.
 func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
 	var snapshots map[uint64]*json.RawMessage
