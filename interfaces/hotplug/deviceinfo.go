@@ -93,7 +93,7 @@ func (h *HotplugDeviceInfo) Attribute(name string) (string, bool) {
 
 func (h *HotplugDeviceInfo) firstAttrValueOf(tryAttrs ...string) string {
 	for _, attr := range tryAttrs {
-		if val, ok := h.Attribute(attr); ok && val != "" {
+		if val, _ := h.Attribute(attr); val != "" {
 			return val
 		}
 	}
@@ -116,11 +116,11 @@ func (h *HotplugDeviceInfo) String() string {
 		}
 	}
 
-	if vendor := h.firstAttrValueOf("ID_VENDOR_FROM_DATABASE", "ID_VENDOR_ID", "ID_VENDOR"); vendor != "" {
+	if vendor := h.firstAttrValueOf("ID_VENDOR_FROM_DATABASE", "ID_VENDOR", "ID_VENDOR_ID"); vendor != "" {
 		str = append(str, fmt.Sprintf("vendor:%s", vendor))
 	}
 
-	if model := h.firstAttrValueOf("ID_MODEL_FROM_DATABASE", "ID_MODEL_ID", "ID_MODEL"); model != "" {
+	if model := h.firstAttrValueOf("ID_MODEL_FROM_DATABASE", "ID_MODEL", "ID_MODEL_ID"); model != "" {
 		str = append(str, fmt.Sprintf("model:%s", model))
 	}
 
