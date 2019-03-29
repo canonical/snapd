@@ -53,6 +53,7 @@ snap install --classic go
 . /etc/os-release
 export GOPATH=/tmp/go
 /snap/bin/go get -u github.com/snapcore/spread/cmd/spread
+export SPREAD_REUSE_SNAPD=1
 /tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)":tests/smoke/
 
 # store journal info for inspectsion

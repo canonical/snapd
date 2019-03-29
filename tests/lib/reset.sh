@@ -147,7 +147,7 @@ reset_all_snap() {
     fi
 }
 
-if is_core_system; then
+if is_core_system || [ "$REUSE_SNAPD" = 1 ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
