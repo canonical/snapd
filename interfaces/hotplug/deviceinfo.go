@@ -22,6 +22,7 @@ package hotplug
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 )
@@ -72,7 +73,7 @@ func (h *HotplugDeviceInfo) Major() string {
 	return h.Data["MAJOR"]
 }
 
-// Returns the value of "DEVNAME" attribute of the udev event associated with the device, e.g. "ttyUSB0".
+// Returns the value of "DEVNAME" attribute of the udev event associated with the device, e.g. "/dev/ttyUSB0".
 // The DeviceName value may be empty.
 func (h *HotplugDeviceInfo) DeviceName() string {
 	return h.Data["DEVNAME"]
@@ -88,4 +89,43 @@ func (h *HotplugDeviceInfo) DeviceType() string {
 func (h *HotplugDeviceInfo) Attribute(name string) (string, bool) {
 	val, ok := h.Data[name]
 	return val, ok
+}
+
+func (h *HotplugDeviceInfo) firstAttrValueOf(tryAttrs ...string) string {
+	for _, attr := range tryAttrs {
+		if val, ok := h.Attribute(attr); ok && val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+func (h *HotplugDeviceInfo) String() string {
+	var str []string
+
+	if devname := h.DeviceName(); devname != "" {
+		str = append(str, fmt.Sprintf("devname:%s", devname))
+	}
+	if devpath := h.DevicePath(); devpath != "" {
+		str = append(str, fmt.Sprintf("devpath:%s", devpath))
+	}
+	for _, attr := range []string{"MAJOR", "MINOR"} {
+		if val, ok := h.Attribute(attr); ok {
+			str = append(str, fmt.Sprintf("%s:%s", strings.ToLower(attr), val))
+		}
+	}
+
+	if vendor := h.firstAttrValueOf("ID_VENDOR_FROM_DATABASE", "ID_VENDOR_ID", "ID_VENDOR"); vendor != "" {
+		str = append(str, fmt.Sprintf("vendor:%s", vendor))
+	}
+
+	if model := h.firstAttrValueOf("ID_MODEL_FROM_DATABASE", "ID_MODEL_ID", "ID_MODEL"); model != "" {
+		str = append(str, fmt.Sprintf("model:%s", model))
+	}
+
+	if serial := h.firstAttrValueOf("ID_SERIAL", "ID_SERIAL_SHORT"); serial != "" && serial != "noserial" {
+		str = append(str, fmt.Sprintf("serial:%s", serial))
+	}
+
+	return strings.Join(str, ", ")
 }

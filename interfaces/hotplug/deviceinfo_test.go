@@ -20,7 +20,6 @@
 package hotplug
 
 import (
-	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -39,7 +38,7 @@ var _ = Suite(&hotplugSuite{})
 
 func (s *hotplugSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
+	dirs.SetRootDir("/")
 }
 
 func (s *hotplugSuite) TearDownTest(c *C) {
@@ -63,7 +62,7 @@ func (s *hotplugSuite) TestBasicProperties(c *C) {
 
 	c.Assert(di.DeviceName(), Equals, "bus/usb/002/003")
 	c.Assert(di.DeviceType(), Equals, "usb_device")
-	c.Assert(di.DevicePath(), Equals, filepath.Join(dirs.SysfsDir, "/devices/pci0000:00/0000:00:14.0/usb2/2-3"))
+	c.Assert(di.DevicePath(), Equals, "/sys/devices/pci0000:00/0000:00:14.0/usb2/2-3")
 	c.Assert(di.Subsystem(), Equals, "usb")
 	c.Assert(di.Major(), Equals, "189")
 	c.Assert(di.Minor(), Equals, "130")
@@ -91,8 +90,54 @@ func (s *hotplugSuite) TestPropertiesMissing(c *C) {
 
 	c.Assert(di.DeviceName(), Equals, "")
 	c.Assert(di.DeviceType(), Equals, "")
-	c.Assert(di.DevicePath(), Equals, filepath.Join(dirs.SysfsDir, "/devices/pci0000:00/0000:00:14.0/usb2/2-3"))
+	c.Assert(di.DevicePath(), Equals, "/sys/devices/pci0000:00/0000:00:14.0/usb2/2-3")
 	c.Assert(di.Subsystem(), Equals, "usb")
 	c.Assert(di.Major(), Equals, "")
 	c.Assert(di.Minor(), Equals, "")
+}
+
+func (s *hotplugSuite) TestStringFormat(c *C) {
+	tests := []struct {
+		env map[string]string
+		out string
+	}{
+		{
+			env: map[string]string{
+				"DEVPATH":                 "/devices/a/b/c",
+				"DEVNAME":                 "/dev/xyz",
+				"ID_VENDOR_FROM_DATABASE": "foo",
+				"ID_MODEL_FROM_DATABASE":  "bar",
+				"ID_SERIAL":               "999000",
+				"ACTION":                  "add",
+				"SUBSYSTEM":               "usb",
+				"MAJOR":                   "189", "MINOR": "1",
+			},
+			out: "devname:/dev/xyz, devpath:/sys/devices/a/b/c, major:189, minor:1, vendor:foo, model:bar, serial:999000",
+		},
+		{
+			env: map[string]string{
+				"DEVPATH":      "/devices/a/b/c",
+				"ID_VENDOR_ID": "foo",
+				"ID_MODEL_ID":  "bar",
+				"ID_SERIAL":    "noserial",
+				"ACTION":       "add",
+				"MAJOR":        "189", "MINOR": "1",
+			},
+			out: "devpath:/sys/devices/a/b/c, major:189, minor:1, vendor:foo, model:bar",
+		},
+		{
+			env: map[string]string{
+				"DEVPATH": "/devices/a/b/c",
+				"ACTION":  "add",
+			},
+			out: "devpath:/sys/devices/a/b/c",
+		},
+	}
+
+	for _, tst := range tests {
+		di, err := NewHotplugDeviceInfo(tst.env)
+		c.Assert(err, IsNil)
+
+		c.Check(di.String(), Equals, tst.out)
+	}
 }
