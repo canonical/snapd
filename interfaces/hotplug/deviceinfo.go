@@ -105,9 +105,10 @@ func (h *HotplugDeviceInfo) String() string {
 
 	if devname := h.DeviceName(); devname != "" {
 		str = append(str, fmt.Sprintf("devname:%s", devname))
-	}
-	if devpath := h.DevicePath(); devpath != "" {
-		str = append(str, fmt.Sprintf("devpath:%s", devpath))
+	} else {
+		if devpath := h.DevicePath(); devpath != "" {
+			str = append(str, fmt.Sprintf("devpath:%s", devpath))
+		}
 	}
 	for _, attr := range []string{"MAJOR", "MINOR"} {
 		if val, ok := h.Attribute(attr); ok {
@@ -127,5 +128,5 @@ func (h *HotplugDeviceInfo) String() string {
 		str = append(str, fmt.Sprintf("serial:%s", serial))
 	}
 
-	return strings.Join(str, ", ")
+	return fmt.Sprintf("<%s>", strings.Join(str, ", "))
 }

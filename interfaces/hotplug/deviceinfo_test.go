@@ -112,7 +112,7 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 				"SUBSYSTEM":               "usb",
 				"MAJOR":                   "189", "MINOR": "1",
 			},
-			out: "devname:/dev/xyz, devpath:/sys/devices/a/b/c, major:189, minor:1, vendor:foo, model:bar, serial:999000",
+			out: "<devname:/dev/xyz, major:189, minor:1, vendor:foo, model:bar, serial:999000>",
 		},
 		{
 			env: map[string]string{
@@ -123,14 +123,14 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 				"ACTION":       "add",
 				"MAJOR":        "189", "MINOR": "1",
 			},
-			out: "devpath:/sys/devices/a/b/c, major:189, minor:1, vendor:foo, model:bar",
+			out: "<devpath:/sys/devices/a/b/c, major:189, minor:1, vendor:foo, model:bar>",
 		},
 		{
 			env: map[string]string{
 				"DEVPATH": "/devices/a/b/c",
 				"ACTION":  "add",
 			},
-			out: "devpath:/sys/devices/a/b/c",
+			out: "<devpath:/sys/devices/a/b/c>",
 		},
 	}
 
