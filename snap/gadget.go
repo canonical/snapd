@@ -50,28 +50,49 @@ type GadgetInfo struct {
 }
 
 type GadgetVolume struct {
-	Schema     string            `yaml:"schema"`
-	Bootloader string            `yaml:"bootloader"`
-	ID         string            `yaml:"id"`
-	Structure  []VolumeStructure `yaml:"structure"`
+	// Schema describes the schema used for the volume
+	Schema string `yaml:"schema"`
+	// Bootloader names the bootloader used by the volume
+	Bootloader string `yaml:"bootloader"`
+	//  ID is a 2-hex digit disk ID or GPT GUID
+	ID string `yaml:"id"`
+	// Structure describes the structures that are part of the volume
+	Structure []VolumeStructure `yaml:"structure"`
 }
 
-// TODO Offsets and sizes are strings to support unit suffixes.
-// Is that a good idea? *2^N or *10^N? We'll probably want a richer
-// type when we actually handle these.
-
 type VolumeStructure struct {
-	Name        string               `yaml:"name"`
-	Label       string               `yaml:"filesystem-label"`
-	Offset      GadgetSize           `yaml:"offset"`
+	// Name, when non empty, provides the name of the structure
+	Name string `yaml:"name"`
+	// Label provides the filesystem label
+	Label string `yaml:"filesystem-label"`
+	// Offset defines a starting offset of the structure
+	Offset GadgetSize `yaml:"offset"`
+	// OffsetWrite describes a 32-bit address, within the volume, at which
+	// the offset of current structure will be written. The position may be
+	// specified as a byte offset relative to the start of a named structure
 	OffsetWrite GadgetRelativeOffset `yaml:"offset-write"`
-	Size        GadgetSize           `yaml:"size"`
-	Type        string               `yaml:"type"`
-	Role        string               `yaml:"role"`
-	ID          string               `yaml:"id"`
-	Filesystem  string               `yaml:"filesystem"`
-	Content     []VolumeContent      `yaml:"content"`
-	Update      VolumeUpdate         `yaml:"update"`
+	// Size of the structure
+	Size GadgetSize `yaml:"size"`
+	// Type of the structure, which can be 2-hex digit MBR partition,
+	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
+	// partitioning schemes, or 'bare' when the structure is not considered
+	// a partition.
+	//
+	// For backwards compatibility type 'mbr' is also accepted, and the
+	// structure is treated as if it is of role 'mbr'.
+	Type string `yaml:"type"`
+	// Role describes the role of given structure, can be one of 'mbr',
+	// 'system-data', 'system-boot'. Structures of type 'mbr', must have a
+	// size of 446 bytes and must start at 0 offset.
+	Role string `yaml:"role"`
+	// ID is the GPT partition ID
+	ID string `yaml:"id"`
+	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
+	// structures of type 'bare'
+	Filesystem string `yaml:"filesystem"`
+	// Content of the structure
+	Content []VolumeContent `yaml:"content"`
+	Update  VolumeUpdate    `yaml:"update"`
 }
 
 // IsBare returns true if the structure is not using a filesystem.
@@ -80,15 +101,24 @@ func (vs *VolumeStructure) IsBare() bool {
 }
 
 type VolumeContent struct {
-	// filesystem content
+	// Source is the data of the partition relative to the gadget base
+	// directory
 	Source string `yaml:"source"`
+	// Target is the location of the data inside the root filesystem
 	Target string `yaml:"target"`
 
-	// bare content
-	Image       string               `yaml:"image"`
-	Offset      GadgetSize           `yaml:"offset"`
+	// Image names the image, relative to gadget base directory, to be used
+	// for a 'bare' type structure
+	Image string `yaml:"image"`
+	// Offset the image is written at
+	Offset GadgetSize `yaml:"offset"`
+	// OffsetWrite describes a 32-bit address, within the volume, at which
+	// the offset of current image will be written. The position may be
+	// specified as a byte offset relative to the start of a named structure
 	OffsetWrite GadgetRelativeOffset `yaml:"offset-write"`
-	Size        GadgetSize           `yaml:"size"`
+	// Size of the image, when empty size is calculated by looking at the
+	// image
+	Size GadgetSize `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
 }
@@ -509,7 +539,7 @@ const (
 func (s *GadgetSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var gs string
 	if err := unmarshal(&gs); err != nil {
-		return errors.New(`failed to unmarshal`)
+		return errors.New(`cannot unmarshal gadget size`)
 	}
 
 	var err error
@@ -551,8 +581,11 @@ func ParseGadgetSize(gs string) (GadgetSize, error) {
 // The position can be specified as byte-offset relative to the start of another
 // named structure.
 type GadgetRelativeOffset struct {
+	// RelativeTo names the structure relative to which the location of the
+	// address write will be calculated.
 	RelativeTo string
-	Offset     GadgetSize
+	// Offset is a 32-bit value
+	Offset GadgetSize
 }
 
 // ParseGadgetRelativeOffset parses a string describing an offset that can be
@@ -575,7 +608,6 @@ func ParseGadgetRelativeOffset(grs string) (*GadgetRelativeOffset, error) {
 		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
 	}
 	if size > 4*SizeGiB {
-		// above 4GB
 		return nil, fmt.Errorf("offset above 4G limit")
 	}
 
@@ -588,7 +620,7 @@ func ParseGadgetRelativeOffset(grs string) (*GadgetRelativeOffset, error) {
 func (s *GadgetRelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var grs string
 	if err := unmarshal(&grs); err != nil {
-		return errors.New(`failed to unmarshal`)
+		return errors.New(`cannot unmarshal gadget relative offset`)
 	}
 
 	ro, err := ParseGadgetRelativeOffset(grs)
