@@ -49,4 +49,10 @@ execute: |
     lxd.lxc stop --force my-ubuntu
 
     snap remove lxd
-    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    # there is a known problem with the reference policy that disallows systemd
+    # from creating a BPF map for unconfined_service_t, see:
+    # https://bugzilla.redhat.com/show_bug.cgi?id=1694115
+    ! ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | \
+        grep -v -E 'avc:  denied  { map_create } for  pid=[0-9]+ comm="systemd"' | \
+        MATCH 'type=AVC'
