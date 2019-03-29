@@ -137,11 +137,18 @@ var seccompSyscallRunnerContent = []byte(`
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <errno.h>
 int main(int argc, char** argv)
 {
-    int l[7], syscall_ret, ret = 0;
-    for (int i = 0; i < 7; i++)
-        l[i] = atoi(argv[i + 1]);
+    long long l[7];
+    int syscall_ret, ret = 0;
+    for (int i = 0; i < 7; i++) {
+        errno = 0;
+        l[i] = strtoll(argv[i + 1], NULL, 10);
+	// exit '11' let's us know strtoll failed
+        if (errno != 0)
+            syscall(SYS_exit, 11, 0, 0, 0, 0, 0);
+    }
     // There might be architecture-specific requirements. see "man syscall"
     // for details.
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
