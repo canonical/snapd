@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 )
@@ -206,6 +208,64 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}==
 func (iface *serialPortInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
+	bus, _ := di.Attribute("ID_BUS")
+	if di.Subsystem() != "tty" || bus != "usb" || !serialDeviceNodePattern.MatchString(di.DeviceName()) {
+		return nil, nil
+	}
+
+	slot := hotplug.ProposedSlot{
+		Attrs: map[string]interface{}{
+			"path": di.DeviceName(),
+		},
+	}
+	if vendor, ok := di.Attribute("ID_VENDOR_ID"); ok {
+		slot.Attrs["usb-vendor"] = vendor
+	}
+	if product, ok := di.Attribute("ID_MODEL_ID"); ok {
+		slot.Attrs["usb-product"] = product
+	}
+	return &slot, nil
+}
+
+func slotDeviceAttrEqual(di *hotplug.HotplugDeviceInfo, devinfoAttribute string, slotAttributeValue int64) bool {
+	var attr string
+	var ok bool
+	if attr, ok = di.Attribute(devinfoAttribute); !ok {
+		return false
+	}
+	val, err := strconv.ParseInt(attr, 16, 64)
+	return err == nil && val == slotAttributeValue
+}
+
+func (iface *serialPortInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+	// if the slot has vendor, product and interface number set, check if they match
+	var usbVendor, usbProduct, usbInterfaceNumber int64
+	if err := slot.Attr("usb-vendor", &usbVendor); err == nil {
+		if !slotDeviceAttrEqual(di, "ID_VENDOR_ID", usbVendor) {
+			return false
+		}
+		if err := slot.Attr("usb-product", &usbProduct); err != nil {
+			return false
+		}
+		if !slotDeviceAttrEqual(di, "ID_MODEL_ID", usbProduct) {
+			return false
+		}
+		if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
+			if !slotDeviceAttrEqual(di, "ID_USB_INTERFACE_NUM", usbInterfaceNumber) {
+				return false
+			}
+		}
+		return true
+	}
+
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
+		return false
+	}
+	return di.DeviceName() == path
 }
 
 func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
