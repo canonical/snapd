@@ -50,6 +50,13 @@ var (
 	IsReadOnly                   = isReadOnly
 	IsPrivateTmpfsCreatedBySnapd = isPrivateTmpfsCreatedBySnapd
 
+	// system
+	DesiredSystemProfilePath = desiredSystemProfilePath
+	CurrentSystemProfilePath = currentSystemProfilePath
+
+	// user
+	DesiredUserProfilePath = desiredUserProfilePath
+
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
@@ -198,4 +205,20 @@ func (as *Assumptions) PastChanges() []*Change {
 
 func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, error) {
 	return as.canWriteToDirectory(dirFd, dirName)
+}
+
+func (up *CommonProfileUpdateContext) CurrentProfilePath() string {
+	return up.currentProfilePath
+}
+
+func (up *CommonProfileUpdateContext) DesiredProfilePath() string {
+	return up.desiredProfilePath
+}
+
+func NewCommonProfileUpdateContext(instanceName string, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
+	return &CommonProfileUpdateContext{
+		instanceName:       instanceName,
+		currentProfilePath: currentProfilePath,
+		desiredProfilePath: desiredProfilePath,
+	}
 }
