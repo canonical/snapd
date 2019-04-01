@@ -51,3 +51,8 @@ execute: |
     # check automatic snapshot is created on snap remove
     snap remove test-snapd-tools
     snap saved | MATCH "test-snapd-tools .* auto"
+
+    # check automatic snapshot expiration option can be set
+    snap set core automatic-snapshots.expiration=30h
+    (snap set core automatic-snapshots.expiration=1s 2>&1 || true) | MATCH "must be greater than"
+    
