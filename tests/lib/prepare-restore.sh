@@ -358,7 +358,18 @@ prepare_project() {
     # WORKAROUND for older postrm scripts that did not do 
     # "rm -rf /var/cache/snapd"
     rm -rf /var/cache/snapd/aux
-    distro_purge_package snapd
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*)
+            # Ubuntu is the only system where snapd is preinstalled
+            distro_purge_package snapd
+            ;;
+        *)
+            # snapd state directory must not exist when the package is not
+            # installed
+            test ! -d /var/lib/snapd
+            ;;
+    esac
+
     install_pkg_dependencies
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
