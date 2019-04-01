@@ -87,8 +87,8 @@ func checkConnectivity(st *state.State) Response {
 type changeTimings struct {
 	DoingTime      time.Duration         `json:"doing-time,omitempty"`
 	UndoingTime    time.Duration         `json:"undoing-time,omitempty"`
-	DoingTimings   []*timings.TimingJson `json:"doing-timings,omitempty"`
-	UndoingTimings []*timings.TimingJson `json:"undoing-timings,omitempty"`
+	DoingTimings   []*timings.TimingJSON `json:"doing-timings,omitempty"`
+	UndoingTimings []*timings.TimingJSON `json:"undoing-timings,omitempty"`
 }
 
 func getChangeTimings(st *state.State, changeID string) Response {
@@ -103,11 +103,11 @@ func getChangeTimings(st *state.State, changeID string) Response {
 		changeTasks[t.ID()] = true
 	}
 
-	doingTimingsByTask := make(map[string][]*timings.TimingJson)
-	undoingTimingsByTask := make(map[string][]*timings.TimingJson)
+	doingTimingsByTask := make(map[string][]*timings.TimingJSON)
+	undoingTimingsByTask := make(map[string][]*timings.TimingJSON)
 
 	// collect "timings" for task of given change
-	var stateTimings []timings.RootTimingsJson
+	var stateTimings []timings.RootTimingsJSON
 	st.Get("timings", &stateTimings)
 	for _, tm := range stateTimings {
 		if taskID, ok := tm.Tags["task-id"]; ok && changeTasks[taskID] {
