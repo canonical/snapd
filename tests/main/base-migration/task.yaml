@@ -1,0 +1,34 @@
+summary: a snap migrates from base "core" to "core18"
+prepare: |
+  snap install core18
+  snap pack test-snapd-core-migration.base-core
+  snap pack test-snapd-core-migration.base-core18
+execute: |
+  # When we install a snap that is using (implicitly) base: core, then that
+  # snap runs on top of the core16 runtime environment. This can be seen by
+  # looking at the os-release file which will match that of ubuntu core 16.
+  snap install --dangerous test-snapd-core-migration_1_all.snap
+  test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="16"'
+  # When said snap is refreshed to use "base core18" then because there are no
+  # active processes using that snap, the base will change correctly to core18.
+  # This can be again observed by looking at the os-release file.
+  snap install --dangerous test-snapd-core-migration_2_all.snap
+  test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="18"'
+  # If we rewind and do the update again, this time allowing one of the apps
+  # from core16 world to keep running. We will see that the base is not
+  # updated. This is unexpected but is the behavior of snapd 2.38 and earlier.
+  snap remove test-snapd-core-migration
+  snap install --dangerous test-snapd-core-migration_1_all.snap
+  test-snapd-core-migration.sh -c "sleep 1h" &
+  pid=$!
+  test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="16"'
+  snap install --dangerous test-snapd-core-migration_2_all.snap
+  test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="16"'
+  kill "$pid"
+  wait -n || true
+  # Note that after the background application terminates the base snap visible
+  # for newly started processes will be the correct one.
+  test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="18"'
+restore: |
+  snap remove test-snapd-core-migration
+  rm -f test-snapd-core-migration_{1,2}_all.snap
