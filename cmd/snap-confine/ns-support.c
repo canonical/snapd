@@ -41,6 +41,7 @@
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
@@ -289,8 +290,50 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 
 enum sc_discard_vote {
 	SC_DISCARD_NO = 1,
-	SC_DISCARD_YES = 2,
+	SC_DISCARD_SHOULD = 2,
+	SC_DISCARD_MUST = 3,
 };
+
+/**
+ * is_base_transition returns true a base transition is occurring.
+ *
+ * The function inspects /run/snapd/ns/snap.$SNAP_INSTANCE_NAME.info as well
+ * as the invocation parameters of snap-confine. If the base snap name, as
+ * encoded in the info file and as described by the invocation parameters
+ * differ then a base transition is occurring. If the info file is absent or
+ * does not record the name of the base snap then transition cannot be
+ * detected.
+**/
+static bool is_base_transition(const sc_invocation * inv)
+{
+	char info_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(info_path,
+			 sizeof info_path,
+			 "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+
+	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+	stream = fopen(info_path, "rt");
+	if (stream == NULL && errno == ENOENT) {
+		// If the info file is absent then we cannot decide if a transition had
+		// occurred. For people upgrading from snap-confine without the info
+		// file, that is the best we can do.
+		return false;
+	}
+	if (stream == NULL) {
+		die("cannot open %s", info_path);
+	}
+
+	char *base_snap_name SC_CLEANUP(sc_cleanup_string) = NULL;
+	sc_infofile_query(stream, "base-snap-name", &base_snap_name, NULL);
+
+	if (base_snap_name == NULL) {
+		// If the info file doesn't record the name of the base snap then,
+		// again, we cannot decide if a transition had occurred.
+		return false;
+	}
+
+	return !sc_streq(inv->orig_base_snap_name, base_snap_name);
+}
 
 // The namespace may be stale. To check this we must actually switch into it
 // but then we use up our setns call (the kernel misbehaves if we setns twice).
@@ -371,15 +414,25 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// pivot_root) and the base snap is again mounted (2nd time) by
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
-		bool should_discard =
-		    inv->is_normal_mode ?
+		bool should_discard = inv->is_normal_mode ?
 		    should_discard_current_ns(base_snap_dev) : false;
 
-		// Send this back to the parent: 2 - discard, 1 - keep.
+		// The namespace is stale, let's check if we must discard it because
+		// base snap has changed. We must do so even though the "view" of the
+		// snap mount namespace becomes fractured because otherwise snaps might
+		// run against the base snap declared by an older revision of the app
+		// snap, For more information see LP: #1819875
+		bool must_discard = is_base_transition(inv);
+
+		eventfd_t value =
+		    should_discard ? must_discard ? SC_DISCARD_MUST :
+		    SC_DISCARD_SHOULD : SC_DISCARD_NO;
+		const char *value_str =
+		    should_discard ? must_discard ? "must" : "should" : "no";
+		// Send this back to the parent: 3 - force discard 2 - prefer discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
-		if (eventfd_write(event_fd, should_discard ?
-				  SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
-			die("cannot send information to %s preserved mount namespace", should_discard ? "discard" : "keep");
+		if (eventfd_write(event_fd, value) < 0) {
+			die("cannot send information to %s preserved mount namespace", value_str);
 		}
 		// Exit, we're done.
 		exit(0);
@@ -406,19 +459,25 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		die("support process for mount namespace inspection exited abnormally");
 	}
 	// If the namespace is up-to-date then we are done.
-	if (value == SC_DISCARD_NO) {
-		debug("preserved mount namespace can be reused");
+	switch (value) {
+	case SC_DISCARD_NO:
+		debug("preserved mount is not stale, reusing");
 		return 0;
+	case SC_DISCARD_SHOULD:
+		if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
+			// Some processes are still using the namespace so we cannot discard it
+			// as that would fracture the view that the set of processes inside
+			// have on what is mounted.
+			debug
+			    ("preserved mount namespace is stale but occupied, reusing");
+			return 0;
+		}
+		break;
+	case SC_DISCARD_MUST:
+		debug
+		    ("preserved mount namespace is stale and base snap has changed, discarding");
+		break;
 	}
-	// The namespace is stale, let's check if we can discard it.
-	if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
-		// Some processes are still using the namespace so we cannot discard it
-		// as that would fracture the view that the set of processes inside
-		// have on what is mounted.
-		debug("preserved mount namespace is stale but occupied");
-		return 0;
-	}
-	// The namespace is both stale and empty. We can discard it now.
 	sc_call_snap_discard_ns(snap_discard_ns_fd, inv->snap_instance);
 	return EAGAIN;
 }
@@ -768,4 +827,21 @@ void sc_wait_for_helper(struct sc_mount_ns *group)
 {
 	sc_message_capture_helper(group, HELPER_CMD_EXIT);
 	sc_wait_for_capture_helper(group);
+}
+
+void sc_store_ns_info(const sc_invocation * inv)
+{
+	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+	char info_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(info_path, sizeof info_path,
+			 "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+	stream = fopen(info_path, "wt");
+	if (stream == NULL) {
+		die("cannot open %s", info_path);
+	}
+	fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
+	if (fflush(stream) < 0) {
+		die("cannot flush %s", info_path);
+	}
+	debug("saved mount namespace meta-data to %s", info_path);
 }
