@@ -1785,3 +1785,51 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 		s.RemoveSnap(c, snapInfo)
 	}
 }
+
+func (s *backendSuite) TestSystemGlobalIDsPolicy(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
+	defer restoreTemplate()
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
+	snapYaml := `
+name: app
+version: 0.1
+system-global-ids:
+- testid
+apps:
+  cmd:
+`
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.app.cmd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Assert(string(data), testutil.Contains, "capability setuid,")
+	c.Assert(string(data), testutil.Contains, "capability setgid,")
+	c.Assert(string(data), testutil.Contains, "capability chown,")
+	s.RemoveSnap(c, snapInfo)
+}
+
+func (s *backendSuite) TestNoSystemUsersPolicy(c *C) {
+	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
+	defer restoreTemplate()
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
+	snapYaml := `
+name: app
+version: 0.1
+apps:
+  cmd:
+`
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.app.cmd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Not(testutil.Contains), "capability setuid,")
+	c.Assert(string(data), Not(testutil.Contains), "capability setgid,")
+	c.Assert(string(data), Not(testutil.Contains), "capability chown,")
+	s.RemoveSnap(c, snapInfo)
+}

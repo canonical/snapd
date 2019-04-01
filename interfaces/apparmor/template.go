@@ -501,6 +501,16 @@ var defaultTemplate = `
 }
 `
 
+// Template for privilege drop and chown operations. The specific setuid,
+// setgid and chown operations are controlled via seccomp.
+var privDropAndChownRules = `
+  # allow setuid, setgid and chown for privilege dropping (mediation is done
+  # via seccomp)
+  capability setuid,
+  capability setgid,
+  capability chown,
+`
+
 // classicTemplate contains apparmor template used for snaps with classic
 // confinement. This template was Designed by jdstrand:
 // https://github.com/snapcore/snapd/pull/2366#discussion_r90101320
