@@ -84,6 +84,7 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
 	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
+	if [ "$$(command -v restorecon)" != "" ]; then sudo restorecon -R -v $(DESTDIR)$(libexecdir)/; fi
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
