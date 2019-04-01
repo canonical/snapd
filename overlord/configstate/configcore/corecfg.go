@@ -88,6 +88,9 @@ func Run(tr config.Conf) error {
 	if err := validateNetworkSettings(tr); err != nil {
 		return err
 	}
+	if err := validateAutomaticSnapshotsExpiration(tr); err != nil {
+		return err
+	}
 	// FIXME: ensure the user cannot set "core seed.loaded"
 
 	// capture cloud information

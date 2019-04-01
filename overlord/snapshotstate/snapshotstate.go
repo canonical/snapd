@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -78,9 +80,21 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	return names, nil
 }
 
-func automaticSnapshotExpiration(st *state.State) time.Duration {
-	// TODO: get from config
-	return defaultAutomaticSnapshotExpiration
+func automaticSnapshotExpiration(st *state.State) (time.Duration, error) {
+	var expirationStr string
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "automatic-snapshots.expiration", &expirationStr)
+	if err != nil && !config.IsNoOption(err) {
+		return 0, err
+	}
+	if err == nil {
+		dur, err := time.ParseDuration(expirationStr)
+		if err == nil {
+			return dur, nil
+		}
+		logger.Noticef("automatic-snapshots.expiration cannot be parsed: %v", err)
+	}
+	return defaultAutomaticSnapshotExpiration, nil
 }
 
 // saveExpiration saves expiration date of the given snapshot set, in the state.

@@ -210,11 +210,15 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, &backend.Flags{Auto: snapshot.Auto})
-	if err != nil {
-		st := task.State()
-		st.Lock()
-		defer st.Unlock()
-		removeSnapshotState(st, snapshot.SetID)
+	if err == nil && snapshot.Auto {
+		// XXX: we should probably lock state at the beginning (and remove it from prepareSave)
+		task.State().Lock()
+		defer task.State().Unlock()
+		expiration, err := automaticSnapshotExpiration(task.State())
+		if err != nil {
+			return err
+		}
+		return saveExpiration(task.State(), snapshot.SetID, time.Now().Add(expiration))
 	}
 	return err
 }
