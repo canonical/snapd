@@ -284,7 +284,7 @@ distro_install_package() {
             # --allow-downgrade will make the installation proceed
 
             # shellcheck disable=SC2086
-            quiet zypper install -y --allow-downgrade $ZYPPER_FLAGS "${pkg_names[@]}"
+            quiet zypper install -y --allow-downgrade --force-resolution $ZYPPER_FLAGS "${pkg_names[@]}"
             ;;
         arch-*)
             # shellcheck disable=SC2086
