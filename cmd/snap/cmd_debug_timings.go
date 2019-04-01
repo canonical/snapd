@@ -98,10 +98,10 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
 
 		for _, nested := range timings[t.ID].DoingTimings {
-			fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\t%s\n", strings.Repeat("-", nested.Level+1), formatDuration(nested.Duration), "-", nested.Label, nested.Summary)
+			fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\t%s\n", strings.Repeat(" ", nested.Level+1)+"^", formatDuration(nested.Duration), "-", nested.Label, strings.Repeat(" ", 2*(nested.Level+1))+nested.Summary)
 		}
 		for _, nested := range timings[t.ID].UndoingTimings {
-			fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\t%s\n", strings.Repeat("-", nested.Level+1), "-", formatDuration(nested.Duration), nested.Label, nested.Summary)
+			fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\t%s\n", strings.Repeat(" ", nested.Level+1)+"^", "-", formatDuration(nested.Duration), nested.Label, strings.Repeat(" ", 2*(nested.Level+1))+nested.Summary)
 		}
 	}
 	w.Flush()
