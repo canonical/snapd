@@ -31,5 +31,16 @@ typedef enum sc_distro {
 sc_distro sc_classify_distro(void);
 
 bool sc_should_use_normal_mode(sc_distro distro, const char *base_snap_name);
+/**
+ * sc_probe_distro extracts specific KEY=VALUE fields from a given os-release file.
+ *
+ * The remaining arguments are:
+ *  const char *key
+ *  char **value;
+ *
+ * Argument parsing terminates when key is NULL.
+ * Each value pointer is set either the parsed value or NULL.
+**/
+void sc_probe_distro(const char *os_release_path, ...) __attribute__((sentinel));
 
 #endif
