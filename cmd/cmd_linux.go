@@ -132,14 +132,15 @@ func InternalToolPath(tool string) (string, error) {
 	}
 
 	if !strings.HasPrefix(exe, dirs.DistroLibExecDir) {
-		// the current binary is reexecd or running from a snap mounted
-		// at some location
+		// either running from mounted location or /usr/bin/snap*
 
 		// find the local prefix to the snap:
 		// /snap/snapd/123/usr/bin/snap       -> /snap/snapd/123
 		// /snap/core/234/usr/lib/snapd/snapd -> /snap/core/234
 		idx := strings.LastIndex(exe, "/usr/")
-		if idx != -1 {
+		if idx > 0 {
+			// only assume mounted location when path contains
+			// /usr/, but does not start with one
 			prefix := exe[:idx]
 			return filepath.Join(prefix, "/usr/lib/snapd", tool), nil
 		}

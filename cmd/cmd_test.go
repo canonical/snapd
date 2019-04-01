@@ -268,6 +268,23 @@ func (s *cmdSuite) TestInternalToolPathWithDevLocation(c *C) {
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
 
+func (s *cmdSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {
+	defer dirs.SetRootDir(s.fakeroot)
+	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
+	defer restore()
+	// reload directory paths
+	dirs.SetRootDir("/")
+
+	restore = cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join("/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, filepath.Join("/usr/libexec/snapd/potato"))
+}
+
 func (s *cmdSuite) TestExecInSnapdOrCoreSnap(c *C) {
 	defer s.mockReExecFor(c, s.snapdPath, "potato")()
 
