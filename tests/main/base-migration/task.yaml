@@ -23,11 +23,12 @@ execute: |
   pid=$!
   test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="16"'
   snap install --dangerous test-snapd-core-migration_2_all.snap
-  test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="16"'
+  # Even before the background process terminates we are now using the new base
+  # snap, processes across base snaps see different mount namespaces.
+  test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="18"'
   kill "$pid"
-  wait -n || true
-  # Note that after the background application terminates the base snap visible
-  # for newly started processes will be the correct one.
+  wait "$pid" || true  # wait returns the exit code and we kill the process
+  # Nothing changes after the background app terminates.
   test-snapd-core-migration.sh -c "cat /etc/os-release" | MATCH 'VERSION_ID="18"'
 restore: |
   snap remove test-snapd-core-migration
