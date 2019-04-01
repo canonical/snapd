@@ -547,8 +547,8 @@ prepare: |
         # this time when none of the test files is yet in place.
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
-                apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+                eatmydata apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
+                eatmydata apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
