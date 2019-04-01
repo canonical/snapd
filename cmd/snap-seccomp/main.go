@@ -468,8 +468,10 @@ func (sc *SeccompData) SetArgs(args [6]uint64) {
 
 // Only support negative args for syscalls where we understand the glibc/kernel
 // prototypes and behavior. This lists all the syscalls that support negative
-// arguments.
-var syscallsWithNegArgs = map[string]bool{
+// arguments and where we want to ignore the high 32 bits (ie, we'll masq it)
+// since the arg is known to be 32 bit (uid_t/gid_t) and the kernel accepts one
+// or both of uint32(-1) and uint64(-1) and does its own masking.
+var syscallsWithNegArgsMasqHi32 = map[string]bool{
 	"chown":       true,
 	"chown32":     true,
 	"fchown":      true,
@@ -478,20 +480,6 @@ var syscallsWithNegArgs = map[string]bool{
 	"fchownat32":  true,
 	"lchown":      true,
 	"lchown32":    true,
-	"setregid":    true,
-	"setregid32":  true,
-	"setresgid":   true,
-	"setresgid32": true,
-	"setreuid":    true,
-	"setreuid32":  true,
-	"setresuid":   true,
-	"setresuid32": true,
-}
-
-// This lists the syscalls where we want to ignore the high 32 bits (ie, we'll
-// masq it) since the arg is known to be 32 bit and the kernel accepts one or
-// both of uint32(-1) and uint64(-1)
-var syscallsWithNegArgsMasqHi32 = map[string]bool{
 	"setregid":    true,
 	"setregid32":  true,
 	"setresgid":   true,
@@ -522,7 +510,7 @@ func readNumber(token string, syscallName string) (uint64, error) {
 	}
 
 	// Not a positive integer, see if negative
-	if !syscallsWithNegArgs[syscallName] {
+	if !syscallsWithNegArgsMasqHi32[syscallName] {
 		return 0, fmt.Errorf(`negative argument not supported with "%s"`, syscallName)
 	}
 
@@ -607,7 +595,7 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 		// For now only support EQ with negative args. If change this,
 		// be sure to adjust readNumber accordingly.
-		if syscallsWithNegArgs[syscallName] {
+		if syscallsWithNegArgsMasqHi32[syscallName] {
 			if cmpOp != seccomp.CompareEqual {
 				return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
 			}
