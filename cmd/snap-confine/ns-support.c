@@ -297,7 +297,8 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 
 enum sc_discard_vote {
 	SC_DISCARD_NO = 1,
-	SC_DISCARD_YES = 2,
+	SC_DISCARD_SHOULD = 2,
+	SC_DISCARD_MUST = 3,
 };
 
 /**
@@ -440,15 +441,22 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// pivot_root) and the base snap is again mounted (2nd time) by
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
-		bool should_discard =
-		    inv->is_normal_mode ?
+		bool should_discard = inv->is_normal_mode ?
 		    should_discard_current_ns(base_snap_dev) : false;
 
-		// Send this back to the parent: 2 - discard, 1 - keep.
+		// The namespace is stale, let's check if we must discard it because base snap has changed.
+		bool must_discard = inv->is_normal_mode ?
+		    !is_same_base(inv->base_snap_name) : false;
+
+		eventfd_t value =
+		    should_discard ? must_discard ? SC_DISCARD_MUST :
+		    SC_DISCARD_SHOULD : SC_DISCARD_NO;
+		const char *value_str =
+		    should_discard ? must_discard ? "must" : "should" : "no";
+		// Send this back to the parent: 3 - force discard 2 - prefer discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
-		if (eventfd_write(event_fd, should_discard ?
-				  SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
-			die("cannot send information to %s preserved mount namespace", should_discard ? "discard" : "keep");
+		if (eventfd_write(event_fd, value) < 0) {
+			die("cannot send information to %s preserved mount namespace", value_str);
 		}
 		// Exit, we're done.
 		exit(0);
@@ -475,19 +483,25 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		die("support process for mount namespace inspection exited abnormally");
 	}
 	// If the namespace is up-to-date then we are done.
-	if (value == SC_DISCARD_NO) {
-		debug("preserved mount namespace can be reused");
+	switch (value) {
+	case SC_DISCARD_NO:
+		debug("preserved mount is not stale, reusing");
 		return 0;
+	case SC_DISCARD_SHOULD:
+		if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
+			// Some processes are still using the namespace so we cannot discard it
+			// as that would fracture the view that the set of processes inside
+			// have on what is mounted.
+			debug
+			    ("preserved mount namespace is stale but occupied, reusing");
+			return 0;
+		}
+		break;
+	case SC_DISCARD_MUST:
+		debug
+		    ("preserved mount namespace is stale but base snap has changed, discarding");
+		break;
 	}
-	// The namespace is stale, let's check if we can discard it.
-	if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
-		// Some processes are still using the namespace so we cannot discard it
-		// as that would fracture the view that the set of processes inside
-		// have on what is mounted.
-		debug("preserved mount namespace is stale but occupied");
-		return 0;
-	}
-	// The namespace is both stale and empty. We can discard it now.
 	sc_call_snap_discard_ns(snap_discard_ns_fd, inv->snap_instance);
 	return EAGAIN;
 }
