@@ -199,7 +199,11 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		// XXX: we should probably lock state at the beginning (and remove it from prepareSave)
 		task.State().Lock()
 		defer task.State().Unlock()
-		return saveExpiration(task.State(), snapshot.SetID, time.Now().Add(automaticSnapshotExpiration(task.State())))
+		expiration, err := automaticSnapshotExpiration(task.State())
+		if err != nil {
+			return err
+		}
+		return saveExpiration(task.State(), snapshot.SetID, time.Now().Add(expiration))
 	}
 	return err
 }
