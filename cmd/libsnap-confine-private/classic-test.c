@@ -188,6 +188,42 @@ static void test_should_use_normal_mode(void)
 	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CLASSIC, "core18"));
 }
 
+static void test_probe_distro(void)
+{
+	mock_os_release(os_release_custom);
+
+	/* Keys that are not found get NULL values. */
+	char *value = (void *)0xfefefefe;
+	sc_probe_distro(os_release, "UNKNOWN", &value, NULL);
+	g_assert_null(value);
+
+	/* Keys that are found get strdup-duplicated values. */
+	char *id = NULL;
+	sc_probe_distro(os_release, "ID", &id, NULL);
+	g_assert_nonnull(id);
+	g_assert_cmpstr(id, ==, "custom");
+	free(id);
+
+	/* Multiple keys can be extracted on one go. */
+	char *name;
+	sc_probe_distro(os_release, "ID", &id, "NAME", &name, NULL);
+	g_assert_nonnull(id);
+	g_assert_nonnull(name);
+	g_assert_cmpstr(id, ==, "custom");
+	g_assert_cmpstr(name, ==, "\"Custom Distribution\"");
+	free(id);
+	free(name);
+
+	/* Order in which keys are extracted does not matter. */
+	sc_probe_distro(os_release, "NAME", &name, "ID", &id, NULL);
+	g_assert_nonnull(name);
+	g_assert_nonnull(id);
+	g_assert_cmpstr(name, ==, "\"Custom Distribution\"");
+	g_assert_cmpstr(id, ==, "custom");
+	free(name);
+	free(id);
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
@@ -201,4 +237,5 @@ static void __attribute__((constructor)) init(void)
 	g_test_add_func("/classic/on-custom-base", test_is_on_custom_base);
 	g_test_add_func("/classic/should-use-normal-mode",
 			test_should_use_normal_mode);
+	g_test_add_func("/classic/probe_distro", test_probe_distro);
 }
