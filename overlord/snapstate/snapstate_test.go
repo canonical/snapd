@@ -13402,8 +13402,8 @@ connections:
 
 	conns, err := snapstate.GadgetConnections(s.state)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, []gadget.GadgetConnection{
-		{Plug: gadget.GadgetConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: gadget.GadgetConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
+	c.Check(conns, DeepEquals, []gadget.Connection{
+		{Plug: gadget.ConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: gadget.ConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
 }
 
 func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {

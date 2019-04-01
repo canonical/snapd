@@ -192,14 +192,14 @@ volumes:
 
 func TestRun(t *testing.T) { TestingT(t) }
 
-func mustParseGadgetSize(c *C, s string) gadget.GadgetSize {
-	gs, err := gadget.ParseGadgetSize(s)
+func mustParseGadgetSize(c *C, s string) gadget.Size {
+	gs, err := gadget.ParseSize(s)
 	c.Assert(err, IsNil)
 	return gs
 }
 
-func mustParseGadgetRelativeOffset(c *C, s string) gadget.GadgetRelativeOffset {
-	grs, err := gadget.ParseGadgetRelativeOffset(s)
+func mustParseGadgetRelativeOffset(c *C, s string) gadget.RelativeOffset {
+	grs, err := gadget.ParseRelativeOffset(s)
 	c.Assert(err, IsNil)
 	c.Assert(grs, NotNil)
 	return *grs
@@ -233,7 +233,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 
 	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), true)
 	c.Assert(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.GadgetInfo{})
+	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *C) {
@@ -243,7 +243,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 
 	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), true)
 	c.Assert(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.GadgetInfo{
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
 			"system":                           {"something": true},
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
@@ -258,16 +258,16 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 
 	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), false)
 	c.Assert(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.GadgetInfo{
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
 			"system": {"something": true},
 		},
-		Connections: []gadget.GadgetConnection{
-			{Plug: gadget.GadgetConnectionPlug{SnapID: "snapid1", Plug: "plg1"}, Slot: gadget.GadgetConnectionSlot{SnapID: "snapid2", Slot: "slot"}},
-			{Plug: gadget.GadgetConnectionPlug{SnapID: "snapid3", Plug: "process-control"}, Slot: gadget.GadgetConnectionSlot{SnapID: "system", Slot: "process-control"}},
-			{Plug: gadget.GadgetConnectionPlug{SnapID: "snapid4", Plug: "pctl4"}, Slot: gadget.GadgetConnectionSlot{SnapID: "system", Slot: "process-control"}},
+		Connections: []gadget.Connection{
+			{Plug: gadget.ConnectionPlug{SnapID: "snapid1", Plug: "plg1"}, Slot: gadget.ConnectionSlot{SnapID: "snapid2", Slot: "slot"}},
+			{Plug: gadget.ConnectionPlug{SnapID: "snapid3", Plug: "process-control"}, Slot: gadget.ConnectionSlot{SnapID: "system", Slot: "process-control"}},
+			{Plug: gadget.ConnectionPlug{SnapID: "snapid4", Plug: "pctl4"}, Slot: gadget.ConnectionSlot{SnapID: "system", Slot: "process-control"}},
 		},
-		Volumes: map[string]gadget.GadgetVolume{
+		Volumes: map[string]gadget.Volume{
 			"volumename": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -307,8 +307,8 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), false)
 	c.Assert(err, IsNil)
 	c.Check(ginfo.Volumes, HasLen, 2)
-	c.Assert(ginfo, DeepEquals, &gadget.GadgetInfo{
-		Volumes: map[string]gadget.GadgetVolume{
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
 			"frobinator-image": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -447,8 +447,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 
 	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), false)
 	c.Check(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.GadgetInfo{
-		Volumes: map[string]gadget.GadgetVolume{
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
 			"bootloader": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -500,12 +500,12 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
 
 func (s *gadgetYamlTestSuite) TestUnmarshalGadgetSize(c *C) {
 	type foo struct {
-		Size gadget.GadgetSize `yaml:"size"`
+		Size gadget.Size `yaml:"size"`
 	}
 
 	for i, tc := range []struct {
 		s   string
-		sz  gadget.GadgetSize
+		sz  gadget.Size
 		err string
 	}{
 		{"1234", 1234, ""},
@@ -531,22 +531,22 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetSize(c *C) {
 
 func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 	type foo struct {
-		OffsetWrite gadget.GadgetRelativeOffset `yaml:"offset-write"`
+		OffsetWrite gadget.RelativeOffset `yaml:"offset-write"`
 	}
 
 	for i, tc := range []struct {
 		s   string
-		sz  *gadget.GadgetRelativeOffset
+		sz  *gadget.RelativeOffset
 		err string
 	}{
-		{"1234", &gadget.GadgetRelativeOffset{Offset: 1234}, ""},
-		{"1234M", &gadget.GadgetRelativeOffset{Offset: 1234 * gadget.SizeMiB}, ""},
-		{"4096M", &gadget.GadgetRelativeOffset{Offset: 4096 * gadget.SizeMiB}, ""},
-		{"0", &gadget.GadgetRelativeOffset{}, ""},
-		{"mbr+0", &gadget.GadgetRelativeOffset{RelativeTo: "mbr"}, ""},
-		{"foo+1234M", &gadget.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1234 * gadget.SizeMiB}, ""},
-		{"foo+1G", &gadget.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
-		{"foo+1G", &gadget.GadgetRelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
+		{"1234", &gadget.RelativeOffset{Offset: 1234}, ""},
+		{"1234M", &gadget.RelativeOffset{Offset: 1234 * gadget.SizeMiB}, ""},
+		{"4096M", &gadget.RelativeOffset{Offset: 4096 * gadget.SizeMiB}, ""},
+		{"0", &gadget.RelativeOffset{}, ""},
+		{"mbr+0", &gadget.RelativeOffset{RelativeTo: "mbr"}, ""},
+		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * gadget.SizeMiB}, ""},
+		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
+		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
 		{"foo+4097M", nil, `cannot parse relative offset "foo\+4097M": offset above 4G limit`},
 		{"foo+", nil, `cannot parse relative offset "foo\+": missing offset`},
 		{"foo+++12", nil, `cannot parse relative offset "foo\+\+\+12": cannot parse offset "\+\+12": .*`},
@@ -629,7 +629,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s}, &gadget.GadgetVolume{Schema: tc.schema})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s}, &gadget.Volume{Schema: tc.schema})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -688,11 +688,11 @@ role: system-boot
 	bogusRole := uuidType + `
 role: foobar
 `
-	vol := &gadget.GadgetVolume{}
-	mbrVol := &gadget.GadgetVolume{Schema: "mbr"}
+	vol := &gadget.Volume{}
+	mbrVol := &gadget.Volume{Schema: "mbr"}
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
-		v   *gadget.GadgetVolume
+		v   *gadget.Volume
 		err string
 	}{
 		{mustParseStructure(c, validSystemBoot), vol, ""},
@@ -739,7 +739,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649"}, &gadget.GadgetVolume{})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649"}, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -763,7 +763,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume("name", &gadget.GadgetVolume{Schema: tc.s})
+		err := gadget.ValidateVolume("name", &gadget.Volume{Schema: tc.s})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -793,7 +793,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(tc.s, &gadget.GadgetVolume{})
+		err := gadget.ValidateVolume(tc.s, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -803,7 +803,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
-	err := gadget.ValidateVolume("name", &gadget.GadgetVolume{
+	err := gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Name: "duplicate", Type: "bare", Size: 1024},
 			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048},
@@ -814,7 +814,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 
-	err := gadget.ValidateVolume("name", &gadget.GadgetVolume{
+	err := gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024},
@@ -822,7 +822,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
 
-	err = gadget.ValidateVolume("name", &gadget.GadgetVolume{
+	err = gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024, Name: "foo"},
@@ -830,7 +830,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
 
-	err = gadget.ValidateVolume("name", &gadget.GadgetVolume{
+	err = gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{Source: "foo"}}},
 		},
@@ -880,7 +880,7 @@ content:
 
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
-		v   *gadget.GadgetVolume
+		v   *gadget.Volume
 		err string
 	}{
 		{mustParseStructure(c, bareOnlyOk), nil, ""},
@@ -892,7 +892,7 @@ content:
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(tc.s, &gadget.GadgetVolume{})
+		err := gadget.ValidateVolumeStructure(tc.s, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -949,7 +949,7 @@ volumes:
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
 
-	gv := &gadget.GadgetVolume{}
+	gv := &gadget.Volume{}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "bare",
@@ -973,7 +973,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C) {
 
-	gv := &gadget.GadgetVolume{}
+	gv := &gadget.Volume{}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:       "21686148-6449-6E6F-744E-656564454649",

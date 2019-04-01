@@ -28,7 +28,7 @@ import (
 // ReadGadgetInfo reads the gadget specific metadata from gadget.yaml
 // in the snap. classic set to true means classic rules apply,
 // i.e. content/presence of gadget.yaml is fully optional.
-func ReadGadgetInfo(info *Info, classic bool) (*gadget.GadgetInfo, error) {
+func ReadGadgetInfo(info *Info, classic bool) (*gadget.Info, error) {
 	const errorFormat = "cannot read gadget snap details: %s"
 
 	if info.Type != TypeGadget {

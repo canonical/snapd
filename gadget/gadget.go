@@ -44,16 +44,16 @@ var (
 	validGUUID      = regexp.MustCompile("^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
 )
 
-type GadgetInfo struct {
-	Volumes map[string]GadgetVolume `yaml:"volumes,omitempty"`
+type Info struct {
+	Volumes map[string]Volume `yaml:"volumes,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
-	Connections []GadgetConnection `yaml:"connections"`
+	Connections []Connection `yaml:"connections"`
 }
 
-type GadgetVolume struct {
+type Volume struct {
 	// Schema describes the schema used for the volume
 	Schema string `yaml:"schema"`
 	// Bootloader names the bootloader used by the volume
@@ -70,13 +70,13 @@ type VolumeStructure struct {
 	// Label provides the filesystem label
 	Label string `yaml:"filesystem-label"`
 	// Offset defines a starting offset of the structure
-	Offset GadgetSize `yaml:"offset"`
+	Offset Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite GadgetRelativeOffset `yaml:"offset-write"`
+	OffsetWrite RelativeOffset `yaml:"offset-write"`
 	// Size of the structure
-	Size GadgetSize `yaml:"size"`
+	Size Size `yaml:"size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
 	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
 	// partitioning schemes, or 'bare' when the structure is not considered
@@ -115,14 +115,14 @@ type VolumeContent struct {
 	// for a 'bare' type structure
 	Image string `yaml:"image"`
 	// Offset the image is written at
-	Offset GadgetSize `yaml:"offset"`
+	Offset Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current image will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite GadgetRelativeOffset `yaml:"offset-write"`
+	OffsetWrite RelativeOffset `yaml:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
-	Size GadgetSize `yaml:"size"`
+	Size Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
 }
@@ -141,21 +141,21 @@ type VolumeUpdate struct {
 // "system" indicates a system plug or slot.
 // Fully omitting the slot part indicates a system slot with the same name
 // as the plug.
-type GadgetConnection struct {
-	Plug GadgetConnectionPlug `yaml:"plug"`
-	Slot GadgetConnectionSlot `yaml:"slot"`
+type Connection struct {
+	Plug ConnectionPlug `yaml:"plug"`
+	Slot ConnectionSlot `yaml:"slot"`
 }
 
-type GadgetConnectionPlug struct {
+type ConnectionPlug struct {
 	SnapID string
 	Plug   string
 }
 
-func (gcplug *GadgetConnectionPlug) Empty() bool {
+func (gcplug *ConnectionPlug) Empty() bool {
 	return gcplug.SnapID == "" && gcplug.Plug == ""
 }
 
-func (gcplug *GadgetConnectionPlug) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (gcplug *ConnectionPlug) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -169,16 +169,16 @@ func (gcplug *GadgetConnectionPlug) UnmarshalYAML(unmarshal func(interface{}) er
 	return nil
 }
 
-type GadgetConnectionSlot struct {
+type ConnectionSlot struct {
 	SnapID string
 	Slot   string
 }
 
-func (gcslot *GadgetConnectionSlot) Empty() bool {
+func (gcslot *ConnectionSlot) Empty() bool {
 	return gcslot.SnapID == "" && gcslot.Slot == ""
 }
 
-func (gcslot *GadgetConnectionSlot) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (gcslot *ConnectionSlot) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -214,8 +214,8 @@ func systemOrSnapID(s string) bool {
 // ReadGadgetInfo reads the gadget specific metadata from gadget.yaml
 // in the snap. classic set to true means classic rules apply,
 // i.e. content/presence of gadget.yaml is fully optional.
-func ReadGadgetInfo(gadgetDir string, classic bool) (*GadgetInfo, error) {
-	var gi GadgetInfo
+func ReadGadgetInfo(gadgetDir string, classic bool) (*Info, error) {
+	var gi Info
 
 	gadgetYamlFn := filepath.Join(gadgetDir, "meta", "gadget.yaml")
 	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
@@ -291,7 +291,7 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *GadgetVolume) error {
+func validateVolume(name string, vol *Volume) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -333,7 +333,7 @@ func validateVolume(name string, vol *GadgetVolume) error {
 	return nil
 }
 
-func validateVolumeStructure(vs *VolumeStructure, vol *GadgetVolume) error {
+func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
@@ -373,7 +373,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *GadgetVolume) error {
 	return nil
 }
 
-func validateStructureType(s string, vol *GadgetVolume) error {
+func validateStructureType(s string, vol *Volume) error {
 	// Type can be one of:
 	// - "mbr" (backwards compatible)
 	// - "bare"
@@ -436,7 +436,7 @@ func validateStructureType(s string, vol *GadgetVolume) error {
 	return nil
 }
 
-func validateRole(vs *VolumeStructure, vol *GadgetVolume) error {
+func validateRole(vs *VolumeStructure, vol *Volume) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != "mbr" {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
@@ -485,7 +485,7 @@ func validateBareContent(vc *VolumeContent) error {
 }
 
 func validateFilesystemContent(vc *VolumeContent) error {
-	if vc.Image != "" || vc.Offset != 0 || vc.OffsetWrite != (GadgetRelativeOffset{}) || vc.Size != 0 {
+	if vc.Image != "" || vc.Offset != 0 || vc.OffsetWrite != (RelativeOffset{}) || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
 	if vc.Source == "" || vc.Target == "" {
@@ -525,32 +525,32 @@ func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// GadgetSize describes the size of a structure item or an offset within the
+// Size describes the size of a structure item or an offset within the
 // structure.
-type GadgetSize uint64
+type Size uint64
 
 const (
-	SizeMiB = GadgetSize(2 << 20)
-	SizeGiB = GadgetSize(2 << 30)
+	SizeMiB = Size(2 << 20)
+	SizeGiB = Size(2 << 30)
 )
 
-func (s *GadgetSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var gs string
 	if err := unmarshal(&gs); err != nil {
 		return errors.New(`cannot unmarshal gadget size`)
 	}
 
 	var err error
-	*s, err = ParseGadgetSize(gs)
+	*s, err = ParseSize(gs)
 	if err != nil {
 		return fmt.Errorf("cannot parse size %q: %v", gs, err)
 	}
 	return err
 }
 
-// ParseGadgetSize parses a string expressing size in gadget declaration. The
+// ParseSize parses a string expressing size in gadget declaration. The
 // accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
-func ParseGadgetSize(gs string) (GadgetSize, error) {
+func ParseSize(gs string) (Size, error) {
 	number, unit, err := strutil.SplitUnit(gs)
 	if err != nil {
 		return 0, err
@@ -558,37 +558,37 @@ func ParseGadgetSize(gs string) (GadgetSize, error) {
 	if number < 0 {
 		return 0, errors.New("size cannot be negative")
 	}
-	var size GadgetSize
+	var size Size
 	switch unit {
 	case "M":
 		// MiB
-		size = GadgetSize(number) * SizeMiB
+		size = Size(number) * SizeMiB
 	case "G":
 		// GiB
-		size = GadgetSize(number) * SizeGiB
+		size = Size(number) * SizeGiB
 	case "":
 		// straight bytes
-		size = GadgetSize(number)
+		size = Size(number)
 	default:
 		return 0, fmt.Errorf("invalid suffix %q", unit)
 	}
 	return size, nil
 }
 
-// GadgetRelativeOffset describes an offset where structure data is written at.
+// RelativeOffset describes an offset where structure data is written at.
 // The position can be specified as byte-offset relative to the start of another
 // named structure.
-type GadgetRelativeOffset struct {
+type RelativeOffset struct {
 	// RelativeTo names the structure relative to which the location of the
 	// address write will be calculated.
 	RelativeTo string
 	// Offset is a 32-bit value
-	Offset GadgetSize
+	Offset Size
 }
 
-// ParseGadgetRelativeOffset parses a string describing an offset that can be
+// ParseRelativeOffset parses a string describing an offset that can be
 // expressed relative to a named structure, with the format: [<name>+]<size>.
-func ParseGadgetRelativeOffset(grs string) (*GadgetRelativeOffset, error) {
+func ParseRelativeOffset(grs string) (*RelativeOffset, error) {
 	toWhat := ""
 	sizeSpec := grs
 	if idx := strings.IndexRune(grs, '+'); idx != -1 {
@@ -601,7 +601,7 @@ func ParseGadgetRelativeOffset(grs string) (*GadgetRelativeOffset, error) {
 		return nil, errors.New("missing offset")
 	}
 
-	size, err := ParseGadgetSize(sizeSpec)
+	size, err := ParseSize(sizeSpec)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
 	}
@@ -609,19 +609,19 @@ func ParseGadgetRelativeOffset(grs string) (*GadgetRelativeOffset, error) {
 		return nil, fmt.Errorf("offset above 4G limit")
 	}
 
-	return &GadgetRelativeOffset{
+	return &RelativeOffset{
 		RelativeTo: toWhat,
 		Offset:     size,
 	}, nil
 }
 
-func (s *GadgetRelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var grs string
 	if err := unmarshal(&grs); err != nil {
 		return errors.New(`cannot unmarshal gadget relative offset`)
 	}
 
-	ro, err := ParseGadgetRelativeOffset(grs)
+	ro, err := ParseRelativeOffset(grs)
 	if err != nil {
 		return fmt.Errorf("cannot parse relative offset %q: %v", grs, err)
 	}

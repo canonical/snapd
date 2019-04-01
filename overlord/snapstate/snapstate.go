@@ -2189,7 +2189,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 
 // GadgetConnections returns the interface connection instructions
 // specified in the gadget. If gadget is absent it returns ErrNoState.
-func GadgetConnections(st *state.State) ([]gadget.GadgetConnection, error) {
+func GadgetConnections(st *state.State) ([]gadget.Connection, error) {
 	gadget, err := GadgetInfo(st)
 	if err != nil {
 		return nil, err

@@ -222,5 +222,5 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 
 	ginfo, err := snap.ReadGadgetInfo(info, true)
 	c.Assert(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.GadgetInfo{})
+	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
