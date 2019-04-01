@@ -355,7 +355,10 @@ prepare_project() {
         quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    distro_purge_package snapd || true
+    # WORKAROUND for older postrm scripts that did not do 
+    # "rm -rf /var/cache/snapd"
+    rm -rf /var/cache/snapd/aux
+    distro_purge_package snapd
     install_pkg_dependencies
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
