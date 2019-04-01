@@ -85,19 +85,18 @@ backends:
                 # golang stack cannot compile anything, needs investigation
                 manual: true
             - opensuse-15.0-64:
-                workers: 4
-                manual: true
+                workers: 6
             - opensuse-tumbleweed-64:
-                workers: 4
+                workers: 6
             - arch-linux-64:
-                workers: 4
+                workers: 6
 
             - amazon-linux-2-64:
-                workers: 4
+                workers: 6
                 storage: preserve-size
 
             - centos-7-64:
-                workers: 4
+                workers: 6
                 image: centos-7-64
 
     google-upgrade:

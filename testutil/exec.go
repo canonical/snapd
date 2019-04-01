@@ -23,12 +23,32 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/check.v1"
 )
+
+var shellcheckPath string
+
+func init() {
+	if p, err := exec.LookPath("shellcheck"); err == nil {
+		shellcheckPath = p
+	}
+}
+
+func maybeShellcheck(c *check.C, script string) {
+	c.Logf("using shellcheck: %q", shellcheckPath)
+	if shellcheckPath == "" {
+		// no shellcheck, nothing to do
+		return
+	}
+	cmd := exec.Command(shellcheckPath, "-s", "bash", script)
+	out, err := cmd.CombinedOutput()
+	c.Check(err, check.IsNil, check.Commentf("shellcheck failed:\n%s", string(out)))
+}
 
 // MockCmd allows mocking commands for testing.
 type MockCmd struct {
@@ -80,6 +100,8 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	if err != nil {
 		panic(err)
 	}
+
+	maybeShellcheck(c, exeFile)
 
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }
