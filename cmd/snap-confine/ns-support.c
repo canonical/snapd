@@ -300,6 +300,64 @@ enum sc_discard_vote {
 	SC_DISCARD_YES = 2,
 };
 
+/**
+ * is_same_base returns true if ID and VERSION_ID are same in {,/snap/$base_snap_name/current}/usr/lib/os-release
+ *
+ * The function must be invoked from a snap mount namespace, where / is the
+ * base snap. The used path is /usr/lib/os-release rather than /etc/os-release
+ * since /etc is shared from the host and does not represent snap execution
+ * environment.
+**/
+static bool is_same_base(const char *base_snap_name)
+{
+	const char *current_os_release_path = "/usr/lib/os-release";
+	char desired_os_release_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(desired_os_release_path,
+			 sizeof desired_os_release_path,
+			 "/snap/%s/current/usr/lib/os-release", base_snap_name);
+
+	char *desired_id SC_CLEANUP(sc_cleanup_string) = NULL;
+	char *desired_version_id SC_CLEANUP(sc_cleanup_string) = NULL;
+	char *current_id SC_CLEANUP(sc_cleanup_string) = NULL;
+	char *current_version_id SC_CLEANUP(sc_cleanup_string) = NULL;
+
+	/* The /usr/lib/os-release file may be absent but it must be consistently absent. */
+	if (access(current_os_release_path, R_OK) < 0 && errno == ENOENT &&
+	    access(desired_os_release_path, R_OK) < 0 && errno == ENOENT) {
+		return true;
+	}
+
+	sc_probe_distro(current_os_release_path, "ID", &current_id,
+			"VERSION_ID", &current_version_id, NULL);
+	sc_probe_distro(desired_os_release_path, "ID", &desired_id,
+			"VERSION_ID", &desired_version_id, NULL);
+
+	if (current_id == NULL) {
+		die("cannot check if base snap is the same: current os-release ID= not present");
+	}
+	if (desired_id == NULL) {
+		die("cannot check if base snap is the same: desired os-release ID= not present");
+	}
+	if (!sc_streq(current_id, desired_id)) {
+		debug("os-release differs: current ID=%s vs desired ID=%s",
+		      current_id, desired_id);
+		return false;
+	}
+	if (current_version_id == NULL && desired_version_id == NULL) {
+		return false;
+	}
+	if (current_version_id == NULL || desired_version_id == NULL
+	    || !sc_streq(current_version_id, desired_version_id)) {
+		debug
+		    ("os-release differs: current VERSION_ID=%s vs desired VERSION_ID=%s (with same ID=%s)",
+		     current_version_id, desired_version_id, current_id);
+		return false;
+	}
+	debug
+	    ("os-release ID and VERSION_ID are the same in both current and desired base snap");
+	return true;
+}
+
 // The namespace may be stale. To check this we must actually switch into it
 // but then we use up our setns call (the kernel misbehaves if we setns twice).
 // To work around this we'll fork a child and use it to probe. The child will
