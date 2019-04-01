@@ -36,7 +36,7 @@ restore: |
             # TODO: remove the apt key added above, but how?
             ;;
         postgres)
-            # the first one will fail because of ... a race with /etc/alternatives?
+            # The first one will fail because of ... a race with /etc/alternatives?
             # /etc/postgresql and/or /var/lib/postgres not being empty?
             # one of those (or both) (arbitrarily) (sometimes)
             apt autoremove --purge -y 'postgresql*' || apt autoremove --purge -y 'postgresql*'
