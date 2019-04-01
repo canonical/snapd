@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -237,7 +238,7 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 		if !systemOrSnapID(k) {
 			return nil, fmt.Errorf(`default stanza not keyed by "system" or snap-id: %s`, k)
 		}
-		dflt, err := normalizeYamlValue(v)
+		dflt, err := metautil.NormalizeValue(v)
 		if err != nil {
 			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
 		}
