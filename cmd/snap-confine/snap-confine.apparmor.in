@@ -497,19 +497,20 @@
     /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns r,
 
     # ..snap-confine is, conceptually, re-executing and uses snap-update-ns
-    # from the core snap. Note that the location of the core snap varies from
-    # distribution to distribution. The variants here represent different
-    # locations of snap mount directory across distributions.
-    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+    # from the core or snapd snaps. Note that the location of the actual snap
+    # varies from distribution to distribution. The variants here represent
+    # different locations of snap mount directory across distributions.
+    /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns r,
 
     # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
-    # from the core snap but we are already inside the constructed mount
-    # namespace. Here the apparmor kernel module re-constructs the path to
-    # snap-update-ns using the "hostfs" mount entry rather than the more
-    # "natural" /snap mount entry but we have no control over that.  This is
-    # reported as (LP: #1716339). The variants here represent different
-    # locations of snap mount directory across distributions.
-    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+    # from the core snap or snapd snap, but we are already inside the
+    # constructed mount namespace. Here the apparmor kernel module
+    # re-constructs the path to snap-update-ns using the "hostfs" mount entry
+    # rather than the more "natural" /snap mount entry but we have no control
+    # over that.  This is reported as (LP: #1716339). The variants here
+    # represent different locations of snap mount directory across
+    # distributions.
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns r,
 
     # Allow executing snap-discard-ns, just like the set for snap-update-ns
     # above but with the key difference that snap-discard-ns does not
@@ -517,8 +518,8 @@
 
     /usr/lib{,exec,64}/snapd/snap-discard-ns rix,
     /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-discard-ns rix,
-    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
-    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+    /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-discard-ns rix,
 
     # Allow mounting /var/lib/jenkinks from the host into the snap.
     mount options=(rw rbind) /var/lib/jenkins/ -> /tmp/snap.rootfs_*/var/lib/jenkins/,

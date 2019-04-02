@@ -109,7 +109,7 @@ sc_mountinfo *sc_parse_mountinfo(const char *fname);
  * takes a pointer to the freed object (which is also a pointer).
  **/
 void sc_cleanup_mountinfo(sc_mountinfo ** ptr)
-    __attribute__ ((nonnull(1)));
+    __attribute__((nonnull(1)));
 
 /**
  * Get the first sc_mountinfo entry.
@@ -119,7 +119,7 @@ void sc_cleanup_mountinfo(sc_mountinfo ** ptr)
  * and should not be freed explicitly.
  **/
 sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo * info)
-    __attribute__ ((nonnull(1)));
+    __attribute__((nonnull(1)));
 
 /**
  * Get the next sc_mountinfo entry.
@@ -129,6 +129,6 @@ sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo * info)
  * whole sc_mountinfo structure and should not be freed explicitly.
  **/
 sc_mountinfo_entry *sc_next_mountinfo_entry(sc_mountinfo_entry * entry)
-    __attribute__ ((nonnull(1)));
+    __attribute__((nonnull(1)));
 
 #endif

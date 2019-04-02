@@ -122,7 +122,7 @@ static void test_cleanup_close(void)
 	g_assert_cmpint(fd, ==, -1);
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/cleanup/sanity", test_cleanup_sanity);
 	g_test_add_func("/cleanup/string", test_cleanup_string);
