@@ -665,11 +665,11 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	theStore := getStore(c)
 	found, err := theStore.Find(&store.Search{
 		Query:    q,
+		Prefix:   prefix,
 		CommonID: commonID,
 		Section:  section,
-		Scope:    scope,
 		Private:  private,
-		Prefix:   prefix,
+		Scope:    scope,
 	}, user)
 	switch err {
 	case nil:

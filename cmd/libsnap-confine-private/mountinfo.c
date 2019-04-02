@@ -44,19 +44,19 @@
  * (11) super options:  per super block options
  **/
 static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
-    __attribute__ ((nonnull(1)));
+    __attribute__((nonnull(1)));
 
 /**
  * Free a sc_mountinfo structure and all its entries.
  **/
 static void sc_free_mountinfo(sc_mountinfo * info)
-    __attribute__ ((nonnull(1)));
+    __attribute__((nonnull(1)));
 
 /**
  * Free a sc_mountinfo entry.
  **/
 static void sc_free_mountinfo_entry(sc_mountinfo_entry * entry)
-    __attribute__ ((nonnull(1)));
+    __attribute__((nonnull(1)));
 
 sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo * info)
 {
