@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -69,7 +70,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(dirs.SnapSeccompDir, 0700)
 	c.Assert(err, IsNil)
 
-	s.restoreReadlink = seccomp.MockOsReadlink(func(string) (string, error) {
+	s.restoreReadlink = cmd.MockOsReadlink(func(string) (string, error) {
 		// pretend that snapd is run from distro libexecdir
 		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
 	})
@@ -144,7 +145,7 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
-	restore := seccomp.MockOsReadlink(func(string) (string, error) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
 		// simulate that we run snapd from core
 		return filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snapd"), nil
 	})
@@ -684,7 +685,7 @@ func (s *backendSuite) TestInitializationDuringBootstrap(c *C) {
 	// during bootstrap, before seeding, snapd/core snap is mounted at some
 	// random location under /tmp
 	tmpDir := c.MkDir()
-	restore := seccomp.MockOsReadlink(func(string) (string, error) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(tmpDir, "usr/lib/snapd/snapd"), nil
 	})
 	defer restore()

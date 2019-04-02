@@ -27,7 +27,7 @@
  * Create an argc + argv pair out of a NULL terminated argument list.
  **/
 static void
-    __attribute__ ((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
+    __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
 {
 	int argc = 0;
 	char **argv = NULL;
@@ -449,7 +449,7 @@ static void test_sc_nonfatal_parse_args__base_snap__twice(void)
 	g_assert_true(sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE));
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/args/test_argc_argv", test_test_argc_argv);
 	g_test_add_func("/args/sc_cleanup_args", test_sc_cleanup_args);
