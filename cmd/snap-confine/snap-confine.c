@@ -23,9 +23,11 @@
 #include <glob.h>
 #include <sched.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -329,8 +331,12 @@ int main(int argc, char **argv)
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;
 	gid_t real_gid, effective_gid, saved_gid;
-	getresuid(&real_uid, &effective_uid, &saved_uid);
-	getresgid(&real_gid, &effective_gid, &saved_gid);
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
+		die("getresuid failed");
+	}
+	if (getresgid(&real_gid, &effective_gid, &saved_gid) != 0) {
+		die("getresgid failed");
+	}
 	debug("ruid: %d, euid: %d, suid: %d",
 	      real_uid, effective_uid, saved_uid);
 	debug("rgid: %d, egid: %d, sgid: %d",
@@ -414,18 +420,49 @@ int main(int argc, char **argv)
 	// For classic and confined snaps
 	sc_selinux_set_snap_execcon();
 #endif
-	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
-		/* If the process is not explicitly unconfined then load the global
-		 * profile as well. */
-		sc_apply_global_seccomp_profile();
-	}
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
 		setenv("SNAP_CONTEXT", snap_context, 1);
 	}
+
+	// Normally setuid/setgid not only permanently drops the UID/GID, but
+	// also clears the capabilities bounding sets (see "Effect of user ID
+	// changes on capabilities" in 'man capabilities'). To load a seccomp
+	// profile, we need either CAP_SYS_ADMIN or PR_SET_NO_NEW_PRIVS. Since
+	// NNP causes issues with AppArmor and exec transitions in certain
+	// snapd interfaces, keep CAP_SYS_ADMIN temporarily when we are
+	// permanently dropping privileges.
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
+		die("getresuid failed");
+	}
+	debug("ruid: %d, euid: %d, suid: %d",
+	      real_uid, effective_uid, saved_uid);
+	struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+	struct __user_cap_data_struct data[2] = { {0} };
+
+	// At this point in time, if we are going to permanently drop our
+	// effective_uid will not be '0' but our saved_uid will be '0'. Detect
+	// and save when we are in the this state so know when to setup the
+	// capabilities bounding set, regain CAP_SYS_ADMIN and later drop it.
+	bool keep_sys_admin = effective_uid != 0 && saved_uid == 0;
+	if (keep_sys_admin) {
+		debug("setting capabilities bounding set");
+		// clear all 32 bit caps but SYS_ADMIN, with none inheritable
+		data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+		data[0].permitted = data[0].effective;
+		data[0].inheritable = 0;
+		// clear all 64 bit caps
+		data[1].effective = 0;
+		data[1].permitted = 0;
+		data[1].inheritable = 0;
+		if (capset(&hdr, data) != 0) {
+			die("capset failed");
+		}
+	}
+
 	// Permanently drop if not root
-	if (geteuid() == 0) {
+	if (effective_uid == 0) {
 		// Note that we do not call setgroups() here because its ok
 		// that the user keeps the groups he already belongs to
 		if (setgid(real_gid) != 0)
@@ -438,6 +475,36 @@ int main(int argc, char **argv)
 		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
 			die("permanently dropping privs did not work");
 	}
+
+	// Now that we've permanently dropped, regain SYS_ADMIN
+	if (keep_sys_admin) {
+		debug("regaining SYS_ADMIN");
+		data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+		data[0].permitted = data[0].effective;
+		if (capset(&hdr, data) != 0) {
+			die("capset regain failed");
+		}
+	}
+
+	// Now that we've dropped and regained SYS_ADMIN, we can load the
+	// seccomp profiles.
+	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
+		/* If the process is not explicitly unconfined then load the global
+		 * profile as well. */
+		sc_apply_global_seccomp_profile();
+	}
+
+	// Even though we set inheritable to 0, let's clear SYS_ADMIN
+	// explicitly
+	if (keep_sys_admin) {
+		debug("clearing SYS_ADMIN");
+		data[0].effective = 0;
+		data[0].permitted = data[0].effective;
+		if (capset(&hdr, data) != 0) {
+			die("capset clear failed");
+		}
+	}
+
 	// and exec the new executable
 	argv[0] = (char *)invocation.executable;
 	debug("execv(%s, %s...)", invocation.executable, argv[0]);
