@@ -383,9 +383,8 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
 		bool should_discard =
-		    inv->
-		    is_normal_mode ? should_discard_current_ns(base_snap_dev) :
-		    false;
+		    inv->is_normal_mode ?
+		    should_discard_current_ns(base_snap_dev) : false;
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
