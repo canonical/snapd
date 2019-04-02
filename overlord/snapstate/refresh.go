@@ -53,6 +53,9 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	var busyHookNames []string
 	var busyPIDs []int
 
+	// Currently there are no situations when hooks might be allowed to run
+	// during the refresh process. The function exists to make the next two
+	// chunks of code symmetric.
 	canHookRunDuringRefresh := func(hook *snap.HookInfo) bool {
 		return false
 	}
