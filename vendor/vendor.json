@@ -171,7 +171,7 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "vYYwyICPulixLe5cJS04LaY66aU=",
+			"checksumSHA1": "FuXoNYVqeJARuYkOmPhreYmTf2M=",
 			"comment": "using revision before x/sys/unix/ introduced SYS_CLOCK_GETTIME on OSX",
 			"path": "golang.org/x/sys/unix",
 			"revision": "9eb1bfa1ce65ae8a6ff3114b0aaf9a41a6cf3560",
