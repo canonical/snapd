@@ -43,6 +43,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	if err != nil {
 		return err
 	}
+	// Closing the lock also unlocks it, if locked.
 	defer lock.Close()
 	if err := lock.Lock(); err != nil {
 		return err
