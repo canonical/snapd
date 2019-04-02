@@ -37,20 +37,20 @@ execute: |
 
         case "$SPREAD_SYSTEM" in
             arch-*|centos-*)
-                # start the services on distros where that doesn't happen
-                # automnatically
+                # Start the services on distros where that doesn't happen
+                # automatically
                 systemctl daemon-reload
                 systemctl restart snapd.socket
                 systemctl enable snapd.socket
                 ;;
         esac
 
-        # need to be seeded to allow snap install
+        # Need to be seeded to allow snap install
         if ! snap wait 2>&1|MATCH "unknown command" ; then
             snap wait system seed.loaded
         fi
 
-        prevsnapdver=$(snap --version|grep "snapd ")
+        prevsnapdver="$(snap --version|grep "snapd ")"
         echo "$prevsnapdver" > prevsnapdver.out
 
         if [[ "$SPREAD_SYSTEM" = debian-* ]] ; then
@@ -67,7 +67,7 @@ execute: |
         if is_classic_confinement_supported ; then
             install_local_classic test-snapd-classic-confinement
             do_classic=yes
-            # preserve the state across reboots if necessary
+            # Preserve the state across reboots if necessary
             touch do-classic
         fi
 
@@ -101,7 +101,7 @@ execute: |
         else
             distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extension"
             if [ "$context_transition" = "1" ]; then
-                echo "requesting reboot to enable SELinux mount context transition"
+                echo "Requesting reboot to enable SELinux mount context transition"
                 # transitioning SELinux mount contexts requires a reboot
                 REBOOT
             fi
@@ -122,7 +122,7 @@ execute: |
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
-            # all mount units should have been patched on upgrade
+            # All mount units should have been patched on upgrade
             unit_prefix="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
             for unit in /etc/systemd/system/"$unit_prefix"-*.mount; do
                 MATCH 'Options=.*context=system_u:object_r:snappy_snap_t:s0' "$unit"
