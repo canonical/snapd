@@ -35,6 +35,8 @@ execute: |
     . "$TESTSLIB/snaps.sh"
 
     install_local test-snapd-service
+    snap stop test-snapd-service
+    snap start test-snapd-service
     # TODO: enable once there is a workaround for denials caused by journalctl
     # snap logs test-snapd-service
     snap remove test-snapd-service
