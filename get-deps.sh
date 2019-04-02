@@ -23,7 +23,7 @@ if ! command -v govendor >/dev/null;then
 fi
 
 echo Obtaining dependencies
-govendor sync
+govendor sync -v
 
 
 if [ "$1" != "--skip-unused-check" ]; then
