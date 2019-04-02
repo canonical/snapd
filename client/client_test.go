@@ -564,11 +564,11 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
 
 	var result []string
-	err := cs.cli.DebugGet("do-something", &result)
+	err := cs.cli.DebugGet("do-something", map[string][]string{"foo": []string{"bar"}}, &result)
 	c.Check(err, IsNil)
 	c.Check(result, DeepEquals, []string{"res1", "res2"})
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}})
+	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}, "foo": []string{"bar"}})
 }

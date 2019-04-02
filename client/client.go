@@ -685,7 +685,11 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	return err
 }
 
-func (client *Client) DebugGet(aspect string, result interface{}) error {
-	_, err := client.doSync("GET", "/v2/debug", url.Values{"aspect": []string{aspect}}, nil, nil, &result)
+func (client *Client) DebugGet(aspect string, params map[string][]string, result interface{}) error {
+	urlparams := url.Values{"aspect": []string{aspect}}
+	for k, v := range params {
+		urlparams[k] = v
+	}
+	_, err := client.doSync("GET", "/v2/debug", urlparams, nil, nil, &result)
 	return err
 }
