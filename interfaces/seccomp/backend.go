@@ -41,6 +41,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -52,7 +53,6 @@ import (
 )
 
 var (
-	osReadlink               = os.Readlink
 	kernelFeatures           = release.SecCompActions
 	ubuntuKernelArchitecture = arch.UbuntuKernelArchitecture
 	releaseInfoId            = release.ReleaseInfo.ID
@@ -60,21 +60,11 @@ var (
 	requiresSocketcall       = requiresSocketcallImpl
 
 	snapSeccompVersionInfo = snapSeccompVersionInfoImpl
-	seccompCompilerLookup  = snapSeccompPath
+	seccompCompilerLookup  = cmd.InternalToolPath
 )
 
 func snapSeccompVersionInfoImpl(c Compiler) (string, error) {
 	return c.VersionInfo()
-}
-
-func snapSeccompPath(compiler string) (string, error) {
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		return "", err
-	}
-
-	// snap-seccomp is at the same location as snapd
-	return filepath.Join(filepath.Dir(exe), "snap-seccomp"), nil
 }
 
 type Compiler interface {

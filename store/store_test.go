@@ -2756,6 +2756,11 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "foo")
 			c.Check(query.Get("private"), Equals, "true")
+		case 1:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(name, Equals, "foo")
+			c.Check(q, Equals, "")
+			c.Check(query.Get("private"), Equals, "true")
 		default:
 			c.Fatalf("what? %d", n)
 		}
@@ -2778,6 +2783,9 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 	_, err := sto.Find(&store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
 
+	_, err = sto.Find(&store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
+	c.Check(err, IsNil)
+
 	_, err = sto.Find(&store.Search{Query: "foo", Private: true}, nil)
 	c.Check(err, Equals, store.ErrUnauthenticated)
 
@@ -2788,8 +2796,6 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
-	c.Check(err, Equals, store.ErrBadQuery)
-	_, err = sto.Find(&store.Search{Query: "foo", Private: true, Prefix: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
