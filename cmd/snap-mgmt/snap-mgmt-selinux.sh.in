@@ -24,7 +24,7 @@ patch_selinux_mount_context() {
         return
     fi
     if ! selinuxenabled; then
-        # the tools are there, but SELinux is not enabled
+        # The tools are there, but SELinux is not enabled
         return
     fi
 
@@ -39,7 +39,7 @@ patch_selinux_mount_context() {
     mounts=$(systemctl list-unit-files --no-legend --full "$SNAP_UNIT_PREFIX-*.mount" | cut -f1 -d ' ' || true)
     changed_mounts=
     for unit in $mounts; do
-        # ensure its really a snap mount unit or systemd unit
+        # Ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
             echo "Skipping non-snapd systemd unit $unit"
             continue
@@ -52,18 +52,18 @@ patch_selinux_mount_context() {
             fi
 
             if ! sed -i -e "s#^\\(Options=nodev.*\\)#\\1,$context_opt#" "/etc/systemd/system/$unit"; then
-                echo "Failed to patch $unit"
+                echo "Cannot patch $unit"
             fi
 
             changed_mounts="$changed_mounts $unit"
         elif [ "$remove" == "remove" ]; then
             if ! grep -q "Options=.*,$context_opt" < "/etc/systemd/system/$unit"; then
-                # not patched
+                # Not patched
                 continue
             fi
 
             if ! sed -i -e "s#^\\(Options=nodev.*\\),$context_opt\\(,.*\\)\\?#\\1\\2#" "/etc/systemd/system/$unit"; then
-                echo "Failed to patch $unit"
+                echo "Cannot patch $unit"
             fi
 
             changed_mounts="$changed_mounts $unit"
@@ -71,7 +71,7 @@ patch_selinux_mount_context() {
     done
 
     if [ -z "$changed_mounts" ]; then
-        # nothing changed, no need to reload
+        # Nothing changed, no need to reload
         return
     fi
 
@@ -79,7 +79,7 @@ patch_selinux_mount_context() {
 
     for unit in $changed_mounts; do
         if ! systemctl try-restart "$unit" ; then
-            echo "Failed to restart $unit"
+            echo "Cannot restart $unit"
         fi
     done
 }
