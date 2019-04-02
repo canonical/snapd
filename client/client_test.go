@@ -564,7 +564,7 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
 
 	var result []string
-	err := cs.cli.DebugGet("do-something", map[string][]string{"foo": []string{"bar"}}, &result)
+	err := cs.cli.DebugGet("do-something", &result, map[string]string{"foo": "bar"})
 	c.Check(err, IsNil)
 	c.Check(result, DeepEquals, []string{"res1", "res2"})
 	c.Check(cs.reqs, HasLen, 1)
