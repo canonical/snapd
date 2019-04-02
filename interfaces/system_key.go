@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -119,7 +120,7 @@ func generateSystemKey() (*systemKey, error) {
 	sk := &systemKey{
 		Version: 1,
 	}
-	snapdPath, err := findSnapdPath()
+	snapdPath, err := cmd.InternalToolPath("snapd")
 	if err != nil {
 		return nil, err
 	}

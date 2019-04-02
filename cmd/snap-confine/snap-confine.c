@@ -78,7 +78,8 @@ static void sc_maybe_fixup_permissions(void)
 static void sc_maybe_fixup_udev(void)
 {
 	glob_t glob_res SC_CLEANUP(globfree) = {
-	.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,};
+		.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,
+	};
 	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
 	int err = glob(glob_pattern, 0, NULL, &glob_res);
 	if (err == GLOB_NOMATCH) {
@@ -116,7 +117,8 @@ typedef struct sc_preserved_process_state {
  * umask is altered. It is set to zero to make the ownership of created files
  * and directories more predictable.
 **/
-static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * proc_state)
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
+						   proc_state)
 {
 	/* Reset umask to zero, storing the old value. */
 	proc_state->orig_umask = umask(0);
@@ -346,7 +348,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	group = sc_open_mount_ns(inv->snap_instance);
 
 	/* Apply fallback behaviors, if any apply. */
-	sc_maybe_pick_alternative_base_snap(inv);
+	sc_maybe_pick_alt_base_snap(inv);
 
 	/**
 	 * is_normal_mode controls if we should pivot into the base snap.

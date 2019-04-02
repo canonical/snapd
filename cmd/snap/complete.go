@@ -106,8 +106,8 @@ func (s remoteSnapName) Complete(match string) []flags.Completion {
 		return nil
 	}
 	snaps, _, err := mkClient().Find(&client.FindOptions{
-		Prefix: true,
 		Query:  match,
+		Prefix: true,
 	})
 	if err != nil {
 		return nil

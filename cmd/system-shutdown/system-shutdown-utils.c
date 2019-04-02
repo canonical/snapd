@@ -34,7 +34,7 @@
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 
-__attribute__ ((format(printf, 1, 2)))
+__attribute__((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...)
 {
 	static FILE *kmsg = NULL;
@@ -53,7 +53,7 @@ void kmsg(const char *fmt, ...)
 	va_end(va);
 }
 
-__attribute__ ((noreturn))
+__attribute__((noreturn))
 void die(const char *msg)
 {
 	if (errno == 0) {

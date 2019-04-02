@@ -176,7 +176,7 @@ static void test_is_on_custom_base(void)
 	g_assert_cmpint(sc_classify_distro(), ==, SC_DISTRO_CORE_OTHER);
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
 	g_test_add_func("/classic/on-classic-with-long-line",

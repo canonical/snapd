@@ -70,6 +70,6 @@ void sc_cleanup_invocation(sc_invocation *inv);
  * of the init process) because it relies on the value of compile-time-choice
  * of SNAP_MOUNT_DIR.
  **/
-void sc_maybe_pick_alternate_base_snap(sc_invocation *inv);
+void sc_maybe_pick_alt_base_snap(sc_invocation *inv);
 
 #endif
