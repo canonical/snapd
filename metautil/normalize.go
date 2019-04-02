@@ -17,6 +17,7 @@
  *
  */
 
+// Package metautil takes care of basic details of working with snap metadata formats.
 package metautil
 
 import (
