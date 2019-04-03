@@ -103,15 +103,19 @@ func (h *HotplugDeviceInfo) firstAttrValueOf(tryAttrs ...string) string {
 func (h *HotplugDeviceInfo) String() string {
 	var str []string
 
+	// devname is the name of the device under /dev, eg. /dev/ttyS0;
+	// prefer devname over devpath as this is the one used to talk to the device.
 	if devname := h.DeviceName(); devname != "" {
 		str = append(str, fmt.Sprintf("devname:%s", devname))
 	} else {
+		// devpath is the path of the device under /sys, eg. /sys/devices/pnp0/00:04/tty/ttyS0
 		if devpath := h.DevicePath(); devpath != "" {
 			str = append(str, fmt.Sprintf("devpath:%s", devpath))
 		}
 	}
 	for _, attr := range []string{"MAJOR", "MINOR"} {
 		if val, ok := h.Attribute(attr); ok {
+			// lowercase attribute names as the string representation may appear in task summaries etc.
 			str = append(str, fmt.Sprintf("%s:%s", strings.ToLower(attr), val))
 		}
 	}
