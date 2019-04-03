@@ -33,7 +33,7 @@ func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
 	defer restore()
 
 	// we create a canary.txt with the same prefix as the real one
-	mockMount := testutil.MockCommand(c, "mount", "echo 'This file is used to check that snapd can read a squashfs image.' > $4/canary.txt")
+	mockMount := testutil.MockCommand(c, "mount", `echo 'This file is used to check that snapd can read a squashfs image.' > "$4"/canary.txt`)
 	defer mockMount.Restore()
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
@@ -82,7 +82,7 @@ func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
-	mockMount := testutil.MockCommand(c, "mount", "echo 'wrong content' > $4/canary.txt")
+	mockMount := testutil.MockCommand(c, "mount", `echo 'wrong content' > "$4"/canary.txt`)
 	defer mockMount.Restore()
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
