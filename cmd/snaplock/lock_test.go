@@ -17,17 +17,22 @@
  *
  */
 
-package mount_test
+package snaplock_test
 
 import (
 	"os"
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
 )
+
+func Test(t *testing.T) {
+	TestingT(t)
+}
 
 type lockSuite struct{}
 
@@ -42,12 +47,13 @@ func (s *lockSuite) TearDownTest(c *C) {
 }
 
 func (s *lockSuite) TestOpenLock(c *C) {
-	lock, err := mount.OpenLock("name")
+	lock, err := snaplock.OpenLock("name")
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
 	_, err = os.Stat(lock.Path())
 	c.Assert(err, IsNil)
 
-	c.Check(strings.HasPrefix(lock.Path(), dirs.SnapRunLockDir), Equals, true, Commentf("wrong prefix for %q, want %q", lock.Path(), dirs.SnapRunLockDir))
+	comment := Commentf("wrong prefix for %q, want %q", lock.Path(), dirs.SnapRunLockDir)
+	c.Check(strings.HasPrefix(lock.Path(), dirs.SnapRunLockDir), Equals, true, comment)
 }
