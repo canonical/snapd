@@ -342,20 +342,34 @@ prepare_project() {
         # 14.04 has its own packaging
         ./generate-packaging-dir
 
-        quiet apt-get install -y software-properties-common
+        quiet eatmydata apt-get install -y software-properties-common
 
 	# FIXME: trusty-proposed disabled because there is an inconsistency
 	#        in the trusty-proposed archive:
 	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
         #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
-        quiet apt-get update
+        quiet eatmydata apt-get update
 
-        quiet apt-get install -y --install-recommends linux-generic-lts-xenial
-        quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+        quiet eatmydata apt-get install -y --install-recommends linux-generic-lts-xenial
+        quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    distro_purge_package snapd || true
+    # WORKAROUND for older postrm scripts that did not do 
+    # "rm -rf /var/cache/snapd"
+    rm -rf /var/cache/snapd/aux
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*)
+            # Ubuntu is the only system where snapd is preinstalled
+            distro_purge_package snapd
+            ;;
+        *)
+            # snapd state directory must not exist when the package is not
+            # installed
+            test ! -d /var/lib/snapd
+            ;;
+    esac
+
     install_pkg_dependencies
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
@@ -370,7 +384,7 @@ prepare_project() {
             else
                 best_golang=golang-1.10
             fi
-            gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
+            gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
             # The go 1.10 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then

@@ -504,8 +504,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
  * @fulllen: full original path length.
  * Returns a pointer to the next path segment, or NULL if done.
  */
-static char * __attribute__ ((used))
-    get_nextpath(char *path, size_t * offsetp, size_t fulllen)
+static char * __attribute__((used))
+    get_nextpath(char *path, size_t *offsetp, size_t fulllen)
 {
 	size_t offset = *offsetp;
 
@@ -524,7 +524,7 @@ static char * __attribute__ ((used))
 /**
  * Check that @subdir is a subdir of @dir.
 **/
-static bool __attribute__ ((used))
+static bool __attribute__((used))
     is_subdir(const char *subdir, const char *dir)
 {
 	size_t dirlen = strlen(dir);
@@ -625,7 +625,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			// If after the special case handling above we are
 			// still not ok, die
 			if (access(rootfs_dir, F_OK) != 0)
-			        die("cannot locate the base snap: %s", base_snap_name);
+				die("cannot locate the base snap: %s",
+				    base_snap_name);
 		}
 		struct sc_mount_config normal_config = {
 			.rootfs_dir = rootfs_dir,
@@ -677,7 +678,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 }
 
 static bool is_mounted_with_shared_option(const char *dir)
-    __attribute__ ((nonnull(1)));
+    __attribute__((nonnull(1)));
 
 static bool is_mounted_with_shared_option(const char *dir)
 {

@@ -41,7 +41,7 @@ char *sc_strdup(const char *str);
  *
  * This version dies on any error condition.
  **/
-__attribute__ ((format(printf, 3, 4)))
+__attribute__((format(printf, 3, 4)))
 int sc_must_snprintf(char *str, size_t size, const char *format, ...);
 
 /**
