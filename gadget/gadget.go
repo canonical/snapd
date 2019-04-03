@@ -214,10 +214,10 @@ func systemOrSnapID(s string) bool {
 // ReadInfo reads the gadget specific metadata from gadget.yaml
 // in the snap. classic set to true means classic rules apply,
 // i.e. content/presence of gadget.yaml is fully optional.
-func ReadInfo(gadgetRootDir string, classic bool) (*Info, error) {
+func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	var gi Info
 
-	gadgetYamlFn := filepath.Join(gadgetRootDir, "meta", "gadget.yaml")
+	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
 	if classic && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
