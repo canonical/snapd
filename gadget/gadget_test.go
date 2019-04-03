@@ -219,13 +219,13 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
-	_, err := gadget.ReadGadgetInfo("bogus-path", false)
+	_, err := gadget.ReadInfo("bogus-path", false)
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
 	// no meta/gadget.yaml
-	gi, err := gadget.ReadGadgetInfo(s.dir, true)
+	gi, err := gadget.ReadInfo(s.dir, true)
 	c.Assert(err, IsNil)
 	c.Check(gi, NotNil)
 }
@@ -234,7 +234,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(s.dir, true)
+	ginfo, err := gadget.ReadInfo(s.dir, true)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
@@ -243,7 +243,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(s.dir, true)
+	ginfo, err := gadget.ReadInfo(s.dir, true)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -259,7 +259,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(s.dir, false)
+	ginfo, err := gadget.ReadInfo(s.dir, false)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -306,7 +306,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(s.dir, false)
+	ginfo, err := gadget.ReadInfo(s.dir, false)
 	c.Assert(err, IsNil)
 	c.Check(ginfo.Volumes, HasLen, 2)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
@@ -368,7 +368,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot or android-boot")
 }
 
@@ -382,7 +382,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -390,7 +390,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -404,7 +404,7 @@ defaults:
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, `default stanza not keyed by "system" or snap-id: foo`)
 }
 
@@ -431,7 +431,7 @@ connections:
 		err := ioutil.WriteFile(s.gadgetYamlPath, []byte(mockGadgetYamlBroken), 0644)
 		c.Assert(err, IsNil)
 
-		_, err = gadget.ReadGadgetInfo(s.dir, false)
+		_, err = gadget.ReadInfo(s.dir, false)
 		c.Check(err, ErrorMatches, t.expectedErr)
 	}
 }
@@ -440,7 +440,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockVolumeUpdateGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(s.dir, false)
+	ginfo, err := gadget.ReadInfo(s.dir, false)
 	c.Check(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
@@ -480,14 +480,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, broken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `cannot parse gadget metadata: "edition" must be a positive number, not "borked"`)
 
 	broken = bytes.Replace(mockVolumeUpdateGadgetYaml, []byte("edition: 5"), []byte("edition: -5"), 1)
 	err = ioutil.WriteFile(s.gadgetYamlPath, broken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `cannot parse gadget metadata: "edition" must be a positive number, not "-5"`)
 }
 
@@ -566,7 +566,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Assert(err, IsNil)
 }
 
@@ -574,7 +574,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlRPi, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Assert(err, IsNil)
 }
 
@@ -923,13 +923,13 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) refers to an unknown structure "bad-name"`)
 
 	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadContentName), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(s.dir, false)
+	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
 }
 

@@ -211,10 +211,10 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// ReadGadgetInfo reads the gadget specific metadata from gadget.yaml
+// ReadInfo reads the gadget specific metadata from gadget.yaml
 // in the snap. classic set to true means classic rules apply,
 // i.e. content/presence of gadget.yaml is fully optional.
-func ReadGadgetInfo(gadgetRootDir string, classic bool) (*Info, error) {
+func ReadInfo(gadgetRootDir string, classic bool) (*Info, error) {
 	var gi Info
 
 	gadgetYamlFn := filepath.Join(gadgetRootDir, "meta", "gadget.yaml")

@@ -35,7 +35,7 @@ func ReadGadgetInfo(info *Info, classic bool) (*gadget.Info, error) {
 		return nil, fmt.Errorf(errorFormat, "not a gadget snap")
 	}
 
-	gi, err := gadget.ReadGadgetInfo(info.MountDir(), classic)
+	gi, err := gadget.ReadInfo(info.MountDir(), classic)
 	if err != nil {
 		return nil, fmt.Errorf(errorFormat, err)
 	}
