@@ -247,7 +247,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
-			"system":                           {"something": true},
+			"system": {"something": true},
+			// keep this comment so that gofmt 1.10+ does not
+			// realign this, thus breaking our gofmt 1.9 checks
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
 		},
 	})
