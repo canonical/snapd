@@ -22,7 +22,6 @@ package hotplug
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 )
@@ -101,36 +100,27 @@ func (h *HotplugDeviceInfo) firstAttrValueOf(tryAttrs ...string) string {
 }
 
 func (h *HotplugDeviceInfo) String() string {
-	var str []string
+	var nameOrPath string
 
 	// devname is the name of the device under /dev, eg. /dev/ttyS0;
 	// prefer devname over devpath as this is the one used to talk to the device.
-	if devname := h.DeviceName(); devname != "" {
-		str = append(str, fmt.Sprintf("devname:%s", devname))
-	} else {
-		// devpath is the path of the device under /sys, eg. /sys/devices/pnp0/00:04/tty/ttyS0
-		if devpath := h.DevicePath(); devpath != "" {
-			str = append(str, fmt.Sprintf("devpath:%s", devpath))
-		}
-	}
-	for _, attr := range []string{"MAJOR", "MINOR"} {
-		if val, ok := h.Attribute(attr); ok {
-			// lowercase attribute names as the string representation may appear in task summaries etc.
-			str = append(str, fmt.Sprintf("%s:%s", strings.ToLower(attr), val))
-		}
+	if nameOrPath = h.DeviceName(); nameOrPath == "" {
+		// devpath is the path of the device under /sys, eg. /sys/devices/pnp0/00:04/tty/ttyS0.
+		nameOrPath = h.DevicePath()
 	}
 
-	if vendor := h.firstAttrValueOf("ID_VENDOR_FROM_DATABASE", "ID_VENDOR", "ID_VENDOR_ID"); vendor != "" {
-		str = append(str, fmt.Sprintf("vendor:%s", vendor))
+	modelOrVendor := h.firstAttrValueOf("ID_MODEL_FROM_DATABASE", "ID_MODEL", "ID_MODEL_ID", "ID_VENDOR_FROM_DATABASE", "ID_VENDOR", "ID_VENDOR_ID")
+	if modelOrVendor == "" {
+		modelOrVendor = "?"
+	}
+	if len(modelOrVendor) > 16 {
+		modelOrVendor = modelOrVendor[0:16] + "..."
 	}
 
-	if model := h.firstAttrValueOf("ID_MODEL_FROM_DATABASE", "ID_MODEL", "ID_MODEL_ID"); model != "" {
-		str = append(str, fmt.Sprintf("model:%s", model))
+	serial := h.firstAttrValueOf("ID_SERIAL_SHORT", "ID_SERIAL")
+	if serial == "noserial" || serial == "" {
+		serial = "?"
 	}
 
-	if serial := h.firstAttrValueOf("ID_SERIAL", "ID_SERIAL_SHORT"); serial != "" && serial != "noserial" {
-		str = append(str, fmt.Sprintf("serial:%s", serial))
-	}
-
-	return fmt.Sprintf("<%s>", strings.Join(str, ", "))
+	return fmt.Sprintf("%s (%s; serial: %s)", nameOrPath, modelOrVendor, serial)
 }

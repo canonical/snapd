@@ -112,7 +112,7 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 				"SUBSYSTEM":               "usb",
 				"MAJOR":                   "189", "MINOR": "1",
 			},
-			out: "<devname:/dev/xyz, major:189, minor:1, vendor:foo, model:bar, serial:999000>",
+			out: "/dev/xyz (bar; serial: 999000)",
 		},
 		{
 			env: map[string]string{
@@ -123,14 +123,33 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 				"ACTION":       "add",
 				"MAJOR":        "189", "MINOR": "1",
 			},
-			out: "<devpath:/sys/devices/a/b/c, major:189, minor:1, vendor:foo, model:bar>",
+			out: "/sys/devices/a/b/c (bar; serial: ?)",
+		},
+		{
+			env: map[string]string{
+				"DEVPATH":                 "/devices/a/b/c",
+				"ID_VENDOR_FROM_DATABASE": "very long vendor name",
+				"ID_SERIAL_SHORT":         "123",
+				"ACTION":                  "add",
+				"MAJOR":                   "189", "MINOR": "1",
+			},
+			out: "/sys/devices/a/b/c (very long vendor...; serial: 123)",
+		},
+		{
+			env: map[string]string{
+				"DEVPATH":                "/devices/a/b/c",
+				"ID_MODEL_FROM_DATABASE": "very long model name",
+				"ACTION":                 "add",
+				"MAJOR":                  "189", "MINOR": "1",
+			},
+			out: "/sys/devices/a/b/c (very long model ...; serial: ?)",
 		},
 		{
 			env: map[string]string{
 				"DEVPATH": "/devices/a/b/c",
 				"ACTION":  "add",
 			},
-			out: "<devpath:/sys/devices/a/b/c>",
+			out: "/sys/devices/a/b/c (?; serial: ?)",
 		},
 	}
 
