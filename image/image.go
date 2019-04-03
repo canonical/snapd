@@ -459,7 +459,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	snaps := []string{}
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
-		snaps = append(snaps, "snapd")
+		snaps = append(snaps, local.PreferLocal("snapd"))
 		// TODO: once we order snaps by what they need this
 		//       can go aways
 		// Here we ensure that "core" is seeded very early
@@ -468,7 +468,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// required snaps like bluez which at this point
 		// still requires core will hang forever in seeding.
 		if strutil.ListContains(opts.Snaps, "core") {
-			snaps = append(snaps, "core")
+			snaps = append(snaps, local.PreferLocal("core"))
 		}
 	}
 

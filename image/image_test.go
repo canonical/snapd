@@ -1008,7 +1008,6 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	c.Check(m["snap_core"], Equals, "core18_18.snap")
 
 	c.Check(s.stderr.String(), Equals, "")
-
 }
 
 func (s *imageSuite) TestSetupSeedKernelPublisherMismatch(c *C) {
@@ -2149,6 +2148,50 @@ func (s *imageSuite) TestSnapChannel(c *C) {
 	opts.SnapChannels["pc-kernel"] = "lts/candidate"
 	_, err = image.SnapChannel("pc-kernel", model, opts, local)
 	c.Assert(err, ErrorMatches, `channel "lts/candidate" for kernel has a track incompatible with the track from model assertion: 18`)
+}
+
+func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc18":      "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.downloadedSnaps["snapd"],
+			s.downloadedSnaps["core18"],
+		},
+
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	emptyToolingStore := image.MockToolingStore(&emptyStore{})
+	local, err := image.LocalSnaps(emptyToolingStore, opts)
+	c.Assert(err, IsNil)
+
+	err = image.SetupSeed(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+	c.Assert(s.stdout.String(), Matches, `(?m)Copying ".*/snapd_3.14_all.snap" \(snapd\)`)
 }
 
 type toolingAuthContextSuite struct {
