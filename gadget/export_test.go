@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,15 +17,11 @@
  *
  */
 
-package snap
+package gadget
 
 var (
-	ValidateSocketName           = validateSocketName
-	ValidateDescription          = validateDescription
-	ValidateTitle                = validateTitle
-	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
+	ValidateStructureType   = validateStructureType
+	ValidateVolumeStructure = validateVolumeStructure
+	ValidateRole            = validateRole
+	ValidateVolume          = validateVolume
 )
-
-func (info *Info) ForceRenamePlug(oldName, newName string) {
-	info.forceRenamePlug(oldName, newName)
-}
