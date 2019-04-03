@@ -20,7 +20,9 @@
 package testutil
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -39,13 +41,14 @@ func init() {
 	}
 }
 
-func maybeShellcheck(c *check.C, script string) {
+func maybeShellcheck(c *check.C, script io.Reader) {
 	c.Logf("using shellcheck: %q", shellcheckPath)
 	if shellcheckPath == "" {
 		// no shellcheck, nothing to do
 		return
 	}
-	cmd := exec.Command(shellcheckPath, "-s", "bash", script)
+	cmd := exec.Command(shellcheckPath, "-s", "bash", "-")
+	cmd.Stdin = script
 	out, err := cmd.CombinedOutput()
 	c.Check(err, check.IsNil, check.Commentf("shellcheck failed:\n%s", string(out)))
 }
@@ -85,6 +88,7 @@ printf "\0" >> %[1]q
 // script behaves (exit code and any extra behavior). If script is empty then
 // the command exits successfully without any other side-effect.
 func MockCommand(c *check.C, basename, script string) *MockCmd {
+	var wholeScript bytes.Buffer
 	var binDir, exeFile, logFile string
 	if filepath.IsAbs(basename) {
 		binDir = filepath.Dir(basename)
@@ -96,12 +100,13 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 		logFile = path.Join(binDir, basename+".log")
 		os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
 	}
-	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, logFile, script)), 0700)
+	fmt.Fprintf(&wholeScript, scriptTpl, logFile, script)
+	err := ioutil.WriteFile(exeFile, wholeScript.Bytes(), 0700)
 	if err != nil {
 		panic(err)
 	}
 
-	maybeShellcheck(c, exeFile)
+	maybeShellcheck(c, &wholeScript)
 
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }
