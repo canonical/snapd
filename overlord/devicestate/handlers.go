@@ -103,7 +103,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		if typ != snap.TypeApp {
+		if typ != snap.TypeApp && typ != snap.TypeBase {
 			continue
 		}
 		// clean required flag if no-longer needed
