@@ -45,7 +45,9 @@ bool sc_feature_enabled(sc_feature_flag flag)
 	}
 
 	int dirfd SC_CLEANUP(sc_cleanup_close) = -1;
-	dirfd = open(feature_flag_dir, O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
+	dirfd =
+	    open(feature_flag_dir,
+		 O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
 	if (dirfd < 0 && errno == ENOENT) {
 		return false;
 	}

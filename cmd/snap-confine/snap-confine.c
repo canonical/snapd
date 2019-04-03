@@ -48,6 +48,9 @@
 #include "snap-confine-invocation.h"
 #include "udev-support.h"
 #include "user-support.h"
+#ifdef HAVE_SELINUX
+#include "selinux-support.h"
+#endif
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -75,7 +78,8 @@ static void sc_maybe_fixup_permissions(void)
 static void sc_maybe_fixup_udev(void)
 {
 	glob_t glob_res SC_CLEANUP(globfree) = {
-	.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,};
+		.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,
+	};
 	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
 	int err = glob(glob_pattern, 0, NULL, &glob_res);
 	if (err == GLOB_NOMATCH) {
@@ -113,7 +117,8 @@ typedef struct sc_preserved_process_state {
  * umask is altered. It is set to zero to make the ownership of created files
  * and directories more predictable.
 **/
-static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state * proc_state)
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
+						   proc_state)
 {
 	/* Reset umask to zero, storing the old value. */
 	proc_state->orig_umask = umask(0);
@@ -247,6 +252,10 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
+#ifdef HAVE_SELINUX
+	// For classic and confined snaps
+	sc_selinux_set_snap_execcon();
+#endif
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */

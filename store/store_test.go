@@ -2756,6 +2756,11 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "foo")
 			c.Check(query.Get("private"), Equals, "true")
+		case 1:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(name, Equals, "foo")
+			c.Check(q, Equals, "")
+			c.Check(query.Get("private"), Equals, "true")
 		default:
 			c.Fatalf("what? %d", n)
 		}
@@ -2778,6 +2783,9 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 	_, err := sto.Find(&store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
 
+	_, err = sto.Find(&store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
+	c.Check(err, IsNil)
+
 	_, err = sto.Find(&store.Search{Query: "foo", Private: true}, nil)
 	c.Check(err, Equals, store.ErrUnauthenticated)
 
@@ -2788,8 +2796,6 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
-	c.Check(err, Equals, store.ErrBadQuery)
-	_, err = sto.Find(&store.Search{Query: "foo", Private: true, Prefix: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
@@ -2995,6 +3001,45 @@ func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	sto := store.New(&cfg, nil)
 
 	infos, err := sto.Find(&store.Search{Query: "foo"}, nil)
+	c.Check(err, IsNil)
+	c.Assert(infos, HasLen, 1)
+	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
+}
+
+func (s *storeTestSuite) TestFindByCommonID(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", searchPath)
+		query := r.URL.Query()
+
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(query["common_id"], DeepEquals, []string{"org.hello"})
+			c.Check(query["name"], IsNil)
+			c.Check(query["q"], IsNil)
+		default:
+			c.Fatalf("expected 1 query, now on %d", n+1)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, strings.Replace(MockSearchJSON,
+			`"common_ids": []`,
+			`"common_ids": ["org.hello"]`, -1))
+
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	sto := store.New(&cfg, nil)
+
+	infos, err := sto.Find(&store.Search{CommonID: "org.hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})

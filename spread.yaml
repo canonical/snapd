@@ -85,19 +85,18 @@ backends:
                 # golang stack cannot compile anything, needs investigation
                 manual: true
             - opensuse-15.0-64:
-                workers: 4
-                manual: true
+                workers: 6
             - opensuse-tumbleweed-64:
-                workers: 4
+                workers: 6
             - arch-linux-64:
-                workers: 4
+                workers: 6
 
             - amazon-linux-2-64:
-                workers: 4
+                workers: 6
                 storage: preserve-size
 
             - centos-7-64:
-                workers: 4
+                workers: 6
                 image: centos-7-64
 
     google-upgrade:
@@ -540,6 +539,10 @@ prepare: |
         fi
     fi
 
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        apt-get update && apt-get install -y eatmydata
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -549,7 +552,7 @@ prepare: |
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
-                apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+                apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
