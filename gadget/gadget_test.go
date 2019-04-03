@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -32,11 +33,12 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-type gadgetYamlTestSuite struct{}
+type gadgetYamlTestSuite struct {
+	dir            string
+	gadgetYamlPath string
+}
 
 var _ = Suite(&gadgetYamlTestSuite{})
 
@@ -207,6 +209,9 @@ func mustParseGadgetRelativeOffset(c *C, s string) gadget.RelativeOffset {
 
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.dir = c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "meta"), 0755), IsNil)
+	s.gadgetYamlPath = filepath.Join(s.dir, "meta", "gadget.yaml")
 }
 
 func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
@@ -219,29 +224,26 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	gi, err := gadget.ReadGadgetInfo(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), true)
+	// no meta/gadget.yaml
+	gi, err := gadget.ReadGadgetInfo(s.dir, true)
 	c.Assert(err, IsNil)
 	c.Check(gi, NotNil)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	p := filepath.Join(info.MountDir(), "meta", "gadget.yaml")
-	err := ioutil.WriteFile(p, nil, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), true)
+	ginfo, err := gadget.ReadGadgetInfo(s.dir, true)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockClassicGadgetYaml, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), true)
+	ginfo, err := gadget.ReadGadgetInfo(s.dir, true)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -252,11 +254,10 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), false)
+	ginfo, err := gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -300,11 +301,10 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockMultiVolumeGadgetYaml, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), false)
+	ginfo, err := gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, IsNil)
 	c.Check(ginfo.Volumes, HasLen, 2)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
@@ -357,62 +357,56 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
   bootloader: silo
 `)
 
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot or android-boot")
 }
 
-func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptyBootloader(c *C) {
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
   bootloader:
 `)
 
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidDefaultsKey(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 defaults:
  foo:
   x: 1
 `)
 
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, ErrorMatches, `default stanza not keyed by "system" or snap-id: foo`)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidConnection(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := `
 connections:
  - @INVALID@
@@ -432,20 +426,19 @@ connections:
 	for _, t := range tests {
 		mockGadgetYamlBroken := strings.Replace(mockGadgetYamlBroken, "@INVALID@", t.invalidConn, 1)
 
-		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), []byte(mockGadgetYamlBroken), 0644)
+		err := ioutil.WriteFile(s.gadgetYamlPath, []byte(mockGadgetYamlBroken), 0644)
 		c.Assert(err, IsNil)
 
-		_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+		_, err = gadget.ReadGadgetInfo(s.dir, false)
 		c.Check(err, ErrorMatches, t.expectedErr)
 	}
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockVolumeUpdateGadgetYaml, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockVolumeUpdateGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadGadgetInfo(info.MountDir(), false)
+	ginfo, err := gadget.ReadGadgetInfo(s.dir, false)
 	c.Check(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
@@ -481,20 +474,18 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-
 	broken := bytes.Replace(mockVolumeUpdateGadgetYaml, []byte("edition: 5"), []byte("edition: borked"), 1)
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), broken, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, broken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `cannot parse gadget metadata: "edition" must be a positive number, not "borked"`)
 
 	broken = bytes.Replace(mockVolumeUpdateGadgetYaml, []byte("edition: 5"), []byte("edition: -5"), 1)
-	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), broken, 0644)
+	err = ioutil.WriteFile(s.gadgetYamlPath, broken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `cannot parse gadget metadata: "edition" must be a positive number, not "-5"`)
 }
 
@@ -570,20 +561,18 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), gadgetYamlPC, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), gadgetYamlRPi, 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlRPi, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Assert(err, IsNil)
 }
 
@@ -727,7 +716,6 @@ role: foobar
 }
 
 func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
-
 	for i, tc := range []struct {
 		s   string
 		err string
@@ -749,7 +737,6 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
-
 	for i, tc := range []struct {
 		s   string
 		err string
@@ -813,7 +800,6 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
-
 	err := gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Type: "bare", Size: 1024},
@@ -932,23 +918,20 @@ volumes:
           - image: pc-core.img
             offset-write: bad-name+123
 `
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), []byte(gadgetYamlBadStructureName), 0644)
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) refers to an unknown structure "bad-name"`)
 
-	info = snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), []byte(gadgetYamlBadContentName), 0644)
+	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadContentName), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadGadgetInfo(info.MountDir(), false)
+	_, err = gadget.ReadGadgetInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
-
 	gv := &gadget.Volume{}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
@@ -972,7 +955,6 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C) {
-
 	gv := &gadget.Volume{}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
