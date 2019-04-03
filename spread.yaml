@@ -99,36 +99,6 @@ backends:
                 workers: 6
                 image: centos-7-64
 
-    google-upgrade:
-        type: google
-        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
-        location: computeengine/us-east1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-                workers: 1
-            - ubuntu-16.04-32:
-                workers: 1
-            - ubuntu-16.04-64:
-                workers: 1
-            - ubuntu-18.04-64:
-                workers: 1
-            - ubuntu-18.10-64:
-                image: ubuntu-1810
-                workers: 1
-            - debian-9-64:
-                workers: 1
-            - fedora-29-64:
-                workers: 1
-            - arch-linux-64:
-                workers: 1
-            - amazon-linux-2-64:
-                workers: 1
-                storage: preserve-size
-            - centos-7-64:
-                workers: 1
-
-
     google-sru:
         type: google
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
@@ -691,9 +661,6 @@ suites:
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-*, -opensuse-*]
-        # autopkgtest runs against localhost which causes problems with
-        # this test prepare
-        backends: [google-upgrade]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
             # like other suites, needs more investigation
