@@ -91,7 +91,7 @@ static void test_is_subdir(void)
 	g_assert_false(is_subdir("/", ""));
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/mount/get_nextpath/typical",
 			test_get_nextpath__typical);

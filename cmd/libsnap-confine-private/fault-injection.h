@@ -37,7 +37,7 @@ bool sc_faulty(const char *name, void *ptr);
 
 struct sc_fault_state;
 
-typedef bool(*sc_fault_fn) (struct sc_fault_state * state, void *ptr);
+typedef bool (*sc_fault_fn)(struct sc_fault_state * state, void *ptr);
 
 struct sc_fault_state {
 	int ncalls;
