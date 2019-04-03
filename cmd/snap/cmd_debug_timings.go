@@ -37,8 +37,8 @@ type cmdChangeTimings struct {
 
 func init() {
 	addDebugCommand("timings",
-		"Get the timings of the tasks of a change",
-		"The timings command displays details about the time each task runs.",
+		i18n.G("Get the timings of the tasks of a change"),
+		i18n.G("The timings command displays details about the time each task runs."),
 		func() flags.Commander {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
