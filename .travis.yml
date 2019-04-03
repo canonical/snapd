@@ -46,7 +46,7 @@ jobs:
       script:
         - ./tests/lib/cla_check.py
     - stage: integration
-      name: spread on ubuntu systems
+      name: Ubuntu 14.04, 16.04, 18.04, 18.10, Core 16, Core 18
       dist: xenial
       addons:
         apt:
@@ -58,7 +58,7 @@ jobs:
       script:
         - ./run-checks --spread-ubuntu
     - stage: integration
-      name: spread on other systems than ubuntu
+      name: Debian, Fedora, CentOS, Amazon Linux 2, openSUSE, Arch
       dist: xenial
       addons:
         apt:
