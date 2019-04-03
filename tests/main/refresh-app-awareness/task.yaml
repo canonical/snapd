@@ -23,8 +23,8 @@ execute: |
     test-snapd-refresh.sh -c 'exec sleep 1h' &
     pid=$!
     trap 'kill '"$pid"' || true' EXIT
-    # Try to install v2, it should fail because v1 is running.
-    snap install --dangerous test-snapd-refresh_2_all.snap || true
+    # Try to install v2, it should fail because v1 is running. Snapd is even kind enough to tell us what is preventing the install from working.
+    ! snap install --dangerous test-snapd-refresh_2_all.snap | MATCH 'error: cannot install snap file: snap "test-snapd-refresh" has running apps \(sh\)'
     test-snapd-refresh.version | MATCH v1
     # Kill the app process running from v1.
     kill "$pid"
