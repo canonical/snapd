@@ -188,7 +188,7 @@ static void test_should_use_normal_mode(void)
 	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CLASSIC, "core18"));
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
 	g_test_add_func("/classic/on-classic-with-long-line",
