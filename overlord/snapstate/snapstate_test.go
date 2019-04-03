@@ -738,6 +738,9 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 }
 
 func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	snapst := &snapstate.SnapState{
 		Active:   false,
 		Channel:  "channel",
@@ -752,6 +755,9 @@ func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 }
 
 func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
 	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0, "")
 	c.Assert(err, NotNil)
