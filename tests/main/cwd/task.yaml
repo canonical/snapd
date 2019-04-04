@@ -9,9 +9,6 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
-    # NOTE: On core18 some directories are still missing. To decouple that fix
-    # from this test create the essential directory if it is missing.
-    test -d /var/lib/snapd/void || mkdir -m 111 /var/lib/snapd/void
     # Since the void directory is used when there are insufficient
     # permissions to enter the regular directory we must be able to go there
     # in the first place.
