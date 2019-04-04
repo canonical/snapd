@@ -833,15 +833,15 @@ fi
 # TODO: the trigger relies on a very specific snapd version that introduced SELinux
 # mount context, figure out how to update the trigger condition to run when needed
 %triggerun -- snapd < 2.38
-# trigger on uninstall, with one version of the package being pre 2.38 see
+# Trigger on uninstall, with one version of the package being pre 2.38 see
 # https://rpm-packaging-guide.github.io/#triggers-and-scriptlets for details
 # when triggers are run
 %if 0%{?with_selinux}
 if [ "$1" -eq 2 -a "$2" -eq 1 ]; then
-   # upgrade from pre 2.38 version
+   # Upgrade from pre 2.38 version
    %{_libexecdir}/snapd/snap-mgmt-selinux --patch-selinux-mount-context=system_u:object_r:snappy_snap_t:s0 || :
 elif [ "$1" -eq 1 -a "$2" -eq 2 ]; then
-   # downgrade to a pre 2.38 version
+   # Downgrade to a pre 2.38 version
    %{_libexecdir}/snapd/snap-mgmt-selinux --remove-selinux-mount-context=system_u:object_r:snappy_snap_t:s0 || :
 fi
 %endif

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -2188,7 +2189,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 
 // GadgetConnections returns the interface connection instructions
 // specified in the gadget. If gadget is absent it returns ErrNoState.
-func GadgetConnections(st *state.State) ([]snap.GadgetConnection, error) {
+func GadgetConnections(st *state.State) ([]gadget.Connection, error) {
 	gadget, err := GadgetInfo(st)
 	if err != nil {
 		return nil, err
