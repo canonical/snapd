@@ -103,7 +103,7 @@ func (h *HotplugDeviceInfo) String() string {
 	return h.str(70)
 }
 
-// ShortString returns a string representation of the device with more aggresive truncating of model/vendor name.
+// ShortString returns a string representation of the device with more aggressive truncating of model/vendor name.
 func (h *HotplugDeviceInfo) ShortString() string {
 	return h.str(16)
 }
