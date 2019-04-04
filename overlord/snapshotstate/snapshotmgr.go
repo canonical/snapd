@@ -97,23 +97,24 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 		return nil
 	}
 
-	// forget needs to conflict with check and restore
-	for setID := range sets {
-		if err := checkSnapshotTaskConflict(mgr.state, setID, "check-snapshot", "restore-snapshot"); err != nil {
-			// there is a conflict, do nothing and we will retry on next Ensure().
-			return nil
-		}
-	}
-
 	mgr.lastForgetExpiredSnapshotTime = time.Now()
 
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
+		// forget needs to conflict with check and restore
+		if err := checkSnapshotTaskConflict(mgr.state, r.SetID, "check-snapshot", "restore-snapshot"); err != nil {
+			// there is a conflict, do nothing and we will retry this set on next Ensure().
+			return nil
+		}
 		if sets[r.SetID] {
-			if rmerr := osRemove(r.Name()); rmerr != nil {
-				return fmt.Errorf("cannot remove snapshot file %q: %v", r.Name(), rmerr)
-			}
+			// remove from state first: in case removeSnapshotState succeeds but osRemove fails we will never attempt
+			// to automatically remove this snapshot again and will leave it on the disk (so the user can still try to remove it manually);
+			// this is better than the other way around where a failing osRemove would be retried forever because snapshot would never
+			// leave the state.
 			if rmerr := removeSnapshotState(mgr.state, r.SetID); rmerr != nil {
 				return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", r.SetID, rmerr)
+			}
+			if rmerr := osRemove(r.Name()); rmerr != nil {
+				return fmt.Errorf("cannot remove snapshot file %q: %v", r.Name(), rmerr)
 			}
 		}
 		return nil
