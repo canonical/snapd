@@ -797,6 +797,64 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	// And observe that we cannot refresh because the snap is busy.
 	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "")
 	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\)`)
+
+	// The state records the time of the failed refresh operation.
+	err = snapstate.Get(s.state, "some-snap", snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.RefreshInhibitedTime, NotNil)
+}
+
+func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// With the refresh-app-awareness feature enabled.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	// With a snap state indicating a snap is already installed and it failed
+	// to refresh over a week ago.
+	var longAgo = time.Now().Add(-time.Hour * 24 * 8)
+	// NOTE: Use rounding to a second granularity to
+	// anticipate data loss in the serialized representation. This is important
+	// because the checkChangeConflictIgnoringOneChange uses precise recursive
+	// comparison based on reflect.DeepEqual and some of the state that was
+	// created by time.Now() is lost across the serialization layer.
+	longAgo = longAgo.Round(time.Second)
+	snapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:              snap.R(1),
+		SnapType:             "app",
+		RefreshInhibitedTime: &longAgo,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+
+	// With a snap info indicating it has an application called "app"
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		if name != "some-snap" {
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, Type: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	})
+	// And with cgroup v1 information indicating the app has a process with pid 1234.
+	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.app"), []int{1234})
+
+	// Attempt to install revision 2 of the snap.
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+	}
+
+	// And observe that refresh occurred regardless of the running process.
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "")
+	c.Assert(err, IsNil)
 }
 
 func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {

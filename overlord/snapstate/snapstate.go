@@ -131,8 +131,21 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 		if experimentalRefreshAppAwareness {
 			if err := SoftNothingRunningRefreshCheck(info); err != nil {
-				// TODO Remember the inhibition time in snap state.
-				return nil, err
+				var now = time.Now()
+				// TODO: find a better location for this amount.
+				const maxInhibition = time.Hour * 24 * 7
+				if snapst.RefreshInhibitedTime == nil {
+					// Store the instant when the snap was first inhibited.
+					// This is reset to nil on successful refresh.
+					snapst.RefreshInhibitedTime = &now
+					Set(st, snapsup.InstanceName(), snapst)
+					return nil, err
+				}
+				if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
+					// If we are still in the allowed window then just return
+					// the error but don't change the snap state again.
+					return nil, err
+				}
 			}
 		}
 	}
