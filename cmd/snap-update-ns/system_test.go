@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,37 +17,22 @@
  *
  */
 
-package mount_test
+package main_test
 
 import (
-	"os"
-	"strings"
-
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
+	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 )
 
-type lockSuite struct{}
+type systemSuite struct{}
 
-var _ = Suite(&lockSuite{})
+var _ = Suite(&systemSuite{})
 
-func (s *lockSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+func (s *systemSuite) TestDesiredSystemProfilePath(c *C) {
+	c.Check(update.DesiredSystemProfilePath("foo"), Equals, "/var/lib/snapd/mount/snap.foo.fstab")
 }
 
-func (s *lockSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-}
-
-func (s *lockSuite) TestOpenLock(c *C) {
-	lock, err := mount.OpenLock("name")
-	c.Assert(err, IsNil)
-	defer lock.Close()
-
-	_, err = os.Stat(lock.Path())
-	c.Assert(err, IsNil)
-
-	c.Check(strings.HasPrefix(lock.Path(), dirs.SnapRunLockDir), Equals, true, Commentf("wrong prefix for %q, want %q", lock.Path(), dirs.SnapRunLockDir))
+func (s *systemSuite) TestCurrentSystemProfilePath(c *C) {
+	c.Check(update.CurrentSystemProfilePath("foo"), Equals, "/run/snapd/ns/snap.foo.fstab")
 }
