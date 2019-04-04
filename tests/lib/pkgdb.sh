@@ -160,8 +160,8 @@ distro_install_local_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*|debian-*)
             # relying on dpkg as apt(-get) does not support installation from local files in trusty.
-            dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
-            apt-get -f install -y
+            eatmydata dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
+            eatmydata apt-get -f install -y
             ;;
         ubuntu-*)
             flags="-y"
@@ -233,7 +233,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
         if [[ "$*" =~ "libudev-dev" ]]; then
-            apt-get install -y --only-upgrade systemd
+            eatmydata apt-get install -y --only-upgrade systemd
         fi
         ;;
     esac
@@ -243,7 +243,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         debian-9-*)
         if [[ "$*" =~ "gnome-keyring" ]]; then
-            apt-get remove -y libp11-kit0
+            eatmydata apt-get remove -y libp11-kit0
         fi
         ;;
     esac
@@ -264,7 +264,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             # shellcheck disable=SC2086
-            quiet apt-get install $APT_FLAGS -y "${pkg_names[@]}"
+            quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             ;;
         fedora-*)
             # shellcheck disable=SC2086
@@ -284,7 +284,7 @@ distro_install_package() {
             # --allow-downgrade will make the installation proceed
 
             # shellcheck disable=SC2086
-            quiet zypper install -y --allow-downgrade $ZYPPER_FLAGS "${pkg_names[@]}"
+            quiet zypper install -y --allow-downgrade --force-resolution $ZYPPER_FLAGS "${pkg_names[@]}"
             ;;
         arch-*)
             # shellcheck disable=SC2086
@@ -314,7 +314,7 @@ distro_purge_package() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get remove -y --purge -y "$@"
+            quiet eatmydata apt-get remove -y --purge -y "$@"
             ;;
         fedora-*)
             quiet dnf -y remove "$@"
@@ -339,7 +339,7 @@ distro_purge_package() {
 distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get update
+            quiet eatmydata apt-get update
             ;;
         fedora-*)
             quiet dnf clean all
@@ -365,7 +365,7 @@ distro_update_package_db() {
 distro_clean_package_cache() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get clean
+            quiet eatmydata apt-get clean
             ;;
         fedora-*)
             dnf clean all
@@ -389,7 +389,7 @@ distro_clean_package_cache() {
 distro_auto_remove_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get -y autoremove
+            quiet eatmydata apt-get -y autoremove
             ;;
         fedora-*)
             quiet dnf -y autoremove

@@ -75,7 +75,7 @@ static void test_feature_enabled__present_file(void)
 	g_assert(sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/feature/missing_dir",
 			test_feature_enabled__missing_dir);
