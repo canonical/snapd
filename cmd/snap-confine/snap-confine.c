@@ -193,16 +193,21 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 
 	/* Open path corresponding to the original working directory in the
 	 * execution environment. This may normally fail if the path no longer
-	 * exists here, this is not a fatal error. */
+	 * exists here, this is not a fatal error. It may also fail if we don't
+	 * have permissions to view that path, that is not a fatal error either. */
 	int inner_cwd_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	inner_cwd_fd =
 	    open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (inner_cwd_fd < 0 && errno != ENOENT) {
-		die("cannot open path of the original working directory %s (%d)", orig_cwd, errno);
-	}
 	if (inner_cwd_fd < 0) {
-		debug("cannot represent original working directory %s", orig_cwd);
-		goto the_void;
+		if (errno == EPERM || errno == EACCES || errno == ENOENT) {
+			debug
+			    ("cannot open path of the original working directory %s",
+			     orig_cwd);
+			goto the_void;
+		}
+		/* Any error other than the three above is unexpected. */
+		die("cannot open path of the original working directory %s",
+		    orig_cwd);
 	}
 
 	/* The original working directory exists in the execution environment
