@@ -34,3 +34,8 @@ execute: |
     # via a symlink attack in /tmp) is remapped to a special directory.
     # FIXME: su doesn't have /snap/bin in PATH.
     test "$(cd /root && su -c "snap run test-snapd-sh -c pwd" test)" = "/var/lib/snapd/void"
+debug: |
+    # Much of what we do depends on permissions. If the permissions on those
+    # two essential (for this test) directories are wrong the test will
+    # misbehave.
+    ls -ld /root /var/lib/snapd/void
