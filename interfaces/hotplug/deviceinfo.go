@@ -100,6 +100,15 @@ func (h *HotplugDeviceInfo) firstAttrValueOf(tryAttrs ...string) string {
 }
 
 func (h *HotplugDeviceInfo) String() string {
+	return h.str(70)
+}
+
+// ShortString returns a string representation of the device with more aggresive truncating of model/vendor name.
+func (h *HotplugDeviceInfo) ShortString() string {
+	return h.str(16)
+}
+
+func (h *HotplugDeviceInfo) str(maxModelOrVendorLen int) string {
 	var nameOrPath string
 
 	// devname is the name of the device under /dev, eg. /dev/ttyS0;
@@ -110,17 +119,32 @@ func (h *HotplugDeviceInfo) String() string {
 	}
 
 	modelOrVendor := h.firstAttrValueOf("ID_MODEL_FROM_DATABASE", "ID_MODEL", "ID_MODEL_ID", "ID_VENDOR_FROM_DATABASE", "ID_VENDOR", "ID_VENDOR_ID")
-	if modelOrVendor == "" {
-		modelOrVendor = "?"
-	}
-	if len(modelOrVendor) > 16 {
-		modelOrVendor = modelOrVendor[0:16] + "..."
+	if len(modelOrVendor) > maxModelOrVendorLen {
+		modelOrVendor = modelOrVendor[0:maxModelOrVendorLen] + "..."
 	}
 
-	serial := h.firstAttrValueOf("ID_SERIAL_SHORT", "ID_SERIAL")
-	if serial == "noserial" || serial == "" {
-		serial = "?"
+	var serial string
+	if modelOrVendor != "" {
+		serial = h.firstAttrValueOf("ID_SERIAL_SHORT", "ID_SERIAL")
+	} else {
+		serial = h.firstAttrValueOf("ID_SERIAL", "ID_SERIAL_SHORT")
+	}
+	hasSerial := (serial != "" && serial != "noserial")
+
+	s := nameOrPath
+	if modelOrVendor != "" || hasSerial {
+		s += " ("
+		if modelOrVendor != "" {
+			s += modelOrVendor
+			if hasSerial {
+				s += "; "
+			}
+		}
+		if hasSerial {
+			s += "serial: " + serial
+		}
+		s += ")"
 	}
 
-	return fmt.Sprintf("%s (%s; serial: %s)", nameOrPath, modelOrVendor, serial)
+	return s
 }

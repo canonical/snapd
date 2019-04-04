@@ -214,16 +214,16 @@ InterfacesLoop:
 		// and hotplugDeviceRemoved() will remove affected path from hotplugDevicePaths.
 		m.hotplugDevicePaths[devPath] = append(m.hotplugDevicePaths[devPath], deviceData{hotplugKey: key, ifaceName: iface.Name()})
 
-		hotplugAdd := st.NewTask("hotplug-add-slot", fmt.Sprintf("Create slot for device %s with hotplug key %q", devinfo, key))
+		hotplugAdd := st.NewTask("hotplug-add-slot", fmt.Sprintf("Create slot for device %s with hotplug key %q", devinfo.ShortString(), key))
 		setHotplugAttrs(hotplugAdd, iface.Name(), key)
 		hotplugAdd.Set("device-info", devinfo)
 		hotplugAdd.Set("proposed-slot", proposedSlot)
 
-		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %q for device %s with hotplug key %q", iface.Name(), devinfo, key))
+		hotplugConnect := st.NewTask("hotplug-connect", fmt.Sprintf("Recreate connections of interface %q for device %s with hotplug key %q", iface.Name(), devinfo.ShortString(), key))
 		setHotplugAttrs(hotplugConnect, iface.Name(), key)
 		hotplugConnect.WaitFor(hotplugAdd)
 
-		chg := st.NewChange(fmt.Sprintf("hotplug-add-slot-%s", iface), fmt.Sprintf("Add hotplug slot of interface %q for device %s with hotplug key %q", devinfo, iface.Name(), key))
+		chg := st.NewChange(fmt.Sprintf("hotplug-add-slot-%s", iface), fmt.Sprintf("Add hotplug slot of interface %q for device %s with hotplug key %q", devinfo.ShortString(), iface.Name(), key))
 		chg.AddTask(hotplugAdd)
 		chg.AddTask(hotplugConnect)
 		addHotplugSeqWaitTask(chg, key, seq)
@@ -275,7 +275,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		}
 
 		ts := removeDevice(st, ifaceName, hotplugKey)
-		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", ifaceName), fmt.Sprintf("Remove hotplug connections and slots of device %s with interface %q", devinfo, ifaceName))
+		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", ifaceName), fmt.Sprintf("Remove hotplug connections and slots of device %s with interface %q", devinfo.ShortString(), ifaceName))
 		chg.AddAll(ts)
 		addHotplugSeqWaitTask(chg, hotplugKey, seq)
 		changed = true
