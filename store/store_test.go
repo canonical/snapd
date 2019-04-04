@@ -2756,6 +2756,11 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "foo")
 			c.Check(query.Get("private"), Equals, "true")
+		case 1:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(name, Equals, "foo")
+			c.Check(q, Equals, "")
+			c.Check(query.Get("private"), Equals, "true")
 		default:
 			c.Fatalf("what? %d", n)
 		}
@@ -2778,6 +2783,9 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 	_, err := sto.Find(&store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
 
+	_, err = sto.Find(&store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
+	c.Check(err, IsNil)
+
 	_, err = sto.Find(&store.Search{Query: "foo", Private: true}, nil)
 	c.Check(err, Equals, store.ErrUnauthenticated)
 
@@ -2788,8 +2796,6 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
-	c.Check(err, Equals, store.ErrBadQuery)
-	_, err = sto.Find(&store.Search{Query: "foo", Private: true, Prefix: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
@@ -2995,6 +3001,45 @@ func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	sto := store.New(&cfg, nil)
 
 	infos, err := sto.Find(&store.Search{Query: "foo"}, nil)
+	c.Check(err, IsNil)
+	c.Assert(infos, HasLen, 1)
+	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
+}
+
+func (s *storeTestSuite) TestFindByCommonID(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", searchPath)
+		query := r.URL.Query()
+
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(query["common_id"], DeepEquals, []string{"org.hello"})
+			c.Check(query["name"], IsNil)
+			c.Check(query["q"], IsNil)
+		default:
+			c.Fatalf("expected 1 query, now on %d", n+1)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, strings.Replace(MockSearchJSON,
+			`"common_ids": []`,
+			`"common_ids": ["org.hello"]`, -1))
+
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	sto := store.New(&cfg, nil)
+
+	infos, err := sto.Find(&store.Search{CommonID: "org.hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
@@ -4076,6 +4121,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "")
 
 		// no store ID by default
 		storeID := r.Header.Get("Snap-Device-Store")
@@ -4741,6 +4787,68 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
+}
+
+func (s *storeTestSuite) TestSnapActionAutoRefresh(c *C) {
+	// the bare TestSnapAction does more SnapAction checks; look there
+	// this one mostly just checks the refresh-reason header
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "scheduled")
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "epoch": {"read": [0], "write": [0]},
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := store.New(&cfg, authContext)
+
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, &store.RefreshOptions{IsAutoRefresh: true})
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
 }
 
 func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {

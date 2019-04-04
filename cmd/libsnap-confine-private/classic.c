@@ -56,8 +56,3 @@ sc_distro sc_classify_distro(void)
 		return SC_DISTRO_CLASSIC;
 	}
 }
-
-bool sc_should_use_normal_mode(sc_distro distro, const char *base_snap_name)
-{
-	return distro != SC_DISTRO_CORE16 || !sc_streq(base_snap_name, "core");
-}

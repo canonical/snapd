@@ -28,10 +28,12 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 )
 
 // ErrSystemKeyIncomparableVersions indicates that the system-key
@@ -70,12 +72,15 @@ type systemKey struct {
 	NFSHome                bool     `json:"nfs-home"`
 	OverlayRoot            string   `json:"overlay-root"`
 	SecCompActions         []string `json:"seccomp-features"`
+	SeccompCompilerVersion string   `json:"seccomp-compiler-version"`
 }
 
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
 	osReadlink      = os.Readlink
+
+	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
 )
 
 func findSnapdPath() (string, error) {
@@ -98,6 +103,14 @@ func findSnapdPath() (string, error) {
 	return snapdPath, nil
 }
 
+func seccompCompilerVersionInfoImpl(path string) (string, error) {
+	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
+	if err != nil {
+		return "", err
+	}
+	return compiler.VersionInfo()
+}
+
 func generateSystemKey() (*systemKey, error) {
 	// for testing only
 	if mockedSystemKey != nil {
@@ -107,7 +120,7 @@ func generateSystemKey() (*systemKey, error) {
 	sk := &systemKey{
 		Version: 1,
 	}
-	snapdPath, err := findSnapdPath()
+	snapdPath, err := cmd.InternalToolPath("snapd")
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +157,13 @@ func generateSystemKey() (*systemKey, error) {
 
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions()
+
+	versionInfo, err := seccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
+	if err != nil {
+		logger.Noticef("cannot determine seccomp compiler version in generateSystemKey: %v", err)
+		return nil, err
+	}
+	sk.SeccompCompilerVersion = versionInfo
 
 	return sk, nil
 }
@@ -254,4 +274,12 @@ func MockSystemKey(s string) func() {
 	}
 	mockedSystemKey = &sk
 	return func() { mockedSystemKey = nil }
+}
+
+func MockSeccompCompilerVersionInfo(s func(p string) (string, error)) (restore func()) {
+	old := seccompCompilerVersionInfo
+	seccompCompilerVersionInfo = s
+	return func() {
+		seccompCompilerVersionInfo = old
+	}
 }

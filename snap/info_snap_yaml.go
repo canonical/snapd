@@ -28,31 +28,30 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
 
 type snapYaml struct {
-	Name             string                 `yaml:"name"`
-	Version          string                 `yaml:"version"`
-	Type             Type                   `yaml:"type"`
-	Architectures    []string               `yaml:"architectures,omitempty"`
-	Assumes          []string               `yaml:"assumes"`
-	Title            string                 `yaml:"title"`
-	Description      string                 `yaml:"description"`
-	Summary          string                 `yaml:"summary"`
-	License          string                 `yaml:"license,omitempty"`
-	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
-	LicenseVersion   string                 `yaml:"license-version,omitempty"`
-	Epoch            Epoch                  `yaml:"epoch,omitempty"`
-	Base             string                 `yaml:"base,omitempty"`
-	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
-	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
-	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots            map[string]interface{} `yaml:"slots,omitempty"`
-	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
-	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
-	Layout           map[string]layoutYaml  `yaml:"layout,omitempty"`
+	Name          string                 `yaml:"name"`
+	Version       string                 `yaml:"version"`
+	Type          Type                   `yaml:"type"`
+	Architectures []string               `yaml:"architectures,omitempty"`
+	Assumes       []string               `yaml:"assumes"`
+	Title         string                 `yaml:"title"`
+	Description   string                 `yaml:"description"`
+	Summary       string                 `yaml:"summary"`
+	License       string                 `yaml:"license,omitempty"`
+	Epoch         Epoch                  `yaml:"epoch,omitempty"`
+	Base          string                 `yaml:"base,omitempty"`
+	Confinement   ConfinementType        `yaml:"confinement,omitempty"`
+	Environment   strutil.OrderedMap     `yaml:"environment,omitempty"`
+	Plugs         map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots         map[string]interface{} `yaml:"slots,omitempty"`
+	Apps          map[string]appYaml     `yaml:"apps,omitempty"`
+	Hooks         map[string]hookYaml    `yaml:"hooks,omitempty"`
+	Layout        map[string]layoutYaml  `yaml:"layout,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -246,8 +245,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
 		License:             y.License,
-		LicenseAgreement:    y.LicenseAgreement,
-		LicenseVersion:      y.LicenseVersion,
 		Epoch:               y.Epoch,
 		Confinement:         confinement,
 		Base:                y.Base,
@@ -579,7 +576,7 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
-				value, err := normalizeYamlValue(valueData)
+				value, err := metautil.NormalizeValue(valueData)
 				if err != nil {
 					return "", "", nil, fmt.Errorf("attribute %q of %s %q: %v", key, plugOrSlot, name, err)
 				}
@@ -590,59 +587,5 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 	default:
 		err := fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
 		return "", "", nil, err
-	}
-}
-
-// normalizeYamlValue validates values and returns a normalized version of it (map[interface{}]interface{} is turned into map[string]interface{})
-func normalizeYamlValue(v interface{}) (interface{}, error) {
-	switch x := v.(type) {
-	case string:
-		return x, nil
-	case bool:
-		return x, nil
-	case int:
-		return int64(x), nil
-	case int64:
-		return x, nil
-	case float64:
-		return x, nil
-	case float32:
-		return float64(x), nil
-	case []interface{}:
-		l := make([]interface{}, len(x))
-		for i, el := range x {
-			el, err := normalizeYamlValue(el)
-			if err != nil {
-				return nil, err
-			}
-			l[i] = el
-		}
-		return l, nil
-	case map[interface{}]interface{}:
-		m := make(map[string]interface{}, len(x))
-		for k, item := range x {
-			kStr, ok := k.(string)
-			if !ok {
-				return nil, fmt.Errorf("non-string key: %v", k)
-			}
-			item, err := normalizeYamlValue(item)
-			if err != nil {
-				return nil, err
-			}
-			m[kStr] = item
-		}
-		return m, nil
-	case map[string]interface{}:
-		m := make(map[string]interface{}, len(x))
-		for k, item := range x {
-			item, err := normalizeYamlValue(item)
-			if err != nil {
-				return nil, err
-			}
-			m[k] = item
-		}
-		return m, nil
-	default:
-		return nil, fmt.Errorf("invalid scalar: %v", v)
 	}
 }
