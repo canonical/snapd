@@ -60,7 +60,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
 void sc_cleanup_invocation(sc_invocation *inv);
 
 /**
- * sc_check_init_rootfs_dir checks and initializes the rootfs_dir.
+ * sc_check_rootfs_dir checks the rootfs_dir.
  *
  * Checks that the rootfs_dir for the given base_snap exists and may apply
  * the fallback logic below. Will die() if no base_snap can be found.
@@ -74,6 +74,6 @@ void sc_cleanup_invocation(sc_invocation *inv);
  * of the init process) because it relies on the value of compile-time-choice
  * of SNAP_MOUNT_DIR.
  **/
-void sc_check_init_rootfs_dir(sc_invocation *inv);
+void sc_check_rootfs_dir(sc_invocation *inv);
 
 #endif

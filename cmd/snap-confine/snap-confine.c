@@ -348,7 +348,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	group = sc_open_mount_ns(inv->snap_instance);
 
 	// Init and check rootfs_dir, apply any fallback behaviors.
-	sc_check_init_rootfs_dir(inv);
+	sc_check_rootfs_dir(inv);
 
 	/**
 	 * is_normal_mode controls if we should pivot into the base snap.
