@@ -29,7 +29,7 @@ int must_parse_int(const char *s)
 
 	errno = 0;
 	long i = strtol(s, &endptr, 10);
-	if (errno != 0 || s == endptr || *endptr != '\0' || i <= 0) {
+	if (errno != 0 || s == endptr || *endptr != '\0' || i < 0) {
 		die("cannot parse number in '%s'", s);
 	}
 	return i;
