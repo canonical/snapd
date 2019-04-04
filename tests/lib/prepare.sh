@@ -481,7 +481,7 @@ EOF
     # - bind mount /root/test-etc/* to /etc/* via custom systemd job
     # We also create /var/lib/extrausers/* and append ubuntu,test there
     ! test -e /mnt/system-data/root
-    mkdir -m 700 -p /mnt/system-data/root
+    mkdir -m 700 /mnt/system-data/root
     test -d /mnt/system-data/root
     mkdir -p /mnt/system-data/root/test-etc
     mkdir -p /mnt/system-data/var/lib/extrausers/
