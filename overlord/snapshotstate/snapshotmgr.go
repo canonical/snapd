@@ -188,6 +188,13 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 		}
 	}
 
+	// this should be done last because of it modifies the state and the caller needs to undo this if other operation fails.
+	if snapshot.Auto {
+		if err := saveExpiration(st, snapshot.SetID, time.Now().Add(automaticSnapshotExpiration(st))); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
 	return snapshot, cur, cfg, nil
 }
 
@@ -197,11 +204,11 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, &backend.Flags{Auto: snapshot.Auto})
-	if err == nil && snapshot.Auto {
-		// XXX: we should probably lock state at the beginning (and remove it from prepareSave)
-		task.State().Lock()
-		defer task.State().Unlock()
-		return saveExpiration(task.State(), snapshot.SetID, time.Now().Add(automaticSnapshotExpiration(task.State())))
+	if err != nil {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+		removeSnapshotState(st, snapshot.SetID)
 	}
 	return err
 }
