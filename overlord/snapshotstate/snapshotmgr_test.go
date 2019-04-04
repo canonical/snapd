@@ -604,3 +604,40 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"remove"})
 }
+
+func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
+	defer snapshotstate.MockOsRemove(func(filename string) error {
+		return nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("forget-snapshot", "...")
+	task.Set("snapshot-setup", map[string]interface{}{
+		"set-id":   1,
+		"filename": "a-file",
+		"snap":     "a-snap",
+	})
+
+	st.Set("snapshots", map[uint64]interface{}{
+		1: map[string]interface{}{
+			"expiry-time": "2001-03-11T11:24:00Z",
+		},
+		2: map[string]interface{}{
+			"expiry-time": "2037-02-12T12:50:00Z",
+		},
+	})
+
+	st.Unlock()
+	c.Assert(snapshotstate.DoForget(task, &tomb.Tomb{}), check.IsNil)
+
+	st.Lock()
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		2: map[string]interface{}{
+			"expiry-time": "2037-02-12T12:50:00Z",
+		}})
+}

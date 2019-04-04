@@ -357,16 +357,22 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	// note this is also undoSave
 	st := task.State()
 	st.Lock()
+	defer st.Unlock()
 
 	var snapshot snapshotSetup
 	err := task.Get("snapshot-setup", &snapshot)
-	st.Unlock()
+
 	if err != nil {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
 	if snapshot.Filename == "" {
 		return fmt.Errorf("internal error: task %s (%s) snapshot info is missing the filename", task.ID(), task.Kind())
+	}
+
+	// in case it's an automatic snapshot, remove the set also from the state (automatic snapshots have just one snap per set).
+	if rmerr := removeSnapshotState(st, snapshot.SetID); rmerr != nil {
+		return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", snapshot.SetID, rmerr)
 	}
 
 	return osRemove(snapshot.Filename)
