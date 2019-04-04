@@ -1358,8 +1358,8 @@ func (snapshotSuite) TestSaveExpiration(c *check.C) {
 
 	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
-		12: map[string]interface{}{"expiry": "2019-03-11T11:24:00Z"},
-		13: map[string]interface{}{"expiry": "2019-02-12T12:50:00Z"},
+		12: map[string]interface{}{"expiry-time": "2019-03-11T11:24:00Z"},
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:50:00Z"},
 	})
 }
 
@@ -1369,9 +1369,9 @@ func (snapshotSuite) TestRemoveSnapshotState(c *check.C) {
 	defer st.Unlock()
 
 	st.Set("snapshots", map[uint64]interface{}{
-		12: map[string]interface{}{"expiry": "2019-01-11T11:11:00Z"},
-		13: map[string]interface{}{"expiry": "2019-02-12T12:11:00Z"},
-		14: map[string]interface{}{"expiry": "2019-03-12T13:11:00Z"},
+		12: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+		14: map[string]interface{}{"expiry-time": "2019-03-12T13:11:00Z"},
 	})
 
 	snapshotstate.RemoveSnapshotState(st, 12, 14)
@@ -1379,7 +1379,7 @@ func (snapshotSuite) TestRemoveSnapshotState(c *check.C) {
 	var snapshots map[uint64]interface{}
 	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
 	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
-		13: map[string]interface{}{"expiry": "2019-02-12T12:11:00Z"},
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
 	})
 }
 
