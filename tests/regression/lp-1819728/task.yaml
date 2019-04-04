@@ -8,7 +8,7 @@ description: |
 #       for systemd is in the "-updates" pocket.
 systems: [ubuntu-core-16-64, ubuntu-core-18-64]
 
-kill-timeout: 2m
+kill-timeout: 5m
 
 execute: |
     echo "When running a bunch of systemctl commands and daemon-reloads"
