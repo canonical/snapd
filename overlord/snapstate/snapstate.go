@@ -71,6 +71,16 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
@@ -80,11 +90,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-			if err != nil && !config.IsNoOption(err) {
-				return nil, err
-			}
 			if !experimentalAllowSnapd {
 				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 			}
@@ -123,6 +128,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
+
+		if experimentalRefreshAppAwareness {
+			if err := SoftNothingRunningRefreshCheck(info); err != nil {
+				// TODO Remember the inhibition time in snap state.
+				return nil, err
+			}
+		}
 	}
 
 	ts := state.NewTaskSet()
