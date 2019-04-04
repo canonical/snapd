@@ -78,12 +78,13 @@ fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 .PHONY: hack
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
 	sudo install -D -m 6755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
-	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
+	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
-	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
+	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine.apparmor; fi
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
 	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
+	if [ "$$(command -v restorecon)" != "" ]; then sudo restorecon -R -v $(DESTDIR)$(libexecdir)/; fi
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
@@ -383,6 +384,17 @@ snap-mgmt/$(am__dirstamp):
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
 
+if SELINUX
+##
+## snap-mgmt-selinux
+##
+
+libexec_SCRIPTS += snap-mgmt/snap-mgmt-selinux
+CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt-selinux
+
+snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgmt/$(am__dirstamp)
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+endif
 
 ##
 ## ubuntu-core-launcher
