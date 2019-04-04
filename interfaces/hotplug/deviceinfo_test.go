@@ -175,3 +175,13 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 		c.Check(di.String(), Equals, tst.out)
 	}
 }
+
+func (s *hotplugSuite) TestShortStringFormat(c *C) {
+	di, err := NewHotplugDeviceInfo(map[string]string{
+		"DEVPATH":                 "/devices/a",
+		"ID_VENDOR_FROM_DATABASE": "very long vendor name",
+		"ACTION":                  "add",
+	})
+	c.Assert(err, IsNil)
+	c.Check(di.ShortString(), Equals, "/sys/devices/a (very long vendor...)")
+}
