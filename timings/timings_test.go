@@ -93,7 +93,8 @@ func (s *timingsSuite) TestSave(c *C) {
 
 	// two timings, with 2 nested measures
 	for i := 0; i < 2; i++ {
-		timing := timings.New(map[string]string{"task": "3", "change": "12"})
+		timing := timings.New(map[string]string{"task": "3"})
+		timing.AddTag("change", "12")
 		meas := timing.StartSpan(fmt.Sprintf("doing something-%d", i), "...")
 		nested := meas.StartSpan("nested measurement", "...")
 		var called bool
@@ -318,6 +319,7 @@ func (s *timingsSuite) TestNewForTask(c *C) {
 	defer s.st.Unlock()
 
 	task := s.st.NewTask("kind", "...")
+	task.SetStatus(state.DoingStatus)
 	chg := s.st.NewChange("change", "...")
 	chg.AddTask(task)
 
@@ -330,7 +332,7 @@ func (s *timingsSuite) TestNewForTask(c *C) {
 	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
 	c.Assert(stateTimings, DeepEquals, []interface{}{
 		map[string]interface{}{
-			"tags":       map[string]interface{}{"change-id": chg.ID(), "task-id": task.ID(), "task-kind": "kind"},
+			"tags":       map[string]interface{}{"change-id": chg.ID(), "task-id": task.ID(), "task-kind": "kind", "task-status": "Doing"},
 			"start-time": "2019-03-11T09:01:00.001Z",
 			"stop-time":  "2019-03-11T09:01:00.002Z",
 			"timings": []interface{}{

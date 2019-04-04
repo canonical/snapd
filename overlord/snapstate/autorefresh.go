@@ -49,7 +49,7 @@ var (
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
-var refreshRetryDelay = 10 * time.Minute
+var refreshRetryDelay = 30 * time.Minute
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -201,13 +201,6 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
-	// Check that we have reasonable delays between attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
-		return nil
-	}
-
 	// get lastRefresh and schedule
 	lastRefresh, err := m.LastRefresh()
 	if err != nil {
@@ -287,13 +280,15 @@ func (m *autoRefresh) Ensure() error {
 			return nil
 		}
 
-		err = m.launchAutoRefresh()
-		// clear nextRefresh only if the refresh worked. There is
-		// still the lastRefreshAttempt rate limit so things will
-		// not go into a busy store loop
-		if err == nil {
-			m.nextRefresh = time.Time{}
+		// Check that we have reasonable delays between attempts.
+		// If the store is under stress we need to make sure we do not
+		// hammer it too often
+		if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
+			return nil
 		}
+
+		err = m.launchAutoRefresh()
+		m.nextRefresh = time.Time{}
 	}
 
 	return err
@@ -372,14 +367,11 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	m.state.Set("last-refresh", time.Now())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
-
-	// Set last refresh time only if the store (in AutoRefresh) gave
-	// us no error.
-	m.state.Set("last-refresh", time.Now())
 
 	var msg string
 	switch len(updated) {
