@@ -98,7 +98,7 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 	}
 
 	// forget needs to conflict with check and restore
-	for _, setID := range sets {
+	for setID := range sets {
 		if err := checkSnapshotTaskConflict(mgr.state, setID, "check-snapshot", "restore-snapshot"); err != nil {
 			// there is a conflict, do nothing and we will retry on next Ensure().
 			return nil
@@ -107,21 +107,22 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 
 	mgr.lastForgetExpiredSnapshotTime = time.Now()
 
-	for _, setID := range sets {
-		summaries, err := snapSummariesInSnapshotSet(setID, nil)
-		if err != nil {
-			return fmt.Errorf("cannot get snapshot summaries: %v", err)
-		}
-
-		for _, summary := range summaries {
-			if err := osRemove(summary.filename); err != nil {
-				return fmt.Errorf("cannot remove snapshot file %q: %v", summary.filename, err)
+	err = backendIter(context.TODO(), func(r *backend.Reader) error {
+		if sets[r.SetID] {
+			if rmerr := osRemove(r.Name()); rmerr != nil {
+				return fmt.Errorf("cannot remove snapshot file %q: %v", r.Name(), rmerr)
+			}
+			if rmerr := removeSnapshotState(mgr.state, r.SetID); rmerr != nil {
+				return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", r.SetID, rmerr)
 			}
 		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("cannot process expired snapshots: %v", err)
 	}
-	if err := removeSnapshotState(mgr.state, sets...); err != nil {
-		return fmt.Errorf("internal error: cannot remove snapshot exiration times: %v", err)
-	}
+
 	return nil
 }
 

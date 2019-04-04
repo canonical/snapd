@@ -96,10 +96,10 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 
 	st.Set("snapshots", map[uint64]interface{}{
 		1: map[string]interface{}{
-			"expiry": "2001-03-11T11:24:00Z",
+			"expiry-time": "2001-03-11T11:24:00Z",
 		},
 		2: map[string]interface{}{
-			"expiry": "2037-02-12T12:50:00Z",
+			"expiry-time": "2037-02-12T12:50:00Z",
 		},
 	})
 
@@ -112,7 +112,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
 		2: map[string]interface{}{
-			"expiry": "2037-02-12T12:50:00Z",
+			"expiry-time": "2037-02-12T12:50:00Z",
 		}})
 	c.Check(removedSnapshot, check.Matches, ".*/foo.zip")
 }
@@ -137,7 +137,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	defer st.Unlock()
 
 	st.Set("snapshots", map[uint64]interface{}{1: map[string]interface{}{
-		"expiry": "2001-03-11T11:24:00Z",
+		"expiry-time": "2001-03-11T11:24:00Z",
 	}})
 
 	chg := st.NewChange("snapshot-change", "...")
@@ -154,7 +154,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
 		1: map[string]interface{}{
-			"expiry": "2001-03-11T11:24:00Z",
+			"expiry-time": "2001-03-11T11:24:00Z",
 		}})
 	c.Check(removeCalled, check.Equals, 0)
 
