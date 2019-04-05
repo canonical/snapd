@@ -347,11 +347,38 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	struct sc_mount_ns *group = NULL;
 	group = sc_open_mount_ns(inv->snap_instance);
 
-	// Check if we are running in normal mode with pivot root. Do this here
-	// because once on the inside of the transformed mount namespace we can no
-	// longer tell.
-	inv->is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
-							inv->base_snap_name);
+	/* Apply fallback behaviors, if any apply. */
+	sc_maybe_pick_alt_base_snap(inv);
+
+	/**
+	 * is_normal_mode controls if we should pivot into the base snap.
+	 *
+	 * There are two modes of execution for snaps that are not using classic
+	 * confinement: normal and legacy. The normal mode is where snap-confine
+	 * sets up a rootfs and then pivots into it using pivot_root(2). The legacy
+	 * mode is when snap-confine just unshares the initial mount namespace,
+	 * makes some extra changes but largely runs with what was presented to it
+	 * initially.
+	 *
+	 * Historically the ubuntu-core distribution used the now-legacy mode. This
+	 * was sensible then since snaps already (kind of) have the right root
+	 * file-system and just need some privacy and isolation features applied.
+	 * With the introduction of snaps to classic distributions as well as the
+	 * introduction of bases, where each snap can use a different root
+	 * filesystem, this lost sensibility and thus became legacy.
+	 *
+	 * For compatibility with current installations of ubuntu-core
+	 * distributions the legacy mode is used when: the distribution is
+	 * SC_DISTRO_CORE16 or when the base snap name is not "core" or
+	 * "ubuntu-core".
+	 *
+	 * The SC_DISTRO_CORE16 is applied to systems that boot with the "core",
+	 * "ubuntu-core" or "core16" snap. Systems using the "core18" base snap do
+	 * not qualify for that classification.
+	 **/
+	sc_distro distro = sc_classify_distro();
+	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
+		!sc_streq(inv->orig_base_snap_name, "core");
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
