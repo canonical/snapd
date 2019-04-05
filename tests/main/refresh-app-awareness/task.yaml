@@ -1,0 +1,34 @@
+summary: Ensure that foreground applications block app refresh.
+details: |
+    When the refresh-app-awareness feature is enabled running snap processes,
+    mainly foreground applications, will block the refresh of said snap.
+prepare: |
+    # This feature depends on the release-app-awareness feature
+    snap set core experimental.refresh-app-awareness=true
+    snap pack test-snapd-refresh.v1
+    snap pack test-snapd-refresh.v2
+restore: |
+    snap remove test-snapd-refresh
+    rm -f test-snapd-refresh-{1,2}_all.snap
+    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.sh || true
+    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.version || true
+    # TODO: There is currently no way to unset configuration options.
+    # Once this is fixed please uncomment this line:
+    # snap unset core experimental.refresh-app-awareness
+execute: |
+    # Install v1 and see that it runs as expected.
+    snap install --dangerous test-snapd-refresh_1_all.snap
+    test-snapd-refresh.version | MATCH v1
+    # Run a sleeper app to keep the snap busy
+    test-snapd-refresh.sh -c 'exec sleep 1h' &
+    pid=$!
+    trap 'kill '"$pid"' || true' EXIT
+    # Try to install v2, it should fail because v1 is running. Snapd is even kind enough to tell us what is preventing the install from working.
+    ! snap install --dangerous test-snapd-refresh_2_all.snap | MATCH 'error: cannot install snap file: snap "test-snapd-refresh" has running apps \(sh\)'
+    test-snapd-refresh.version | MATCH v1
+    # Kill the app process running from v1.
+    kill "$pid"
+    wait "$pid" || true  # wait returns the exit code and we kill the process
+    # Try to install v2 again, it should now work.
+    snap install --dangerous test-snapd-refresh_2_all.snap
+    test-snapd-refresh.version | MATCH v2

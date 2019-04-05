@@ -323,6 +323,8 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/snap-confine-args-test.c \
+	snap-confine/snap-confine-invocation.c \
+	snap-confine/snap-confine-invocation.h \
 	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
@@ -384,6 +386,17 @@ snap-mgmt/$(am__dirstamp):
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
 
+if SELINUX
+##
+## snap-mgmt-selinux
+##
+
+libexec_SCRIPTS += snap-mgmt/snap-mgmt-selinux
+CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt-selinux
+
+snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgmt/$(am__dirstamp)
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+endif
 
 ##
 ## ubuntu-core-launcher
