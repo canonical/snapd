@@ -60,7 +60,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
 void sc_cleanup_invocation(sc_invocation *inv);
 
 /**
- * sc_check_rootfs_dir checks the rootfs_dir.
+ * sc_check_rootfs_dir checks the rootfs_dir and applies potential fall-backs.
  *
  * Checks that the rootfs_dir for the given base_snap exists and may apply
  * the fallback logic below. Will die() if no base_snap can be found.
