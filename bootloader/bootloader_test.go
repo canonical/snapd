@@ -31,22 +31,39 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
+const packageKernel = `
+name: ubuntu-kernel
+version: 4.0-1
+type: kernel
+vendor: Someone
+`
+
 // partition specific testsuite
-type PartitionTestSuite struct{}
+type PartitionTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&PartitionTestSuite{})
 
 func (s *PartitionTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll((&grub{}).Dir(), 0755)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll((&uboot{}).Dir(), 0755)
 	c.Assert(err, IsNil)
+}
+
+func (s *PartitionTestSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *PartitionTestSuite) TestForceBootloader(c *C) {
