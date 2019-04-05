@@ -15,14 +15,16 @@ prepare: |
     # Install some fonts so that the fc-cache helpers have something to work with
     distro_install_package fontconfig dejavu-sans-fonts
 
+    getenforce > enforcing.mode
+
     # Enable enforcing mode, our policy is already marked as permissive, so we
     # will get audit entries but the program will not be stopped by SELinux
     setenforce 1
     ausearch --checkpoint stamp -m AVC || true
 
 restore: |
-    rm -f stamp
-    setenforce 0
+    setenforce "$(cat enforcing.mode)"
+    rm -f stamp enforcing.mode
 
 execute: |
     snap install test-snapd-tools
