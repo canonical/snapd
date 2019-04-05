@@ -345,10 +345,9 @@ func (s *timingsSuite) TestNewForTask(c *C) {
 }
 
 func (s *timingsSuite) TestGet(c *C) {
-	//Get(st *state.State, minLevel int, filter func(tags map[string]string) bool) ([]*TimingsInfo, error) {
-
 	s.st.Lock()
 	defer s.st.Unlock()
+
 	// three timings, with 2 nested measures
 	for i := 0; i < 3; i++ {
 		timing := timings.New(map[string]string{"foo": fmt.Sprintf("%d", i)})
