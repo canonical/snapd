@@ -665,14 +665,13 @@ prepare_ubuntu_core() {
 
 cache_snaps(){
     # Pre-cache snaps so that they can be installed by tests quickly.
-    # This relies on a behavior of snapd where .partial files are
-    # used for resuming downloads.
+    # This relies on a behavior of snapd which snaps installed are
+    # cached and then used when need to the installed again
     initial_list="$(snap list | wc -l)"
     (
         set -x
         cd "$TESTSLIB/cache/"
-        # Install each of the snaps we want to pre-cache. Note that `snap download`
-        # a quick no-op if the file is complete.
+        # Install and remove each of the snaps we want to pre-cache.
         for snap_name in "$@"; do
             snap install "$snap_name"
             snap remove "$snap_name"
