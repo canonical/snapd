@@ -9,11 +9,14 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh-core16
-    test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
-    SNAP_CONFINE_DEBUG=1 test-snapd-sh-core16.sh -c "true" 2>&1 | MATCH "falling back to core instead of unavailable core16 snap"
 
     echo "and core16 was not pulled in"
     ! snap list core16
+
+    echo "and the snap works fine"
+    test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
+    SNAP_CONFINE_DEBUG=1 test-snapd-sh-core16.sh -c "true" 2>&1 | MATCH "falling back to core instead of unavailable core16 snap"
+
 
     echo "when core16 is pulled in"
     snap install --edge core16
