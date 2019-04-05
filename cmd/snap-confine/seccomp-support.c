@@ -125,11 +125,8 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	long max_wait = 120;
 	const char *MAX_PROFILE_WAIT = getenv("SNAP_CONFINE_MAX_PROFILE_WAIT");
 	if (MAX_PROFILE_WAIT != NULL) {
-		char *endptr = NULL;
-		errno = 0;
-		long env_max_wait = strtol(MAX_PROFILE_WAIT, &endptr, 10);
-		if (errno != 0 || MAX_PROFILE_WAIT == endptr || *endptr != '\0'
-		    || env_max_wait <= 0) {
+		long env_max_wait = sc_must_parse_int(MAX_PROFILE_WAIT);
+                if(env_max_wait <= 0) {
 			die("SNAP_CONFINE_MAX_PROFILE_WAIT invalid");
 		}
 		max_wait = env_max_wait > 0 ? env_max_wait : max_wait;

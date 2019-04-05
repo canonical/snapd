@@ -45,6 +45,11 @@ bool sc_is_reexec_enabled(void);
 void write_string_to_file(const char *filepath, const char *buf);
 
 /**
+ * Parse the given string s as a number and return it. Will die() on errors.
+ */
+int sc_must_parse_int(const char *s);
+
+/**
  * Safely create a given directory.
  *
  * NOTE: non-fatal functions don't die on errors. It is the responsibility of
