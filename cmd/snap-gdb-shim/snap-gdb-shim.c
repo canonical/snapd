@@ -31,29 +31,22 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (getuid() == 0) {
-		// check if we run as SUDO and if so switch to a normal user
-		const char *sudo_uid_env = getenv("SUDO_UID");
-		if (sudo_uid_env != NULL) {
-			int sudo_uid = sc_must_parse_int(sudo_uid_env);
-			if (sudo_uid != 0) {
-				if (setuid(sudo_uid) != 0) {
-					die("cannot switch to uid %d",
-					    sudo_uid);
-				}
+        // check if we run as SUDO and if so switch to the real gid/uid
+	const char *sudo_gid_env = getenv("SUDO_GID");
+	if (getgid() == 0 && sudo_gid_env != NULL) {
+		int sudo_gid = sc_must_parse_int(sudo_gid_env);
+		if (sudo_gid != 0) {
+			if (setgid(sudo_gid) < 0) {
+				die("cannot switch to gid %d", sudo_gid);
 			}
 		}
 	}
-	if (getgid() == 0) {
-		// check if we run as SUDO and if so switch to a normal user
-		const char *sudo_gid_env = getenv("SUDO_GID");
-		if (sudo_gid_env != NULL) {
-			int sudo_gid = sc_must_parse_int(sudo_gid_env);
-			if (sudo_gid != 0) {
-				if (setgid(sudo_gid) != 0) {
-					die("cannot switch to gid %d",
-					    sudo_gid);
-				}
+	const char *sudo_uid_env = getenv("SUDO_UID");
+	if (getuid() == 0 && sudo_uid_env != NULL) {
+		int sudo_uid = sc_must_parse_int(sudo_uid_env);
+		if (sudo_uid != 0) {
+			if (setuid(sudo_uid) < 0) {
+				die("cannot switch to uid %d", sudo_uid);
 			}
 		}
 	}
