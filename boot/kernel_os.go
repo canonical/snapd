@@ -61,7 +61,13 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
 
-	if loader.Name() == "grub" {
+	// XXX: should we use "kernel.yaml" for this?
+	var forceKernelExtraction bool
+	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
+		forceKernelExtraction = true
+	}
+
+	if !forceKernelExtraction && loader.Name() == "grub" {
 		return nil
 	}
 
