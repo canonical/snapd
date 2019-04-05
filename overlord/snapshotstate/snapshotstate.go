@@ -46,7 +46,7 @@ var (
 )
 
 type snapshotState struct {
-	Expiry time.Time `json:"expiry"`
+	ExpiryTime time.Time `json:"expiry-time"`
 }
 
 func newSnapshotSetID(st *state.State) (uint64, error) {
@@ -97,7 +97,7 @@ func automaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 	return defaultAutomaticSnapshotExpiration, nil
 }
 
-// saveExpiration saves expiration date of the given snapshot set in the state.
+// saveExpiration saves expiration date of the given snapshot set, in the state.
 // The state needs to be locked by the caller.
 func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
 	var snapshots map[uint64]*json.RawMessage
@@ -109,7 +109,7 @@ func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
 		snapshots = make(map[uint64]*json.RawMessage)
 	}
 	data, err := json.Marshal(&snapshotState{
-		Expiry: expiryTime,
+		ExpiryTime: expiryTime,
 	})
 	if err != nil {
 		return err
@@ -139,9 +139,9 @@ func removeSnapshotState(st *state.State, setIDs ...uint64) error {
 	return nil
 }
 
-// expiredSnapshotSets returns a list of expired snapshot sets from the state whose expiry is before the given cutOffTime.
+// expiredSnapshotSets returns expired snapshot sets from the state whose expiry-time is before the given cutoffTime.
 // The state needs to be locked by the caller.
-func expiredSnapshotSets(st *state.State, cutoffTime time.Time) ([]uint64, error) {
+func expiredSnapshotSets(st *state.State, cutoffTime time.Time) (map[uint64]bool, error) {
 	var snapshots map[uint64]*snapshotState
 	err := st.Get("snapshots", &snapshots)
 	if err != nil {
@@ -151,10 +151,10 @@ func expiredSnapshotSets(st *state.State, cutoffTime time.Time) ([]uint64, error
 		return nil, nil
 	}
 
-	var expired []uint64
+	expired := make(map[uint64]bool)
 	for setID, snapshotSet := range snapshots {
-		if snapshotSet.Expiry.Before(cutoffTime) {
-			expired = append(expired, setID)
+		if snapshotSet.ExpiryTime.Before(cutoffTime) {
+			expired[setID] = true
 		}
 	}
 

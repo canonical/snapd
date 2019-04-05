@@ -48,6 +48,8 @@ var (
 	backendCheck         = (*backend.Reader).Check
 	backendRevert        = (*backend.RestoreState).Revert // ditto
 	backendCleanup       = (*backend.RestoreState).Cleanup
+
+	snapshotExpirationLoopInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -76,15 +78,15 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 }
 
 // Ensure is part of the overlord.StateManager interface.
-func (mgr SnapshotManager) Ensure() error {
+func (mgr *SnapshotManager) Ensure() error {
 	// process expired snapshots once a day.
-	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(time.Hour * 24)) {
+	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(snapshotExpirationLoopInterval)) {
 		return mgr.forgetExpiredSnapshots()
 	}
 	return nil
 }
 
-func (mgr SnapshotManager) forgetExpiredSnapshots() error {
+func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 	mgr.state.Lock()
 	defer mgr.state.Unlock()
 
@@ -97,31 +99,37 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 		return nil
 	}
 
-	// forget needs to conflict with check and restore
-	for _, setID := range sets {
-		if err := checkSnapshotTaskConflict(mgr.state, setID, "check-snapshot", "restore-snapshot"); err != nil {
-			// there is a conflict, do nothing and we will retry on next Ensure().
+	err = backendIter(context.TODO(), func(r *backend.Reader) error {
+		// forget needs to conflict with check and restore
+		if err := checkSnapshotTaskConflict(mgr.state, r.SetID, "check-snapshot", "restore-snapshot"); err != nil {
+			// there is a conflict, do nothing and we will retry this set on next Ensure().
 			return nil
 		}
-	}
-
-	mgr.lastForgetExpiredSnapshotTime = time.Now()
-
-	for _, setID := range sets {
-		summaries, err := snapSummariesInSnapshotSet(setID, nil)
-		if err != nil {
-			return fmt.Errorf("cannot get snapshot summaries: %v", err)
-		}
-
-		for _, summary := range summaries {
-			if err := osRemove(summary.filename); err != nil {
-				return fmt.Errorf("cannot remove snapshot file %q: %v", summary.filename, err)
+		if sets[r.SetID] {
+			delete(sets, r.SetID)
+			// remove from state first: in case removeSnapshotState succeeds but osRemove fails we will never attempt
+			// to automatically remove this snapshot again and will leave it on the disk (so the user can still try to remove it manually);
+			// this is better than the other way around where a failing osRemove would be retried forever because snapshot would never
+			// leave the state.
+			if rmerr := removeSnapshotState(mgr.state, r.SetID); rmerr != nil {
+				return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", r.SetID, rmerr)
+			}
+			if rmerr := osRemove(r.Name()); rmerr != nil {
+				return fmt.Errorf("cannot remove snapshot file %q: %v", r.Name(), rmerr)
 			}
 		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("cannot process expired snapshots: %v", err)
 	}
-	if err := removeSnapshotState(mgr.state, sets...); err != nil {
-		return fmt.Errorf("internal error: cannot remove snapshot exiration times: %v", err)
+
+	// only reset time if there are no sets left because of conflicts
+	if len(sets) == 0 {
+		mgr.lastForgetExpiredSnapshotTime = time.Now()
 	}
+
 	return nil
 }
 
@@ -186,6 +194,17 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 		}
 	}
 
+	// this should be done last because of it modifies the state and the caller needs to undo this if other operation fails.
+	if snapshot.Auto {
+		expiration, err := automaticSnapshotExpiration(st)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if err := saveExpiration(st, snapshot.SetID, time.Now().Add(expiration)); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
 	return snapshot, cur, cfg, nil
 }
 
@@ -195,15 +214,11 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, &backend.Flags{Auto: snapshot.Auto})
-	if err == nil && snapshot.Auto {
-		// XXX: we should probably lock state at the beginning (and remove it from prepareSave)
-		task.State().Lock()
-		defer task.State().Unlock()
-		expiration, err := automaticSnapshotExpiration(task.State())
-		if err != nil {
-			return err
-		}
-		return saveExpiration(task.State(), snapshot.SetID, time.Now().Add(expiration))
+	if err != nil {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+		removeSnapshotState(st, snapshot.SetID)
 	}
 	return err
 }
@@ -359,16 +374,22 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	// note this is also undoSave
 	st := task.State()
 	st.Lock()
+	defer st.Unlock()
 
 	var snapshot snapshotSetup
 	err := task.Get("snapshot-setup", &snapshot)
-	st.Unlock()
+
 	if err != nil {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
 	if snapshot.Filename == "" {
 		return fmt.Errorf("internal error: task %s (%s) snapshot info is missing the filename", task.ID(), task.Kind())
+	}
+
+	// in case it's an automatic snapshot, remove the set also from the state (automatic snapshots have just one snap per set).
+	if rmerr := removeSnapshotState(st, snapshot.SetID); rmerr != nil {
+		return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", snapshot.SetID, rmerr)
 	}
 
 	return osRemove(snapshot.Filename)

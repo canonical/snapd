@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -95,12 +96,8 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	defer st.Unlock()
 
 	st.Set("snapshots", map[uint64]interface{}{
-		1: map[string]interface{}{
-			"expiry": "2001-03-11T11:24:00Z",
-		},
-		2: map[string]interface{}{
-			"expiry": "2037-02-12T12:50:00Z",
-		},
+		1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+		2: map[string]interface{}{"expiry-time": "2037-02-12T12:50:00Z"},
 	})
 
 	st.Unlock()
@@ -111,10 +108,60 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	var expirations map[uint64]interface{}
 	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
-		2: map[string]interface{}{
-			"expiry": "2037-02-12T12:50:00Z",
-		}})
+		2: map[string]interface{}{"expiry-time": "2037-02-12T12:50:00Z"}})
 	c.Check(removedSnapshot, check.Matches, ".*/foo.zip")
+}
+
+func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
+	var backendIterCalls int
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	c.Assert(err, check.IsNil)
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			Snapshot: client.Snapshot{SetID: 1, Snap: "a-snap", SnapID: "a-id", Epoch: snap.Epoch{Read: []uint32{42}, Write: []uint32{17}}},
+			File:     shotfile,
+		}), check.IsNil)
+		backendIterCalls++
+		return nil
+	}
+	restoreBackendIter := snapshotstate.MockBackendIter(fakeIter)
+	defer restoreBackendIter()
+
+	restoreOsRemove := snapshotstate.MockOsRemove(func(fileName string) error {
+		return nil
+	})
+	defer restoreOsRemove()
+
+	st := state.New(nil)
+	runner := state.NewTaskRunner(st)
+	mgr := snapshotstate.Manager(st, runner)
+	c.Assert(mgr, check.NotNil)
+
+	storeExpiredSnapshot := func() {
+		st.Lock()
+		// we need at least one snapshot set in the state for forgetExpiredSnapshots to do any work
+		st.Set("snapshots", map[uint64]interface{}{
+			1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+		})
+		st.Unlock()
+	}
+
+	// consecutive runs of Ensure call the backend just once because of the snapshotExpirationLoopInterval
+	for i := 0; i < 3; i++ {
+		storeExpiredSnapshot()
+		c.Assert(mgr.Ensure(), check.IsNil)
+		c.Check(backendIterCalls, check.Equals, 1)
+	}
+
+	// pretend we haven't run for a while
+	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	mgr.SetLastForgetExpiredSnapshotTime(t)
+	c.Assert(mgr.Ensure(), check.IsNil)
+	c.Check(backendIterCalls, check.Equals, 2)
+
+	c.Assert(mgr.Ensure(), check.IsNil)
+	c.Check(backendIterCalls, check.Equals, 2)
 }
 
 func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskKind string) {
@@ -136,9 +183,9 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	st.Lock()
 	defer st.Unlock()
 
-	st.Set("snapshots", map[uint64]interface{}{1: map[string]interface{}{
-		"expiry": "2001-03-11T11:24:00Z",
-	}})
+	st.Set("snapshots", map[uint64]interface{}{
+		1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+	})
 
 	chg := st.NewChange("snapshot-change", "...")
 	tsk := st.NewTask(snapshotTaskKind, "...")
@@ -153,13 +200,18 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	var expirations map[uint64]interface{}
 	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
 	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
-		1: map[string]interface{}{
-			"expiry": "2001-03-11T11:24:00Z",
-		}})
+		1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+	})
 	c.Check(removeCalled, check.Equals, 0)
 
 	// sanity check of the test setup: snapshot gets removed once conflict goes away
 	tsk.SetStatus(state.DoneStatus)
+
+	// pretend we haven't run for a while
+	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	mgr.SetLastForgetExpiredSnapshotTime(t)
+
 	st.Unlock()
 	c.Assert(mgr.Ensure(), check.IsNil)
 	st.Lock()
@@ -603,4 +655,41 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 	err := snapshotstate.DoForget(rs.task, &tomb.Tomb{})
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"remove"})
+}
+
+func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
+	defer snapshotstate.MockOsRemove(func(filename string) error {
+		return nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("forget-snapshot", "...")
+	task.Set("snapshot-setup", map[string]interface{}{
+		"set-id":   1,
+		"filename": "a-file",
+		"snap":     "a-snap",
+	})
+
+	st.Set("snapshots", map[uint64]interface{}{
+		1: map[string]interface{}{
+			"expiry-time": "2001-03-11T11:24:00Z",
+		},
+		2: map[string]interface{}{
+			"expiry-time": "2037-02-12T12:50:00Z",
+		},
+	})
+
+	st.Unlock()
+	c.Assert(snapshotstate.DoForget(task, &tomb.Tomb{}), check.IsNil)
+
+	st.Lock()
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		2: map[string]interface{}{
+			"expiry-time": "2037-02-12T12:50:00Z",
+		}})
 }

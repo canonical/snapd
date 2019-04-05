@@ -22,6 +22,7 @@ package snapshotstate
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -153,4 +154,9 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 	return func() {
 		configSetSnapConfig = old
 	}
+}
+
+// For testing only
+func (mgr *SnapshotManager) SetLastForgetExpiredSnapshotTime(t time.Time) {
+	mgr.lastForgetExpiredSnapshotTime = t
 }

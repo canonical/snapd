@@ -20,7 +20,10 @@
 package testutil
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
 )
@@ -68,13 +71,14 @@ func (s *mockCommandSuite) TestMockCommandConflictEcho(c *check.C) {
 }
 
 func (s *mockCommandSuite) TestMockShellchecksWhenAvailable(c *check.C) {
-	mockShellcheck := MockCommand(c, "shellcheck", "echo foo")
+	tmpDir := c.MkDir()
+	mockShellcheck := MockCommand(c, "shellcheck", fmt.Sprintf(`cat > %s/input`, tmpDir))
 	defer mockShellcheck.Restore()
 
 	restore := MockShellcheckPath(mockShellcheck.Exe())
 	defer restore()
 
-	mock := MockCommand(c, "some-command", "")
+	mock := MockCommand(c, "some-command", "echo some-command")
 
 	c.Assert(exec.Command("some-command").Run(), check.IsNil)
 
@@ -82,8 +86,16 @@ func (s *mockCommandSuite) TestMockShellchecksWhenAvailable(c *check.C) {
 		{"some-command"},
 	})
 	c.Assert(mockShellcheck.Calls(), check.DeepEquals, [][]string{
-		{"shellcheck", "-s", "bash", mock.Exe()},
+		{"shellcheck", "-s", "bash", "-"},
 	})
+
+	scriptData, err := ioutil.ReadFile(mock.Exe())
+	c.Assert(err, check.IsNil)
+	c.Assert(string(scriptData), Contains, "\necho some-command\n")
+
+	data, err := ioutil.ReadFile(filepath.Join(tmpDir, "input"))
+	c.Assert(err, check.IsNil)
+	c.Assert(data, check.DeepEquals, scriptData)
 }
 
 func (s *mockCommandSuite) TestMockNoShellchecksWhenNotAvailable(c *check.C) {

@@ -222,7 +222,7 @@ bool sc_args_is_version_query(const struct sc_args *args)
 	return args->is_version_query;
 }
 
-bool sc_args_is_classic_confinement(const struct sc_args * args)
+bool sc_args_is_classic_confinement(const struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain classic confinement flag from NULL argument parser");
