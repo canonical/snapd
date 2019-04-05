@@ -667,17 +667,19 @@ cache_snaps(){
     # Pre-cache snaps so that they can be installed by tests quickly.
     # This relies on a behavior of snapd where .partial files are
     # used for resuming downloads.
+    initial_list="$(snap list | wc -l)"
     (
         set -x
         cd "$TESTSLIB/cache/"
-        # Download each of the snaps we want to pre-cache. Note that `snap download`
+        # Install each of the snaps we want to pre-cache. Note that `snap download`
         # a quick no-op if the file is complete.
         for snap_name in "$@"; do
-            snap download "$snap_name"
+            snap install "$snap_name"
+            snap remove "$snap_name"
         done
-        # Copy all of the snaps back to the spool directory. From there we
-        # will reuse them during subsequent `snap install` operations.
-        cp -- *.snap /var/lib/snapd/snaps/
         set +x
     )
+    # Check not other snaps remain installed after snaps are cached
+    final_list="$(snap list | wc -l)"
+    [ "$initial_list" == "$final_list" ]
 }
