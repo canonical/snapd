@@ -326,7 +326,7 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 		switch v.Bootloader {
 		case "":
 			// pass
-		case "grub", "u-boot", "android-boot":
+		case "grub", "u-boot", "android-boot", "lk":
 			bootloadersFound += 1
 		default:
 			return nil, errors.New("bootloader must be one of grub, u-boot or android-boot")
