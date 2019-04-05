@@ -21,6 +21,7 @@ package timings
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -35,13 +36,20 @@ type TimingJSON struct {
 	Duration time.Duration `json:"duration"`
 }
 
-type RootTimingsJSON struct {
+type rootTimingsJSON struct {
 	Tags          map[string]string `json:"tags,omitempty"`
 	NestedTimings []*TimingJSON     `json:"timings,omitempty"`
 	// start time of the first timing
 	StartTime time.Time `json:"start-time"`
 	// the most recent stop time of all timings
 	StopTime time.Time `json:"stop-time"`
+}
+
+// TimingsInfo encompasses timings returned by the Get method below.
+// It generally reflects rootTimingJSON, but may hide some of its detials.
+type TimingsInfo struct {
+	Tags          map[string]string
+	NestedTimings []*TimingJSON
 }
 
 // Maximum number of timings to keep in state. It can be changed only while holding state lock.
@@ -58,7 +66,7 @@ var timeDuration = func(start, end time.Time) time.Duration {
 // flatten flattens nested measurements into a single list within rootTimingJson.NestedTimings
 // and calculates total duration.
 func (t *Timings) flatten() interface{} {
-	data := &RootTimingsJSON{
+	data := &rootTimingsJSON{
 		Tags: t.tags,
 	}
 	var maxStopTime time.Time
@@ -73,7 +81,7 @@ func (t *Timings) flatten() interface{} {
 	return data
 }
 
-func flattenRecursive(data *RootTimingsJSON, timings []*Span, nestLevel int, maxStopTime *time.Time) {
+func flattenRecursive(data *rootTimingsJSON, timings []*Span, nestLevel int, maxStopTime *time.Time) {
 	for _, tm := range timings {
 		dur := timeDuration(tm.start, tm.stop)
 		if dur >= DurationThreshold {
@@ -120,4 +128,38 @@ func (t *Timings) Save(st *state.State) {
 		stateTimings = stateTimings[len(stateTimings)-MaxTimings:]
 	}
 	st.Set("timings", stateTimings)
+}
+
+// Get returns timings for which filter predicate is true and filters out nested timings whose level is greater than maxLevel.
+// Negative maxLevel value disables filtering by level.
+// It's responsibility of the caller to lock the state before calling this function.
+func Get(st *state.State, maxLevel int, filter func(tags map[string]string) bool) ([]*TimingsInfo, error) {
+	var stateTimings []rootTimingsJSON
+	if err := st.Get("timings", &stateTimings); err != nil && err != state.ErrNoState {
+		return nil, fmt.Errorf("could not get timings data from the state: %v", err)
+	}
+
+	var result []*TimingsInfo
+	for _, tm := range stateTimings {
+		if !filter(tm.Tags) {
+			continue
+		}
+		res := &TimingsInfo{
+			Tags: tm.Tags,
+		}
+		if maxLevel < 0 { // no level-based filtering?
+			res.NestedTimings = tm.NestedTimings
+			result = append(result, res)
+			continue
+		}
+		for _, nested := range tm.NestedTimings {
+			if nested.Level <= maxLevel {
+				res.NestedTimings = append(res.NestedTimings, nested)
+			}
+		}
+		if len(res.NestedTimings) > 0 {
+			result = append(result, res)
+		}
+	}
+	return result, nil
 }
