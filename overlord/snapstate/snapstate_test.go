@@ -832,6 +832,9 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 		RefreshInhibitedTime: &longAgo,
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
+	// XXX: Despite Round() call above some things are not properly handled.
+	// Round-trip through the state serialization to neuter the side effects.
+	snapstate.Get(s.state, "some-snap", snapst)
 
 	// With a snap info indicating it has an application called "app"
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
