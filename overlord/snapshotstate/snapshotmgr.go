@@ -48,6 +48,8 @@ var (
 	backendCheck         = (*backend.Reader).Check
 	backendRevert        = (*backend.RestoreState).Revert // ditto
 	backendCleanup       = (*backend.RestoreState).Cleanup
+
+	snapshotExpirationLoopInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -76,15 +78,15 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 }
 
 // Ensure is part of the overlord.StateManager interface.
-func (mgr SnapshotManager) Ensure() error {
+func (mgr *SnapshotManager) Ensure() error {
 	// process expired snapshots once a day.
-	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(time.Hour * 24)) {
+	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(snapshotExpirationLoopInterval)) {
 		return mgr.forgetExpiredSnapshots()
 	}
 	return nil
 }
 
-func (mgr SnapshotManager) forgetExpiredSnapshots() error {
+func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 	mgr.state.Lock()
 	defer mgr.state.Unlock()
 
@@ -97,8 +99,6 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 		return nil
 	}
 
-	mgr.lastForgetExpiredSnapshotTime = time.Now()
-
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
 		// forget needs to conflict with check and restore
 		if err := checkSnapshotTaskConflict(mgr.state, r.SetID, "check-snapshot", "restore-snapshot"); err != nil {
@@ -106,6 +106,7 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 			return nil
 		}
 		if sets[r.SetID] {
+			delete(sets, r.SetID)
 			// remove from state first: in case removeSnapshotState succeeds but osRemove fails we will never attempt
 			// to automatically remove this snapshot again and will leave it on the disk (so the user can still try to remove it manually);
 			// this is better than the other way around where a failing osRemove would be retried forever because snapshot would never
@@ -122,6 +123,11 @@ func (mgr SnapshotManager) forgetExpiredSnapshots() error {
 
 	if err != nil {
 		return fmt.Errorf("cannot process expired snapshots: %v", err)
+	}
+
+	// only reset time if there are no sets left because of conflicts
+	if len(sets) == 0 {
+		mgr.lastForgetExpiredSnapshotTime = time.Now()
 	}
 
 	return nil
