@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -219,7 +220,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathNormal(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathReexec(c *C) {
-	s.AddCleanup(interfaces.MockOsReadlink(func(string) (string, error) {
+	s.AddCleanup(cmd.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
 	}))
 	p, err := interfaces.FindSnapdPath()
@@ -228,7 +229,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathReexec(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathSnapdSnap(c *C) {
-	s.AddCleanup(interfaces.MockOsReadlink(func(string) (string, error) {
+	s.AddCleanup(cmd.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(dirs.SnapMountDir, "snapd/22/usr/bin/snap"), nil
 	}))
 	p, err := interfaces.FindSnapdPath()

@@ -55,12 +55,3 @@ func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
 		isHomeUsingNFS = old
 	}
 }
-
-// MockOsReadlink mocks the real implementation of os.Readlink
-func MockOsReadlink(new func(string) (string, error)) (restore func()) {
-	old := osReadlink
-	osReadlink = new
-	return func() {
-		osReadlink = old
-	}
-}

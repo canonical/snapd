@@ -78,29 +78,12 @@ type systemKey struct {
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
-	osReadlink      = os.Readlink
 
 	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
 )
 
 func findSnapdPath() (string, error) {
-	snapdPath := filepath.Join(dirs.DistroLibExecDir, "snapd")
-
-	// find the right snapdPath by looking if we are re-execing or not
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		return "", err
-	}
-
-	if strings.HasPrefix(exe, dirs.SnapMountDir) {
-		// reexecd' snapd may be coming from either 'core' or 'snapd'
-		// snaps, find the local prefix to the snap:
-		// /snap/snapd/123/usr/bin/snap       -> /snap/snapd/123
-		// /snap/core/234/usr/lib/snapd/snapd -> /snap/core/234
-		prefix := strings.Split(exe, "/usr/")[0]
-		return filepath.Join(prefix, "/usr/lib/snapd/snapd"), nil
-	}
-	return snapdPath, nil
+	return cmd.InternalToolPath("snapd")
 }
 
 func seccompCompilerVersionInfoImpl(path string) (string, error) {
@@ -120,7 +103,7 @@ func generateSystemKey() (*systemKey, error) {
 	sk := &systemKey{
 		Version: 1,
 	}
-	snapdPath, err := cmd.InternalToolPath("snapd")
+	snapdPath, err := findSnapdPath()
 	if err != nil {
 		return nil, err
 	}
