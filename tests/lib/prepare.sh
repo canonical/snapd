@@ -674,7 +674,8 @@ cache_snaps(){
         # Install and remove each of the snaps we want to pre-cache.
         for snap_name in "$@"; do
             snap install "$snap_name"
-            snap remove "$snap_name"
+            # The snap could be not removable such as core on classic
+            snap remove "$snap_name" || true
         done
         set +x
     )
