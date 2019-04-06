@@ -19,12 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/release"
-)
-
 const systemBackupSummary = `allows read-only access to the entire system for backups`
 
 const systemBackupBaseDeclarationSlots = `
@@ -36,13 +30,8 @@ const systemBackupBaseDeclarationSlots = `
 `
 
 const systemBackupConnectedPlugAppArmor = `
-# Description: Allow read-only access to system data
+# Description: Allow read-only access to the entire system
 capability dac_read_search,
-/writable/{,**} r,
-`
-
-const systemBackupConnectedPlugAppArmorClassic = `
-# Description: Allow read-only access to system data on classic
 
 # read access to everything except items under /dev, /sys and /proc
 /[^dsp]** r,
@@ -60,21 +49,14 @@ type systemBackupInterface struct {
 	commonInterface
 }
 
-func (iface *systemBackupInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(systemBackupConnectedPlugAppArmor)
-	if release.OnClassic {
-		spec.AddSnippet(systemBackupConnectedPlugAppArmorClassic)
-	}
-	return nil
-}
-
 func init() {
 	registerIface(&systemBackupInterface{commonInterface{
-		name:                 "system-backup",
-		summary:              systemBackupSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: systemBackupBaseDeclarationSlots,
-		reservedForOS:        true,
+		name:                  "system-backup",
+		summary:               systemBackupSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemBackupBaseDeclarationSlots,
+		connectedPlugAppArmor: systemBackupConnectedPlugAppArmor,
+		reservedForOS:         true,
 	}})
 }

@@ -88,21 +88,8 @@ func (s *systemBackupInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/writable/{,**} r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), `# Description: Allow read-only access to system data on classic`)
-
-}
-
-func (s *systemBackupInterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/writable/{,**} r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow read-only access to system data on classic`)
-
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability dac_read_search,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow read-only access to the entire system`)
 }
 
 func (s *systemBackupInterfaceSuite) TestStaticInfo(c *C) {
