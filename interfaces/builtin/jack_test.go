@@ -85,7 +85,7 @@ func (s *JackInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/dev/shm/jack-*/*/* mrwk")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /dev/shm/jack-[0-9]*/*/* rw")
 }
 
 func (s *JackInterfaceSuite) TestInterfaces(c *C) {
