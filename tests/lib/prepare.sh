@@ -644,6 +644,8 @@ prepare_ubuntu_core() {
     fi
 
     echo "Ensure the core snap is cached"
+    # Cache snaps
+    # shellcheck disable=SC2086
     cache_snaps ${PRE_CACHE_SNAPS}
 
     disable_refreshes
