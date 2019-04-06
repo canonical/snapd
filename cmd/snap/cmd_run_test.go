@@ -190,7 +190,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 
 }
 
-func (s *RunSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
+func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromCore(c *check.C) {
 	mountedCorePath := filepath.Join(dirs.SnapMountDir, "core/current")
 	mountedCoreLibExecPath := filepath.Join(mountedCorePath, dirs.CoreLibExecDir)
 
@@ -220,6 +220,39 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
 		filepath.Join(mountedCoreLibExecPath, "snap-confine"), "--classic",
 		"snap.snapname.app",
 		filepath.Join(mountedCoreLibExecPath, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+}
+
+func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromSnapd(c *check.C) {
+	mountedSnapdPath := filepath.Join(dirs.SnapMountDir, "snapd/current")
+	mountedSnapdLibExecPath := filepath.Join(mountedSnapdPath, dirs.CoreLibExecDir)
+
+	defer mockSnapConfine(mountedSnapdLibExecPath)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
+		// pretend 'snap' is reexeced from 'core'
+		return filepath.Join(mountedSnapdPath, "usr/bin/snap"), nil
+	})
+	defer restore()
+
+	execArgs := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArgs = args
+		return nil
+	})
+	defer restorer()
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(mountedSnapdLibExecPath, "snap-confine"), "--classic",
+		"snap.snapname.app",
+		filepath.Join(mountedSnapdLibExecPath, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 }
 
@@ -477,22 +510,35 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }
 
-func (s *RunSuite) TestSnapRunIsReexeced(c *check.C) {
+func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 	var osReadlinkResult string
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		return osReadlinkResult, nil
 	})
 	defer restore()
 
+	tool := "snap-confine"
 	for _, t := range []struct {
 		readlink string
-		expected bool
+		expected string
 	}{
-		{filepath.Join(dirs.SnapMountDir, dirs.CoreLibExecDir, "snapd"), true},
-		{filepath.Join(dirs.DistroLibExecDir, "snapd"), false},
+		{
+			filepath.Join(dirs.SnapMountDir, "core/current/usr/bin/snap"),
+			filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, tool),
+		},
+		{
+			filepath.Join(dirs.SnapMountDir, "snapd/current/usr/bin/snap"),
+			filepath.Join(dirs.SnapMountDir, "snapd/current", dirs.CoreLibExecDir, tool),
+		},
+		{
+			filepath.Join("/usr/bin/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
 	} {
 		osReadlinkResult = t.readlink
-		c.Check(snaprun.IsReexeced(), check.Equals, t.expected)
+		toolPath, err := snaprun.SnapdHelperPath(tool)
+		c.Assert(err, check.IsNil)
+		c.Check(toolPath, check.Equals, t.expected)
 	}
 }
 

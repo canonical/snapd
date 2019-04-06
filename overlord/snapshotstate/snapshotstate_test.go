@@ -1013,7 +1013,7 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1090,7 +1090,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1340,4 +1340,72 @@ func (snapshotSuite) TestForget(c *check.C) {
 		"filename": shotfile.Name(),
 		"current":  "unset",
 	})
+}
+
+func (snapshotSuite) TestSaveExpiration(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	var expirations map[uint64]interface{}
+	tm, err := time.Parse(time.RFC3339, "2019-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 12, tm), check.IsNil)
+
+	tm, err = time.Parse(time.RFC3339, "2019-02-12T12:50:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 13, tm), check.IsNil)
+
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		12: map[string]interface{}{"expiry-time": "2019-03-11T11:24:00Z"},
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:50:00Z"},
+	})
+}
+
+func (snapshotSuite) TestRemoveSnapshotState(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("snapshots", map[uint64]interface{}{
+		12: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+		14: map[string]interface{}{"expiry-time": "2019-03-12T13:11:00Z"},
+	})
+
+	snapshotstate.RemoveSnapshotState(st, 12, 14)
+
+	var snapshots map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
+	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+	})
+}
+
+func (snapshotSuite) TestExpiredSnapshotSets(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tm, err := time.Parse(time.RFC3339, "2019-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 12, tm), check.IsNil)
+
+	tm, err = time.Parse(time.RFC3339, "2019-02-12T12:50:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 13, tm), check.IsNil)
+
+	tm, err = time.Parse(time.RFC3339, "2020-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	expired, err := snapshotstate.ExpiredSnapshotSets(st, tm)
+	c.Assert(err, check.IsNil)
+	sort.Slice(expired, func(i, j int) bool { return expired[i] < expired[j] })
+	c.Check(expired, check.DeepEquals, []uint64{12, 13})
+
+	tm, err = time.Parse(time.RFC3339, "2019-03-01T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	expired, err = snapshotstate.ExpiredSnapshotSets(st, tm)
+	c.Assert(err, check.IsNil)
+	c.Check(expired, check.DeepEquals, []uint64{13})
 }

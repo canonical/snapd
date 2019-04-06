@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -28,10 +29,12 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
@@ -43,7 +46,7 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	}
 }
 
-func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm timings.Measurer) error {
 	st := task.State()
 
 	// Setup security of the affected snaps.
@@ -65,7 +68,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
+		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts, tm); err != nil {
 			return err
 		}
 	}
@@ -75,6 +78,9 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
+
+	perfTimings := timings.NewForTask(task)
+	defer perfTimings.Save(task.State())
 
 	// Get snap.Info from bits handed by the snap manager.
 	snapsup, err := snapstate.TaskSnapSetup(task)
@@ -101,10 +107,10 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	}
 
 	opts := confinementOptions(snapsup.Flags)
-	return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+	return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 }
 
-func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 
 	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
@@ -193,13 +199,17 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		affectedSnaps = append(affectedSnaps, snapInfo)
 		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
 	}
-	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts)
+
+	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts, tm)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := timings.NewForTask(task)
+	defer perfTimings.Save(st)
 
 	// Get SnapSetup for this snap. This is gives us the name of the snap.
 	snapSetup, err := snapstate.TaskSnapSetup(task)
@@ -208,10 +218,10 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 	snapName := snapSetup.InstanceName()
 
-	return m.removeProfilesForSnap(task, tomb, snapName)
+	return m.removeProfilesForSnap(task, tomb, snapName, perfTimings)
 }
 
-func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string) error {
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
@@ -220,7 +230,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	if err != nil {
 		return err
 	}
-	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps); err != nil {
+	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps, tm); err != nil {
 		return err
 	}
 
@@ -242,6 +252,9 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := timings.NewForTask(task)
+	defer perfTimings.Save(st)
 
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
@@ -268,7 +281,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		// The snap was not installed before so undo should remove security profiles.
-		return m.removeProfilesForSnap(task, tomb, snapName)
+		return m.removeProfilesForSnap(task, tomb, snapName, perfTimings)
 	} else {
 		// The snap was installed before so undo should setup the old security profiles.
 		snapInfo, err := snap.ReadInfo(snapName, sideInfo)
@@ -276,7 +289,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+		return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 	}
 }
 
@@ -372,6 +385,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(task)
+	defer perfTimings.Save(st)
+
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
@@ -455,11 +471,12 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
+
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
 
@@ -485,6 +502,9 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := timings.NewForTask(task)
+	defer perfTimings.Save(st)
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
@@ -520,7 +540,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
+		if err := m.setupSnapSecurity(task, snapInfo, opts, perfTimings); err != nil {
 			return err
 		}
 	}
@@ -572,6 +592,9 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(task)
+	defer perfTimings.Save(st)
+
 	var oldconn connState
 	err := task.Get("old-conn", &oldconn)
 	if err == state.ErrNoState {
@@ -617,11 +640,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
 
@@ -652,6 +675,9 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 // timeout for shared content retry
 var contentLinkRetryTimeout = 30 * time.Second
+
+// timeout for retrying hotplug-related tasks
+var hotplugRetryTimeout = 300 * time.Millisecond
 
 // defaultContentProviders returns a dict of the default-providers for the
 // content plugs for the given instanceName
@@ -1133,14 +1159,17 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	}
 	setConns(st, conns)
 
-	// The reloadConnections() just modifies the repository object, it
-	// has no effect on the running system, i.e. no security profiles
-	// on disk are rewriten. This is ok because core/ubuntu-core have
-	// exactly the same profiles and nothing in the generated policies
-	// has the slot-name encoded.
-	if _, err := m.reloadConnections(oldName); err != nil {
+	// After migrating connections in state, remove them from repo so they stay in sync and we don't
+	// attempt to run disconnects on when the old core gets removed as part of the transition.
+	if err := m.removeConnections(oldName); err != nil {
 		return err
 	}
+
+	// The reloadConnections() just modifies the repository object, it
+	// has no effect on the running system, i.e. no security profiles
+	// on disk are rewritten. This is ok because core/ubuntu-core have
+	// exactly the same profiles and nothing in the generated policies
+	// has the core snap-name encoded.
 	if _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
@@ -1389,6 +1418,43 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+// doHotplugUpdateSlot updates static attributes of a hotplug slot for given device.
+func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	var attrs map[string]interface{}
+	if err := task.Get("slot-attrs", &attrs); err != nil {
+		return fmt.Errorf("internal error: cannot get slot-attrs attribute for device %s, interface %s: %s", hotplugKey, ifaceName, err)
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
+	}
+
+	slot, err := m.repo.UpdateHotplugSlotAttrs(ifaceName, hotplugKey, attrs)
+	if err != nil {
+		return err
+	}
+
+	if slotSpec, ok := stateSlots[slot.Name]; ok {
+		slotSpec.StaticAttrs = attrs
+		stateSlots[slot.Name] = slotSpec
+		setHotplugSlots(st, stateSlots)
+	} else {
+		return fmt.Errorf("internal error: cannot find slot %s for device %q", slot.Name, hotplugKey)
+	}
+
+	return nil
+}
+
 // doHotplugRemoveSlot removes hotplug slot for given device from the repository in response to udev "remove" event.
 // This task must necessarily be run after all affected slot gets disconnected in the repo.
 func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) error {
@@ -1418,25 +1484,25 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 
 	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
 	// including connection with hotplug-gone=true.
-Loop:
-	for slotName, def := range stateSlots {
-		if def.Interface != ifaceName || def.HotplugKey != hotplugKey {
-			continue
-		}
-		conns, err := getConns(st)
-		if err != nil {
-			return err
-		}
-		for _, conn := range conns {
-			if conn.Interface == def.Interface && conn.HotplugKey == def.HotplugKey {
-				// there is a connection referencing this slot, do not remove it
-				break Loop
-			}
-		}
-		delete(stateSlots, slotName)
-		setHotplugSlots(st, stateSlots)
-		break
+	slotDef := findHotplugSlot(stateSlots, ifaceName, hotplugKey)
+	if slotDef == nil {
+		return fmt.Errorf("internal error: cannot find hotplug slot for interface %s, hotplug key %q", ifaceName, hotplugKey)
 	}
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	for _, conn := range conns {
+		if conn.Interface == slotDef.Interface && conn.HotplugKey == slotDef.HotplugKey {
+			// there is a connection referencing this slot, do not remove it, only mark as "gone"
+			slotDef.HotplugGone = true
+			stateSlots[slotDef.Name] = slotDef
+			setHotplugSlots(st, stateSlots)
+			return nil
+		}
+	}
+	delete(stateSlots, slotDef.Name)
+	setHotplugSlots(st, stateSlots)
 
 	return nil
 }
@@ -1495,6 +1561,81 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 	return nil
 }
 
+func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	systemSnap, err := systemSnapInfo(st)
+	if err != nil {
+		return fmt.Errorf("system snap not available")
+	}
+
+	ifaceName, hotplugKey, err := getHotplugAttrs(task)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
+	}
+
+	var proposedSlot hotplug.ProposedSlot
+	if err := task.Get("proposed-slot", &proposedSlot); err != nil {
+		return fmt.Errorf("internal error: cannot get proposed hotplug slot from task attributes: %s", err)
+	}
+	var devinfo hotplug.HotplugDeviceInfo
+	if err := task.Get("device-info", &devinfo); err != nil {
+		return fmt.Errorf("internal error: cannot get hotplug device info from task attributes: %s", err)
+	}
+
+	stateSlots, err := getHotplugSlots(st)
+	if err != nil {
+		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
+	}
+
+	iface := m.repo.Interface(ifaceName)
+	if iface == nil {
+		return fmt.Errorf("internal error: cannot find interface %s", ifaceName)
+	}
+
+	slot := findHotplugSlot(stateSlots, ifaceName, hotplugKey)
+
+	// if we know this slot already, restore / update it.
+	if slot != nil {
+		if slot.HotplugGone {
+			// hotplugGone means the device was unplugged, so its disconnect hooks were run and can now
+			// simply recreate the slot with potentially new attributes, and old connections will be re-created
+			newSlot := &snap.SlotInfo{
+				Name:       slot.Name,
+				Label:      proposedSlot.Label,
+				Snap:       systemSnap,
+				Interface:  ifaceName,
+				Attrs:      proposedSlot.Attrs,
+				HotplugKey: hotplugKey,
+			}
+			return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
+		}
+
+		// else - not gone, restored already by reloadConnections, but may need updating.
+		if !reflect.DeepEqual(proposedSlot.Attrs, slot.StaticAttrs) {
+			ts := updateDevice(st, iface.Name(), hotplugKey, proposedSlot.Attrs)
+			snapstate.InjectTasks(task, ts)
+			st.EnsureBefore(0)
+			task.SetStatus(state.DoneStatus)
+		} // else - nothing to do
+		return nil
+	}
+
+	// New slot.
+	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), proposedSlot.Name, iface.Name(), &devinfo, m.repo, stateSlots)
+	newSlot := &snap.SlotInfo{
+		Name:       slotName,
+		Label:      proposedSlot.Label,
+		Snap:       systemSnap,
+		Interface:  iface.Name(),
+		Attrs:      proposedSlot.Attrs,
+		HotplugKey: hotplugKey,
+	}
+	return addHotplugSlot(st, m.repo, stateSlots, iface, newSlot)
+}
+
 // doHotplugSeqWait returns Retry error if there is another change for same hotplug key and a lower sequence number.
 // Sequence numbers control the order of execution of hotplug-related changes, which would otherwise be executed in
 // arbitrary order by task runner, leading to unexpected results if multiple events for same device are in flight
@@ -1533,7 +1674,8 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 		// conflict with retry if there another change affecting same device and has lower sequence number
 		if hotplugKey == otherKey && otherSeq < seq {
 			task.Logf("Waiting processing of earlier hotplug event change %q affecting device with hotplug key %q", otherChg.Kind(), hotplugKey)
-			return &state.Retry{}
+			// TODO: consider introducing a new task that runs last and does EnsureBefore(0) for hotplug changes
+			return &state.Retry{After: hotplugRetryTimeout}
 		}
 	}
 

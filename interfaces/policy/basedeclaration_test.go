@@ -140,12 +140,13 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":       true,
-		"core-support":  true,
-		"home":          true,
-		"lxd-support":   true,
-		"snapd-control": true,
-		"dummy":         true,
+		"content":           true,
+		"core-support":      true,
+		"home":              true,
+		"lxd-support":       true,
+		"multipass-support": true,
+		"snapd-control":     true,
+		"dummy":             true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -471,6 +472,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionMultipassSupportOverride(c *C) {
+	cand := s.connectCand(c, "multipass-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"multipass-support\"")
+
+	plugsSlots := `
+plugs:
+  multipass-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "multipass-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionBlockDevicesOverride(c *C) {
 	cand := s.connectCand(c, "block-devices", "", "")
 	err := cand.CheckAutoConnect()
@@ -567,6 +586,7 @@ var (
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
 		"network-manager":         {"app", "core"},
+		"network-manager-observe": {"app", "core"},
 		"network-status":          {"app"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},
@@ -665,6 +685,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"multipass-support":     true,
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,
@@ -793,6 +814,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"multipass-support":     true,
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,

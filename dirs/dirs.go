@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -74,10 +75,11 @@ var (
 	SnapRepairAssertsDir string
 	SnapRunRepairDir     string
 
-	SnapCacheDir     string
-	SnapNamesFile    string
-	SnapSectionsFile string
-	SnapCommandsDB   string
+	SnapCacheDir        string
+	SnapNamesFile       string
+	SnapSectionsFile    string
+	SnapCommandsDB      string
+	SnapAuxStoreInfoDir string
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
@@ -104,7 +106,9 @@ var (
 	SystemFontconfigCacheDir string
 
 	FreezerCgroupDir string
-	SnapshotsDir     string
+	PidsCgroupDir    string
+
+	SnapshotsDir string
 
 	ErrtrackerDbDir string
 	SysfsDir        string
@@ -241,6 +245,7 @@ func SetRootDir(rootdir string) {
 	SnapNamesFile = filepath.Join(SnapCacheDir, "names")
 	SnapSectionsFile = filepath.Join(SnapCacheDir, "sections")
 	SnapCommandsDB = filepath.Join(SnapCacheDir, "commands.db")
+	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
@@ -258,6 +263,12 @@ func SetRootDir(rootdir string) {
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
+	exists, isDir, _ := osutil.DirExists(SystemApparmorCacheDir)
+	if !exists || !isDir {
+		// some systems use a single cache dir instead of splitting
+		// out the system cache
+		SystemApparmorCacheDir = AppArmorCacheDir
+	}
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
@@ -299,6 +310,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
+	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")

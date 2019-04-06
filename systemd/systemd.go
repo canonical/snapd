@@ -38,6 +38,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/selinux"
 )
 
 var (
@@ -74,8 +76,8 @@ func (m *extMutex) Lock() {
 
 // Unlock releases the mutex
 func (m *extMutex) Unlock() {
-	m.lock.Unlock()
 	atomic.AddInt32(&m.muC, -1)
+	m.lock.Unlock()
 }
 
 // Taken will panic with the given error message if the lock is not
@@ -548,6 +550,11 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 		}
 		options = append(options, newOptions...)
 		fstype = newFsType
+		if release.SELinuxLevel() != release.NoSELinux {
+			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
+				options = append(options, "context="+mountCtx)
+			}
+		}
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")

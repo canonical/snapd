@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -58,7 +57,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -83,6 +81,7 @@ var api = []*Command{
 	findCmd,
 	snapsCmd,
 	snapCmd,
+	snapFileCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -101,6 +100,8 @@ var api = []*Command{
 	warningsCmd,
 	debugCmd,
 	snapshotCmd,
+	connectionsCmd,
+	modelCmd,
 }
 
 var (
@@ -183,20 +184,6 @@ var (
 		POST:     changeInterfaces,
 	}
 
-	// TODO: allow to post assertions for UserOK? they are verified anyway
-	assertsCmd = &Command{
-		Path:   "/v2/assertions",
-		UserOK: true,
-		GET:    getAssertTypeNames,
-		POST:   doAssert,
-	}
-
-	assertsFindManyCmd = &Command{
-		Path:   "/v2/assertions/{assertType}",
-		UserOK: true,
-		GET:    assertsFindMany,
-	}
-
 	stateChangeCmd = &Command{
 		Path:     "/v2/changes/{id}",
 		UserOK:   true,
@@ -209,11 +196,6 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
-	}
-
-	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -635,29 +617,20 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	query := r.URL.Query()
 	q := query.Get("q")
+	commonID := query.Get("common-id")
 	section := query.Get("section")
 	name := query.Get("name")
 	scope := query.Get("scope")
 	private := false
 	prefix := false
 
-	if name != "" {
-		if q != "" {
-			return BadRequest("cannot use 'q' and 'name' together")
-		}
-
-		if name[len(name)-1] != '*' {
-			return findOne(c, r, user, name)
-		}
-
-		prefix = true
-		q = name[:len(name)-1]
-	}
-
 	if sel := query.Get("select"); sel != "" {
 		switch sel {
 		case "refresh":
-			if prefix {
+			if commonID != "" {
+				return BadRequest("cannot use 'common-id' with 'select=refresh'")
+			}
+			if name != "" {
 				return BadRequest("cannot use 'name' with 'select=refresh'")
 			}
 			if q != "" {
@@ -669,13 +642,34 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
+	if name != "" {
+		if q != "" {
+			return BadRequest("cannot use 'q' and 'name' together")
+		}
+		if commonID != "" {
+			return BadRequest("cannot use 'common-id' and 'name' together")
+		}
+
+		if name[len(name)-1] != '*' {
+			return findOne(c, r, user, name)
+		}
+
+		prefix = true
+		q = name[:len(name)-1]
+	}
+
+	if commonID != "" && q != "" {
+		return BadRequest("cannot use 'common-id' and 'q' together")
+	}
+
 	theStore := getStore(c)
 	found, err := theStore.Find(&store.Search{
-		Query:   q,
-		Section: section,
-		Private: private,
-		Prefix:  prefix,
-		Scope:   scope,
+		Query:    q,
+		Prefix:   prefix,
+		CommonID: commonID,
+		Section:  section,
+		Private:  private,
+		Scope:    scope,
 	}, user)
 	switch err {
 	case nil:
@@ -1618,21 +1612,29 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	about, err := localSnapInfo(st, name)
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil {
-		if err == errNoSnap {
+		if err == state.ErrNoState {
 			return SnapNotFound(name, err)
 		}
-		return InternalError("%v", err)
+		return InternalError("cannot consult state: %v", err)
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		return NotFound("snap has no current revision")
 	}
 
-	path := filepath.Clean(snapIcon(about.info))
-	if !strings.HasPrefix(path, dirs.SnapMountDir) {
-		// XXX: how could this happen?
-		return BadRequest("requested icon is not in snap path")
+	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
+
+	if icon == "" {
+		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(path)
+	return FileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1789,57 +1791,15 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-
-	var ifjson interfaceJSON
-	plugConns := map[string][]interfaces.SlotRef{}
-	slotConns := map[string][]interfaces.PlugRef{}
-
-	for _, cref := range ifaces.Connections {
-		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
-		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
-		plugID := plugRef.String()
-		slotID := slotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], slotRef)
-		slotConns[slotID] = append(slotConns[slotID], plugRef)
+	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	if err != nil {
+		return InternalError("collecting connection information failed: %v", err)
 	}
-
-	for _, plug := range ifaces.Plugs {
-		var apps []string
-		for _, app := range plug.Apps {
-			apps = append(apps, app.Name)
-		}
-		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
-		pj := &plugJSON{
-			Snap:        plugRef.Snap,
-			Name:        plugRef.Name,
-			Interface:   plug.Interface,
-			Attrs:       plug.Attrs,
-			Apps:        apps,
-			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
-		}
-		ifjson.Plugs = append(ifjson.Plugs, pj)
+	legacyconnsjson := legacyConnectionsJSON{
+		Plugs: connsjson.Plugs,
+		Slots: connsjson.Slots,
 	}
-	for _, slot := range ifaces.Slots {
-		var apps []string
-		for _, app := range slot.Apps {
-			apps = append(apps, app.Name)
-		}
-		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
-		sj := &slotJSON{
-			Snap:        slotRef.Snap,
-			Name:        slotRef.Name,
-			Interface:   slot.Interface,
-			Attrs:       slot.Attrs,
-			Apps:        apps,
-			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
-		}
-		ifjson.Slots = append(ifjson.Slots, sj)
-	}
-	return SyncResponse(ifjson, nil)
+	return SyncResponse(legacyconnsjson, nil)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
@@ -1922,7 +1882,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				conn, err := repo.Connection(connRef)
+				var conn *interfaces.Connection
+				conn, err = repo.Connection(connRef)
 				if err != nil {
 					break
 				}
@@ -1944,59 +1905,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
-}
-
-func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
-	return SyncResponse(map[string][]string{
-		"types": asserts.TypeNames(),
-	}, nil)
-}
-
-func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	batch := assertstate.NewBatch()
-	_, err := batch.AddStream(r.Body)
-	if err != nil {
-		return BadRequest("cannot decode request body into assertions: %v", err)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-
-	if err := batch.Commit(state); err != nil {
-		return BadRequest("assert failed: %v", err)
-	}
-	// TODO: what more info do we want to return on success?
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: 200,
-	}
-}
-
-func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
-	assertTypeName := muxVars(r)["assertType"]
-	assertType := asserts.Type(assertTypeName)
-	if assertType == nil {
-		return BadRequest("invalid assert type: %q", assertTypeName)
-	}
-	headers := map[string]string{}
-	q := r.URL.Query()
-	for k := range q {
-		headers[k] = q.Get(k)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	db := assertstate.DB(state)
-	state.Unlock()
-
-	assertions, err := db.FindMany(assertType, headers)
-	if asserts.IsNotFound(err) {
-		return AssertResponse(nil, true)
-	} else if err != nil {
-		return InternalError("searching assertions failed: %v", err)
-	}
-	return AssertResponse(assertions, true)
 }
 
 type changeInfo struct {
@@ -2195,15 +2103,6 @@ var (
 	ctlcmdRun                 = ctlcmd.Run
 	osutilAddUser             = osutil.AddUser
 )
-
-func makeHttpClient(st *state.State) *http.Client {
-	proxyConf := proxyconf.New(st)
-	return httputil.NewHTTPClient(&httputil.ClientOptions{
-		Timeout:    10 * time.Second,
-		MayLogBody: true,
-		Proxy:      proxyConf.Conf,
-	})
-}
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
 	v, err := theStore.UserInfo(email)
@@ -2497,70 +2396,6 @@ func convertBuyError(err error) Response {
 		}, nil)
 	default:
 		return InternalError("%v", err)
-	}
-}
-
-type debugAction struct {
-	Action  string `json:"action"`
-	Message string `json:"message"`
-}
-
-type ConnectivityStatus struct {
-	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable,omitempty"`
-}
-
-func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
-	var a debugAction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a debug action: %v", err)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	switch a.Action {
-	case "add-warning":
-		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
-	case "unshow-warnings":
-		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
-	case "ensure-state-soon":
-		ensureStateSoon(st)
-		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		bd, err := assertstate.BaseDeclaration(st)
-		if err != nil {
-			return InternalError("cannot get base declaration: %s", err)
-		}
-		return SyncResponse(map[string]interface{}{
-			"base-declaration": string(asserts.Encode(bd)),
-		}, nil)
-	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
-		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
-	default:
-		return BadRequest("unknown debug action: %v", a.Action)
 	}
 }
 

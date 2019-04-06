@@ -301,6 +301,37 @@ prepare_project() {
         fi
     fi
 
+    # debian-sid packaging is special
+    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+        if [ ! -d packaging/debian-sid ]; then
+            echo "no packaging/debian-sid/ directory "
+            echo "broken test setup"
+            exit 1
+        fi
+
+        # remove etckeeper
+        apt purge -y etckeeper
+
+        # debian has its own packaging
+        rm -f debian
+        # the debian dir must be a real dir, a symlink will make
+        # dpkg-buildpackage choke later.
+        mv packaging/debian-sid debian
+
+        # get the build-deps
+        apt build-dep -y ./
+
+        # and ensure we don't take any of the vendor deps
+        rm -rf vendor/*/
+
+        # and create a fake upstream tarball
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
+
+        # and build a source package - this will be used during the sbuild test
+        dpkg-buildpackage -S --no-sign
+    fi
+
+    # so is ubuntu-14.04
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
@@ -311,17 +342,34 @@ prepare_project() {
         # 14.04 has its own packaging
         ./generate-packaging-dir
 
-        quiet apt-get install -y software-properties-common
+        quiet eatmydata apt-get install -y software-properties-common
 
-        echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
+	# FIXME: trusty-proposed disabled because there is an inconsistency
+	#        in the trusty-proposed archive:
+	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
+        #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
-        quiet apt-get update
+        quiet eatmydata apt-get update
 
-        quiet apt-get install -y --install-recommends linux-generic-lts-xenial
-        quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+        quiet eatmydata apt-get install -y --install-recommends linux-generic-lts-xenial
+        quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    distro_purge_package snapd || true
+    # WORKAROUND for older postrm scripts that did not do 
+    # "rm -rf /var/cache/snapd"
+    rm -rf /var/cache/snapd/aux
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*)
+            # Ubuntu is the only system where snapd is preinstalled
+            distro_purge_package snapd
+            ;;
+        *)
+            # snapd state directory must not exist when the package is not
+            # installed
+            test ! -d /var/lib/snapd
+            ;;
+    esac
+
     install_pkg_dependencies
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
@@ -329,11 +377,19 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             # in 16.04: apt build-dep -y ./
-            gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
+            if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
+                best_golang="$(python3 ./tests/lib/best_golang.py)"
+                test -n "$best_golang"
+                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
+            else
+                best_golang=golang-1.10
+            fi
+            gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
             # The go 1.10 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                ln -s /usr/lib/go-1.10/bin/go /usr/bin/go
+                # the path filesystem path is: /usr/lib/go-1.10/bin
+                ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
     esac
@@ -415,6 +471,11 @@ prepare_suite() {
 prepare_suite_each() {
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
+
+    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
+    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
+        systemctl restart systemd-journald
+    fi
 
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"

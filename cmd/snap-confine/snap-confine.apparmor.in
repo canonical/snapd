@@ -67,6 +67,13 @@
     /sys/fs/cgroup/freezer/snap.*/tasks w,
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs r,
 
+    # cgroup: pids
+    # allow creating per snap-security-tag hierarchy and adding snap command (task)
+    # invocations to the controller.
+    /sys/fs/cgroup/pids/ r,
+    /sys/fs/cgroup/pids/snap.*/ w,
+    /sys/fs/cgroup/pids/snap.*/tasks w,
+
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
@@ -241,8 +248,8 @@
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ rw,
-    /tmp/snap.*/ w,
-    /tmp/snap.*/tmp/ w,
+    /tmp/snap.*/ rw,
+    /tmp/snap.*/tmp/ rw,
     mount options=(rw private) ->  /tmp/,
     mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
     mount fstype=devpts options=(rw) devpts -> /dev/pts/,
@@ -313,6 +320,18 @@
     @{HOME}/ r,
     @{HOME}/snap/{,*/,*/*/} rw,
 
+    # Special case for *classic* snaps that are used by users with existing dirs
+    # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...
+    # (see https://forum.snapcraft.io/t/9717)
+    # TODO: this can be removed once we support home-dirs outside of /home
+    #       better
+    /var/ r,
+    /var/lib/ r,
+    # These should both have 'owner' match but due to LP: #1466234, we can't
+    # yet
+    /var/lib/*/ r,
+    /var/lib/*/snap/{,*/,*/*/} rw,
+
     # for creating the user shared memory directories
     /{dev,run}/{,shm/} r,
     # This should both have 'owner' match but due to LP: #1466234, we can't yet
@@ -381,6 +400,13 @@
 
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
+
+    # As a special exception allow snap-confine to write to anything in /var/lib.
+    # This code should be changed to allow delegation so that snap-confine can
+    # inherit any file descriptor and pass it to the invoked application but
+    # this is not possible in apparmor yet.
+    # See https://bugs.launchpad.net/snapd/+bug/1815869
+    /var/lib/** rw,
 
     ^mount-namespace-capture-helper (attach_disconnected) {
         # We run privileged, so be fanatical about what we include and don't use
@@ -471,19 +497,20 @@
     /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns r,
 
     # ..snap-confine is, conceptually, re-executing and uses snap-update-ns
-    # from the core snap. Note that the location of the core snap varies from
-    # distribution to distribution. The variants here represent different
-    # locations of snap mount directory across distributions.
-    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+    # from the core or snapd snaps. Note that the location of the actual snap
+    # varies from distribution to distribution. The variants here represent
+    # different locations of snap mount directory across distributions.
+    /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns r,
 
     # ...snap-confine is, conceptually, re-executing and uses snap-update-ns
-    # from the core snap but we are already inside the constructed mount
-    # namespace. Here the apparmor kernel module re-constructs the path to
-    # snap-update-ns using the "hostfs" mount entry rather than the more
-    # "natural" /snap mount entry but we have no control over that.  This is
-    # reported as (LP: #1716339). The variants here represent different
-    # locations of snap mount directory across distributions.
-    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns r,
+    # from the core snap or snapd snap, but we are already inside the
+    # constructed mount namespace. Here the apparmor kernel module
+    # re-constructs the path to snap-update-ns using the "hostfs" mount entry
+    # rather than the more "natural" /snap mount entry but we have no control
+    # over that.  This is reported as (LP: #1716339). The variants here
+    # represent different locations of snap mount directory across
+    # distributions.
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns r,
 
     # Allow executing snap-discard-ns, just like the set for snap-update-ns
     # above but with the key difference that snap-discard-ns does not
@@ -491,7 +518,10 @@
 
     /usr/lib{,exec,64}/snapd/snap-discard-ns rix,
     /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-discard-ns rix,
-    /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
-    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-discard-ns rix,
+    /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-discard-ns rix,
+    /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-discard-ns rix,
 
+    # Allow mounting /var/lib/jenkinks from the host into the snap.
+    mount options=(rw rbind) /var/lib/jenkins/ -> /tmp/snap.rootfs_*/var/lib/jenkins/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/lib/jenkins/,
 }

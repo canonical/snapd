@@ -29,11 +29,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -68,7 +68,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	bs.bootloader.BootVars["snap_core"] = "core_2.snap"
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
-	partition.ForceBootloader(bs.bootloader)
+	bootloader.Force(bs.bootloader)
 
 	bs.fakeBackend = &fakeSnappyBackend{}
 	bs.o = overlord.Mock()
@@ -94,7 +94,7 @@ func (bs *bootedSuite) TearDownTest(c *C) {
 	snapstate.Model = nil
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
-	partition.ForceBootloader(nil)
+	bootloader.Force(nil)
 }
 
 var osSI1 = &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
@@ -329,7 +329,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
-	// core snap udated
+	// core snap updated
 	si.Revision = snap.R(2)
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", si)
 
@@ -379,7 +379,7 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
-	// core18 snap udated
+	// core18 snap updated
 	si.Revision = snap.R(2)
 	snaptest.MockSnap(c, "name: core18\ntype: base\nversion: 2", si)
 

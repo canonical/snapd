@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -36,6 +37,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	snapstateInstall = snapstate.Install
+	snapstateUpdate  = snapstate.Update
 )
 
 // Model returns the device model assertion.
@@ -285,4 +291,109 @@ func CanManageRefreshes(st *state.State) bool {
 	}
 
 	return false
+}
+
+// Remodel takes a new model assertion and generates a change that
+// takes the device from the old to the new model or an error if the
+// transition is not possible.
+//
+// TODO:
+// - Check estimated disk size delta
+// - Reapply gadget connections as needed
+// - Need new session/serial if changing store or model
+// - Check all relevant snaps exist in new store
+//   (need to check that even unchanged snaps are accessible)
+// - Download everything in a first phase of the change and "pin" cache
+//   files (also get assertions), which means also dealing with new bases
+//   and content providers
+func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
+	var seeded bool
+	st.Get("seeded", &seeded)
+	if !seeded {
+		return nil, fmt.Errorf("cannot remodel until fully seeded")
+	}
+
+	current, err := Model(st)
+	if err != nil {
+		return nil, err
+	}
+	if current.Series() != new.Series() {
+		return nil, fmt.Errorf("cannot remodel to different series yet")
+	}
+	// FIXME: we need language in the model assertion to declare what
+	// transitions are ok before we allow remodel like this.
+	//
+	// Right now we only allow "remodel" to a different revision of
+	// the same model.
+	if current.BrandID() != new.BrandID() {
+		return nil, fmt.Errorf("cannot remodel to different brands yet")
+	}
+	if current.Model() != new.Model() {
+		return nil, fmt.Errorf("cannot remodel to different models yet")
+	}
+	if current.Store() != new.Store() {
+		return nil, fmt.Errorf("cannot remodel to different stores yet")
+	}
+	// TODO: should we restrict remodel from one arch to another?
+	// There are valid use-cases here though, i.e. amd64 machine that
+	// remodels itself to/from i386 (if the HW can do both 32/64 bit)
+	if current.Architecture() != new.Architecture() {
+		return nil, fmt.Errorf("cannot remodel to different architectures yet")
+	}
+
+	// calculate snap differences between the two models
+	// FIXME: this needs work to switch the base to boot as well
+	if current.Base() != new.Base() {
+		return nil, fmt.Errorf("cannot remodel to different bases yet")
+	}
+	// FIXME: we need to support this soon but right now only a single
+	// snap of type "gadget/kernel" is allowed so this needs work
+	if current.Kernel() != new.Kernel() {
+		return nil, fmt.Errorf("cannot remodel to different kernels yet")
+	}
+	if current.Gadget() != new.Gadget() {
+		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
+	}
+	userID := 0
+
+	var tss []*state.TaskSet
+	addTss := func(ts *state.TaskSet) {
+		if len(tss) > 0 {
+			ts.WaitAll(tss[len(tss)-1])
+		}
+		tss = append(tss, ts)
+	}
+	// adjust tracks
+	if current.KernelTrack() != new.KernelTrack() {
+		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
+		if err != nil {
+			return nil, err
+		}
+		addTss(ts)
+	}
+	// adjust snaps
+	for _, snapName := range new.RequiredSnaps() {
+		_, err := snapstate.CurrentInfo(st, snapName)
+		// if the snap is not installed we need to install it now
+		if _, ok := err.(*snap.NotInstalledError); ok {
+			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{})
+			if err != nil {
+				return nil, err
+			}
+			addTss(ts)
+		} else if err != nil {
+			return nil, err
+		}
+	}
+
+	// Set the new model assertion - this *must* be the last thing done
+	// by the change.
+	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
+	setModel.Set("new-model", asserts.Encode(new))
+	for _, tsPrev := range tss {
+		setModel.WaitAll(tsPrev)
+	}
+	tss = append(tss, state.NewTaskSet(setModel))
+
+	return tss, nil
 }

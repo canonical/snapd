@@ -14,7 +14,7 @@ execute: |
 
     echo "Install a snap that requires core as the base"
     snap install test-snapd-tools
-    snap list | MATCH core
+    snap list | MATCH '^core '
     if snap remove core; then
         echo "core should not be removalble because test-snapd-tools needs it"
         exit 1
@@ -23,3 +23,8 @@ execute: |
     echo "But core can be removed again once nothing on the system needs it"
     snap remove test-snapd-tools
     snap remove core
+
+    if snap list | MATCH '^core '; then
+        echo "core was not removed correctly"
+        exit 1
+    fi

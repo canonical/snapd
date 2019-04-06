@@ -719,6 +719,7 @@ type AppInfo struct {
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
+	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
 	StopCommand     string
 	ReloadCommand   string
@@ -1008,15 +1009,15 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
+	_, instanceKey := SplitInstanceName(name)
+	info.InstanceKey = instanceKey
+
 	err = addImplicitHooks(info)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	bindImplicitHooks(info)
-
-	_, instanceKey := SplitInstanceName(name)
-	info.InstanceKey = instanceKey
 
 	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)

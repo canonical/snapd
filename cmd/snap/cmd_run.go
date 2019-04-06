@@ -313,6 +313,14 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 }
 
 func createUserDataDirs(info *snap.Info) error {
+	// Adjust umask so that the created directories have the permissions we
+	// expect and are unaffected by the initial umask. While go runtime creates
+	// threads at will behind the scenes, the setting of umask applies to the
+	// entire process so it doesn't need any special handling to lock the
+	// executing goroutine to a single thread.
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	usr, err := userCurrent()
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
@@ -448,13 +456,32 @@ func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
 
 var osReadlink = os.Readlink
 
-func isReexeced() bool {
+// snapdHelperPath return the path of a helper like "snap-confine" or
+// "snap-exec" based on if snapd is re-execed or not
+func snapdHelperPath(toolName string) (string, error) {
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v", err)
-		return false
+		return "", fmt.Errorf("cannot read /proc/self/exe: %v", err)
 	}
-	return strings.HasPrefix(exe, dirs.SnapMountDir)
+	// no re-exec
+	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
+	}
+	// The logic below only works if the last two path components
+	// are /usr/bin
+	// FIXME: use a snap warning?
+	if !strings.HasSuffix(exe, "/usr/bin/"+filepath.Base(exe)) {
+		logger.Noticef("(internal error): unexpected exe input in snapdHelperPath: %v", exe)
+		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
+	}
+	// snapBase will be "/snap/{core,snapd}/$rev/" because
+	// the snap binary is always at $root/usr/bin/snap
+	snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
+	// Run snap-confine from the core/snapd snap.  The tools in
+	// core/snapd snap are statically linked, or mostly
+	// statically, with the exception of libraries such as libudev
+	// and libc.
+	return filepath.Join(snapBase, dirs.CoreLibExecDir, toolName), nil
 }
 
 func migrateXauthority(info *snap.Info) (string, error) {
@@ -841,24 +868,10 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 }
 
 func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
-	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
-	// if we re-exec, we must run the snap-confine from the core/snapd snap
-	// as well, if they get out of sync, havoc will happen
-	if isReexeced() {
-		// exe is something like /snap/{snapd,core}/123/usr/bin/snap
-		exe, err := osReadlink("/proc/self/exe")
-		if err != nil {
-			return err
-		}
-		// snapBase will be "/snap/{core,snapd}/$rev/" because
-		// the snap binary is always at $root/usr/bin/snap
-		snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
-		// Run snap-confine from the core/snapd snap. That
-		// will work because snap-confine on the core/snapd snap is
-		// mostly statically linked (except libudev and libc)
-		snapConfine = filepath.Join(snapBase, dirs.CoreLibExecDir, "snap-confine")
+	snapConfine, err := snapdHelperPath("snap-confine")
+	if err != nil {
+		return err
 	}
-
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
 			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.InstanceName())
@@ -895,14 +908,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if info.NeedsClassic() {
 		// running with classic confinement, carefully pick snap-exec we
 		// are going to use
-		if isReexeced() {
-			// same rule as when choosing the location of snap-confine
-			snapExecPath = filepath.Join(dirs.SnapMountDir, "core/current",
-				dirs.CoreLibExecDir, "snap-exec")
-		} else {
-			// there is no mount namespace where 'core' is the
-			// rootfs, hence we need to use distro's snap-exec
-			snapExecPath = filepath.Join(dirs.DistroLibExecDir, "snap-exec")
+		snapExecPath, err = snapdHelperPath("snap-exec")
+		if err != nil {
+			return err
 		}
 	}
 	cmd = append(cmd, snapExecPath)

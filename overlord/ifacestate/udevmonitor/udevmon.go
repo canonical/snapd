@@ -91,8 +91,15 @@ func (m *Monitor) Connect() error {
 		return fmt.Errorf("cannot start udev monitor: %s", err)
 	}
 
-	// TODO: consider passing a device filter to reduce noise from irrelevant devices.
-	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
+	var filter netlink.Matcher
+	// TODO: extend with other criteria based on the hotplug interfaces
+	filter = &netlink.RuleDefinitions{
+		Rules: []netlink.RuleDefinition{
+			{Env: map[string]string{"SUBSYSTEM": "tty"}},
+			{Env: map[string]string{"SUBSYSTEM": "net"}},
+			{Env: map[string]string{"SUBSYSTEM": "usb"}}}}
+
+	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, filter)
 
 	return nil
 }
@@ -187,7 +194,7 @@ func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 	}
 	devPath := dev.DevicePath()
 	if !m.seen[devPath] {
-		logger.Noticef("udev monitor observed remove event for unknown device %q", dev.DevicePath())
+		logger.Debugf("udev monitor observed remove event for unknown device %s", dev)
 		return
 	}
 	delete(m.seen, devPath)

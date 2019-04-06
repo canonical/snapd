@@ -227,7 +227,7 @@ static void test_sc_error_match__NULL_domain(void)
 	g_test_trap_assert_stderr("cannot match error to a NULL domain\n");
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/error/sc_error_init", test_sc_error_init);
 	g_test_add_func("/error/sc_error_init_from_errno",

@@ -114,9 +114,12 @@ pivot_root,
 # Docker needs to be able to create and load the profile it applies to
 # containers ("docker-default")
 /sbin/apparmor_parser ixr,
-/etc/apparmor.d/cache/ r,
+/etc/apparmor.d/cache/ r,            # apparmor 2.12 and below
 /etc/apparmor.d/cache/.features r,
 /etc/apparmor.d/{,cache/}docker* rw,
+/var/cache/apparmor/{,*/} r,         # apparmor 2.13 and higher
+/var/cache/apparmor/*/.features r,
+/var/cache/apparmor/*/docker* rw,
 /etc/apparmor.d/tunables/{,**} r,
 /etc/apparmor.d/abstractions/{,**} r,
 /etc/apparmor/parser.conf r,
@@ -136,6 +139,14 @@ ptrace (read, trace) peer=docker-default,
 
 #cf bug 1502785
 / r,
+
+# recent versions of docker make a symlink from /dev/ptmx to /dev/pts/ptmx
+# and so to allow allocating a new shell we need this
+/dev/pts/ptmx rw,
+
+# needed by runc for mitigation of CVE-2019-5736
+# For details see https://bugs.launchpad.net/apparmor/+bug/1820344
+/ ix,
 `
 
 const dockerSupportConnectedPlugSecComp = `

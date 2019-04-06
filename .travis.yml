@@ -6,7 +6,7 @@ jobs:
     - stage: quick
       name: go 1.9/xenial static and unit test suites
       dist: xenial
-      go: 1.9
+      go: "1.9"
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
@@ -17,7 +17,7 @@ jobs:
         - ./run-checks --static
         - ./run-checks --short-unit
     - stage: quick
-      go: 1.10
+      go: "1.10"
       name: OSX build and minimal runtime sanity check
       os: osx
       addons:
@@ -46,7 +46,7 @@ jobs:
       script:
         - ./tests/lib/cla_check.py
     - stage: integration
-      name: spread
+      name: Ubuntu 14.04, 16.04, 18.04, 18.10, Core 16, Core 18
       dist: xenial
       addons:
         apt:
@@ -56,7 +56,19 @@ jobs:
         # override the default install for language:go
         - true
       script:
-        - ./run-checks --spread
+        - ./run-checks --spread-ubuntu
+    - stage: integration
+      name: Debian, Fedora, CentOS, Amazon Linux 2, openSUSE, Arch
+      dist: xenial
+      addons:
+        apt:
+          packages:
+          - xdelta3
+      install:
+        # override the default install for language:go
+        - true
+      script:
+        - ./run-checks --spread-no-ubuntu
 env:
   global:
     # SPREAD_LINODE_KEY

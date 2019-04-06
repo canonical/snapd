@@ -66,7 +66,7 @@ type daemonSuite struct {
 
 var _ = check.Suite(&daemonSuite{})
 
-func (s *daemonSuite) checkAuthorization(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+func (s *daemonSuite) checkAuthorization(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 	s.lastPolkitFlags = flags
 	return s.authorized, s.err
 }
@@ -146,7 +146,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
-		req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+		req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
@@ -155,7 +155,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	req, err := http.NewRequest("POTATO", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -171,7 +171,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -215,7 +215,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -269,7 +269,7 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestSnapctlAccessSnapOKWithUser(c *check.C) {
-	remoteAddr := "pid=100;uid=1000;socket=" + dirs.SnapSocket
+	remoteAddr := "pid=100;uid=1000;socket=" + dirs.SnapSocket + ";"
 	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
 	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
 	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
@@ -283,7 +283,7 @@ func (s *daemonSuite) TestSnapctlAccessSnapOKWithUser(c *check.C) {
 }
 
 func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
-	remoteAddr := "pid=100;uid=0;socket=" + dirs.SnapSocket
+	remoteAddr := "pid=100;uid=0;socket=" + dirs.SnapSocket + ";"
 	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
 	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
 	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
@@ -297,8 +297,8 @@ func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;"}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
@@ -321,8 +321,8 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=0;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=0;"}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=0;socket=;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=0;socket=;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
@@ -342,7 +342,7 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestPolkitAccess(c *check.C) {
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
 	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
 
 	// polkit says user is not authorised
@@ -363,7 +363,7 @@ func (s *daemonSuite) TestPolkitAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;"}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
 	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
 
 	// polkit can grant authorisation for GET requests
@@ -372,14 +372,14 @@ func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 
 	// for UserOK commands, polkit is not consulted
 	cmd.UserOK = true
-	polkitCheckAuthorization = func(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		panic("polkit.CheckAuthorization called")
 	}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 }
 
 func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;", Header: make(http.Header)}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;", Header: make(http.Header)}
 	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
 	s.authorized = true
 
@@ -950,7 +950,7 @@ func (s *daemonSuite) TestShutdownServerCanShutdown(c *check.C) {
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
 	req, err := http.NewRequest(mth, "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	return rec

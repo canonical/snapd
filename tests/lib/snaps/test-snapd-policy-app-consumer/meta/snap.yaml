@@ -86,6 +86,9 @@ apps:
   device-buttons:
     command: bin/run
     plugs: [ device-buttons ]
+  display-control:
+    command: bin/run
+    plugs: [ display-control ]
   docker:
     command: bin/run
     plugs: [ docker ]
@@ -146,6 +149,9 @@ apps:
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
+  intel-mei:
+    command: bin/run
+    plugs: [ intel-mei ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
@@ -206,6 +212,9 @@ apps:
   mpris:
     command: bin/run
     plugs: [ mpris ]
+  multipass-support:
+    command: bin/run
+    plugs: [ multipass-support ]
   netlink-audit:
     command: bin/run
     plugs: [ netlink-audit ]
@@ -224,6 +233,9 @@ apps:
   network-manager:
     command: bin/run
     plugs: [ network-manager ]
+  network-manager-observe:
+    command: bin/run
+    plugs: [ network-manager-observe ]
   network-observe:
     command: bin/run
     plugs: [ network-observe ]

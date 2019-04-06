@@ -116,7 +116,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "core" | "snapd" |README)
+            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
                 ;;
             *)
                 # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
@@ -145,6 +145,13 @@ reset_all_snap() {
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
     fi
+
+    # Exit in case there is a snap in broken state after restoring the snapd state
+    if snap list | grep -E "broken$"; then
+        echo "snap in broken state"
+        exit 1
+    fi
+
 }
 
 if is_core_system; then
