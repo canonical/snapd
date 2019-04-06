@@ -37,7 +37,7 @@ const jackBaseDeclarationSlots = `
  * and common/shm.c in jack2's source tree.
  */
 const jackConnectedPlugAppArmor = `
-/dev/shm/jack-*/*/* mrwk,
+owner /dev/shm/jack-[0-9]*/*/* rw,
 `
 
 func init() {
