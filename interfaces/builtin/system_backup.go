@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-const systemBackupSummary = `allows read-only access to system data`
+const systemBackupSummary = `allows read-only access to the entire system for backups`
 
 const systemBackupBaseDeclarationSlots = `
   system-backup:

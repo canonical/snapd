@@ -109,7 +109,7 @@ func (s *systemBackupInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows read-only access to system data`)
+	c.Assert(si.Summary, Equals, `allows read-only access to the entire system for backups`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "system-backup")
 }
 
