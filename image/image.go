@@ -74,6 +74,11 @@ func (li *localInfos) Name(pathOrName string) string {
 	return pathOrName
 }
 
+func (li *localInfos) IsLocal(name string) bool {
+	_, ok := li.nameToPath[name]
+	return ok
+}
+
 func (li *localInfos) PreferLocal(name string) string {
 	if path := li.Path(name); path != "" {
 		return path
@@ -459,7 +464,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	snaps := []string{}
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
-		snaps = append(snaps, local.PreferLocal("snapd"))
+		snaps = append(snaps, "snapd")
 		// TODO: once we order snaps by what they need this
 		//       can go aways
 		// Here we ensure that "core" is seeded very early
@@ -467,31 +472,29 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// that when people use model assertions with
 		// required snaps like bluez which at this point
 		// still requires core will hang forever in seeding.
-		if strutil.ListContains(opts.Snaps, "core") {
-			snaps = append(snaps, local.PreferLocal("core"))
+		if strutil.ListContains(model.RequiredSnaps(), "core") || local.hasName(opts.Snaps, "core") {
+			snaps = append(snaps, "core")
 		}
 	}
 
 	if !opts.Classic {
 		// core/base,kernel,gadget first
-		snaps = append(snaps, local.PreferLocal(baseName))
-		snaps = append(snaps, local.PreferLocal(model.Kernel()))
-		snaps = append(snaps, local.PreferLocal(model.Gadget()))
+		snaps = append(snaps, baseName)
+		snaps = append(snaps, model.Kernel())
+		snaps = append(snaps, model.Gadget())
 	} else {
 		// classic image case: first core as needed and gadget
 		if classicHasSnaps(model, opts) {
 			// TODO: later use snapd+core16 or core18 if specified
-			snaps = append(snaps, local.PreferLocal("core"))
+			snaps = append(snaps, "core")
 		}
 		if model.Gadget() != "" {
-			snaps = append(snaps, local.PreferLocal(model.Gadget()))
+			snaps = append(snaps, model.Gadget())
 		}
 	}
 
 	// then required and the user requested stuff
-	for _, snapName := range model.RequiredSnaps() {
-		snaps = append(snaps, local.PreferLocal(snapName))
-	}
+	snaps = append(snaps, model.RequiredSnaps()...)
 	snaps = append(snaps, opts.Snaps...)
 
 	if !opts.Classic {
@@ -511,10 +514,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			continue
 		}
 
-		if name != snapName {
-			fmt.Fprintf(Stdout, "Copying %q (%s)\n", snapName, name)
+		if local.IsLocal(name) {
+			fmt.Fprintf(Stdout, "Copying %q (%s)\n", local.Path(name), name)
 		} else {
-			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
+			fmt.Fprintf(Stdout, "Fetching %s\n", name)
 		}
 
 		snapChannel, err := snapChannel(name, model, opts, local)
@@ -582,7 +585,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 
 		// kernel/os/model.base are required for booting on core
-		if !opts.Classic && (typ == snap.TypeKernel || local.Name(snapName) == baseName) {
+		if !opts.Classic && (typ == snap.TypeKernel || name == baseName) {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			// construct a relative symlink from the blob dir
 			// to the seed file

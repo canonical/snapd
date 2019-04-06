@@ -1589,7 +1589,7 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 	})
 }
 
-func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
+func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -1613,6 +1613,86 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"core18":    "canonical",
+		"pc18":      "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+		Snaps: []string{
+			s.downloadedSnaps["core"],
+		},
+	}
+	emptyToolingStore := image.MockToolingStore(&emptyStore{})
+	local, err := image.LocalSnaps(emptyToolingStore, opts)
+	c.Assert(err, IsNil)
+
+	err = image.SetupSeed(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 6)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:   "snapd",
+		SnapID: "snapd-Id",
+		File:   "snapd_18.snap",
+	})
+	c.Check(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		Name:       "core",
+		Unasserted: true,
+		File:       "core_x1.snap",
+	})
+	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
+		Name:   "core18",
+		SnapID: "core18-Id",
+		File:   "core18_18.snap",
+	})
+	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
+		Name:   "pc-kernel",
+		SnapID: "pc-kernel-Id",
+		File:   "pc-kernel_2.snap",
+	})
+	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
+		Name:   "pc18",
+		SnapID: "pc18-Id",
+		File:   "pc18_4.snap",
+	})
+	c.Check(seed.Snaps[5], DeepEquals, &snap.SeedSnap{
+		Name:    "required-snap1",
+		SnapID:  "required-snap1-Id",
+		File:    "required-snap1_3.snap",
+		Contact: "foo@example.com",
+	})
+}
+
+func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc18",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1", "core"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core18":    "canonical",
 		"core":      "canonical",
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
@@ -1621,7 +1701,6 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 	opts := &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
-		Snaps:           []string{"core"},
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
@@ -1666,6 +1745,7 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 		Contact: "foo@example.com",
 	})
 }
+
 func (s *imageSuite) TestSetupSeedGadgetBaseModelBaseMismatch(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
