@@ -155,6 +155,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  jack:
+    command: bin/run
+    plugs: [ jack ]
   joystick:
     command: bin/run
     plugs: [ joystick ]
