@@ -638,7 +638,6 @@ cache_snaps(){
     # Pre-cache snaps so that they can be installed by tests quickly.
     # This relies on a behavior of snapd which snaps installed are
     # cached and then used when need to the installed again
-    initial_list="$(snap list | wc -l)"
     (
         set -x
         cd "$TESTSLIB/cache/"
@@ -651,7 +650,4 @@ cache_snaps(){
         done
         set +x
     )
-    # Check not other snaps remain installed after snaps are cached
-    final_list="$(snap list | wc -l)"
-    [ "$initial_list" == "$final_list" ]
 }
