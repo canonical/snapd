@@ -85,6 +85,10 @@ type imageSuite struct {
 
 var _ = Suite(&imageSuite{})
 
+var (
+	brandPrivKey, _ = assertstest.GenerateKey(752)
+)
+
 func (s *imageSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
@@ -103,7 +107,6 @@ func (s *imageSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
-	brandPrivKey, _ := assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
