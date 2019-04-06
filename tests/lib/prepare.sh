@@ -617,11 +617,7 @@ prepare_ubuntu_core() {
     fi
 
     echo "Ensure the core snap is cached"
-    if is_core18_system; then
-        if ! snap list core; then
-            cache_snaps core
-        fi
-    fi
+    cache_snaps ${PRE_CACHE_SNAPS}
 
     disable_refreshes
     setup_systemd_snapd_overrides
@@ -646,8 +642,9 @@ cache_snaps(){
         cd "$TESTSLIB/cache/"
         # Install and remove each of the snaps we want to pre-cache.
         for snap_name in "$@"; do
-            snap install "$snap_name"
-            # The snap could be not removable such as core on classic
+            # The snap may fail during installation such as core snap on ubuntu-core
+            snap install "$snap_name" || true
+            # The snap may fail during removal such as core snap on classic
             snap remove "$snap_name" || true
         done
         set +x
