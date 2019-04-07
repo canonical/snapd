@@ -648,8 +648,11 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    # shellcheck disable=SC2086
-    cache_snaps ${PRE_CACHE_SNAPS}
+    if is_core18_system; then
+        if ! snap list core; then
+            cache_snaps core
+        fi
+    fi
 
     disable_refreshes
     setup_systemd_snapd_overrides
@@ -668,16 +671,10 @@ cache_snaps(){
     # Pre-cache snaps so that they can be installed by tests quickly.
     # This relies on a behavior of snapd which snaps installed are
     # cached and then used when need to the installed again
-    (
-        set -x
-        cd "$TESTSLIB/cache/"
-        # Install and remove each of the snaps we want to pre-cache.
-        for snap_name in "$@"; do
-            # The snap may fail during installation such as core snap on ubuntu-core
-            snap install "$snap_name" || true
-            # The snap may fail during removal such as core snap on classic
-            snap remove "$snap_name" || true
-        done
-        set +x
-    )
+    for snap_name in "$@"; do
+        # The snap may fail during installation such as core snap on ubuntu-core
+        snap install "$snap_name" || true
+        # The snap may fail during removal such as core snap on classic
+        snap remove "$snap_name" || true
+    done
 }
