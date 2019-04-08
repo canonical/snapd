@@ -624,6 +624,11 @@ prepare_ubuntu_core() {
         if ! snap list core; then
             cache_snaps core
         fi
+        if snap list core; then
+            echo "core snap on core18 should not be installed"
+            snap list
+            exit 1
+        fi
     fi
 
     disable_refreshes
@@ -643,10 +648,24 @@ cache_snaps(){
     # Pre-cache snaps so that they can be installed by tests quickly.
     # This relies on a behavior of snapd which snaps installed are
     # cached and then used when need to the installed again
+    local curr_arch=$(get_architecture)
+    mkdir -p /var/lib/snapd/cache
+
+    # Download each of the snaps we want to pre-cache. Note that `snap download`
+    # a quick no-op if the file is complete.
     for snap_name in "$@"; do
-        # The snap may fail during installation such as core snap on ubuntu-core
-        snap install "$snap_name" || true
-        # The snap may fail during removal such as core snap on classic
-        snap remove "$snap_name" || true
+        snap download "$snap_name"
+        local snap_sha="$(python3 $TESTSLIB/get_snap_sha.py $snap_name stable $curr_arch)"
+        test -n "$snap_sha"
+
+        # Copy all of the snaps back to the spool directory. From there we
+        # will reuse them during subsequent `snap install` operations.
+        cp "${snap_name}"_*.snap /var/lib/snapd/snaps/
+
+        # Rename the snap with the download sha-384 to be hashed correctly
+        mv "${snap_name}"_*.snap "/var/lib/snapd/cache/$snap_sha"
+        rm -f "${snap_name}"_*
     done
+
+
 }
