@@ -483,11 +483,13 @@ prepare_suite_each() {
             ;;
     esac
 
-    find "$SNAP_MOUNT_DIR" "$LIBEXECDIR" "/var/snap/" -printf "%M %k %u:%g %p\n" > "$RUNTIME_STATE_PATH/invar.new"
-    if [ -e "$RUNTIME_STATE_PATH/invar" ]; then
-        diff -u "$RUNTIME_STATE_PATH/invar" "$RUNTIME_STATE_PATH/invar.new" || exit 1
-    else
-        mv "$RUNTIME_STATE_PATH/invar.new" "$RUNTIME_STATE_PATH/invar"
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-* || -d /snap/core || -d /snap/core18 ]]; then
+        find "$SNAP_MOUNT_DIR" "$LIBEXECDIR" "/var/snap/" -printf "%M %k %u:%g %p\n" > "$RUNTIME_STATE_PATH/invar.new"
+        if [ -e "$RUNTIME_STATE_PATH/invar" ]; then
+            diff -u "$RUNTIME_STATE_PATH/invar" "$RUNTIME_STATE_PATH/invar.new" || exit 1
+        else
+            mv "$RUNTIME_STATE_PATH/invar.new" "$RUNTIME_STATE_PATH/invar"
+        fi
     fi
 }
 
