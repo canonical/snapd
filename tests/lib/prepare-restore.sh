@@ -483,7 +483,7 @@ prepare_suite_each() {
             ;;
     esac
 
-    find "$SNAP_MOUNT_DIR" "$LIBEXECDIR" "$MEDIA_DIR" "/var/snap/" -printf "%M %k %u:%g %p\n" > "$RUNTIME_STATE_PATH/invar.new"
+    find "$SNAP_MOUNT_DIR" "$LIBEXECDIR" "/var/snap/" -printf "%M %k %u:%g %p\n" > "$RUNTIME_STATE_PATH/invar.new"
     if [ -e "$RUNTIME_STATE_PATH/invar" ]; then
         diff -u "$RUNTIME_STATE_PATH/invar" "$RUNTIME_STATE_PATH/invar.new" || exit 1
     else
