@@ -95,19 +95,19 @@ static int populate_filter(scmp_filter_ctx ctx, const uint32_t *arch_tags, size_
      * at all (presumably due to having all the architectures defined). */
 
     const struct scmp_arg_cmp no_tty_inject = {
-        /* When faced with ioctl(fd, request); refuse to proceed when
-         * request&0xffffffff == TIOCSTI. This specific way to encode the
-         * filter has the following important properties:
-         *
-         * 1) it blocks ioctl(fd, TIOCSTI, ptr).
-         * 1) it also blocks ioctl(fd, (1UL<<32) | TIOCSTI, ptr).
-         * 2) it doesn't block ioctl(fd, (1UL<<32) | (request not equal to TIOCSTI), ptr);
-         *
-         * We learned that existing programs make legitimate requests with all
+        /* We learned that existing programs make legitimate requests with all
          * bits set in the more significant 32bit word of the 64 bit double
          * word. While this kernel behavior remains suspect and presumably
          * undesired it is unlikely to change for backwards compatibility
-         * reasons. As such we cannot block all requests with high-bits set. */
+         * reasons. As such we cannot block all requests with high-bits set.
+         *
+         * When faced with ioctl(fd, request); refuse to proceed when
+         * request&0xffffffff == TIOCSTI. This specific way to encode the
+         * filter has the following important properties:
+         *
+         * - it blocks ioctl(fd, TIOCSTI, ptr).
+         * - it also blocks ioctl(fd, (1UL<<32) | TIOCSTI, ptr).
+         * - it doesn't block ioctl(fd, (1UL<<32) | (request not equal to TIOCSTI), ptr); */
         .arg = 1,
         .op = SCMP_CMP_MASKED_EQ,
         .datum_a = 0xffffffffUL,
