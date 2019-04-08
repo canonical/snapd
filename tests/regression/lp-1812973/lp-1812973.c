@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
     } else if (argc == 2 && strcmp(argv[1], "--good-high") == 0) {
         res = ioctl64(fd, TCFLSH | (1UL << 32UL), TCIOFLUSH);
         saved_errno = errno;
-        printf("unrelated TCFLSH: %d (%m) (expect ENOTTY) \n", res);
+        printf("unrelated TCFLSH: %d (%m) (expect ENOTTY)\n", res);
         if (res < 0 && saved_errno == ENOTTY) {
             rc = EXIT_SUCCESS;
         }
