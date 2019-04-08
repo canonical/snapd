@@ -72,7 +72,13 @@ static int populate_filter(scmp_filter_ctx ctx, const uint32_t *arch_tags, size_
         return sc_err;
     }
 
-    /* Resolve the name of "ioctl" on this architecture. */
+    /* Resolve the name of "ioctl" on this architecture. We are not using the
+     * system call number as available through the appropriate linux-specific
+     * header. This allows us to use a system call number that is not defined
+     * for the current architecture. This does not matter here, in this
+     * specific program, however it is more generic. In addition this is more
+     * in sync with the snap-seccomp program, which does the same for every
+     * system call. */
     int sys_ioctl_nr;
     sys_ioctl_nr = seccomp_syscall_resolve_name("ioctl");
     if (sys_ioctl_nr == __NR_SCMP_ERROR) {
