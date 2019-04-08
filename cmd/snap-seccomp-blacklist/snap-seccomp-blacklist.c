@@ -26,7 +26,8 @@ static int populate_filter(scmp_filter_ctx ctx, const uint32_t *arch_tags, size_
     int sc_err;
 
     /* If the native architecture is not one of the supported 64bit
-     * architectures listed above then remove it.
+     * architectures listed in main in le_arch_tags and be_arch_tags, then
+     * remove it.
      *
      * Libseccomp automatically adds the native architecture to each new filter.
      * If the native architecture is a 32bit-one then we will hit a bug in libseccomp
