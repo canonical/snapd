@@ -166,19 +166,19 @@ int main(int argc, char **argv) {
         /* Save pseudo-code program */
         fname_len = snprintf(fname, sizeof fname, "%s-blacklist.pfc", as->name);
         if (fname_len < 0 || fname_len >= sizeof fname) {
-            showerr("cannot format file name");
+            showerr("cannot format file name (%s)", as->name);
             seccomp_release(ctx);
             return -rc;
         }
         fd = open(fname, O_CREAT | O_TRUNC | O_WRONLY | O_NOFOLLOW, 0644);
         if (fd < 0) {
-            showerr("cannot open %s", fname);
+            showerr("cannot open file %s", fname);
             seccomp_release(ctx);
             return -rc;
         }
         sc_err = seccomp_export_pfc(ctx, fd);
         if (sc_err < 0) {
-            showerr("cannot export PFC program");
+            showerr("cannot export PFC program %s", fname);
             seccomp_release(ctx);
             close(fd);
             return -rc;
@@ -189,19 +189,19 @@ int main(int argc, char **argv) {
         /* Save binary program. */
         fname_len = snprintf(fname, sizeof fname, "%s-blacklist.bpf", as->name);
         if (fname_len < 0 || fname_len >= sizeof fname) {
-            showerr("cannot format file name");
+            showerr("cannot format file name (%s)", as->name);
             seccomp_release(ctx);
             return -rc;
         }
         fd = open(fname, O_CREAT | O_TRUNC | O_WRONLY | O_NOFOLLOW, 0644);
         if (fd < 0) {
-            showerr("cannot open %s", fname);
+            showerr("cannot open file %s", fname);
             seccomp_release(ctx);
             return -rc;
         }
         sc_err = seccomp_export_bpf(ctx, fd);
         if (sc_err < 0) {
-            showerr("cannot export BPF program");
+            showerr("cannot export BPF program %s", fname);
             seccomp_release(ctx);
             close(fd);
             return -rc;
