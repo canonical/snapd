@@ -180,6 +180,7 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	/* If the original working directory cannot be used for whatever reason then
 	 * move the process to a special void directory. */
 	const char *sc_void_dir = "/var/lib/snapd/void";
+	int void_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
 	sc_must_snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d",
 			 proc_state->orig_cwd_fd);
@@ -248,7 +249,6 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 		debug("working directory re-interpreted to %s", orig_cwd);
 	}
 	return;
-	int void_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
  the_void:
 	/* The void directory may be absent. On core18 system, and other
 	 * systems using bootable base snap coupled with snapd snap, the
