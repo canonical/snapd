@@ -34,15 +34,15 @@ const systemBackupConnectedPlugAppArmor = `
 capability dac_read_search,
 
 # read access to everything except items under /dev, /sys and /proc
-/[^dsp]** r,
-/{d[^e],s[^y],p[^r]}** r,
-/{de[^v],sy[^s],pr[^o]}** r,
-/{dev[^/],sys[^/],pro[^c]}** r,
-/proc[^/]** r,
+/{,var/lib/snapd/hostfs/}[^dsp]** r,
+/{,var/lib/snapd/hostfs/}{d[^e],s[^y],p[^r]}** r,
+/{,var/lib/snapd/hostfs/}{de[^v],sy[^s],pr[^o]}** r,
+/{,var/lib/snapd/hostfs/}{dev[^/],sys[^/],pro[^c]}** r,
+/{,var/lib/snapd/hostfs/}proc[^/]** r,
 
 # Allow a few not caught in the above
-/{d,de,p,pr,pro,s,sy}/** r,
-/{d,de,dev,p,pr,pro,proc,s,sy,sys}{,/} r,
+/{,var/lib/snapd/hostfs/}{d,de,p,pr,pro,s,sy}/** r,
+/{,var/lib/snapd/hostfs/}{d,de,dev,p,pr,pro,proc,s,sy,sys}{,/} r,
 `
 
 type systemBackupInterface struct {
