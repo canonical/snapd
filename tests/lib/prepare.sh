@@ -675,14 +675,16 @@ cache_snaps(){
     # Pre-cache snaps so that they can be installed by tests quickly.
     # This relies on a behavior of snapd which snaps installed are
     # cached and then used when need to the installed again
-    local curr_arch=$(get_architecture)
+    local curr_arch
+    curr_arch=$(get_architecture)
     mkdir -p /var/lib/snapd/cache
 
     # Download each of the snaps we want to pre-cache. Note that `snap download`
     # a quick no-op if the file is complete.
     for snap_name in "$@"; do
         snap download "$snap_name"
-        local snap_sha="$(python3 $TESTSLIB/get_snap_sha.py $snap_name stable $curr_arch)"
+        local snap_sha
+        snap_sha="$(python3 $TESTSLIB/get_snap_sha.py $snap_name stable $curr_arch)"
         test -n "$snap_sha"
 
         # Copy all of the snaps back to the spool directory. From there we
