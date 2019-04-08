@@ -245,13 +245,34 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 		/* The path of the original working directory points to a different
 		 * inode inside inside the execution environment than the host
 		 * environment. */
-		debug("working directory re-interpreted to %s",
-			  orig_cwd);
+		debug("working directory re-interpreted to %s", orig_cwd);
 	}
 	return;
-the_void:
-	if (chdir(sc_void_dir) < 0) {
-		die("cannot move to fallback directory %s", sc_void_dir);
+	int void_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+ the_void:
+	/* The void directory may be absent. On core18 system, and other
+	 * systems using bootable base snap coupled with snapd snap, the
+	 * /var/lib/snapd directory structure is not provided with packages but
+	 * created on demand. */
+	void_dir_fd = open(sc_void_dir,
+			   O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	if (void_dir_fd < 0 && errno == ENOENT) {
+		if (mkdir(sc_void_dir, 0111) < 0) {
+			die("cannot create void directory: %s", sc_void_dir);
+		}
+		if (lchown(sc_void_dir, 0, 0) < 0) {
+			die("cannot change ownership of void directory %s",
+			    sc_void_dir);
+		}
+		void_dir_fd = open(sc_void_dir,
+				   O_DIRECTORY | O_PATH | O_NOFOLLOW |
+				   O_CLOEXEC);
+	}
+	if (void_dir_fd < 0) {
+		die("cannot open the void directory %s", sc_void_dir);
+	}
+	if (fchdir(void_dir_fd) < 0) {
+		die("cannot move to void directory %s", sc_void_dir);
 	}
 	debug("the process has been placed in the special void directory");
 }

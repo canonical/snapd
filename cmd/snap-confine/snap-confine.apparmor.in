@@ -350,8 +350,8 @@
     @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
     @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
 
-    # Allow snap-confine to move to the void
-    /var/lib/snapd/void/ r,
+    # Allow snap-confine to move to the void, creating it if necessary.
+    /var/lib/snapd/void/ rw,
 
     # Allow snap-confine to read snap contexts
     /var/lib/snapd/context/snap.* r,
