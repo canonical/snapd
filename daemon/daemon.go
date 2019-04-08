@@ -95,6 +95,8 @@ type Command struct {
 	UserOK bool
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
+	// this path is only accessible to root
+	RootOnly bool
 
 	// can polkit grant access? set to polkit action ID if so
 	PolkitOK string
@@ -124,8 +126,8 @@ var polkitCheckAuthorization = polkit.CheckAuthorization
 // - UserOK: any uid on the local system can access GET
 // - SnapOK: a snap can access this via `snapctl`
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
-	if user != nil {
-		// Authenticated users do anything for now.
+	if user != nil && !c.RootOnly {
+		// Authenticated users do anything not requiring explicit root.
 		return accessOK
 	}
 
@@ -167,6 +169,10 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	if uid == 0 {
 		// Superuser does anything.
 		return accessOK
+	}
+
+	if c.RootOnly {
+		return accessUnauthorized
 	}
 
 	if c.PolkitOK != "" {
