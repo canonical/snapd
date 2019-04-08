@@ -18,4 +18,5 @@ install: $(name)
 
 .PHONY: fmt
 fmt: $(name).c
-	clang-format -style='{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 120}' -i $^
+	# NOTE: clang-format is using project-wide .clang-format file.
+	clang-format -i $^
