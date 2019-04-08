@@ -817,7 +817,7 @@ func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.Ho
 	}
 
 	for _, slotInfo := range r.slots[snapName] {
-		if slotInfo.Interface == ifaceName && (slotInfo.HotplugKey == hotplugKey) {
+		if slotInfo.Interface == ifaceName && slotInfo.HotplugKey == hotplugKey {
 			if len(r.slotPlugs[slotInfo]) > 0 {
 				// slots should be updated when disconnected, and reconnected back after updating.
 				return nil, fmt.Errorf("internal error: cannot update slot %s while connected", slotInfo.Name)
