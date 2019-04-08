@@ -91,7 +91,7 @@ static int populate_filter(scmp_filter_ctx ctx, const uint32_t *arch_tags, size_
      * correct operation was confirmed using the pseudo-code program and the
      * bpf_dbg tool from the kernel tools/bpf directory.
      *
-     * NOTE: I'm not using scmp_rule_add_exact as that was not doing anything
+     * NOTE: not using scmp_rule_add_exact as that was not doing anything
      * at all (presumably due to having all the architectures defined). */
 
     const struct scmp_arg_cmp no_tty_inject = {
