@@ -85,7 +85,7 @@ static int populate_filter(scmp_filter_ctx ctx, const uint32_t *arch_tags, size_
      * architectures added earlier will be used to determine the correct system
      * call number for each architecture.
      *
-     * In other words, As such arguments to scmp_rule_add() must always use
+     * In other words, arguments to scmp_rule_add() must always use
      * native system call numbers. Translation for the correct architecture
      * will be performed internally. This is not documented in libseccomp. But
      * correct operation was confirmed using the pseudo-code program and the
