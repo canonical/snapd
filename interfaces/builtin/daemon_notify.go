@@ -44,6 +44,9 @@ const daemonNotifyConnectedPlugAppArmorTemplate = `
 
 # Allow using systemd-notify in shell scripts.
 /{,usr/}bin/systemd-notify ixr,
+
+capability sys_admin,
+capability net_admin,
 `
 
 type daemoNotifyInterface struct {

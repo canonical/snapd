@@ -1,5 +1,3 @@
-# It is not possible to test it with "daemon: notify" yet, for more details please see the forum thread:
-# https://forum.snapcraft.io/t/its-a-little-bit-hard-to-use-daemon-notify-for-sd-notify/6366
 summary: Ensure that the daemon-notify interface works.
 
 # test is timing dependant and may fail on very slow systems
@@ -21,14 +19,15 @@ execute: |
     echo "The interface is not connected by default"
     snap interfaces -i daemon-notify | MATCH -- "- +test-snapd-daemon-notify:daemon-notify"
 
+    echo "The service cannot be started with the interface disconnected"
+    snap start --enable test-snapd-daemon-notify.notify
+    snap services test-snapd-daemon-notify.notify | MATCH "enabled\\s*inactive"
+
     echo "When the interface is connected"
     snap connect test-snapd-daemon-notify:daemon-notify
 
-    echo "And the service is stopped"
-    snap stop test-snapd-daemon-notify.notify
-
     denials_before="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
-    echo "Then after we restart the service there are no denials"
+    echo "Then after we start the service there are no denials"
     snap start test-snapd-daemon-notify.notify
     for _ in $(seq 10); do
         denials_after="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
@@ -38,6 +37,9 @@ execute: |
         sleep 1
     done
     [ "$denials_before" -eq "$denials_after" ]
+
+    echo "And the service is marked as active"
+    snap services test-snapd-daemon-notify.notify | MATCH "enabled\\s*active"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
