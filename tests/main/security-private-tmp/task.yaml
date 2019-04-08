@@ -1,51 +1,56 @@
 summary: Ensure that the security rules for private tmp are in place.
-
-# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
-
-environment:
-    SNAP_INSTALL_DIR: $(pwd)/snap-install-dir
-
 prepare: |
-    echo "Given a basic snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
-
-    echo "And another basic snap is installed"
-    mkdir -p "$SNAP_INSTALL_DIR"
-    cp -ra "$TESTSLIB"/snaps/test-snapd-tools/* "$SNAP_INSTALL_DIR"
-    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' "$SNAP_INSTALL_DIR/meta/snap.yaml"
-    snap pack "$SNAP_INSTALL_DIR"
-    snap install --dangerous not-test-snapd-tools_1.0_all.snap
-
+    snap pack test-snapd-tmp-a
+    snap pack test-snapd-tmp-b
+    snap install --dangerous test-snapd-tmp-a_1_all.snap
+    snap install --dangerous test-snapd-tmp-b_1_all.snap
 restore: |
-    rm -rf "$SNAP_INSTALL_DIR" /tmp/foo
-
+    snap remove test-snapd-tmp-a
+    snap remove test-snapd-tmp-b
+    rm -f test-snapd-tmp-{a,b}-1_all.snap
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
+    # shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
-    echo "When a temporary file is created by one snap"
-    expect -d -f tmp-create.exp
+    # Each snap gets a private /tmp directory
+    test-snapd-tmp-a.sh -c 'echo secret-a > /tmp/private'
+    test-snapd-tmp-b.sh -c 'echo secret-b > /tmp/private'
 
-    if [ -e "$LIBEXECDIR/snapd/snap-discard-ns" ]; then
-        echo "Then that file is accessible from other calls of commands from the same snap"
-        if ! test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
-            echo "Expected the file to be present"
-            exit 1
-        fi
-    else
-        echo "Then that file is not accessible from other calls of commands from the same snap"
-        if test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
-            echo "Expected the file to be absent"
-            exit 1
-        fi
-    fi
+    # The view of the /tmp directory persists across snap command invocations.
+    test "$(test-snapd-tmp-a.sh -c 'cat /tmp/private')" = secret-a
+    test "$(test-snapd-tmp-b.sh -c 'cat /tmp/private')" = secret-b
 
-    echo "And that file is not accessible by other snaps"
-    if not-test-snapd-tools.cmd stat /tmp/foo 2>other-stat.error; then
-        echo "Expected error not present"
-        exit 1
-    fi
-    MATCH "stat: cannot stat '/tmp/foo': No such file or directory" < other-stat.error
+    # The private /tmp directory persists even if the mount namespace is discarded.
+    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-tmp-a
+    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-tmp-b
+    test "$(test-snapd-tmp-a.sh -c 'cat /tmp/private')" = secret-a
+    test "$(test-snapd-tmp-b.sh -c 'cat /tmp/private')" = secret-b
+
+    # The private /tmp directories are stored in the /tmp directory on the host.
+    test "$(cat /tmp/snap.test-snapd-tmp-a/tmp/private)" = secret-a
+    test "$(cat /tmp/snap.test-snapd-tmp-b/tmp/private)" = secret-b
+
+    # The so-called base directory is root owned and root-accessible only.
+    test "$(stat -c %a /tmp/snap.test-snapd-tmp-a)" = 700
+    test "$(stat -c %u.%g /tmp/snap.test-snapd-tmp-a)" = 0.0
+
+    # The private /tmp directory is root owned and has permissions typically of a tmp directory.
+    test "$(stat -c %a /tmp/snap.test-snapd-tmp-a/tmp)" = 1777
+    test "$(stat -c %u.%g /tmp/snap.test-snapd-tmp-a/tmp)" = 0.0
+
+    # This part is new and depends on the hardening.
+
+    # snap-confine detects permission violations of base directory
+    # but only during the initial construction of the mount namespace.
+    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-tmp-a
+    chmod 770 /tmp/snap.test-snapd-tmp-a
+    test-snapd-tmp-a.sh -c true 2>&1 | MATCH "cannot proceed with non-0700-mode base directory"
+    chmod 700 /tmp/snap.test-snapd-tmp-a
+    chown 1.0 /tmp/snap.test-snapd-tmp-a
+    test-snapd-tmp-a.sh -c true 2>&1 | MATCH "cannot proceed with non-root-owned base directory"
+    chown 0.1 /tmp/snap.test-snapd-tmp-a
+    test-snapd-tmp-a.sh -c true 2>&1 | MATCH "cannot proceed with non-root-owned base directory"
+
+    # snap-confine does work when both mode and ownership of the base directory is correct.
+    chown 0.0 /tmp/snap.test-snapd-tmp-a
+    test-snapd-tmp-a.sh -c true

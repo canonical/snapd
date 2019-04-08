@@ -1,0 +1,5 @@
+name: test-snapd-tmp-b
+version: 1
+apps:
+    sh:
+        command: bin/sh

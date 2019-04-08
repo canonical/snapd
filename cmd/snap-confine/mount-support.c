@@ -92,11 +92,19 @@ static void setup_private_mount(const char *snap_name)
 	if (base_dir_fd < 0) {
 		die("cannot open base directory %s", base_dir);
 	}
-	if (fchmod(base_dir_fd, 0700) < 0) {
-		die("cannot chmod base directory %s to 0700", base_dir);
+	struct stat file_info;
+	if (fstat(base_dir_fd, &file_info) < 0) {
+		die("cannot stat base directory %s", base_dir);
 	}
-	if (fchown(base_dir_fd, 0, 0) < 0) {
-		die("cannot chown base directory %s to root.root", base_dir);
+	debug("base dir %d %d %4o", file_info.st_uid, file_info.st_gid,
+	      file_info.st_mode & 07777);
+	if (file_info.st_uid != 0 || file_info.st_gid != 0) {
+		die("cannot proceed with non-root-owned base directory %s",
+		    base_dir);
+	}
+	if ((file_info.st_mode & 07777) != 0700) {
+		die("cannot proceed with non-0700-mode base directory %s",
+		    base_dir);
 	}
 	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
 	// want to reuse and we will open with O_NOFOLLOW, below.
