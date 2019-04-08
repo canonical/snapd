@@ -9,10 +9,6 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
-    # Since the void directory is used when there are insufficient
-    # permissions to enter the regular directory we must be able to go there
-    # in the first place.
-    test "$(stat -c %a /var/lib/snapd/void)" = 111
 restore: |
     snap remove test-snapd-sh
     rmdir /tmp/test || true
@@ -34,6 +30,11 @@ execute: |
     # via a symlink attack in /tmp) is remapped to a special directory.
     # FIXME: su doesn't have /snap/bin in PATH.
     test "$(cd /root && su -c "snap run test-snapd-sh -c pwd" test)" = "/var/lib/snapd/void"
+    # Since the void directory is used when there are insufficient permissions
+    # to enter the regular directory we must be able to go there in the first
+    # place. The directory is sometimes created on demand so check for the
+    # actual permissions at the end of the test.
+    test "$(stat -c %a /var/lib/snapd/void)" = 111
 debug: |
     # Much of what we do depends on permissions. If the permissions on those
     # two essential (for this test) directories are wrong the test will
