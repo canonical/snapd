@@ -8,7 +8,8 @@ execute: |
     snap download --edge test-snapd-just-edge
 
     echo "Try to install the snap without assertions"
-    (snap install test-snapd-just-edge_*.snap 2>&1 || true) | MATCH 'cannot find signatures with metadata for snap "test-snapd-just-edge.*\.snap"'
+    # The snap install output could be split in 2 lines
+    (snap install test-snapd-just-edge_*.snap 2>&1 || true) | tr '\n' ' ' | MATCH 'error: cannot find signatures with metadata for snap *"test-snapd-just-edge.*\.snap"'
 
     echo "Add its assertions"
     snap ack test-snapd-just-edge_*.assert
