@@ -59,7 +59,7 @@ const (
 	UseConfigDefaults
 )
 
-var (
+const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
 )
 
