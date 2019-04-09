@@ -295,22 +295,25 @@ func CanManageRefreshes(st *state.State) bool {
 
 // extractDownloadInstallEdgesFromTs extracts the first, last download
 // phase and install phase tasks from a TaskSet
-func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task) {
+func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
 	edgeTask := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	if edgeTask == nil {
+		return nil, nil, nil, nil, fmt.Errorf("internal error: cannot find edge task in task set: %v", ts)
+	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads
 	firstDl = tasks[0]
 	// and always end with installs
 	lastInst = tasks[len(tasks)-1]
-	for _, t := range tasks {
-		if firstInst == nil && lastDl != nil {
-			firstInst = t
-		}
-		if t == edgeTask {
-			lastDl = t
+
+	var edgeTaskIndex int
+	for i, task := range tasks {
+		if task == edgeTask {
+			edgeTaskIndex = i
+			break
 		}
 	}
-	return firstDl, lastDl, firstInst, lastInst
+	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
 // Remodel takes a new model assertion and generates a change that
@@ -430,7 +433,10 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 		//     verify2 <- download3 (added)
 		//     install1  <- install2 (added)
 		//     install2  <- install3 (added)
-		downloadStart, downloadLast, installFirst, installLast := extractDownloadInstallEdgesFromTs(ts)
+		downloadStart, downloadLast, installFirst, installLast, err := extractDownloadInstallEdgesFromTs(ts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot remodel: %v", err)
+		}
 		if prevDownload != nil {
 			// XXX: we don't strictly need to serialize the download
 			downloadStart.WaitFor(prevDownload)
