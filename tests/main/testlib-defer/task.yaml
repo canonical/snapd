@@ -1,0 +1,75 @@
+summary: tests can use reliable defer logic
+detail: |
+    The defer and run_deferred shell functions allow to closely couple commands
+    with any necessary cleanup. For details see the documentation of the
+    functions in the defer.sh file below.
+execute: |
+    #shellcheck source=tests/lib/defer.sh
+    . "$TESTSLIB/defer.sh"
+
+    # Actions can be deferred.
+    for i in 1 2 3; do
+        touch "file-$i"
+        defer rm "file-$i"
+        test -f "file-$i"
+    done
+
+    # Internally the state is stored in the following files
+    test -f .auto_defer_count
+    test -f .auto_defer_0
+    test -f .auto_defer_1
+    test -f .auto_defer_2
+    test -f .defer_lock
+
+    MATCH 2 < .auto_defer_count
+    MATCH 'rm file-1' < .auto_defer_0
+    MATCH 'rm file-2' < .auto_defer_1
+    MATCH 'rm file-3' < .auto_defer_2
+
+    # Deferred actions can be invoked as seen here.
+    run_deferred
+
+    test ! -e file-1
+    test ! -e file-1
+    test ! -e file-3
+
+    # Internal book-keeping is correct.
+    test ! -e .auto_defer_count
+    test ! -e .auto_defer_0
+    test ! -e .auto_defer_1
+    test ! -e .auto_defer_2
+    test -f .defer_lock
+
+    # Scope can maintain separate defer queues.
+    touch foo
+    defer --scope=A rm foo
+    touch bar-1 bar-2
+    defer --scope=B rm bar-1
+    defer --scope=B rm bar-2
+
+    MATCH 0 < .A_defer_count
+    MATCH 'rm foo' < .A_defer_0
+    MATCH 1 < .B_defer_count
+    MATCH 'rm bar-1' < .B_defer_0
+    MATCH 'rm bar-2' < .B_defer_1
+
+    run_deferred --scope=A
+    test ! -e .A_defer_count
+    test ! -e .A_defer_0
+    test ! -e foo
+
+    test -e .B_defer_count
+    test -e .B_defer_0
+    test -e .B_defer_1
+    test -e bar-1
+    test -e bar-2
+
+    run_deferred --scope=B
+    test ! -e .B_defer_count
+    test ! -e .B_defer_0
+    test ! -e .B_defer_1
+    test ! -e bar-1
+    test ! -e bar-2
+
+restore: |
+    rm -f .*defer*
