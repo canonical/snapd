@@ -111,11 +111,11 @@ func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 			// to automatically remove this snapshot again and will leave it on the disk (so the user can still try to remove it manually);
 			// this is better than the other way around where a failing osRemove would be retried forever because snapshot would never
 			// leave the state.
-			if rmerr := removeSnapshotState(mgr.state, r.SetID); rmerr != nil {
-				return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", r.SetID, rmerr)
+			if err := removeSnapshotState(mgr.state, r.SetID); err != nil {
+				return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", r.SetID, err)
 			}
-			if rmerr := osRemove(r.Name()); rmerr != nil {
-				return fmt.Errorf("cannot remove snapshot file %q: %v", r.Name(), rmerr)
+			if err := osRemove(r.Name()); err != nil {
+				return fmt.Errorf("cannot remove snapshot file %q: %v", r.Name(), err)
 			}
 		}
 		return nil
