@@ -30,12 +30,18 @@ int main(int argc, char **argv)
 			printf("-%s-\n", argv[i]);
 		}
 	}
-
-        // check if we run as SUDO and if so switch to the real gid/uid
+	// check if we run as SUDO and if so switch to the real gid/uid
 	const char *sudo_gid_env = getenv("SUDO_GID");
-	if (getgid() == 0 && sudo_gid_env != NULL) {
+	if (getuid() == 0 && getgid() == 0 && sudo_gid_env != NULL) {
 		int sudo_gid = sc_must_parse_int(sudo_gid_env);
-		if (sudo_gid != 0) {
+		if (sudo_gid > 0) {
+			// Ideally we would also call setgroups() now
+			// but seccomp will prevent this. At this
+			// point we are inside the confinement of the
+			// snap already.
+			// Once PR#6681 landed we can add
+			//   setgroups(0, NULL)
+			// here.
 			if (setgid(sudo_gid) < 0) {
 				die("cannot switch to gid %d", sudo_gid);
 			}
@@ -44,16 +50,12 @@ int main(int argc, char **argv)
 	const char *sudo_uid_env = getenv("SUDO_UID");
 	if (getuid() == 0 && sudo_uid_env != NULL) {
 		int sudo_uid = sc_must_parse_int(sudo_uid_env);
-		if (sudo_uid != 0) {
+		if (sudo_uid > 0) {
 			if (setuid(sudo_uid) < 0) {
 				die("cannot switch to uid %d", sudo_uid);
 			}
 		}
 	}
-	// Ideally we would also call setgroups() now but seccomp will
-	// prevent this. At this point we are inside the confinement
-	// of the snap already.
-
 	// signal gdb to stop here
 	printf("\n\n");
 	printf("Welcome to `snap run --gdb`.\n");

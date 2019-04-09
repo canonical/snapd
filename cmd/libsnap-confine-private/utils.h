@@ -47,7 +47,7 @@ void write_string_to_file(const char *filepath, const char *buf);
 /**
  * Parse the given string s as a number and return it. Will die() on errors.
  */
-int sc_must_parse_int(const char *s);
+long sc_must_parse_int(const char *s);
 
 /**
  * Safely create a given directory.

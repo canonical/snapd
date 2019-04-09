@@ -218,13 +218,13 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 	return 0;
 }
 
-int sc_must_parse_int(const char *s)
+long sc_must_parse_int(const char *s)
 {
 	char *endptr = NULL;
 
 	errno = 0;
 	long i = strtol(s, &endptr, 10);
-	if (errno != 0 || s == endptr || *endptr != '\0' || i < 0) {
+	if (errno != 0 || s == endptr || *endptr != '\0') {
 		die("cannot parse number in '%s'", s);
 	}
 	return i;
