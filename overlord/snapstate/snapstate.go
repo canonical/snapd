@@ -130,22 +130,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
-			if err := SoftNothingRunningRefreshCheck(info); err != nil {
-				var now = time.Now()
-				if snapst.RefreshInhibitedTime == nil {
-					// Store the instant when the snap was first inhibited.
-					// This is reset to nil on successful refresh. Note that
-					// because we are modifying the snap state this paragraph
-					// must be located after the conflict check done above.
-					snapst.RefreshInhibitedTime = &now
-					Set(st, snapsup.InstanceName(), snapst)
-					return nil, err
-				}
-				if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
-					// If we are still in the allowed window then just return
-					// the error but don't change the snap state again.
-					return nil, err
-				}
+			if err := inhibitRefresh(st, snapst, info); err != nil {
+				return nil, err
 			}
 		}
 	}
