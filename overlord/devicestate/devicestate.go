@@ -293,8 +293,8 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
-// extractDownloadInstallEdgesFromTs is a helper that extract the first, last
-// download phase and install phase tasks from a TaskSet
+// extractDownloadInstallEdgesFromTs extracts the first, last download
+// phase and install phase tasks from a TaskSet
 func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task) {
 	edgeTask := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
 	tasks := ts.Tasks()
@@ -432,6 +432,7 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 		//     install2  <- install3 (added)
 		downloadStart, downloadLast, installFirst, installLast := extractDownloadInstallEdgesFromTs(ts)
 		if prevDownload != nil {
+			// XXX: we don't strictly need to serialize the download
 			downloadStart.WaitFor(prevDownload)
 		}
 		if prevInstall != nil {
@@ -447,7 +448,7 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	}
 	// Make sure the first install waits for the last download. With this
 	// our (simplified) wait chain looks like:
-	// download1 <- verify1 <- download2 <- verify2 <- install1 <- install2
+	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
 	firstInstallInChain.WaitFor(lastDownloadInChain)
 
 	// Set the new model assertion - this *must* be the last thing done
