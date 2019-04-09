@@ -815,7 +815,7 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 
 	// With a snap state indicating a snap is already installed and it failed
 	// to refresh over a week ago.
-	var longAgo = time.Now().Add(-time.Hour * 24 * 8)
+	var longAgo = time.Now().UTC().Add(-time.Hour * 24 * 8)
 	// NOTE: Use rounding to a second granularity to
 	// anticipate data loss in the serialized representation. This is important
 	// because the checkChangeConflictIgnoringOneChange uses precise recursive
