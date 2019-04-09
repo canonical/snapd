@@ -44,6 +44,11 @@ func validateAutomaticSnapshotsExpiration(tr config.Conf) error {
 		if dur > 0 && dur < time.Hour*24 {
 			return fmt.Errorf("automatic-snapshots.expiration must be 0 to disable automatic snapshots, or a value greater than 24 hours")
 		}
+		// special-case "0" (with no unit): it's a valid duration (any other number with unit omitted isn't), but when left as is it would
+		// be stored as int64 instead of a string representing duration, causing issue when reading from the state.
+		if expirationStr == "0" {
+			tr.Set("core", "automatic-snapshots.expiration", "0s")
+		}
 	}
 	return nil
 }
