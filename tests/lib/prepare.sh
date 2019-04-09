@@ -586,12 +586,8 @@ prepare_ubuntu_core() {
         sleep 1
     done
 
-    echo "Wait for firstboot change to be ready"
-    while ! snap changes | grep "Done"; do
-        snap changes || true
-        snap change 1 || true
-        sleep 1
-    done
+    # Wait for seeding to finish.
+    snap wait system seed.loaded
 
     echo "Ensure fundamental snaps are still present"
     # shellcheck source=tests/lib/names.sh
