@@ -56,7 +56,14 @@ execute: |
        echo "Test snap run --gdb works"
        echo "c" | snap run --gdb test-snapd-tools.echo hello > stdout
        MATCH 'Continuing.' < stdout
-       MATCH hello < stdout
+       MATCH 'hello' < stdout
+
+       echo "Test snap run --gdb works as user too"
+       echo "c" | su -c "snap run --gdb test-snapd-tools.env" test > stdout
+       MATCH 'SNAP_USER_COMMON=/home/test/snap/test-snapd-tools/common' < stdout
+
+       echo "c" | su -c "snap run --gdb test-snapd-tools.cmd /usr/bin/id" test > stdout
+       MATCH '^uid=12345\(test\) gid=12345\(test\).*' < stdout
     fi
 
     snap run --trace-exec test-snapd-tools.echo hello 2> stderr
