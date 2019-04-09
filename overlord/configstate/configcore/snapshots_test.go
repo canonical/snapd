@@ -48,7 +48,17 @@ func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationTooLow(c *C) {
 			"automatic-snapshots.expiration": "10m",
 		},
 	})
-	c.Assert(err, ErrorMatches, `automatic-snapshots.expiration must be greater than 24 hours`)
+	c.Assert(err, ErrorMatches, `automatic-snapshots.expiration must be 0 to disable automatic snapshots, or a value greater than 24 hours`)
+}
+
+func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsDisable(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"automatic-snapshots.expiration": "0",
+		},
+	})
+	c.Assert(err, IsNil)
 }
 
 func (s *refreshSuite) TestConfigureAutomaticSnapshotsExpirationInvalid(c *C) {

@@ -196,7 +196,7 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 
 	// this should be done last because of it modifies the state and the caller needs to undo this if other operation fails.
 	if snapshot.Auto {
-		expiration, err := automaticSnapshotExpiration(st)
+		expiration, err := AutomaticSnapshotExpiration(st)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -398,6 +398,7 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 func delayedCrossMgrInit() {
 	// hook automatic snapshots into snapstate logic
 	snapstate.AutomaticSnapshot = AutomaticSnapshot
+	snapstate.AutomaticSnapshotExpiration = AutomaticSnapshotExpiration
 }
 
 func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *backend.Flags) (*client.Snapshot, error)) (restore func()) {

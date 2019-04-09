@@ -1705,11 +1705,17 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
-		ts, err := AutomaticSnapshot(st, name)
+		expiration, err := AutomaticSnapshotExpiration(st)
 		if err != nil {
 			return nil, err
 		}
-		addNext(ts)
+		if expiration > 0 {
+			ts, err := AutomaticSnapshot(st, name)
+			if err != nil {
+				return nil, err
+			}
+			addNext(ts)
+		}
 	}
 
 	if active { // unlink

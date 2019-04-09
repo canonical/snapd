@@ -80,7 +80,7 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	return names, nil
 }
 
-func automaticSnapshotExpiration(st *state.State) (time.Duration, error) {
+func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 	var expirationStr string
 	tr := config.NewTransaction(st)
 	err := tr.Get("core", "automatic-snapshots.expiration", &expirationStr)

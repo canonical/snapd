@@ -48,11 +48,22 @@ execute: |
     snap forget "$SET_ID"
     snap saved --id="$SET_ID" | grep "No snapshots found"
 
-    # check automatic snapshot is created on snap remove
+    # check automatic snapshot can be disabled
+    snap set core automatic-snapshots.expiration=0s
+    snap remove test-snapd-tools
+    if snap saved | MATCH "test-snapd-tools"; then
+        echo "did not expect a snapshot for test-snapd-tools"
+        exit 1
+    fi
+
+    # re-enable snapshots, check automatic snapshot is created on snap remove
+    snap install test-snapd-tools
+    snap set core automatic-snapshots.expiration=30h
     snap remove test-snapd-tools
     snap saved | MATCH "test-snapd-tools .* auto"
 
-    # check automatic snapshot expiration option can be set
-    snap set core automatic-snapshots.expiration=30h
-    (snap set core automatic-snapshots.expiration=1s 2>&1 || true) | MATCH "must be greater than"
+    # check validatation of the automatic snapshot expiration range
+    (snap set core automatic-snapshots.expiration=1s 2>&1 || true) | MATCH "must be"
+
+
     

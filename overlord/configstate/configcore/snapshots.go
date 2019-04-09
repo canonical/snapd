@@ -41,8 +41,8 @@ func validateAutomaticSnapshotsExpiration(tr config.Conf) error {
 		if err != nil {
 			return fmt.Errorf("automatic-snapshots.expiration cannot be parsed: %v", err)
 		}
-		if dur < time.Hour*24 {
-			return fmt.Errorf("automatic-snapshots.expiration must be greater than 24 hours")
+		if dur > 0 && dur < time.Hour*24 {
+			return fmt.Errorf("automatic-snapshots.expiration must be 0 to disable automatic snapshots, or a value greater than 24 hours")
 		}
 	}
 	return nil
