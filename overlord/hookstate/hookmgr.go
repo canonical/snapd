@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 type hijackFunc func(ctx *Context) error
@@ -253,14 +254,26 @@ func (m *HookManager) GracefullyWaitRunningHooks() bool {
 // Note that this method is synchronous, as the task is already running in a
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
-	task.State().Lock()
+	st := task.State()
+	st.Lock()
+	defer task.State().Unlock()
+
 	hooksup, snapst, err := hookSetup(task, "hook-setup")
-	task.State().Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
+	perfTimings := timings.NewForTask(task)
+	// XXX: overwrite task-kind with hook name, e.g. "run-hook[install]"; should we use separate tag?
+	perfTimings.AddTag("task-kind", fmt.Sprintf("%s[%s]", task.Kind(), hooksup.Hook))
+
+	st.Unlock()
+	timings.Run(perfTimings, "execute-hook", fmt.Sprintf("execute hook %q of snap %q", hooksup.Hook, hooksup.Snap), func(timings.Measurer) {
+		err = m.runHook(task, tomb, snapst, hooksup)
+	})
+	st.Lock()
+	perfTimings.Save(st)
+	return err
 }
 
 // undoRunHook runs the undo-hook that was requested.
@@ -268,9 +281,11 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 // Note that this method is synchronous, as the task is already running in a
 // goroutine.
 func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
-	task.State().Lock()
+	st := task.State()
+	st.Lock()
+	defer task.State().Unlock()
+
 	hooksup, snapst, err := hookSetup(task, "undo-hook-setup")
-	task.State().Unlock()
 	if err != nil {
 		if err == state.ErrNoState {
 			// no undo hook setup
@@ -279,7 +294,18 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract undo hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
+	perfTimings := timings.NewForTask(task)
+	// XXX: overwrite task-kind with hook name, e.g. "run-hook[install]"; should we use separate tag?
+	perfTimings.AddTag("task-kind", fmt.Sprintf("%s[%s]", task.Kind(), hooksup.Hook))
+
+	st.Unlock()
+	timings.Run(perfTimings, "execute-hook", fmt.Sprintf("execute hook %q of snap %q", hooksup.Hook, hooksup.Snap), func(timings.Measurer) {
+		err = m.runHook(task, tomb, snapst, hooksup)
+	})
+	st.Lock()
+	perfTimings.Save(st)
+
+	return err
 }
 
 func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {

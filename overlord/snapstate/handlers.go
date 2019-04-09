@@ -273,7 +273,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 
 	var tsBase *state.TaskSet
 	var err error
-	timings.Run(tm, "install-prereq", fmt.Sprintf("Install base %q", base), func(timings.Measurer) {
+	timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
 		tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
 	})
 	if err != nil {
@@ -475,12 +475,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		timings.Run(perfTimings, "download", fmt.Sprintf("Download snap %q", snapsup.SnapName()), func(timings.Measurer) {
+		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
 			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, &storeInfo.DownloadInfo, meter, user, dlOpts)
 		})
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		timings.Run(perfTimings, "download", fmt.Sprintf("Download snap %q", snapsup.SnapName()), func(timings.Measurer) {
+		timings.Run(perfTimings, "download", fmt.Sprintf("download snap %q", snapsup.SnapName()), func(timings.Measurer) {
 			err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
 		})
 	}
@@ -538,7 +538,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	timings.Run(perfTimings, "check-snap", fmt.Sprintf("Check snap %q", snapsup.InstanceName()), func(timings.Measurer) {
+	timings.Run(perfTimings, "check-snap", fmt.Sprintf("check snap %q", snapsup.InstanceName()), func(timings.Measurer) {
 		err = checkSnap(st, snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, curInfo, snapsup.Flags)
 	})
 	if err != nil {
@@ -566,7 +566,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
-	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("Setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
+	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
 		snapType, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	})
 	if err != nil {

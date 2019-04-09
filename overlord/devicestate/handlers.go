@@ -593,7 +593,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var serial *asserts.Serial
-	timings.Run(perfTimings, "get-serial", "", func(timings.Measurer) {
+	timings.Run(perfTimings, "get-serial", "get device serial", func(timings.Measurer) {
 		serial, err = getSerial(t, privKey, device)
 	})
 	if err == errPoll {
@@ -602,10 +602,14 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if err != nil { // errors & retries
 		return err
+
 	}
 
+	var errAcctKey error
 	// try to fetch the signing key chain of the serial
-	errAcctKey, err := fetchKeys(st, serial.SignKeyID())
+	timings.Run(perfTimings, "fetch-keys", "fetch signing key chain", func(timings.Measurer) {
+		errAcctKey, err = fetchKeys(st, serial.SignKeyID())
+	})
 	if err != nil {
 		return err
 	}
