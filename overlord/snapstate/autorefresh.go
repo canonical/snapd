@@ -469,9 +469,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
 		now := time.Now()
 		if snapst.RefreshInhibitedTime == nil {
 			// Store the instant when the snap was first inhibited.
-			// This is reset to nil on successful refresh. Note that
-			// because we are modifying the snap state this paragraph
-			// must be located after the conflict check done above.
+			// This is reset to nil on successful refresh.
 			snapst.RefreshInhibitedTime = &now
 			Set(st, info.InstanceName(), snapst)
 			return err
