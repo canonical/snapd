@@ -814,14 +814,10 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	tr.Commit()
 
 	// With a snap state indicating a snap is already installed and it failed
-	// to refresh over a week ago.
-	var longAgo = time.Now().Add(-time.Hour * 24 * 8)
-	// NOTE: Use rounding to a second granularity to
-	// anticipate data loss in the serialized representation. This is important
-	// because the checkChangeConflictIgnoringOneChange uses precise recursive
-	// comparison based on reflect.DeepEqual and some of the state that was
-	// created by time.Now() is lost across the serialization layer.
-	longAgo = longAgo.Round(time.Second)
+	// to refresh over a week ago. Use UTC and Round to have predictable
+	// behaviour across time-zones and with enough precision loss to be
+	// compatible with the serialization format.
+	var longAgo = time.Now().UTC().Round(time.Second).Add(-time.Hour * 24 * 8)
 	snapst := &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -832,9 +828,6 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 		RefreshInhibitedTime: &longAgo,
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
-	// XXX: Despite Round() call above some things are not properly handled.
-	// Round-trip through the state serialization to neuter the side effects.
-	snapstate.Get(s.state, "some-snap", snapst)
 
 	// With a snap info indicating it has an application called "app"
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
