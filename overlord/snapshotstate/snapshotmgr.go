@@ -384,8 +384,8 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// in case it's an automatic snapshot, remove the set also from the state (automatic snapshots have just one snap per set).
-	if rmerr := removeSnapshotState(st, snapshot.SetID); rmerr != nil {
-		return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", snapshot.SetID, rmerr)
+	if err := removeSnapshotState(st, snapshot.SetID); err != nil {
+		return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", snapshot.SetID, err)
 	}
 
 	return osRemove(snapshot.Filename)
