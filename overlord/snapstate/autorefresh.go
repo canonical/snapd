@@ -393,7 +393,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
-	perfTimings.SetTagFromChange(chg)
+	perfTimings.AddTag("change-id", chg.ID())
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}

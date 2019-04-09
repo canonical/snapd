@@ -4,12 +4,6 @@ details: |
     This test makes sure that a snap using the timezone-control interface
     can access timezone information and update it.
 
-# FIXME:
-# core18 lacks support in systemd for the /etc/writable/timezone, once
-# https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1778936 is fixed
-# we need to re-enable it.
-systems: [-ubuntu-core-18-*]
-
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh

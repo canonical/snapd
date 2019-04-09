@@ -59,7 +59,7 @@ elif [ "$1" = "set" ] && [ "$2" = "default-web-browser" ]; then
   # nothing to do
   exit 0
 else
-  echo "mock called with unsupported arguments $@"
+  echo "mock called with unsupported arguments $*"
   exit 1
 fi
 `)

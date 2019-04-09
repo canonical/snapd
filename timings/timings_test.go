@@ -94,7 +94,7 @@ func (s *timingsSuite) TestSave(c *C) {
 	// two timings, with 2 nested measures
 	for i := 0; i < 2; i++ {
 		timing := timings.New(map[string]string{"task": "3"})
-		timing.SetTag("change", "12")
+		timing.AddTag("change", "12")
 		meas := timing.StartSpan(fmt.Sprintf("doing something-%d", i), "...")
 		nested := meas.StartSpan("nested measurement", "...")
 		var called bool

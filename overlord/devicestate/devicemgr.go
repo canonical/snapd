@@ -332,7 +332,7 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
-	perfTimings.SetTagFromChange(chg)
+	perfTimings.AddTag("change-id", chg.ID())
 	perfTimings.Save(m.state)
 
 	return nil
@@ -374,7 +374,7 @@ func (m *DeviceManager) ensureSeedYaml() error {
 
 	msg := fmt.Sprintf("Initialize system state")
 	chg := m.state.NewChange("seed", msg)
-	perfTimings.SetTagFromChange(chg)
+	perfTimings.AddTag("change-id", chg.ID())
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
