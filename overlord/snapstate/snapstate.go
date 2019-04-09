@@ -134,7 +134,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				var now = time.Now()
 				if snapst.RefreshInhibitedTime == nil {
 					// Store the instant when the snap was first inhibited.
-					// This is reset to nil on successful refresh.
+					// This is reset to nil on successful refresh. Note that
+					// because we are modifying the snap state this paragraph
+					// must be located after the conflict check done above.
 					snapst.RefreshInhibitedTime = &now
 					Set(st, snapsup.InstanceName(), snapst)
 					return nil, err
