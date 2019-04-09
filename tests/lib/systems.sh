@@ -27,34 +27,3 @@ is_ubuntu_14_system(){
     fi
     return 1
 }
-
-get_architecture(){
-    local curr_arch
-    curr_arch="$(uname -m)"
-
-    case "$curr_arch" in
-    x86_64)
-        echo 'amd64'
-        ;;
-    i386|i686)
-        echo 'i386'
-        ;;
-    armv7l)
-        echo 'armhf'
-        ;;
-    aarch64*)
-        echo 'arm64'
-        ;;
-    ppc64*)
-        echo 'ppc64el'
-        ;;
-    s390*)
-        echo 's390x'
-        ;;
-    *)
-        echo "architecture not supported"
-        exit 1
-        ;;
-    esac
-}
-
