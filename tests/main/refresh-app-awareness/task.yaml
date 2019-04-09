@@ -15,6 +15,7 @@ restore: |
     # TODO: There is currently no way to unset configuration options.
     # Once this is fixed please uncomment this line:
     # snap unset core experimental.refresh-app-awareness
+    rm -f install.log
 execute: |
     # Install v1 and see that it runs as expected.
     snap install --dangerous test-snapd-refresh_1_all.snap
@@ -38,9 +39,16 @@ execute: |
 
     wait_for_stamp /var/snap/test-snapd-refresh/current/stamp
 
-    # Try to install v2, it should fail because v1 is running. Snapd is even kind enough to tell us what is preventing the install from working.
-    ! snap install --dangerous test-snapd-refresh_2_all.snap | MATCH 'error: cannot install snap file: snap "test-snapd-refresh" has running apps \(sh\)'
+    # Try to install v2, it should fail because v1 is running. Snapd is kind
+    # enough to tell us what is preventing the install from working.
+    # The error message is automatically wrapped so unwrap it here.
+    unwrap_msg() {
+        tr '\n' ' ' | sed -e 's/ \+/ /g'
+    }
+    ! snap install --dangerous test-snapd-refresh_2_all.snap >install.log 2>&1
+    unwrap_msg < install.log | MATCH 'error: cannot install snap file: snap "test-snapd-refresh" has running apps +\(sh\)'
     test-snapd-refresh.version | MATCH v1
+
     # Kill the app process running from v1.
     kill "$pid"
     wait "$pid" || true  # wait returns the exit code and we kill the process
