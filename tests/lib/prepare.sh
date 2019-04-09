@@ -657,7 +657,7 @@ cache_snaps(){
     for snap_name in "$@"; do
         snap download "$snap_name"
         local snap_sha
-        snap_sha="$(python3 $TESTSLIB/get_snap_sha.py $snap_name stable $curr_arch)"
+        snap_sha=$(python3 "$TESTSLIB/get_snap_sha.py" "$snap_name" stable "$curr_arch")
         test -n "$snap_sha"
 
         # Copy all of the snaps back to the spool directory. From there we
