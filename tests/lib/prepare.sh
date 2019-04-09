@@ -590,12 +590,16 @@ prepare_ubuntu_core() {
         fi
     fi
 
-    echo "Wait for firstboot change to be ready"
-    while ! snap changes | grep "Done"; do
-        snap changes || true
-        snap change 1 || true
+    # Wait for the snap command to become available.
+    for i in $(seq 120); do
+        if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
+            break
+        fi
         sleep 1
     done
+
+    # Wait for seeding to finish.
+    snap wait system seed.loaded
 
     echo "Ensure fundamental snaps are still present"
     # shellcheck source=tests/lib/names.sh

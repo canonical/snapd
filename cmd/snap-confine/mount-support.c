@@ -567,16 +567,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/var/lib/extrausers",.is_optional = true},	// access to UID/GID of extrausers (if available)
 			{},
 		};
-		char rootfs_dir[PATH_MAX] = { 0 };
-		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
-				 "%s/%s/current/", SNAP_MOUNT_DIR,
-				 inv->base_snap_name);
-		if (access(rootfs_dir, F_OK) != 0) {
-			die("cannot locate the base snap: %s",
-			    inv->base_snap_name);
-		}
 		struct sc_mount_config normal_config = {
-			.rootfs_dir = rootfs_dir,
+			.rootfs_dir = inv->rootfs_dir,
 			.mounts = mounts,
 			.distro = distro,
 			.normal_mode = true,
