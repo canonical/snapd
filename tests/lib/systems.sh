@@ -36,7 +36,7 @@ get_architecture(){
     x86_64)
         echo 'amd64'
         ;;
-    i386)
+    i386|i686)
         echo 'i386'
         ;;
     armv7l)
