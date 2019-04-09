@@ -834,7 +834,8 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	snapstate.Set(s.state, "some-snap", snapst)
 	// XXX: Despite Round() call above some things are not properly handled.
 	// Round-trip through the state serialization to neuter the side effects.
-	snapstate.Get(s.state, "some-snap", snapst)
+	//snapstate.Get(s.state, "some-snap", snapst)
+	x := fmt.Sprint(snapst)
 
 	// With a snap info indicating it has an application called "app"
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
@@ -857,7 +858,9 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 
 	// And observe that refresh occurred regardless of the running process.
 	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "")
-	c.Assert(err, IsNil)
+	snapstate.Get(s.state, "some-snap", snapst)
+	x1 := fmt.Sprint(snapst)
+	c.Assert(err, IsNil, Commentf("%s <> %s", x, x1))
 }
 
 func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
