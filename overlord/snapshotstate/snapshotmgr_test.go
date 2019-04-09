@@ -415,6 +415,54 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 	c.Assert(err, check.ErrorMatches, ".* cannot unmarshal .*")
 }
 
+func (snapshotSuite) TestDoSaveFailureRemovesStateEntry(c *check.C) {
+	st := state.New(nil)
+
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(-1),
+		},
+		Version: "1.33",
+	}
+	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
+		return &snapInfo, nil
+	})()
+	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
+		return nil, nil
+	})()
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+		var expirations map[uint64]interface{}
+		st.Lock()
+		defer st.Unlock()
+		// verify that prepareSave stored expiration in the state
+		c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+		c.Assert(expirations, check.HasLen, 1)
+		c.Check(expirations[42], check.NotNil)
+		return nil, errors.New("error")
+	})()
+
+	st.Lock()
+
+	task := st.NewTask("save-snapshot", "...")
+	task.Set("snapshot-setup", map[string]interface{}{
+		"set-id": 42,
+		"snap":   "a-snap",
+		"auto":   true,
+	})
+	st.Unlock()
+	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	c.Assert(err, check.ErrorMatches, "error")
+
+	st.Lock()
+	defer st.Unlock()
+
+	// verify that after backend.Save failure expiration was removed from the state
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.HasLen, 0)
+}
+
 type readerSuite struct {
 	task     *state.Task
 	calls    []string
