@@ -49,7 +49,7 @@ execute: |
     snap saved --id="$SET_ID" | grep "No snapshots found"
 
     # check automatic snapshot can be disabled
-    snap set core automatic-snapshots.expiration=0s
+    snap set core automatic-snapshots.expiration=0
     snap remove test-snapd-tools
     if snap saved | MATCH "test-snapd-tools"; then
         echo "did not expect a snapshot for test-snapd-tools"
