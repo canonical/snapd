@@ -20,3 +20,14 @@ execute: |
 restore: |
     rm --recursive --one-file-system /srv/chroot/sid-amd64-sbuild
     rm -f /etc/schroot/chroot.d/sid-amd64-sbuild-*
+
+debug: |
+    cat <<<EOM
+    Use release-tools/debian-package-builder to interactively fix build
+    issues. The debug shell created there shows the true layout of the source
+    code as it exists during the build inside a debian system, inside the
+    environment created by sbuild.
+
+    In particular note that the source code exists twice in the build tree,
+    and only the specific copy is being used.
+    EOM

@@ -17,30 +17,43 @@
  *
  */
 
-package mount
+package snaplock_test
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
+	"testing"
 
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 )
 
-// lockFileName returns the name of the lock file for the given snap.
-func lockFileName(snapName string) string {
-	return filepath.Join(dirs.SnapRunLockDir, fmt.Sprintf("%s.lock", snapName))
+func Test(t *testing.T) {
+	TestingT(t)
 }
 
-// OpenLock creates and opens a lock file associated with a particular snap.
-func OpenLock(snapName string) (*osutil.FileLock, error) {
-	if err := os.MkdirAll(dirs.SnapRunLockDir, 0700); err != nil {
-		return nil, fmt.Errorf("cannot create lock directory: %s", err)
-	}
-	flock, err := osutil.NewFileLock(lockFileName(snapName))
-	if err != nil {
-		return nil, err
-	}
-	return flock, nil
+type lockSuite struct{}
+
+var _ = Suite(&lockSuite{})
+
+func (s *lockSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *lockSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *lockSuite) TestOpenLock(c *C) {
+	lock, err := snaplock.OpenLock("name")
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	_, err = os.Stat(lock.Path())
+	c.Assert(err, IsNil)
+
+	comment := Commentf("wrong prefix for %q, want %q", lock.Path(), dirs.SnapRunLockDir)
+	c.Check(strings.HasPrefix(lock.Path(), dirs.SnapRunLockDir), Equals, true, comment)
 }

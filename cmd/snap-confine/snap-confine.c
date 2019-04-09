@@ -48,6 +48,9 @@
 #include "snap-confine-invocation.h"
 #include "udev-support.h"
 #include "user-support.h"
+#ifdef HAVE_SELINUX
+#include "selinux-support.h"
+#endif
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -75,7 +78,8 @@ static void sc_maybe_fixup_permissions(void)
 static void sc_maybe_fixup_udev(void)
 {
 	glob_t glob_res SC_CLEANUP(globfree) = {
-	.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,};
+		.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,
+	};
 	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
 	int err = glob(glob_pattern, 0, NULL, &glob_res);
 	if (err == GLOB_NOMATCH) {
@@ -96,6 +100,41 @@ static void sc_maybe_fixup_udev(void)
 	}
 }
 
+/**
+ * sc_preserved_process_state remembers clobbered state to restore.
+ *
+ * The umask is preserved and restored to ensure consistent permissions for
+ * runtime system. The value is preserved and restored perfectly.
+**/
+typedef struct sc_preserved_process_state {
+	mode_t orig_umask;
+} sc_preserved_process_state;
+
+/**
+ * sc_preserve_and_sanitize_process_state sanitizes process state.
+ *
+ * The original values are stored to be restored later. Currently only the
+ * umask is altered. It is set to zero to make the ownership of created files
+ * and directories more predictable.
+**/
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
+						   proc_state)
+{
+	/* Reset umask to zero, storing the old value. */
+	proc_state->orig_umask = umask(0);
+	debug("umask reset, old umask was %#4o", proc_state->orig_umask);
+}
+
+/**
+ *  sc_restore_process_state restores values stored earlier.
+**/
+static void sc_restore_process_state(const sc_preserved_process_state *
+				     proc_state)
+{
+	umask(proc_state->orig_umask);
+	debug("umask restored to %#4o", proc_state->orig_umask);
+}
+
 static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    struct sc_apparmor *aa,
@@ -108,8 +147,14 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
+	sc_preserved_process_state proc_state;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
+
+	// Remember certain properties of the process that are clobbered by
+	// snap-confine during execution. Those are restored just before calling
+	// execv.
+	sc_preserve_and_sanitize_process_state(&proc_state);
 
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
@@ -207,6 +252,10 @@ int main(int argc, char **argv)
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
+#ifdef HAVE_SELINUX
+	// For classic and confined snaps
+	sc_selinux_set_snap_execcon();
+#endif
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
@@ -237,6 +286,8 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
+	// Restore process state that was recorded earlier.
+	sc_restore_process_state(&proc_state);
 	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
@@ -296,11 +347,38 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	struct sc_mount_ns *group = NULL;
 	group = sc_open_mount_ns(inv->snap_instance);
 
-	// Check if we are running in normal mode with pivot root. Do this here
-	// because once on the inside of the transformed mount namespace we can no
-	// longer tell.
-	inv->is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
-							inv->base_snap_name);
+	// Init and check rootfs_dir, apply any fallback behaviors.
+	sc_check_rootfs_dir(inv);
+
+	/**
+	 * is_normal_mode controls if we should pivot into the base snap.
+	 *
+	 * There are two modes of execution for snaps that are not using classic
+	 * confinement: normal and legacy. The normal mode is where snap-confine
+	 * sets up a rootfs and then pivots into it using pivot_root(2). The legacy
+	 * mode is when snap-confine just unshares the initial mount namespace,
+	 * makes some extra changes but largely runs with what was presented to it
+	 * initially.
+	 *
+	 * Historically the ubuntu-core distribution used the now-legacy mode. This
+	 * was sensible then since snaps already (kind of) have the right root
+	 * file-system and just need some privacy and isolation features applied.
+	 * With the introduction of snaps to classic distributions as well as the
+	 * introduction of bases, where each snap can use a different root
+	 * filesystem, this lost sensibility and thus became legacy.
+	 *
+	 * For compatibility with current installations of ubuntu-core
+	 * distributions the legacy mode is used when: the distribution is
+	 * SC_DISTRO_CORE16 or when the base snap name is not "core" or
+	 * "ubuntu-core".
+	 *
+	 * The SC_DISTRO_CORE16 is applied to systems that boot with the "core",
+	 * "ubuntu-core" or "core16" snap. Systems using the "core18" base snap do
+	 * not qualify for that classification.
+	 **/
+	sc_distro distro = sc_classify_distro();
+	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
+		!sc_streq(inv->orig_base_snap_name, "core");
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.

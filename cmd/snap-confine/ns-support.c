@@ -310,14 +310,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
-	char fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
 	// Read the revision of the base snap by looking at the current symlink.
-	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
-			 SNAP_MOUNT_DIR, inv->base_snap_name);
-	if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
+	if (readlink(inv->rootfs_dir, base_snap_rev, sizeof base_snap_rev) < 0) {
 		die("cannot read current revision of snap %s",
 		    inv->snap_instance);
 	}
@@ -383,9 +380,8 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
 		bool should_discard =
-		    inv->
-		    is_normal_mode ? should_discard_current_ns(base_snap_dev) :
-		    false;
+		    inv->is_normal_mode ?
+		    should_discard_current_ns(base_snap_dev) : false;
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).

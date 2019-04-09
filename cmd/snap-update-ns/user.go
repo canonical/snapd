@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,8 +27,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// UserProfileUpdateContext contains information about update to per-user mount namespace.
+type UserProfileUpdateContext struct {
+	CommonProfileUpdateContext
+}
+
 func applyUserFstab(snapName string) error {
-	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+	upCtx := &UserProfileUpdateContext{}
+	desiredProfilePath := desiredUserProfilePath(snapName)
 	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
@@ -43,6 +49,11 @@ func applyUserFstab(snapName string) error {
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
-	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, as)
+	_, err = applyProfile(upCtx, snapName, &osutil.MountProfile{}, desired, as)
 	return err
+}
+
+// desiredUserProfilePath returns the path of the fstab-like file with the desired, user-specific mount profile for a snap.
+func desiredUserProfilePath(snapName string) string {
+	return fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 }
