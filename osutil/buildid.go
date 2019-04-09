@@ -39,10 +39,6 @@ type elfNoteHeader struct {
 // ReadBuildID returns the GNU build ID note of the provided ELF executable.
 // The ErrNoBuildID error is returned when one is not found.
 //
-// Observed Go binaries presented one when built with:
-//
-//      go build -buildmode=pie
-//
 // See details at http://fedoraproject.org/wiki/Releases/FeatureBuildId
 func ReadBuildID(fname string) (string, error) {
 	const ELF_NOTE_GNU = "GNU\x00"

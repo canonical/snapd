@@ -67,8 +67,8 @@ build() {
   cd "$srcdir/go/src/${_gourl}"
   XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
 
-  gobuild="go build -x -v -buildmode=pie"
-  gobuild_static="go build -x -v -buildmode=pie -ldflags=-extldflags=-static"
+  gobuild="go build -x -v"
+  gobuild_static="go build -x -v -ldflags=-extldflags=-static"
   # Build/install snap and snapd
   $gobuild -o $srcdir/go/bin/snap $GOFLAGS "${_gourl}/cmd/snap"
   $gobuild -o $srcdir/go/bin/snapd $GOFLAGS "${_gourl}/cmd/snapd"
