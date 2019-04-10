@@ -185,8 +185,9 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 				    ((s[2] - '0') << 3) | ((s[3] - '0'));
 				input_idx += 3;
 			} else {
-				// Error: partial escape sequence, copy verbatim.
-				output[output_idx] = c;
+			    // Partial escape sequence, copy verbatim and
+			    // continue (since we don't use this).
+			    output[output_idx] = c;
 			}
 			break;
 		default:
