@@ -1,4 +1,4 @@
-From c56899919d95e573e2437f1189c9be42ae70c592 Mon Sep 17 00:00:00 2001
+From cb851cfe883af568e56e50b492579b49869928ab Mon Sep 17 00:00:00 2001
 From: Zygmunt Krynicki <me@zygoon.pl>
 Date: Thu, 17 Jan 2019 15:48:46 +0200
 Subject: [PATCH 1/9] cmd/snap-seccomp: use upstream seccomp package
@@ -13,13 +13,16 @@ The forked seccomp library is not packaged in Debian. As such, to build
 snapd, we need to switch to the regular, non-forked package name.
 
 Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
+Signed-off-by: Maciej Borzecki <maciej.zenon.borzecki@canonical.com>
 ---
- cmd/snap-seccomp/main.go      | 5 +----
- cmd/snap-seccomp/main_test.go | 2 +-
- 2 files changed, 2 insertions(+), 5 deletions(-)
+ cmd/snap-seccomp/main.go             | 5 +----
+ cmd/snap-seccomp/main_test.go        | 2 +-
+ cmd/snap-seccomp/versioninfo.go      | 2 +-
+ cmd/snap-seccomp/versioninfo_test.go | 2 +-
+ 4 files changed, 4 insertions(+), 7 deletions(-)
 
 diff --git a/cmd/snap-seccomp/main.go b/cmd/snap-seccomp/main.go
-index 2d9158f4d..fb546252f 100644
+index 7056c0309dbcc1b6bf9f3b69e6adf454bed4fcbd..dce0f086bde290839a108d90945c880d5f387e5d 100644
 --- a/cmd/snap-seccomp/main.go
 +++ b/cmd/snap-seccomp/main.go
 @@ -181,10 +181,7 @@ import (
@@ -35,7 +38,7 @@ index 2d9158f4d..fb546252f 100644
  	"github.com/snapcore/snapd/arch"
  	"github.com/snapcore/snapd/osutil"
 diff --git a/cmd/snap-seccomp/main_test.go b/cmd/snap-seccomp/main_test.go
-index 9a8a28fbf..5c64abf52 100644
+index 9a8a28fbfbbf733bcc31963c4b90f2385bd801b6..5c64abf52e006ad25da5de2897d68cf73cb849d6 100644
 --- a/cmd/snap-seccomp/main_test.go
 +++ b/cmd/snap-seccomp/main_test.go
 @@ -32,7 +32,7 @@ import (
@@ -47,6 +50,32 @@ index 9a8a28fbf..5c64abf52 100644
  
  	"github.com/snapcore/snapd/arch"
  	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+diff --git a/cmd/snap-seccomp/versioninfo.go b/cmd/snap-seccomp/versioninfo.go
+index e60b26363c39355f95a8ad2878bc672528cc1f5b..a2840f04830c24692539d8b7b4467a007fbbd537 100644
+--- a/cmd/snap-seccomp/versioninfo.go
++++ b/cmd/snap-seccomp/versioninfo.go
+@@ -24,7 +24,7 @@ import (
+ 	"fmt"
+ 	"os"
+ 
+-	"github.com/mvo5/libseccomp-golang"
++	"github.com/seccomp/libseccomp-golang"
+ 
+ 	"github.com/snapcore/snapd/cmd/snap-seccomp/syscalls"
+ 	"github.com/snapcore/snapd/osutil"
+diff --git a/cmd/snap-seccomp/versioninfo_test.go b/cmd/snap-seccomp/versioninfo_test.go
+index 0fb23757019c517a3881cd4c9325b6ec864da3f6..f55f7cf6ff7508bb7fae3a5389341a1a01e46630 100644
+--- a/cmd/snap-seccomp/versioninfo_test.go
++++ b/cmd/snap-seccomp/versioninfo_test.go
+@@ -25,7 +25,7 @@ import (
+ 
+ 	. "gopkg.in/check.v1"
+ 
+-	"github.com/mvo5/libseccomp-golang"
++	"github.com/seccomp/libseccomp-golang"
+ 
+ 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+ 	"github.com/snapcore/snapd/osutil"
 -- 
-2.17.1
+2.21.0
 

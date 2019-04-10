@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -59,7 +60,7 @@ const (
 	UseConfigDefaults
 )
 
-var (
+const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
 )
 
@@ -74,6 +75,16 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
@@ -83,11 +94,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-			if err != nil && !config.IsNoOption(err) {
-				return nil, err
-			}
 			if !experimentalAllowSnapd {
 				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 			}
@@ -126,6 +132,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
+
+		if experimentalRefreshAppAwareness {
+			if err := SoftNothingRunningRefreshCheck(info); err != nil {
+				// TODO Remember the inhibition time in snap state.
+				return nil, err
+			}
+		}
 	}
 
 	ts := state.NewTaskSet()
@@ -782,7 +795,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		return nil, nil, err
 	}
 
-	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
+	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2197,7 +2211,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 
 // GadgetConnections returns the interface connection instructions
 // specified in the gadget. If gadget is absent it returns ErrNoState.
-func GadgetConnections(st *state.State) ([]snap.GadgetConnection, error) {
+func GadgetConnections(st *state.State) ([]gadget.Connection, error) {
 	gadget, err := GadgetInfo(st)
 	if err != nil {
 		return nil, err

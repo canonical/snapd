@@ -38,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
@@ -742,6 +743,9 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 }
 
 func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	snapst := &snapstate.SnapState{
 		Active:   false,
 		Channel:  "channel",
@@ -755,7 +759,54 @@ func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
+func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// With the refresh-app-awareness feature enabled.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	// With a snap state indicating a snap is already installed.
+	snapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+
+	// With a snap info indicating it has an application called "app"
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		if name != "some-snap" {
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, Type: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	})
+	// And with cgroup v1 information indicating the app has a process with pid 1234.
+	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.app"), []int{1234})
+
+	// Attempt to install revision 2 of the snap.
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+	}
+
+	// And observe that we cannot refresh because the snap is busy.
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "")
+	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\)`)
+}
+
 func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
 	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0, "")
 	c.Assert(err, NotNil)
@@ -4390,6 +4441,90 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	})
 }
 
+func lastWithLane(tasks []*state.Task) *state.Task {
+	for i := len(tasks) - 1; i >= 0; i-- {
+		if lanes := tasks[i].Lanes(); len(lanes) == 1 && lanes[0] != 0 {
+			return tasks[i]
+		}
+	}
+	return nil
+}
+
+func (s *snapmgrTestSuite) TestUpdateUndoRestoresRevisionConfig(c *C) {
+	var errorTaskExecuted bool
+
+	// overwrite error-trigger task handler with custom one for this test
+	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		// modify current config of some-snap
+		tr := config.NewTransaction(st)
+		tr.Set("some-snap", "foo", "canary")
+		tr.Commit()
+
+		errorTaskExecuted = true
+		return errors.New("error out")
+	}
+	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
+
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(6),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si2, &si},
+		Channel:  "stable",
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	// set some configuration
+	tr := config.NewTransaction(s.state)
+	tr.Set("some-snap", "foo", "revision 7 value")
+	tr.Commit()
+	config.SaveRevisionConfig(s.state, "some-snap", snap.R(7))
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	last := lastWithLane(ts.Tasks())
+	c.Assert(last, NotNil)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	terr.JoinLane(last.Lanes()[0])
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(errorTaskExecuted, Equals, true)
+
+	// after undoing the update some-snap config should be restored to that of rev.7
+	var val string
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Get("some-snap", "foo", &val), IsNil)
+	c.Check(val, Equals, "revision 7 value")
+}
+
 func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -4413,19 +4548,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	tasks := ts.Tasks()
-	// we need to make it not be rerefresh, and we could do just
+	// We need to make it not be rerefresh, and we could do just
 	// that but instead we do the 'right' thing and attach it to
 	// the last task that's on a lane.
-	var last *state.Task
-	for i := len(tasks) - 1; i >= 0; i-- {
-		lanes := tasks[i].Lanes()
-		if len(lanes) == 1 && lanes[0] != 0 {
-			last = tasks[i]
-			break
-		}
-	}
-	// sanity
+	last := lastWithLane(ts.Tasks())
 	c.Assert(last, NotNil)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -13334,8 +13460,8 @@ connections:
 
 	conns, err := snapstate.GadgetConnections(s.state)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, []snap.GadgetConnection{
-		{Plug: snap.GadgetConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: snap.GadgetConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
+	c.Check(conns, DeepEquals, []gadget.Connection{
+		{Plug: gadget.ConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: gadget.ConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
 }
 
 func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {

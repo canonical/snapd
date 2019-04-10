@@ -34,7 +34,7 @@ environment:
     SNAPD_CHANNEL: "$(HOST: echo ${SPREAD_SNAPD_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
-    DELTA_REF: 2.32.5
+    DELTA_REF: 2.37.4
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
     HTTP_PROXY: "$(HOST: echo $SPREAD_HTTP_PROXY)"
@@ -85,51 +85,19 @@ backends:
                 # golang stack cannot compile anything, needs investigation
                 manual: true
             - opensuse-15.0-64:
-                workers: 4
+                workers: 6
             - opensuse-tumbleweed-64:
-                workers: 4
-                # tumbleweed image not available at the moment
-                manual: true
+                workers: 6
             - arch-linux-64:
-                workers: 4
+                workers: 6
 
             - amazon-linux-2-64:
-                workers: 4
+                workers: 6
                 storage: preserve-size
 
             - centos-7-64:
-                workers: 4
+                workers: 6
                 image: centos-7-64
-
-    google-upgrade:
-        type: google
-        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
-        location: computeengine/us-east1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-                workers: 1
-            - ubuntu-16.04-32:
-                workers: 1
-            - ubuntu-16.04-64:
-                workers: 1
-            - ubuntu-18.04-64:
-                workers: 1
-            - ubuntu-18.10-64:
-                image: ubuntu-1810
-                workers: 1
-            - debian-9-64:
-                workers: 1
-            - fedora-29-64:
-                workers: 1
-            - arch-linux-64:
-                workers: 1
-            - amazon-linux-2-64:
-                workers: 1
-                storage: preserve-size
-            - centos-7-64:
-                workers: 1
-
 
     google-sru:
         type: google
@@ -498,6 +466,10 @@ prepare: |
         echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
         rm -f gai.conf
     fi
+    if command -v restorecon ; then
+        # restore proper context otherwise SELinux may complain
+        restorecon -v /etc/gai.conf
+    fi
 
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
@@ -513,6 +485,8 @@ prepare: |
         systemctl enable --now auditd.service
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # refresh metadatadata
+        zypper ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
@@ -535,6 +509,10 @@ prepare: |
         fi
     fi
 
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        apt-get update && apt-get install -y eatmydata
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -544,7 +522,7 @@ prepare: |
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
-                apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+                apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
@@ -683,9 +661,6 @@ suites:
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-*, -opensuse-*]
-        # autopkgtest runs against localhost which causes problems with
-        # this test prepare
-        backends: [google-upgrade]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
             # like other suites, needs more investigation

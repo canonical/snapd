@@ -39,7 +39,7 @@ static void test_rm_rf_tmp(void)
 	g_test_trap_assert_failed();
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/test-utils/rm_rf_tmp", test_rm_rf_tmp);
 }

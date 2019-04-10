@@ -465,7 +465,10 @@ func (t *Task) At(when time.Time) {
 	}
 }
 
-// TaskSetEdge allows marking tasks inside a TaskSet
+// TaskSetEdge designates tasks inside a TaskSet for outside reference.
+//
+// This is useful to give tasks inside TaskSets a special meaning. It
+// is used to mark e.g. the last task used for downloading a snap.
 type TaskSetEdge string
 
 // A TaskSet holds a set of tasks.
@@ -477,10 +480,11 @@ type TaskSet struct {
 
 // NewTaskSet returns a new TaskSet comprising the given tasks.
 func NewTaskSet(tasks ...*Task) *TaskSet {
+	// we init all members of TaskSet so that `go vet` will not complain
 	return &TaskSet{tasks, nil}
 }
 
-// Edge returns the task marked with the given TaskSetEdge
+// Edge returns the task marked with the given edge name.
 func (ts TaskSet) Edge(e TaskSetEdge) *Task {
 	return ts.edges[e]
 }
@@ -511,7 +515,8 @@ func (ts *TaskSet) AddTask(task *Task) {
 	ts.tasks = append(ts.tasks, task)
 }
 
-// MarkEdge marks the given task as a specific edge
+// MarkEdge marks the given task as a specific edge. Any pre-existing
+// edge mark will be overridden.
 func (ts *TaskSet) MarkEdge(task *Task, edge TaskSetEdge) {
 	if ts.edges == nil {
 		ts.edges = make(map[TaskSetEdge]*Task)
@@ -540,7 +545,7 @@ func (ts *TaskSet) AddAllWithEdges(anotherTs *TaskSet) error {
 	return nil
 }
 
-// JoinLane adds all the tasks in the current taskset to the given lane
+// JoinLane adds all the tasks in the current taskset to the given lane.
 func (ts *TaskSet) JoinLane(lane int) {
 	for _, t := range ts.tasks {
 		t.JoinLane(lane)
