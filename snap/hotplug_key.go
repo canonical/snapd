@@ -19,16 +19,16 @@
 
 package snap
 
+import (
+	"fmt"
+)
+
 // HotplugKey is a string key of a hotplugged device
 type HotplugKey string
 
 // ShortString returns a truncated string representation of the hotplug key
 func (h HotplugKey) ShortString() string {
 	str := string(h)
-	// this is normally never the case, but makes testing easier; hotplug keys
-	// use sha256 and are 65 characters long, output just the first 12 characters.
-	if len(str) < 12 {
-		return str
-	}
-	return str[0:12] + "..."
+	// hotplug key is sha256 (64+1 characters long), output just the first 12 characters.
+	return fmt.Sprintf("%.12s…", str)
 }

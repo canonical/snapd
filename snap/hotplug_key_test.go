@@ -34,7 +34,7 @@ var _ = Suite(&hotplugKeySuite{})
 func (*hotplugKeySuite) TestShortString(c *C) {
 	var key snap.HotplugKey
 	key = "abcdefghijklmnopqrstuvwxyz"
-	c.Check(key.ShortString(), Equals, "abcdefghijkl...")
+	c.Check(key.ShortString(), Equals, "abcdefghijkl…")
 }
 
 func (*hotplugKeySuite) TestString(c *C) {
