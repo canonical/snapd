@@ -156,59 +156,73 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 	size_t input_idx = 0;
 	size_t output_idx = 0;
 
-	// Scan characters until we run out of memory to scan or we find a space.
-	// The kernel uses simple octal escape sequences for the following:
-	// space, tab, newline, backwards slash. Everything else is copied
-	// verbatim.
-	bool stop = false;
-	for (int c; c = input[input_idx], c != '\0' && !stop;
-	     input_idx++, output_idx++) {
-		switch (c) {
-		case ' ':
-			// Fields are space delimited. Represent the space
-			// as the end-of-string marker, skip over it, and stop parsing.
-			output[output_idx] = '\0';
-			stop = true;
+	// Scan characters until we run out of memory to scan or we find a
+	// space.  The kernel uses simple octal escape sequences for the
+	// following: space, tab, newline, backwards slash. Everything else is
+	// copied verbatim.
+	for (;;) {
+		int c = input[input_idx];
+		if (c == '\0') {
+			// The string is over before we see anything then
+			// return NULL. This is an indication of end-of-input
+			// to the caller.
+			if (output_idx == 0) {
+			    return NULL;
+			}
+			// The scanned line is NUL terminated. This ensures that the
+			// terminator is copied to the output buffer.
+			output[output_idx++] = '\0';
+			// NOTE: we are no longer advancing the reading index
+			// because we reached the end of the buffer.
 			break;
-		case '\\':
-			// Three *more* octal digits required for the escape sequence.
-			// For reference see mangle_path() in fs/seq_file.c.
-			// Note that is_octal_digit returns false on the string terminator
-			// character NUL and the short-circuiting behavior of && makes
-			// this check correct even if '\\' is the last character of
-			// the string.
+		} else if (c == ' ') {
+			// Fields are space delimited or end-of-string terminated.
+			// Represent either as the end-of-string marker, skip over it,
+			// and stop parsing.
+			output[output_idx++] = '\0';
+			// Advance the reading index by one.
+			input_idx++;
+			// Note that while we are breaking out of the loop the
+			// input_idx variable is used to influence an output
+			// variable. This state is important for subsequent
+			// call where we want to scan the byte immediately
+			// after the space.
+			break;
+		} else if (c == '\\') {
+			// Three *more* octal digits required for the escape
+			// sequence.  For reference see mangle_path() in
+			// fs/seq_file.c.  Note that is_octal_digit returns
+			// false on the string terminator character NUL and the
+			// short-circuiting behavior of && makes this check
+			// correct even if '\\' is the last character of the
+			// string.
 			s = &input[input_idx];
 			if (is_octal_digit(s[1]) && is_octal_digit(s[2])
 			    && is_octal_digit(s[3])) {
-				// Unescape the octal value encoded in s[1], s[2]
-				// and s[3]. Note that since we have not advanced
-				// input_idx yet, s[0] is the escape character '/'.
-				// Because we are working with byte values there
-				// are no issues related to byte order.
-				output[output_idx] =
+				// Unescape the octal value encoded in s[1],
+				// s[2] and s[3]. Because we are working with
+				// byte values there are no issues related to
+				// byte order.
+				output[output_idx++] =
 				    ((s[1] - '0') << 6) |
 				    ((s[2] - '0') << 3) | ((s[3] - '0'));
-				// Skip over the escaped sequence. Note that
-				// input_idx is automatically advanced in each
-				// loop iteration and that handles the initial
-				// trigger character '/'.
-				input_idx += 3;
+				// Advance the reading index by the length of the escape
+				// sequence.
+				input_idx += 4;
 			} else {
-			    // Partial escape sequence, copy verbatim and
-			    // continue (since we don't use this).
-			    output[output_idx] = c;
+				// Partial escape sequence, copy verbatim and
+				// continue (since we don't use this).
+				output[output_idx++] = c;
+				// Advance the reading index by one.
+				input_idx++;
 			}
-			break;
-		default:
-			output[output_idx] = c;
-			break;
+		} else {
+			// All other characters are simply copied verbatim.
+			output[output_idx++] = c;
+			// Advance the reading index by one.
+			input_idx++;
 		}
 	}
-	// Terminate the parsed string. Note that the loop above does not copy
-	// the character.  The output is only explicitly terminated if the loop
-	// above encounters a space or an octal escape code that encodes the
-	// NIL character (which the kernel does not allow for).
-	output[output_idx] = '\0';
 	*offset += input_idx;
 #ifdef MOUNTINFO_DEBUG
 	fprintf(stderr,
@@ -216,7 +230,7 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 		output, strlen(output), input_idx, output_idx);
 #endif
 	show_buffers(line, *offset, entry);
-	return output_idx == 0 ? NULL : output;
+	return output;
 }
 
 static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
