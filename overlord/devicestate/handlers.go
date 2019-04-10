@@ -95,6 +95,9 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	// unmark no-longer required snaps
 	requiredSnaps := getAllRequiredSnapsForModel(new)
 	snapStates, err := snapstate.All(st)
+	if err != nil {
+		return err
+	}
 	for snapName, snapst := range snapStates {
 		// TODO: remove this type restriction once we remodel
 		//       bases/kernels/gadgets and add tests that ensure
