@@ -268,7 +268,7 @@ func (s *cmdSuite) TestInternalToolPathWithDevLocationFallback(c *C) {
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
 }
 
-func (s *cmdSuite) TestInternalToolPathWithOtherDevLocation(c *C) {
+func (s *cmdSuite) TestInternalToolPathWithOtherDevLocationWhenExecutable(c *C) {
 	restore := cmd.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(dirs.GlobalRootDir, "/tmp/snapd"), nil
 	})
@@ -277,12 +277,29 @@ func (s *cmdSuite) TestInternalToolPathWithOtherDevLocation(c *C) {
 	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/potato")
 	err := os.MkdirAll(filepath.Dir(devTool), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(devTool, []byte(""), 0644)
+	err = ioutil.WriteFile(devTool, []byte(""), 0755)
 	c.Assert(err, IsNil)
 
 	path, err := cmd.InternalToolPath("potato")
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/tmp/potato"))
+}
+
+func (s *cmdSuite) TestInternalToolPathWithOtherDevLocationNonExecutable(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.GlobalRootDir, "/tmp/snapd"), nil
+	})
+	defer restore()
+
+	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/non-executable-potato")
+	err := os.MkdirAll(filepath.Dir(devTool), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(devTool, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	path, err := cmd.InternalToolPath("non-executable-potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "non-executable-potato"))
 }
 
 func (s *cmdSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {
