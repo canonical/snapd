@@ -180,18 +180,41 @@ static void test_parse_mountinfo_entry__empty_source(void)
 
 static void test_parse_mountinfo_entry__octal_escaping(void)
 {
-	// The kernel escapes some things as octal \012
-	const char *line =
-	    "2074 27 0:54 / /tmp/strange-dir rw,relatime shared:1039 - tmpfs no\\040thing rw";
-	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
-	g_assert_nonnull(entry);
+	const char *line;
+	struct sc_mountinfo_entry *entry;
+
+	// The kernel escapes spaces as \040
+	line = "2 1 0:54 / /tmp rw - tmpfs tricky\\040path rw";
+	entry = sc_parse_mountinfo_entry(line);
 	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
-	g_assert_cmpstr(entry->mount_source, ==, "no thing");
+	g_assert_nonnull(entry);
+	g_assert_cmpstr(entry->mount_source, ==, "tricky path");
+
+	// kernel escapes newlines as \012
+	line = "2 1 0:54 / /tmp rw - tmpfs tricky\\012path rw";
+	entry = sc_parse_mountinfo_entry(line);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
+	g_assert_nonnull(entry);
+	g_assert_cmpstr(entry->mount_source, ==, "tricky\npath");
+
+	// kernel escapes tabs as \011
+	line = "2 1 0:54 / /tmp rw - tmpfs tricky\\011path rw";
+	entry = sc_parse_mountinfo_entry(line);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
+	g_assert_nonnull(entry);
+	g_assert_cmpstr(entry->mount_source, ==, "tricky\tpath");
+
+	// kernel escapes forward slashes as \057
+	line = "2 1 0:54 / /tmp rw - tmpfs tricky\\057path rw";
+	entry = sc_parse_mountinfo_entry(line);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
+	g_assert_nonnull(entry);
+	g_assert_cmpstr(entry->mount_source, ==, "tricky/path");
 }
 
 static void test_parse_mountinfo_entry__broken_octal_escaping(void)
 {
-    // Invalid octal escape sequences are left intact.
+	// Invalid octal escape sequences are left intact.
 	const char *line =
 	    "2074 27 0:54 / /tmp/strange-dir rw,relatime shared:1039 - tmpfs no\\888thing rw\\";
 	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
