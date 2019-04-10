@@ -5643,7 +5643,7 @@ func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]s
 	slot := repo.Slot("core", expectedName)
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, Equals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
@@ -5707,7 +5707,7 @@ func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
 	slot := repo.Slot("core", "hotplugslot-old-name")
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
@@ -5768,7 +5768,7 @@ func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "newfoo"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)

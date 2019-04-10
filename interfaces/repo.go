@@ -765,7 +765,7 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 }
 
 // ConnectionsForHotplugKey returns all hotplug connections for given interface name and hotplug key.
-func (r *Repository) ConnectionsForHotplugKey(ifaceName, hotplugKey string) ([]*ConnRef, error) {
+func (r *Repository) ConnectionsForHotplugKey(ifaceName string, hotplugKey snap.HotplugKey) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -788,7 +788,7 @@ func (r *Repository) ConnectionsForHotplugKey(ifaceName, hotplugKey string) ([]*
 
 // SlotForHotplugKey returns a hotplug slot for given interface name and hotplug key or nil
 // if there is no slot.
-func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.SlotInfo, error) {
+func (r *Repository) SlotForHotplugKey(ifaceName string, hotplugKey snap.HotplugKey) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -807,7 +807,7 @@ func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.Slot
 
 // UpdateHotplugSlotAttrs updates static attributes of hotplug slot associated with given hotplugkey, and returns the resulting
 // slot. Slots can only be updated if not connected to any plug.
-func (r *Repository) UpdateHotplugSlotAttrs(ifaceName, hotplugKey string, staticAttrs map[string]interface{}) (*snap.SlotInfo, error) {
+func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.HotplugKey, staticAttrs map[string]interface{}) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
