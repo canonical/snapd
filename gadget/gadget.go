@@ -322,15 +322,14 @@ func validateVolume(name string, vol *Volume) error {
 	// for validating structure overlap
 	structures := make([]PositionedStructure, len(vol.Structure))
 
-	lastOffset := Size(0)
-	farthestEnd := Size(0)
+	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		start := s.Offset
 		if start == 0 {
-			start = lastOffset
+			start = previousEnd
 		}
 		end := start + s.Size
 		ps := PositionedStructure{
@@ -347,10 +346,7 @@ func validateVolume(name string, vol *Volume) error {
 			knownStructures[s.Name] = &ps
 		}
 
-		if end > farthestEnd {
-			farthestEnd = end
-		}
-		lastOffset = end
+		previousEnd = end
 	}
 
 	// sort by starting offset

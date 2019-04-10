@@ -670,7 +670,7 @@ filesystem: none
 size: 446`
 	typeAsMBRTooLarge := `
 type: mbr
-size: 467`
+size: 447`
 	typeConflictsRole := `
 type: bare
 role: system-data
