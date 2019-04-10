@@ -202,7 +202,7 @@ static void test_parse_mountinfo_entry__octal_escaping(void)
 
 static void test_parse_mountinfo_entry__broken_octal_escaping(void)
 {
-	// The kernel escapes some things as octal \012
+    // Invalid octal escape sequences are left intact.
 	const char *line =
 	    "2074 27 0:54 / /tmp/strange-dir rw,relatime shared:1039 - tmpfs no\\888thing rw\\";
 	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
