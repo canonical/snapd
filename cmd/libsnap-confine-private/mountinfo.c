@@ -188,6 +188,10 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 				output[output_idx] =
 				    ((s[1] - '0') << 6) |
 				    ((s[2] - '0') << 3) | ((s[3] - '0'));
+				// Skip over the escaped sequence. Note that
+				// input_idx is automatically advanced in each
+				// loop iteration and that handles the initial
+				// trigger character '/'.
 				input_idx += 3;
 			} else {
 			    // Partial escape sequence, copy verbatim and
