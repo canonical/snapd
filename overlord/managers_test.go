@@ -3128,13 +3128,21 @@ func makeModelAssertion(c *C, brandSigning *assertstest.SigningDB, modelExtra ma
 	return model.(*asserts.Model)
 }
 
-func (ms *mgrsSuite) TestRemodelRequiredSnapsAddedRemoved(c *C) {
-	// make "foo" snap available in the store
-	ms.prereqSnapAssertions(c)
-	snapYamlContent := `name: foo
-version: 1.0`
-	snapPath, _ := ms.makeStoreTestSnap(c, snapYamlContent, "42")
-	ms.serveSnap(snapPath, "42")
+// byReadyTime sorts a list of tasks by their "ready" time
+type byReadyTime []*state.Task
+
+func (a byReadyTime) Len() int           { return len(a) }
+func (a byReadyTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byReadyTime) Less(i, j int) bool { return a[i].ReadyTime().Before(a[j].ReadyTime()) }
+
+func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
+	for _, name := range []string{"foo", "bar", "baz"} {
+		ms.prereqSnapAssertions(c, map[string]interface{}{
+			"snap-name": name,
+		})
+		snapPath, _ := ms.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", name), "1")
+		ms.serveSnap(snapPath, "1")
+	}
 
 	mockServer := ms.mockStore(c)
 	defer mockServer.Close()
@@ -3177,16 +3185,18 @@ version: 1.0`
 
 	// create a new model
 	newModel := makeModelAssertion(c, brandSigning, map[string]interface{}{
-		"required-snaps": []interface{}{"foo"},
+		"required-snaps": []interface{}{"foo", "bar", "baz"},
 		"revision":       "1",
 	})
 
 	tss, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
-	c.Check(tss, HasLen, 2)
+	c.Check(tss, HasLen, 4)
 	chg.AddAll(tss[0])
 	chg.AddAll(tss[1])
+	chg.AddAll(tss[2])
+	chg.AddAll(tss[3])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -3201,8 +3211,9 @@ version: 1.0`
 	c.Assert(err, IsNil)
 	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
-	c.Check(info.Revision, Equals, snap.R(42))
+	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.Version, Equals, "1.0")
+
 	// and marked required
 	c.Check(snapst.Required, Equals, true)
 
@@ -3215,6 +3226,44 @@ version: 1.0`
 	err = snapstate.Get(st, "old-required-snap-1", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Required, Equals, false)
+
+	// ensure sorting is correct
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	var i int
+	// first all downloads/checks in sequential order
+	for _, name := range []string{"foo", "bar", "baz"} {
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Ensure prerequisites for "%s" are available`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Download snap "%s" (1) from channel "stable"`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Fetch and check assertions for snap "%s" (1)`, name))
+		i++
+	}
+	// then all installs in sequential order
+	for _, name := range []string{"foo", "bar", "baz"} {
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (1)`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (1) security profiles`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (1) available to the system`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Run install hook of "%s" snap if present`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (1) services`, name))
+		i++
+		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
+		i++
+	}
 }
 
 func (ms *mgrsSuite) TestRemodelDifferentBase(c *C) {
