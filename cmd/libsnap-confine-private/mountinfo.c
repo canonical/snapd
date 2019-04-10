@@ -180,6 +180,11 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			s = &input[input_idx];
 			if (is_octal_digit(s[1]) && is_octal_digit(s[2])
 			    && is_octal_digit(s[3])) {
+				// Unescape the octal value encoded in s[1], s[2]
+				// and s[3]. Note that since we have not advanced
+				// input_idx yet, s[0] is the escape character '/'.
+				// Because we are working with byte values there
+				// are no issues related to byte order.
 				output[output_idx] =
 				    ((s[1] - '0') << 6) |
 				    ((s[2] - '0') << 3) | ((s[3] - '0'));
