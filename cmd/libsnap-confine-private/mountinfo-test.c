@@ -186,18 +186,7 @@ static void test_parse_mountinfo_entry__octal_escaping(void)
 	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
 	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
-	g_assert_cmpint(entry->mount_id, ==, 2074);
-	g_assert_cmpint(entry->parent_id, ==, 27);
-	g_assert_cmpint(entry->dev_major, ==, 0);
-	g_assert_cmpint(entry->dev_minor, ==, 54);
-	g_assert_cmpstr(entry->root, ==, "/");
-	g_assert_cmpstr(entry->mount_dir, ==, "/tmp/strange-dir");
-	g_assert_cmpstr(entry->mount_opts, ==, "rw,relatime");
-	g_assert_cmpstr(entry->optional_fields, ==, "shared:1039");
-	g_assert_cmpstr(entry->fs_type, ==, "tmpfs");
 	g_assert_cmpstr(entry->mount_source, ==, "no thing");
-	g_assert_cmpstr(entry->super_opts, ==, "rw");
-	g_assert_null(entry->next);
 }
 
 static void test_parse_mountinfo_entry__broken_octal_escaping(void)
