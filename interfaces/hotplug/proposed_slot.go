@@ -33,7 +33,7 @@ type Definer interface {
 
 // HotplugKeyHandler can be implemented by interfaces that need to provide a non-standard key for hotplug devices.
 type HotplugKeyHandler interface {
-	HotplugKey(di *HotplugDeviceInfo) (string, error)
+	HotplugKey(di *HotplugDeviceInfo) (snap.HotplugKey, error)
 }
 
 // HandledByGadgetPredicate can be implemented by hotplug interfaces to decide whether a device is already handled by given gadget slot.
