@@ -35,14 +35,19 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/upstart/"
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
+BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
 # Disable -buildmode=pie mode on i386 as can panics in spectacular
 # ways (LP: #1711052).
 # See also https://forum.snapcraft.io/t/artful-i386-panics/
 # Note while the panic is only on artful, that's because artful
 # detects it; the issue potentially there on older things.
-BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
+#
+# Disable -buildmode=pie mode on armhf as this may lead to nasty
+# memory exaustion issues (LP: #1822738)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),i386)
-BUILDFLAGS+= -buildmode=pie
+ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),armhf)
+  BUILDFLAGS+= -buildmode=pie
+ endif
 endif
 
 GCCGOFLAGS=
