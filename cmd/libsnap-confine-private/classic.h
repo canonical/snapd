@@ -30,6 +30,4 @@ typedef enum sc_distro {
 
 sc_distro sc_classify_distro(void);
 
-bool sc_should_use_normal_mode(sc_distro distro, const char *base_snap_name);
-
 #endif

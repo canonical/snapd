@@ -244,7 +244,7 @@ static void test_parse_mountinfo_entry__unescaped_whitespace(void)
 	g_assert_null(entry->next);
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/sysfs",
 			test_parse_mountinfo_entry__sysfs);

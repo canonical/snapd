@@ -74,7 +74,7 @@ static const struct sc_bool_name sc_bool_names[] = {
  *
  * If the text cannot be recognized, the default value is used.
  **/
-static int parse_bool(const char *text, bool * value, bool default_value)
+static int parse_bool(const char *text, bool *value, bool default_value)
 {
 	if (value == NULL) {
 		errno = EFAULT;

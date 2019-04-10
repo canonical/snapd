@@ -38,14 +38,19 @@
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "cookie-support.h"
 #include "mount-support.h"
 #include "ns-support.h"
 #include "seccomp-support.h"
 #include "snap-confine-args.h"
+#include "snap-confine-invocation.h"
 #include "udev-support.h"
 #include "user-support.h"
+#ifdef HAVE_SELINUX
+#include "selinux-support.h"
+#endif
 
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
@@ -73,7 +78,8 @@ static void sc_maybe_fixup_permissions(void)
 static void sc_maybe_fixup_udev(void)
 {
 	glob_t glob_res SC_CLEANUP(globfree) = {
-	.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,};
+		.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,
+	};
 	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
 	int err = glob(glob_pattern, 0, NULL, &glob_res);
 	if (err == GLOB_NOMATCH) {
@@ -94,14 +100,40 @@ static void sc_maybe_fixup_udev(void)
 	}
 }
 
-typedef struct sc_invocation {
-	/* Things declared by the system. */
-	const char *base_snap_name;
-	const char *security_tag;
-	const char *snap_instance;
-	/* Things derived at runtime. */
-	bool is_normal_mode;
-} sc_invocation;
+/**
+ * sc_preserved_process_state remembers clobbered state to restore.
+ *
+ * The umask is preserved and restored to ensure consistent permissions for
+ * runtime system. The value is preserved and restored perfectly.
+**/
+typedef struct sc_preserved_process_state {
+	mode_t orig_umask;
+} sc_preserved_process_state;
+
+/**
+ * sc_preserve_and_sanitize_process_state sanitizes process state.
+ *
+ * The original values are stored to be restored later. Currently only the
+ * umask is altered. It is set to zero to make the ownership of created files
+ * and directories more predictable.
+**/
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
+						   proc_state)
+{
+	/* Reset umask to zero, storing the old value. */
+	proc_state->orig_umask = umask(0);
+	debug("umask reset, old umask was %#4o", proc_state->orig_umask);
+}
+
+/**
+ *  sc_restore_process_state restores values stored earlier.
+**/
+static void sc_restore_process_state(const sc_preserved_process_state *
+				     proc_state)
+{
+	umask(proc_state->orig_umask);
+	debug("umask restored to %#4o", proc_state->orig_umask);
+}
 
 static void enter_classic_execution_environment(void);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
@@ -115,8 +147,14 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
+	sc_preserved_process_state proc_state;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
+
+	// Remember certain properties of the process that are clobbered by
+	// snap-confine during execution. Those are restored just before calling
+	// execv.
+	sc_preserve_and_sanitize_process_state(&proc_state);
 
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
@@ -124,29 +162,15 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	const char *snap_instance = getenv("SNAP_INSTANCE_NAME");
-	if (snap_instance == NULL) {
+	/* Collect all invocation parameters. This gives us authoritative
+	 * information about what needs to be invoked and how. The data comes
+	 * from either the environment or from command line arguments */
+	sc_invocation SC_CLEANUP(sc_cleanup_invocation) invocation;
+	const char *snap_instance_name_env = getenv("SNAP_INSTANCE_NAME");
+	if (snap_instance_name_env == NULL) {
 		die("SNAP_INSTANCE_NAME is not set");
 	}
-	sc_instance_name_validate(snap_instance, NULL);
-
-	// Collect and validate the security tag and a few other things passed on
-	// command line.
-	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag, snap_instance)) {
-		die("security tag %s not allowed", security_tag);
-	}
-	const char *executable = sc_args_executable(args);
-	const char *base_snap_name = sc_args_base_snap(args) ? : "core";
-	bool classic_confinement = sc_args_is_classic_confinement(args);
-
-	sc_snap_name_validate(base_snap_name, NULL);
-
-	debug("security tag: %s", security_tag);
-	debug("executable:   %s", executable);
-	debug("confinement:  %s",
-	      classic_confinement ? "classic" : "non-classic");
-	debug("base snap:    %s", base_snap_name);
+	sc_init_invocation(&invocation, args, snap_instance_name_env);
 
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;
@@ -176,9 +200,10 @@ int main(int argc, char **argv)
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
-	if (!sc_is_hook_security_tag(security_tag)) {
+	if (!sc_is_hook_security_tag(invocation.security_tag)) {
 		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-		snap_context = sc_cookie_get_from_snapd(snap_instance, &err);
+		snap_context =
+		    sc_cookie_get_from_snapd(invocation.snap_instance, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));
 		}
@@ -197,24 +222,13 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
-
-	/* Invocation helps to pass relevant data to various parts of snap-confine. */
-	sc_invocation invocation = {
-		.snap_instance = snap_instance,
-		.base_snap_name = base_snap_name,
-		.security_tag = security_tag,
-		/* is_normal_mode is not probed yet */
-	};
-	/* For the ease of introducing inv to the if branch below. */
-	sc_invocation *inv = &invocation;
-	struct sc_apparmor *aa = &apparmor;
-
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
-		if (classic_confinement) {
+		if (invocation.classic_confinement) {
 			enter_classic_execution_environment();
 		} else {
-			enter_non_classic_execution_environment(inv, aa,
+			enter_non_classic_execution_environment(&invocation,
+								&apparmor,
 								real_uid,
 								real_gid,
 								saved_gid);
@@ -237,8 +251,12 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-	sc_maybe_aa_change_onexec(aa, security_tag);
-	if (sc_apply_seccomp_profile_for_security_tag(security_tag)) {
+	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
+#ifdef HAVE_SELINUX
+	// For classic and confined snaps
+	sc_selinux_set_snap_execcon();
+#endif
+	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		/* If the process is not explicitly unconfined then load the global
 		 * profile as well. */
 		sc_apply_global_seccomp_profile();
@@ -263,12 +281,14 @@ int main(int argc, char **argv)
 			die("permanently dropping privs did not work");
 	}
 	// and exec the new executable
-	argv[0] = (char *)executable;
-	debug("execv(%s, %s...)", executable, argv[0]);
+	argv[0] = (char *)invocation.executable;
+	debug("execv(%s, %s...)", invocation.executable, argv[0]);
 	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
-	execv(executable, (char *const *)&argv[0]);
+	// Restore process state that was recorded earlier.
+	sc_restore_process_state(&proc_state);
+	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
 }
@@ -327,21 +347,44 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	struct sc_mount_ns *group = NULL;
 	group = sc_open_mount_ns(inv->snap_instance);
 
-	// Check if we are running in normal mode with pivot root. Do this here
-	// because once on the inside of the transformed mount namespace we can no
-	// longer tell.
-	inv->is_normal_mode = sc_should_use_normal_mode(sc_classify_distro(),
-							inv->base_snap_name);
+	// Init and check rootfs_dir, apply any fallback behaviors.
+	sc_check_rootfs_dir(inv);
+
+	/**
+	 * is_normal_mode controls if we should pivot into the base snap.
+	 *
+	 * There are two modes of execution for snaps that are not using classic
+	 * confinement: normal and legacy. The normal mode is where snap-confine
+	 * sets up a rootfs and then pivots into it using pivot_root(2). The legacy
+	 * mode is when snap-confine just unshares the initial mount namespace,
+	 * makes some extra changes but largely runs with what was presented to it
+	 * initially.
+	 *
+	 * Historically the ubuntu-core distribution used the now-legacy mode. This
+	 * was sensible then since snaps already (kind of) have the right root
+	 * file-system and just need some privacy and isolation features applied.
+	 * With the introduction of snaps to classic distributions as well as the
+	 * introduction of bases, where each snap can use a different root
+	 * filesystem, this lost sensibility and thus became legacy.
+	 *
+	 * For compatibility with current installations of ubuntu-core
+	 * distributions the legacy mode is used when: the distribution is
+	 * SC_DISTRO_CORE16 or when the base snap name is not "core" or
+	 * "ubuntu-core".
+	 *
+	 * The SC_DISTRO_CORE16 is applied to systems that boot with the "core",
+	 * "ubuntu-core" or "core16" snap. Systems using the "core18" base snap do
+	 * not qualify for that classification.
+	 **/
+	sc_distro distro = sc_classify_distro();
+	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
+		!sc_streq(inv->orig_base_snap_name, "core");
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */
 	sc_fork_helper(group, aa);
-	int retval = sc_join_preserved_ns(group, aa,
-					  inv->base_snap_name,
-					  inv->snap_instance,
-					  snap_discard_ns_fd,
-					  inv->is_normal_mode);
+	int retval = sc_join_preserved_ns(group, aa, inv, snap_discard_ns_fd);
 	if (retval == ESRCH) {
 		/* Create and populate the mount namespace. This performs all
 		   of the bootstrapping mounts, pivots into the new root filesystem and
@@ -350,9 +393,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		sc_populate_mount_ns(aa,
-				     snap_update_ns_fd, inv->base_snap_name,
-				     inv->snap_instance, inv->is_normal_mode);
+		sc_populate_mount_ns(aa, snap_update_ns_fd, inv);
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
@@ -382,7 +423,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			 * entirely ephemeral. In addition the call
 			 * sc_join_preserved_user_ns() will never find a preserved mount
 			 * namespace and will always enter this code branch. */
-			if (sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE)) {
+			if (sc_feature_enabled
+			    (SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
 				sc_preserve_populated_per_user_mount_ns(group);
 			} else {
 				debug

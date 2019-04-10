@@ -29,14 +29,6 @@ func MockTemplate(fakeTemplate []byte) (restore func()) {
 	return func() { defaultTemplate = orig }
 }
 
-func MockOsReadlink(f func(string) (string, error)) (restore func()) {
-	realOsReadlink := osReadlink
-	osReadlink = f
-	return func() {
-		osReadlink = realOsReadlink
-	}
-}
-
 func MockKernelFeatures(f func() []string) (resture func()) {
 	old := kernelFeatures
 	kernelFeatures = f
@@ -83,6 +75,10 @@ func MockSeccompCompilerLookup(f func(string) (string, error)) (restore func()) 
 	return func() {
 		seccompCompilerLookup = old
 	}
+}
+
+func (b *Backend) VersionInfo() string {
+	return b.versionInfo
 }
 
 var (

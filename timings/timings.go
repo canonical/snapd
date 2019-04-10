@@ -80,6 +80,14 @@ func New(tags map[string]string) *Timings {
 	}
 }
 
+// AddTag sets a tag on the Timings object.
+func (t *Timings) AddTag(tag, value string) {
+	if t.tags == nil {
+		t.tags = make(map[string]string)
+	}
+	t.tags[tag] = value
+}
+
 func startSpan(label, summary string) *Span {
 	tmeas := &Span{
 		label:   label,

@@ -306,28 +306,25 @@ enum sc_discard_vote {
 // inspect the namespace and send information back via eventfd and then exit
 // unconditionally.
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
-						 const char *snap_name,
-						 const char *base_snap_name,
-						 int snap_discard_ns_fd,
-						 bool is_normal_mode)
+						 const sc_invocation * inv,
+						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
-	char fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
 	// Read the revision of the base snap by looking at the current symlink.
-	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
-			 SNAP_MOUNT_DIR, base_snap_name);
-	if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
-		die("cannot read current revision of snap %s", snap_name);
+	if (readlink(inv->rootfs_dir, base_snap_rev, sizeof base_snap_rev) < 0) {
+		die("cannot read current revision of snap %s",
+		    inv->snap_instance);
 	}
 	if (base_snap_rev[sizeof base_snap_rev - 1] != '\0') {
 		die("cannot read current revision of snap %s: value too long",
-		    snap_name);
+		    inv->snap_instance);
 	}
 	// Find the device that is backing the current revision of the base snap.
-	base_snap_dev = find_base_snap_device(base_snap_name, base_snap_rev);
+	base_snap_dev =
+	    find_base_snap_device(inv->base_snap_name, base_snap_rev);
 
 	// Store the PID of this process. This is done instead of calls to
 	// getppid() below because then we can reliably track the PID of the
@@ -383,8 +380,8 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
 		bool should_discard =
-		    is_normal_mode ? should_discard_current_ns(base_snap_dev) :
-		    false;
+		    inv->is_normal_mode ?
+		    should_discard_current_ns(base_snap_dev) : false;
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
@@ -422,7 +419,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		return 0;
 	}
 	// The namespace is stale, let's check if we can discard it.
-	if (sc_cgroup_freezer_occupied(snap_name)) {
+	if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
 		// Some processes are still using the namespace so we cannot discard it
 		// as that would fracture the view that the set of processes inside
 		// have on what is mounted.
@@ -430,7 +427,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
-	sc_call_snap_discard_ns(snap_discard_ns_fd, snap_name);
+	sc_call_snap_discard_ns(snap_discard_ns_fd, inv->snap_instance);
 	return EAGAIN;
 }
 
@@ -442,9 +439,8 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
-			 *apparmor, const char *base_snap_name,
-			 const char *snap_name, int snap_discard_ns_fd,
-			 bool is_normal_mode)
+			 *apparmor, const sc_invocation * inv,
+			 int snap_discard_ns_fd)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -485,8 +481,7 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 
 		// Inspect and perhaps discard the preserved mount namespace.
 		if (sc_inspect_and_maybe_discard_stale_ns
-		    (mnt_fd, snap_name, base_snap_name,
-		     snap_discard_ns_fd, is_normal_mode) == EAGAIN) {
+		    (mnt_fd, inv, snap_discard_ns_fd) == EAGAIN) {
 			return ESRCH;
 		}
 		// Remember the vanilla working directory so that we may attempt to restore it later.

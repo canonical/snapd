@@ -146,7 +146,7 @@ static void test_nsfs_fs_id(void)
 	g_assert_cmpint(buf.f_type, ==, NSFS_MAGIC);
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
 	g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);

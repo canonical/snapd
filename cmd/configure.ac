@@ -64,6 +64,17 @@ AC_ARG_ENABLE([apparmor],
     esac], [enable_apparmor=yes])
 AM_CONDITIONAL([APPARMOR], [test "x$enable_apparmor" = "xyes"])
 
+# Allow to build with SELinux support by calling:
+# ./configure --enable-selinux
+AC_ARG_ENABLE([selinux],
+    AS_HELP_STRING([--enable-selinux], [Enable SELinux support]),
+    [case "${enableval}" in
+        yes) enable_selinux=yes ;;
+        no)  enable_selinux=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-selinux])
+    esac], [enable_selinux=no])
+AM_CONDITIONAL([SELINUX], [test "x$enable_selinux" = "xyes"])
+
 # Enable older tests only when confinement is enabled and we're building for PC
 # The tests are of smaller value as we port more and more tests to spread.
 AM_CONDITIONAL([CONFINEMENT_TESTS], [test "x$enable_apparmor" = "xyes" && ((test "x$host_cpu" = "xx86_64" && test "x$build_cpu" = "xx86_64") || (test "x$host_cpu" = "xi686" && test "x$build_cpu" = "xi686"))])
@@ -84,6 +95,12 @@ AS_IF([test "x$enable_apparmor" = "xyes"], [
     X Apparmor is disabled, all snaps will run in devmode X
     X                                                     X
     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX])
+])
+
+# Check if SELinux userspace library is available.
+AS_IF([test "x$enable_selinux" = "xyes"], [
+PKG_CHECK_MODULES([SELINUX], [libselinux], [
+AC_DEFINE([HAVE_SELINUX], [1], [Build with SELinux support])])
 ])
 
 # Check if udev and libudev are available.
@@ -163,6 +180,7 @@ AC_PATH_PROG([HAVE_VALGRIND],[valgrind])
 AM_CONDITIONAL([HAVE_VALGRIND], [test "x${HAVE_VALGRIND}" != "x"])
 AS_IF([test "x$HAVE_VALGRIND" = "x"], [AC_MSG_WARN(["cannot find the valgrind tool, will not run unit tests through valgrind"])])
 
+# Allow linking selected libraries statically for reexec.
 AC_ARG_ENABLE([static-libcap],
     AS_HELP_STRING([--enable-static-libcap], [Link libcap statically]),
     [case "${enableval}" in
@@ -180,6 +198,15 @@ AC_ARG_ENABLE([static-libapparmor],
         *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libapparmor])
     esac], [enable_static_libapparmor=no])
 AM_CONDITIONAL([STATIC_LIBAPPARMOR], [test "x$enable_static_libapparmor" = "xyes"])
+
+AC_ARG_ENABLE([static-libselinux],
+AS_HELP_STRING([--enable-static-libselinux], [Link libselinux statically]),
+[case "${enableval}" in
+yes) enable_static_libselinux=yes ;;
+no)  enable_static_libselinux=no ;;
+*) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libselinux])
+esac], [enable_static_libselinux=no])
+AM_CONDITIONAL([STATIC_LIBSELINUX], [test "x$enable_static_libselinux" = "xyes"])
 
 LIB32_DIR="${prefix}/lib32"
 AC_ARG_WITH([32bit-libdir],
