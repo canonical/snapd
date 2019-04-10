@@ -3342,9 +3342,9 @@ type: base`
 }
 
 func (ms *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
