@@ -41,7 +41,8 @@ func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState
 	for crefStr, cstate := range connsState {
 		cref, err := interfaces.ParseConnRef(crefStr)
 		c.Assert(err, check.IsNil)
-		if undesiredRaw, ok := cstate.(map[string]interface{})["undesired"]; ok {
+		conn := cstate.(map[string]interface{})
+		if undesiredRaw, ok := conn["undesired"]; ok {
 			undesired, ok := undesiredRaw.(bool)
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected value for key 'undesired': %v", cstate))
 			if undesired {
@@ -49,7 +50,11 @@ func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState
 				continue
 			}
 		}
-		_, err = repo.Connect(cref, nil, nil, nil, nil, nil)
+		staticPlugAttrs, _ := conn["plug-static"].(map[string]interface{})
+		dynamicPlugAttrs, _ := conn["plug-dynamic"].(map[string]interface{})
+		staticSlotAttrs, _ := conn["slot-static"].(map[string]interface{})
+		dynamicSlotAttrs, _ := conn["slot-dynamic"].(map[string]interface{})
+		_, err = repo.Connect(cref, staticPlugAttrs, dynamicPlugAttrs, staticSlotAttrs, dynamicSlotAttrs, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -585,6 +590,18 @@ func (s *apiSuite) TestConnectionsDefaultAuto(c *check.C) {
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"auto":      true,
+			"plug-static": map[string]interface{}{
+				"key": "value",
+			},
+			"plug-dynamic": map[string]interface{}{
+				"foo-plug-dynamic": "bar-dynamic",
+			},
+			"slot-static": map[string]interface{}{
+				"key": "value",
+			},
+			"slot-dynamic": map[string]interface{}{
+				"foo-slot-dynamic": "bar-dynamic",
+			},
 		},
 	}, map[string]interface{}{
 		"result": map[string]interface{}{
@@ -619,6 +636,14 @@ func (s *apiSuite) TestConnectionsDefaultAuto(c *check.C) {
 					"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
 					"interface": "test",
+					"plug-attrs": map[string]interface{}{
+						"key":              "value",
+						"foo-plug-dynamic": "bar-dynamic",
+					},
+					"slot-attrs": map[string]interface{}{
+						"key":              "value",
+						"foo-slot-dynamic": "bar-dynamic",
+					},
 				},
 			},
 		},
@@ -756,6 +781,32 @@ func (s *apiSuite) TestConnectionsOnlyUndesired(c *check.C) {
 			"by-gadget": true,
 			"auto":      true,
 			"undesired": true,
+		},
+	}, map[string]interface{}{
+		"result": map[string]interface{}{
+			"established": []interface{}{},
+			"plugs":       []interface{}{},
+			"slots":       []interface{}{},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
+}
+
+func (s *apiSuite) TestConnectionsHotplugGone(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": true,
 		},
 	}, map[string]interface{}{
 		"result": map[string]interface{}{

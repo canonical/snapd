@@ -685,6 +685,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/var/lib/snapd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd/hostfs", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/var/lib/snapd/hostfs" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/firmware", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/firmware" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/modules", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/modules" in an off-limits area`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)

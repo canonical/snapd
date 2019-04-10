@@ -78,6 +78,8 @@ var (
 	LintDesc = lintDesc
 
 	FixupArg = fixupArg
+
+	InterfacesDeprecationNotice = interfacesDeprecationNotice
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -213,7 +215,10 @@ func Wait(cli *client.Client, id string) (*client.Change, error) {
 }
 
 func ColorMixin(cmode, umode string) colorMixin {
-	return colorMixin{Color: cmode, Unicode: umode}
+	return colorMixin{
+		Color:        cmode,
+		unicodeMixin: unicodeMixin{Unicode: umode},
+	}
 }
 
 func CmdAdviseSnap() *cmdAdviseSnap {
