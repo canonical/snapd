@@ -60,6 +60,10 @@ const (
 	UseConfigDefaults
 )
 
+const (
+	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
+)
+
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
 		return nil
@@ -71,6 +75,16 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
@@ -80,11 +94,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			tr := config.NewTransaction(st)
-			experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-			if err != nil && !config.IsNoOption(err) {
-				return nil, err
-			}
 			if !experimentalAllowSnapd {
 				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 			}
@@ -123,6 +132,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
+
+		if experimentalRefreshAppAwareness {
+			if err := SoftNothingRunningRefreshCheck(info); err != nil {
+				// TODO Remember the inhibition time in snap state.
+				return nil, err
+			}
+		}
 	}
 
 	ts := state.NewTaskSet()
@@ -159,9 +175,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 	prev = prepare
 
+	var checkAsserts *state.Task
 	if fromStore {
 		// fetch and check assertions
-		checkAsserts := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
+		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(checkAsserts)
 		prev = checkAsserts
 	}
@@ -307,6 +324,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
 	ts.AddAll(installSet)
+	if checkAsserts != nil {
+		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
+	}
 
 	if flags&skipConfigure != 0 {
 		return installSet, nil
