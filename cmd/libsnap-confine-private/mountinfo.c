@@ -170,7 +170,7 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			}
 			// The scanned line is NUL terminated. This ensures that the
 			// terminator is copied to the output buffer.
-			output[output_idx++] = '\0';
+			output[output_idx] = '\0';
 			// NOTE: we are no longer advancing the reading index
 			// because we reached the end of the buffer.
 			break;
@@ -178,7 +178,7 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			// Fields are space delimited or end-of-string terminated.
 			// Represent either as the end-of-string marker, skip over it,
 			// and stop parsing.
-			output[output_idx++] = '\0';
+			output[output_idx] = '\0';
 			// Advance the reading index by one.
 			input_idx++;
 			// Note that while we are breaking out of the loop the
