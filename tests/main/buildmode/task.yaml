@@ -7,9 +7,9 @@ execute: |
     # -buildmode=pie
     needle="DYNAMIC"
     
-    # armhf/i386 build without -buildmode=pie as it breaks too many
-    # things if we do.
-    if [ "$(uname -m)" = armv7l ] || [ "$(uname -m)" = i686 ]; then
+    # 32bit arches (like armhf/i386) are build without -buildmode=pie
+    # as it breaks too many things if we do.
+    if [ "$(getconf LONG_BIT)" = 32 ]; then
         # and "EXEC_P" when the buildmode is "normal"
         needle="EXEC_P"
     fi
