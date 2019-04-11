@@ -39,7 +39,7 @@ type JackInterfaceSuite struct {
 }
 
 var _ = Suite(&JackInterfaceSuite{
-	iface: builtin.MustInterface("jack"),
+	iface: builtin.MustInterface("jack1"),
 })
 
 func (s *JackInterfaceSuite) SetUpTest(c *C) {
@@ -48,32 +48,32 @@ version: 1.0
 apps:
  app:
   command: foo
-  plugs: [jack]
+  plugs: [jack1]
 `
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "jack",
-		Interface: "jack",
+		Name:      "jack1",
+		Interface: "jack1",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["jack"]
+	s.plugInfo = snapInfo.Plugs["jack1"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *JackInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "jack")
+	c.Assert(s.iface.Name(), Equals, "jack1")
 }
 
 func (s *JackInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "jack",
-		Interface: "jack",
+		Name:      "jack1",
+		Interface: "jack1",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"jack slots are reserved for the core snap")
+		"jack1 slots are reserved for the core snap")
 }
 
 func (s *JackInterfaceSuite) TestSanitizePlug(c *C) {

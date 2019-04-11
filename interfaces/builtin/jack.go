@@ -42,7 +42,7 @@ owner /dev/shm/jack-[0-9]*/*/* rw,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "jack",
+		name:                  "jack1",
 		summary:               jackSummary,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  jackBaseDeclarationSlots,
