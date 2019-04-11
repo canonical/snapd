@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -91,14 +92,50 @@ type changeTimings struct {
 	UndoingTimings []*timings.TimingJSON `json:"undoing-timings,omitempty"`
 }
 
-func getChangeTimings(st *state.State, changeID string) Response {
+type debugTimings struct {
+	ChangeID      string                    `json:"change-id"`
+	EnsureTimings []*timings.TimingJSON     `json:"ensure-timings,omitempty"`
+	ChangeTimings map[string]*changeTimings `json:"change-timings,omitempty"`
+}
+
+func getChangeTimings(st *state.State, changeID, ensureID string) Response {
+	doingTimingsByTask := make(map[string][]*timings.TimingJSON)
+	undoingTimingsByTask := make(map[string][]*timings.TimingJSON)
+
+	var err error
+	var ensureTimings []*timings.TimingJSON
+	// if ensureID was passed by the client, find its related change
+	if ensureID != "" {
+		ensures, err := timings.Get(st, -1, func(tags map[string]string) bool {
+			return tags["ensure"] == ensureID
+		})
+		if err != nil {
+			return InternalError("cannot get timings of ensure %s: %v", ensureID, err)
+		}
+		if len(ensures) == 0 {
+			return BadRequest("cannot find ensure: %v", ensureID)
+		}
+		if len(ensures) > 1 {
+			var changes []string
+			for _, ensure := range ensures {
+				if chg, ok := ensure.Tags[""]; ok {
+					changes = append(changes, chg)
+				}
+			}
+			return BadRequest("multiple timings found for ensure %q, please specify change ID (%s)", ensureID, strings.Join(changes, ","))
+		}
+		ensureChangeID := ensures[0].Tags["change-id"]
+		if changeID != "" && ensureChangeID != changeID {
+			return InternalError("the requested change %s doesn't match change ID of the requested ensure %q", changeID, ensureID)
+		}
+		changeID = ensureChangeID
+		ensureTimings = ensures[0].NestedTimings
+	}
+
 	chg := st.Change(changeID)
 	if chg == nil {
 		return BadRequest("cannot find change: %v", changeID)
 	}
-
-	doingTimingsByTask := make(map[string][]*timings.TimingJSON)
-	undoingTimingsByTask := make(map[string][]*timings.TimingJSON)
 
 	// collect "timings" for tasks of given change
 	stateTimings, err := timings.Get(st, -1, func(tags map[string]string) bool { return tags["change-id"] == changeID })
@@ -119,6 +156,10 @@ func getChangeTimings(st *state.State, changeID string) Response {
 		}
 	}
 
+	debugTm := &debugTimings{
+		ChangeID:      changeID,
+		EnsureTimings: ensureTimings,
+	}
 	m := map[string]*changeTimings{}
 	for _, t := range chg.Tasks() {
 		m[t.ID()] = &changeTimings{
@@ -128,7 +169,8 @@ func getChangeTimings(st *state.State, changeID string) Response {
 			UndoingTimings: undoingTimingsByTask[t.ID()],
 		}
 	}
-	return SyncResponse(m, nil)
+	debugTm.ChangeTimings = m
+	return SyncResponse(debugTm, nil)
 }
 
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -152,7 +194,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	case "change-timings":
 		chgID := query.Get("chg-id")
-		return getChangeTimings(st, chgID)
+		ensureID := query.Get("ensure-id")
+		return getChangeTimings(st, chgID, ensureID)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}

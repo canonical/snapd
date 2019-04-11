@@ -32,7 +32,8 @@ import (
 
 type cmdChangeTimings struct {
 	changeIDMixin
-	Verbose bool `long:"verbose"`
+	EnsureID string `long:"ensure"`
+	Verbose  bool   `long:"verbose"`
 }
 
 func init() {
@@ -42,6 +43,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
+			"ensure": i18n.G("Show timings for changes related to the given Ensure"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Show more information"),
 		}), changeIDMixinArgDesc)
@@ -80,28 +82,57 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	chgid, err := x.GetChangeID()
-	if err != nil {
-		return err
+
+	var chgid string
+	var err error
+	if x.EnsureID == "" || x.Positional.ID != "" {
+		chgid, err = x.GetChangeID()
+		if err != nil {
+			return err
+		}
 	}
 
 	// gather debug timings first
-	var timings map[string]struct {
-		DoingTime      time.Duration `json:"doing-time,omitempty"`
-		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
-		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
-		UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
+	var timings struct {
+		ChangeID      string   `json:"change-id"`
+		EnsureTimings []Timing `json:"ensure-timings,omitempty"`
+		ChangeTimings map[string]struct {
+			DoingTime      time.Duration `json:"doing-time,omitempty"`
+			UndoingTime    time.Duration `json:"undoing-time,omitempty"`
+			DoingTimings   []Timing      `json:"doing-timings,omitempty"`
+			UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
+		}
 	}
 
-	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"chg-id": chgid}); err != nil {
+	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"chg-id": chgid, "ensure-id": x.EnsureID}); err != nil {
 		return err
 	}
+	chgid = timings.ChangeID
 
 	// now combine with the other data about the change
 	chg, err := x.client.Change(chgid)
 	if err != nil {
 		return err
 	}
+
+	if len(timings.EnsureTimings) > 0 {
+		ew := tabWriter()
+		if x.Verbose {
+			fmt.Fprintf(ew, "Duration\tLabel\tSummary\n")
+		} else {
+			fmt.Fprintf(ew, "Duration\tSummary\n")
+		}
+		for _, t := range timings.EnsureTimings {
+			if x.Verbose {
+				fmt.Fprintf(ew, "%s\t%s\t%s\n", formatDuration(t.Duration), t.Label, t.Summary)
+			} else {
+				fmt.Fprintf(ew, "%s\t%s\n", formatDuration(t.Duration), t.Summary)
+			}
+		}
+		fmt.Fprintf(ew, "\n")
+		ew.Flush()
+	}
+
 	w := tabWriter()
 	if x.Verbose {
 		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tLabel\tSummary\n", "Doing", "Undoing")
@@ -109,12 +140,12 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
 	}
 	for _, t := range chg.Tasks {
-		doingTime := formatDuration(timings[t.ID].DoingTime)
-		if timings[t.ID].DoingTime == 0 {
+		doingTime := formatDuration(timings.ChangeTimings[t.ID].DoingTime)
+		if timings.ChangeTimings[t.ID].DoingTime == 0 {
 			doingTime = "-"
 		}
-		undoingTime := formatDuration(timings[t.ID].UndoingTime)
-		if timings[t.ID].UndoingTime == 0 {
+		undoingTime := formatDuration(timings.ChangeTimings[t.ID].UndoingTime)
+		if timings.ChangeTimings[t.ID].UndoingTime == 0 {
 			undoingTime = "-"
 		}
 		summary := t.Summary
@@ -126,11 +157,11 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
 		}
 
-		for _, nested := range timings[t.ID].DoingTimings {
+		for _, nested := range timings.ChangeTimings[t.ID].DoingTimings {
 			showDoing := true
 			printTiming(w, &nested, x.Verbose, showDoing)
 		}
-		for _, nested := range timings[t.ID].UndoingTimings {
+		for _, nested := range timings.ChangeTimings[t.ID].UndoingTimings {
 			showDoing := false
 			printTiming(w, &nested, x.Verbose, showDoing)
 		}
