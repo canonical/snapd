@@ -359,9 +359,9 @@ if APPARMOR
 endif
 	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 
-# NOTE: The 'void' directory *has to* be chmod 000
+# NOTE: The 'void' directory *has to* be chmod 111
 install-data-local::
-	install -d -m 000 $(DESTDIR)/var/lib/snapd/void
+	install -d -m 111 $(DESTDIR)/var/lib/snapd/void
 
 install-exec-hook::
 if CAPS_OVER_SETUID
