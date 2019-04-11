@@ -119,14 +119,18 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
     }
 
     if (sc_streq(inv->base_snap_name, "core16")) {
+        char mount_point[PATH_MAX] = {0};
+
         /* For "core16" we can still use the "core" snap. This is useful
          * to help people transition to core16 bases without requiring
          * two time the diskspace.
          */
-        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, "core");
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, "core");
         if (access(mount_point, F_OK) == 0) {
             sc_cleanup_string(&inv->base_snap_name);
             inv->base_snap_name = sc_strdup("core");
+            sc_cleanup_string(&inv->rootfs_dir);
+            inv->rootfs_dir = sc_strdup(mount_point);
             debug("falling back to core instead of unavailable core16 snap");
             return;
         }
