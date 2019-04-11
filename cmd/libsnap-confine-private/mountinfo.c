@@ -152,7 +152,6 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 {
 	const char *input = &line[*offset];
 	char *output = &entry->line_buf[*offset];
-	const char *s;		// Used for escape logic.
 	size_t input_idx = 0; // reading index
 	size_t output_idx = 0; // writing index
 
@@ -196,7 +195,7 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			// short-circuiting behavior of && makes this check
 			// correct even if '\\' is the last character of the
 			// string.
-			s = &input[input_idx];
+			const char *s = &input[input_idx];
 			if (is_octal_digit(s[1]) && is_octal_digit(s[2])
 			    && is_octal_digit(s[3])) {
 				// Unescape the octal value encoded in s[1],
