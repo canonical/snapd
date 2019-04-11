@@ -179,7 +179,6 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			// Represent either as the end-of-string marker, skip over it,
 			// and stop parsing.
 			output[output_idx] = '\0';
-			// Advance the reading index by one.
 			input_idx++;
 			// Note that while we are breaking out of the loop the
 			// input_idx variable is used to influence an output
@@ -212,13 +211,11 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 				// Partial escape sequence, copy verbatim and
 				// continue (since we don't use this).
 				output[output_idx++] = c;
-				// Advance the reading index by one.
 				input_idx++;
 			}
 		} else {
 			// All other characters are simply copied verbatim.
 			output[output_idx++] = c;
-			// Advance the reading index by one.
 			input_idx++;
 		}
 	}
