@@ -153,8 +153,8 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 	const char *input = &line[*offset];
 	char *output = &entry->line_buf[*offset];
 	const char *s;		// Used for escape logic.
-	size_t input_idx = 0;
-	size_t output_idx = 0;
+	size_t input_idx = 0; // reading index
+	size_t output_idx = 0; // writing index
 
 	// Scan characters until we run out of memory to scan or we find a
 	// space.  The kernel uses simple octal escape sequences for the
