@@ -43,9 +43,17 @@
  **/
 
 /**
- * Opaque error structure.
+ * Error structure.
  **/
-struct sc_error;
+struct sc_error {
+	// Error domain defines a scope for particular error codes.
+	const char *domain;
+	// Code differentiates particular errors for the programmer.
+	// The code may be zero if the particular meaning is not relevant.
+	int code;
+	// Message carries a formatted description of the problem.
+	char *msg;
+};
 
 /**
  * Error domain for errors related to system errno.

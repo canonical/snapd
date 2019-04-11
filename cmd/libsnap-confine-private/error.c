@@ -26,16 +26,6 @@
 #include <stdio.h>
 #include <string.h>
 
-struct sc_error {
-	// Error domain defines a scope for particular error codes.
-	const char *domain;
-	// Code differentiates particular errors for the programmer.
-	// The code may be zero if the particular meaning is not relevant.
-	int code;
-	// Message carries a formatted description of the problem.
-	char *msg;
-};
-
 static struct sc_error *sc_error_initv(const char *domain, int code,
 				       const char *msgfmt, va_list ap)
 {
