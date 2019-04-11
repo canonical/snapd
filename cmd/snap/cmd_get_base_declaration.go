@@ -57,7 +57,7 @@ func (x *cmdGetBaseDeclaration) Execute(args []string) error {
 	}
 	var err error
 	if x.get {
-		err = x.client.DebugGet("base-declaration", &resp)
+		err = x.client.DebugGet("base-declaration", &resp, nil)
 	} else {
 		err = x.client.Debug("get-base-declaration", nil, &resp)
 	}

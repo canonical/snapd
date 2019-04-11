@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C)2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,38 +17,29 @@
  *
  */
 
-package main
+package snap_test
 
 import (
 	"fmt"
 
-	"github.com/jessevdk/go-flags"
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/snap"
 )
 
-type cmdGetModel struct {
-	clientMixin
+type hotplugKeySuite struct{}
+
+var _ = Suite(&hotplugKeySuite{})
+
+func (*hotplugKeySuite) TestShortString(c *C) {
+	var key snap.HotplugKey
+	key = "abcdefghijklmnopqrstuvwxyz"
+	c.Check(key.ShortString(), Equals, "abcdefghijkl…")
 }
 
-func init() {
-	cmd := addDebugCommand("model",
-		"(internal) obtain the active model assertion",
-		"(internal) obtain the active model assertion",
-		func() flags.Commander {
-			return &cmdGetModel{}
-		}, nil, nil)
-	cmd.hidden = true
-}
-
-func (x *cmdGetModel) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-	var resp struct {
-		Model string `json:"model"`
-	}
-	if err := x.client.DebugGet("model", &resp, nil); err != nil {
-		return err
-	}
-	fmt.Fprintf(Stdout, "%s\n", resp.Model)
-	return nil
+func (*hotplugKeySuite) TestString(c *C) {
+	// simple sanity test
+	keyStr := "abcdefghijklmnopqrstuvwxyz"
+	key := snap.HotplugKey(keyStr)
+	c.Check(fmt.Sprintf("%s", key), Equals, "abcdefghijklmnopqrstuvwxyz")
 }

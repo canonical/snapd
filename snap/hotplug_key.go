@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C)2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,38 +17,18 @@
  *
  */
 
-package main
+package snap
 
 import (
 	"fmt"
-
-	"github.com/jessevdk/go-flags"
 )
 
-type cmdGetModel struct {
-	clientMixin
-}
+// HotplugKey is a string key of a hotplugged device
+type HotplugKey string
 
-func init() {
-	cmd := addDebugCommand("model",
-		"(internal) obtain the active model assertion",
-		"(internal) obtain the active model assertion",
-		func() flags.Commander {
-			return &cmdGetModel{}
-		}, nil, nil)
-	cmd.hidden = true
-}
-
-func (x *cmdGetModel) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-	var resp struct {
-		Model string `json:"model"`
-	}
-	if err := x.client.DebugGet("model", &resp, nil); err != nil {
-		return err
-	}
-	fmt.Fprintf(Stdout, "%s\n", resp.Model)
-	return nil
+// ShortString returns a truncated string representation of the hotplug key
+func (h HotplugKey) ShortString() string {
+	str := string(h)
+	// hotplug key is sha256 (64+1 characters long), output just the first 12 characters.
+	return fmt.Sprintf("%.12s…", str)
 }

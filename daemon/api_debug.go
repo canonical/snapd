@@ -150,10 +150,12 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]interface{}{
 			"model": string(asserts.Encode(model)),
 		}, nil)
+	case "change-timings":
+		chgID := query.Get("chg-id")
+		return getChangeTimings(st, chgID)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}
-
 }
 
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -183,8 +185,6 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
 		return checkConnectivity(st)
-	case "change-timings":
-		return getChangeTimings(st, a.Params.ChgID)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
