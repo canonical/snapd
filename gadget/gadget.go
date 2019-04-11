@@ -352,7 +352,11 @@ func validateVolume(name string, vol *Volume) error {
 	// sort by starting offset
 	sort.Sort(byStartOffset(structures))
 
-	lastEnd := Size(0)
+	return validateCrossVolumeStructure(structures, knownStructures)
+}
+
+func validateCrossVolumeStructure(structures []PositionedStructure, knownStructures map[string]*PositionedStructure) error {
+	previousEnd := Size(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - positioned structure overlap
@@ -373,11 +377,11 @@ func validateVolume(name string, vol *Volume) error {
 
 		}
 
-		if ps.StartOffset < lastEnd {
+		if ps.StartOffset < previousEnd {
 			previous := structures[pidx-1]
 			return fmt.Errorf("structure %v overlaps with the preceding structure %v", fmtIndexAndName(ps.index, ps.Name), fmtIndexAndName(previous.index, previous.Name))
 		}
-		lastEnd = ps.StartOffset + ps.Size
+		previousEnd = ps.StartOffset + ps.Size
 
 		if !ps.IsBare() {
 			// content relative offset only possible if it's a bare structure
