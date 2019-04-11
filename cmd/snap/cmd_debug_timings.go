@@ -101,7 +101,7 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 			UndoingTime    time.Duration `json:"undoing-time,omitempty"`
 			DoingTimings   []Timing      `json:"doing-timings,omitempty"`
 			UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
-		}
+		} `json:"change-timings,omitempty"`
 	}
 
 	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"chg-id": chgid, "ensure-id": x.EnsureID}); err != nil {
