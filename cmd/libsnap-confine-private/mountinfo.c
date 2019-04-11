@@ -177,14 +177,11 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 		} else if (c == ' ') {
 			// Fields are space delimited or end-of-string terminated.
 			// Represent either as the end-of-string marker, skip over it,
-			// and stop parsing.
+			// and stop parsing by terminating the output, then
+			// breaking out of the loop but advancing the reading
+			// index which is needed for subsequent calls.
 			output[output_idx] = '\0';
 			input_idx++;
-			// Note that while we are breaking out of the loop the
-			// input_idx variable is used to influence an output
-			// variable. This state is important for subsequent
-			// call where we want to scan the byte immediately
-			// after the space.
 			break;
 		} else if (c == '\\') {
 			// Three *more* octal digits required for the escape
