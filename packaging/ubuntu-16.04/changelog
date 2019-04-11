@@ -1,3 +1,11 @@
+snapd (2.38.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1824394
+    - tests: add workaround for missing cache reset on older snapd
+    - ubuntu: disable -buildmode=pie on armhf to fix memory issue
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Apr 2019 18:26:47 +0200
+
 snapd (2.38) xenial; urgency=medium
 
   * New upstream release, LP: #1818648
