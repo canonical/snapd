@@ -542,3 +542,15 @@ func (s *ErrtrackerTestSuite) TestReportsDBnilDoesNotCrash(c *C) {
 	c.Check(db.AlreadyReported("dupSig"), Equals, false)
 	c.Check(db.MarkReported("dupSig"), ErrorMatches, "cannot mark error report as reported with an uninitialized reports database")
 }
+
+func (s *ErrtrackerTestSuite) TestReportsDBnilDoesNotCrashOnReport(c *C) {
+	oldDbDir := dirs.ErrtrackerDbDir
+	dirs.ErrtrackerDbDir = "/proc/1/environ"
+	defer func() {
+		dirs.ErrtrackerDbDir = oldDbDir
+	}()
+
+	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", nil)
+	c.Assert(err, ErrorMatches, "cannot open error reports database: open /proc/1/environ:.*")
+	c.Assert(id, Equals, "")
+}

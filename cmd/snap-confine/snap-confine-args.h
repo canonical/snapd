@@ -64,7 +64,7 @@ struct sc_args;
  * Both argc and argv are modified so the caller can look at the first unparsed
  * argument at argc[0]. This is only done if argument parsing is successful.
  **/
-__attribute__ ((warn_unused_result))
+__attribute__((warn_unused_result))
 struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 				       struct sc_error **errorp);
 
@@ -84,12 +84,12 @@ void sc_cleanup_args(struct sc_args **ptr);
 /**
  * Check if snap-confine was invoked with the --version switch.
  **/
-bool sc_args_is_version_query(struct sc_args *args);
+bool sc_args_is_version_query(const struct sc_args *args);
 
 /**
  * Check if snap-confine was invoked with the --classic switch.
  **/
-bool sc_args_is_classic_confinement(struct sc_args *args);
+bool sc_args_is_classic_confinement(const struct sc_args *args);
 
 /**
  * Get the security tag passed to snap-confine.
@@ -100,7 +100,7 @@ bool sc_args_is_classic_confinement(struct sc_args *args);
  * The return value must not be freed(). It is bound to the lifetime of
  * the argument parser.
  **/
-const char *sc_args_security_tag(struct sc_args *args);
+const char *sc_args_security_tag(const struct sc_args *args);
 
 /**
  * Get the executable name passed to snap-confine.
@@ -111,7 +111,7 @@ const char *sc_args_security_tag(struct sc_args *args);
  * The return value must not be freed(). It is bound to the lifetime of
  * the argument parser.
  **/
-const char *sc_args_executable(struct sc_args *args);
+const char *sc_args_executable(const struct sc_args *args);
 
 /**
  * Get the name of the base snap to use.
@@ -119,6 +119,6 @@ const char *sc_args_executable(struct sc_args *args);
  * The return value must not be freed(). It is bound to the lifetime of
  * the argument parser.
  **/
-const char *sc_args_base_snap(struct sc_args *args);
+const char *sc_args_base_snap(const struct sc_args *args);
 
 #endif

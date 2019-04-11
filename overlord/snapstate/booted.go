@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -69,12 +69,12 @@ func UpdateBootRevisions(st *state.State) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	bootloader, err := partition.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	m, err := bootloader.GetBootVars("snap_kernel", "snap_core")
+	m, err := loader.GetBootVars("snap_kernel", "snap_core")
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
@@ -145,12 +145,12 @@ func CurrentBootNameAndRevision(typ snap.Type) (name string, revision snap.Revis
 		return "", snap.Revision{}, fmt.Errorf(errorPrefix + "classic system")
 	}
 
-	bootloader, err := partition.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return "", snap.Revision{}, fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	m, err := bootloader.GetBootVars(bootVar, "snap_mode")
+	m, err := loader.GetBootVars(bootVar, "snap_mode")
 	if err != nil {
 		return "", snap.Revision{}, fmt.Errorf(errorPrefix+"%s", err)
 	}

@@ -86,7 +86,8 @@ static void test_sc_string_append(void)
 		};
 	} data = {
 		.buf = {
-	'f', '\0', 0xFF, 0xFF},.canary1 = ~0,.canary2 = ~0,};
+			'f', '\0', 0xFF, 0xFF},.canary1 = ~0,.canary2 = ~0,
+	};
 
 	// Sanity check, ensure that the layout of structures is as spelled above.
 	// (first canary1, then buf and finally canary2.
@@ -117,7 +118,8 @@ static void test_sc_string_append__empty_to_full(void)
 		};
 	} data = {
 		.buf = {
-	'f', 'o', 'o', '\0'},.canary1 = ~0,.canary2 = ~0,};
+			'f', 'o', 'o', '\0'},.canary1 = ~0,.canary2 = ~0,
+	};
 
 	// Sanity check, ensure that the layout of structures is as spelled above.
 	// (first canary1, then buf and finally canary2.
@@ -788,7 +790,7 @@ static void test_sc_strdup(void)
 	free(s);
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
 	g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
