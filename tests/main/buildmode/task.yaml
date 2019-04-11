@@ -20,3 +20,6 @@ execute: |
     for p in snapd snap-repair; do
         objdump -f /usr/lib/snapd/"$p" | MATCH "$needle"
     done
+
+    # C binaries are always built in PIE mode
+    objdump -f /usr/lib/snapd/snap-confine | MATCH 'DYNAMIC'
