@@ -97,29 +97,24 @@ func getChangeTimings(st *state.State, changeID string) Response {
 		return BadRequest("cannot find change: %v", changeID)
 	}
 
-	// lookup for filtering tasks from "timings"
-	changeTasks := make(map[string]bool)
-	for _, t := range chg.Tasks() {
-		changeTasks[t.ID()] = true
-	}
-
 	doingTimingsByTask := make(map[string][]*timings.TimingJSON)
 	undoingTimingsByTask := make(map[string][]*timings.TimingJSON)
 
-	// collect "timings" for task of given change
-	var stateTimings []timings.RootTimingsJSON
-	st.Get("timings", &stateTimings)
+	// collect "timings" for tasks of given change
+	stateTimings, err := timings.Get(st, -1, func(tags map[string]string) bool { return tags["change-id"] == changeID })
+	if err != nil {
+		return InternalError("cannot get timings of change %s: %v", changeID, err)
+	}
 	for _, tm := range stateTimings {
-		if taskID, ok := tm.Tags["task-id"]; ok && changeTasks[taskID] {
-			if status, ok := tm.Tags["task-status"]; ok {
-				switch {
-				case status == state.DoingStatus.String():
-					doingTimingsByTask[taskID] = tm.NestedTimings
-				case status == state.UndoingStatus.String():
-					undoingTimingsByTask[taskID] = tm.NestedTimings
-				default:
-					return InternalError("unexpected task status %q for timing of task %s", status, taskID)
-				}
+		taskID := tm.Tags["task-id"]
+		if status, ok := tm.Tags["task-status"]; ok {
+			switch {
+			case status == state.DoingStatus.String():
+				doingTimingsByTask[taskID] = tm.NestedTimings
+			case status == state.UndoingStatus.String():
+				undoingTimingsByTask[taskID] = tm.NestedTimings
+			default:
+				return InternalError("unexpected task status %q for timing of task %s", status, taskID)
 			}
 		}
 	}

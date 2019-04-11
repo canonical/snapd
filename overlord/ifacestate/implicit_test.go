@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
@@ -70,7 +71,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	c.Assert(slot, NotNil)
 	c.Assert(slot.Interface, Equals, "dummy")
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"attr": "value"})
-	c.Assert(slot.HotplugKey, Equals, "1234")
+	c.Assert(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 }
 
 func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {

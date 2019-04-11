@@ -24,11 +24,6 @@ var (
 	ValidateDescription          = validateDescription
 	ValidateTitle                = validateTitle
 	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
-
-	ValidateStructureType   = validateStructureType
-	ValidateVolumeStructure = validateVolumeStructure
-	ValidateRole            = validateRole
-	ValidateVolume          = validateVolume
 )
 
 func (info *Info) ForceRenamePlug(oldName, newName string) {

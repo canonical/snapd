@@ -546,3 +546,36 @@ func (ts *taskSuite) TestLanes(c *C) {
 	t.JoinLane(2)
 	c.Assert(t.Lanes(), DeepEquals, []int{1, 2})
 }
+
+func (cs *taskSuite) TestTaskSetEdge(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// setup an example taskset
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("verify", "2...")
+	t3 := st.NewTask("install", "3...")
+	ts := state.NewTaskSet(t1, t2, t3)
+
+	// edges are just typed strings
+	edge1 := state.TaskSetEdge("on-edge")
+	edge2 := state.TaskSetEdge("eddie")
+
+	// no edge marked yet
+	c.Assert(ts.Edge(edge1), IsNil)
+	c.Assert(ts.Edge(edge2), IsNil)
+
+	// one edge
+	ts.MarkEdge(t1, edge1)
+	c.Assert(ts.Edge(edge1), Equals, t1)
+
+	// two edges
+	ts.MarkEdge(t2, edge2)
+	c.Assert(ts.Edge(edge1), Equals, t1)
+	c.Assert(ts.Edge(edge2), Equals, t2)
+
+	// edges can be reassigned
+	ts.MarkEdge(t3, edge1)
+	c.Assert(ts.Edge(edge1), Equals, t3)
+}
