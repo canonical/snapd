@@ -23,6 +23,7 @@ slots:
     name: test.system
   docker: null
   fwupd: null
+  jack1: null
   location-control: null
   location-observe: null
   lxd: null
@@ -72,6 +73,9 @@ apps:
   fwupd:
     command: bin/run
     slots: [ fwupd ]
+  jack1:
+    command: bin/run
+    slots: [ jack1 ]
   location-control:
     command: bin/run
     slots: [ location-control ]
