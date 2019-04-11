@@ -358,9 +358,7 @@ int main(int argc, char **argv)
 		sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		snap_context =
 		    sc_cookie_get_from_snapd(invocation.snap_instance, &err);
-		if (err != NULL) {
-			error("%s\n", sc_error_msg(err));
-		}
+		/* The error is explicitly ignored because the cookies are optional. */
 	}
 
 	struct sc_apparmor apparmor;
