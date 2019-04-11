@@ -171,8 +171,8 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			// The scanned line is NUL terminated. This ensures that the
 			// terminator is copied to the output buffer.
 			output[output_idx] = '\0';
-			// NOTE: we are no longer advancing the reading index
-			// because we reached the end of the buffer.
+			// NOTE: we must not advance the reading index since we
+			// reached the end of the buffer.
 			break;
 		} else if (c == ' ') {
 			// Fields are space delimited or end-of-string terminated.
