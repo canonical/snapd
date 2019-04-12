@@ -788,7 +788,7 @@ hooks:
 }
 
 func (s *infoSuite) TestReadInfoImplicitHookWithTopLevelPlugSlots(c *C) {
-	yaml := `name: foo
+	yaml1 := `name: snap-1
 version: 1.0
 plugs:
   test-plug:
@@ -799,15 +799,7 @@ hooks:
     plugs: [test-plug,other-plug]
     slots: [test-slot,other-slot]
 `
-
-	yaml2 := `name: foo
-version: 1.0
-plugs:
-  test-plug:
-slots:
-  test-slot:
-`
-	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "snap-1", yaml1, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 2)
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)
@@ -846,7 +838,14 @@ slots:
 		c.Assert(explicitHook.Slots["test-slot"], DeepEquals, slot)
 	})
 
-	s.checkInstalledSnapAndSnapFile(c, "foo", yaml2, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+	yaml2 := `name: snap-2
+version: 1.0
+plugs:
+  test-plug:
+slots:
+  test-slot:
+`
+	s.checkInstalledSnapAndSnapFile(c, "snap-2", yaml2, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 1)
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)
@@ -864,6 +863,41 @@ slots:
 		slot := info.Slots["test-slot"]
 		c.Assert(slot, NotNil)
 		c.Assert(implicitHook.Slots["test-slot"], DeepEquals, slot)
+	})
+
+	yaml3 := `name: snap-3
+version: 1.0
+plugs:
+  test-plug:
+slots:
+  test-slot:
+`
+	s.checkInstalledSnapAndSnapFile(c, "snap-3", yaml3, "SNAP", []string{"implicit-1", "implicit-2"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 2)
+		implicit1Hook := info.Hooks["implicit-1"]
+		c.Assert(implicit1Hook, NotNil)
+		c.Assert(implicit1Hook.Explicit, Equals, false)
+		c.Assert(implicit1Hook.Plugs, HasLen, 1)
+		c.Assert(implicit1Hook.Slots, HasLen, 1)
+
+		implicit2Hook := info.Hooks["implicit-2"]
+		c.Assert(implicit2Hook, NotNil)
+		c.Assert(implicit2Hook.Explicit, Equals, false)
+		c.Assert(implicit2Hook.Plugs, HasLen, 1)
+		c.Assert(implicit2Hook.Slots, HasLen, 1)
+
+		c.Check(info.Plugs, HasLen, 1)
+		c.Check(info.Slots, HasLen, 1)
+
+		plug := info.Plugs["test-plug"]
+		c.Assert(plug, NotNil)
+		c.Assert(implicit1Hook.Plugs["test-plug"], DeepEquals, plug)
+		c.Assert(implicit2Hook.Plugs["test-plug"], DeepEquals, plug)
+
+		slot := info.Slots["test-slot"]
+		c.Assert(slot, NotNil)
+		c.Assert(implicit1Hook.Slots["test-slot"], DeepEquals, slot)
+		c.Assert(implicit2Hook.Slots["test-slot"], DeepEquals, slot)
 	})
 
 }
