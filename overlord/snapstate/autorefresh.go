@@ -42,6 +42,9 @@ const defaultRefreshSchedule = "00:00~24:00/4"
 // cannot keep without refreshing for more than maxPostponement
 const maxPostponement = 60 * 24 * time.Hour
 
+// cannot inhibit refreshes for more than maxInhibition
+const maxInhibition = 7 * 24 * time.Hour
+
 // hooks setup by devicestate
 var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
@@ -462,4 +465,29 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return t1, nil
+}
+
+// inhibitRefresh returns an error if refresh is inhibited by running apps.
+//
+// Internally the snap state is updated to remember when the inhibition first
+// took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
+// that period the refresh will go ahead despite application activity.
+func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
+	if err := SoftNothingRunningRefreshCheck(info); err != nil {
+		now := time.Now()
+		if snapst.RefreshInhibitedTime == nil {
+			// Store the instant when the snap was first inhibited.
+			// This is reset to nil on successful refresh.
+			snapst.RefreshInhibitedTime = &now
+			Set(st, info.InstanceName(), snapst)
+			return err
+		}
+
+		if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
+			// If we are still in the allowed window then just return
+			// the error but don't change the snap state again.
+			return err
+		}
+	}
+	return nil
 }
