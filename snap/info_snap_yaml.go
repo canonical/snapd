@@ -503,9 +503,12 @@ func bindUnboundSlots(snap *Info) {
 
 // bindImplicitHooks binds all global plugs and slots to implicit hooks
 func bindImplicitHooks(snap *Info) {
-	for _, plug := range snap.toplevelPlugs {
-		for hookName, hook := range snap.Hooks {
-			if hook.Explicit {
+	for hookName, hook := range snap.Hooks {
+		if hook.Explicit {
+			continue
+		}
+		for _, plug := range snap.toplevelPlugs {
+			if len(plug.Apps) > 0 || len(plug.Hooks) > 0 {
 				continue
 			}
 			if hook.Plugs == nil {
@@ -517,11 +520,8 @@ func bindImplicitHooks(snap *Info) {
 			}
 			plug.Hooks[hookName] = hook
 		}
-	}
-
-	for _, slot := range snap.toplevelSlots {
-		for hookName, hook := range snap.Hooks {
-			if hook.Explicit {
+		for _, slot := range snap.toplevelSlots {
+			if len(slot.Apps) > 0 || len(slot.Hooks) > 0 {
 				continue
 			}
 			if hook.Slots == nil {

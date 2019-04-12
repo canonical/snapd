@@ -812,19 +812,24 @@ slots:
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)
 		c.Assert(implicitHook.Explicit, Equals, false)
-		c.Assert(implicitHook.Plugs, HasLen, 1)
-		c.Assert(implicitHook.Slots, HasLen, 1)
+		c.Assert(implicitHook.Plugs, HasLen, 0)
+		c.Assert(implicitHook.Slots, HasLen, 0)
 
 		c.Check(info.Plugs, HasLen, 2)
 		c.Check(info.Slots, HasLen, 2)
 
 		plug := info.Plugs["test-plug"]
 		c.Assert(plug, NotNil)
-		c.Assert(implicitHook.Plugs["test-plug"], DeepEquals, plug)
+		// implicit hook has not gained test-plug because it was already
+		// associated with an app or a hook (here with the hook called
+		// "explicit"). This is consistent with the hook called "implicit"
+		// having been defined in the YAML but devoid of any interface
+		// assignments.
+		c.Assert(implicitHook.Plugs["test-plug"], IsNil)
 
 		slot := info.Slots["test-slot"]
 		c.Assert(slot, NotNil)
-		c.Assert(implicitHook.Slots["test-slot"], DeepEquals, slot)
+		c.Assert(implicitHook.Slots["test-slot"], IsNil)
 
 		explicitHook := info.Hooks["explicit"]
 		c.Assert(explicitHook, NotNil)
