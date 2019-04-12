@@ -396,7 +396,6 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
-	perfTimings.AddTag("change-id", chg.ID())
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
@@ -404,6 +403,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
 	tm.Stop()
+	perfTimings.AddTag("change-id", chg.ID())
 	perfTimings.Save(m.state)
 
 	return nil

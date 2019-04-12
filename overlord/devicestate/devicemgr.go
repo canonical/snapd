@@ -374,12 +374,12 @@ func (m *DeviceManager) ensureSeedYaml() error {
 
 	msg := fmt.Sprintf("Initialize system state")
 	chg := m.state.NewChange("seed", msg)
-	perfTimings.AddTag("change-id", chg.ID())
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
 	m.state.EnsureBefore(0)
 
+	perfTimings.AddTag("change-id", chg.ID())
 	perfTimings.Save(m.state)
 	return nil
 }
@@ -480,7 +480,6 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeedYaml(); err != nil {
 		errs = append(errs, err)
 	}
-
 	if err := m.ensureOperational(); err != nil {
 		errs = append(errs, err)
 	}
@@ -492,9 +491,6 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeedInConfig(); err != nil {
 		errs = append(errs, err)
 	}
-
-	m.state.Lock()
-	defer m.state.Unlock()
 
 	if len(errs) > 0 {
 		return &ensureError{errs}

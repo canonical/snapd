@@ -205,7 +205,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Unlock()
 	var keyPair *rsa.PrivateKey
-	timings.Run(perfTimings, "generate-key", "generating rsa key", func(tm timings.Measurer) {
+	timings.Run(perfTimings, "generate-rsa-key", "generating device key pair", func(tm timings.Measurer) {
 		keyPair, err = generateRSAKey(keyLength)
 	})
 	st.Lock()
