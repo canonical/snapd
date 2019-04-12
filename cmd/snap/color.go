@@ -30,14 +30,12 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type colorMixin struct {
-	Color   string `long:"color" default:"auto" choice:"auto" choice:"never" choice:"always"`
-	Unicode string `long:"unicode" default:"auto" choice:"auto" choice:"never" choice:"always"` // do we want this hidden?
+type unicodeMixin struct {
+	Unicode string `long:"unicode" default:"auto" choice:"auto" choice:"never" choice:"always"`
 }
 
-func (mx colorMixin) getEscapes() *escapes {
-	esc := colorTable(mx.Color)
-	if canUnicode(mx.Unicode) {
+func (ux unicodeMixin) addUnicodeChars(esc *escapes) {
+	if canUnicode(ux.Unicode) {
 		esc.dash = "–" // that's an en dash (so yaml is happy)
 		esc.uparrow = "↑"
 		esc.tick = "✓"
@@ -46,7 +44,22 @@ func (mx colorMixin) getEscapes() *escapes {
 		esc.uparrow = "^"
 		esc.tick = "*"
 	}
+}
 
+func (ux unicodeMixin) getEscapes() *escapes {
+	esc := &escapes{}
+	ux.addUnicodeChars(esc)
+	return esc
+}
+
+type colorMixin struct {
+	Color string `long:"color" default:"auto" choice:"auto" choice:"never" choice:"always"`
+	unicodeMixin
+}
+
+func (mx colorMixin) getEscapes() *escapes {
+	esc := colorTable(mx.Color)
+	mx.addUnicodeChars(&esc)
 	return &esc
 }
 
@@ -103,7 +116,11 @@ func colorTable(mode string) escapes {
 
 var colorDescs = mixinDescs{
 	// TRANSLATORS: This should not start with a lowercase letter.
-	"color": i18n.G("Use a little bit of color to highlight some things."),
+	"color":   i18n.G("Use a little bit of color to highlight some things."),
+	"unicode": unicodeDescs["unicode"],
+}
+
+var unicodeDescs = mixinDescs{
 	// TRANSLATORS: This should not start with a lowercase letter.
 	"unicode": i18n.G("Use a little bit of Unicode to improve legibility."),
 }

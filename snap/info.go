@@ -661,7 +661,7 @@ type SlotInfo struct {
 	// using properties of a hotplugged device so that the same
 	// slot may be made available if the device is reinserted.
 	// It's empty for regular slots.
-	HotplugKey string
+	HotplugKey HotplugKey
 }
 
 // SocketInfo provides information on application sockets.

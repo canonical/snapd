@@ -139,6 +139,11 @@ type SnapState struct {
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
+
+	// RefreshInhibitedime records the time when the refresh was first
+	// attempted but inhibited because the snap was busy. This value is
+	// reset on each successful refresh.
+	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
 }
 
 // Type returns the type of the snap or an error.

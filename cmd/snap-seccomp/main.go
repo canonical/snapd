@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -774,6 +774,8 @@ func main() {
 		err = compile(content, os.Args[3])
 	case "library-version":
 		err = showSeccompLibraryVersion()
+	case "version-info":
+		err = showVersionInfo()
 	default:
 		err = fmt.Errorf("unsupported argument %q", cmd)
 	}

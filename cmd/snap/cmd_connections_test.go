@@ -642,3 +642,212 @@ func (s *SnapSuite) TestConnectionsSorting(c *C) {
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
+
+func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
+	result := client.Connections{
+		Established: []client.Connection{
+			{
+				Plug:      client.PlugRef{Snap: "foo", Name: "a-plug"},
+				Slot:      client.SlotRef{Snap: "a-content-provider", Name: "data"},
+				Interface: "content",
+				PlugAttrs: map[string]interface{}{
+					"content": "plug-some-data",
+					"target":  "$SNAP/foo",
+				},
+				SlotAttrs: map[string]interface{}{
+					"content": "slot-some-data",
+					"source": map[string]interface{}{
+						"read": []string{"$SNAP/bar"},
+					},
+				},
+			}, {
+				Plug:      client.PlugRef{Snap: "foo", Name: "b-plug"},
+				Slot:      client.SlotRef{Snap: "b-content-provider", Name: "data"},
+				Interface: "content",
+				PlugAttrs: map[string]interface{}{
+					// no content attribute for plug, falls back to slot
+					"target": "$SNAP/foo",
+				},
+				SlotAttrs: map[string]interface{}{
+					"content": "slot-some-data",
+					"source": map[string]interface{}{
+						"read": []string{"$SNAP/bar"},
+					},
+				},
+			}, {
+				Plug:      client.PlugRef{Snap: "foo", Name: "c-plug"},
+				Slot:      client.SlotRef{Snap: "c-content-provider", Name: "data"},
+				Interface: "content",
+				PlugAttrs: map[string]interface{}{
+					// no content attribute for plug
+					"target": "$SNAP/foo",
+				},
+				SlotAttrs: map[string]interface{}{
+					// no content attribute for slot either
+					"source": map[string]interface{}{
+						"read": []string{"$SNAP/bar"},
+					},
+				},
+			}, {
+				Plug:      client.PlugRef{Snap: "foo", Name: "d-plug"},
+				Slot:      client.SlotRef{Snap: "d-content-provider", Name: "data"},
+				Interface: "content",
+				// no attributes at all
+			}, {
+				Plug: client.PlugRef{Snap: "foo", Name: "desktop-plug"},
+				Slot: client.SlotRef{Snap: "core", Name: "desktop"},
+				// desktop interface does not have any defining attributes
+				Interface: "desktop",
+				PlugAttrs: map[string]interface{}{
+					"this-is-ignored": "foo",
+				},
+				SlotAttrs: map[string]interface{}{
+					"this-is-ignored-too": "foo",
+				},
+			},
+		},
+		Plugs: []client.Plug{
+			{
+				Snap:      "foo",
+				Name:      "a-plug",
+				Interface: "content",
+				Connections: []client.SlotRef{{
+					Snap: "a-content-provider",
+					Name: "data",
+				}},
+				Attrs: map[string]interface{}{
+					"content": "plug-some-data",
+					"target":  "$SNAP/foo",
+				},
+			}, {
+				Snap:      "foo",
+				Name:      "b-plug",
+				Interface: "content",
+				Connections: []client.SlotRef{{
+					Snap: "b-content-provider",
+					Name: "data",
+				}},
+				Attrs: map[string]interface{}{
+					// no content attribute for plug, falls back to slot
+					"target": "$SNAP/foo",
+				},
+			}, {
+				Snap:      "foo",
+				Name:      "c-plug",
+				Interface: "content",
+				Connections: []client.SlotRef{{
+					Snap: "c-content-provider",
+					Name: "data",
+				}},
+				Attrs: map[string]interface{}{
+					// no content attribute for plug
+					"target": "$SNAP/foo",
+				},
+			}, {
+				Snap:      "foo",
+				Name:      "d-plug",
+				Interface: "content",
+				Connections: []client.SlotRef{{
+					Snap: "d-content-provider",
+					Name: "data",
+				}},
+			}, {
+				Snap:      "foo",
+				Name:      "desktop-plug",
+				Interface: "desktop",
+				Connections: []client.SlotRef{{
+					Snap: "core",
+					Name: "desktop",
+				}},
+			},
+		},
+		Slots: []client.Slot{
+			{
+				Snap:      "a-content-provider",
+				Name:      "data",
+				Interface: "content",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "a-plug",
+				}},
+				Attrs: map[string]interface{}{
+					"content": "slot-some-data",
+					"source": map[string]interface{}{
+						"read": []string{"$SNAP/bar"},
+					},
+				},
+			}, {
+				Snap:      "b-content-provider",
+				Name:      "data",
+				Interface: "content",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "a-plug",
+				}},
+				Attrs: map[string]interface{}{
+					"content": "slot-some-data",
+					"source": map[string]interface{}{
+						"read": []string{"$SNAP/bar"},
+					},
+				},
+			}, {
+				Snap:      "c-content-provider",
+				Name:      "data",
+				Interface: "content",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "a-plug",
+				}},
+				Attrs: map[string]interface{}{
+					"source": map[string]interface{}{
+						"read": []string{"$SNAP/bar"},
+					},
+				},
+			}, {
+				Snap:      "a-content-provider",
+				Name:      "data",
+				Interface: "content",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "a-plug",
+				}},
+			}, {
+				Snap:      "core",
+				Name:      "desktop",
+				Interface: "desktop",
+				Connections: []client.PlugRef{{
+					Snap: "foo",
+					Name: "desktop-plug",
+				}},
+			},
+		},
+	}
+	query := url.Values{
+		"select": []string{"all"},
+	}
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/connections")
+		c.Check(r.URL.Query(), DeepEquals, query)
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": result,
+		})
+	})
+
+	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"Interface                Plug              Slot                     Notes\n" +
+		"content[plug-some-data]  foo:a-plug        a-content-provider:data  -\n" +
+		"content[slot-some-data]  foo:b-plug        b-content-provider:data  -\n" +
+		"content                  foo:c-plug        c-content-provider:data  -\n" +
+		"content                  foo:d-plug        d-content-provider:data  -\n" +
+		"desktop                  foo:desktop-plug  :desktop                 -\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}

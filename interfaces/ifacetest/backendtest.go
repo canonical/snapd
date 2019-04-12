@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/timings"
 )
 
 type BackendSuite struct {
@@ -34,6 +35,8 @@ type BackendSuite struct {
 	Iface           *TestInterface
 	RootDir         string
 	restoreSanitize func()
+
+	meas *timings.Span
 }
 
 func (s *BackendSuite) SetUpTest(c *C) {
@@ -45,6 +48,9 @@ func (s *BackendSuite) SetUpTest(c *C) {
 	s.Iface = &TestInterface{InterfaceName: "iface"}
 	err := s.Repo.AddInterface(s.Iface)
 	c.Assert(err, IsNil)
+
+	perf := timings.New(nil)
+	s.meas = perf.StartSpan("", "")
 
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }
@@ -159,7 +165,7 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 	}
 
 	s.addPlugsSlots(c, snapInfo)
-	err := s.Backend.Setup(snapInfo, opts, s.Repo)
+	err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -172,7 +178,7 @@ func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err := s.Backend.Setup(newSnapInfo, opts, s.Repo)
+	err := s.Backend.Setup(newSnapInfo, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }
