@@ -529,6 +529,11 @@ var privDropAndChownRules = `
   #   seccomp.
   # - writing a user ID mapping in a user namespace, but we mediate access to
   #   /proc/*/uid_map with AppArmor
+  #
+  # CAP_DAC_OVERRIDE and CAP_DAC_READ_SEARCH are intentionally omitted from the
+  # policy since we want traditional DAC to be enforced for root. It is
+  # expected that a program that is dropping privileges, etc will create/modify
+  # files in a way that doesn't require these capabilities.
   capability setuid,
   capability setgid,
   capability chown,
