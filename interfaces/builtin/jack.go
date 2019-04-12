@@ -19,10 +19,10 @@
 
 package builtin
 
-const jackSummary = `allows access to the jack socket`
+const jackSummary = `allows access to the jack1 socket`
 
 const jackBaseDeclarationSlots = `
-  jack:
+  jack1:
     allow-installation:
       slot-snap-type:
         - core
@@ -33,8 +33,7 @@ const jackBaseDeclarationSlots = `
  * libjack builds the shared memory endpoint like this :
  * jack-<userid>/<server name>/jack-<server id>
  *
- * see libjack/shm.c in jack1's source tree,
- * and common/shm.c in jack2's source tree.
+ * see libjack/shm.c in jack's source tree
  */
 const jackConnectedPlugAppArmor = `
 owner /dev/shm/jack-[0-9]*/*/* rw,

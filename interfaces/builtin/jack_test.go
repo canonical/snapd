@@ -52,7 +52,7 @@ apps:
 `
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "jack1",
+		Name:      "jack",
 		Interface: "jack1",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
@@ -69,7 +69,7 @@ func (s *JackInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "jack1",
+		Name:      "jack",
 		Interface: "jack1",
 	}
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
