@@ -20,8 +20,8 @@ execute: |
     snap interfaces -i daemon-notify | MATCH -- "- +test-snapd-daemon-notify:daemon-notify"
 
     echo "The service cannot be started with the interface disconnected"
-    snap start --enable test-snapd-daemon-notify.notify
-    snap services test-snapd-daemon-notify.notify | MATCH "enabled\\s*inactive"
+    snap start test-snapd-daemon-notify.notify || true
+    snap services test-snapd-daemon-notify.notify | MATCH "disabled\\s*inactive"
 
     echo "When the interface is connected"
     snap connect test-snapd-daemon-notify:daemon-notify
@@ -39,7 +39,7 @@ execute: |
     [ "$denials_before" -eq "$denials_after" ]
 
     echo "And the service is marked as active"
-    snap services test-snapd-daemon-notify.notify | MATCH "enabled\\s*active"
+    snap services test-snapd-daemon-notify.notify | MATCH "disabled\\s*active"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
