@@ -1820,12 +1820,12 @@ apps:
 	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
 }
 
-func (s *YamlSuite) TestSnapYamlSystemGlobalIDsParsing(c *C) {
+func (s *YamlSuite) TestSnapYamlSystemUsersParsing(c *C) {
 	y := []byte(`name: binary
 version: 1.0
-system-global-ids: [ foo, bar ]
+system-users: [ foo, bar ]
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.SystemGlobalIDs, DeepEquals, []string{"foo", "bar"})
+	c.Assert(info.SystemUsers, DeepEquals, []string{"foo", "bar"})
 }

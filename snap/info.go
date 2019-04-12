@@ -258,9 +258,9 @@ type Info struct {
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
 
-	// List of system global ids (usernames) this snap may use. The group
+	// List of system users (usernames) this snap may use. The group
 	// of the same name must also exist.
-	SystemGlobalIDs []string
+	SystemUsers []string
 }
 
 // StoreAccount holds information about a store account, for example

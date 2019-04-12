@@ -822,7 +822,7 @@ func (s *checkSnapSuite) TestCheckSnapCheckEpochNonLocal(c *C) {
 	c.Check(err, ErrorMatches, `cannot refresh "foo" to new revision 42 with epoch 13, because it can't read the current epoch of 0`)
 }
 
-var systemGlobalIDsTests = []struct {
+var systemUsersTests = []struct {
 	sysIDs  string
 	classic bool
 	error   string
@@ -833,21 +833,21 @@ var systemGlobalIDsTests = []struct {
 	classic: true,
 }, {
 	sysIDs: "[daemon, nonexistent]",
-	error:  `Unsupported system global id "nonexistent"`,
+	error:  `Unsupported system user "nonexistent"`,
 }, {
 	sysIDs:  "[nonexistent, daemon]",
 	classic: true,
-	error:   `Unsupported system global id "nonexistent"`,
+	error:   `Unsupported system user "nonexistent"`,
 }}
 
-func (s *checkSnapSuite) TestCheckSnapSystemGlobalIDs(c *C) {
+func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	for _, test := range systemGlobalIDsTests {
+	for _, test := range systemUsersTests {
 		release.OnClassic = test.classic
 
-		yaml := fmt.Sprintf("name: foo\nsystem-global-ids: %s\n", test.sysIDs)
+		yaml := fmt.Sprintf("name: foo\nsystem-users: %s\n", test.sysIDs)
 
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
 		c.Assert(err, IsNil)

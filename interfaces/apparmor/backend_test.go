@@ -1786,7 +1786,7 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 	}
 }
 
-func (s *backendSuite) TestSystemGlobalIDsPolicy(c *C) {
+func (s *backendSuite) TestSystemUsersPolicy(c *C) {
 	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
 	defer restoreTemplate()
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
@@ -1795,7 +1795,7 @@ func (s *backendSuite) TestSystemGlobalIDsPolicy(c *C) {
 	snapYaml := `
 name: app
 version: 0.1
-system-global-ids:
+system-users:
 - testid
 apps:
   cmd:

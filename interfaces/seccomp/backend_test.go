@@ -726,11 +726,11 @@ func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
 	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
 }
 
-func (s *backendSuite) TestSystemGlobalIDsPolicy(c *C) {
+func (s *backendSuite) TestSystemUsersPolicy(c *C) {
 	snapYaml := `
 name: app
 version: 0.1
-system-global-ids:
+system-users:
 - testid
 apps:
   cmd:

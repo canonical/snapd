@@ -249,11 +249,11 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 	addSocketcall := requiresSocketcall(snapInfo.Base)
 
 	var uidGidChownSyscalls bytes.Buffer
-	if len(snapInfo.SystemGlobalIDs) == 0 {
+	if len(snapInfo.SystemUsers) == 0 {
 		uidGidChownSyscalls.WriteString(barePrivDropSyscalls)
 	} else {
 		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
-		for i, id := range snapInfo.SystemGlobalIDs {
+		for i, id := range snapInfo.SystemUsers {
 			if i > 0 {
 				uidGidChownSyscalls.WriteRune('\n')
 			}
