@@ -503,9 +503,32 @@ var defaultTemplate = `
 
 // Template for privilege drop and chown operations. The specific setuid,
 // setgid and chown operations are controlled via seccomp.
+//
+// To expand on the policy comment below: "this is not a problem in practice":
+// access to sockets is mediated by file and unix AppArmor rules. When the
+// access is allowed, the snap is expected to be able to use the socket. Some
+// service listeners will employ additional checks, such as 'is the connecting
+// (snap) process root' or 'is the connecting non-root (snap) process in a
+// particular group', etc. Since snapd daemons start as root and because the
+// service listeners typically let the root process do anything, the snap
+// doesn't gain anything from being able to forge a uid since it has full
+// access to the socket API already. A snap could forge a check to bypass the
+// theoretical case of the service listener wanting to limit root to something
+// less than another user, but in practice service listeners won't do this
+// because it is ineffective against unconfined root processes which can
+// manipulate the service listener in other ways to subvert a check like this.
 var privDropAndChownRules = `
   # allow setuid, setgid and chown for privilege dropping (mediation is done
-  # via seccomp)
+  # via seccomp). Note: CAP_SETUID allows (and CAP_SETGID is the same, but
+  # for gid operations):
+  # - forging of UIDs when passing passing socket credentials via UNIX domain
+  #   sockets and we don't currently mediate socket credentials, between
+  #   mediating socket access in general and the execve() boundary that drops
+  #   the capability for non-root commands, this is not a problem in practice.
+  # - accessing the persistent keyring via keyctl, but keyctl is mediated via
+  #   seccomp.
+  # - writing a user ID mapping in a user namespace, but we mediate access to
+  #   /proc/*/uid_map with AppArmor
   capability setuid,
   capability setgid,
   capability chown,
