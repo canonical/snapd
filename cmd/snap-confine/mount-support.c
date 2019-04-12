@@ -82,11 +82,24 @@ static void setup_private_mount(const char *snap_name)
 	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
 	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
 
+	// NOTE: Because snapd executes with group ownership of the calling
+	// user, temporarily change back to root. This workaround code can be
+	// removed once central handling of uid/gid is merged into
+	// snap-confine.
+	gid_t old_gid = getgid();
+	if (setgid(0) < 0) {
+		die("cannot set gid to 0");
+	}
 	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
 	// to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdir(base_dir, 0700) < 0 && errno != EEXIST) {
 		die("cannot create base directory %s", base_dir);
 	}
+	// Restore original gid, please see the note above.
+	if (setgid(old_gid) < 0) {
+		die("cannot restore gid to %d", old_gid);
+	}
+
 	base_dir_fd = open(base_dir,
 			   O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (base_dir_fd < 0) {
