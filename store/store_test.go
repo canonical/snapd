@@ -34,6 +34,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -236,7 +238,11 @@ AXNpZw=`
 type testAuthContext struct {
 	c      *C
 	device *auth.DeviceState
-	user   *auth.UserState
+
+	deviceMu         sync.Mutex
+	deviceGetWitness func()
+
+	user *auth.UserState
 
 	proxyStoreID  string
 	proxyStoreURL *url.URL
@@ -247,14 +253,21 @@ type testAuthContext struct {
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
+	ac.deviceMu.Lock()
+	defer ac.deviceMu.Unlock()
 	freshDevice := auth.DeviceState{}
 	if ac.device != nil {
 		freshDevice = *ac.device
+	}
+	if ac.deviceGetWitness != nil {
+		ac.deviceGetWitness()
 	}
 	return &freshDevice, nil
 }
 
 func (ac *testAuthContext) UpdateDeviceAuth(d *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+	ac.deviceMu.Lock()
+	defer ac.deviceMu.Unlock()
 	ac.c.Assert(d, DeepEquals, ac.device)
 	updated := *ac.device
 	updated.SessionMacaroon = newSessionMacaroon
@@ -1236,6 +1249,121 @@ func (s *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 	c.Assert(err, Equals, store.ErrInvalidCredentials)
 	c.Check(response, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
+func (s *storeTestSuite) TestEnsureDeviceSession(c *C) {
+	deviceSessionRequested := 0
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+			authorization := r.Header.Get("X-Device-Authorization")
+			c.Assert(authorization, Equals, "")
+			deviceSessionRequested++
+			io.WriteString(w, `{"macaroon": "fresh-session-macaroon"}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	// make sure device session is not set
+	s.device.SessionMacaroon = ""
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, authContext)
+
+	device, err := sto.EnsureDeviceSession()
+	c.Assert(err, IsNil)
+
+	c.Check(device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	c.Check(deviceSessionRequested, Equals, 1)
+}
+
+func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
+	var deviceSessionRequested int32
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+			authorization := r.Header.Get("X-Device-Authorization")
+			c.Assert(authorization, Equals, "")
+			atomic.AddInt32(&deviceSessionRequested, 1)
+			io.WriteString(w, `{"macaroon": "fresh-session-macaroon"}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	wgGetDevice := new(sync.WaitGroup)
+
+	// make sure device session is not set
+	s.device.SessionMacaroon = ""
+	authContext := &testAuthContext{
+		c:                c,
+		device:           s.device,
+		deviceGetWitness: wgGetDevice.Done,
+	}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, authContext)
+
+	wg := new(sync.WaitGroup)
+
+	sto.SessionLock()
+
+	for i := 0; i < 10; i++ {
+		wgGetDevice.Add(1)
+		wg.Add(1)
+		go func(n int) {
+			_, err := sto.EnsureDeviceSession()
+			c.Assert(err, IsNil)
+			wg.Done()
+		}(i)
+	}
+
+	wgGetDevice.Wait()
+	authContext.deviceGetWitness = nil
+	sto.SessionUnlock()
+	wg.Wait()
+
+	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	c.Check(int(deviceSessionRequested), Equals, 1)
 }
 
 func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
