@@ -5,7 +5,7 @@ description: A basic snap which allow sending notification messages to systemd t
 
 hooks:
   install:
-    plugs: [network, network-bind]
+    plugs: [network]
 
 apps:
   notify:
