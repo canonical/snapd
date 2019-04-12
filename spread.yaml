@@ -556,12 +556,6 @@ prepare: |
     type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
 
-    # no need to modify anything further for autopkgtest
-    # we want to run as pristine as possible
-    if [ "$SPREAD_BACKEND" = autopkgtest ]; then
-        exit 0
-    fi
-
     if [ -e /etc/profile.d/go.sh ]; then
         # Up until recently openSUSE golang packaging injected environment
         # variables into the global shell profile. This caused issues across
@@ -587,11 +581,11 @@ restore-each: |
     if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
 
 suites:
-    # The essential tests run designed to run inside the autopkgtest
-    # environment on each platform. On autopkgtest cannot run all tests
+    # The essential tests designed to run inside the autopkgtest
+    # environment on each platform. On autopkgtest we cannot run all tests
     # as this is very slow and we run into timeouts.
     #
-    # These tests are run on all other plattforms as well first as they
+    # These tests are executed on all other plattforms as they
     # are designed to run on pristine systems
     tests/smoke/:
         summary: Essenial system level tests for snapd
