@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh -e
 
 # stop and disable the service so that the install can continue
 snapctl stop --disable "$SNAP_NAME.notify"
