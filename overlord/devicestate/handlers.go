@@ -387,7 +387,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState) (*asserts.Serial, error) {
+func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -421,7 +421,11 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		serialRequest, err := prepareSerialRequest(t, privKey, device, client, cfg)
+		var serialRequest string
+		var err error
+		timings.Run(tm, "prepare-serial", "prepare device serial request", func(timings.Measurer) {
+			serialRequest, err = prepareSerialRequest(t, privKey, device, client, cfg)
+		})
 		if err != nil { // errors & retries
 			return nil, err
 		}
@@ -429,7 +433,10 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		serialSup.SerialRequest = serialRequest
 	}
 
-	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
+	var serial *asserts.Serial
+	timings.Run(tm, "submit-serial", "submit device serial request", func(timings.Measurer) {
+		serial, err = submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
+	})
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
@@ -593,8 +600,8 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var serial *asserts.Serial
-	timings.Run(perfTimings, "get-serial", "get device serial", func(timings.Measurer) {
-		serial, err = getSerial(t, privKey, device)
+	timings.Run(perfTimings, "get-serial", "get device serial", func(tm timings.Measurer) {
+		serial, err = getSerial(t, privKey, device, tm)
 	})
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
