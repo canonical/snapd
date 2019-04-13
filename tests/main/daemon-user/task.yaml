@@ -1,0 +1,100 @@
+summary: ensure that we allow dropping privileges to daemon-user
+
+# This test is not executed on a core system simply because of the hassle of
+# building the support C program. In the future it might be improved with the
+# use of the classic snap where we just use classic to build the helper.
+systems: [-ubuntu-core-*]
+
+environment:
+    # This is used to abbreviate some of the paths below.
+    P1: /var/snap/test-snapd-sh/common
+    P2: /var/snap/test-snapd-daemon-user/common
+
+prepare: |
+    echo "Install a helper snap with default confinement"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-sh
+    install_local test-snapd-daemon-user
+
+    echo "Compile and prepare the support program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    gcc -Wall -Wextra -Werror ./drop.c -o "$P1/drop"
+    cp "$P1/drop" "$P2/drop"
+
+execute: |
+    # to accommodate different distros
+    user=$(getent passwd daemon | cut -d : -f 3)
+    group=$(getent group daemon | cut -d : -f 3)
+
+    echo "The test executables files have the expected mode and ownership"
+    #shellcheck disable=SC2012
+    ls -l "$P1" | MATCH -- '-rwxr-xr-x(.|) 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ drop'
+    #shellcheck disable=SC2012
+    ls -l "$P2" | MATCH -- '-rwxr-xr-x(.|) 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ drop'
+
+    echo "Running outside of confinement"
+    # Spread runs all tests as root so we're using su to switch to the "test"
+    # user. The "test" user inside the spread suite is guaranteed to have
+    # UID/GID of 12345.
+    su -l -c "$P1/drop" test 2>&1 | MATCH 'setgroups: Operation not permitted'
+    "$P1/drop" 2>&1               | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
+    "$P1/drop" test 2>&1          | MATCH 'After: ruid=12345, euid=12345, suid=12345, rgid=12345, egid=12345, sgid=12345, groups=$'
+
+    echo "Running without system-users: [ daemon ]"
+    # This is the same as the two above but it goes through snap-confine as
+    # well. Note that we have to quote the $ sign below as there are two shell
+    # expansions done. Note that we are using "snap run test-snapd-sh" in order
+    # to ensure that we can start the progam even if su/sudo's secure PATH does
+    # not contain the snap bin directory.
+    # CAP_SETGID is dropped before running
+    su -l -c "snap run test-snapd-sh -c '\$SNAP_COMMON/drop'" test 2>&1 | MATCH 'setgroups: Operation not permitted'
+    # CAP_SETGID is not allowed by apparmor/seccomp in full and seccomp in
+    # partial
+    #shellcheck disable=SC2016
+    snap run test-snapd-sh -c '$SNAP_COMMON/drop' 2>&1 | MATCH 'setgroups: Operation not permitted'
+    touch "$P1/without.chown"
+    #shellcheck disable=SC2016
+    snap run test-snapd-sh -c 'chown daemon $SNAP_COMMON/without.chown' 2>&1 | MATCH 'Operation not permitted'
+    touch "$P1/without.chgrp"
+    #shellcheck disable=SC2016
+    snap run test-snapd-sh -c 'chgrp daemon $SNAP_COMMON/without.chgrp' 2>&1 | MATCH 'Operation not permitted'
+    touch "$P1/without.both"
+    #shellcheck disable=SC2016
+    snap run test-snapd-sh -c 'chown daemon:daemon $SNAP_COMMON/without.both' 2>&1 | MATCH 'Operation not permitted'
+
+    echo "Running with system-users: [ daemon ]"
+    # CAP_SETGID is dropped before running
+    su -l -c "snap run test-snapd-daemon-user.sh -c '\$SNAP_COMMON/drop'" test 2>&1 | MATCH 'setgroups: Operation not permitted'
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c '$SNAP_COMMON/drop'                  2>&1 | MATCH "After: ruid=$user, euid=$user, suid=$user, rgid=$group, egid=$group, sgid=$group, groups=$"
+    touch "$P2/with.chown"
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c 'chown daemon $SNAP_COMMON/with.chown'
+    #shellcheck disable=SC2012
+    ls -l "$P2/with.chown" | MATCH -- 'daemon root'
+    touch "$P2/with.chgrp"
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c 'chgrp daemon $SNAP_COMMON/with.chgrp'
+    #shellcheck disable=SC2012
+    ls -l "$P2/with.chgrp" | MATCH -- 'root daemon'
+    touch "$P2/with.both"
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c 'chown daemon:daemon $SNAP_COMMON/with.both'
+    #shellcheck disable=SC2012
+    ls -l "$P2/with.both" | MATCH -- 'daemon daemon'
+
+    echo "Running with system-users: [ daemon ] but dropping to another"
+    su -l -c "snap run test-snapd-daemon-user.sh -c '\$SNAP_COMMON/drop test'" test 2>&1 | MATCH 'setgroups: Operation not permitted'
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c '$SNAP_COMMON/drop test'                  2>&1 | MATCH 'setgid: Operation not permitted'
+    touch "$P2/other.chown"
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c 'chown test $SNAP_COMMON/other.chown' 2>&1 | MATCH 'Operation not permitted'
+    touch "$P2/other.chgrp"
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c 'chgrp test $SNAP_COMMON/other.chgrp' 2>&1 | MATCH 'Operation not permitted'
+    touch "$P2/other.both"
+    #shellcheck disable=SC2016
+    snap run test-snapd-daemon-user.sh -c 'chown test:test $SNAP_COMMON/other.both' 2>&1 | MATCH 'Operation not permitted'

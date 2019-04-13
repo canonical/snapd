@@ -41,6 +41,7 @@ execute: |
     # to ensure that we can start the progam even if su/sudo's secure PATH does
     # not contain the snap bin directory.
     su -l -c "snap run test-snapd-sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Cannot cap_sys_admin'
+    #shellcheck disable=SC2016
     snap run test-snapd-sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Can cap_sys_admin'
 
     # We should preserve CAP_SYS_ADMIN when run under sudo from non-root or
