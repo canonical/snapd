@@ -140,7 +140,7 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 				"ID_SERIAL_SHORT":         "123",
 				"ACTION":                  "add",
 			},
-			out: "/sys/devices/a/b/c (very long vendor name abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV...; serial: 123)",
+			out: "/sys/devices/a/b/c (very long vendor name abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV…; serial: 123)",
 		},
 		{
 			env: map[string]string{
@@ -149,7 +149,7 @@ func (s *hotplugSuite) TestStringFormat(c *C) {
 				"ACTION":                 "add",
 				"MAJOR":                  "189", "MINOR": "1",
 			},
-			out: "/sys/devices/a/b/c (very long model name abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW...)",
+			out: "/sys/devices/a/b/c (very long model name abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW…)",
 		},
 		{
 			env: map[string]string{
@@ -183,5 +183,5 @@ func (s *hotplugSuite) TestShortStringFormat(c *C) {
 		"ACTION":                  "add",
 	})
 	c.Assert(err, IsNil)
-	c.Check(di.ShortString(), Equals, "/sys/devices/a (very long vendor...)")
+	c.Check(di.ShortString(), Equals, "/sys/devices/a (very long vendor…)")
 }
