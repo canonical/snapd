@@ -28,7 +28,6 @@ import (
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -53,7 +52,7 @@ AcLorsomethingthatlooksvaguelylikeasignature==
 func (s *SnapSuite) TestKnownRemote(c *check.C) {
 	var server *httptest.Server
 
-	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx storecontext.StoreContext) *store.Store {
+	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
 		if cfg == nil {
 			cfg = store.DefaultConfig()
 		}

@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 
 	"github.com/jessevdk/go-flags"
@@ -74,7 +73,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	var user *auth.UserState
 
 	// FIXME: set auth context
-	var storeCtx storecontext.StoreContext
+	var storeCtx store.DeviceAndAuthContext
 
 	at := asserts.Type(typeName)
 	if at == nil {

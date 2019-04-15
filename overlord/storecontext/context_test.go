@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/store"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -220,7 +221,7 @@ func (s *storeCtxSuite) TestDeviceSessionRequestParamsNilDeviceAssertions(c *C) 
 	storeCtx := storecontext.New(s.state, nil)
 
 	_, err := storeCtx.DeviceSessionRequestParams("NONCE")
-	c.Check(err, Equals, storecontext.ErrNoSerial)
+	c.Check(err, Equals, store.ErrNoSerial)
 }
 
 func (s *storeCtxSuite) TestCloudInfo(c *C) {
@@ -376,7 +377,7 @@ func (s *storeCtxSuite) TestMissingDeviceAssertions(c *C) {
 	storeCtx := storecontext.New(s.state, &testDeviceAssertions{nothing: true})
 
 	_, err := storeCtx.DeviceSessionRequestParams("NONCE")
-	c.Check(err, Equals, storecontext.ErrNoSerial)
+	c.Check(err, Equals, store.ErrNoSerial)
 
 	storeID, err := storeCtx.StoreID("fallback")
 	c.Assert(err, IsNil)

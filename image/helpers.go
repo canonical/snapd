@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -156,8 +155,8 @@ func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
 	}, nil
 }
 
-// toolingStoreContext implements trivially storecontext.StoreContext except
-// implementing UpdateUserAuth properly to be used to refresh a
+// toolingStoreContext implements trivially store.DeviceAndAuthContext
+// except implementing UpdateUserAuth properly to be used to refresh a
 // soft-expired user macaroon.
 type toolingStoreContext struct{}
 
@@ -169,8 +168,8 @@ func (tac toolingStoreContext) Device() (*auth.DeviceState, error) {
 	return &auth.DeviceState{}, nil
 }
 
-func (tac toolingStoreContext) DeviceSessionRequestParams(_ string) (*storecontext.DeviceSessionRequestParams, error) {
-	return nil, storecontext.ErrNoSerial
+func (tac toolingStoreContext) DeviceSessionRequestParams(_ string) (*store.DeviceSessionRequestParams, error) {
+	return nil, store.ErrNoSerial
 }
 
 func (tac toolingStoreContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {

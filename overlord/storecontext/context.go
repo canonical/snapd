@@ -17,10 +17,10 @@
  *
  */
 
+// Package storecontext supplies a pluggable implementation of store.DeviceAndAuthContext.
 package storecontext
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 // DeviceAssertions helps exposing the assertions about device identity.
@@ -42,61 +43,21 @@ type DeviceAssertions interface {
 	Serial() (*asserts.Serial, error)
 
 	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
+	DeviceSessionRequestParams(nonce string) (*store.DeviceSessionRequestParams, error)
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
 }
 
-// DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.
-type DeviceSessionRequestParams struct {
-	Request *asserts.DeviceSessionRequest
-	Serial  *asserts.Serial
-	Model   *asserts.Model
-}
-
-func (p *DeviceSessionRequestParams) EncodedRequest() string {
-	return string(asserts.Encode(p.Request))
-}
-
-func (p *DeviceSessionRequestParams) EncodedSerial() string {
-	return string(asserts.Encode(p.Serial))
-}
-
-func (p *DeviceSessionRequestParams) EncodedModel() string {
-	return string(asserts.Encode(p.Model))
-}
-
-var (
-	// ErrNoSerial indicates that a device serial is not set yet.
-	ErrNoSerial = errors.New("no device serial yet")
-)
-
-// TODO: StoreContext logically should be defined in the store package.
-
-// A StoreContext mediates access to device and system information.
-type StoreContext interface {
-	Device() (*auth.DeviceState, error)
-
-	UpdateDeviceAuth(device *auth.DeviceState, sessionMacaroon string) (actual *auth.DeviceState, err error)
-
-	UpdateUserAuth(user *auth.UserState, discharges []string) (actual *auth.UserState, err error)
-
-	StoreID(fallback string) (string, error)
-
-	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
-	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
-
-	CloudInfo() (*auth.CloudInfo, error)
-}
-
-// storeContext implements StoreContext.
+// storeContext implements store.DeviceAndAuthContext.
 type storeContext struct {
 	state         *state.State
 	deviceAsserts DeviceAssertions
 }
 
-// New returns a StoreContext for state.
-func New(st *state.State, deviceAsserts DeviceAssertions) StoreContext {
+var _ store.DeviceAndAuthContext = (*storeContext)(nil)
+
+// New returns a store.DeviceAndAuthContext.
+func New(st *state.State, deviceAsserts DeviceAssertions) store.DeviceAndAuthContext {
 	return &storeContext{state: st, deviceAsserts: deviceAsserts}
 }
 
@@ -178,14 +139,16 @@ func (sc *storeContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.
+type DeviceSessionRequestParams = store.DeviceSessionRequestParams
+
+// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns store.ErrNoSerial if the device serial is not yet initialized.
 func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
 	if sc.deviceAsserts == nil {
-		return nil, ErrNoSerial
+		return nil, store.ErrNoSerial
 	}
 	params, err := sc.deviceAsserts.DeviceSessionRequestParams(nonce)
 	if err == state.ErrNoState {
-		return nil, ErrNoSerial
+		return nil, store.ErrNoSerial
 	}
 	if err != nil {
 		return nil, err

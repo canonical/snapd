@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2279,7 +2278,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 }
 
 type toolingStoreContextSuite struct {
-	sc storecontext.StoreContext
+	sc store.DeviceAndAuthContext
 }
 
 var _ = Suite(&toolingStoreContextSuite{})
@@ -2298,7 +2297,7 @@ func (s *toolingStoreContextSuite) TestNopBits(c *C) {
 	c.Check(device, DeepEquals, &auth.DeviceState{})
 
 	p, err := s.sc.DeviceSessionRequestParams("")
-	c.Assert(err, Equals, storecontext.ErrNoSerial)
+	c.Assert(err, Equals, store.ErrNoSerial)
 	c.Check(p, IsNil)
 
 	defURL, err := url.Parse("http://store")

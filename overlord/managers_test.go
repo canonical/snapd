@@ -56,7 +56,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2308,7 +2307,7 @@ version: 1.0
 
 type storeCtxSetupSuite struct {
 	o  *overlord.Overlord
-	sc storecontext.StoreContext
+	sc store.DeviceAndAuthContext
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
@@ -2328,11 +2327,11 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	captureStoreContext := func(_ *store.Config, ac storecontext.StoreContext) *store.Store {
-		s.sc = ac
+	captureStoreCtx := func(_ *store.Config, dac store.DeviceAndAuthContext) *store.Store {
+		s.sc = dac
 		return store.New(nil, nil)
 	}
-	r := overlord.MockStoreNew(captureStoreContext)
+	r := overlord.MockStoreNew(captureStoreCtx)
 	defer r()
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
@@ -2423,7 +2422,7 @@ func (s *storeCtxSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	st.Unlock()
 	_, err := s.sc.DeviceSessionRequestParams("NONCE")
 	st.Lock()
-	c.Check(err, Equals, storecontext.ErrNoSerial)
+	c.Check(err, Equals, store.ErrNoSerial)
 
 	// setup model, serial and key in system state
 	err = assertstate.Add(st, s.model)

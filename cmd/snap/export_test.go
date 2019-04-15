@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
 )
@@ -114,7 +113,7 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 	}
 }
 
-func MockStoreNew(f func(*store.Config, storecontext.StoreContext) *store.Store) (restore func()) {
+func MockStoreNew(f func(*store.Config, store.DeviceAndAuthContext) *store.Store) (restore func()) {
 	storeNewOrig := storeNew
 	storeNew = f
 	return func() {
