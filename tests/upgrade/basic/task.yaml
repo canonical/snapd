@@ -12,6 +12,17 @@ restore: |
     rm -f /var/tmp/myevil.txt
     rm -f ./do-classic ./prevsnapdver.out
 
+    # An older version of snapd might have been missing proper context
+    # transitions for fontconfig cache locations, attempt to restore the context
+    # to avoid breaking tests that run after this one
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            if [ -d /var/cache/fontconfig ]; then
+                restorecon -RvF /var/cache/fontconfig
+            fi
+            ;;
+    esac
+
 execute: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"

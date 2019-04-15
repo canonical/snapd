@@ -832,7 +832,7 @@ fi
 
 # TODO: the trigger relies on a very specific snapd version that introduced SELinux
 # mount context, figure out how to update the trigger condition to run when needed
-%triggerun -- snapd < 2.38
+%triggerun -- snapd < 2.39
 # Trigger on uninstall, with one version of the package being pre 2.38 see
 # https://rpm-packaging-guide.github.io/#triggers-and-scriptlets for details
 # when triggers are run
@@ -840,6 +840,13 @@ fi
 if [ "$1" -eq 2 -a "$2" -eq 1 ]; then
    # Upgrade from pre 2.38 version
    %{_libexecdir}/snapd/snap-mgmt-selinux --patch-selinux-mount-context=system_u:object_r:snappy_snap_t:s0 || :
+
+   # snapd might have created fontconfig cache directory earlier, but with
+   # incorrect context due to bugs in the policy, make sure it gets the right one
+   # on upgrade when the new policy was introduced
+   if [ -d "%{_localstatedir}/cache/fontconfig" ]; then
+      restorecon -R %{_localstatedir}/cache/fontconfig || :
+   fi
 elif [ "$1" -eq 1 -a "$2" -eq 2 ]; then
    # Downgrade to a pre 2.38 version
    %{_libexecdir}/snapd/snap-mgmt-selinux --remove-selinux-mount-context=system_u:object_r:snappy_snap_t:s0 || :
