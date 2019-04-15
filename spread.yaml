@@ -411,9 +411,9 @@ debug-each: |
                 fi
                 (
                     find /root/snap -printf '%Z\t%H/%P\n' || true
-                    find /home/test/snap -printf '%Z\t%H/%P\n' || true
+                    find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
                 ) | grep -v snappy_home_t || true
-                find /var/snap -printf '%Z\t%H/%P' | grep -v snappy_var_t || true
+                find /var/snap -printf '%Z\t%H/%P\n' | grep -v snappy_var_t || true
                 ;;
             *)
                echo '# apparmor denials '
@@ -588,10 +588,10 @@ restore-each: |
             # files on systems supporting SELinux
             (
                 find /root/snap -printf '%Z\t%H/%P\n' || true
-                find /home/test/snap -printf '%Z\t%H/%P\n' || true
+                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
             ) | grep -c -v snappy_home_t | MATCH "0"
 
-            find /var/snap -printf '%Z\t%H/%P' | grep -c -v snappy_var_t  | MATCH "0"
+            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
             ;;
     esac
 
