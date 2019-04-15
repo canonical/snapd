@@ -45,7 +45,7 @@ type rootTimingsJSON struct {
 	StopTime time.Time `json:"stop-time"`
 }
 
-// TimingsInfo encompasses timings returned by the Get method below.
+// TimingsInfo holds a set of related nested timings and the tags set when they were captured.
 // It generally reflects rootTimingJSON, but may hide some of its detials.
 type TimingsInfo struct {
 	Tags          map[string]string
@@ -66,18 +66,20 @@ var timeDuration = func(start, end time.Time) time.Duration {
 // flatten flattens nested measurements into a single list within rootTimingJson.NestedTimings
 // and calculates total duration.
 func (t *Timings) flatten() interface{} {
+	if len(t.timings) == 0 {
+		return nil
+	}
 	data := &rootTimingsJSON{
 		Tags: t.tags,
 	}
 	var maxStopTime time.Time
-	if len(t.timings) > 0 {
-		flattenRecursive(data, t.timings, 0, &maxStopTime)
-		if len(data.NestedTimings) == 0 {
-			return nil
-		}
-		data.StartTime = t.timings[0].start
-		data.StopTime = maxStopTime
+	flattenRecursive(data, t.timings, 0, &maxStopTime)
+	if len(data.NestedTimings) == 0 {
+		return nil
 	}
+	data.StartTime = t.timings[0].start
+	data.StopTime = maxStopTime
+
 	return data
 }
 
@@ -147,8 +149,9 @@ func Get(st *state.State, maxLevel int, filter func(tags map[string]string) bool
 		res := &TimingsInfo{
 			Tags: tm.Tags,
 		}
-		if maxLevel < 0 { // no level-based filtering?
-			res.NestedTimings = tm.NestedTimings
+		// negative maxLevel means no level filtering, take all nested timings
+		if maxLevel < 0 {
+			res.NestedTimings = tm.NestedTimings // there is always at least one nested timing - guaranteed by Save()
 			result = append(result, res)
 			continue
 		}
@@ -157,9 +160,8 @@ func Get(st *state.State, maxLevel int, filter func(tags map[string]string) bool
 				res.NestedTimings = append(res.NestedTimings, nested)
 			}
 		}
-		if len(res.NestedTimings) > 0 {
-			result = append(result, res)
-		}
+		// maxLevel is >=0 here, so we always have at least level 0 timings when the loop finishes
+		result = append(result, res)
 	}
 	return result, nil
 }
