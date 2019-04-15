@@ -125,9 +125,9 @@ func removeSnapshotState(st *state.State, setIDs ...uint64) error {
 	return nil
 }
 
-// expiredSnapshotSets returns a list of expired snapshot sets from the state whose expiry-time is before the given cutOffTime.
+// expiredSnapshotSets returns expired snapshot sets from the state whose expiry-time is before the given cutoffTime.
 // The state needs to be locked by the caller.
-func expiredSnapshotSets(st *state.State, cutOffTime time.Time) ([]uint64, error) {
+func expiredSnapshotSets(st *state.State, cutoffTime time.Time) (map[uint64]bool, error) {
 	var snapshots map[uint64]*snapshotState
 	err := st.Get("snapshots", &snapshots)
 	if err != nil {
@@ -137,10 +137,10 @@ func expiredSnapshotSets(st *state.State, cutOffTime time.Time) ([]uint64, error
 		return nil, nil
 	}
 
-	var expired []uint64
+	expired := make(map[uint64]bool)
 	for setID, snapshotSet := range snapshots {
-		if snapshotSet.ExpiryTime.Before(cutOffTime) {
-			expired = append(expired, setID)
+		if snapshotSet.ExpiryTime.Before(cutoffTime) {
+			expired[setID] = true
 		}
 	}
 
@@ -279,6 +279,26 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 	}
 
 	return setID, instanceNames, ts, nil
+}
+
+func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err error) {
+	setID, err := newSnapshotSetID(st)
+	if err != nil {
+		return nil, err
+	}
+
+	ts = state.NewTaskSet()
+	desc := fmt.Sprintf("Save data of snap %q in automatic snapshot set #%d", snapName, setID)
+	task := st.NewTask("save-snapshot", desc)
+	snapshot := snapshotSetup{
+		SetID: setID,
+		Snap:  snapName,
+		Auto:  true,
+	}
+	task.Set("snapshot-setup", &snapshot)
+	ts.AddTask(task)
+
+	return ts, nil
 }
 
 // Restore creates a taskset for restoring a snapshot's data.
