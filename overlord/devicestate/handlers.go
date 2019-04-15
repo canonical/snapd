@@ -100,7 +100,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	}
 	for snapName, snapst := range snapStates {
 		// TODO: remove this type restriction once we remodel
-		//       bases/kernels/gadgets and add tests that ensure
+		//       kernels/gadgets and add tests that ensure
 		//       that the required flag is properly set/unset
 		typ, err := snapst.Type()
 		if err != nil {
@@ -114,6 +114,9 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 			snapst.Flags.Required = false
 			snapstate.Set(st, snapName, snapst)
 		}
+		// TODO: clean "required" flag of "core" if a remodel
+		//       moves from the "core" snap to a different
+		//       bootable base snap.
 	}
 
 	// TODO: set device,model from the new model assertion
