@@ -21,22 +21,59 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdChangeTimings struct {
 	changeIDMixin
+	Verbose bool `long:"verbose"`
 }
 
 func init() {
 	addDebugCommand("timings",
-		"Get the timings of the tasks of a change",
-		"The timings command displays details about the time each task runs.",
+		i18n.G("Get the timings of the tasks of a change"),
+		i18n.G("The timings command displays details about the time each task runs."),
 		func() flags.Commander {
 			return &cmdChangeTimings{}
-		}, changeIDMixinOptDesc, changeIDMixinArgDesc)
+		}, changeIDMixinOptDesc.also(map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"verbose": i18n.G("Show more information"),
+		}), changeIDMixinArgDesc)
+}
+
+type Timing struct {
+	Level    int           `json:"level,omitempty"`
+	Label    string        `json:"label,omitempty"`
+	Summary  string        `json:"summary,omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
+}
+
+func formatDuration(dur time.Duration) string {
+	return fmt.Sprintf("%dms", dur/time.Millisecond)
+}
+
+func printTiming(w io.Writer, t *Timing, verbose, doing bool) {
+	var doingTimeStr, undoingTimeStr string
+	if doing {
+		doingTimeStr = formatDuration(t.Duration)
+		undoingTimeStr = "-"
+	} else {
+		if doing {
+			doingTimeStr = "-"
+			undoingTimeStr = formatDuration(t.Duration)
+		}
+	}
+	if verbose {
+		fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\t%s\n", strings.Repeat(" ", t.Level+1)+"^", doingTimeStr, undoingTimeStr, t.Label, strings.Repeat(" ", 2*(t.Level+1))+t.Summary)
+	} else {
+		fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\n", strings.Repeat(" ", t.Level+1)+"^", doingTimeStr, undoingTimeStr, strings.Repeat(" ", 2*(t.Level+1))+t.Summary)
+	}
 }
 
 func (x *cmdChangeTimings) Execute(args []string) error {
@@ -50,7 +87,10 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 
 	// gather debug timings first
 	var timings map[string]struct {
-		DoingTime, UndoingTime time.Duration
+		DoingTime      time.Duration `json:"doing-time,omitempty"`
+		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
+		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
+		UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
 	}
 	params := struct {
 		ChgID string `json:"chg-id"`
@@ -67,20 +107,37 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		return err
 	}
 	w := tabWriter()
-	fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
+	if x.Verbose {
+		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tLabel\tSummary\n", "Doing", "Undoing")
+	} else {
+		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
+	}
 	for _, t := range chg.Tasks {
-		doingTime := timings[t.ID].DoingTime.Round(time.Millisecond).String()
+		doingTime := formatDuration(timings[t.ID].DoingTime)
 		if timings[t.ID].DoingTime == 0 {
 			doingTime = "-"
 		}
-		undoingTime := timings[t.ID].UndoingTime.Round(time.Millisecond).String()
+		undoingTime := formatDuration(timings[t.ID].UndoingTime)
 		if timings[t.ID].UndoingTime == 0 {
 			undoingTime = "-"
 		}
 		summary := t.Summary
 		// Duration formats to 17m14.342s or 2.038s or 970ms, so with
 		// 11 chars we can go up to 59m59.999s
-		fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
+		if x.Verbose {
+			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
+		}
+
+		for _, nested := range timings[t.ID].DoingTimings {
+			showDoing := true
+			printTiming(w, &nested, x.Verbose, showDoing)
+		}
+		for _, nested := range timings[t.ID].UndoingTimings {
+			showDoing := false
+			printTiming(w, &nested, x.Verbose, showDoing)
+		}
 	}
 	w.Flush()
 	fmt.Fprintln(Stdout)
