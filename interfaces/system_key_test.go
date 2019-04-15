@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -211,28 +210,4 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	// when we encounter different versions we get the right error
 	_, err = interfaces.SystemKeyMismatch()
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
-}
-
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathNormal(c *C) {
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
-}
-
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathReexec(c *C) {
-	s.AddCleanup(cmd.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
-	}))
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/core/111/usr/lib/snapd/snapd"))
-}
-
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathSnapdSnap(c *C) {
-	s.AddCleanup(cmd.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "snapd/22/usr/bin/snap"), nil
-	}))
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/snapd/22/usr/lib/snapd/snapd"))
 }

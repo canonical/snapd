@@ -82,10 +82,6 @@ var (
 	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
 )
 
-func findSnapdPath() (string, error) {
-	return cmd.InternalToolPath("snapd")
-}
-
 func seccompCompilerVersionInfoImpl(path string) (string, error) {
 	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
 	if err != nil {
@@ -103,7 +99,7 @@ func generateSystemKey() (*systemKey, error) {
 	sk := &systemKey{
 		Version: 1,
 	}
-	snapdPath, err := findSnapdPath()
+	snapdPath, err := cmd.InternalToolPath("snapd")
 	if err != nil {
 		return nil, err
 	}
