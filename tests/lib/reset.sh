@@ -154,7 +154,10 @@ reset_all_snap() {
 
 }
 
-if is_core_system; then
+# When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
+# In that case we just cleanup the environment by removing installed snaps as
+# it is done for core systems.
+if is_core_system || [ "$REUSE_SNAPD" = 1 ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
