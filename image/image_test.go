@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2277,55 +2278,55 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 	c.Assert(s.stdout.String(), Matches, `(?m)Copying ".*/snapd_3.14_all.snap" \(snapd\)`)
 }
 
-type toolingAuthContextSuite struct {
-	ac auth.AuthContext
+type toolingStoreContextSuite struct {
+	sc storecontext.StoreContext
 }
 
-var _ = Suite(&toolingAuthContextSuite{})
+var _ = Suite(&toolingStoreContextSuite{})
 
-func (s *toolingAuthContextSuite) SetUpTest(c *C) {
-	s.ac = image.ToolingAuthContext()
+func (s *toolingStoreContextSuite) SetUpTest(c *C) {
+	s.sc = image.ToolingStoreContext()
 }
 
-func (s *toolingAuthContextSuite) TestNopBits(c *C) {
-	info, err := s.ac.CloudInfo()
+func (s *toolingStoreContextSuite) TestNopBits(c *C) {
+	info, err := s.sc.CloudInfo()
 	c.Assert(err, IsNil)
 	c.Check(info, IsNil)
 
-	device, err := s.ac.Device()
+	device, err := s.sc.Device()
 	c.Assert(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
 
-	p, err := s.ac.DeviceSessionRequestParams("")
-	c.Assert(err, Equals, auth.ErrNoSerial)
+	p, err := s.sc.DeviceSessionRequestParams("")
+	c.Assert(err, Equals, storecontext.ErrNoSerial)
 	c.Check(p, IsNil)
 
 	defURL, err := url.Parse("http://store")
 	c.Assert(err, IsNil)
-	proxyStoreID, proxyStoreURL, err := s.ac.ProxyStoreParams(defURL)
+	proxyStoreID, proxyStoreURL, err := s.sc.ProxyStoreParams(defURL)
 	c.Assert(err, IsNil)
 	c.Check(proxyStoreID, Equals, "")
 	c.Check(proxyStoreURL, Equals, defURL)
 
-	storeID, err := s.ac.StoreID("")
+	storeID, err := s.sc.StoreID("")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "")
 
-	storeID, err = s.ac.StoreID("my-store")
+	storeID, err = s.sc.StoreID("my-store")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-store")
 
-	_, err = s.ac.UpdateDeviceAuth(nil, "")
+	_, err = s.sc.UpdateDeviceAuth(nil, "")
 	c.Assert(err, NotNil)
 }
 
-func (s *toolingAuthContextSuite) TestUpdateUserAuth(c *C) {
+func (s *toolingStoreContextSuite) TestUpdateUserAuth(c *C) {
 	u := &auth.UserState{
 		StoreMacaroon:   "macaroon",
 		StoreDischarges: []string{"discharge1"},
 	}
 
-	u1, err := s.ac.UpdateUserAuth(u, []string{"discharge2"})
+	u1, err := s.sc.UpdateUserAuth(u, []string{"discharge2"})
 	c.Assert(err, IsNil)
 	c.Check(u1, Equals, u)
 	c.Check(u1.StoreDischarges, DeepEquals, []string{"discharge2"})

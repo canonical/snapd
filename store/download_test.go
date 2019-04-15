@@ -126,7 +126,7 @@ func (s *downloadSuite) TestActualDownloadNoCDN(c *C) {
 	c.Check(buf.String(), Equals, "response-data")
 }
 
-func (s *downloadSuite) TestActualDownloadFullCloudInfoFromAuthContext(c *C) {
+func (s *downloadSuite) TestActualDownloadFullCloudInfoFromStoreContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
 
@@ -136,7 +136,7 @@ func (s *downloadSuite) TestActualDownloadFullCloudInfoFromAuthContext(c *C) {
 	defer mockServer.Close()
 
 	device := createTestDevice()
-	theStore := store.New(&store.Config{}, &testAuthContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
+	theStore := store.New(&store.Config{}, &testStoreContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
 
 	var buf SillyBuffer
 	// keep tests happy
@@ -146,7 +146,7 @@ func (s *downloadSuite) TestActualDownloadFullCloudInfoFromAuthContext(c *C) {
 	c.Check(buf.String(), Equals, "response-data")
 }
 
-func (s *downloadSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c *C) {
+func (s *downloadSuite) TestActualDownloadLessDetailedCloudInfoFromStoreContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
 
@@ -156,7 +156,7 @@ func (s *downloadSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c
 	defer mockServer.Close()
 
 	device := createTestDevice()
-	theStore := store.New(&store.Config{}, &testAuthContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
+	theStore := store.New(&store.Config{}, &testStoreContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
 
 	var buf SillyBuffer
 	// keep tests happy

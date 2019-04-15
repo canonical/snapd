@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// TODO: snapstate also has this, move to auth, or change a bit the approach now that we have AuthContext in the store?
+// TODO: snapstate also has this, move to auth, or change a bit the approach now that we have StoreContext in the store?
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	if userID == 0 {
 		return nil, nil

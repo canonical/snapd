@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 
 	"github.com/jessevdk/go-flags"
@@ -73,7 +74,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	var user *auth.UserState
 
 	// FIXME: set auth context
-	var authContext auth.AuthContext
+	var storeCtx storecontext.StoreContext
 
 	at := asserts.Type(typeName)
 	if at == nil {
@@ -84,7 +85,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
 
-	sto := storeNew(nil, authContext)
+	sto := storeNew(nil, storeCtx)
 	as, err := sto.Assertion(at, primaryKeys, user)
 	if err != nil {
 		return nil, err
