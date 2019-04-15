@@ -3297,6 +3297,9 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	for _, name := range []string{"foo", "bar", "baz"} {
 		i += validateInstallTasks(c, tasks[i:], name, "1")
 	}
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
 }
 
 func (ms *mgrsSuite) TestRemodelDifferentBase(c *C) {
@@ -3440,7 +3443,11 @@ version: 2.0`
 
 	// then all installs in sequential order
 	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "2")
-	validateInstallTasks(c, tasks[i:], "foo", "1")
+	i += validateInstallTasks(c, tasks[i:], "foo", "1")
+
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
 }
 
 func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
