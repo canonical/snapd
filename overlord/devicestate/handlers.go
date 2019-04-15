@@ -423,7 +423,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	if serialSup.SerialRequest == "" {
 		var serialRequest string
 		var err error
-		timings.Run(tm, "prepare-serial", "prepare device serial request", func(timings.Measurer) {
+		timings.Run(tm, "prepare-serial-request", "prepare device serial request", func(timings.Measurer) {
 			serialRequest, err = prepareSerialRequest(t, privKey, device, client, cfg)
 		})
 		if err != nil { // errors & retries
@@ -434,7 +434,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	}
 
 	var serial *asserts.Serial
-	timings.Run(tm, "submit-serial", "submit device serial request", func(timings.Measurer) {
+	timings.Run(tm, "submit-serial-request", "submit device serial request", func(timings.Measurer) {
 		serial, err = submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
 	})
 	if err == errPoll {
