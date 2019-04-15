@@ -46,7 +46,6 @@ type rootTimingsJSON struct {
 }
 
 // TimingsInfo holds a set of related nested timings and the tags set when they were captured.
-// It generally reflects rootTimingJSON, but may hide some of its detials.
 type TimingsInfo struct {
 	Tags          map[string]string
 	NestedTimings []*TimingJSON
