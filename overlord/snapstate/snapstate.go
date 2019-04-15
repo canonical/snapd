@@ -1313,6 +1313,9 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 	flat := state.NewTaskSet()
 	for _, ts := range tts {
+		// The tasksets we get from "doUpdate" contain important
+		// "TaskEdge" information that is needed for "Remodel".
+		// To preserve those we need to use "AddAllWithEdges()".
 		if err := flat.AddAllWithEdges(ts); err != nil {
 			return nil, err
 		}
