@@ -203,3 +203,34 @@ func (s *StatTestSuite) TestDirExists(c *C) {
 	c.Check(isDir, Equals, false)
 	c.Check(err, NotNil)
 }
+
+func (s *StatTestSuite) TestIsExecutable(c *C) {
+	c.Check(IsExecutable("non-existent"), Equals, false)
+	c.Check(IsExecutable("."), Equals, false)
+	dir := c.MkDir()
+	c.Check(IsExecutable(dir), Equals, false)
+
+	for _, tc := range []struct {
+		mode os.FileMode
+		is   bool
+	}{
+		{0644, false},
+		{0444, false},
+		{0444, false},
+		{0000, false},
+		{0100, true},
+		{0010, true},
+		{0001, true},
+		{0755, true},
+	} {
+		c.Logf("tc: %v %v", tc.mode, tc.is)
+		p := filepath.Join(dir, "foo")
+		err := os.Remove(p)
+		c.Check(err == nil || os.IsNotExist(err), Equals, true)
+
+		err = ioutil.WriteFile(p, []byte(""), tc.mode)
+		c.Assert(err, IsNil)
+		c.Check(IsExecutable(p), Equals, tc.is)
+	}
+
+}

@@ -211,7 +211,11 @@ EOF
 }
 
 prepare_classic() {
-    distro_install_build_snapd
+    # Skip building snapd when REUSE_SNAPD is set to 1
+    if [ "$REUSE_SNAPD" != 1 ]; then
+        distro_install_build_snapd
+    fi
+
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
