@@ -117,8 +117,3 @@ void sc_probe_distro(const char *os_release_path, ...)
 	}
 	va_end(ap);
 }
-
-bool sc_should_use_normal_mode(sc_distro distro, const char *base_snap_name)
-{
-	return distro != SC_DISTRO_CORE16 || !sc_streq(base_snap_name, "core");
-}

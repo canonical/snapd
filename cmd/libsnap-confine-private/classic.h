@@ -30,7 +30,6 @@ typedef enum sc_distro {
 
 sc_distro sc_classify_distro(void);
 
-bool sc_should_use_normal_mode(sc_distro distro, const char *base_snap_name);
 /**
  * sc_probe_distro extracts specific KEY=VALUE fields from a given os-release file.
  *

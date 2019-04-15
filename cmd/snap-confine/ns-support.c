@@ -48,14 +48,6 @@
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
 
-/*!
- * The void directory.
- *
- * Snap confine moves to that directory in case it cannot retain the current
- * working directory across the pivot_root call.
- **/
-#define SC_VOID_DIR "/var/lib/snapd/void"
-
 /**
  * Directory where snap-confine keeps namespace files.
  **/
@@ -369,14 +361,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
-	char fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
 	// Read the revision of the base snap by looking at the current symlink.
-	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
-			 SNAP_MOUNT_DIR, inv->base_snap_name);
-	if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
+	if (readlink(inv->rootfs_dir, base_snap_rev, sizeof base_snap_rev) < 0) {
 		die("cannot read current revision of snap %s",
 		    inv->snap_instance);
 	}
@@ -559,28 +548,12 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 		    (mnt_fd, inv, snap_discard_ns_fd) == EAGAIN) {
 			return ESRCH;
 		}
-		// Remember the vanilla working directory so that we may attempt to restore it later.
-		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
-		vanilla_cwd = get_current_dir_name();
-		if (vanilla_cwd == NULL) {
-			die("cannot get the current working directory");
-		}
 		// Move to the mount namespace of the snap we're trying to start.
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join preserved mount namespace %s",
 			    group->name);
 		}
 		debug("joined preserved mount namespace %s", group->name);
-
-		// Try to re-locate back to vanilla working directory. This can fail
-		// because that directory is no longer present.
-		if (chdir(vanilla_cwd) != 0) {
-			debug("cannot enter %s, moving to void", vanilla_cwd);
-			if (chdir(SC_VOID_DIR) != 0) {
-				die("cannot change directory to %s",
-				    SC_VOID_DIR);
-			}
-		}
 		return 0;
 	}
 	return ESRCH;
@@ -617,24 +590,11 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 #endif
 	if (ns_statfs_buf.f_type == NSFS_MAGIC
 	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
-		// TODO: refactor the cwd workflow across all of snap-confine.
-		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
-		vanilla_cwd = get_current_dir_name();
-		if (vanilla_cwd == NULL) {
-			die("cannot get the current working directory");
-		}
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join preserved per-user mount namespace %s",
 			    group->name);
 		}
 		debug("joined preserved mount namespace %s", group->name);
-		if (chdir(vanilla_cwd) != 0) {
-			debug("cannot enter %s, moving to void", vanilla_cwd);
-			if (chdir(SC_VOID_DIR) != 0) {
-				die("cannot change directory to %s",
-				    SC_VOID_DIR);
-			}
-		}
 		return 0;
 	}
 	return ESRCH;
