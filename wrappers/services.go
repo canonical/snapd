@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timeutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type interacter interface {
@@ -100,7 +101,7 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 // StartServices starts service units for the applications from the snap which
 // are services. Service units will be started in the order provided by the
 // caller.
-func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
+func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
 	services := make([]string, 0, len(apps))
@@ -153,7 +154,15 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 				return err
 			}
 
-			if err := sysd.Start(socketService); err != nil {
+			var span *timings.Span
+			if tm != nil {
+				span = tm.StartSpan("start-socket-service", fmt.Sprintf("start socket service %q", socketService))
+			}
+			err := sysd.Start(socketService)
+			if span != nil {
+				span.Stop()
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -165,7 +174,15 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 				return err
 			}
 
-			if err := sysd.Start(timerService); err != nil {
+			var span *timings.Span
+			if tm != nil {
+				span = tm.StartSpan("start-timer-service", fmt.Sprintf("start timer service %q", timerService))
+			}
+			err := sysd.Start(timerService)
+			if span != nil {
+				span.Stop()
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -178,7 +195,15 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 		// by one, see:
 		// https://github.com/systemd/systemd/issues/8102
 		// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
-		if err := sysd.Start(srv); err != nil {
+		var span *timings.Span
+		if tm != nil {
+			span = tm.StartSpan("start-service", fmt.Sprintf("start service %q", srv))
+		}
+		err := sysd.Start(srv)
+		if span != nil {
+			span.Stop()
+		}
+		if err != nil {
 			// cleanup was set up by iterating over apps
 			return err
 		}

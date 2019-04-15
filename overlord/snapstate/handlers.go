@@ -1290,6 +1290,9 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -1311,7 +1314,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, pb)
+	err = m.backend.StartServices(startupOrdered, pb, perfTimings)
 	st.Lock()
 	return err
 }
