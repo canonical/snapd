@@ -4,10 +4,14 @@ prepare: |
     snap pack test-snapd-tmp-b
     snap install --dangerous test-snapd-tmp-a_1_all.snap
     snap install --dangerous test-snapd-tmp-b_1_all.snap
+    # The per-snap base directory is not carried over across tests.
+    test ! -e /tmp/snap.test-snapd-tmp-a
+    test ! -e /tmp/snap.test-snapd-tmp-b
 restore: |
     snap remove test-snapd-tmp-a
     snap remove test-snapd-tmp-b
     rm -f test-snapd-tmp-{a,b}-1_all.snap
+    rm -rf /tmp/snap.test-snapd-tmp-{a,b}
 execute: |
     # shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
