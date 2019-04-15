@@ -409,6 +409,11 @@ debug-each: |
                 else
                     ausearch -m AVC || true
                 fi
+                (
+                    find /root/snap -printf '%Z\t%H/%P\n' || true
+                    find /home/test/snap -printf '%Z\t%H/%P\n' || true
+                ) | grep -v snappy_home_t || true
+                find /var/snap -printf '%Z\t%H/%P' | grep -v snappy_var_t || true
                 ;;
             *)
                echo '# apparmor denials '
@@ -577,6 +582,18 @@ restore: |
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
     if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # Make sure that we are not leaving behind incorrectly labeled snap
+            # files on systems supporting SELinux
+            (
+                find /root/snap -printf '%Z\t%H/%P\n' || true
+                find /home/test/snap -printf '%Z\t%H/%P\n' || true
+            ) | grep -c -v snappy_home_t | MATCH "0"
+
+            find /var/snap -printf '%Z\t%H/%P' | grep -c -v snappy_var_t  | MATCH "0"
+            ;;
+    esac
 
 suites:
     tests/main/:
