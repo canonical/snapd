@@ -816,7 +816,7 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
@@ -829,7 +829,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.M
 	return nil
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),

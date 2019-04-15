@@ -1103,6 +1103,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -1154,7 +1157,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(snapst.Sequence) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
-		err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
+		timings.Run(perfTimings, "discard-snap-namespace", fmt.Sprintf("discard the namespace of snap %q", snapsup.InstanceName()), func(tm timings.Measurer) {
+			err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
+		})
 		if err != nil {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
@@ -1324,6 +1329,9 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -1345,7 +1353,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
-	err = m.backend.StopServices(svcs, stopReason, pb)
+	err = m.backend.StopServices(svcs, stopReason, pb, perfTimings)
 	st.Lock()
 	return err
 }

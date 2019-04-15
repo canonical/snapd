@@ -146,12 +146,12 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 	return nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter) error {
-	return wrappers.StartServices(apps, meter)
+func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
+	return wrappers.StartServices(apps, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
-	return wrappers.StopServices(apps, reason, meter)
+func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
 func generateWrappers(s *snap.Info) error {
