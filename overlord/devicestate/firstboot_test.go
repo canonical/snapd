@@ -163,7 +163,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "generic")
 	c.Check(ds.Model, Equals, "generic-classic")
@@ -195,7 +195,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model-classic")
@@ -267,7 +267,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudIns
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model-classic")
@@ -1188,7 +1188,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model")

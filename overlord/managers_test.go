@@ -195,7 +195,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
 		Serial: "serialserial",
@@ -1485,7 +1485,7 @@ type: os
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -1577,7 +1577,7 @@ type: kernel`
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -2426,7 +2426,7 @@ func (s *storeCtxSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "fallback")
 
 	// setup model in system statey
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -2460,7 +2460,7 @@ func (s *storeCtxSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	c.Assert(err, IsNil)
 	err = kpMgr.Put(deviceKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -3192,7 +3192,7 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	model := makeModelAssertion(c, brandSigning, nil)
 
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -3298,7 +3298,7 @@ type: base`
 	model := makeModelAssertion(c, brandSigning, nil)
 
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -3343,7 +3343,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 		KeyID: deviceKey.PublicKey().ID(),
@@ -3402,7 +3402,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := auth.Device(st)
+	device, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "my-model")

@@ -44,9 +44,44 @@ var (
 	snapstateUpdate  = snapstate.Update
 )
 
+// Device returns the device details from the state.
+func Device(st *state.State) (*auth.DeviceState, error) {
+	var authStateData auth.AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return &auth.DeviceState{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	if authStateData.Device == nil {
+		return &auth.DeviceState{}, nil
+	}
+
+	return authStateData.Device, nil
+}
+
+// SetDevice updates the device details in the state.
+func SetDevice(st *state.State, device *auth.DeviceState) error {
+	var authStateData auth.AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		authStateData = auth.AuthState{}
+	} else if err != nil {
+		return err
+	}
+
+	authStateData.Device = device
+	st.Set("auth", authStateData)
+
+	return nil
+}
+
 // Model returns the device model assertion.
 func Model(st *state.State) (*asserts.Model, error) {
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +107,7 @@ func Model(st *state.State) (*asserts.Model, error) {
 
 // Serial returns the device serial assertion.
 func Serial(st *state.State) (*asserts.Serial, error) {
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return nil, err
 	}
