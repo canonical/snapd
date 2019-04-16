@@ -548,14 +548,17 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 
 // SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
 func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
-	privKey, err := m.keyPair()
-	if err != nil {
-		return nil, err
-	}
-
 	if serial == nil {
 		// shouldn't happen, but be safe
-		return nil, state.ErrNoState
+		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
+	}
+
+	privKey, err := m.keyPair()
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{

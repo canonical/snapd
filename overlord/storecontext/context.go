@@ -211,9 +211,6 @@ func (sc *storeContext) deviceSessionRequestParams(nonce string) (*DeviceSession
 	}
 
 	deviceSessionReq, err := sc.sessionReqSigner.SignDeviceSessionRequest(serial, nonce)
-	if err == state.ErrNoState {
-		return nil, store.ErrNoSerial
-	}
 	if err != nil {
 		return nil, err
 	}

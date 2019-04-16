@@ -1400,21 +1400,10 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 
 	// nothing there
 	_, err := s.mgr.SignDeviceSessionRequest(nil, "NONCE-1")
-	c.Check(err, Equals, state.ErrNoState)
-
-	// have a key
-	devKey, _ := assertstest.GenerateKey(testKeyLength)
-	devicestate.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc",
-		KeyID: devKey.PublicKey().ID(),
-	})
-	devicestate.KeypairManager(s.mgr).Put(devKey)
-
-	_, err = s.mgr.SignDeviceSessionRequest(nil, "NONCE-1")
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, ErrorMatches, "internal error: cannot sign a session request without a serial")
 
 	// setup state as done by device initialisation
+	devKey, _ := assertstest.GenerateKey(testKeyLength)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
@@ -1429,6 +1418,12 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 	err = assertstate.Add(s.state, seriala)
 	c.Assert(err, IsNil)
 	serial := seriala.(*asserts.Serial)
+
+	_, err = s.mgr.SignDeviceSessionRequest(serial, "NONCE-1")
+	c.Check(err, ErrorMatches, "internal error: inconsistent state with serial but no device key")
+
+	// have a key
+	devicestate.KeypairManager(s.mgr).Put(devKey)
 
 	devicestate.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
