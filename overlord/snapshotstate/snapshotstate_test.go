@@ -1400,12 +1400,11 @@ func (snapshotSuite) TestExpiredSnapshotSets(c *check.C) {
 	c.Assert(err, check.IsNil)
 	expired, err := snapshotstate.ExpiredSnapshotSets(st, tm)
 	c.Assert(err, check.IsNil)
-	sort.Slice(expired, func(i, j int) bool { return expired[i] < expired[j] })
-	c.Check(expired, check.DeepEquals, []uint64{12, 13})
+	c.Check(expired, check.DeepEquals, map[uint64]bool{12: true, 13: true})
 
 	tm, err = time.Parse(time.RFC3339, "2019-03-01T11:24:00Z")
 	c.Assert(err, check.IsNil)
 	expired, err = snapshotstate.ExpiredSnapshotSets(st, tm)
 	c.Assert(err, check.IsNil)
-	c.Check(expired, check.DeepEquals, []uint64{13})
+	c.Check(expired, check.DeepEquals, map[uint64]bool{13: true})
 }

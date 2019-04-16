@@ -144,6 +144,14 @@ func InternalToolPath(tool string) (string, error) {
 			prefix := exe[:idx]
 			return filepath.Join(prefix, "/usr/lib/snapd", tool), nil
 		}
+		if idx == -1 {
+			// or perhaps some other random location, make sure the tool
+			// exists there and is an executable
+			maybeTool := filepath.Join(filepath.Dir(exe), tool)
+			if osutil.IsExecutable(maybeTool) {
+				return maybeTool, nil
+			}
+		}
 	}
 
 	// fallback to distro tool
