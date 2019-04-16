@@ -22,8 +22,8 @@ package snapshotstate
 import (
 	"context"
 	"encoding/json"
+	"time"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -100,14 +100,6 @@ func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error)
 	}
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *backend.Flags) (*client.Snapshot, error)) (restore func()) {
-	old := backendSave
-	backendSave = f
-	return func() {
-		backendSave = old
-	}
-}
-
 func MockBackendOpen(f func(string) (*backend.Reader, error)) (restore func()) {
 	old := backendOpen
 	backendOpen = f
@@ -162,4 +154,9 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 	return func() {
 		configSetSnapConfig = old
 	}
+}
+
+// For testing only
+func (mgr *SnapshotManager) SetLastForgetExpiredSnapshotTime(t time.Time) {
+	mgr.lastForgetExpiredSnapshotTime = t
 }
