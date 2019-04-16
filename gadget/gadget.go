@@ -54,6 +54,8 @@ type Info struct {
 	Connections []Connection `yaml:"connections"`
 }
 
+// Volume defines the structure and content for the image to be written into a
+// block device.
 type Volume struct {
 	// Schema describes the schema used for the volume
 	Schema string `yaml:"schema"`
@@ -65,6 +67,9 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure"`
 }
 
+// VolumeStructure describes a single structure inside a volume. A structure can
+// represent a partition, Master Boot Record, or any other contiguous range
+// within the volume.
 type VolumeStructure struct {
 	// Name, when non empty, provides the name of the structure
 	Name string `yaml:"name"`
@@ -105,6 +110,9 @@ func (vs *VolumeStructure) IsBare() bool {
 	return vs.Filesystem == "none" || vs.Filesystem == ""
 }
 
+// VolumeContent defines the contents of the structure. The content can be
+// either files within a filesystem described by the structure or raw images
+// written into the area of a bare structure.
 type VolumeContent struct {
 	// Source is the data of the partition relative to the gadget base
 	// directory
