@@ -155,6 +155,19 @@ func (s *timingsSuite) TestSave(c *C) {
 			}}})
 }
 
+func (s *timingsSuite) TestSaveNoTimings(c *C) {
+	s.mockDuration(c)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	timing := timings.New(nil)
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
+}
+
 func (s *timingsSuite) TestDuration(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

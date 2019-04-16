@@ -229,6 +229,12 @@ prepare_project() {
         exit 1
     fi
 
+    # no need to modify anything further for autopkgtest
+    # we want to run as pristine as possible
+    if [ "$SPREAD_BACKEND" = autopkgtest ]; then
+        exit 0
+    fi
+
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
     [ "$REUSE_PROJECT" != 1 ] || exit 0
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
