@@ -66,6 +66,9 @@ var _ store.DeviceAndAuthContext = (*storeContext)(nil)
 
 // New returns a store.DeviceAndAuthContext.
 func New(st *state.State, b Backend) store.DeviceAndAuthContext {
+	if b == nil {
+		panic("store context backend cannot be nil")
+	}
 	return &storeContext{state: st, b: b}
 }
 
@@ -74,10 +77,6 @@ func (sc *storeContext) Device() (*auth.DeviceState, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	if sc.b == nil {
-		return &auth.DeviceState{}, nil
-	}
-
 	return sc.b.Device()
 }
 
@@ -85,10 +84,6 @@ func (sc *storeContext) Device() (*auth.DeviceState, error) {
 // The last update wins but other device details are left unchanged.
 // It returns the updated device state value.
 func (sc *storeContext) UpdateDeviceAuth(device *auth.DeviceState, newSessionMacaroon string) (actual *auth.DeviceState, err error) {
-	if sc.b == nil {
-		return nil, fmt.Errorf("internal error: no device state")
-	}
-
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
@@ -143,14 +138,11 @@ func (sc *storeContext) StoreID(fallback string) (string, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	var mod *asserts.Model
-	if sc.b != nil {
-		var err error
-		mod, err = sc.b.Model()
-		if err != nil && err != state.ErrNoState {
-			return "", err
-		}
+	mod, err := sc.b.Model()
+	if err != nil && err != state.ErrNoState {
+		return "", err
 	}
+
 	storeID := StoreID(mod)
 	if storeID != "" {
 		return storeID, nil
@@ -165,14 +157,11 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	if sc.b == nil {
-		return nil, store.ErrNoSerial
-	}
-
 	params, err := sc.deviceSessionRequestParams(nonce)
 	if err == state.ErrNoState {
 		return nil, store.ErrNoSerial
 	}
+
 	return params, err
 }
 
@@ -207,17 +196,15 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	var sto *asserts.Store
-	if sc.b != nil {
-		var err error
-		sto, err = sc.b.ProxyStore()
-		if err != nil && err != state.ErrNoState {
-			return "", nil, err
-		}
+	sto, err := sc.b.ProxyStore()
+	if err != nil && err != state.ErrNoState {
+		return "", nil, err
 	}
+
 	if sto != nil {
 		return sto.Store(), sto.URL(), nil
 	}
+
 	return "", defaultURL, nil
 }
 
@@ -225,14 +212,17 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 func (sc *storeContext) CloudInfo() (*auth.CloudInfo, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
+
 	tr := config.NewTransaction(sc.state)
 	var cloudInfo auth.CloudInfo
 	err := tr.Get("core", "cloud", &cloudInfo)
 	if err != nil && !config.IsNoOption(err) {
 		return nil, err
 	}
+
 	if cloudInfo.Name != "" {
 		return &cloudInfo, nil
 	}
+
 	return nil, nil
 }

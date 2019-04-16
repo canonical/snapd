@@ -64,7 +64,7 @@ func (s *storeCtxSuite) TestUpdateUserAuth(c *C) {
 
 	newDischarges := []string{"updated-discharge"}
 
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 	user, err := storeCtx.UpdateUserAuth(user, newDischarges)
 	c.Check(err, IsNil)
 
@@ -89,7 +89,7 @@ func (s *storeCtxSuite) TestUpdateUserAuthOtherUpdate(c *C) {
 
 	newDischarges := []string{"updated-discharge"}
 
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 	// last discharges win
 	curUser, err := storeCtx.UpdateUserAuth(user, newDischarges)
 	c.Assert(err, IsNil)
@@ -121,13 +121,13 @@ func (s *storeCtxSuite) TestUpdateUserAuthInvalid(c *C) {
 		Macaroon: "macaroon",
 	}
 
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 	_, err := storeCtx.UpdateUserAuth(user, nil)
 	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (s *storeCtxSuite) TestDeviceForNonExistent(c *C) {
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
 	device, err := storeCtx.Device()
 	c.Check(err, IsNil)
@@ -178,7 +178,7 @@ func (s *storeCtxSuite) TestUpdateDeviceAuthOtherUpdate(c *C) {
 }
 
 func (s *storeCtxSuite) TestStoreParamsFallback(c *C) {
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
 	storeID, err := storeCtx.StoreID("store-id")
 	c.Assert(err, IsNil)
@@ -191,7 +191,7 @@ func (s *storeCtxSuite) TestStoreParamsFallback(c *C) {
 }
 
 func (s *storeCtxSuite) TestStoreIDFromEnv(c *C) {
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
 	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
 	defer os.Unsetenv("UBUNTU_STORE_ID")
@@ -200,15 +200,8 @@ func (s *storeCtxSuite) TestStoreIDFromEnv(c *C) {
 	c.Check(storeID, Equals, "env-store-id")
 }
 
-func (s *storeCtxSuite) TestDeviceSessionRequestParamsNilBackend(c *C) {
-	storeCtx := storecontext.New(s.state, nil)
-
-	_, err := storeCtx.DeviceSessionRequestParams("NONCE")
-	c.Check(err, Equals, store.ErrNoSerial)
-}
-
 func (s *storeCtxSuite) TestCloudInfo(c *C) {
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
 	cloud, err := storeCtx.CloudInfo()
 	c.Assert(err, IsNil)
