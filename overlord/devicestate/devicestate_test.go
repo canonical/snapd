@@ -1308,29 +1308,25 @@ func (s *deviceMgrSuite) TestSetDevice(c *C) {
 
 func (s *deviceMgrSuite) TestStoreContextBackendSetDevice(c *C) {
 	s.state.Lock()
+	defer s.state.Unlock()
 	device, err := s.mgr.Device()
-	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
 
-	s.state.Lock()
 	err = s.mgr.SetDevice(&auth.DeviceState{Brand: "some-brand"})
 	c.Check(err, IsNil)
 	device, err = s.mgr.Device()
-	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
 }
 
 func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
 	// nothing in the state
-	s.state.Lock()
 	_, err := devicestate.Model(s.state)
-	s.state.Unlock()
 	c.Check(err, Equals, state.ErrNoState)
-	s.state.Lock()
 	_, err = devicestate.Serial(s.state)
-	s.state.Unlock()
 	c.Check(err, Equals, state.ErrNoState)
 
 	_, err = s.mgr.Model()
@@ -1339,12 +1335,10 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Check(err, Equals, state.ErrNoState)
 
 	// just brand and model
-	s.state.Lock()
 	devicestate.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.state.Unlock()
 	_, err = s.mgr.Model()
 	c.Check(err, Equals, state.ErrNoState)
 	_, err = s.mgr.Serial()
@@ -1361,18 +1355,14 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	s.state.Lock()
 	err = assertstate.Add(s.state, model)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 
 	mod, err := s.mgr.Model()
 	c.Assert(err, IsNil)
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
-	s.state.Lock()
 	mod, err = devicestate.Model(s.state)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
@@ -1380,22 +1370,18 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a serial as well
-	s.state.Lock()
 	devicestate.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "8989",
 	})
-	s.state.Unlock()
 	_, err = s.mgr.Model()
 	c.Assert(err, IsNil)
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a serial assertion
-	s.state.Lock()
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
-	s.state.Unlock()
 
 	_, err = s.mgr.Model()
 	c.Assert(err, IsNil)
@@ -1403,14 +1389,15 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ser.Serial(), Equals, "8989")
 
-	s.state.Lock()
 	ser, err = devicestate.Serial(s.state)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(ser.Serial(), Equals, "8989")
 }
 
 func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	// nothing there
 	_, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
 	c.Check(err, Equals, state.ErrNoState)
@@ -1426,13 +1413,10 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	s.state.Lock()
 	err = assertstate.Add(s.state, modela)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 
 	// setup state as done by device initialisation
-	s.state.Lock()
 	devKey, _ := assertstest.GenerateKey(testKeyLength)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Check(err, IsNil)
@@ -1455,7 +1439,6 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 		KeyID:  devKey.PublicKey().ID(),
 	})
 	devicestate.KeypairManager(s.mgr).Put(devKey)
-	s.state.Unlock()
 
 	params, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)
@@ -1479,30 +1462,27 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	mockServer := s.mockServer(c, "", nil)
 	defer mockServer.Close()
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	// nothing in the state
-	s.state.Lock()
 	_, err := devicestate.ProxyStore(s.state)
-	s.state.Unlock()
 	c.Check(err, Equals, state.ErrNoState)
 
 	_, err = s.mgr.ProxyStore()
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a store referenced
-	s.state.Lock()
 	tr := config.NewTransaction(s.state)
 	err = tr.Set("core", "proxy.store", "foo")
 	tr.Commit()
-	s.state.Unlock()
 	c.Assert(err, IsNil)
+
 	_, err = s.mgr.ProxyStore()
 	c.Check(err, Equals, state.ErrNoState)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
-	s.state.Lock()
 	err = assertstate.Add(s.state, operatorAcct)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 
 	// have a store assertion.
@@ -1513,18 +1493,14 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	s.state.Lock()
 	err = assertstate.Add(s.state, stoAs)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 
 	sto, err := s.mgr.ProxyStore()
 	c.Assert(err, IsNil)
 	c.Assert(sto.Store(), Equals, "foo")
 
-	s.state.Lock()
 	sto, err = devicestate.ProxyStore(s.state)
-	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(sto.Store(), Equals, "foo")
 	c.Assert(sto.URL().String(), Equals, mockServer.URL)

@@ -36,7 +36,8 @@ import (
 // A Backend exposes device information and device identity
 // assertions, signing session requests and proxy store assertion.
 // Methods can return state.ErrNoState if the underlying needed
-// information is not (yet) available.
+// information is not (yet) available. They can also assume the state
+// lock is held.
 type Backend interface {
 	// Device returns current device state.
 	Device() (*auth.DeviceState, error)
@@ -70,12 +71,12 @@ func New(st *state.State, b Backend) store.DeviceAndAuthContext {
 
 // Device returns current device state.
 func (sc *storeContext) Device() (*auth.DeviceState, error) {
+	sc.state.Lock()
+	defer sc.state.Unlock()
+
 	if sc.b == nil {
 		return &auth.DeviceState{}, nil
 	}
-
-	sc.state.Lock()
-	defer sc.state.Unlock()
 
 	return sc.b.Device()
 }
@@ -139,6 +140,9 @@ func StoreID(mod *asserts.Model) string {
 // StoreID returns the store id according to system state or
 // the fallback one if the state has none set (yet).
 func (sc *storeContext) StoreID(fallback string) (string, error) {
+	sc.state.Lock()
+	defer sc.state.Unlock()
+
 	var mod *asserts.Model
 	if sc.b != nil {
 		var err error
@@ -158,6 +162,9 @@ type DeviceSessionRequestParams = store.DeviceSessionRequestParams
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns store.ErrNoSerial if the device serial is not yet initialized.
 func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
+	sc.state.Lock()
+	defer sc.state.Unlock()
+
 	if sc.b == nil {
 		return nil, store.ErrNoSerial
 	}
@@ -173,6 +180,9 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 
 // ProxyStoreParams returns the id and URL of the proxy store if one is set. Returns the defaultURL otherwise and id = "".
 func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
+	sc.state.Lock()
+	defer sc.state.Unlock()
+
 	var sto *asserts.Store
 	if sc.b != nil {
 		var err error

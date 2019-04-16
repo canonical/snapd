@@ -62,12 +62,12 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
+	s.state.Lock()
+	defer s.state.Unlock()
 	m, err := s.mgr.Model()
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, newModel)
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	c.Assert(chg.Err(), IsNil)
 }
 

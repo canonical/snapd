@@ -536,29 +536,18 @@ func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
 	return SetDevice(m.state, device)
 }
 
-// XXX delegate locking back to callers!!!
-
 // Model returns the device model assertion.
 func (m *DeviceManager) Model() (*asserts.Model, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	return Model(m.state)
 }
 
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	return Serial(m.state)
 }
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
 func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	model, err := Model(m.state)
 	if err != nil {
 		return nil, err
@@ -595,8 +584,5 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
 func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	return ProxyStore(m.state)
 }
