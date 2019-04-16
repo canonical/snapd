@@ -478,7 +478,9 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	// Make sure the first install waits for the last download. With this
 	// our (simplified) wait chain looks like:
 	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
-	firstInstallInChain.WaitFor(lastDownloadInChain)
+	if firstInstallInChain != nil && lastDownloadInChain != nil {
+		firstInstallInChain.WaitFor(lastDownloadInChain)
+	}
 
 	// Set the new model assertion - this *must* be the last thing done
 	// by the change.
