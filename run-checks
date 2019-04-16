@@ -16,8 +16,10 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
-# ensure we use go-1.10 by default
-export PATH=/usr/lib/go-1.10/bin:${PATH}
+if [ -z "${TRAVIS_BUILD_ID:-}" ]; then
+    # when *not* running inside travis, ensure we use go-1.10 by default
+    export PATH=/usr/lib/go-1.10/bin:${PATH}
+fi
 
 # add workaround for https://github.com/golang/go/issues/24449
 if [ "$(uname -m)" = "s390x" ]; then
