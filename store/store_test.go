@@ -1347,6 +1347,9 @@ func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
 
 	sto.SessionLock()
 
+	// try to acquire 10 times a device session in parallel;
+	// block these flows until all goroutines have acquired the original
+	// device state which is without a session, then let them run
 	for i := 0; i < 10; i++ {
 		wgGetDevice.Add(1)
 		wg.Add(1)
@@ -1359,10 +1362,14 @@ func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
 
 	wgGetDevice.Wait()
 	dauthCtx.deviceGetWitness = nil
+	// all flows have got the original device state
+	// let them run
 	sto.SessionUnlock()
+	// wait for the 10 flows to be done
 	wg.Wait()
 
 	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	// we acquired a session from the store only once
 	c.Check(int(deviceSessionRequested), Equals, 1)
 }
 
