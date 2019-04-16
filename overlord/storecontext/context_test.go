@@ -20,6 +20,7 @@
 package storecontext_test
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"strings"
@@ -284,8 +285,9 @@ AXNpZw=`
 )
 
 type testBackend struct {
-	nothing bool
-	device  *auth.DeviceState
+	nothing  bool
+	noSerial bool
+	device   *auth.DeviceState
 }
 
 func (b *testBackend) Device() (*auth.DeviceState, error) {
@@ -313,7 +315,7 @@ func (b *testBackend) Model() (*asserts.Model, error) {
 }
 
 func (b *testBackend) Serial() (*asserts.Serial, error) {
-	if b.nothing {
+	if b.nothing || b.noSerial {
 		return nil, state.ErrNoState
 	}
 	a, err := asserts.Decode([]byte(exSerial))
@@ -434,4 +436,33 @@ func (s *storeCtxSuite) TestWithDeviceAssertionsGenericClassicModelNoEnvVar(c *C
 	storeID, err := storeCtx.StoreID("store-id")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "store-id")
+}
+
+type testFailingDeviceSessionRequestSigner struct{}
+
+func (srqs testFailingDeviceSessionRequestSigner) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
+	return nil, errors.New("boom")
+}
+
+func (s *storeCtxSuite) TestComposable(c *C) {
+	b := &testBackend{}
+	bNoSerial := &testBackend{noSerial: true}
+
+	storeCtx := storecontext.NewComposed(s.state, b, bNoSerial, b)
+
+	params, err := storeCtx.DeviceSessionRequestParams("NONCE-1")
+	c.Assert(err, IsNil)
+
+	req := params.EncodedRequest()
+	c.Check(strings.Contains(req, "nonce: NONCE-1\n"), Equals, true)
+	c.Check(strings.Contains(req, "serial: 9999\n"), Equals, true)
+
+	storeCtx = storecontext.NewComposed(s.state, bNoSerial, b, b)
+	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
+	c.Assert(err, Equals, store.ErrNoSerial)
+
+	srqs := testFailingDeviceSessionRequestSigner{}
+	storeCtx = storecontext.NewComposed(s.state, b, srqs, b)
+	params, err = storeCtx.DeviceSessionRequestParams("NONCE-1")
+	c.Assert(err, ErrorMatches, "boom")
 }

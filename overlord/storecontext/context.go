@@ -39,6 +39,19 @@ import (
 // information is not (yet) available. They can also assume the state
 // lock is held.
 type Backend interface {
+	DeviceBackend
+
+	DeviceSessionRequestSigner
+
+	ProxyStoreer
+}
+
+// A DeviceBackend exposes device information and device identity
+// assertions.
+// Methods can return state.ErrNoState if the underlying needed
+// information is not (yet) available. They can also assume the state
+// lock is held.
+type DeviceBackend interface {
 	// Device returns current device state.
 	Device() (*auth.DeviceState, error)
 	// SetDevice sets the device details in the state.
@@ -48,10 +61,14 @@ type Backend interface {
 	Model() (*asserts.Model, error)
 	// Serial returns the device serial assertion.
 	Serial() (*asserts.Serial, error)
+}
 
+type DeviceSessionRequestSigner interface {
 	// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
 	SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error)
+}
 
+type ProxyStoreer interface {
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
 }
@@ -59,17 +76,33 @@ type Backend interface {
 // storeContext implements store.DeviceAndAuthContext.
 type storeContext struct {
 	state *state.State
-	b     Backend
+
+	deviceBackend    DeviceBackend
+	sessionReqSigner DeviceSessionRequestSigner
+	proxyStoreer     ProxyStoreer
 }
 
 var _ store.DeviceAndAuthContext = (*storeContext)(nil)
 
-// New returns a store.DeviceAndAuthContext.
+// New returns a store.DeviceAndAuthContext using the given full-featured Backend.
 func New(st *state.State, b Backend) store.DeviceAndAuthContext {
 	if b == nil {
 		panic("store context backend cannot be nil")
 	}
-	return &storeContext{state: st, b: b}
+	return NewComposed(st, b, b, b)
+}
+
+// NewComposed returns a store.DeviceAndAuthContext using the given backends.
+func NewComposed(st *state.State, devb DeviceBackend, srqs DeviceSessionRequestSigner, pstoer ProxyStoreer) store.DeviceAndAuthContext {
+	if devb == nil || srqs == nil || pstoer == nil {
+		panic("store context composable backends cannot be nil")
+	}
+	return &storeContext{
+		state:            st,
+		deviceBackend:    devb,
+		sessionReqSigner: srqs,
+		proxyStoreer:     pstoer,
+	}
 }
 
 // Device returns current device state.
@@ -77,7 +110,7 @@ func (sc *storeContext) Device() (*auth.DeviceState, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	return sc.b.Device()
+	return sc.deviceBackend.Device()
 }
 
 // UpdateDeviceAuth updates the device auth details in state.
@@ -87,14 +120,14 @@ func (sc *storeContext) UpdateDeviceAuth(device *auth.DeviceState, newSessionMac
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	cur, err := sc.b.Device()
+	cur, err := sc.deviceBackend.Device()
 	if err != nil {
 		return nil, err
 	}
 
 	// just do it, last update wins
 	cur.SessionMacaroon = newSessionMacaroon
-	if err := sc.b.SetDevice(cur); err != nil {
+	if err := sc.deviceBackend.SetDevice(cur); err != nil {
 		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
 	}
 
@@ -138,7 +171,7 @@ func (sc *storeContext) StoreID(fallback string) (string, error) {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	mod, err := sc.b.Model()
+	mod, err := sc.deviceBackend.Model()
 	if err != nil && err != state.ErrNoState {
 		return "", err
 	}
@@ -147,6 +180,7 @@ func (sc *storeContext) StoreID(fallback string) (string, error) {
 	if storeID != "" {
 		return storeID, nil
 	}
+
 	return fallback, nil
 }
 
@@ -166,17 +200,17 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 }
 
 func (sc *storeContext) deviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
-	model, err := sc.b.Model()
+	model, err := sc.deviceBackend.Model()
 	if err != nil {
 		return nil, err
 	}
 
-	serial, err := sc.b.Serial()
+	serial, err := sc.deviceBackend.Serial()
 	if err != nil {
 		return nil, err
 	}
 
-	deviceSessionReq, err := sc.b.SignDeviceSessionRequest(serial, nonce)
+	deviceSessionReq, err := sc.sessionReqSigner.SignDeviceSessionRequest(serial, nonce)
 	if err == state.ErrNoState {
 		return nil, store.ErrNoSerial
 	}
@@ -196,7 +230,7 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	sto, err := sc.b.ProxyStore()
+	sto, err := sc.proxyStoreer.ProxyStore()
 	if err != nil && err != state.ErrNoState {
 		return "", nil, err
 	}
