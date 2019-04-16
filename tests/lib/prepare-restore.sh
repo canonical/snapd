@@ -468,6 +468,19 @@ prepare_suite() {
     fi
 }
 
+install_snap_profiler(){
+    echo "install snaps profiler"
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        if is_core18_system; then
+            snap install test-snapd-profiler-core18
+            snap connect test-snapd-profiler-core18:system-observe
+        else
+            snap install test-snapd-profiler
+            snap connect test-snapd-profiler:system-observe
+        fi
+    fi
+}
+
 prepare_suite_each() {
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
@@ -483,6 +496,10 @@ prepare_suite_each() {
     "$TESTSLIB"/reset.sh --reuse-core
     # Reset systemd journal cursor.
     start_new_journalctl_log
+
+    echo "Install the snaps profiler snap"
+    install_snap_profiler
+
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
     if is_classic_system; then
@@ -506,6 +523,20 @@ restore_suite_each() {
         rm -rf "$PWD"
         tar -C/ -xf "${PWD}.tar"
         rm -rf "${PWD}.tar"
+    fi
+
+    echo "Save snaps profiler log"
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        profiler_logs_dir="$RUNTIME_STATE_PATH/profiler"
+        profiler_logs_file=$(echo "$SPREAD_JOB" | tr '/' '_' | tr ':' '__')
+        profiler_snap=
+        if is_core18_system; then
+            profiler_snap=test-snapd-profiler-core18
+        else
+            profiler_snap=test-snapd-profiler
+        fi
+        mkdir -p "$profiler_logs_dir"
+        cp -f "/var/snap/${profiler_snap}/common/proc.log" "${profiler_logs_dir}/${profiler_logs_file}.log"
     fi
 }
 

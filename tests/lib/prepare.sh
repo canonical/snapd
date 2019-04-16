@@ -265,6 +265,15 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
+        echo "Cache the snaps profiler snap"
+        if [ "$PROFILE_SNAPS" = 1 ]; then
+            if is_core18_system; then
+                cache_snaps test-snapd-profiler-core18
+            else
+                cache_snaps test-snapd-profiler
+            fi
+        fi
+
         ! snap list | grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
@@ -637,6 +646,10 @@ prepare_ubuntu_core() {
         if ! snap list core; then
             cache_snaps core
         fi
+    fi
+    echo "Cache the snaps profiler snap"
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        cache_snaps test-snapd-profiler
     fi
 
     disable_refreshes
