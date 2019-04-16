@@ -123,7 +123,7 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
 
         /* For "core16" we can still use the "core" snap. This is useful
          * to help people transition to core16 bases without requiring
-         * two time the diskspace.
+         * twice the disk space.
          */
         sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, "core");
         if (access(mount_point, F_OK) == 0) {
