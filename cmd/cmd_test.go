@@ -302,6 +302,27 @@ func (s *cmdSuite) TestInternalToolPathWithOtherDevLocationNonExecutable(c *C) {
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "non-executable-potato"))
 }
 
+func (s *cmdSuite) TestInternalToolPathSnapdPathReexec(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	p, err := cmd.InternalToolPath("snapd")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/core/111/usr/lib/snapd/snapd"))
+}
+
+func (s *cmdSuite) TestInternalToolPathSnapdSnap(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "snapd/22/usr/bin/snap"), nil
+	})
+	defer restore()
+	p, err := cmd.InternalToolPath("snapd")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/snapd/22/usr/lib/snapd/snapd"))
+}
+
 func (s *cmdSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {
 	defer dirs.SetRootDir(s.fakeroot)
 	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
