@@ -77,6 +77,7 @@ execute: |
 
     echo "and we got the new model assertion"
     snap debug model|MATCH "revision: 2"
+    snap changes | MATCH "Refresh model assertion from revision 0 to 2"
 
     echo "and we cannot remove the new required snap"
     ! snap remove test-snapd-tools
@@ -84,7 +85,15 @@ execute: |
     echo "And we can remodel again this time test-snapd-tools is no longer required"
     snap remodel "$TESTSLIB"/assertions/developer1-pc-revno3.model
     snap debug model|MATCH "revision: 3"
+    snap changes | MATCH "Refresh model assertion from revision 2 to 3"
     echo "and test-snapd-tools is still available"
     snap list test-snapd-tools
     echo "and we can clean it up here because it is no longer required"
     snap remove test-snapd-tools
+
+    echo "and test that the remodel shows up in 'snap changes'"
+
+    echo "and check that this remodel has just a single task"
+    snap change --last=remodel > remodel.txt
+    MATCH "Set new model assertion" < remodel.txt
+    [ "$(wc -l < remodel.txt)" -eq 1 ]
