@@ -110,7 +110,7 @@ type Config struct {
 	StoreBaseURL      *url.URL
 	AssertionsBaseURL *url.URL
 
-	// StoreID is the store id used if we can't get one through the AuthContext.
+	// StoreID is the store id used if we can't get one through the DeviceAndAuthContext.
 	StoreID string
 
 	Architecture string
@@ -163,8 +163,8 @@ type Store struct {
 	// reused http client
 	client *http.Client
 
-	authContext auth.AuthContext
-	sessionMu   sync.Mutex
+	dauthCtx  DeviceAndAuthContext
+	sessionMu sync.Mutex
 
 	mu                sync.Mutex
 	suggestedCurrency string
@@ -323,7 +323,7 @@ type sectionResults struct {
 var defaultSupportedDeltaFormat = "xdelta3"
 
 // New creates a new Store with the given access configuration and for given the store id.
-func New(cfg *Config, authContext auth.AuthContext) *Store {
+func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
@@ -361,7 +361,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    detailFields,
 		infoFields:      infoFields,
-		authContext:     authContext,
+		dauthCtx:        dauthCtx,
 		deltaFormat:     deltaFormat,
 		proxy:           cfg.Proxy,
 
@@ -410,9 +410,9 @@ func (s *Store) defaultSnapQuery() url.Values {
 
 func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
 	u := defaultURL
-	if s.authContext != nil {
+	if s.dauthCtx != nil {
 		var err error
-		_, u, err = s.authContext.ProxyStoreParams(defaultURL)
+		_, u, err = s.dauthCtx.ProxyStoreParams(defaultURL)
 		if err != nil {
 			logger.Debugf("cannot get proxy store parameters from state: %v", err)
 		}
@@ -468,8 +468,8 @@ func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
 	} else {
 		var device *auth.DeviceState
 		var err error
-		if s.authContext != nil {
-			device, err = s.authContext.Device()
+		if s.dauthCtx != nil {
+			device, err = s.dauthCtx.Device()
 			if err != nil {
 				return false, err
 			}
@@ -533,7 +533,7 @@ func refreshDischarges(httpClient *http.Client, user *auth.UserState) ([]string,
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
-	if s.authContext == nil {
+	if s.dauthCtx == nil {
 		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
 	}
 	newDischarges, err := refreshDischarges(s.client, user)
@@ -541,7 +541,7 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 		return err
 	}
 
-	curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
+	curUser, err := s.dauthCtx.UpdateUserAuth(user, newDischarges)
 	if err != nil {
 		return err
 	}
@@ -553,14 +553,14 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 
 // refreshDeviceSession will set or refresh the device session in the state
 func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
-	if s.authContext == nil {
-		return fmt.Errorf("internal error: no authContext")
+	if s.dauthCtx == nil {
+		return fmt.Errorf("internal error: no device and auth context")
 	}
 
 	s.sessionMu.Lock()
 	defer s.sessionMu.Unlock()
 	// check that no other goroutine has already got a new session etc...
-	device1, err := s.authContext.Device()
+	device1, err := s.dauthCtx.Device()
 	if err != nil {
 		return err
 	}
@@ -575,7 +575,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	devSessReqParams, err := s.authContext.DeviceSessionRequestParams(nonce)
+	devSessReqParams, err := s.dauthCtx.DeviceSessionRequestParams(nonce)
 	if err != nil {
 		return err
 	}
@@ -585,7 +585,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	curDevice, err := s.authContext.UpdateDeviceAuth(device, session)
+	curDevice, err := s.dauthCtx.UpdateDeviceAuth(device, session)
 	if err != nil {
 		return err
 	}
@@ -597,11 +597,11 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 // EnsureDeviceSession makes sure the store has a device session available.
 // Expects the store to have an AuthContext.
 func (s *Store) EnsureDeviceSession() (*auth.DeviceState, error) {
-	if s.authContext == nil {
+	if s.dauthCtx == nil {
 		return nil, fmt.Errorf("internal error: no authContext")
 	}
 
-	device, err := s.authContext.Device()
+	device, err := s.dauthCtx.Device()
 	if err != nil {
 		return nil, err
 	}
@@ -610,7 +610,7 @@ func (s *Store) EnsureDeviceSession() (*auth.DeviceState, error) {
 		return device, nil
 	}
 	if device.Serial == "" {
-		return nil, auth.ErrNoSerial
+		return nil, ErrNoSerial
 	}
 	// we don't have a session yet but have a serial, try
 	// to get a session
@@ -630,8 +630,8 @@ func authenticateDevice(r *http.Request, device *auth.DeviceState, apiLevel apiL
 
 func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) (customStore bool) {
 	storeID := s.fallbackStoreID
-	if s.authContext != nil {
-		cand, err := s.authContext.StoreID(storeID)
+	if s.dauthCtx != nil {
+		cand, err := s.dauthCtx.StoreID(storeID)
 		if err != nil {
 			logger.Debugf("cannot get store ID from state: %v", err)
 		} else {
@@ -861,10 +861,10 @@ func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
 	}
 	if need.device {
 		// refresh device session
-		if s.authContext == nil {
-			return fmt.Errorf("internal error: no authContext")
+		if s.dauthCtx == nil {
+			return fmt.Errorf("internal error: no device and auth context")
 		}
-		device, err := s.authContext.Device()
+		device, err := s.dauthCtx.Device()
 		if err != nil {
 			return err
 		}
@@ -891,12 +891,12 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 
 	customStore := s.setStoreID(req, reqOptions.APILevel)
 
-	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
+	if s.dauthCtx != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
 		device, err := s.EnsureDeviceSession()
-		if err != nil && err != auth.ErrNoSerial {
+		if err != nil && err != ErrNoSerial {
 			return nil, err
 		}
-		if err == auth.ErrNoSerial {
+		if err == ErrNoSerial {
 			// missing serial assertion, log and continue without device authentication
 			logger.Debugf("cannot set device session: %v", err)
 		} else {
@@ -934,7 +934,7 @@ func (s *Store) cdnHeader() (string, error) {
 		return "none", nil
 	}
 
-	if s.authContext == nil {
+	if s.dauthCtx == nil {
 		return "", nil
 	}
 
@@ -946,7 +946,7 @@ func (s *Store) cdnHeader() (string, error) {
 	// operation fails that way to even get the connection
 	// then we retry without sending this?
 
-	cloudInfo, err := s.authContext.CloudInfo()
+	cloudInfo, err := s.dauthCtx.CloudInfo()
 	if err != nil {
 		return "", err
 	}
