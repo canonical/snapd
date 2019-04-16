@@ -257,7 +257,7 @@ func (s *cmdSuite) TestInternalToolPathWithOtherCrazyLocation(c *C) {
 	c.Check(path, Equals, "/usr/foo/usr/tmp/tmp.foo_1234/usr/lib/snapd/potato")
 }
 
-func (s *cmdSuite) TestInternalToolPathWithDevLocation(c *C) {
+func (s *cmdSuite) TestInternalToolPathWithDevLocationFallback(c *C) {
 	restore := cmd.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join("/home/dev/snapd/snapd"), nil
 	})
@@ -266,6 +266,61 @@ func (s *cmdSuite) TestInternalToolPathWithDevLocation(c *C) {
 	path, err := cmd.InternalToolPath("potato")
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+}
+
+func (s *cmdSuite) TestInternalToolPathWithOtherDevLocationWhenExecutable(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.GlobalRootDir, "/tmp/snapd"), nil
+	})
+	defer restore()
+
+	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/potato")
+	err := os.MkdirAll(filepath.Dir(devTool), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(devTool, []byte(""), 0755)
+	c.Assert(err, IsNil)
+
+	path, err := cmd.InternalToolPath("potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/tmp/potato"))
+}
+
+func (s *cmdSuite) TestInternalToolPathWithOtherDevLocationNonExecutable(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.GlobalRootDir, "/tmp/snapd"), nil
+	})
+	defer restore()
+
+	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/non-executable-potato")
+	err := os.MkdirAll(filepath.Dir(devTool), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(devTool, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	path, err := cmd.InternalToolPath("non-executable-potato")
+	c.Check(err, IsNil)
+	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "non-executable-potato"))
+}
+
+func (s *cmdSuite) TestInternalToolPathSnapdPathReexec(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	p, err := cmd.InternalToolPath("snapd")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/core/111/usr/lib/snapd/snapd"))
+}
+
+func (s *cmdSuite) TestInternalToolPathSnapdSnap(c *C) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "snapd/22/usr/bin/snap"), nil
+	})
+	defer restore()
+	p, err := cmd.InternalToolPath("snapd")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/snapd/22/usr/lib/snapd/snapd"))
 }
 
 func (s *cmdSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {

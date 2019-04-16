@@ -1715,6 +1715,14 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		prev = disconnect
 	}
 
+	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+		ts, err := AutomaticSnapshot(st, name)
+		if err != nil {
+			return nil, err
+		}
+		addNext(ts)
+	}
+
 	if active { // unlink
 		var tasks []*state.Task
 
