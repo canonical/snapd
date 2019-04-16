@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -516,9 +517,9 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
-// implementing auth.DeviceAssertions
+// implementing storecontext.DeviceAssertions
 // sanity check
-var _ auth.DeviceAssertions = (*DeviceManager)(nil)
+var _ storecontext.DeviceAssertions = (*DeviceManager)(nil)
 
 // Model returns the device model assertion.
 func (m *DeviceManager) Model() (*asserts.Model, error) {
@@ -542,7 +543,7 @@ func (m *DeviceManager) Registered() <-chan struct{} {
 }
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -572,7 +573,7 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSe
 		return nil, err
 	}
 
-	return &auth.DeviceSessionRequestParams{
+	return &storecontext.DeviceSessionRequestParams{
 		Request: a.(*asserts.DeviceSessionRequest),
 		Serial:  serial,
 		Model:   model,

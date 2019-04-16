@@ -106,7 +106,7 @@ type mgrsSuite struct {
 
 var (
 	_ = Suite(&mgrsSuite{})
-	_ = Suite(&authContextSetupSuite{})
+	_ = Suite(&storeCtxSetupSuite{})
 )
 
 var (
@@ -2332,9 +2332,9 @@ version: 1.0
 	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
-type authContextSetupSuite struct {
+type storeCtxSetupSuite struct {
 	o  *overlord.Overlord
-	ac auth.AuthContext
+	sc store.DeviceAndAuthContext
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
@@ -2348,17 +2348,17 @@ type authContextSetupSuite struct {
 	restoreBackends func()
 }
 
-func (s *authContextSetupSuite) SetUpTest(c *C) {
+func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
-		s.ac = ac
+	captureStoreCtx := func(_ *store.Config, dac store.DeviceAndAuthContext) *store.Store {
+		s.sc = dac
 		return store.New(nil, nil)
 	}
-	r := overlord.MockStoreNew(captureAuthContext)
+	r := overlord.MockStoreNew(captureStoreCtx)
 	defer r()
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
@@ -2408,19 +2408,19 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *authContextSetupSuite) TearDownTest(c *C) {
+func (s *storeCtxSetupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	s.restoreBackends()
 	s.restoreTrusted()
 }
 
-func (s *authContextSetupSuite) TestStoreID(c *C) {
+func (s *storeCtxSetupSuite) TestStoreID(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	st.Unlock()
-	storeID, err := s.ac.StoreID("fallback")
+	storeID, err := s.sc.StoreID("fallback")
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "fallback")
@@ -2435,21 +2435,21 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	storeID, err = s.ac.StoreID("fallback")
+	storeID, err = s.sc.StoreID("fallback")
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
 }
 
-func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
+func (s *storeCtxSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	st.Unlock()
-	_, err := s.ac.DeviceSessionRequestParams("NONCE")
+	_, err := s.sc.DeviceSessionRequestParams("NONCE")
 	st.Lock()
-	c.Check(err, Equals, auth.ErrNoSerial)
+	c.Check(err, Equals, store.ErrNoSerial)
 
 	// setup model, serial and key in system state
 	err = assertstate.Add(st, s.model)
@@ -2468,7 +2468,7 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	})
 
 	st.Unlock()
-	params, err := s.ac.DeviceSessionRequestParams("NONCE")
+	params, err := s.sc.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(strings.HasPrefix(params.EncodedRequest(), "type: device-session-request\n"), Equals, true)
@@ -2477,7 +2477,7 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 
 }
 
-func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {
+func (s *storeCtxSetupSuite) TestProxyStoreParams(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -2486,7 +2486,7 @@ func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	proxyStoreID, proxyStoreURL, err := s.ac.ProxyStoreParams(defURL)
+	proxyStoreID, proxyStoreURL, err := s.sc.ProxyStoreParams(defURL)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(proxyStoreID, Equals, "")
@@ -2514,7 +2514,7 @@ func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	proxyStoreID, proxyStoreURL, err = s.ac.ProxyStoreParams(defURL)
+	proxyStoreID, proxyStoreURL, err = s.sc.ProxyStoreParams(defURL)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(proxyStoreID, Equals, "foo")
