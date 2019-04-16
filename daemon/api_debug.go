@@ -151,7 +151,7 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 			"model": string(asserts.Encode(model)),
 		}, nil)
 	case "change-timings":
-		chgID := query.Get("chg-id")
+		chgID := query.Get("change-id")
 		return getChangeTimings(st, chgID)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
