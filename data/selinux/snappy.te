@@ -326,6 +326,12 @@ allow snappy_t var_t:sock_file unlink;
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
 
+# snapd executes runuser to take snapshots of user's snap data
+allow snappy_t self:capability { setuid setgid };
+allow snappy_t self:process setsched;
+# runuser also logs to audit
+logging_send_audit_msgs(snappy_t)
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
