@@ -581,7 +581,7 @@ install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 # Install snap-confine
 pushd ./cmd
 %make_install
-# Undo the 0000 permissions, they are restored in the files section
+# Undo the 111 permissions, they are restored in the files section
 chmod 0755 %{buildroot}%{_sharedstatedir}/snapd/void
 # We don't use AppArmor
 rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
@@ -762,7 +762,7 @@ popd
 %{_mandir}/man8/snap-confine.8*
 %{_mandir}/man8/snap-discard-ns.8*
 %{_systemdgeneratordir}/snapd-generator
-%attr(0000,root,root) %{_sharedstatedir}/snapd/void
+%attr(0111,root,root) %{_sharedstatedir}/snapd/void
 
 %if 0%{?with_selinux}
 %files selinux
@@ -832,7 +832,7 @@ fi
 
 # TODO: the trigger relies on a very specific snapd version that introduced SELinux
 # mount context, figure out how to update the trigger condition to run when needed
-%triggerun -- snapd < 2.38
+%triggerun -- snapd < 2.39
 # Trigger on uninstall, with one version of the package being pre 2.38 see
 # https://rpm-packaging-guide.github.io/#triggers-and-scriptlets for details
 # when triggers are run
@@ -840,6 +840,13 @@ fi
 if [ "$1" -eq 2 -a "$2" -eq 1 ]; then
    # Upgrade from pre 2.38 version
    %{_libexecdir}/snapd/snap-mgmt-selinux --patch-selinux-mount-context=system_u:object_r:snappy_snap_t:s0 || :
+
+   # snapd might have created fontconfig cache directory earlier, but with
+   # incorrect context due to bugs in the policy, make sure it gets the right one
+   # on upgrade when the new policy was introduced
+   if [ -d "%{_localstatedir}/cache/fontconfig" ]; then
+      restorecon -R %{_localstatedir}/cache/fontconfig || :
+   fi
 elif [ "$1" -eq 1 -a "$2" -eq 2 ]; then
    # Downgrade to a pre 2.38 version
    %{_libexecdir}/snapd/snap-mgmt-selinux --remove-selinux-mount-context=system_u:object_r:snappy_snap_t:s0 || :

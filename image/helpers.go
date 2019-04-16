@@ -73,7 +73,7 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 			return nil, err
 		}
 	}
-	sto := store.New(cfg, toolingAuthContext{})
+	sto := store.New(cfg, toolingStoreContext{})
 	return &ToolingStore{
 		sto:  sto,
 		user: user,
@@ -155,36 +155,36 @@ func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
 	}, nil
 }
 
-// toolingAuthContext implements trivially auth.AuthContext except
-// implementing UpdateUserAuth properly to be used to refresh a
+// toolingStoreContext implements trivially store.DeviceAndAuthContext
+// except implementing UpdateUserAuth properly to be used to refresh a
 // soft-expired user macaroon.
-type toolingAuthContext struct{}
+type toolingStoreContext struct{}
 
-func (tac toolingAuthContext) CloudInfo() (*auth.CloudInfo, error) {
+func (tac toolingStoreContext) CloudInfo() (*auth.CloudInfo, error) {
 	return nil, nil
 }
 
-func (tac toolingAuthContext) Device() (*auth.DeviceState, error) {
+func (tac toolingStoreContext) Device() (*auth.DeviceState, error) {
 	return &auth.DeviceState{}, nil
 }
 
-func (tac toolingAuthContext) DeviceSessionRequestParams(_ string) (*auth.DeviceSessionRequestParams, error) {
-	return nil, auth.ErrNoSerial
+func (tac toolingStoreContext) DeviceSessionRequestParams(_ string) (*store.DeviceSessionRequestParams, error) {
+	return nil, store.ErrNoSerial
 }
 
-func (tac toolingAuthContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
+func (tac toolingStoreContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
 	return "", defaultURL, nil
 }
 
-func (tac toolingAuthContext) StoreID(fallback string) (string, error) {
+func (tac toolingStoreContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (tac toolingAuthContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+func (tac toolingStoreContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
 	return nil, fmt.Errorf("internal error: no device state in tools")
 }
 
-func (tac toolingAuthContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
+func (tac toolingStoreContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
 	user.StoreDischarges = discharges
 	return user, nil
 }
