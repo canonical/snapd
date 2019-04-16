@@ -3,7 +3,8 @@ summary: ensure that we allow dropping privileges to daemon-user
 # This test is not executed on a core system simply because of the hassle of
 # building the support C program. In the future it might be improved with the
 # use of the classic snap where we just use classic to build the helper.
-systems: [-ubuntu-core-*]
+# Skip fedora due to https://bugs.launchpad.net/snapd/+bug/1825052
+systems: [-ubuntu-core-*, -fedora-*, -debian-*]
 
 environment:
     # This is used to abbreviate some of the paths below.
