@@ -134,8 +134,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
-			if err := SoftNothingRunningRefreshCheck(info); err != nil {
-				// TODO Remember the inhibition time in snap state.
+			// Note that because we are modifying the snap state this block
+			// must be located after the conflict check done above.
+			if err := inhibitRefresh(st, snapst, info); err != nil {
 				return nil, err
 			}
 		}
@@ -1710,6 +1711,14 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 		addNext(state.NewTaskSet(disconnect))
 		prev = disconnect
+	}
+
+	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+		ts, err := AutomaticSnapshot(st, name)
+		if err != nil {
+			return nil, err
+		}
+		addNext(ts)
 	}
 
 	if active { // unlink

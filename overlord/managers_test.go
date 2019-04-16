@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,12 +36,14 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -50,8 +52,11 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
+	snapshotbackend "github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -61,6 +66,13 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
+
+type automaticSnapshotCall struct {
+	InstanceName string
+	SnapConfig   map[string]interface{}
+	Usernames    []string
+	Flags        *snapshotbackend.Flags
+}
 
 type mgrsSuite struct {
 	tempdir string
@@ -86,6 +98,8 @@ type mgrsSuite struct {
 	o *overlord.Overlord
 
 	failNextDownload string
+
+	automaticSnapshots []automaticSnapshotCall
 
 	restoreBackends func()
 }
@@ -128,11 +142,18 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
+	ms.automaticSnapshots = nil
+	restoreBackendSave := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *snapshotbackend.Flags) (*client.Snapshot, error) {
+		ms.automaticSnapshots = append(ms.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Flags: flags})
+		return nil, nil
+	})
+
 	restoreConnectRetryTimeout := ifacestate.MockConnectRetryTimeout(connectRetryTimeout)
 
 	ms.restore = func() {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
+		restoreBackendSave()
 		restoreConnectRetryTimeout()
 	}
 
@@ -351,6 +372,11 @@ apps:
 `
 	snapInfo := ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 
+	// set config
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("foo", "key", "value"), IsNil)
+	tr.Commit()
+
 	ts, err := snapstate.Remove(st, "foo", snap.R(0))
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
@@ -375,6 +401,9 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
 	c.Assert(osutil.FileExists(mup), Equals, false)
+
+	// automatic snapshot was created
+	c.Assert(ms.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, &snapshotbackend.Flags{Auto: true}}})
 }
 
 func fakeSnapID(name string) string {
@@ -3285,4 +3314,115 @@ type: base`
 	tss, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, ErrorMatches, "cannot remodel to different bases yet")
 	c.Assert(tss, HasLen, 0)
+}
+
+func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
+	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "verified",
+	}, "")
+	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+
+	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+	model := makeModelAssertion(c, brandSigning, map[string]interface{}{
+		"gadget": "gadget",
+	})
+
+	// reset as seeded but not registered
+	// shortcut: have already device key
+	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+	err = kpMgr.Put(deviceKey)
+	c.Assert(err, IsNil)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err = assertstate.Add(st, brandAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, brandAccKey)
+	c.Assert(err, IsNil)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+		KeyID: deviceKey.PublicKey().ID(),
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+		brandID := headers["brand-id"].(string)
+		model := headers["model"].(string)
+		c.Check(brandID, Equals, "my-brand")
+		c.Check(model, Equals, "my-model")
+		headers["authority-id"] = brandID
+		return brandSigning.Sign(asserts.SerialType, headers, body, "")
+	}
+
+	bhv := &devicestatetest.DeviceServiceBehavior{
+		ReqID:            "REQID-1",
+		RequestIDURLPath: "/svc/request-id",
+		SerialURLPath:    "/svc/serial",
+		SignSerial:       signSerial,
+	}
+
+	mockServer := devicestatetest.MockDeviceService(c, bhv)
+	defer mockServer.Close()
+
+	pDBhv := &devicestatetest.PrepareDeviceBehavior{
+		DeviceSvcURL: mockServer.URL + "/svc/",
+		Headers: map[string]string{
+			"x-extra-header": "extra",
+		},
+		RegBody: map[string]string{
+			"mac": "00:00:00:00:ff:00",
+		},
+		ProposedSerial: "12000",
+	}
+
+	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), pDBhv)
+	defer r()
+
+	// run the whole device registration process
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	var becomeOperational *state.Change
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "my-brand")
+	c.Check(device.Model, Equals, "my-model")
+	c.Check(device.Serial, Equals, "12000")
+
+	a, err := assertstate.DB(st).Find(asserts.SerialType, map[string]string{
+		"brand-id": "my-brand",
+		"model":    "my-model",
+		"serial":   "12000",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	var details map[string]interface{}
+	err = yaml.Unmarshal(serial.Body(), &details)
+	c.Assert(err, IsNil)
+
+	c.Check(details, DeepEquals, map[string]interface{}{
+		"mac": "00:00:00:00:ff:00",
+	})
+
+	c.Check(serial.DeviceKey().ID(), Equals, device.KeyID)
 }

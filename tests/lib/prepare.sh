@@ -158,6 +158,11 @@ update_core_snap_for_classic_reexec() {
             ;;
     esac
 
+    # Debian packages don't carry permissions correctly and we use post-inst
+    # hooks to fix that on classic systems. Here, as a special case, fix the
+    # void directory.
+    chmod 111 squashfs-root/var/lib/snapd/void
+
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -206,7 +211,11 @@ EOF
 }
 
 prepare_classic() {
-    distro_install_build_snapd
+    # Skip building snapd when REUSE_SNAPD is set to 1
+    if [ "$REUSE_SNAPD" != 1 ]; then
+        distro_install_build_snapd
+    fi
+
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
@@ -350,6 +359,10 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new snapd snap
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        # Debian packages don't carry permissions correctly and we use
+        # post-inst hooks to fix that on classic systems. Here, as a special
+        # case, fix the void directory we just unpacked.
+        chmod 111 "$UNPACK_DIR/var/lib/snapd/void"
         # ensure any new timer units are available
         cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACK_DIR/etc/systemd/system/timers.target.wants"
 
@@ -471,6 +484,9 @@ EOF
     # - make sure the group matches
     # - bind mount /root/test-etc/* to /etc/* via custom systemd job
     # We also create /var/lib/extrausers/* and append ubuntu,test there
+    ! test -e /mnt/system-data/root
+    mkdir -m 700 /mnt/system-data/root
+    test -d /mnt/system-data/root
     mkdir -p /mnt/system-data/root/test-etc
     mkdir -p /mnt/system-data/var/lib/extrausers/
     touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
