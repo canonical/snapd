@@ -763,8 +763,9 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 	c.Assert(err, IsNil)
 
 	// ensure edges information is still there
-	te := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	te, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
 	c.Assert(te, NotNil)
+	c.Assert(err, IsNil)
 
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, expectedDiscards, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -968,8 +969,9 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks())+1) // 1==rerefresh
 
 	// ensure edges information is still there
-	te := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	te, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
 	c.Assert(te, NotNil)
+	c.Assert(err, IsNil)
 
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }

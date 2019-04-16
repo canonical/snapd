@@ -485,8 +485,12 @@ func NewTaskSet(tasks ...*Task) *TaskSet {
 }
 
 // Edge returns the task marked with the given edge name.
-func (ts TaskSet) Edge(e TaskSetEdge) *Task {
-	return ts.edges[e]
+func (ts TaskSet) Edge(e TaskSetEdge) (*Task, error) {
+	t, ok := ts.edges[e]
+	if !ok {
+		return nil, ErrNoState
+	}
+	return t, nil
 }
 
 // WaitFor registers a task as a requirement for the tasks in the set
