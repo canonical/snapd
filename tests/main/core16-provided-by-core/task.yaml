@@ -17,7 +17,8 @@ execute: |
     test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
     SNAP_CONFINE_DEBUG=1 test-snapd-sh-core16.sh -c "true" 2>&1 | MATCH "falling back to core instead of unavailable core16 snap"
 
-
+# The missing base snap fallback check is performed on each startup, even if the mount namespace is reused.
+# Therefore we don't have to discard the mount namespace constructed by the calls above.
     echo "when core16 is pulled in"
     snap install --edge core16
     echo "things still work"

@@ -213,7 +213,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
-	// the core snap provides everything we need for core16
+	// The core snap provides everything we need for core16.
 	if snapName == "core16" {
 		if hasCore, err := isInstalled(st, "core"); hasCore && err == nil {
 			return nil, nil
