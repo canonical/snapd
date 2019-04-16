@@ -330,10 +330,11 @@ func (b *testBackend) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
-func (b *testBackend) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
+func (b *testBackend) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
 	if b.nothing {
 		return nil, state.ErrNoState
 	}
+
 	ex := strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)
 	ex = strings.Replace(ex, "@TS@", time.Now().Format(time.RFC3339), 1)
 	aReq, err := asserts.Decode([]byte(ex))
@@ -341,21 +342,7 @@ func (b *testBackend) DeviceSessionRequestParams(nonce string) (*storecontext.De
 		return nil, err
 	}
 
-	aSer, err := asserts.Decode([]byte(exSerial))
-	if err != nil {
-		return nil, err
-	}
-
-	aMod, err := asserts.Decode([]byte(exModel))
-	if err != nil {
-		return nil, err
-	}
-
-	return &storecontext.DeviceSessionRequestParams{
-		Request: aReq.(*asserts.DeviceSessionRequest),
-		Serial:  aSer.(*asserts.Serial),
-		Model:   aMod.(*asserts.Model),
-	}, nil
+	return aReq.(*asserts.DeviceSessionRequest), nil
 }
 
 func (b *testBackend) ProxyStore() (*asserts.Store, error) {

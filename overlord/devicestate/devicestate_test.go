@@ -1399,25 +1399,22 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 	defer s.state.Unlock()
 
 	// nothing there
-	_, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
+	_, err := s.mgr.SignDeviceSessionRequest(nil, "NONCE-1")
 	c.Check(err, Equals, state.ErrNoState)
 
-	// have a model assertion
-	modela, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"brand-id":     "canonical",
-		"model":        "pc",
-		"gadget":       "pc",
-		"kernel":       "kernel",
-		"architecture": "amd64",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, modela)
-	c.Assert(err, IsNil)
+	// have a key
+	devKey, _ := assertstest.GenerateKey(testKeyLength)
+	devicestate.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: devKey.PublicKey().ID(),
+	})
+	devicestate.KeypairManager(s.mgr).Put(devKey)
+
+	_, err = s.mgr.SignDeviceSessionRequest(nil, "NONCE-1")
+	c.Check(err, Equals, state.ErrNoState)
 
 	// setup state as done by device initialisation
-	devKey, _ := assertstest.GenerateKey(testKeyLength)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
@@ -1431,6 +1428,7 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, seriala)
 	c.Assert(err, IsNil)
+	serial := seriala.(*asserts.Serial)
 
 	devicestate.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
@@ -1438,17 +1436,10 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 		Serial: "8989",
 		KeyID:  devKey.PublicKey().ID(),
 	})
-	devicestate.KeypairManager(s.mgr).Put(devKey)
 
-	params, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
+	sessReq, err := s.mgr.SignDeviceSessionRequest(serial, "NONCE-1")
 	c.Assert(err, IsNil)
 
-	c.Check(params.Model.Model(), Equals, "pc")
-
-	c.Check(params.Serial.Model(), Equals, "pc")
-	c.Check(params.Serial.Serial(), Equals, "8989")
-
-	sessReq := params.Request
 	// correctly signed with device key
 	err = asserts.SignatureCheck(sessReq, devKey.PublicKey())
 	c.Check(err, IsNil)

@@ -546,21 +546,16 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
-	model, err := Model(m.state)
-	if err != nil {
-		return nil, err
-	}
-
-	serial, err := Serial(m.state)
-	if err != nil {
-		return nil, err
-	}
-
+// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
+func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
 	privKey, err := m.keyPair()
 	if err != nil {
 		return nil, err
+	}
+
+	if serial == nil {
+		// shouldn't happen, but be safe
+		return nil, state.ErrNoState
 	}
 
 	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
@@ -574,12 +569,7 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.
 		return nil, err
 	}
 
-	return &storecontext.DeviceSessionRequestParams{
-		Request: a.(*asserts.DeviceSessionRequest),
-		Serial:  serial,
-		Model:   model,
-	}, err
-
+	return a.(*asserts.DeviceSessionRequest), nil
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.

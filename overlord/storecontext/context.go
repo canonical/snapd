@@ -49,8 +49,8 @@ type Backend interface {
 	// Serial returns the device serial assertion.
 	Serial() (*asserts.Serial, error)
 
-	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-	DeviceSessionRequestParams(nonce string) (*store.DeviceSessionRequestParams, error)
+	// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
+	SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error)
 
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
@@ -168,14 +168,38 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 	if sc.b == nil {
 		return nil, store.ErrNoSerial
 	}
-	params, err := sc.b.DeviceSessionRequestParams(nonce)
+
+	params, err := sc.deviceSessionRequestParams(nonce)
+	if err == state.ErrNoState {
+		return nil, store.ErrNoSerial
+	}
+	return params, err
+}
+
+func (sc *storeContext) deviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
+	model, err := sc.b.Model()
+	if err != nil {
+		return nil, err
+	}
+
+	serial, err := sc.b.Serial()
+	if err != nil {
+		return nil, err
+	}
+
+	deviceSessionReq, err := sc.b.SignDeviceSessionRequest(serial, nonce)
 	if err == state.ErrNoState {
 		return nil, store.ErrNoSerial
 	}
 	if err != nil {
 		return nil, err
 	}
-	return params, nil
+
+	return &DeviceSessionRequestParams{
+		Request: deviceSessionReq,
+		Serial:  serial,
+		Model:   model,
+	}, nil
 }
 
 // ProxyStoreParams returns the id and URL of the proxy store if one is set. Returns the defaultURL otherwise and id = "".
