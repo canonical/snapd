@@ -6,7 +6,7 @@ jobs:
     - stage: quick
       name: go 1.9/xenial static and unit test suites
       dist: xenial
-      go: "1.9"
+      go: ["1.9"]
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
