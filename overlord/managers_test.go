@@ -3168,6 +3168,7 @@ func makeModelAssertion(c *C, brandSigning *assertstest.SigningDB, modelExtra ma
 	return model.(*asserts.Model)
 }
 
+// TODO: add a custom checker in testutils for this and similar
 func validateDownloadCheckTasks(c *C, tasks []*state.Task, name, revno, channel string) int {
 	var i int
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Ensure prerequisites for "%s" are available`, name))

@@ -61,8 +61,9 @@ type Flags struct {
 	// IsAutoRefresh is true if the snap is currently auto-refreshed
 	IsAutoRefresh bool `json:"is-auto-refresh,omitempty"`
 
-	// NoReRefresh forces a refresh to skip adding "rerefresh" tasks.
-	// This is important for the Remodel() use-case.
+	// NoReRefresh prevents refresh from adding epoch-hopping
+	// re-refresh tasks. This allows refresh to work offline, as
+	// long as refresh assets are cached.
 	NoReRefresh bool `json:"no-rerefresh,omitempty"`
 }
 
