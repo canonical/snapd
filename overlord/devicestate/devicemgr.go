@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -195,6 +196,8 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
+
 	device, err := auth.Device(m.state)
 	if err != nil {
 		return err
@@ -329,6 +332,9 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
+
 	return nil
 }
 
@@ -339,6 +345,8 @@ var populateStateFromSeed = populateStateFromSeedImpl
 func (m *DeviceManager) ensureSeedYaml() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -353,7 +361,10 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := populateStateFromSeed(m.state)
+	var tsAll []*state.TaskSet
+	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state)
+	})
 	if err != nil {
 		return err
 	}
@@ -368,6 +379,8 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 	m.state.EnsureBefore(0)
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
 	return nil
 }
 

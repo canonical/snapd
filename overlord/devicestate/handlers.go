@@ -20,6 +20,7 @@ package devicestate
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
 
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
@@ -188,6 +190,9 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	device, err := auth.Device(st)
 	if err != nil {
 		return err
@@ -199,7 +204,10 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
-	keyPair, err := generateRSAKey(keyLength)
+	var keyPair *rsa.PrivateKey
+	timings.Run(perfTimings, "generate-rsa-key", "generating device key pair", func(tm timings.Measurer) {
+		keyPair, err = generateRSAKey(keyLength)
+	})
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
@@ -379,7 +387,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState) (*asserts.Serial, error) {
+func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -413,7 +421,11 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		serialRequest, err := prepareSerialRequest(t, privKey, device, client, cfg)
+		var serialRequest string
+		var err error
+		timings.Run(tm, "prepare-serial-request", "prepare device serial request", func(timings.Measurer) {
+			serialRequest, err = prepareSerialRequest(t, privKey, device, client, cfg)
+		})
 		if err != nil { // errors & retries
 			return nil, err
 		}
@@ -421,7 +433,10 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		serialSup.SerialRequest = serialRequest
 	}
 
-	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
+	var serial *asserts.Serial
+	timings.Run(tm, "submit-serial-request", "submit device serial request", func(timings.Measurer) {
+		serial, err = submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
+	})
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
@@ -549,6 +564,9 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	device, err := auth.Device(st)
 	if err != nil {
 		return err
@@ -581,17 +599,24 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
 	}
 
-	serial, err := getSerial(t, privKey, device)
+	var serial *asserts.Serial
+	timings.Run(perfTimings, "get-serial", "get device serial", func(tm timings.Measurer) {
+		serial, err = getSerial(t, privKey, device, tm)
+	})
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: retryInterval}
 	}
 	if err != nil { // errors & retries
 		return err
+
 	}
 
+	var errAcctKey error
 	// try to fetch the signing key chain of the serial
-	errAcctKey, err := fetchKeys(st, serial.SignKeyID())
+	timings.Run(perfTimings, "fetch-keys", "fetch signing key chain", func(timings.Measurer) {
+		errAcctKey, err = fetchKeys(st, serial.SignKeyID())
+	})
 	if err != nil {
 		return err
 	}
