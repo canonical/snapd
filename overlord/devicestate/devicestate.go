@@ -298,7 +298,7 @@ func CanManageRefreshes(st *state.State) bool {
 func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
 	edgeTask, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("internal error: cannot find edge task in task set: %v", err)
+		return nil, nil, nil, nil, err
 	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads

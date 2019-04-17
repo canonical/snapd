@@ -488,7 +488,7 @@ func NewTaskSet(tasks ...*Task) *TaskSet {
 func (ts TaskSet) Edge(e TaskSetEdge) (*Task, error) {
 	t, ok := ts.edges[e]
 	if !ok {
-		return nil, ErrNoState
+		return nil, fmt.Errorf("internal error: missing %q edge in task set", e)
 	}
 	return t, nil
 }

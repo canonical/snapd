@@ -565,10 +565,10 @@ func (cs *taskSuite) TestTaskSetEdge(c *C) {
 	// no edge marked yet
 	t, err := ts.Edge(edge1)
 	c.Assert(t, IsNil)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: missing %q edge in task set", edge1))
 	t, err = ts.Edge(edge2)
 	c.Assert(t, IsNil)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: missing %q edge in task set", edge2))
 
 	// one edge
 	ts.MarkEdge(t1, edge1)
