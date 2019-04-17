@@ -475,6 +475,16 @@ distro_install_build_snapd(){
 
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*)
+                # We need to wait until the man db cache is updated before do daemon-reexec
+                # Otherwise the service fails and the system will be degraded during tests executions
+                for i in $(seq 20); do
+                    man_db_cache_update_service=$(systemctl list-units | grep -E 'run-.*.service' | awk '{print $1;}')
+                    if [ -z "$man_db_cache_update_service" ]; then
+                        break
+                    fi
+                    sleep .5
+                done
+
                 # systemd caches SELinux policy data and subsequently attempts
                 # to create sockets with incorrect context, this installation of
                 # socket activated snaps fails, see:
