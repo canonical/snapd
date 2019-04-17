@@ -339,13 +339,13 @@ setup_reflash_magic() {
     cp /usr/bin/snap "$IMAGE_HOME"
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
-    # modify the snapd snap so that it has our snapd
-    UNPACK_DIR="/tmp/snapd-snap"
-    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    snap pack "$UNPACK_DIR" "$IMAGE_HOME"
-    
     if is_core18_system; then
+        # modify the snapd snap so that it has our snapd
+        UNPACK_DIR="/tmp/snapd-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
+
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core18-amd64.img

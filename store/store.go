@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -1592,7 +1593,7 @@ func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	case osutil.ExecutableExists("xdelta3"):
 		return exec.Command("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", args...)
+		return cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
 	}
 	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }

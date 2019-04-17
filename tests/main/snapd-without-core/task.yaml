@@ -1,7 +1,12 @@
-summary: Ensure the snapd works without core
+summary: Ensure the snapd works without core on classic systems
 
-# we have a separate test for UC18 already, on UC16 we always have a core snap
-systems: [-ubuntu-core-*]
+# Run only on ubuntu classic because this re-execs.  We have a
+# separate test for UC18 already and on UC16 we always have a core
+# snap so we don't need to test there.
+systems: [ubuntu-1*, ubuntu-2*]
+
+restore: |
+    rm -f /tmp/snapd_*.snap
 
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
@@ -9,19 +14,33 @@ execute: |
         exit 0
     fi
 
+    echo "Create modified snapd snap"
+    UNPACK_DIR="./snapd-unpack"
+    snap download --edge snapd
+    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    snap pack "$UNPACK_DIR" /tmp
+
     echo "Ensure core is gone so that we can have snapd"
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
     distro_purge_package snapd
     distro_install_build_snapd
 
     echo "Install the snapd snap"
     snap set core experimental.snapd-snap=true
-    snap install --dangerous $GOPATH/snapd_*.snap
+    snap install --dangerous /tmp/snapd_*.snap
+    echo "Ensure we restarted into the snapd snap"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+    check_journalctl_log  'restarting into "/snap/snapd/'
 
     echo "Now install a core18 based snap and ensure it works"
     snap install test-snapd-tools-core18
     test-snapd-tools-core18.echo hello | MATCH hello
+    echo "No core was installed"
+    ! snap list | grep ^"core "
 
     echo "Ensure we re-exec to the snapd snap"
-    SNAPD_DEBUG=1 test-snapd-tools-core18.echo 2>&1 | grep 'restarting into "/snap/snapd/current'
-
-    # TODO: add test that checks that `snap pack` uses mksquashfs from snapd
+    SNAPD_DEBUG=1 test-snapd-tools-core18.echo 2>&1 | MATCH 'restarting into "/snap/snapd/current'

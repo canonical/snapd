@@ -21,7 +21,7 @@ execute: |
     unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v7
 
     echo "Ensure we have xdelta3"
-    unsquashfs -ll snapd_*.snap | MATCH bin/xdelta3"
+    unsquashfs -ll snapd_*.snap | MATCH bin/xdelta3
 
     echo "Ensure we have mksquashfs"
-    unsquashfs -ll snapd_*.snap | MATCH bin/mksquashfs"
+    unsquashfs -ll snapd_*.snap | MATCH bin/mksquashfs
