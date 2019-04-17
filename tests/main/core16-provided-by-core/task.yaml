@@ -6,6 +6,15 @@ execute: |
         snap install core
     fi
 
+    echo "Ensure there is no core16 installed"
+    snap remove core16
+
+    echo "Double check that no earlier test left garbage around"
+    if [ -e /snap/core16/current ] || [ test -L /snap/core16/current ]; then
+        echo "internal error: a core16 snap is installed, earlier test cleanup did not work"
+        exit 1
+    fi
+
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh-core16
