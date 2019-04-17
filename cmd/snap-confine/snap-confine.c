@@ -42,6 +42,7 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "cookie-support.h"
 #include "mount-support.h"

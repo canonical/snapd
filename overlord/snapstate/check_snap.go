@@ -377,6 +377,10 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) erro
 		if typ == snap.TypeBase && otherSnap == snapInfo.Base {
 			return nil
 		}
+		// core can be used instead for core16
+		if snapInfo.Base == "core16" && otherSnap == "core" {
+			return nil
+		}
 	}
 
 	return fmt.Errorf("cannot find required base %q", snapInfo.Base)
