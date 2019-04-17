@@ -646,14 +646,12 @@ prepare_ubuntu_core() {
     echo "Ensure the core snap is cached"
     # Cache snaps
     if is_core18_system; then
-        if ! snap list core; then
-            cache_snaps core
-        fi
-        if snap list core; then
-            echo "core snap on core18 should not be installed"
+        if snap list core;
+            echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
         fi
+        cache_snaps core
     fi
 
     disable_refreshes
