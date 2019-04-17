@@ -92,12 +92,8 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
 		UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
 	}
-	params := struct {
-		ChgID string `json:"chg-id"`
-	}{
-		ChgID: chgid,
-	}
-	if err := x.client.Debug("change-timings", params, &timings); err != nil {
+
+	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid}); err != nil {
 		return err
 	}
 
