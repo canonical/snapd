@@ -29,6 +29,9 @@ parts:
     # FIXME: this should probably go upstream
     plugin: x-builddeb
     source: .
+    stage-packages:
+      - xdelta3
+      - squashfs-tools
   # the version in Ubuntu 16.04 (cache v6)
   fontconfig-xenial:
     plugin: nil

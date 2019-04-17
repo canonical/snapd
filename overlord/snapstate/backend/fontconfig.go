@@ -32,7 +32,6 @@ var commandFromCore = osutil.CommandFromCore
 // updateFontconfigCaches always update the fontconfig caches
 func updateFontconfigCachesImpl() error {
 	for _, fc := range []string{"fc-cache-v6", "fc-cache-v7"} {
-		// FIXME: also use the snapd snap if available
 		cmd, err := commandFromCore(dirs.SnapMountDir, "/bin/"+fc)
 		if err != nil {
 			return fmt.Errorf("cannot get %s from core: %v", fc, err)

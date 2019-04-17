@@ -99,13 +99,20 @@ func elfInterp(cmd string) (string, error) {
 	return "", fmt.Errorf("cannot find PT_INTERP header")
 }
 
-// CommandFromCore runs a command from the core snap using the proper
-// interpreter and library paths.
+// TODO: rename/move to a more sensible place
+//
+// CommandFromSnapdOrCore runs a command from the snapd/core snap
+// using the proper interpreter and library paths.
 //
 // At the moment it can only run ELF files, expects a standard ld.so
 // interpreter, and can't handle RPATH.
 func CommandFromCore(snapMountDir string, name string, cmdArgs ...string) (*exec.Cmd, error) {
-	root := filepath.Join(snapMountDir, "/core/current")
+	from := "snapd"
+	root := filepath.Join(snapMountDir, "/snapd/current")
+	if !FileExists(root) {
+		from = "core"
+		root = filepath.Join(snapMountDir, "/core/current")
+	}
 
 	cmdPath := filepath.Join(root, name)
 	interp, err := elfInterp(cmdPath)
@@ -115,7 +122,7 @@ func CommandFromCore(snapMountDir string, name string, cmdArgs ...string) (*exec
 	coreLdSo := filepath.Join(root, interp)
 	// we cannot use EvalSymlink here because we need to resolve
 	// relative and absolute symlinks differently. A absolute
-	// symlink is relative to root of the core snap.
+	// symlink is relative to root of the snapd/core snap.
 	seen := map[string]bool{}
 	for IsSymlink(coreLdSo) {
 		link, err := os.Readlink(coreLdSo)
@@ -128,7 +135,7 @@ func CommandFromCore(snapMountDir string, name string, cmdArgs ...string) (*exec
 			coreLdSo = filepath.Join(filepath.Dir(coreLdSo), link)
 		}
 		if seen[coreLdSo] {
-			return nil, fmt.Errorf("cannot run command from core: symlink cycle found")
+			return nil, fmt.Errorf("cannot run command from %s: symlink cycle found", from)
 		}
 		seen[coreLdSo] = true
 	}

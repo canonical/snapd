@@ -19,3 +19,9 @@ execute: |
     echo "Ensure we have the fc-cache binaries"
     unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v6
     unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v7
+
+    echo "Ensure we have xdelta3"
+    unsquashfs -ll snapd_*.snap | MATCH bin/xdelta3"
+
+    echo "Ensure we have mksquashfs"
+    unsquashfs -ll snapd_*.snap | MATCH bin/mksquashfs"

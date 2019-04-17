@@ -1,0 +1,27 @@
+summary: Ensure the snapd works without core
+
+# we have a separate test for UC18 already, on UC16 we always have a core snap
+systems: [-ubuntu-core-*]
+
+execute: |
+    if [ "${SNAP_REEXEC:-}" = "0" ]; then
+        echo "skipping test when SNAP_REEXEC is disabled"
+        exit 0
+    fi
+
+    echo "Ensure core is gone so that we can have snapd"
+    distro_purge_package snapd
+    distro_install_build_snapd
+
+    echo "Install the snapd snap"
+    snap set core experimental.snapd-snap=true
+    snap install --dangerous $GOPATH/snapd_*.snap
+
+    echo "Now install a core18 based snap and ensure it works"
+    snap install test-snapd-tools-core18
+    test-snapd-tools-core18.echo hello | MATCH hello
+
+    echo "Ensure we re-exec to the snapd snap"
+    SNAPD_DEBUG=1 test-snapd-tools-core18.echo 2>&1 | grep 'restarting into "/snap/snapd/current'
+
+    # TODO: add test that checks that `snap pack` uses mksquashfs from snapd
