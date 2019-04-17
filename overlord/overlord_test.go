@@ -134,11 +134,8 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	err = json.Unmarshal(fakeState, &expected)
 	c.Assert(err, IsNil)
 
-	// make sure "timings" are present in the state, but exclude them from the check
 	data, _ := got["data"].(map[string]interface{})
 	c.Assert(data, NotNil)
-	c.Assert(data["timings"], NotNil)
-	delete(data, "timings")
 
 	c.Check(got, DeepEquals, expected)
 }

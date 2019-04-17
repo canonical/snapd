@@ -136,7 +136,7 @@ func (s *downloadSuite) TestActualDownloadFullCloudInfoFromAuthContext(c *C) {
 	defer mockServer.Close()
 
 	device := createTestDevice()
-	theStore := store.New(&store.Config{}, &testAuthContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
+	theStore := store.New(&store.Config{}, &testDauthContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
 
 	var buf SillyBuffer
 	// keep tests happy
@@ -156,7 +156,7 @@ func (s *downloadSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c
 	defer mockServer.Close()
 
 	device := createTestDevice()
-	theStore := store.New(&store.Config{}, &testAuthContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
+	theStore := store.New(&store.Config{}, &testDauthContext{c: c, device: device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
 
 	var buf SillyBuffer
 	// keep tests happy

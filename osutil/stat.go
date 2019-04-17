@@ -58,6 +58,15 @@ func IsSymlink(path string) bool {
 	return (fileInfo.Mode() & os.ModeSymlink) != 0
 }
 
+// IsExecutable returns true when given path points to an executable file
+func IsExecutable(path string) bool {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !stat.IsDir() && (stat.Mode().Perm()&0111 != 0)
+}
+
 // ExecutableExists returns whether there an exists an executable with the given name somewhere on $PATH.
 func ExecutableExists(name string) bool {
 	_, err := exec.LookPath(name)
