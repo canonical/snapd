@@ -145,28 +145,15 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		return nil, err
 	}
 
-	// At this point snap.Plugs and snap.Slots only contain globally-declared
-	// plugs and slots, so copy them for later.
-	snap.toplevelPlugs = make([]*PlugInfo, 0, len(snap.Plugs))
-	snap.toplevelSlots = make([]*SlotInfo, 0, len(snap.Slots))
-	for _, plug := range snap.Plugs {
-		snap.toplevelPlugs = append(snap.toplevelPlugs, plug)
-	}
-	for _, slot := range snap.Slots {
-		snap.toplevelSlots = append(snap.toplevelSlots, slot)
-	}
-
 	// Collect all apps, their aliases and hooks
 	if err := setAppsFromSnapYaml(y, snap); err != nil {
 		return nil, err
 	}
 	setHooksFromSnapYaml(y, snap)
 
-	// Bind unbound plugs to all apps and hooks
-	bindUnboundPlugs(snap)
-
-	// Bind unbound slots to all apps and hooks
-	bindUnboundSlots(snap)
+	// Bind plugs and slots that are not scoped to all known apps and hooks.
+	bindUnscopedPlugs(snap)
+	bindUnscopedSlots(snap)
 
 	// Collect layout elements.
 	if y.Layout != nil {
@@ -364,8 +351,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 					Name:      plugName,
 					Interface: plugName,
 					Apps:      make(map[string]*AppInfo),
+					Scoped:    true,
 				}
 				snap.Plugs[plugName] = plug
+			} else {
+				// Mark existing plug as scoped.
+				plug.Scoped = true
 			}
 			app.Plugs[plugName] = plug
 			plug.Apps[appName] = app
@@ -378,9 +369,14 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 					Name:      slotName,
 					Interface: slotName,
 					Apps:      make(map[string]*AppInfo),
+					Scoped:    true,
 				}
 				snap.Slots[slotName] = slot
+			} else {
+				// Mark existing slot as scoped.
+				slot.Scoped = true
 			}
+
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app
 		}
@@ -438,9 +434,14 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 					Name:      plugName,
 					Interface: plugName,
 					Hooks:     make(map[string]*HookInfo),
+					Scoped:    true,
 				}
 				snap.Plugs[plugName] = plug
-			} else if plug.Hooks == nil {
+			} else {
+				// Mark existing plug as scoped.
+				plug.Scoped = true
+			}
+			if plug.Hooks == nil {
 				plug.Hooks = make(map[string]*HookInfo)
 			}
 			hook.Plugs[plugName] = plug
@@ -455,9 +456,14 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 					Name:      slotName,
 					Interface: slotName,
 					Hooks:     make(map[string]*HookInfo),
+					Scoped:    true,
 				}
 				snap.Slots[slotName] = slot
-			} else if slot.Hooks == nil {
+			} else {
+				// Mark existing slot as scoped.
+				slot.Scoped = true
+			}
+			if slot.Hooks == nil {
 				slot.Hooks = make(map[string]*HookInfo)
 			}
 			hook.Slots[slotName] = slot
@@ -466,60 +472,47 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 	}
 }
 
-func bindUnboundPlugs(snap *Info) {
+func bindUnscopedPlugs(snap *Info) {
 	for plugName, plug := range snap.Plugs {
-		// A plug is considered unbound if it isn't being used by any apps
-		// or hooks. In which case we bind them to all apps and hooks.
-		if len(plug.Apps) == 0 && len(plug.Hooks) == 0 {
-			for appName, app := range snap.Apps {
-				app.Plugs[plugName] = plug
-				plug.Apps[appName] = app
-			}
+		if plug.Scoped {
+			continue
+		}
+		for appName, app := range snap.Apps {
+			app.Plugs[plugName] = plug
+			plug.Apps[appName] = app
+		}
 
-			for hookName, hook := range snap.Hooks {
-				hook.Plugs[plugName] = plug
-				plug.Hooks[hookName] = hook
-			}
+		for hookName, hook := range snap.Hooks {
+			hook.Plugs[plugName] = plug
+			plug.Hooks[hookName] = hook
 		}
 	}
 }
 
-func bindUnboundSlots(snap *Info) {
+func bindUnscopedSlots(snap *Info) {
 	for slotName, slot := range snap.Slots {
-		// A slot is considered unbound if it isn't being used by any apps
-		// or hooks. In which case we bind them to all apps and hooks.
-		if len(slot.Apps) == 0 && len(slot.Hooks) == 0 {
-			for appName, app := range snap.Apps {
-				app.Slots[slotName] = slot
-				slot.Apps[appName] = app
-			}
-			for hookName, hook := range snap.Hooks {
-				hook.Slots[slotName] = slot
-				slot.Hooks[hookName] = hook
-			}
+		if slot.Scoped {
+			continue
+		}
+		for appName, app := range snap.Apps {
+			app.Slots[slotName] = slot
+			slot.Apps[appName] = app
+		}
+		for hookName, hook := range snap.Hooks {
+			hook.Slots[slotName] = slot
+			slot.Hooks[hookName] = hook
 		}
 	}
 }
 
 // bindImplicitHooks binds all global plugs and slots to implicit hooks
 func bindImplicitHooks(snap *Info) {
-	bound := make(map[string]bool, len(snap.Plugs)+len(snap.Slots))
-	for _, plug := range snap.toplevelPlugs {
-		if len(plug.Apps) > 0 || len(plug.Hooks) > 0 {
-			bound[plug.Name] = true
-		}
-	}
-	for _, slot := range snap.toplevelSlots {
-		if len(slot.Apps) > 0 || len(slot.Hooks) > 0 {
-			bound[slot.Name] = true
-		}
-	}
 	for hookName, hook := range snap.Hooks {
 		if hook.Explicit {
 			continue
 		}
-		for _, plug := range snap.toplevelPlugs {
-			if bound[plug.Name] {
+		for _, plug := range snap.Plugs {
+			if plug.Scoped {
 				continue
 			}
 			if hook.Plugs == nil {
@@ -531,8 +524,8 @@ func bindImplicitHooks(snap *Info) {
 			}
 			plug.Hooks[hookName] = hook
 		}
-		for _, slot := range snap.toplevelSlots {
-			if bound[slot.Name] {
+		for _, slot := range snap.Slots {
+			if slot.Scoped {
 				continue
 			}
 			if hook.Slots == nil {

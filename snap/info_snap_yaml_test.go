@@ -297,6 +297,7 @@ apps:
 		Name:      "network-client",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{withPlugApp.Name: withPlugApp},
+		Scoped:    true,
 	})
 	c.Assert(withPlugApp, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -332,6 +333,7 @@ apps:
 		Name:      "net",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Scoped:    true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -360,6 +362,7 @@ apps:
 		Name:      "network-client",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Scoped:    true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -673,6 +676,7 @@ apps:
 		Name:      "net",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Scoped:    true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -701,6 +705,7 @@ apps:
 		Name:      "network-client",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Scoped:    true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -813,6 +818,7 @@ hooks:
 		Name:      "test-slot",
 		Interface: "test-slot",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Scoped:    true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -992,6 +998,7 @@ hooks:
 		Name:      "test-plug",
 		Interface: "test-plug",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Scoped:    true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1064,6 +1071,7 @@ hooks:
 		Name:      "test-plug",
 		Interface: "test-plug",
 		Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
+		Scoped:    true,
 	})
 	c.Assert(withPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1108,6 +1116,7 @@ hooks:
 		Name:      "test-plug",
 		Interface: "test-interface",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Scoped:    true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1146,6 +1155,7 @@ apps:
 		Interface: "test-plug",
 		Apps:      map[string]*snap.AppInfo{},
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Scoped:    true,
 	})
 	c.Assert(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,

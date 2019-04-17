@@ -225,9 +225,6 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
-	toplevelPlugs []*PlugInfo
-	toplevelSlots []*SlotInfo
-
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -551,6 +548,9 @@ type PlugInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	// Scoped indicates that plug is explicitly associated with apps or hooks.
+	Scoped bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -656,6 +656,9 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	// Scoped indicates that slot is explicitly associated with apps or hooks.
+	Scoped bool
 
 	// HotplugKey is a unique key built by the slot's interface
 	// using properties of a hotplugged device so that the same

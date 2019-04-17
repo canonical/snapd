@@ -773,6 +773,35 @@ hooks:
 	})
 }
 
+func (s *infoSuite) TestReadInfoImplicitHookPlugWhenImplicitlyBoundToApp(c *C) {
+	yaml := `name: foo
+version: 1.0
+plugs:
+  test-plug:
+apps:
+  app:
+`
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 1)
+		verifyImplicitHook(c, info, "implicit", []string{"test-plug"})
+	})
+}
+
+func (s *infoSuite) TestReadInfoImplicitHookPlugWhenExplicitlyBoundToApp(c *C) {
+	yaml := `name: foo
+version: 1.0
+plugs:
+  test-plug:
+apps:
+  app:
+    plugs: [test-plug]
+`
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 1)
+		verifyImplicitHook(c, info, "implicit", nil)
+	})
+}
+
 func (s *infoSuite) TestParallelInstanceReadInfoImplicitAndExplicitHooks(c *C) {
 	yaml := `name: foo
 version: 1.0
