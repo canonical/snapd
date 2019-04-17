@@ -96,4 +96,4 @@ execute: |
     echo "and check that this remodel has just a single task"
     snap change --last=remodel > remodel.txt
     MATCH "Set new model assertion" < remodel.txt
-    [ "$(wc -l < remodel.txt)" -eq 1 ]
+    [ "$(grep -c today remodel.txt)" -eq 1 ]
