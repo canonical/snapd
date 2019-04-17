@@ -930,12 +930,12 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
 				return 0, fmt.Errorf("user: unknown user %s", name)
 			})
-			defer restore()
 		} else {
 			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
 				return 124, nil
 			})
 		}
+		defer restore()
 
 		yaml := fmt.Sprintf("name: foo\nsystem-users: %s\n", test.sysIDs)
 
