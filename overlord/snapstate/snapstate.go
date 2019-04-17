@@ -698,6 +698,11 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	// need to have a model set before trying to talk the store
+	if _, err := ModelPastSeeding(st); err != nil {
+		return nil, nil, err
+	}
+
 	toInstall := make([]string, 0, len(names))
 	for _, name := range names {
 		var snapst SnapState
