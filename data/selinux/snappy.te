@@ -228,14 +228,14 @@ allow snappy_t usr_t:lnk_file { create unlink };
 ssh_exec_keygen(snappy_t)
 
 # Allow snapd to access passwd file for lookup
-auth_read_passwd(snappy_t);
+auth_read_passwd(snappy_t)
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 gen_require(` type unconfined_t; ')
 allow snappy_t unconfined_t:file getattr;
 allow snappy_t snappy_confine_t:file getattr;
 
-logging_send_syslog_msg(snappy_t);
+logging_send_syslog_msg(snappy_t)
 
 allow snappy_t self:capability { dac_read_search dac_override fowner };
 allow snappy_t self:process { setpgid };
@@ -325,6 +325,12 @@ allow snappy_t var_t:sock_file unlink;
 # snapd picks the process start time from /proc/<pid>/stat for polkit
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
+
+# snapd executes runuser to take snapshots of user's snap data
+allow snappy_t self:capability { setuid setgid };
+allow snappy_t self:process setsched;
+# runuser also logs to audit
+logging_send_audit_msgs(snappy_t)
 
 ########################################
 #
@@ -516,7 +522,7 @@ allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
 
 # allow reading passwd
-auth_read_passwd(snappy_cli_t);
+auth_read_passwd(snappy_cli_t)
 # allow reading sssd files
 optional_policy(`
   sssd_read_public_files(snappy_cli_t)
