@@ -646,7 +646,7 @@ prepare_ubuntu_core() {
     echo "Ensure the core snap is cached"
     # Cache snaps
     if is_core18_system; then
-        if snap list core;
+        if snap list core; then
             echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
