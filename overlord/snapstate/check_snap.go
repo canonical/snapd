@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -199,8 +200,7 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 		return err
 	}
 
-	// check system-users. TODO: decide if this should be assumes or
-	// something else
+	// check system-users
 	if err := checkSystemUsers(info); err != nil {
 		return err
 	}
@@ -421,6 +421,11 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 }
 
 // check that the listed system users are valid
+var (
+	findUid = osutil.FindUid
+	findGid = osutil.FindGid
+)
+
 func checkSystemUsers(si *snap.Info) error {
 	if len(si.SystemUsers) == 0 {
 		return nil
@@ -428,6 +433,12 @@ func checkSystemUsers(si *snap.Info) error {
 	for _, user := range si.SystemUsers {
 		if !supportedSystemUsers[user] {
 			return fmt.Errorf(`Unsupported system user "%s"`, user)
+		}
+
+		_, uidErr := findUid(user)
+		_, gidErr := findGid(user)
+		if uidErr != nil || gidErr != nil {
+			return fmt.Errorf(`This snap requires that the "%s" system user and group are present on the system. For example, "useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false %s" could be used to create this user and group. See "man useradd" for details.`, user, user)
 		}
 	}
 	return nil

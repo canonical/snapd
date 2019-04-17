@@ -863,6 +863,8 @@ base: core16
 var systemUsersTests = []struct {
 	sysIDs  string
 	classic bool
+	noGroup bool
+	noUser  bool
 	error   string
 }{{
 	sysIDs: "[daemon]",
@@ -870,12 +872,41 @@ var systemUsersTests = []struct {
 	sysIDs:  "[daemon]",
 	classic: true,
 }, {
-	sysIDs: "[daemon, nonexistent]",
-	error:  `Unsupported system user "nonexistent"`,
+	sysIDs: "[daemon, allowed-not]",
+	error:  `Unsupported system user "allowed-not"`,
 }, {
-	sysIDs:  "[nonexistent, daemon]",
+	sysIDs:  "[allowed-not, daemon]",
 	classic: true,
-	error:   `Unsupported system user "nonexistent"`,
+	error:   `Unsupported system user "allowed-not"`,
+}, {
+	sysIDs:  "[daemon]",
+	noGroup: true,
+	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+	noGroup: true,
+	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
+}, {
+	sysIDs: "[daemon]",
+	noUser: true,
+	error:  `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+	noUser:  true,
+	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
+}, {
+	sysIDs:  "[daemon]",
+	noUser:  true,
+	noGroup: true,
+	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+	noUser:  true,
+	noGroup: true,
+	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
@@ -884,6 +915,27 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 
 	for _, test := range systemUsersTests {
 		release.OnClassic = test.classic
+		if test.noGroup {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
+				return 0, fmt.Errorf("user: unknown group %s", name)
+			})
+		} else {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
+				return 123, nil
+			})
+		}
+		defer restore()
+
+		if test.noUser {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
+				return 0, fmt.Errorf("user: unknown user %s", name)
+			})
+			defer restore()
+		} else {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
+				return 124, nil
+			})
+		}
 
 		yaml := fmt.Sprintf("name: foo\nsystem-users: %s\n", test.sysIDs)
 
