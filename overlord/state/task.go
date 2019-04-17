@@ -532,7 +532,7 @@ func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
 }
 
 // AddAllWithEdges adds all the tasks in the argument set to the target
-// set ts and also adds all TaskSetEddges. Duplicated TaskSetEdges are
+// set ts and also adds all TaskSetEdges. Duplicated TaskSetEdges are
 // an error.
 func (ts *TaskSet) AddAllWithEdges(anotherTs *TaskSet) error {
 	ts.AddAll(anotherTs)

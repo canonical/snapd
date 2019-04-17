@@ -637,6 +637,8 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
+//
+// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	if channel == "" {
 		channel = "stable"
@@ -1201,6 +1203,8 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
+//
+// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Update(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -1314,6 +1318,9 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 	flat := state.NewTaskSet()
 	for _, ts := range tts {
+		// The tasksets we get from "doUpdate" contain important
+		// "TaskEdge" information that is needed for "Remodel".
+		// To preserve those we need to use "AddAllWithEdges()".
 		if err := flat.AddAllWithEdges(ts); err != nil {
 			return nil, err
 		}
