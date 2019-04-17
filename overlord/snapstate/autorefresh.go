@@ -24,6 +24,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -291,7 +292,9 @@ func (m *autoRefresh) Ensure() error {
 		}
 
 		err = m.launchAutoRefresh()
-		m.nextRefresh = time.Time{}
+		if _, ok := err.(*httputil.UnretriedNetworkError); !ok {
+			m.nextRefresh = time.Time{}
+		} // else - refresh will be retried after refreshRetryDelay
 	}
 
 	return err
@@ -370,6 +373,10 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	if _, ok := err.(*httputil.UnretriedNetworkError); ok {
+		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
+		return err
+	}
 	m.state.Set("last-refresh", time.Now())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)

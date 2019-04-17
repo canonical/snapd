@@ -36,6 +36,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+type UnretriedNetworkError struct {
+	Err error
+}
+
+func (e *UnretriedNetworkError) Error() string {
+	return fmt.Sprintf("unretried network error: %v", e.Err)
+}
+
 func MaybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
 	if osutil.GetenvBool("SNAPD_DEBUG") || attempt.Count() > 1 {
 		logger.Debugf("Retrying %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
@@ -138,6 +146,20 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 		if err != nil {
 			if ShouldRetryError(attempt, err) {
 				continue
+			}
+
+			// on 16.04 the error below is "temporary", however on 18.04 it is not, so we can't relay on Temporary() flag and instead need
+			// to inspect the inner errors; note, that means the error was actually retried on 16.04 (due to the ShouldRetryError logic).
+			if urlErr, ok := err.(*url.Error); ok {
+				if netopErr, ok := urlErr.Err.(*net.OpError); ok {
+					if netopErr.Op == "dial" {
+						if dnsError, ok := netopErr.Err.(*net.DNSError); ok {
+							if strings.Contains(dnsError.Err, "connect: network is unreachable") || strings.Contains(dnsError.Err, "Temporary failure in name resolution") {
+								err = &UnretriedNetworkError{Err: err}
+							}
+						}
+					}
+				}
 			}
 			break
 		}

@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -266,6 +267,38 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	c.Check(s.store.ops, HasLen, 3)
 
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh", "list-refresh"})
+}
+
+func (s *autoRefreshTestSuite) TestRefreshUnretriedError(c *C) {
+	// fake that the retryRefreshDelay is over
+	restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
+	defer restore()
+
+	initialLastRefresh := time.Now().Add(-12 * time.Hour)
+	s.state.Lock()
+	s.state.Set("last-refresh", initialLastRefresh)
+	s.state.Unlock()
+
+	s.store.err = &httputil.UnretriedNetworkError{Err: fmt.Errorf("error")}
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, ErrorMatches, "unretried network error: error")
+	c.Check(s.store.ops, HasLen, 1)
+
+	// last-refresh time remains untouched
+	var lastRefresh time.Time
+	s.state.Lock()
+	s.state.Get("last-refresh", &lastRefresh)
+	s.state.Unlock()
+	c.Check(lastRefresh.Format(time.RFC3339), Equals, initialLastRefresh.Format(time.RFC3339))
+
+	s.store.err = nil
+	time.Sleep(10 * time.Millisecond)
+
+	// call ensure again, refresh should be attempted again
+	err = af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 2)
 }
 
 func (s *autoRefreshTestSuite) TestDefaultScheduleIsRandomized(c *C) {
