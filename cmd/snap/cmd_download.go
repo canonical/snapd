@@ -38,6 +38,7 @@ type cmdDownload struct {
 	channelMixin
 	Revision string `long:"revision"`
 
+	CohortKey  string `long:"cohort"`
 	Positional struct {
 		Snap remoteSnapName
 	} `positional-args:"true" required:"true"`
@@ -53,7 +54,10 @@ func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
 		return &cmdDownload{}
 	}, channelDescs.also(map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"cohort": i18n.G("Download from the given cohort"),
 	}), []argDesc{{
 		name: "<snap>",
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -103,6 +107,9 @@ func (x *cmdDownload) Execute(args []string) error {
 		if x.Channel != "" {
 			return fmt.Errorf(i18n.G("cannot specify both channel and revision"))
 		}
+		if x.CohortKey != "" {
+			return fmt.Errorf(i18n.G("cannot specify both cohort and revision"))
+		}
 		var err error
 		revision, err = snap.ParseRevision(x.Revision)
 		if err != nil {
@@ -121,8 +128,10 @@ func (x *cmdDownload) Execute(args []string) error {
 	dlOpts := image.DownloadOptions{
 		TargetDir: "", // cwd
 		Channel:   x.Channel,
+		CohortKey: x.CohortKey,
+		Revision:  revision,
 	}
-	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, revision, &dlOpts)
+	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, &dlOpts)
 	if err != nil {
 		return err
 	}

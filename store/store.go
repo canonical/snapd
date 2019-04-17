@@ -1262,22 +1262,6 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	return nil
 }
 
-// RefreshCandidate contains information for the store about the currently
-// installed snap so that the store can decide what update we should see
-type RefreshCandidate struct {
-	SnapID   string
-	Revision snap.Revision
-	Block    []snap.Revision
-
-	// the desired channel
-	Channel string
-	// whether validation should be ignored
-	IgnoreValidation bool
-
-	// try to refresh a local snap to a store revision
-	Amend bool
-}
-
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	for _, r := range haystack {
 		if needle == r {
@@ -1966,6 +1950,7 @@ type SnapAction struct {
 	SnapID       string
 	Channel      string
 	Revision     snap.Revision
+	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
 }
@@ -1986,6 +1971,7 @@ type snapActionJSON struct {
 	SnapID           string `json:"snap-id,omitempty"`
 	Channel          string `json:"channel,omitempty"`
 	Revision         int    `json:"revision,omitempty"`
+	CohortKey        string `json:"cohort-key,omitempty"`
 	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
 
 	// NOTE the store needs an epoch (even if null) for the "install" and "download"
@@ -2175,6 +2161,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
+			CohortKey:        a.CohortKey,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
