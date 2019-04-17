@@ -131,7 +131,7 @@ func (x *cmdDownload) Execute(args []string) error {
 		CohortKey: x.CohortKey,
 		Revision:  revision,
 	}
-	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, &dlOpts)
+	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, dlOpts)
 	if err != nil {
 		return err
 	}

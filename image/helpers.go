@@ -268,7 +268,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		opts.TargetDir = pwd
 	}
 
-	if opts.CohortKey != "" || !opts.Revision.Unset() {
+	if !opts.Revision.Unset() {
 		// XXX: is this really necessary (and, if it is, shoudn't we error out instead)
 		opts.Channel = ""
 	}
