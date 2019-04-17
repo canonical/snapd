@@ -60,6 +60,10 @@ const (
 	UseConfigDefaults
 )
 
+const (
+	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
+)
+
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
 		return nil
@@ -130,8 +134,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
-			if err := SoftNothingRunningRefreshCheck(info); err != nil {
-				// TODO Remember the inhibition time in snap state.
+			// Note that because we are modifying the snap state this block
+			// must be located after the conflict check done above.
+			if err := inhibitRefresh(st, snapst, info); err != nil {
 				return nil, err
 			}
 		}
@@ -171,9 +176,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 	prev = prepare
 
+	var checkAsserts *state.Task
 	if fromStore {
 		// fetch and check assertions
-		checkAsserts := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
+		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(checkAsserts)
 		prev = checkAsserts
 	}
@@ -319,6 +325,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
 	ts.AddAll(installSet)
+	if checkAsserts != nil {
+		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
+	}
 
 	if flags&skipConfigure != 0 {
 		return installSet, nil
@@ -1702,6 +1711,14 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 		addNext(state.NewTaskSet(disconnect))
 		prev = disconnect
+	}
+
+	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+		ts, err := AutomaticSnapshot(st, name)
+		if err != nil {
+			return nil, err
+		}
+		addNext(ts)
 	}
 
 	if active { // unlink

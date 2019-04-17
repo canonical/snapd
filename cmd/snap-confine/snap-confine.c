@@ -19,6 +19,7 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <glob.h>
 #include <sched.h>
 #include <signal.h>
@@ -39,6 +40,7 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "cookie-support.h"
 #include "mount-support.h"
@@ -108,10 +110,16 @@ static void sc_maybe_fixup_udev(void)
 **/
 typedef struct sc_preserved_process_state {
 	mode_t orig_umask;
+	int orig_cwd_fd;
+	struct stat file_info_orig_cwd;
 } sc_preserved_process_state;
 
 /**
  * sc_preserve_and_sanitize_process_state sanitizes process state.
+ *
+ * The following process state is sanitised:
+ *  - the umask is set to 0
+ *  - the current working directory is set to /
  *
  * The original values are stored to be restored later. Currently only the
  * umask is altered. It is set to zero to make the ownership of created files
@@ -123,6 +131,22 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
 	/* Reset umask to zero, storing the old value. */
 	proc_state->orig_umask = umask(0);
 	debug("umask reset, old umask was %#4o", proc_state->orig_umask);
+	/* Remember a file descriptor corresponding to the original working
+	 * directory. This is an O_PATH file descriptor. The descriptor is
+	 * used as explained below. */
+	proc_state->orig_cwd_fd =
+	    openat(AT_FDCWD, ".",
+		   O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (proc_state->orig_cwd_fd < 0) {
+		die("cannot open path of the current working directory");
+	}
+	if (fstat(proc_state->orig_cwd_fd, &proc_state->file_info_orig_cwd) < 0) {
+		die("cannot stat path of the current working directory");
+	}
+	/* Move to the root directory. */
+	if (chdir("/") < 0) {
+		die("cannot move to /");
+	}
 }
 
 /**
@@ -131,8 +155,136 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
 static void sc_restore_process_state(const sc_preserved_process_state *
 				     proc_state)
 {
+	/* Restore original umask */
 	umask(proc_state->orig_umask);
 	debug("umask restored to %#4o", proc_state->orig_umask);
+
+	/* Restore original current working directory.
+	 *
+	 * This part is more involved for the following reasons. While we hold an
+	 * O_PATH file descriptor that still points to the original working
+	 * directory, that directory may not be representable in the target mount
+	 * namespace. A quick example may be /custom that exists on the host but
+	 * not in the base snap of the application.
+	 *
+	 * Also consider when the path of the original working directory now
+	 * maps to a different inode we cannot use fchdir(2). One example of
+	 * that is the /tmp directory, which exists in both the host mount
+	 * namespace and the per-snap mount namespace but actually represents a
+	 * different directory.
+	 **/
+
+	/* Read the target of symlink at /proc/self/fd/<fd-of-orig-cwd> */
+	char fd_path[PATH_MAX];
+	char orig_cwd[PATH_MAX];
+	ssize_t nread;
+	/* If the original working directory cannot be used for whatever reason then
+	 * move the process to a special void directory. */
+	const char *sc_void_dir = "/var/lib/snapd/void";
+	int void_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+
+	sc_must_snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d",
+			 proc_state->orig_cwd_fd);
+	nread = readlink(fd_path, orig_cwd, sizeof orig_cwd);
+	if (nread < 0) {
+		die("cannot read symbolic link target %s", fd_path);
+	}
+	if (nread == sizeof orig_cwd) {
+		die("cannot fit symbolic link target %s", fd_path);
+	}
+
+	/* Open path corresponding to the original working directory in the
+	 * execution environment. This may normally fail if the path no longer
+	 * exists here, this is not a fatal error. It may also fail if we don't
+	 * have permissions to view that path, that is not a fatal error either. */
+	int inner_cwd_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	inner_cwd_fd =
+	    open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (inner_cwd_fd < 0) {
+		if (errno == EPERM || errno == EACCES || errno == ENOENT) {
+			debug
+			    ("cannot open path of the original working directory %s",
+			     orig_cwd);
+			goto the_void;
+		}
+		/* Any error other than the three above is unexpected. */
+		die("cannot open path of the original working directory %s",
+		    orig_cwd);
+	}
+
+	/* The original working directory exists in the execution environment
+	 * which lets us check if it points to the same inode as before. */
+	struct stat file_info_inner;
+	if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
+		die("cannot stat path of working directory in the execution environment");
+	}
+
+	/* Note that we cannot use proc_state->orig_cwd_fd as that points to the
+	 * directory but in another mount namespace and using that causes
+	 * weird and undesired effects.
+	 *
+	 * By the time this code runs we are already running as the
+	 * designated user so UNIX permissions are in effect. */
+	if (fchdir(inner_cwd_fd) < 0) {
+		if (errno == EPERM || errno == EACCES) {
+			debug("cannot access original working directory %s", orig_cwd);
+			goto the_void;
+		}
+		die("cannot restore original working directory via path");
+	}
+	/* The distinction below is only logged and not acted upon. Perhaps someday
+	 * this will be somehow communicated to cooperating applications that can
+	 * instruct the user and avoid potential confusion. This mostly applies to
+	 * tools that are invoked from /tmp. */
+	if (proc_state->file_info_orig_cwd.st_dev ==
+		file_info_inner.st_dev
+		&& proc_state->file_info_orig_cwd.st_ino ==
+		file_info_inner.st_ino) {
+		/* The path of the original working directory points to the same
+		 * inode as before. */
+		debug("working directory restored to %s", orig_cwd);
+	} else {
+		/* The path of the original working directory points to a different
+		 * inode inside inside the execution environment than the host
+		 * environment. */
+		debug("working directory re-interpreted to %s", orig_cwd);
+	}
+	return;
+ the_void:
+	/* The void directory may be absent. On core18 system, and other
+	 * systems using bootable base snap coupled with snapd snap, the
+	 * /var/lib/snapd directory structure is not provided with packages but
+	 * created on demand. */
+	void_dir_fd = open(sc_void_dir,
+			   O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	if (void_dir_fd < 0 && errno == ENOENT) {
+		if (mkdir(sc_void_dir, 0111) < 0) {
+			die("cannot create void directory: %s", sc_void_dir);
+		}
+		if (lchown(sc_void_dir, 0, 0) < 0) {
+			die("cannot change ownership of void directory %s",
+			    sc_void_dir);
+		}
+		void_dir_fd = open(sc_void_dir,
+				   O_DIRECTORY | O_PATH | O_NOFOLLOW |
+				   O_CLOEXEC);
+	}
+	if (void_dir_fd < 0) {
+		die("cannot open the void directory %s", sc_void_dir);
+	}
+	if (fchdir(void_dir_fd) < 0) {
+		die("cannot move to void directory %s", sc_void_dir);
+	}
+	debug("the process has been placed in the special void directory");
+}
+
+/**
+ *  sc_cleanup_preserved_process_state releases system resources.
+**/
+static void sc_cleanup_preserved_process_state(sc_preserved_process_state *
+					       proc_state)
+{
+	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
 
 static void enter_classic_execution_environment(void);
@@ -147,7 +299,9 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
-	sc_preserved_process_state proc_state;
+	sc_preserved_process_state proc_state
+	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {
+	.orig_umask = 0,.orig_cwd_fd = -1};
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 

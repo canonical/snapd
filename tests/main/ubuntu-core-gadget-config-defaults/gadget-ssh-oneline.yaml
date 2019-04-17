@@ -1,0 +1,6 @@
+defaults:
+   TEST_SNAP_ID:
+     a: A
+     b: B
+   system:
+     service.ssh.disable: true

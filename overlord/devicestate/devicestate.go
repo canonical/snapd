@@ -293,6 +293,29 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
+// extractDownloadInstallEdgesFromTs extracts the first, last download
+// phase and install phase tasks from a TaskSet
+func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
+	edgeTask := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	if edgeTask == nil {
+		return nil, nil, nil, nil, fmt.Errorf("internal error: cannot find edge task in task set: %v", ts)
+	}
+	tasks := ts.Tasks()
+	// we know we always start with downloads
+	firstDl = tasks[0]
+	// and always end with installs
+	lastInst = tasks[len(tasks)-1]
+
+	var edgeTaskIndex int
+	for i, task := range tasks {
+		if task == edgeTask {
+			edgeTaskIndex = i
+			break
+		}
+	}
+	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
+}
+
 // Remodel takes a new model assertion and generates a change that
 // takes the device from the old to the new model or an error if the
 // transition is not possible.
@@ -303,9 +326,6 @@ func CanManageRefreshes(st *state.State) bool {
 // - Need new session/serial if changing store or model
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
-// - Download everything in a first phase of the change and "pin" cache
-//   files (also get assertions), which means also dealing with new bases
-//   and content providers
 func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	var seeded bool
 	st.Get("seeded", &seeded)
@@ -320,8 +340,9 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
-	// FIXME: we need language in the model assertion to declare what
-	// transitions are ok before we allow remodel like this.
+	// TODO: we need dedicated assertion language to permit for
+	// model transitions before we allow that cross vault
+	// transitions.
 	//
 	// Right now we only allow "remodel" to a different revision of
 	// the same model.
@@ -356,22 +377,16 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	}
 	userID := 0
 
+	// adjust kernel track
 	var tss []*state.TaskSet
-	addTss := func(ts *state.TaskSet) {
-		if len(tss) > 0 {
-			ts.WaitAll(tss[len(tss)-1])
-		}
-		tss = append(tss, ts)
-	}
-	// adjust tracks
 	if current.KernelTrack() != new.KernelTrack() {
 		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
 		if err != nil {
 			return nil, err
 		}
-		addTss(ts)
+		tss = append(tss, ts)
 	}
-	// adjust snaps
+	// add new required snaps
 	for _, snapName := range new.RequiredSnaps() {
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// if the snap is not installed we need to install it now
@@ -380,11 +395,67 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 			if err != nil {
 				return nil, err
 			}
-			addTss(ts)
+			tss = append(tss, ts)
 		} else if err != nil {
 			return nil, err
 		}
 	}
+	// TODO: Validate that all bases and default-providers are part
+	//       of the install tasksets and error if not. If the
+	//       prereq task handler check starts adding installs into
+	//       our remodel change our carefully constructed wait chain
+	//       breaks down.
+
+	// Ensure all download/check tasks are run *before* the install
+	// tasks. During a remodel the network may not be available so
+	// we need to ensure we have everything local.
+	var lastDownloadInChain, firstInstallInChain *state.Task
+	var prevDownload, prevInstall *state.Task
+	for _, ts := range tss {
+		// make sure all things happen sequentially
+		// Terminology
+		// A <- B means B waits for A
+		// "download,verify" are part of the "Download" phase
+		// "link,start" is part of "Install" phase
+		//
+		// - all tasks inside ts{Download,Install} already wait for
+		//   each other so the chains look something like this:
+		//     download1 <- verify1 <- install1
+		//     download2 <- verify2 <- install2
+		//     download3 <- verify3 <- install3
+		// - add wait of each first ts{Download,Install} task for
+		//   the last previous ts{Download,Install} task
+		//   Our chains now looks like:
+		//     download1 <- verify1 <- install1 (as before)
+		//     download2 <- verify2 <- install2 (as before)
+		//     download3 <- verify3 <- install3 (as before)
+		//     verify1 <- download2 (added)
+		//     verify2 <- download3 (added)
+		//     install1  <- install2 (added)
+		//     install2  <- install3 (added)
+		downloadStart, downloadLast, installFirst, installLast, err := extractDownloadInstallEdgesFromTs(ts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot remodel: %v", err)
+		}
+		if prevDownload != nil {
+			// XXX: we don't strictly need to serialize the download
+			downloadStart.WaitFor(prevDownload)
+		}
+		if prevInstall != nil {
+			installFirst.WaitFor(prevInstall)
+		}
+		prevDownload = downloadLast
+		prevInstall = installLast
+		// update global state
+		lastDownloadInChain = downloadLast
+		if firstInstallInChain == nil {
+			firstInstallInChain = installFirst
+		}
+	}
+	// Make sure the first install waits for the last download. With this
+	// our (simplified) wait chain looks like:
+	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
+	firstInstallInChain.WaitFor(lastDownloadInChain)
 
 	// Set the new model assertion - this *must* be the last thing done
 	// by the change.
