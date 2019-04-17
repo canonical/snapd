@@ -34,36 +34,36 @@ import (
 
 type commonSuite struct {
 	dir string
-	up  *update.CommonProfileUpdateContext
+	ctx *update.CommonProfileUpdateContext
 }
 
 var _ = Suite(&commonSuite{})
 
 func (s *commonSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-	s.up = update.NewCommonProfileUpdateContext("foo",
+	s.ctx = update.NewCommonProfileUpdateContext("foo",
 		filepath.Join(s.dir, "current.fstab"),
 		filepath.Join(s.dir, "desired.fstab"))
 }
 
 func (s *commonSuite) TestLoadDesiredProfile(c *C) {
-	up := s.up
+	ctx := s.ctx
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
 
 	// Ask the common profile update helper to read the desired profile.
-	profile, err := up.LoadCurrentProfile()
+	profile, err := ctx.LoadCurrentProfile()
 	c.Assert(err, IsNil)
 
 	// A profile that is not present on disk just reads as a valid empty profile.
 	c.Check(profile.Entries, HasLen, 0)
 
 	// Write a desired user mount profile for snap "foo".
-	path := up.DesiredProfilePath()
+	path := ctx.DesiredProfilePath()
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the common profile update helper to read the desired profile.
-	profile, err = up.LoadDesiredProfile()
+	profile, err = ctx.LoadDesiredProfile()
 	c.Assert(err, IsNil)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
@@ -73,23 +73,23 @@ func (s *commonSuite) TestLoadDesiredProfile(c *C) {
 }
 
 func (s *commonSuite) TestLoadCurrentProfile(c *C) {
-	up := s.up
+	ctx := s.ctx
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
 
 	// Ask the common profile update helper to read the current profile.
-	profile, err := up.LoadCurrentProfile()
+	profile, err := ctx.LoadCurrentProfile()
 	c.Assert(err, IsNil)
 
 	// A profile that is not present on disk just reads as a valid empty profile.
 	c.Check(profile.Entries, HasLen, 0)
 
 	// Write a current user mount profile for snap "foo".
-	path := up.CurrentProfilePath()
+	path := ctx.CurrentProfilePath()
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the common profile update helper to read the current profile.
-	profile, err = up.LoadCurrentProfile()
+	profile, err = ctx.LoadCurrentProfile()
 	c.Assert(err, IsNil)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
@@ -99,7 +99,7 @@ func (s *commonSuite) TestLoadCurrentProfile(c *C) {
 }
 
 func (s *commonSuite) TestSaveCurrentProfile(c *C) {
-	up := s.up
+	ctx := s.ctx
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
 
 	// Prepare a mount profile to be saved.
@@ -107,10 +107,10 @@ func (s *commonSuite) TestSaveCurrentProfile(c *C) {
 	c.Assert(err, IsNil)
 
 	// Prepare the directory for saving the profile.
-	path := up.CurrentProfilePath()
+	path := ctx.CurrentProfilePath()
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 
 	// Ask the common profile update to write the current profile.
-	c.Assert(up.SaveCurrentProfile(profile), IsNil)
+	c.Assert(ctx.SaveCurrentProfile(profile), IsNil)
 	c.Check(path, testutil.FileEquals, text)
 }
