@@ -102,6 +102,7 @@ var api = []*Command{
 	snapshotCmd,
 	connectionsCmd,
 	modelCmd,
+	cohortsCmd,
 }
 
 var (

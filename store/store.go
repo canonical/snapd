@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -392,6 +393,7 @@ const (
 	// v2
 	snapActionEndpPath = "v2/snaps/refresh"
 	snapInfoEndpPath   = "v2/snaps/info"
+	cohortsEndpPath    = "v2/cohorts"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -2439,4 +2441,38 @@ func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
 	}
 
 	return status, nil
+}
+
+func (s *Store) CreateCohorts(ctx context.Context, snaps []string) (map[string]string, error) {
+
+	jsonData, err := json.Marshal(map[string][]string{"snaps": snaps})
+	if err != nil {
+		return nil, err
+	}
+
+	u := s.endpointURL(cohortsEndpPath, nil)
+	reqOptions := &requestOptions{
+		Method:   "POST",
+		URL:      u,
+		APILevel: apiV2Endps,
+		Data:     jsonData,
+	}
+
+	var remote struct {
+		CohortKeys map[string]string `json:"cohort-keys"`
+	}
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, nil, &remote, nil)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode {
+	case 200:
+		// OK
+	case 404:
+		return nil, ErrSnapNotFound
+	default:
+		return nil, respToError(resp, fmt.Sprintf("create cohorts for %s", strutil.Quoted(snaps)))
+	}
+
+	return remote.CohortKeys, nil
 }
