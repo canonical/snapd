@@ -477,9 +477,10 @@ var syscallsWithNegArgsMasqHi32 = map[string]bool{
 	"fchown":      true,
 	"fchown32":    true,
 	"fchownat":    true,
-	"fchownat32":  true,
 	"lchown":      true,
 	"lchown32":    true,
+	"setgid":      true,
+	"setgid32":    true,
 	"setregid":    true,
 	"setregid32":  true,
 	"setresgid":   true,
@@ -488,6 +489,8 @@ var syscallsWithNegArgsMasqHi32 = map[string]bool{
 	"setreuid32":  true,
 	"setresuid":   true,
 	"setresuid32": true,
+	"setuid":      true,
+	"setuid32":    true,
 }
 
 // The kernel uses uint32 for all syscall arguments, but seccomp takes a
