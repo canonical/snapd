@@ -287,6 +287,12 @@ version: 1.0
 base: other-base
 `
 
+const snapReqCore16Base = `
+name: snap-req-core16-base
+version: 1.0
+base: core16
+`
+
 const snapReqContentProvider = `
 name: snap-req-content-provider
 version: 1.0
@@ -605,6 +611,10 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	s.downloadedSnaps["other-base"] = snaptest.MakeTestSnapWithFiles(c, otherBase, nil)
 	s.storeSnapInfo["other-base"] = infoFromSnapYaml(c, otherBase, snap.R(18))
 	s.addSystemSnapAssertions(c, "other-base", "other")
+
+	s.downloadedSnaps["snap-req-core16-base"] = snaptest.MakeTestSnapWithFiles(c, snapReqCore16Base, nil)
+	s.storeSnapInfo["snap-req-core16-base"] = infoFromSnapYaml(c, snapReqCore16Base, snap.R(16))
+	s.addSystemSnapAssertions(c, "snap-req-core16-base", "other")
 
 	s.downloadedSnaps["required-snap1"] = snaptest.MakeTestSnapWithFiles(c, requiredSnap1, nil)
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
@@ -1817,6 +1827,40 @@ func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 	c.Assert(err, IsNil)
 	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
+}
+
+func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"snap-req-core16-base"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":                "canonical",
+		"pc":                  "canonical",
+		"pc-kernel":           "canonical",
+		"snap-req-other-base": "canonical",
+	})
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+	err = image.SetupSeed(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
 }
 
 func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
