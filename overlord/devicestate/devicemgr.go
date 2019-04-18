@@ -543,7 +543,7 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	return Serial(m.state)
+	return findSerial(m.state)
 }
 
 // SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.

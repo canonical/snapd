@@ -105,8 +105,8 @@ func Model(st *state.State) (*asserts.Model, error) {
 	return a.(*asserts.Model), nil
 }
 
-// Serial returns the device serial assertion.
-func Serial(st *state.State) (*asserts.Serial, error) {
+// findSerial returns the device serial assertion.
+func findSerial(st *state.State) (*asserts.Serial, error) {
 	device, err := getDeviceState(st)
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	_, err = Serial(st)
+	_, err = findSerial(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}

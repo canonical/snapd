@@ -1328,8 +1328,6 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	// nothing in the state
 	_, err := devicestate.Model(s.state)
 	c.Check(err, Equals, state.ErrNoState)
-	_, err = devicestate.Serial(s.state)
-	c.Check(err, Equals, state.ErrNoState)
 
 	_, err = s.mgr.Model()
 	c.Check(err, Equals, state.ErrNoState)
@@ -1388,10 +1386,6 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	_, err = s.mgr.Model()
 	c.Assert(err, IsNil)
 	ser, err := s.mgr.Serial()
-	c.Assert(err, IsNil)
-	c.Check(ser.Serial(), Equals, "8989")
-
-	ser, err = devicestate.Serial(s.state)
 	c.Assert(err, IsNil)
 	c.Check(ser.Serial(), Equals, "8989")
 }
