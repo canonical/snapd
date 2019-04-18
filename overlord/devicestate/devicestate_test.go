@@ -20,16 +20,20 @@
 package devicestate_test
 
 import (
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -38,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -74,6 +79,10 @@ type deviceMgrSuite struct {
 	storeSigning *assertstest.StoreStack
 	brandSigning *assertstest.SigningDB
 
+	reqID string
+
+	restartRequests []state.RestartType
+
 	restoreOnClassic         func()
 	restoreGenericClassicMod func()
 	restoreSanitize          func()
@@ -106,6 +115,8 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
+	s.restartRequests = nil
+
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
@@ -115,6 +126,9 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.o = overlord.Mock()
+	s.o.SetRestartHandler(func(req state.RestartType) {
+		s.restartRequests = append(s.restartRequests, req)
+	})
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
 
@@ -148,6 +162,12 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.mgr = mgr
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
+
+	// For triggering errors
+	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return errors.New("error out")
+	}
+	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
@@ -2708,4 +2728,314 @@ func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
 	c.Assert(tss, HasLen, 1)
 	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "set-model")
 	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Set new model assertion")
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetNopOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		c.FailNow()
+		return errors.New("not reached")
+	})
+	defer restore()
+
+	s.state.Lock()
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo-gaget",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Type: snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.Err(), IsNil)
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetNopWithNotGadget(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		c.FailNow()
+		return errors.New("not reached")
+	})
+	defer restore()
+
+	s.state.Lock()
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Type: snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.Err(), IsNil)
+}
+
+var snapYaml = `
+name: foo-gadget
+type: gadget
+`
+
+var gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+`
+
+func mockSnapWithData(c *C, yamlText string, si *snap.SideInfo, content map[string]string) *snap.Info {
+	info := snaptest.MockSnap(c, yamlText, si)
+	for where, what := range content {
+		path := filepath.Join(info.MountDir(), where)
+		err := os.MkdirAll(filepath.Dir(path), 0755)
+		c.Assert(err, IsNil)
+
+		err = ioutil.WriteFile(path, []byte(what), 0644)
+		c.Assert(err, IsNil)
+	}
+	return info
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var updateCalled, cleanupCalled bool
+	var passedRollbackDir, cleanupRollbackDir string
+	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		updateCalled = true
+		passedRollbackDir = path
+		return nil
+	})
+	defer restore()
+	restore = devicestate.MockGadgetTrashRollback(func(current *gadget.Info, path string) error {
+		cleanupCalled = true
+		cleanupRollbackDir = path
+		return nil
+	})
+	defer restore()
+
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+	mockSnapWithData(c, snapYaml, si, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(updateCalled, Equals, true)
+	c.Check(cleanupCalled, Equals, true)
+	var rollbackDir string
+	t.Get("gadget-rollback-dir", &rollbackDir)
+	c.Check(rollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget"))
+	c.Check(rollbackDir, Equals, passedRollbackDir)
+	c.Check(rollbackDir, Equals, cleanupRollbackDir)
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var called bool
+	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		called = true
+		return gadget.ErrNoUpdate
+	})
+	defer restore()
+
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+	mockSnapWithData(c, snapYaml, si, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(called, Equals, true)
+	var rollbackDir string
+	t.Get("gadget-rollback-dir", &rollbackDir)
+	c.Check(rollbackDir, Equals, "")
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var updateCalled, rollbackCalled bool
+	var updateRollbackDir, rollbackRollbackDir string
+	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		updateRollbackDir = path
+		updateCalled = true
+		return nil
+	})
+	defer restore()
+
+	restore = devicestate.MockGadgetRollback(func(current, update *gadget.Info, path string) error {
+		rollbackRollbackDir = path
+		rollbackCalled = true
+		return nil
+	})
+	defer restore()
+
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+	mockSnapWithData(c, snapYaml, si, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), NotNil)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	c.Check(terr.Status(), Equals, state.ErrorStatus)
+	c.Check(updateCalled, Equals, true)
+	c.Check(rollbackCalled, Equals, true)
+	var rollbackDir string
+	t.Get("gadget-rollback-dir", &rollbackDir)
+	c.Check(updateRollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget"))
+	c.Check(rollbackRollbackDir, Equals, updateRollbackDir)
+	// one for do, another for undo
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem, state.RestartSystem})
 }

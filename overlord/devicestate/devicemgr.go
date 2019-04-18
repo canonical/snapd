@@ -82,6 +82,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
+	runner.AddHandler("update-gadget", m.doUpdateGadget, m.undoUpdateGadget)
+	runner.AddCleanup("update-gadget", m.cleanupUpdateGadget)
 
 	return m, nil
 }

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -135,3 +136,27 @@ var (
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
 )
+
+func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+	old := gadgetUpdate
+	gadgetUpdate = mock
+	return func() {
+		gadgetUpdate = old
+	}
+}
+
+func MockGadgetRollback(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+	old := gadgetRollback
+	gadgetRollback = mock
+	return func() {
+		gadgetRollback = old
+	}
+}
+
+func MockGadgetTrashRollback(mock func(current *gadget.Info, path string) error) (restore func()) {
+	old := gadgetTrashRollback
+	gadgetTrashRollback = mock
+	return func() {
+		gadgetTrashRollback = old
+	}
+}
