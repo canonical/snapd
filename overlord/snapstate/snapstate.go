@@ -136,7 +136,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		if experimentalRefreshAppAwareness {
 			// Note that because we are modifying the snap state this block
 			// must be located after the conflict check done above.
-			if err := inhibitRefresh(st, snapst, info); err != nil {
+			if err := inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck); err != nil {
 				return nil, err
 			}
 		}
