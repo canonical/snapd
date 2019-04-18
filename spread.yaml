@@ -407,9 +407,9 @@ debug-each: |
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
-                    ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
+                    ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
                 else
-                    ausearch -m AVC || true
+                    ausearch -i -m AVC || true
                 fi
                 (
                     find /root/snap -printf '%Z\t%H/%P\n' || true
