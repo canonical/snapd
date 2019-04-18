@@ -15,3 +15,7 @@ execute: |
     # shellcheck disable=SC2164
     cd "$PROJECT_PATH"
     snapcraft
+
+    echo "Ensure we have the fc-cache binaries"
+    unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v6
+    unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v7
