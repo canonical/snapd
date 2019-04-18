@@ -98,7 +98,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := Device(m.state)
+	device, err := m.Device()
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
-	device, err := Device(m.state)
+	device, err := m.Device()
 	if err != nil {
 		return err
 	}
@@ -501,7 +501,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := Device(m.state)
+	device, err := m.Device()
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +528,7 @@ var _ storecontext.Backend = (*DeviceManager)(nil)
 
 // Device returns current device state.
 func (m *DeviceManager) Device() (*auth.DeviceState, error) {
-	return Device(m.state)
+	return getDeviceState(m.state)
 }
 
 // SetDevice sets the device details in the state.

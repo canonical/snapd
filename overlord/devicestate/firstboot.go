@@ -280,7 +280,8 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 }
 
 func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
-	device, err := Device(st)
+	// TODO: use some kind of context fo Device/SetDevice?
+	device, err := getDeviceState(st)
 	if err != nil {
 		return nil, err
 	}

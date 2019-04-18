@@ -285,7 +285,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
@@ -381,7 +381,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
@@ -452,7 +452,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "classic-alt-store")
@@ -517,7 +517,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
@@ -593,7 +593,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "my-model")
@@ -652,7 +652,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Check(err, IsNil)
 	_, err = s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
@@ -676,7 +676,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
-	device, err = devicestate.Device(s.state)
+	device, err = s.mgr.Device()
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
 
@@ -728,7 +728,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Check(err, IsNil)
 	_, err = s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
@@ -744,7 +744,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
-	device, err = devicestate.Device(s.state)
+	device, err = s.mgr.Device()
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
 }
@@ -904,7 +904,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
@@ -1000,7 +1000,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc2")
@@ -1130,7 +1130,7 @@ func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, n
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc2")
@@ -1197,7 +1197,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*cannot deliver device serial request: bad serial-request.*`)
 
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.KeyID, Not(Equals), "")
 	keyID := device.KeyID
@@ -1221,7 +1221,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 2)
 
-	device, err = devicestate.Device(s.state)
+	device, err = s.mgr.Device()
 	c.Assert(err, IsNil)
 	c.Check(device.KeyID, Equals, keyID)
 	c.Check(device.Serial, Equals, "10000")
@@ -1294,7 +1294,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) {
 
 func (s *deviceMgrSuite) TestSetDevice(c *C) {
 	s.state.Lock()
-	device, err := devicestate.Device(s.state)
+	device, err := s.mgr.Device()
 	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
@@ -1302,7 +1302,7 @@ func (s *deviceMgrSuite) TestSetDevice(c *C) {
 	s.state.Lock()
 	err = devicestate.SetDevice(s.state, &auth.DeviceState{Brand: "some-brand"})
 	c.Check(err, IsNil)
-	device, err = devicestate.Device(s.state)
+	device, err = s.mgr.Device()
 	s.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})

@@ -44,8 +44,8 @@ var (
 	snapstateUpdate  = snapstate.Update
 )
 
-// Device returns the device details from the state.
-func Device(st *state.State) (*auth.DeviceState, error) {
+// getDeviceState returns the device details from the state.
+func getDeviceState(st *state.State) (*auth.DeviceState, error) {
 	var authStateData auth.AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -81,7 +81,7 @@ func SetDevice(st *state.State, device *auth.DeviceState) error {
 
 // Model returns the device model assertion.
 func Model(st *state.State) (*asserts.Model, error) {
-	device, err := Device(st)
+	device, err := getDeviceState(st)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func Model(st *state.State) (*asserts.Model, error) {
 
 // Serial returns the device serial assertion.
 func Serial(st *state.State) (*asserts.Serial, error) {
-	device, err := Device(st)
+	device, err := getDeviceState(st)
 	if err != nil {
 		return nil, err
 	}
