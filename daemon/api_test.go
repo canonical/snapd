@@ -5688,7 +5688,7 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *ch
 
 	email := "foo@example.com"
 
-	username, opts, err := getUserDetailsFromAssertion(st, email)
+	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, email)
 	c.Check(username, check.Equals, "")
 	c.Check(opts, check.IsNil)
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
@@ -5829,8 +5829,7 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	st := s.d.overlord.State()
-	username, opts, err := getUserDetailsFromAssertion(st, "foo@bar.com")
+	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, "foo@bar.com")
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
 		Gecos:    "foo@bar.com,Boring Guy",

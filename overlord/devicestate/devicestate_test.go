@@ -1326,10 +1326,7 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	// nothing in the state
-	_, err := devicestate.Model(s.state)
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, err = s.mgr.Model()
+	_, err := s.mgr.Model()
 	c.Check(err, Equals, state.ErrNoState)
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)
@@ -1359,10 +1356,6 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Assert(err, IsNil)
 
 	mod, err := s.mgr.Model()
-	c.Assert(err, IsNil)
-	c.Assert(mod.BrandID(), Equals, "canonical")
-
-	mod, err = devicestate.Model(s.state)
 	c.Assert(err, IsNil)
 	c.Assert(mod.BrandID(), Equals, "canonical")
 

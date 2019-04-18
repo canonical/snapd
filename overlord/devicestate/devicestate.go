@@ -79,8 +79,8 @@ func SetDevice(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-// Model returns the device model assertion.
-func Model(st *state.State) (*asserts.Model, error) {
+// findModel returns the device model assertion.
+func findModel(st *state.State) (*asserts.Model, error) {
 	device, err := getDeviceState(st)
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 
 	// Check model exists, for sanity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
-	_, err := Model(st)
+	_, err := findModel(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -190,7 +190,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return nil
 	}
 
-	model, err := Model(st)
+	// XXX use deviceCtx
+	model, err := findModel(st)
 	if err == state.ErrNoState {
 		return fmt.Errorf("cannot install %s without model assertion", kind)
 	}
@@ -390,7 +391,7 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot remodel until fully seeded")
 	}
 
-	current, err := Model(st)
+	current, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}

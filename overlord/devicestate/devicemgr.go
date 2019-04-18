@@ -245,7 +245,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	var storeID, gadget string
-	model, err := Model(m.state)
+	model, err := m.Model()
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -538,7 +538,7 @@ func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
 
 // Model returns the device model assertion.
 func (m *DeviceManager) Model() (*asserts.Model, error) {
-	return Model(m.state)
+	return findModel(m.state)
 }
 
 // Serial returns the device serial assertion.

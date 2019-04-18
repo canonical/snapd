@@ -141,7 +141,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
-	s.SetupAsserts(c, s.state)
+	s.SetupAsserts(c, s.state, &s.BaseTest)
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	s.BaseTest.AddCleanup(restoreTimeout)
@@ -267,6 +267,8 @@ func testByHotplugTaskFlag(c *C, t *state.Task) {
 }
 
 func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
+	s.MockModel(c, nil)
+
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"})
 	c.Assert(err, IsNil)
 	s.udevMon.AddDevice(di)
@@ -310,6 +312,8 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugConnectWithGadgetSlot(c *C) {
+	s.MockModel(c, nil)
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -358,6 +362,8 @@ slots:
 }
 
 func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
+	s.MockModel(c, nil)
+
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":         "a/path",
 		"ACTION":          "add",
@@ -547,6 +553,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
+	s.MockModel(c, nil)
+
 	st := s.state
 	st.Lock()
 
