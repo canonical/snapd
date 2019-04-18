@@ -3,6 +3,8 @@ summary: Ensure snapd builds correctly in sbuild
 # takes a while
 priority: 500
 
+kill-timeout: 30m
+
 systems: [debian-sid-*]
 
 execute: |
