@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -648,6 +649,18 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
+	}
+
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+
+	if experimentalRefreshAppAwareness {
+		if err := inhibitRefresh(st, snapst, oldInfo, HardNothingRunningRefreshCheck); err != nil {
+			return err
+		}
 	}
 
 	// Make a copy of configuration of given snap revision
