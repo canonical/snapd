@@ -74,7 +74,9 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
-	// NB: ideally deviceCtx should not need to propagate here!
+	// NB: we should strive not to need or propagate deviceCtx
+	// here, the resulting effects/changes were not pleasant at
+	// one point
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {

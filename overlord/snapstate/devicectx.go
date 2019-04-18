@@ -24,7 +24,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// A DeviceContext provides for operating as a given device and with its brand store either for normal operation or over a remodeling.
+// A DeviceContext provides for operating as a given device and with
+// its brand store either for normal operation or over a remodeling.
 type DeviceContext interface {
 	// Model returns the governing device model assertion for the context.
 	Model() *asserts.Model
@@ -35,7 +36,9 @@ type DeviceContext interface {
 	ForRemodeling() bool
 }
 
-// Hook setup by devicestate to pick a device context from state, optional task or an optionally pre-provided one. It's expected to return ErrNoState if a model assertion is not yet known.
+// Hook setup by devicestate to pick a device context from state,
+// optional task or an optionally pre-provided one. It's expected to
+// return ErrNoState if a model assertion is not yet known.
 var (
 	DeviceCtx func(st *state.State, task *state.Task, providedDeviceCtx DeviceContext) (DeviceContext, error)
 )
