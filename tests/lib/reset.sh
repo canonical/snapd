@@ -7,7 +7,6 @@ set -e -x
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
