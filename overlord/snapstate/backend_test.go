@@ -304,6 +304,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "brand-gadget-id":
 		name = "brand-gadget"
 		typ = snap.TypeGadget
+	case "some-gadget-id":
+		name = "some-gadget"
+		typ = snap.TypeGadget
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
