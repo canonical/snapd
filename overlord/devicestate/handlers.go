@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -83,7 +84,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	_, ok := ass.(*asserts.Model)
+	new, ok := ass.(*asserts.Model)
 	if !ok {
 		return fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
 	}
@@ -91,6 +92,33 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	err = assertstate.Add(st, ass)
 	if err != nil && !isSameAssertsRevision(err) {
 		return err
+	}
+
+	// unmark no-longer required snaps
+	requiredSnaps := getAllRequiredSnapsForModel(new)
+	snapStates, err := snapstate.All(st)
+	if err != nil {
+		return err
+	}
+	for snapName, snapst := range snapStates {
+		// TODO: remove this type restriction once we remodel
+		//       kernels/gadgets and add tests that ensure
+		//       that the required flag is properly set/unset
+		typ, err := snapst.Type()
+		if err != nil {
+			return err
+		}
+		if typ != snap.TypeApp && typ != snap.TypeBase {
+			continue
+		}
+		// clean required flag if no-longer needed
+		if snapst.Flags.Required && !requiredSnaps[snapName] {
+			snapst.Flags.Required = false
+			snapstate.Set(st, snapName, snapst)
+		}
+		// TODO: clean "required" flag of "core" if a remodel
+		//       moves from the "core" snap to a different
+		//       bootable base snap.
 	}
 
 	// TODO: set device,model from the new model assertion
