@@ -548,9 +548,6 @@ type PlugInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
-
-	// Scoped indicates that plug is explicitly associated with apps or hooks.
-	Scoped bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -656,9 +653,6 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
-
-	// Scoped indicates that slot is explicitly associated with apps or hooks.
-	Scoped bool
 
 	// HotplugKey is a unique key built by the slot's interface
 	// using properties of a hotplugged device so that the same
@@ -934,8 +928,8 @@ func envFromMap(envMap *strutil.OrderedMap) []string {
 	return env
 }
 
-func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
-	info, err := InfoFromSnapYaml(meta)
+func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {
+	info, err := infoFromSnapYaml(meta, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -1007,7 +1001,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
@@ -1020,7 +1015,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)
@@ -1068,7 +1063,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -1083,7 +1079,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	err = Validate(info)
 	if err != nil {

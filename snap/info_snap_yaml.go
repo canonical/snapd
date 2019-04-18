@@ -127,6 +127,38 @@ type socketsYaml struct {
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
 func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
+	return infoFromSnapYaml(yamlData, new(scopedTracker))
+}
+
+// scopedTracker helps keeping track of which slots/plugs are scoped
+// to apps and hooks.
+type scopedTracker struct {
+	plugs map[*PlugInfo]bool
+	slots map[*SlotInfo]bool
+}
+
+func (strk *scopedTracker) init(sizeGuess int) {
+	strk.plugs = make(map[*PlugInfo]bool, sizeGuess)
+	strk.slots = make(map[*SlotInfo]bool, sizeGuess)
+}
+
+func (strk *scopedTracker) markPlug(plug *PlugInfo) {
+	strk.plugs[plug] = true
+}
+
+func (strk *scopedTracker) markSlot(slot *SlotInfo) {
+	strk.slots[slot] = true
+}
+
+func (strk *scopedTracker) plug(plug *PlugInfo) bool {
+	return strk.plugs[plug]
+}
+
+func (strk *scopedTracker) slot(slot *SlotInfo) bool {
+	return strk.slots[slot]
+}
+
+func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	var y snapYaml
 	// Customize hints for the typo detector.
 	y.TypoLayouts.Hint = `use singular "layout" instead of plural "layouts"`
@@ -145,15 +177,17 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		return nil, err
 	}
 
+	strk.init(len(y.Apps) + len(y.Hooks))
+
 	// Collect all apps, their aliases and hooks
-	if err := setAppsFromSnapYaml(y, snap); err != nil {
+	if err := setAppsFromSnapYaml(y, snap, strk); err != nil {
 		return nil, err
 	}
-	setHooksFromSnapYaml(y, snap)
+	setHooksFromSnapYaml(y, snap, strk)
 
 	// Bind plugs and slots that are not scoped to all known apps and hooks.
-	bindUnscopedPlugs(snap)
-	bindUnscopedSlots(snap)
+	bindUnscopedPlugs(snap, strk)
+	bindUnscopedSlots(snap, strk)
 
 	// Collect layout elements.
 	if y.Layout != nil {
@@ -296,7 +330,7 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	return nil
 }
 
-func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
+func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
@@ -351,13 +385,11 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 					Name:      plugName,
 					Interface: plugName,
 					Apps:      make(map[string]*AppInfo),
-					Scoped:    true,
 				}
 				snap.Plugs[plugName] = plug
-			} else {
-				// Mark existing plug as scoped.
-				plug.Scoped = true
 			}
+			// Mark the plug as scoped.
+			strk.markPlug(plug)
 			app.Plugs[plugName] = plug
 			plug.Apps[appName] = app
 		}
@@ -369,14 +401,11 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 					Name:      slotName,
 					Interface: slotName,
 					Apps:      make(map[string]*AppInfo),
-					Scoped:    true,
 				}
 				snap.Slots[slotName] = slot
-			} else {
-				// Mark existing slot as scoped.
-				slot.Scoped = true
 			}
-
+			// Mark the slot as scoped.
+			strk.markSlot(slot)
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app
 		}
@@ -402,7 +431,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 	return nil
 }
 
-func setHooksFromSnapYaml(y snapYaml, snap *Info) {
+func setHooksFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) {
 	for hookName, yHook := range y.Hooks {
 		if !IsHookSupported(hookName) {
 			continue
@@ -434,13 +463,11 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 					Name:      plugName,
 					Interface: plugName,
 					Hooks:     make(map[string]*HookInfo),
-					Scoped:    true,
 				}
 				snap.Plugs[plugName] = plug
-			} else {
-				// Mark existing plug as scoped.
-				plug.Scoped = true
 			}
+			// Mark the plug as scoped.
+			strk.markPlug(plug)
 			if plug.Hooks == nil {
 				plug.Hooks = make(map[string]*HookInfo)
 			}
@@ -456,13 +483,11 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 					Name:      slotName,
 					Interface: slotName,
 					Hooks:     make(map[string]*HookInfo),
-					Scoped:    true,
 				}
 				snap.Slots[slotName] = slot
-			} else {
-				// Mark existing slot as scoped.
-				slot.Scoped = true
 			}
+			// Mark the slot as scoped.
+			strk.markSlot(slot)
 			if slot.Hooks == nil {
 				slot.Hooks = make(map[string]*HookInfo)
 			}
@@ -472,9 +497,9 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 	}
 }
 
-func bindUnscopedPlugs(snap *Info) {
+func bindUnscopedPlugs(snap *Info, strk *scopedTracker) {
 	for plugName, plug := range snap.Plugs {
-		if plug.Scoped {
+		if strk.plug(plug) {
 			continue
 		}
 		for appName, app := range snap.Apps {
@@ -489,9 +514,9 @@ func bindUnscopedPlugs(snap *Info) {
 	}
 }
 
-func bindUnscopedSlots(snap *Info) {
+func bindUnscopedSlots(snap *Info, strk *scopedTracker) {
 	for slotName, slot := range snap.Slots {
-		if slot.Scoped {
+		if strk.slot(slot) {
 			continue
 		}
 		for appName, app := range snap.Apps {
@@ -506,13 +531,13 @@ func bindUnscopedSlots(snap *Info) {
 }
 
 // bindImplicitHooks binds all global plugs and slots to implicit hooks
-func bindImplicitHooks(snap *Info) {
+func bindImplicitHooks(snap *Info, strk *scopedTracker) {
 	for hookName, hook := range snap.Hooks {
 		if hook.Explicit {
 			continue
 		}
 		for _, plug := range snap.Plugs {
-			if plug.Scoped {
+			if strk.plug(plug) {
 				continue
 			}
 			if hook.Plugs == nil {
@@ -525,7 +550,7 @@ func bindImplicitHooks(snap *Info) {
 			plug.Hooks[hookName] = hook
 		}
 		for _, slot := range snap.Slots {
-			if slot.Scoped {
+			if strk.slot(slot) {
 				continue
 			}
 			if hook.Slots == nil {
