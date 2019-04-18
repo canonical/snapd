@@ -200,11 +200,11 @@ func mustParseGadgetSize(c *C, s string) gadget.Size {
 	return gs
 }
 
-func mustParseGadgetRelativeOffset(c *C, s string) gadget.RelativeOffset {
+func mustParseGadgetRelativeOffset(c *C, s string) *gadget.RelativeOffset {
 	grs, err := gadget.ParseRelativeOffset(s)
 	c.Assert(err, IsNil)
 	c.Assert(grs, NotNil)
-	return *grs
+	return grs
 }
 
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
@@ -255,6 +255,11 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	})
 }
 
+func asSizePtr(size uint) *gadget.Size {
+	gsz := gadget.Size(size)
+	return &gsz
+}
+
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
@@ -278,7 +283,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 				Structure: []gadget.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      12345,
+						Offset:      asSizePtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
 						Type:        "0C",
@@ -345,7 +350,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:   "u-boot",
 						Type:   "bare",
 						Size:   623000,
-						Offset: 0,
+						Offset: asSizePtr(0),
 						Content: []gadget.VolumeContent{
 							{
 								Image: "u-boot.imz",
@@ -451,7 +456,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 				Structure: []gadget.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      12345,
+						Offset:      asSizePtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
 						Type:        "0C",
@@ -1062,7 +1067,6 @@ volumes:
       - name: mbr
         type: mbr
         size: 440
-        offset: 0
         content:
           - image: pc-boot.img
       - name: other-name
@@ -1077,7 +1081,6 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) overlaps with the preceding structure #0 \("mbr"\)`)
-
 }
 
 func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapOutOfOrder(c *C) {
@@ -1103,5 +1106,55 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #0 \("overlaps-with-foo"\) overlaps with the preceding structure #1 \("foo"\)`)
+}
 
+func (s *gadgetYamlTestSuite) TestValidateCrossStructureMBRFixedOffset(c *C) {
+	gadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 500
+        content:
+          - image: pc-core.img
+      - name: mbr
+        type: mbr
+        size: 440
+        offset: 0
+        content:
+          - image: pc-boot.img
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateCrossStructureMBRDefaultOffsetInvalid(c *C) {
+	gadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 500
+        content:
+          - image: pc-core.img
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("mbr"\) has "mbr" role and must start at offset 0`)
 }

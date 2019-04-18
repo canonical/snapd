@@ -76,11 +76,11 @@ type VolumeStructure struct {
 	// Label provides the filesystem label
 	Label string `yaml:"filesystem-label"`
 	// Offset defines a starting offset of the structure
-	Offset Size `yaml:"offset"`
+	Offset *Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite RelativeOffset `yaml:"offset-write"`
+	OffsetWrite *RelativeOffset `yaml:"offset-write"`
 	// Size of the structure
 	Size Size `yaml:"size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
@@ -124,11 +124,11 @@ type VolumeContent struct {
 	// for a 'bare' type structure
 	Image string `yaml:"image"`
 	// Offset the image is written at
-	Offset Size `yaml:"offset"`
+	Offset *Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current image will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite RelativeOffset `yaml:"offset-write"`
+	OffsetWrite *RelativeOffset `yaml:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
 	Size Size `yaml:"size"`
@@ -339,8 +339,10 @@ func validateVolume(name string, vol *Volume) error {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
-		start := s.Offset
-		if start == 0 {
+		var start Size
+		if s.Offset != nil {
+			start = *s.Offset
+		} else {
 			start = previousEnd
 		}
 		end := start + s.Size
@@ -374,7 +376,12 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 	// - positioned structure overlap
 	// use structures positioned within the volume
 	for pidx, ps := range structures {
-		if ps.OffsetWrite.RelativeTo != "" {
+		if ps.Role == "mbr" || ps.Type == "mbr" {
+			if ps.StartOffset != 0 {
+				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
+			}
+		}
+		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
 			// offset-write using a named structure
 			other := knownStructures[ps.OffsetWrite.RelativeTo]
 			if other == nil {
@@ -400,7 +407,7 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 			continue
 		}
 		for cidx, c := range ps.Content {
-			if c.OffsetWrite.RelativeTo == "" {
+			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
 				continue
 			}
 			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
@@ -545,7 +552,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}
-		if vs.Offset != 0 {
+		if vs.Offset != nil && *vs.Offset != 0 {
 			return errors.New("mbr structure must start at offset 0")
 		}
 		if vs.ID != "" {
@@ -573,7 +580,7 @@ func validateBareContent(vc *VolumeContent) error {
 }
 
 func validateFilesystemContent(vc *VolumeContent) error {
-	if vc.Image != "" || vc.Offset != 0 || vc.OffsetWrite != (RelativeOffset{}) || vc.Size != 0 {
+	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
 	if vc.Source == "" || vc.Target == "" {
@@ -621,7 +628,10 @@ const (
 	SizeMiB = Size(2 << 20)
 	SizeGiB = Size(2 << 30)
 
-	SizeMBR          = Size(446)
+	// SizeMBR is the maximum byte size of a structure of role 'mbr'
+	SizeMBR = Size(446)
+	// SizeLBA48Pointer is the byte size of a pointer value written at the
+	// location described by 'offset-write'
 	SizeLBA48Pointer = Size(4)
 )
 
