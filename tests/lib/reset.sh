@@ -125,7 +125,11 @@ reset_all_snap() {
                 fi
                 if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
                     if snap info "$snap" | grep -E '^type: +(base|core)'; then
-                        remove_bases="$remove_bases $snap"
+                        if [ -z "$remove_bases" ]; then
+                            remove_bases="$snap"
+                        else
+                            remove_bases="$remove_bases $snap"
+                        fi
                     else
                         snap remove "$snap"
                     fi
