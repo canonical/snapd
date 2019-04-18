@@ -252,7 +252,6 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 	if len(snapInfo.SystemUsers) == 0 {
 		uidGidChownSyscalls.WriteString(barePrivDropSyscalls)
 	} else {
-		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
 		for i, id := range snapInfo.SystemUsers {
 			if i > 0 {
 				uidGidChownSyscalls.WriteRune('\n')
@@ -263,6 +262,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			}
 			uidGidChownSyscalls.WriteString(syscalls)
 		}
+		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
 	}
 
 	for _, hookInfo := range snapInfo.Hooks {
