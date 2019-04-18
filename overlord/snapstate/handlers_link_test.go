@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -41,6 +42,8 @@ type linkSnapSuite struct {
 	baseHandlerSuite
 
 	stateBackend *witnessRestartReqStateBackend
+
+	restore func()
 }
 
 var _ = Suite(&linkSnapSuite{})
@@ -64,12 +67,12 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	s.setup(c, s.stateBackend)
 
-	snapstate.SetDefaultModel()
+	s.restore = snapstatetest.MockDeviceModel(DefaultModel())
 }
 
 func (s *linkSnapSuite) TearDownTest(c *C) {
 	s.baseHandlerSuite.TearDownTest(c)
-	snapstate.Model = nil
+	s.restore()
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -397,7 +400,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	snapstate.SetModelWithBase("core18")
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
 
 	s.state.Lock()
 	si := &snap.SideInfo{

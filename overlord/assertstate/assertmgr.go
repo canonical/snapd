@@ -96,7 +96,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	modelAs, err := snapstate.Model(st)
+	modelAs, err := snapstate.ModelFromTask(t)
 	if err != nil {
 		return err
 	}

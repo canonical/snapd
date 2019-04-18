@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -75,6 +74,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
+	// NB: ideally deviceCtx should not need to propagate here!
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -84,6 +84,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
+
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
 	}
@@ -399,7 +400,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		// otherwise this could be just a spurious restart
 		// of snapd
 
-		model, err := Model(task.State())
+		model, err := ModelFromTask(task)
 		if err != nil {
 			return err
 		}
@@ -512,7 +513,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) error {
+func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) error {
 	if info.InstanceName() == "snapd" {
 		tr := config.NewTransaction(st)
 		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
@@ -520,11 +521,7 @@ func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, sn
 			return err
 		}
 
-		model, err := Model(st)
-		if err != nil && err != state.ErrNoState {
-			return err
-		}
-		if model == nil || model.Base() == "" {
+		if deviceCtx.Model().Base() == "" {
 			if !experimentalAllowSnapd {
 				return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 			}
@@ -556,8 +553,13 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		instanceName = si.RealName
 	}
 
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var snapst SnapState
-	err := Get(st, instanceName, &snapst)
+	err = Get(st, instanceName, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
@@ -568,7 +570,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	channel, err = resolveChannel(st, instanceName, channel)
+	channel, err = resolveChannel(st, instanceName, channel, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -605,7 +607,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		flags.Classic = false
 	}
 	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
+	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
 		return nil, nil, err
 	}
 	// this might be a refresh; check the epoch before proceeding
@@ -657,7 +659,8 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	}
 
 	// need to have a model set before trying to talk the store
-	if _, err := ModelPastSeeding(st); err != nil {
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
 		return nil, err
 	}
 
@@ -675,7 +678,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		flags.Classic = false
 	}
 	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
+	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
 		return nil, err
 	}
 
@@ -702,7 +705,8 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 	// need to have a model set before trying to talk the store
-	if _, err := ModelPastSeeding(st); err != nil {
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -739,7 +743,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		if err := checkInstallPreconditions(st, info, flags, &snapst); err != nil {
+		if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
 			return nil, nil, err
 		}
 
@@ -802,7 +806,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	}
 
 	// need to have a model set before trying to talk the store
-	if _, err := ModelPastSeeding(st); err != nil {
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -845,10 +850,10 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	}
 
-	return doUpdate(ctx, st, names, updates, params, userID, flags, fromChange)
+	return doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
@@ -909,7 +914,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		channel, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		if err := checkInstallPreconditions(st, update, flags, snapst); err != nil {
+		if err := checkInstallPreconditions(st, update, flags, snapst, deviceCtx); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -1129,20 +1134,14 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(st *state.State, snapName, newChannel string) (effectiveChannel string, err error) {
+func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	// nothing to do
 	if newChannel == "" {
 		return "", nil
 	}
 
 	// ensure we do not switch away from the kernel-track in the model
-	model, err := Model(st)
-	if err != nil && err != state.ErrNoState {
-		return "", err
-	}
-	if model == nil {
-		return newChannel, nil
-	}
+	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
 	if snapName == model.Kernel() && model.KernelTrack() != "" {
@@ -1192,7 +1191,12 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	channel, err = resolveChannel(st, name, channel)
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	channel, err = resolveChannel(st, name, channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1230,11 +1234,12 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	// need to have a model set before trying to talk the store
-	if _, err := ModelPastSeeding(st); err != nil {
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
 		return nil, err
 	}
 
-	channel, err = resolveChannel(st, name, channel)
+	channel, err = resolveChannel(st, name, channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1269,7 +1274,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return channel, updateFlags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, "")
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1559,7 +1564,7 @@ func coreInUse(st *state.State) bool {
 //
 // TODO: canRemove should also return the reason why the snap cannot
 //       be removed to the user
-func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool) bool {
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) bool {
 	// removing single revisions is generally allowed
 	if !removeAll {
 		return true
@@ -1603,10 +1608,9 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	// Note that removal of the boot base itself is prevented
 	// via the snapst.Required flag that is set on firstboot.
 	if si.Type == snap.TypeOS {
-		if model, err := Model(st); err == nil {
-			if model.Base() != "" && !coreInUse(st) {
-				return true
-			}
+		model := deviceCtx.Model()
+		if model.Base() != "" && !coreInUse(st) {
+			return true
 		}
 	}
 
@@ -1643,6 +1647,11 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		return nil, err
 	}
 
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	active := snapst.Active
 	var removeAll bool
 	if revision.Unset() {
@@ -1673,7 +1682,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(st, info, &snapst, removeAll) {
+	if !canRemove(st, info, &snapst, removeAll, deviceCtx) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
@@ -1848,6 +1857,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
+
 	flags.Revert = true
 	// TODO: make flags be per revision to avoid this logic (that
 	//       leaves corner cases all over the place)
@@ -2247,37 +2257,4 @@ func GadgetConnections(st *state.State) ([]gadget.Connection, error) {
 	}
 
 	return gadgetInfo.Connections, nil
-}
-
-// hook setup by devicestate
-var (
-	Model func(st *state.State) (*asserts.Model, error)
-)
-
-// ModelPastSeeding returns the device model assertion if available and
-// the device is seeded, at that point the device store is known
-// and seeding done. Otherwise it returns a ChangeConflictError
-// about being too early.
-func ModelPastSeeding(st *state.State) (*asserts.Model, error) {
-	var seeded bool
-	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	modelAs, err := Model(st)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	// when seeded modelAs should not be nil except in the rare
-	// case of upgrades from a snapd before the introduction of
-	// the fallback generic/generic-classic model
-	if !seeded || modelAs == nil {
-		return nil, &ChangeConflictError{
-			Message: "too early for operation, device not yet" +
-				" seeded or device model not acknowledged",
-			ChangeKind: "seed",
-		}
-	}
-
-	return modelAs, nil
 }
