@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -917,22 +916,22 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 	for _, test := range systemUsersTests {
 		release.OnClassic = test.classic
 		if test.noGroup {
-			restore = osutil.MockFindGid(func(name string) (uint64, error) {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
 				return 0, fmt.Errorf("user: unknown group %s", name)
 			})
 		} else {
-			restore = osutil.MockFindGid(func(name string) (uint64, error) {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
 				return 123, nil
 			})
 		}
 		defer restore()
 
 		if test.noUser {
-			restore = osutil.MockFindUid(func(name string) (uint64, error) {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
 				return 0, fmt.Errorf("user: unknown user %s", name)
 			})
 		} else {
-			restore = osutil.MockFindUid(func(name string) (uint64, error) {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
 				return 124, nil
 			})
 		}

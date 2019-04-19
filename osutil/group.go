@@ -132,13 +132,9 @@ func isSizeReasonable(sz int64) bool {
 }
 
 // end code from https://golang.org/src/os/user/lookup_unix.go
-var (
-	FindUid = findUid
-	FindGid = findGid
-)
 
 // FindUid returns the identifier of the given UNIX user name.
-func findUid(username string) (uint64, error) {
+func FindUid(username string) (uint64, error) {
 	user, err := user.Lookup(username)
 	if err != nil {
 		return 0, err
@@ -148,7 +144,7 @@ func findUid(username string) (uint64, error) {
 }
 
 // FindGid returns the identifier of the given UNIX group name.
-func findGid(group string) (uint64, error) {
+func FindGid(group string) (uint64, error) {
 	// In golang 1.8 we can use the built-in function like this:
 	//group, err := user.LookupGroup(group)
 	group, err := lookupGroup(group)
@@ -159,18 +155,4 @@ func findGid(group string) (uint64, error) {
 	// In golang 1.8 we can parse the group.Gid string instead.
 	//return strconv.ParseUint(group.Gid, 10, 64)
 	return strconv.ParseUint(group, 10, 64)
-}
-
-// MockFindUid mocks the lookup of a uid
-func MockFindUid(mock func(name string) (uint64, error)) (restore func()) {
-	old := FindUid
-	FindUid = mock
-	return func() { FindUid = old }
-}
-
-// MockFindGid mocks the lookup of a gid
-func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
-	old := FindGid
-	FindGid = mock
-	return func() { FindGid = old }
 }
