@@ -120,15 +120,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		return nil, err
 	}
 
-	reqSnaps := model.RequiredSnaps()
-	// +4 for (snapd, base, gadget, kernel)
-	required := make(map[string]bool, len(reqSnaps)+4)
-	if len(reqSnaps) > 0 {
-		for _, snap := range reqSnaps {
-			required[snap] = true
-		}
-	}
-
+	required := getAllRequiredSnapsForModel(model)
 	seeding := make(map[string]*snap.SeedSnap, len(seed.Snaps))
 	for _, sn := range seed.Snaps {
 		seeding[sn.Name] = sn

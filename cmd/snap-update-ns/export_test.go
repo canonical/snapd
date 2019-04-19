@@ -207,12 +207,16 @@ func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, err
 	return as.canWriteToDirectory(dirFd, dirName)
 }
 
-func (up *CommonProfileUpdateContext) CurrentProfilePath() string {
-	return up.currentProfilePath
+func (as *Assumptions) UnrestrictedPaths() []string {
+	return as.unrestrictedPaths
 }
 
-func (up *CommonProfileUpdateContext) DesiredProfilePath() string {
-	return up.desiredProfilePath
+func (ctx *CommonProfileUpdateContext) CurrentProfilePath() string {
+	return ctx.currentProfilePath
+}
+
+func (ctx *CommonProfileUpdateContext) DesiredProfilePath() string {
+	return ctx.desiredProfilePath
 }
 
 func NewCommonProfileUpdateContext(instanceName string, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
