@@ -255,7 +255,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	})
 }
 
-func asSizePtr(size uint) *gadget.Size {
+func asSizePtr(size gadget.Size) *gadget.Size {
 	gsz := gadget.Size(size)
 	return &gsz
 }
