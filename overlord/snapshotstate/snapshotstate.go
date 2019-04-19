@@ -83,16 +83,19 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 	var expirationStr string
 	tr := config.NewTransaction(st)
-	err := tr.Get("core", "automatic-snapshots.expiration", &expirationStr)
+	err := tr.Get("core", "snapshots.automatic.retention", &expirationStr)
 	if err != nil && !config.IsNoOption(err) {
 		return 0, err
 	}
 	if err == nil {
+		if expirationStr == "no" {
+			return 0, nil
+		}
 		dur, err := time.ParseDuration(expirationStr)
 		if err == nil {
 			return dur, nil
 		}
-		logger.Noticef("automatic-snapshots.expiration cannot be parsed: %v", err)
+		logger.Noticef("snapshots.automatic.retention cannot be parsed: %v", err)
 	}
 	return defaultAutomaticSnapshotExpiration, nil
 }
