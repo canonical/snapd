@@ -28,26 +28,21 @@ import (
 
 func init() {
 	// add supported configuration of this module
-	supportedConfigurations["core.automatic-snapshots.expiration"] = true
+	supportedConfigurations["core.snapshots.automatic.retention"] = true
 }
 
 func validateAutomaticSnapshotsExpiration(tr config.Conf) error {
-	expirationStr, err := coreCfg(tr, "automatic-snapshots.expiration")
+	expirationStr, err := coreCfg(tr, "snapshots.automatic.retention")
 	if err != nil {
 		return err
 	}
-	if expirationStr != "" {
+	if expirationStr != "" && expirationStr != "no" {
 		dur, err := time.ParseDuration(expirationStr)
 		if err != nil {
-			return fmt.Errorf("automatic-snapshots.expiration cannot be parsed: %v", err)
+			return fmt.Errorf("snapshots.automatic.retention cannot be parsed: %v", err)
 		}
-		if dur > 0 && dur < time.Hour*24 {
-			return fmt.Errorf("automatic-snapshots.expiration must be 0 to disable automatic snapshots, or a value greater than 24 hours")
-		}
-		// special-case "0" (with no unit): it's a valid duration (any other number with unit omitted isn't), but when left as is it would
-		// be stored as int64 instead of a string representing duration, causing issue when reading from the state.
-		if expirationStr == "0" {
-			tr.Set("core", "automatic-snapshots.expiration", "0s")
+		if dur < time.Hour*24 {
+			return fmt.Errorf("snapshots.automatic.retention must be a value greater than 24 hours, or \"no\" to disable")
 		}
 	}
 	return nil

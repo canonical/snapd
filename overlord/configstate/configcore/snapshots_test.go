@@ -35,7 +35,7 @@ func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationHappy(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"automatic-snapshots.expiration": "40h",
+			"snapshots.automatic.retention": "40h",
 		},
 	})
 	c.Assert(err, IsNil)
@@ -45,17 +45,17 @@ func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationTooLow(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"automatic-snapshots.expiration": "10m",
+			"snapshots.automatic.retention": "10m",
 		},
 	})
-	c.Assert(err, ErrorMatches, `automatic-snapshots.expiration must be 0 to disable automatic snapshots, or a value greater than 24 hours`)
+	c.Assert(err, ErrorMatches, `snapshots.automatic.retention must be a value greater than 24 hours, or "no" to disable`)
 }
 
 func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsDisable(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"automatic-snapshots.expiration": "0",
+			"snapshots.automatic.retention": "no",
 		},
 	})
 	c.Assert(err, IsNil)
@@ -65,8 +65,8 @@ func (s *refreshSuite) TestConfigureAutomaticSnapshotsExpirationInvalid(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"automatic-snapshots.expiration": "invalid",
+			"snapshots.automatic.retention": "invalid",
 		},
 	})
-	c.Assert(err, ErrorMatches, `automatic-snapshots.expiration cannot be parsed:.*`)
+	c.Assert(err, ErrorMatches, `snapshots.automatic.retention cannot be parsed:.*`)
 }
