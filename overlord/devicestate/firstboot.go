@@ -59,7 +59,7 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags, 
 	} else {
 		var si *snap.SideInfo
 		var err error
-		timings.Run(tm, "derive-side-info", fmt.Sprintf("derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
+		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
 			si, err = snapasserts.DeriveSideInfo(path, assertstate.DB(st))
 		})
 		if asserts.IsNotFound(err) {
