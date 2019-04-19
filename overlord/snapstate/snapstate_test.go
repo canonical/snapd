@@ -2350,7 +2350,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
-	snapstate.AutomaticSnapshotExpiration = func(st *state.State) (time.Duration, error) { return 0, nil }
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
+		return nil, &snapstate.ErrNothingToDo{}
+	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
