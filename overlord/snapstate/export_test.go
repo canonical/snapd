@@ -73,18 +73,6 @@ func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 	return func() { prerequisitesRetryTimeout = old }
 }
 
-func MockFindUid(mock func(name string) (uint64, error)) (restore func()) {
-	old := findUid
-	findUid = mock
-	return func() { findUid = old }
-}
-
-func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
-	old := findGid
-	findGid = mock
-	return func() { findGid = old }
-}
-
 var (
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
