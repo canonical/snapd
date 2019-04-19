@@ -625,8 +625,8 @@ func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Size uint64
 
 const (
-	SizeMiB = Size(2 << 20)
-	SizeGiB = Size(2 << 30)
+	SizeMiB = Size(1 << 20)
+	SizeGiB = Size(1 << 30)
 
 	// SizeMBR is the maximum byte size of a structure of role 'mbr'
 	SizeMBR = Size(446)
