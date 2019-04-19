@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"fmt"
+	"os/user"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -420,12 +420,34 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	return checkEpochs(nil, info, cur, Flags{})
 }
 
-// check that the listed system users are valid
+// FIXME: we should be using osutil.FindGid and osutil.FindUid here, but
+// cannot: https://github.com/snapcore/snapd/pull/6759#issuecomment-484944730
 var (
-	findUid = osutil.FindUid
-	findGid = osutil.FindGid
+	findUid = internalFindUid
+	findGid = internalFindGid
 )
 
+// FindUid returns the identifier of the given UNIX user name.
+func internalFindUid(username string) (uint64, error) {
+	user, err := user.Lookup(username)
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.ParseUint(user.Uid, 10, 64)
+}
+
+// FindGid returns the identifier of the given UNIX group name.
+func internalFindGid(groupname string) (uint64, error) {
+	group, err := user.LookupGroup(groupname)
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.ParseUint(group.Gid, 10, 64)
+}
+
+// check that the listed system users are valid
 func checkSystemUsers(si *snap.Info) error {
 	if len(si.SystemUsers) == 0 {
 		return nil
