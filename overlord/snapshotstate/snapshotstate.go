@@ -299,6 +299,13 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 }
 
 func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err error) {
+	expiration, err := AutomaticSnapshotExpiration(st)
+	if err != nil {
+		return nil, err
+	}
+	if expiration == 0 {
+		return nil, &snapstate.ErrNothingToDo{}
+	}
 	setID, err := newSnapshotSetID(st)
 	if err != nil {
 		return nil, err

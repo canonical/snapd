@@ -64,6 +64,12 @@ const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
 )
 
+type ErrNothingToDo struct{}
+
+func (e *ErrNothingToDo) Error() string {
+	return "nothing to do"
+}
+
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
 		return nil
@@ -1723,16 +1729,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
-		expiration, err := AutomaticSnapshotExpiration(st)
-		if err != nil {
-			return nil, err
-		}
-		if expiration > 0 {
-			ts, err := AutomaticSnapshot(st, name)
-			if err != nil {
+		ts, err := AutomaticSnapshot(st, name)
+		if err == nil {
+			addNext(ts)
+		} else {
+			if _, ok := err.(*ErrNothingToDo); !ok {
 				return nil, err
 			}
-			addNext(ts)
 		}
 	}
 
