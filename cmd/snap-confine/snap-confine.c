@@ -297,7 +297,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 	sc_preserved_process_state proc_state
 	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {
@@ -355,7 +355,7 @@ int main(int argc, char **argv)
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(invocation.security_tag)) {
-		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+		sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		snap_context =
 		    sc_cookie_get_from_snapd(invocation.snap_instance, &err);
 		if (err != NULL) {
