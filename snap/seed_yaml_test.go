@@ -81,3 +81,17 @@ func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	_, err = snap.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `"foo/bar.snap" must be a filename, not a path`)
 }
+
+var nilSeedItemYaml = []byte(`
+snaps: [null]
+`)
+
+func (s *seedYamlTestSuite) TestNilItems(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, nilSeedItemYaml, 0644)
+	c.Assert(err, IsNil)
+
+	seed, err := snap.ReadSeedYaml(fn)
+	c.Assert(err, IsNil)
+	c.Assert(seed.Snaps, HasLen, 0)
+}
