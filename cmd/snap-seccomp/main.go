@@ -794,20 +794,38 @@ func compile(content []byte, out string) error {
 	return fout.Commit()
 }
 
+// caches for uid and gid lookups
+var uidCache = make(map[string]uint64)
+var gidCache = make(map[string]uint64)
+
 // findUid returns the identifier of the given UNIX user name.
 func findUid(username string) (uint64, error) {
+	if uid, ok := uidCache[username]; ok {
+		return uid, nil
+	}
 	if !osutil.IsValidUsername(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
-	return osutil.FindUid(username)
+	uid, err := osutil.FindUid(username)
+	if err == nil {
+		uidCache[username] = uid
+	}
+	return uid, err
 }
 
 // findGid returns the identifier of the given UNIX group name.
 func findGid(group string) (uint64, error) {
+	if gid, ok := gidCache[group]; ok {
+		return gid, nil
+	}
 	if !osutil.IsValidUsername(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
-	return osutil.FindGid(group)
+	gid, err := osutil.FindGid(group)
+	if err == nil {
+		gidCache[group] = gid
+	}
+	return gid, err
 }
 
 func showSeccompLibraryVersion() error {
