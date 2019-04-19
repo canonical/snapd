@@ -30,6 +30,7 @@
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "snap-confine-privs.h"
 #include "udev-support.h"
 
 static void
@@ -42,14 +43,7 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 		die("cannot fork support process for device cgroup assignment");
 	}
 	if (pid == 0) {
-		uid_t real_uid, effective_uid, saved_uid;
-		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
-			die("cannot get real, effective and saved user IDs");
-		// can't update the cgroup unless the real_uid is 0, euid as
-		// 0 is not enough
-		if (real_uid != 0 && effective_uid == 0)
-			if (setuid(0) != 0)
-				die("cannot set user ID to zero");
+		sc_udev_raise_to_root_uid();
 		char buf[64] = { 0 };
 		// pass snappy-add-dev an empty environment so the
 		// user-controlled environment can't be used to subvert

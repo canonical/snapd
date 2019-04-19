@@ -48,6 +48,7 @@
 #include "seccomp-support.h"
 #include "snap-confine-args.h"
 #include "snap-confine-invocation.h"
+#include "snap-confine-privs.h"
 #include "udev-support.h"
 #include "user-support.h"
 #ifdef HAVE_SELINUX
@@ -339,11 +340,7 @@ int main(int argc, char **argv)
 	// snap-confine runs as both setuid root and setgid root.
 	// Temporarily drop group privileges here and reraise later
 	// as needed.
-	if (effective_gid == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
-	}
+	sc_main_change_to_real_gid(effective_gid, real_gid);
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
@@ -393,15 +390,7 @@ int main(int argc, char **argv)
 		}
 		// The rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
-		if (setegid(real_gid) != 0)
-			die("setegid failed");
-		if (seteuid(real_uid) != 0)
-			die("seteuid failed");
-
-		if (real_gid != 0 && geteuid() == 0)
-			die("dropping privs did not work");
-		if (real_uid != 0 && getegid() == 0)
-			die("dropping privs did not work");
+		sc_main_temporarily_drop_to_user(real_uid, real_gid);
 	}
 	// Ensure that the user data path exists.
 	setup_user_data();
@@ -425,19 +414,7 @@ int main(int argc, char **argv)
 		setenv("SNAP_CONTEXT", snap_context, 1);
 	}
 	// Permanently drop if not root
-	if (geteuid() == 0) {
-		// Note that we do not call setgroups() here because its ok
-		// that the user keeps the groups he already belongs to
-		if (setgid(real_gid) != 0)
-			die("setgid failed");
-		if (setuid(real_uid) != 0)
-			die("setuid failed");
-
-		if (real_gid != 0 && (getuid() == 0 || geteuid() == 0))
-			die("permanently dropping privs did not work");
-		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
-			die("permanently dropping privs did not work");
-	}
+	sc_main_permanently_drop_to_user(real_uid, real_gid);
 	// and exec the new executable
 	argv[0] = (char *)invocation.executable;
 	debug("execv(%s, %s...)", invocation.executable, argv[0]);
@@ -598,21 +575,12 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// This simplifies testing if any processes belonging to a given snap are
 	// still alive as well as to properly account for each application and
 	// service.
-	if (getegid() != 0 && saved_gid == 0) {
-		// Temporarily raise egid so we can chown the freezer cgroup under LXD.
-		if (setegid(0) != 0) {
-			die("cannot set effective group id to root");
-		}
-	}
+	sc_main_temporarily_raise_to_root_gid(saved_gid);
 	sc_cgroup_freezer_join(inv->snap_instance, getpid());
 	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
 		sc_cgroup_pids_join(inv->security_tag, getpid());
 	}
-	if (geteuid() == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
-	}
+	sc_main_temporarily_drop_from_root_gid(real_gid);
 
 	sc_unlock(snap_lock_fd);
 

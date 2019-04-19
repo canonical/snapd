@@ -29,6 +29,7 @@
 #include <unistd.h>
 
 #include "../libsnap-confine-private/utils.h"
+#include "snap-confine-privs.h"
 
 #ifndef SECCOMP_FILTER_FLAG_LOG
 #define SECCOMP_FILTER_FLAG_LOG 2
@@ -72,14 +73,7 @@ void sc_apply_seccomp_filter(struct sock_fprog *prog) {
     // If we can, raise privileges so that we can load the BPF into the kernel
     // via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
     debug("raising privileges to load seccomp profile");
-    if (effective_uid != 0 && saved_uid == 0) {
-        if (seteuid(0) != 0) {
-            die("seteuid failed");
-        }
-        if (geteuid() != 0) {
-            die("raising privs before seccomp_load did not work");
-        }
-    }
+    sc_seccomp_temporarily_raise_to_root_uid(saved_uid, effective_uid);
 
     // Load filter into the kernel.
     //
@@ -110,13 +104,5 @@ void sc_apply_seccomp_filter(struct sock_fprog *prog) {
 
     /* Drop privileges again. */
     debug("dropping privileges after loading seccomp profile");
-    if (geteuid() == 0) {
-        unsigned real_uid = getuid();
-        if (seteuid(real_uid) != 0) {
-            die("seteuid failed");
-        }
-        if (real_uid != 0 && geteuid() == 0) {
-            die("dropping privs after seccomp_load did not work");
-        }
-    }
+    sc_seccomp_temporarily_drop_from_root_uid();
 }

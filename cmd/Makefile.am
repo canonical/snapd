@@ -239,6 +239,8 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/snap-confine-args.h \
 	snap-confine/snap-confine-invocation.c \
 	snap-confine/snap-confine-invocation.h \
+	snap-confine/snap-confine-privs.c \
+	snap-confine/snap-confine-privs.h \
 	snap-confine/snap-confine.c \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
