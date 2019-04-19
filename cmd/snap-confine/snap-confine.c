@@ -358,7 +358,13 @@ int main(int argc, char **argv)
 		sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		snap_context =
 		    sc_cookie_get_from_snapd(invocation.snap_instance, &err);
-		/* The error is explicitly ignored because the cookies are optional. */
+		/* While the cookie is normally present due to various protection
+		 * mechanisms ensuring its creation from snapd, we are not considering
+		 * it a critical error for snap-confine in the case it is absent. When
+		 * absent snaps attempting to utilize snapctl to interact with snapd
+		 * will fail but it is more important to run a little than break
+		 * entirely in case snapd-side code is incorrect. Therefore error
+		 * information is collected but discarded. */
 	}
 
 	struct sc_apparmor apparmor;
