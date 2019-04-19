@@ -148,7 +148,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 				continue
 			}
 
-			// on 16.04 the error below is "temporary", however on 18.04 it is not, so we can't relay on Temporary() flag and instead need
+			// On 16.04 the error below is "temporary", however on 18.04 it is not, so we can't relay on Temporary() flag and instead need
 			// to inspect the inner errors; note, that means the error was actually retried on 16.04 (due to the ShouldRetryError logic).
 			if urlErr, ok := err.(*url.Error); ok {
 				if netopErr, ok := urlErr.Err.(*net.OpError); ok {
