@@ -46,6 +46,10 @@ func (s *commonSuite) SetUpTest(c *C) {
 		filepath.Join(s.dir, "desired.fstab"))
 }
 
+func (s *commonSuite) TestInstanceName(c *C) {
+	c.Check(s.ctx.InstanceName(), Equals, "foo")
+}
+
 func (s *commonSuite) TestLoadDesiredProfile(c *C) {
 	ctx := s.ctx
 	text := "tmpfs /tmp tmpfs defaults 0 0\n"
