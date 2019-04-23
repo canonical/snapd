@@ -579,3 +579,36 @@ func (cs *taskSuite) TestTaskSetEdge(c *C) {
 	ts.MarkEdge(t3, edge1)
 	c.Assert(ts.Edge(edge1), Equals, t3)
 }
+
+func (cs *taskSuite) TestTaskAddAllWithEdges(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	edge1 := state.TaskSetEdge("install")
+
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("verify", "2...")
+	t3 := st.NewTask("install", "3...")
+	ts := state.NewTaskSet(t1, t2, t3)
+
+	ts.MarkEdge(t1, edge1)
+	c.Assert(ts.Edge(edge1), Equals, t1)
+
+	ts2 := state.NewTaskSet()
+	err := ts2.AddAllWithEdges(ts)
+	c.Assert(err, IsNil)
+	c.Assert(ts2.Edge(edge1), Equals, t1)
+
+	// doing it again is no harm
+	err = ts2.AddAllWithEdges(ts)
+	c.Assert(err, IsNil)
+	c.Assert(ts2.Edge(edge1), Equals, t1)
+
+	// but conflicting edges are an error
+	t4 := st.NewTask("another-kind", "4...")
+	tsWithDuplicatedEdge := state.NewTaskSet(t4)
+	tsWithDuplicatedEdge.MarkEdge(t4, edge1)
+	err = ts2.AddAllWithEdges(tsWithDuplicatedEdge)
+	c.Assert(err, ErrorMatches, `cannot add taskset: duplicated edge "install"`)
+}

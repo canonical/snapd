@@ -762,6 +762,10 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
+	// ensure edges information is still there
+	te := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	c.Assert(te, NotNil)
+
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, expectedDiscards, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
@@ -962,6 +966,10 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks())+1) // 1==rerefresh
+
+	// ensure edges information is still there
+	te := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	c.Assert(te, NotNil)
 
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
@@ -11222,6 +11230,34 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	// SkipConfigure is consumed and consulted when creating the taskset
 	// but is not copied into SnapSetup
 	c.Check(snapsup.Flags.SkipConfigure, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestNoReRefreshInUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+
+	// ensure we have no re-refresh task
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Kind(), Not(Equals), "check-rerefresh")
+	}
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	// NoReRefresh is consumed and consulted when creating the taskset
+	// but is not copied into SnapSetup
+	c.Check(snapsup.Flags.NoReRefresh, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
