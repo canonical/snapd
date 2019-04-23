@@ -1420,7 +1420,7 @@ func (snapshotSuite) TestAutomaticSnapshotDisabled(c *check.C) {
 	tr.Commit()
 
 	_, err := snapshotstate.AutomaticSnapshot(st, "foo")
-	c.Assert(err, check.Equals, &snapstate.ErrNothingToDo{})
+	c.Assert(err, check.Equals, snapstate.ErrNothingToDo)
 }
 
 func (snapshotSuite) TestAutomaticSnapshot(c *check.C) {

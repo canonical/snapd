@@ -304,7 +304,7 @@ func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err
 		return nil, err
 	}
 	if expiration == 0 {
-		return nil, &snapstate.ErrNothingToDo{}
+		return nil, snapstate.ErrNothingToDo
 	}
 	setID, err := newSnapshotSetID(st)
 	if err != nil {
