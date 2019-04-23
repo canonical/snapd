@@ -105,7 +105,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 	// for non-core snaps, fontconfig cache needs to be updated before the
 	// snap applications are runnable
 	if release.OnClassic && !hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache[non-core]", "update font config cache", func(timings.Measurer) {
+		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			// XXX: does this need cleaning up? (afaict no)
 			if err := updateFontconfigCaches(); err != nil {
 				logger.Noticef("cannot update fontconfig cache: %v", err)
@@ -137,7 +137,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 	// for core snap, fontconfig cache can be updated after the snap has
 	// been made available
 	if release.OnClassic && hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache[core]", "update font config cache", func(timings.Measurer) {
+		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			if err := updateFontconfigCaches(); err != nil {
 				logger.Noticef("cannot update fontconfig cache: %v", err)
 			}

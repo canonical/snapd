@@ -370,7 +370,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
-	tm := perfTimings.StartSpan("auto-refresh", "prepare auto-refresh change")
+	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)

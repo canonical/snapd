@@ -743,9 +743,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-
-	perfTimings := timings.NewForTask(t)
-
 	snapsup, snapst, err := snapSetupAndState(t)
 	st.Unlock()
 	if err != nil {
@@ -763,11 +760,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	var copyDataErr error
-	timings.Run(perfTimings, "copy-snap-data", fmt.Sprintf("copy data of snap %s", snapsup.InstanceName()), func(timings.Measurer) {
-		copyDataErr = m.backend.CopySnapData(newInfo, oldInfo, pb)
-	})
-	if copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -790,11 +783,6 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		}
 		return copyDataErr
 	}
-
-	st.Lock()
-	perfTimings.Save(st)
-	st.Unlock()
-
 	return nil
 }
 

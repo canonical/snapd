@@ -48,6 +48,8 @@ func patch5(st *state.State) error {
 		return err
 	}
 
+	// create timings to satisfy StartServices/StopServices API, but don't save them
+	tm := timings.New(nil)
 	for snapName, snapst := range snapStates {
 		if !snapst.Active {
 			continue
@@ -64,7 +66,7 @@ func patch5(st *state.State) error {
 			continue
 		}
 
-		err = wrappers.StopServices(svcs, snap.StopReasonRefresh, log, nil)
+		err = wrappers.StopServices(svcs, snap.StopReasonRefresh, log, tm)
 		if err != nil {
 			return err
 		}
@@ -74,8 +76,6 @@ func patch5(st *state.State) error {
 			return err
 		}
 
-		// create timings to satisfy StartServices API, but don't save them
-		tm := timings.New(nil)
 		err = wrappers.StartServices(svcs, log, tm)
 		if err != nil {
 			return err
