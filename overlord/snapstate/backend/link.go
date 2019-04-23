@@ -170,6 +170,13 @@ func generateWrappers(s *snap.Info) error {
 		wrappers.RemoveSnapBinaries(s)
 		return err
 	}
+	// add the desktop icons
+	if err := wrappers.AddSnapIcons(s); err != nil {
+		wrappers.RemoveSnapDesktopFiles(s)
+		wrappers.RemoveSnapServices(s, progress.Null)
+		wrappers.RemoveSnapBinaries(s)
+		return err
+	}
 
 	return nil
 }
@@ -190,7 +197,12 @@ func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err3)
 	}
 
-	return firstErr(err1, err2, err3)
+	err4 := wrappers.RemoveSnapIcons(s)
+	if err4 != nil {
+		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err4)
+	}
+
+	return firstErr(err1, err2, err3, err4)
 }
 
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and symlinks.
