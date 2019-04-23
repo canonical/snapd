@@ -472,9 +472,11 @@ install_snap_profiler(){
     echo "install snaps profiler"
     if [ "$PROFILE_SNAPS" = 1 ]; then
         if is_core18_system; then
+            rm -f /var/snap/test-snapd-profiler-core18/common/proc.log
             snap install test-snapd-profiler-core18
             snap connect test-snapd-profiler-core18:system-observe
         else
+            rm -f /var/snap/test-snapd-profiler/common/proc.log
             snap install test-snapd-profiler
             snap connect test-snapd-profiler:system-observe
         fi
