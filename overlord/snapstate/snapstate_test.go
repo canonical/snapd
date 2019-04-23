@@ -150,6 +150,16 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		return nil, nil, nil
 	}))
 
+	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
+		task := st.NewTask("save-snapshot", "...")
+		ts = state.NewTaskSet(task)
+		return ts, nil
+	}
+	s.BaseTest.AddCleanup(func() {
+		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
+	})
+
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
@@ -222,6 +232,9 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	}
 	runner.AddHandler("error-trigger", erroringHandler, nil)
 
+	runner.AddHandler("save-snapshot", func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 	runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
@@ -444,6 +457,21 @@ func verifyLastTasksetIsReRefresh(c *C, tts []*state.TaskSet) {
 }
 
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"run-hook[remove]",
+		"auto-disconnect",
+		"save-snapshot",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+	})
+	verifyStopReason(c, ts, "remove")
+}
+
+func verifyCoreRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
 		"run-hook[remove]",
@@ -734,6 +762,10 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
+	// ensure edges information is still there
+	te := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	c.Assert(te, NotNil)
+
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, expectedDiscards, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
@@ -934,6 +966,10 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks())+1) // 1==rerefresh
+
+	// ensure edges information is still there
+	te := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	c.Assert(te, NotNil)
 
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
@@ -6622,6 +6658,9 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		if t.Kind() == "run-hook" {
 			continue
 		}
+		if t.Kind() == "save-snapshot" {
+			continue
+		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
 		c.Assert(err, IsNil)
 
@@ -6756,6 +6795,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 	tasks := ts.Tasks()
 	for _, t := range tasks {
 		if t.Kind() == "run-hook" {
+			continue
+		}
+		if t.Kind() == "save-snapshot" {
 			continue
 		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
@@ -7018,6 +7060,9 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		if t.Kind() == "run-hook" {
 			continue
 		}
+		if t.Kind() == "save-snapshot" {
+			continue
+		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
 		c.Assert(err, IsNil)
 
@@ -7119,6 +7164,9 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	// verify snapSetup info
 	tasks := ts.Tasks()
 	for _, t := range tasks {
+		if t.Kind() == "save-snapshot" {
+			continue
+		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
 		c.Assert(err, IsNil)
 
@@ -7208,6 +7256,9 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	tasks := ts.Tasks()
 	for _, t := range tasks {
 		if t.Kind() == "run-hook" {
+			continue
+		}
+		if t.Kind() == "save-snapshot" {
 			continue
 		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
@@ -11181,6 +11232,34 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	c.Check(snapsup.Flags.SkipConfigure, Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestNoReRefreshInUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+
+	// ensure we have no re-refresh task
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Kind(), Not(Equals), "check-rerefresh")
+	}
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	// NoReRefresh is consumed and consulted when creating the taskset
+	// but is not copied into SnapSetup
+	c.Check(snapsup.Flags.NoReRefresh, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	makeInstalledMockCoreSnap(c)
 
@@ -11264,7 +11343,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
-	verifyRemoveTasks(c, tsl[2])
+	verifyCoreRemoveTasks(c, tsl[2])
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
@@ -11291,7 +11370,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
 	// 1. transition connections
 	verifyTransitionConnectionsTasks(c, tsl[0])
 	// 2. remove ubuntu-core
-	verifyRemoveTasks(c, tsl[1])
+	verifyCoreRemoveTasks(c, tsl[1])
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
