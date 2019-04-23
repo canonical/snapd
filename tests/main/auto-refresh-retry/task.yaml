@@ -25,7 +25,7 @@ execute: |
     echo "Install a snap from stable"
     snap install test-snapd-tools
   
-    snap set core refresh.schedule="0:00-23:59"
+    snap set system refresh.schedule="0:00-23:59"
     systemctl stop snapd.{service,socket}
 
     echo "Modify the snap to track the edge channel"
@@ -40,7 +40,7 @@ execute: |
     ip netns add testns
     sed -i 's+ExecStart=\(/usr/lib/snapd/snapd\)+ExecStart=/usr/bin/nsenter --net=/var/run/netns/testns \1+' /lib/systemd/system/snapd.service
     systemctl daemon-reload
-    systemctl start snapd.{service,socket}
+    systemctl start snapd.{socket,service}
 
     echo "wait for auto-refresh to happen and fail"
     for _ in $(seq 120); do
@@ -58,7 +58,7 @@ execute: |
     systemctl stop snapd.{service,socket}
     cp /lib/systemd/system/snapd.service.bak /lib/systemd/system/snapd.service
     systemctl daemon-reload
-    systemctl start snapd.{service,socket}
+    systemctl start snapd.{socket,service}
 
     echo "wait for auto-refresh to happen"
     for _ in $(seq 120); do
