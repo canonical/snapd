@@ -537,14 +537,16 @@ restore_suite_each() {
     if [ "$PROFILE_SNAPS" = 1 ]; then
         profiler_logs_dir="$RUNTIME_STATE_PATH/profiler"
         profiler_logs_file=$(echo "$SPREAD_JOB" | tr '/' '_' | tr ':' '__')
-        profiler_snap=
+
+        profiler_snap=test-snapd-profiler
         if is_core18_system; then
             profiler_snap=test-snapd-profiler-core18
-        else
-            profiler_snap=test-snapd-profiler
         fi
+
         mkdir -p "$profiler_logs_dir"
-        cp -f "/var/snap/${profiler_snap}/common/proc.log" "${profiler_logs_dir}/${profiler_logs_file}.log"
+        if [ -e "/var/snap/${profiler_snap}/common/proc.log" ]; then
+            cp -f "/var/snap/${profiler_snap}/common/proc.log" "${profiler_logs_dir}/${profiler_logs_file}.log"
+        fi
     fi
 }
 
