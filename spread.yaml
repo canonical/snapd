@@ -201,6 +201,9 @@ backends:
             - fedora-28-64:
                 username: fedora
                 password: fedora
+            - centos-7-64:
+                username: centos
+                password: centos
     autopkgtest:
         type: adhoc
         allocate: |
