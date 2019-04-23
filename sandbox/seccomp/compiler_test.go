@@ -78,6 +78,8 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		} else {
 			c.Check(err, IsNil)
 			c.Check(v, Equals, tc.exp)
+			_, err := seccomp.LibseccompVersionInfo([]byte(v))
+			c.Check(err, IsNil)
 		}
 		c.Check(cmd.Calls(), DeepEquals, [][]string{
 			{"snap-seccomp", "version-info"},

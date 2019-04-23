@@ -80,6 +80,7 @@ var (
 	mockedSystemKey *systemKey
 
 	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
+	LibseccompCompilerVersion  = libseccompCompilerVersionImpl
 )
 
 func seccompCompilerVersionInfoImpl(path string) (string, error) {
@@ -88,6 +89,22 @@ func seccompCompilerVersionInfoImpl(path string) (string, error) {
 		return "", err
 	}
 	return compiler.VersionInfo()
+}
+
+func libseccompCompilerVersionImpl() (string, error) {
+	snapdPath, err := cmd.InternalToolPath("snapd")
+	if err != nil {
+		return "", err
+	}
+	full, err := seccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
+	if err != nil {
+		return "", err
+	}
+	ver, err := seccomp_compiler.LibseccompVersionInfo([]byte(full))
+	if err != nil {
+		return "", err
+	}
+	return ver, nil
 }
 
 func generateSystemKey() (*systemKey, error) {
@@ -260,5 +277,13 @@ func MockSeccompCompilerVersionInfo(s func(p string) (string, error)) (restore f
 	seccompCompilerVersionInfo = s
 	return func() {
 		seccompCompilerVersionInfo = old
+	}
+}
+
+func MockLibseccompCompilerVersion(s func() (string, error)) (restore func()) {
+	old := LibseccompCompilerVersion
+	LibseccompCompilerVersion = s
+	return func() {
+		LibseccompCompilerVersion = old
 	}
 }

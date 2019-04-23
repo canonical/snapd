@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -452,6 +453,26 @@ func checkSystemUsers(si *snap.Info) error {
 	if len(si.SystemUsers) == 0 {
 		return nil
 	}
+
+	ver, err := interfaces.LibseccompCompilerVersion()
+	if err != nil {
+		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+	}
+	tmp := strings.Split(ver, ".")
+	maj, err := strconv.Atoi(tmp[0])
+	if err != nil {
+		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+	}
+	min, err := strconv.Atoi(tmp[1])
+	if err != nil {
+		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+	}
+	// libseccomp < 2.4 has significant argument filtering bugs that we
+	// cannot reliably work around with this feature.
+	if maj < 2 || min < 4 {
+		return fmt.Errorf(`This snap requires that snapd be compiled against libseccomp >= 2.4.`)
+	}
+
 	for _, user := range si.SystemUsers {
 		if !supportedSystemUsers[user] {
 			return fmt.Errorf(`Unsupported system user "%s"`, user)

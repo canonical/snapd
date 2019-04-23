@@ -78,6 +78,16 @@ func (c *Compiler) VersionInfo() (string, error) {
 	return string(raw), nil
 }
 
+// LibseccompVersionInfo returns the libseccomp version information of the
+// compiler.
+func LibseccompVersionInfo(full []byte) (string, error) {
+	if match := validVersionInfo.Match(full); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", full)
+	}
+	tmp := bytes.Split(full, []byte(" "))
+	return string(tmp[1]), nil
+}
+
 // Compile compiles given source profile and saves the result to the out
 // location.
 func (c *Compiler) Compile(in, out string) error {

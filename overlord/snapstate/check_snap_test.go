@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -865,48 +866,68 @@ var systemUsersTests = []struct {
 	classic bool
 	noGroup bool
 	noUser  bool
+	scVer   string
 	error   string
 }{{
 	sysIDs: "[daemon]",
+	scVer:  "2.4",
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
+	scVer:   "2.4",
 }, {
 	sysIDs: "[daemon, allowed-not]",
+	scVer:  "2.4",
 	error:  `Unsupported system user "allowed-not"`,
 }, {
 	sysIDs:  "[allowed-not, daemon]",
 	classic: true,
+	scVer:   "2.4",
 	error:   `Unsupported system user "allowed-not"`,
 }, {
 	sysIDs:  "[daemon]",
 	noGroup: true,
+	scVer:   "2.4",
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	noGroup: true,
+	scVer:   "2.4",
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs: "[daemon]",
 	noUser: true,
+	scVer:  "2.4",
 	error:  `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	noUser:  true,
+	scVer:   "2.4",
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
 	noUser:  true,
 	noGroup: true,
+	scVer:   "2.4",
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	noUser:  true,
 	noGroup: true,
+	scVer:   "2.4",
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
+}, {
+	sysIDs: "[daemon]",
+	scVer:  "2.3",
+	error:  `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+	scVer:   "2.3",
+	error:   `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
@@ -914,6 +935,11 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 	defer restore()
 
 	for _, test := range systemUsersTests {
+		restore = interfaces.MockLibseccompCompilerVersion(func() (string, error) {
+			return test.scVer, nil
+		})
+		defer restore()
+
 		release.OnClassic = test.classic
 		if test.noGroup {
 			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
