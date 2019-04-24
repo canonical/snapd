@@ -70,6 +70,9 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 
 	// validate
 	for _, sn := range seed.Snaps {
+		if sn == nil {
+			return nil, fmt.Errorf("empty element in seed")
+		}
 		if strings.Contains(sn.File, "/") {
 			return nil, fmt.Errorf("%q must be a filename, not a path", sn.File)
 		}
