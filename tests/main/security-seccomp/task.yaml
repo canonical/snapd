@@ -22,6 +22,7 @@ details: |
 #systems: [-fedora-28-*, -debian-*]
 
 environment:
+    COM: /var/snap/test-snapd-sh/common
     SRC: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.src
     BIN: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.bin
     AAP: /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.test-snapd-sh
@@ -31,12 +32,21 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
+
+    echo "Copy $SRC aside for safekeeping"
     cp "$SRC" "$SRC".orig
+
     if [ "$(snap debug confinement)" = strict ]; then
+        echo "Copy $AAP aside for safekeeping"
         cp "$AAP" "$AAP".orig
         sed 's/^}/capability sys_nice,\n}\n/g' "$AAP".orig > "$AAP"
         apparmor_parser -r "$AAP"
     fi
+
+    echo "Compile and prepare the support program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    gcc -Wall -Wextra -Werror ./setpriority.c -o "$COM/setpriority"
 
 restore: |
     #shellcheck source=tests/lib/snaps.sh
@@ -58,28 +68,30 @@ execute: |
         exit 0
     fi
 
+    echo "Running outside confinement"
+    "$COM/setpriority" 10  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
+    "$COM/setpriority" -10 | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, -10\)'
+
     echo "Remove any setpriority rules from the filter"
     sed 's/^\(setpriority.*\)/#SPREAD: \1/g' "$SRC".orig > "$SRC"
     "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
     echo "and check that positive nice fails"
-    test-snapd-sh -c "nice -n 10 uptime"  2>&1 | MATCH 'Operation not permitted'
+    test-snapd-sh -c '$SNAP_COMMON/setpriority 10'  | MATCH 'Operation not permitted \(EPERM\)'
     echo "and check that negative nice fails"
-    test-snapd-sh -c "nice -n -10 uptime" 2>&1 | MATCH 'Operation not permitted'
+    test-snapd-sh -c '$SNAP_COMMON/setpriority -10' | MATCH 'Operation not permitted \(EPERM\)'
 
-    # Note that nice does not error out if it can't setpriority, so we check
-    # for the absense of the error
     echo "Use bare setpriority rule"
     sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority/g' "$SRC".orig > "$SRC"
     "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
     echo "and check that positive nice succeeds"
-    ! test-snapd-sh -c "nice -n 10 uptime"  2>&1 | MATCH 'Operation not permitted'
+    test-snapd-sh -c '$SNAP_COMMON/setpriority 10'  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that negative nice succeeds"
-    ! test-snapd-sh -c "nice -n -10 uptime" 2>&1 | MATCH 'Operation not permitted'
+    test-snapd-sh -c '$SNAP_COMMON/setpriority -10' | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, -10\)'
 
     echo "Use arg filtered setpriority rule"
     sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority PRIO_PROCESS 0 <=19/g' "$SRC".orig > "$SRC"
     "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
     echo "and check that positive nice succeeds"
-    ! test-snapd-sh -c "nice -n 10 uptime" 2>&1 | MATCH 'Operation not permitted'
+    test-snapd-sh -c '$SNAP_COMMON/setpriority 10'  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that negative nice fails"
-    test-snapd-sh -c "nice -n -10 uptime"  2>&1 | MATCH 'Operation not permitted'
+    test-snapd-sh -c '$SNAP_COMMON/setpriority -10' | MATCH 'Operation not permitted \(EPERM\)'
