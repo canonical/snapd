@@ -564,6 +564,12 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 	if err != nil {
 		return err
 	}
+	// We can replace device with "device1" here because Device
+	// and UpdateDeviceAuth (and the underlying SetDevice)
+	// require/use the global state lock, so the reading/setting
+	// values have a total order, and device1 cannot come before
+	// device in that order. See also:
+	// https://github.com/snapcore/snapd/pull/6716#discussion_r277025834
 	if *device1 != *device {
 		// nothing to do
 		*device = *device1
