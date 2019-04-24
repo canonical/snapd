@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type FirstBootTestSuite struct {
@@ -65,6 +66,8 @@ type FirstBootTestSuite struct {
 	brandSigning *assertstest.SigningDB
 
 	overlord *overlord.Overlord
+
+	perfTimings timings.Measurer
 
 	restoreOnClassic func()
 	restoreBackends  func()
@@ -107,6 +110,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	s.perfTimings = timings.New(nil)
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -146,7 +151,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -191,7 +196,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -224,7 +229,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
 }
 
@@ -263,7 +268,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudIns
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -312,7 +317,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := devicestate.PopulateStateFromSeedImpl(st)
+	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -481,7 +486,7 @@ snaps:
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// the first taskset installs core and waits for noone
@@ -710,7 +715,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -884,7 +889,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1049,7 +1054,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1355,7 +1360,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// the first taskset installs snapd and waits for noone
@@ -1502,7 +1507,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// the first taskset installs snapd and waits for noone
@@ -1572,7 +1577,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 }
 
@@ -1644,7 +1649,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")

@@ -1,0 +1,4 @@
+*.bpf
+*.o
+*.pfc
+snap-seccomp-blacklist

@@ -821,3 +821,41 @@ func (s *checkSnapSuite) TestCheckSnapCheckEpochNonLocal(c *C) {
 	err := snapstate.CheckSnap(s.st, "snap-path", "foo", si, &snap.Info{}, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot refresh "foo" to new revision 42 with epoch 13, because it can't read the current epoch of 0`)
 }
+
+func (s *checkSnapSuite) TestCheckSnapBasesCoreCanBeUsedAsCore16(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-id"}
+	snaptest.MockSnap(c, `
+name: core
+type: os
+version: 1
+`, si)
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: requires-core16
+version: 1
+base: core16
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "requires-core16", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, IsNil)
+}
