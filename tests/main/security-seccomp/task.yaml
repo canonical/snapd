@@ -40,7 +40,7 @@ prepare: |
     echo "Copy $SRC aside for safekeeping"
     cp "$SRC" "$SRC".orig
 
-    if [ "$(snap debug confinement)" = strict ]; then
+    if snap debug sandbox-features --required apparmor:kernel:caps ; then
         echo "Copy $AAP aside for safekeeping"
         cp "$AAP" "$AAP".orig
         sed 's/^}/capability sys_nice,\n}\n/g' "$AAP".orig > "$AAP"
