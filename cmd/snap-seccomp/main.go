@@ -176,7 +176,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -786,10 +785,6 @@ func compile(content []byte, out string) error {
 	return fout.Commit()
 }
 
-// Be very strict so usernames and groups specified in policy are widely
-// compatible. From NAME_REGEX in /etc/adduser.conf
-var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
-
 // caches for uid and gid lookups
 var uidCache = make(map[string]uint64)
 var gidCache = make(map[string]uint64)
@@ -799,7 +794,7 @@ func findUid(username string) (uint64, error) {
 	if uid, ok := uidCache[username]; ok {
 		return uid, nil
 	}
-	if !userGroupNamePattern.MatchString(username) {
+	if !osutil.IsValidUsername(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
 	uid, err := osutil.FindUid(username)
@@ -814,7 +809,7 @@ func findGid(group string) (uint64, error) {
 	if gid, ok := gidCache[group]; ok {
 		return gid, nil
 	}
-	if !userGroupNamePattern.MatchString(group) {
+	if !osutil.IsValidUsername(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
 	gid, err := osutil.FindGid(group)
