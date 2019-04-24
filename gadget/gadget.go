@@ -110,6 +110,17 @@ func (vs *VolumeStructure) IsBare() bool {
 	return vs.Filesystem == "none" || vs.Filesystem == ""
 }
 
+// EffectiveRole returns the role of given structure
+func (vs *VolumeStructure) EffectiveRole() string {
+	if vs.Role != "" {
+		return vs.Role
+	}
+	if vs.Role == "" && vs.Type == "mbr" {
+		return "mbr"
+	}
+	return ""
+}
+
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
@@ -293,27 +304,6 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	return &gi, nil
 }
 
-// PositionedStructure describes a VolumeStructure that has been positioned
-// within the volume
-type PositionedStructure struct {
-	*VolumeStructure
-	// StartOffset defines the start offset of the structure within the
-	// enclosing volume
-	StartOffset Size
-	// index of the structure definition in gadget YAML
-	index int
-}
-
-func (p PositionedStructure) String() string {
-	return fmtIndexAndName(p.index, p.Name)
-}
-
-type byStartOffset []PositionedStructure
-
-func (b byStartOffset) Len() int           { return len(b) }
-func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
-
 func fmtIndexAndName(idx int, name string) string {
 	if name != "" {
 		return fmt.Sprintf("#%v (%q)", idx, name)
@@ -349,7 +339,7 @@ func validateVolume(name string, vol *Volume) error {
 		ps := PositionedStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
-			index:           idx,
+			Index:           idx,
 		}
 		structures[idx] = ps
 		if s.Name != "" {
@@ -625,6 +615,7 @@ func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Size uint64
 
 const (
+	SizeKiB = Size(1 << 10)
 	SizeMiB = Size(1 << 20)
 	SizeGiB = Size(1 << 30)
 
