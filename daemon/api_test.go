@@ -347,7 +347,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
 
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
@@ -1916,6 +1916,33 @@ func (s *apiSuite) TestFindCommonID(c *check.C) {
 	c.Check(snaps[0]["common-ids"], check.DeepEquals, []interface{}{"org.foo"})
 }
 
+func (s *apiSuite) TestFindByCommonID(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName: "store",
+		},
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
+		CommonIDs: []string{"org.foo"},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?common-id=org.foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{CommonID: "org.foo"})
+}
+
 func (s *apiSuite) TestFindOne(c *check.C) {
 	s.daemon(c)
 
@@ -1975,14 +2002,37 @@ func (s *apiSuite) TestFindOneNotFound(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 404)
 }
 
-func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/find?select=refresh&q=foo", nil)
-	c.Assert(err, check.IsNil)
+func (s *apiSuite) TestFindRefreshNotOther(c *check.C) {
+	for _, other := range []string{"name", "q", "common-id"} {
+		req, err := http.NewRequest("GET", "/v2/find?select=refresh&"+other+"=foo*", nil)
+		c.Assert(err, check.IsNil)
 
-	rsp := searchStore(findCmd, req, nil).(*resp)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
+		rsp := searchStore(findCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot use '"+other+"' with 'select=refresh'")
+	}
+}
+
+func (s *apiSuite) TestFindNotTogether(c *check.C) {
+	queries := map[string]string{"q": "foo", "name": "foo*", "common-id": "foo"}
+	for ki, vi := range queries {
+		for kj, vj := range queries {
+			if ki == kj {
+				continue
+			}
+
+			req, err := http.NewRequest("GET", fmt.Sprintf("/v2/find?%s=%s&%s=%s", ki, vi, kj, vj), nil)
+			c.Assert(err, check.IsNil)
+
+			rsp := searchStore(findCmd, req, nil).(*resp)
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Status, check.Equals, 400)
+			exp1 := "cannot use '" + ki + "' and '" + kj + "' together"
+			exp2 := "cannot use '" + kj + "' and '" + ki + "' together"
+			c.Check(rsp.Result.(*errorResult).Message, check.Matches, exp1+"|"+exp2)
+		}
+	}
 }
 
 func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
@@ -5618,7 +5668,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
-	auth.SetDevice(st, nil)
+	devicestate.SetDevice(st, nil)
 	st.Unlock()
 
 	email := "foo@example.com"
@@ -5697,7 +5747,7 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	}
 	// create fake device
 	st.Lock()
-	err = auth.SetDevice(st, &auth.DeviceState{
+	err = devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",

@@ -17,7 +17,9 @@
  *
  */
 
-package mount
+// Package snaplock offers per-snap locking also used by snap-confine.
+// The corresponding C code is in libsnap-confine-private/locking.c
+package snaplock
 
 import (
 	"fmt"

@@ -79,7 +79,8 @@ func (s *mainSuite) TestComputeAndSaveSystemChanges(c *C) {
 	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = update.ComputeAndSaveSystemChanges(snapName, s.as)
+	ctx := update.NewSystemProfileUpdateContext(snapName)
+	err = update.ComputeAndSaveSystemChanges(ctx, snapName, s.as)
 	c.Assert(err, IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
@@ -146,7 +147,8 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	c.Assert(update.ComputeAndSaveSystemChanges(snapName, s.as), IsNil)
+	ctx := update.NewSystemProfileUpdateContext(snapName)
+	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals,
 		`tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
@@ -223,7 +225,8 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	c.Assert(update.ComputeAndSaveSystemChanges(snapName, s.as), IsNil)
+	ctx := update.NewSystemProfileUpdateContext(snapName)
+	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -265,7 +268,8 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	c.Assert(update.ComputeAndSaveSystemChanges(snapName, s.as), ErrorMatches, "testing")
+	ctx := update.NewSystemProfileUpdateContext(snapName)
+	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -307,7 +311,8 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	c.Assert(update.ComputeAndSaveSystemChanges(snapName, nil), ErrorMatches, "testing")
+	ctx := update.NewSystemProfileUpdateContext(snapName)
+	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, nil), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -350,7 +355,8 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	defer restore()
 
 	// The error was ignored, and no mount was recorded in the profile
-	c.Assert(update.ComputeAndSaveSystemChanges(snapName, s.as), IsNil)
+	ctx := update.NewSystemProfileUpdateContext(snapName)
+	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), IsNil)
 	c.Check(s.log.String(), Equals, "")
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }

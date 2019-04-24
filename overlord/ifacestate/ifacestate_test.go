@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -117,7 +118,7 @@ func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
 	defer am.st.Unlock()
 	err = assertstate.Add(am.st, model)
 	c.Assert(err, IsNil)
-	err = auth.SetDevice(am.st, &auth.DeviceState{
+	err = devicestate.SetDevice(am.st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -221,6 +222,10 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.log = buf
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
+	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+		return "abcdef 1.2.3 1234abcd", nil
+	})
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -5639,7 +5644,7 @@ func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]s
 	slot := repo.Slot("core", expectedName)
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, Equals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
@@ -5703,7 +5708,7 @@ func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
 	slot := repo.Slot("core", "hotplugslot-old-name")
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
@@ -5764,7 +5769,7 @@ func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "newfoo"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
@@ -6033,6 +6038,9 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
+	restore := ifacestate.MockHotplugRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
 	var order []int
 	_ = s.manager(c)
 	s.o.TaskRunner().AddHandler("witness", func(task *state.Task, tomb *tomb.Tomb) error {

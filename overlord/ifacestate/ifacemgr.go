@@ -29,10 +29,14 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
-type deviceData struct{ ifaceName, hotplugKey string }
+type deviceData struct {
+	ifaceName  string
+	hotplugKey snap.HotplugKey
+}
 
 // InterfaceManager is responsible for the maintenance of interfaces in
 // the system state.  It maintains interface connections, and also observes
@@ -45,7 +49,7 @@ type InterfaceManager struct {
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
 	// indexed by interface name and device key. Reset to nil when enumeration is done.
-	enumeratedDeviceKeys map[string]map[string]bool
+	enumeratedDeviceKeys map[string]map[snap.HotplugKey]bool
 	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
@@ -68,7 +72,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		state: s,
 		repo:  interfaces.NewRepository(),
 		// note: enumeratedDeviceKeys is reset to nil when enumeration is done
-		enumeratedDeviceKeys: make(map[string]map[string]bool),
+		enumeratedDeviceKeys: make(map[string]map[snap.HotplugKey]bool),
 		hotplugDevicePaths:   make(map[string][]deviceData),
 	}
 
@@ -259,7 +263,7 @@ func MockSecurityBackends(be []interfaces.SecurityBackend) func() {
 
 // MockObservedDevicePath adds the given device to the map of observed devices.
 // This function is used for tests only.
-func (m *InterfaceManager) MockObservedDevicePath(devPath, ifaceName, hotplugKey string) func() {
+func (m *InterfaceManager) MockObservedDevicePath(devPath, ifaceName string, hotplugKey snap.HotplugKey) func() {
 	old := m.hotplugDevicePaths
 	m.hotplugDevicePaths[devPath] = append(m.hotplugDevicePaths[devPath], deviceData{hotplugKey: hotplugKey, ifaceName: ifaceName})
 	return func() { m.hotplugDevicePaths = old }

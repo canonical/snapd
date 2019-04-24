@@ -213,6 +213,13 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
+	// The core snap provides everything we need for core16.
+	if snapName == "core16" {
+		if hasCore, err := isInstalled(st, "core"); hasCore && err == nil {
+			return nil, nil
+		}
+	}
+
 	// installed already?
 	isInstalled, err := isInstalled(st, snapName)
 	if err != nil {
@@ -877,6 +884,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
 	}
+	oldRefreshInhibitedTime := snapst.RefreshInhibitedTime
 	// only set userID if unset or logged out in snapst and if we
 	// actually have an associated user
 	if snapsup.UserID > 0 {
@@ -940,6 +948,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
+	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
+
+	// Record the fact that the snap was refreshed successfully.
+	snapst.RefreshInhibitedTime = nil
+
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.InstanceName(), snapst)
 
@@ -1090,6 +1103,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-candidate-index", &oldCandidateIndex); err != nil {
 		return err
 	}
+	var oldRefreshInhibitedTime *time.Time
+	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	if len(snapst.Sequence) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
@@ -1130,6 +1147,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.DevMode = oldDevMode
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
+	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {

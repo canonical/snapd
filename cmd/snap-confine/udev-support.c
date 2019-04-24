@@ -108,7 +108,8 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
-	_run_snappy_app_dev_add_majmin(udev_s, path, major(devnum), minor(devnum));
+	_run_snappy_app_dev_add_majmin(udev_s, path, major(devnum),
+				       minor(devnum));
 }
 
 /*
