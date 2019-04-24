@@ -131,7 +131,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		if err != nil {
 			return nil, err
 		}
-		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
 			// Note that because we are modifying the snap state this block
@@ -618,7 +617,6 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		Channel:     channel,
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.Type,
-		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
 	}
 
@@ -637,6 +635,8 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
+//
+// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	if channel == "" {
 		channel = "stable"
@@ -683,7 +683,6 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
 		Type:         info.Type,
-		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
 			Media: info.Media,
@@ -742,7 +741,6 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			DownloadInfo: &info.DownloadInfo,
 			SideInfo:     &info.SideInfo,
 			Type:         info.Type,
-			PlugsOnly:    len(info.Slots) == 0,
 			InstanceKey:  info.InstanceKey,
 		}
 
@@ -929,7 +927,6 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 			Type:         update.Type,
-			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
 			auxStoreInfo: auxStoreInfo{
 				Media: update.Media,
@@ -983,7 +980,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		updated = append(updated, name)
 	}
 
-	if len(updated) > 0 {
+	if len(updated) > 0 && !globalFlags.NoReRefresh {
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
@@ -1201,6 +1198,8 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
+//
+// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Update(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -1314,7 +1313,12 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 	flat := state.NewTaskSet()
 	for _, ts := range tts {
-		flat.AddAll(ts)
+		// The tasksets we get from "doUpdate" contain important
+		// "TaskEdge" information that is needed for "Remodel".
+		// To preserve those we need to use "AddAllWithEdges()".
+		if err := flat.AddAllWithEdges(ts); err != nil {
+			return nil, err
+		}
 	}
 	return flat, nil
 }
@@ -1402,7 +1406,6 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
 		Type:        info.Type,
-		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
 
@@ -1461,7 +1464,6 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			Revision: snapst.Current,
 		},
 		Type:        info.Type,
-		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
 
@@ -1668,7 +1670,6 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			Revision: revision,
 		},
 		Type:        info.Type,
-		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
 
@@ -1711,6 +1712,14 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 		addNext(state.NewTaskSet(disconnect))
 		prev = disconnect
+	}
+
+	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+		ts, err := AutomaticSnapshot(st, name)
+		if err != nil {
+			return nil, err
+		}
+		addNext(ts)
 	}
 
 	if active { // unlink
@@ -1847,7 +1856,6 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.Type,
-		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
 	return doInstall(st, &snapst, snapsup, 0, "")
