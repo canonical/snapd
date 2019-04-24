@@ -441,8 +441,10 @@ int main(int argc, char **argv)
 	struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
 	struct __user_cap_data_struct data[2] = { {0} };
 
-	// We only adjust the capabilities bounding set when we are permanently
-	// dropping.
+	// At this point in time, if we are going to permanently drop our
+	// effective_uid will not be '0' but our saved_uid will be '0'. Detect
+	// and save when we are in the this state so know when to setup the
+	// capabilities bounding set, regain CAP_SYS_ADMIN and later drop it.
 	bool keep_sys_admin = effective_uid != 0 && saved_uid == 0;
 	if (keep_sys_admin) {
 		debug("setting capabilities bounding set");
