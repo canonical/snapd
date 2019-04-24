@@ -331,6 +331,37 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
+func (m *InterfaceManager) refreshStaticConnectionAttrs(snapInfo *snap.Info) error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	changed := false
+	snapName := snapInfo.InstanceName()
+	for connId, connState := range conns {
+		connRef, err := interfaces.ParseConnRef(connId)
+		if err != nil {
+			return err
+		}
+		if connRef.PlugRef.Snap == snapName {
+			if plugInfo := snapInfo.Plugs[connRef.PlugRef.Name]; plugInfo != nil {
+				connState.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+				changed = true
+			}
+		}
+		if connRef.SlotRef.Snap == snapName {
+			if slotInfo := snapInfo.Slots[connRef.SlotRef.Name]; slotInfo != nil {
+				connState.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+				changed = true
+			}
+		}
+	}
+	if changed {
+		setConns(m.state, conns)
+	}
+	return nil
+}
+
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
 // has no connections in the state. State must be locked by the caller.
 func (m *InterfaceManager) removeConnections(snapName string) error {

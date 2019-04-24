@@ -141,6 +141,13 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err := m.repo.AddSnap(snapInfo); err != nil {
 		return err
 	}
+	// XXX: Refresh the copy of the static connection attributes. This is a
+	// partial solution to https://bugs.launchpad.net/snapd/+bug/1825883 Once
+	// interface hooks are invoked for refreshed snaps then the update of
+	// static and dynamic connection attributes should happen there.
+	if err := m.refreshStaticConnectionAttrs(snapInfo); err != nil {
+		return err
+	}
 	if len(snapInfo.BadInterfaces) > 0 {
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
