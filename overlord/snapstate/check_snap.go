@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -474,6 +475,10 @@ func checkSystemUsers(si *snap.Info) error {
 	}
 
 	for _, user := range si.SystemUsers {
+		if !osutil.IsValidUsername(user) || strings.HasPrefix(user, "snap") {
+			return fmt.Errorf(`Invalid system user "%s"`, user)
+		}
+
 		if !supportedSystemUsers[user] {
 			return fmt.Errorf(`Unsupported system user "%s"`, user)
 		}

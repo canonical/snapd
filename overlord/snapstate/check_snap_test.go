@@ -885,6 +885,24 @@ var systemUsersTests = []struct {
 	scVer:   "2.4",
 	error:   `Unsupported system user "allowed-not"`,
 }, {
+	sysIDs: "[inv@lid]",
+	scVer:  "2.4",
+	error:  `Invalid system user "inv@lid"`,
+}, {
+	sysIDs:  "['inv@lid']",
+	classic: true,
+	scVer:   "2.4",
+	error:   `Invalid system user "inv@lid"`,
+}, {
+	sysIDs: "[snap.user]",
+	scVer:  "2.4",
+	error:  `Invalid system user "snap.user"`,
+}, {
+	sysIDs:  "[snap_user]",
+	classic: true,
+	scVer:   "2.4",
+	error:   `Invalid system user "snap_user"`,
+}, {
 	sysIDs:  "[daemon]",
 	noGroup: true,
 	scVer:   "2.4",
