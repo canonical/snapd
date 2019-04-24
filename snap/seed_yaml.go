@@ -68,8 +68,8 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		return nil, fmt.Errorf("cannot unmarshal %q: %s", yamlData, err)
 	}
 
-	// XXX: filter-out nil snaps
-	// For context see: https://bugs.launchpad.net/snapd/+bug/1825437
+	// Filter out nil entries. The Ubuntu 19.04 installer can sometimes create them
+	// See: https://bugs.launchpad.net/snapd/+bug/1825437
 	filtered := make([]*SeedSnap, 0, len(seed.Snaps))
 	for _, sn := range seed.Snaps {
 		if sn != nil {
