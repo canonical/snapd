@@ -207,6 +207,10 @@ func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, err
 	return as.canWriteToDirectory(dirFd, dirName)
 }
 
+func (as *Assumptions) UnrestrictedPaths() []string {
+	return as.unrestrictedPaths
+}
+
 func (ctx *CommonProfileUpdateContext) CurrentProfilePath() string {
 	return ctx.currentProfilePath
 }
