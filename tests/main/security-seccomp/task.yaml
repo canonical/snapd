@@ -80,22 +80,28 @@ execute: |
     sed 's/^\(setpriority.*\)/#SPREAD: \1/g' "$SRC".orig > "$SRC"
     "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
     echo "and check that positive nice fails"
+    #shellcheck disable=SC2016
     test-snapd-sh -c '$SNAP_COMMON/setpriority 10'  | MATCH 'Operation not permitted \(EPERM\)'
     echo "and check that negative nice fails"
+    #shellcheck disable=SC2016
     test-snapd-sh -c '$SNAP_COMMON/setpriority -10' | MATCH 'Operation not permitted \(EPERM\)'
 
     echo "Use bare setpriority rule"
     sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority/g' "$SRC".orig > "$SRC"
     "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
     echo "and check that positive nice succeeds"
+    #shellcheck disable=SC2016
     test-snapd-sh -c '$SNAP_COMMON/setpriority 10'  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that negative nice succeeds"
+    #shellcheck disable=SC2016
     test-snapd-sh -c '$SNAP_COMMON/setpriority -10' | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, -10\)'
 
     echo "Use arg filtered setpriority rule"
     sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority PRIO_PROCESS 0 <=19/g' "$SRC".orig > "$SRC"
     "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
     echo "and check that positive nice succeeds"
+    #shellcheck disable=SC2016
     test-snapd-sh -c '$SNAP_COMMON/setpriority 10'  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that negative nice fails"
+    #shellcheck disable=SC2016
     test-snapd-sh -c '$SNAP_COMMON/setpriority -10' | MATCH 'Operation not permitted \(EPERM\)'
