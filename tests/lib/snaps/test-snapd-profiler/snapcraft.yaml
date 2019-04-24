@@ -20,3 +20,4 @@ parts:
         source: .
         organize:
             profiler.py: bin/profiler
+            config.ini: etc/config.ini
