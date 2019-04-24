@@ -1,11 +1,6 @@
 summary: Check that auto-refresh is retried after a permanent network error
 
-# FIXME: core18 right now does not have a canonical model. This means
-# that it will not get a serial. We code in devicestate.go that will only
-# try to auto-refresh after the systems has tried at least 3 times to get
-# a serial. But this means this test will timeout because the first retry
-# for the serial happens after 5min, then 10min, then 20min.
-systems: [-ubuntu-core-18-*]
+systems: [-ubuntu-14.04-*]
 
 prepare: |
     snap install --devmode jq
@@ -40,7 +35,7 @@ execute: |
     ip netns add testns
     echo "[Service]" > /etc/systemd/system/snapd.service.d/override.conf
     echo "ExecStart=" >> /etc/systemd/system/snapd.service.d/override.conf
-    echo "ExecStart=/usr/bin/nsenter --net=/var/run/netns/testns /usr/lib/snapd/snapd" >> /etc/systemd/system/snapd.service.d/override.conf
+    systemctl cat snapd.service | sed 's+ExecStart=\(.*\)+ExecStart=/usr/bin/nsenter --net=/var/run/netns/testns \1+' >> /etc/systemd/system/snapd.service.d/override.conf
     systemctl daemon-reload
     systemctl start snapd.{socket,service}
 
