@@ -928,6 +928,14 @@ var systemUsersTests = []struct {
 	classic: true,
 	scVer:   "2.3",
 	error:   `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+	scVer:   "3.0",
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+	scVer:   "3.0",
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {

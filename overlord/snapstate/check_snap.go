@@ -469,7 +469,7 @@ func checkSystemUsers(si *snap.Info) error {
 	}
 	// libseccomp < 2.4 has significant argument filtering bugs that we
 	// cannot reliably work around with this feature.
-	if maj < 2 || min < 4 {
+	if maj < 2 || (maj == 2 && min < 4) {
 		return fmt.Errorf(`This snap requires that snapd be compiled against libseccomp >= 2.4.`)
 	}
 
