@@ -19,7 +19,11 @@ details: |
 # want. If adding, please add why and any references to supporting context.
 # See:
 # https://forum.snapcraft.io/t/disabling-seccomp-sandbox-where-a-buggy-golang-seccomp-is-used/11054
-#systems: [-fedora-28-*, -debian-*]
+#
+# core systems do not have gcc so exclude them. This is not ideal but the core
+# systems are built from the Ubuntu archive using kernels branched from distro
+# kernels and we test Ubuntu classic distro here.
+systems: [-ubuntu-core-*]
 
 environment:
     COM: /var/snap/test-snapd-sh/common
