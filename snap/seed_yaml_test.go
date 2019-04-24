@@ -83,7 +83,10 @@ func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 }
 
 var nilSeedItemYaml = []byte(`
-snaps: [null]
+snaps:
+ - name: foo
+ -
+ - name: bar
 `)
 
 func (s *seedYamlTestSuite) TestNilItems(c *C) {
@@ -93,5 +96,5 @@ func (s *seedYamlTestSuite) TestNilItems(c *C) {
 
 	seed, err := snap.ReadSeedYaml(fn)
 	c.Assert(err, IsNil)
-	c.Assert(seed.Snaps, HasLen, 0)
+	c.Assert(seed.Snaps, HasLen, 2)
 }
