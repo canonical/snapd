@@ -4246,6 +4246,8 @@ func init() {
 	helloRefreshedDate = t
 }
 
+const helloCohortKey = "this is a very short cohort key, as cohort keys go, because those are *long*"
+
 func (s *storeTestSuite) TestSnapAction(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -4293,6 +4295,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"cohort-key":   helloCohortKey,
 		})
 
 		io.WriteString(w, `{
@@ -4340,6 +4343,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
+			CohortKey:    helloCohortKey,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
