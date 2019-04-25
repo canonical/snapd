@@ -720,8 +720,7 @@ func makeRollbackDir(name string) (string, error) {
 		return "", err
 	}
 
-	if err := os.Mkdir(snapRollbackDir, 0755); err != nil {
-		// fail even if directory exists already
+	if err := os.Mkdir(snapRollbackDir, 0755); err != nil && !os.IsExist(err) {
 		return "", err
 	}
 
@@ -804,7 +803,7 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 
 	snapRollbackDir, err := makeRollbackDir(snapsup.InstanceName())
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
 	}
 
 	st.Unlock()
@@ -819,6 +818,10 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	t.SetStatus(state.DoneStatus)
+
+	if err := os.RemoveAll(snapRollbackDir); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
+	}
 
 	st.RequestRestart(state.RestartSystem)
 

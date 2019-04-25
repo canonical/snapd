@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -2793,6 +2794,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
 		updateCalled = true
 		passedRollbackDir = path
+		c.Assert(osutil.IsDirectory(path), Equals, true)
 		return nil
 	})
 	defer restore()
@@ -2845,6 +2847,8 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	c.Check(updateCalled, Equals, true)
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
 	c.Check(rollbackDir, Equals, passedRollbackDir)
+	// should have been removed right after update
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
 
@@ -2969,4 +2973,135 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
 	c.Check(updateRollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget"))
 	// only one request for task do
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirExistsRemovedByUpdate(c *C) {
+	var updateCalled bool
+	var passedRollbackDir string
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		updateCalled = true
+		passedRollbackDir = path
+		c.Assert(osutil.IsDirectory(path), Equals, true)
+
+		err := os.RemoveAll(path)
+		c.Assert(err, IsNil)
+
+		return nil
+	})
+	defer restore()
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+	mockSnapWithData(c, snapYaml, si, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	err := os.MkdirAll(rollbackDir, 0755)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(updateCalled, Equals, true)
+	c.Check(rollbackDir, Equals, passedRollbackDir)
+	// removed in the update, no error from from task handler
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		c.Fatal("should not have been called")
+		return nil
+	})
+	defer restore()
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+	mockSnapWithData(c, snapYaml, si, map[string]string{
+		"meta/gadget.yaml": gadgetYaml,
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot prepare update rollback directory: .*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
 }
