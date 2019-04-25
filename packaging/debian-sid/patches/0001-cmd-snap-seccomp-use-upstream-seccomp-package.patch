@@ -79,3 +79,16 @@ index 0fb23757019c517a3881cd4c9325b6ec864da3f6..f55f7cf6ff7508bb7fae3a5389341a1a
 -- 
 2.21.0
 
+diff --git a/sandbox/seccomp/compiler.go b/sandbox/seccomp/compiler.go
+index 553b49c23..2a07d6aad 100644
+--- a/sandbox/seccomp/compiler.go
++++ b/sandbox/seccomp/compiler.go
+@@ -24,7 +24,7 @@ import (
+ 	"os/exec"
+ 	"regexp"
+ 
+-	"github.com/mvo5/libseccomp-golang"
++	"github.com/seccomp/libseccomp-golang"
+ 	"github.com/snapcore/snapd/osutil"
+ )
+ 

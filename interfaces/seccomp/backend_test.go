@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -472,7 +473,13 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
+	restore = seccomp_compiler.MockGoSeccompCanActLog(func() bool { return false })
+	defer restore()
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
+
+	restore = seccomp_compiler.MockGoSeccompCanActLog(func() bool { return true })
+	defer restore()
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "bpf-actlog"})
 }
 
 func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
