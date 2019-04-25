@@ -19,10 +19,10 @@
 
 package builtin
 
-const sessionSummary = `allows setup of login session & seat`
+const loginSessionControlSummary = `allows setup of login session & seat`
 
-const sessionBaseDeclarationSlots = `
-  session:
+const loginSessionControlBaseDeclarationSlots = `
+  login-session-control:
     allow-installation:
       slot-snap-type:
         - core
@@ -31,7 +31,7 @@ const sessionBaseDeclarationSlots = `
       on-classic: false
 `
 
-const sessionConnectedPlugAppArmor = `
+const loginSessionControlConnectedPlugAppArmor = `
 # Description: Can setup login session & seat.
 
 #include <abstractions/dbus-strict>
@@ -59,12 +59,12 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "session",
-		summary:               sessionSummary,
+		name:                  "login-session-control",
+		summary:               loginSessionControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  sessionBaseDeclarationSlots,
-		connectedPlugAppArmor: sessionConnectedPlugAppArmor,
+		baseDeclarationSlots:  loginSessionControlBaseDeclarationSlots,
+		connectedPlugAppArmor: loginSessionControlConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }
