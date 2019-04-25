@@ -347,7 +347,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
 
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
@@ -5668,7 +5668,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
-	auth.SetDevice(st, nil)
+	devicestate.SetDevice(st, nil)
 	st.Unlock()
 
 	email := "foo@example.com"
@@ -5747,7 +5747,7 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	}
 	// create fake device
 	st.Lock()
-	err = auth.SetDevice(st, &auth.DeviceState{
+	err = devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",
