@@ -82,6 +82,18 @@ func (s *cohortSuite) TestCreateCohort(c *check.C) {
 	})
 }
 
+func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}]`))
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
+	c.Check(rsp, check.DeepEquals, &daemon.Resp{
+		Status: 200,
+		Type:   "sync",
+		Result: map[string]string{},
+	})
+}
+
 func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
@@ -91,18 +103,6 @@ func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
 		Status: 400,
 		Type:   "error",
 		Result: &daemon.ErrorResult{Message: `unknown cohort action "pupate"`},
-	})
-}
-
-func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}]`))
-	c.Assert(err, check.IsNil)
-
-	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 400,
-		Type:   "error",
-		Result: &daemon.ErrorResult{Message: `snaps cannot be empty`},
 	})
 }
 

@@ -2484,7 +2484,6 @@ func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
 }
 
 func (s *Store) CreateCohorts(ctx context.Context, snaps []string) (map[string]string, error) {
-
 	jsonData, err := json.Marshal(map[string][]string{"snaps": snaps})
 	if err != nil {
 		return nil, err

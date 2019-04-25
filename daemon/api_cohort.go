@@ -48,7 +48,8 @@ func postCohorts(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if len(inst.Snaps) == 0 {
-		return BadRequest("snaps cannot be empty")
+		// nothing to do ¯\_(ツ)_/¯
+		return SyncResponse(map[string]string{}, nil)
 	}
 
 	cohorts, err := getStore(c).CreateCohorts(context.TODO(), inst.Snaps)

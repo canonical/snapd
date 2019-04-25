@@ -50,11 +50,12 @@ func init() {
 	addCommand("create-cohort", shortCreateCohortHelp, longCreateCohortHelp, func() flags.Commander { return &cmdCreateCohort{} }, nil, nil)
 }
 
-type cohortInner struct {
+// output should be YAML, so we use these two as helpers to get that done easy
+type cohortInnerYAML struct {
 	CohortKey string `yaml:"cohort-key"`
 }
-type cohortOut struct {
-	Cohorts map[string]cohortInner `yaml:"cohorts"`
+type cohortOutYAML struct {
+	Cohorts map[string]cohortInnerYAML `yaml:"cohorts"`
 }
 
 func (x *cmdCreateCohort) Execute(args []string) error {
@@ -72,10 +73,10 @@ func (x *cmdCreateCohort) Execute(args []string) error {
 		return err
 	}
 
-	var out cohortOut
-	out.Cohorts = make(map[string]cohortInner, len(cohorts))
+	var out cohortOutYAML
+	out.Cohorts = make(map[string]cohortInnerYAML, len(cohorts))
 	for k, v := range cohorts {
-		out.Cohorts[k] = cohortInner{v}
+		out.Cohorts[k] = cohortInnerYAML{v}
 	}
 
 	enc := yaml.NewEncoder(Stdout)
