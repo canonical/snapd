@@ -74,8 +74,9 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	chg := t.Change()
 	var modelass []byte
-	if err := t.Get("new-model", &modelass); err != nil {
+	if err := chg.Get("new-model", &modelass); err != nil {
 		return err
 	}
 

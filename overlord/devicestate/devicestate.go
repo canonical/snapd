@@ -520,7 +520,6 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	// Set the new model assertion - this *must* be the last thing done
 	// by the change.
 	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
-	setModel.Set("new-model", asserts.Encode(new))
 	for _, tsPrev := range tss {
 		setModel.WaitAll(tsPrev)
 	}
@@ -537,6 +536,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
+	chg.Set("new-model", asserts.Encode(new))
 
 	return chg, nil
 }
