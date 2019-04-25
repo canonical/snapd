@@ -2516,8 +2516,8 @@ func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 			"gadget":       t.new["gadget"],
 			"base":         t.new["base"],
 		})
-		tss, err := devicestate.Remodel(s.state, new)
-		c.Check(tss, IsNil)
+		chg, err := devicestate.Remodel(s.state, new)
+		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
 }
@@ -2561,21 +2561,32 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 		"gadget":         "pc",
 		"base":           "core18",
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
 	})
-	tss, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new)
 	c.Assert(err, IsNil)
-	c.Assert(tss, HasLen, 3)
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tl := chg.Tasks()
+	// 2 snaps,
+	c.Assert(tl, HasLen, 2*3+1)
 
 	// check the tasks
-	tDownloadSnap1 := tss[0].Tasks()[0]
+	tDownloadSnap1 := tl[0]
+	tValidateSnap1 := tl[1]
+	tInstallSnap1 := tl[2]
+	tDownloadSnap2 := tl[3]
+	tValidateSnap2 := tl[4]
+	tInstallSnap2 := tl[5]
+	tSetModel := tl[6]
+
+	// check the tasks
 	c.Assert(tDownloadSnap1.Kind(), Equals, "fake-download")
 	c.Assert(tDownloadSnap1.Summary(), Equals, "Download new-required-snap-1")
 	c.Assert(tDownloadSnap1.WaitTasks(), HasLen, 0)
-	tValidateSnap1 := tss[0].Tasks()[1]
 	c.Assert(tValidateSnap1.Kind(), Equals, "validate-snap")
 	c.Assert(tValidateSnap1.Summary(), Equals, "Validate new-required-snap-1")
 	c.Assert(tDownloadSnap1.WaitTasks(), HasLen, 0)
-	tDownloadSnap2 := tss[1].Tasks()[0]
 	c.Assert(tDownloadSnap2.Kind(), Equals, "fake-download")
 	c.Assert(tDownloadSnap2.Summary(), Equals, "Download new-required-snap-2")
 	// check the ordering, download/validate everything first, then install
@@ -2588,18 +2599,15 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	c.Assert(tDownloadSnap2.WaitTasks(), DeepEquals, []*state.Task{
 		tValidateSnap1,
 	})
-	tValidateSnap2 := tss[1].Tasks()[1]
 	c.Assert(tValidateSnap2.WaitTasks(), DeepEquals, []*state.Task{
 		tDownloadSnap2,
 	})
-	tInstallSnap1 := tss[0].Tasks()[2]
 	c.Assert(tInstallSnap1.WaitTasks(), DeepEquals, []*state.Task{
 		// wait for own check-snap
 		tValidateSnap1,
 		// and also the last check-snap of the download chain
 		tValidateSnap2,
 	})
-	tInstallSnap2 := tss[1].Tasks()[2]
 	c.Assert(tInstallSnap2.WaitTasks(), DeepEquals, []*state.Task{
 		// last snap of the download chain
 		tValidateSnap2,
@@ -2607,7 +2615,6 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 		tInstallSnap1,
 	})
 
-	tSetModel := tss[2].Tasks()[0]
 	c.Assert(tSetModel.Kind(), Equals, "set-model")
 	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 	// setModel waits for everything in the change
@@ -2666,31 +2673,38 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 		"gadget":         "pc",
 		"base":           "core18",
 		"required-snaps": []interface{}{"new-required-snap-1"},
+		"revision":       "1",
 	})
-	tss, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new)
 	c.Assert(err, IsNil)
-	c.Assert(tss, HasLen, 3)
-	tDownloadKernel := tss[0].Tasks()[0]
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tl := chg.Tasks()
+	c.Assert(tl, HasLen, 2*3+1)
+
+	tDownloadKernel := tl[0]
+	tValidateKernel := tl[1]
+	tUpdateKernel := tl[2]
+	tDownloadSnap1 := tl[3]
+	tValidateSnap1 := tl[4]
+	tInstallSnap1 := tl[5]
+	tSetModel := tl[6]
+
 	c.Assert(tDownloadKernel.Kind(), Equals, "fake-download")
 	c.Assert(tDownloadKernel.Summary(), Equals, "Download pc-kernel to track 18")
-	tValidateKernel := tss[0].Tasks()[1]
 	c.Assert(tValidateKernel.Kind(), Equals, "validate-snap")
 	c.Assert(tValidateKernel.Summary(), Equals, "Validate pc-kernel")
-	tUpdateKernel := tss[0].Tasks()[2]
 	c.Assert(tUpdateKernel.Kind(), Equals, "fake-update")
 	c.Assert(tUpdateKernel.Summary(), Equals, "Update pc-kernel to track 18")
-	tDownloadSnap1 := tss[1].Tasks()[0]
 	c.Assert(tDownloadSnap1.Kind(), Equals, "fake-download")
 	c.Assert(tDownloadSnap1.Summary(), Equals, "Download new-required-snap-1")
-	tValidateSnap1 := tss[1].Tasks()[1]
 	c.Assert(tValidateSnap1.Kind(), Equals, "validate-snap")
 	c.Assert(tValidateSnap1.Summary(), Equals, "Validate new-required-snap-1")
-	tInstallSnap1 := tss[1].Tasks()[2]
 	c.Assert(tInstallSnap1.Kind(), Equals, "fake-install")
 	c.Assert(tInstallSnap1.Summary(), Equals, "Install new-required-snap-1")
 
-	c.Assert(tss[2].Tasks()[0].Kind(), Equals, "set-model")
-	c.Assert(tss[2].Tasks()[0].Summary(), Equals, "Set new model assertion")
+	c.Assert(tSetModel.Kind(), Equals, "set-model")
+	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 
 	// check the ordering
 	c.Assert(tDownloadSnap1.WaitTasks(), DeepEquals, []*state.Task{
@@ -2735,10 +2749,15 @@ func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"base":         "core18",
+		"revision":     "1",
 	})
-	tss, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new)
 	c.Assert(err, IsNil)
-	c.Assert(tss, HasLen, 1)
-	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "set-model")
-	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Set new model assertion")
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tl := chg.Tasks()
+	c.Assert(tl, HasLen, 1)
+	tSetModel := tl[0]
+	c.Assert(tSetModel.Kind(), Equals, "set-model")
+	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 }

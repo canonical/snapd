@@ -3304,14 +3304,8 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 		"revision":       "1",
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
-	chg := st.NewChange("remodel", "...")
-	c.Check(tss, HasLen, 4)
-	chg.AddAll(tss[0])
-	chg.AddAll(tss[1])
-	chg.AddAll(tss[2])
-	chg.AddAll(tss[3])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -3399,9 +3393,9 @@ type: base`
 		"revision":     "1",
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, ErrorMatches, "cannot remodel to different bases yet")
-	c.Assert(tss, HasLen, 0)
+	c.Assert(chg, IsNil)
 }
 
 func (ms *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
@@ -3461,13 +3455,8 @@ version: 2.0`
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
-	chg := st.NewChange("remodel", "...")
-	c.Check(tss, HasLen, 3)
-	chg.AddAll(tss[0])
-	chg.AddAll(tss[1])
-	chg.AddAll(tss[2])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)

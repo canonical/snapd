@@ -383,7 +383,7 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 // - Need new session/serial if changing store or model
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
-func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
+func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
 	st.Get("seeded", &seeded)
 	if !seeded {
@@ -526,5 +526,17 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
-	return tss, nil
+	var msg string
+	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
+		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), current.Revision(), new.Revision())
+	} else {
+		// TODO: add test once we support this kind of remodel
+		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), current.BrandID(), new.Model(), new.Revision())
+	}
+	chg := st.NewChange("remodel", msg)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	return chg, nil
 }
