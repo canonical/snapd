@@ -20,8 +20,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/snap"
@@ -49,7 +47,7 @@ func (x *cmdValidateSeed) Execute(args []string) error {
 	}
 
 	if _, err := snap.ReadSeedYaml(x.Positionals.SeedYamlPath); err != nil {
-		return fmt.Errorf("cannot read %q: %v", x.Positionals.SeedYamlPath, err)
+		return err
 	}
 	return nil
 }
