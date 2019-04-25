@@ -24,7 +24,6 @@ import (
 	"os/exec"
 	"regexp"
 
-	"github.com/mvo5/libseccomp-golang"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -97,32 +96,4 @@ func (c *Compiler) Compile(in, out string) error {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
-}
-
-var GoSeccompCanActLog = goSeccompCanActLogImpl
-
-// GoSeccompCanActLogImpl verifies if golang-seccomp supports the ActLog action
-func goSeccompCanActLogImpl() bool {
-	// Guess at the ActLog value by adding one to ActAllow and then verify
-	// that the string representation is what we expect for ActLog. The
-	// value and string is defined in
-	// https://github.com/seccomp/libseccomp-golang/pull/29.
-	//
-	// Ultimately, the fix for this workaround is to be able to use the
-	// GetApi() function created in the PR above. It'll tell us if the
-	// kernel, libseccomp, and libseccomp-golang all support ActLog.
-	var actLog seccomp.ScmpAction = seccomp.ActAllow + 1
-
-	if actLog.String() == "Action: Log system call" {
-		return true
-	}
-	return false
-}
-
-func MockGoSeccompCanActLog(f func() bool) (restore func()) {
-	old := GoSeccompCanActLog
-	GoSeccompCanActLog = f
-	return func() {
-		GoSeccompCanActLog = old
-	}
 }

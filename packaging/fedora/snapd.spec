@@ -455,7 +455,6 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %if ! 0%{?with_bundled}
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i sandbox/seccomp/*.go
 # We don't need the snapcore fork for bolt - it is just a fix on ppc
 sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go errtracker/*.go
 %endif

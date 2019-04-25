@@ -345,9 +345,6 @@ func (b *Backend) SandboxFeatures() []string {
 		tags = append(tags, "kernel:"+feature)
 	}
 	tags = append(tags, "bpf-argument-filtering")
-	if seccomp_compiler.GoSeccompCanActLog() {
-		tags = append(tags, "bpf-actlog")
-	}
 	return tags
 }
 
