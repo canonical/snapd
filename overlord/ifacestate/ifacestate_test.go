@@ -3059,17 +3059,25 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 
 func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  attr: plug-attr
+`
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, coreSnapYaml)
 
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:slot":  map[string]interface{}{"interface": "test"},
-		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:hotplug-slot": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:slot2":        map[string]interface{}{"interface": "test"},
 	})
 	s.state.Set("hotplug-slots", map[string]interface{}{
-		"slot": map[string]interface{}{
-			"name":        "slot",
+		"hotplug-slot": map[string]interface{}{
+			"name":        "hotplug-slot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
@@ -3080,7 +3088,7 @@ func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	s.state.Lock()
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(consumerInfo.Plugs["plug"], nil, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "core"}, Name: "slot"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "core"}, Name: "hotplug-slot"}, nil, nil),
 	}
 
 	ts, err := ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithByHotplugSet())
