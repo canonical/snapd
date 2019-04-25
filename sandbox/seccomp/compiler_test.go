@@ -142,3 +142,48 @@ func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
 
 	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
 }
+
+func (s *compilerSuite) TestSupportsActLogTrue(c *C) {
+	cmd := testutil.MockCommand(c, "snap-seccomp", `
+echo "SCMP_ACT_LOG supported"
+exit 0
+`)
+	defer cmd.Restore()
+
+	compiler, err := seccomp.New(fromCmd(c, cmd))
+	c.Assert(err, IsNil)
+
+	res, err := compiler.ActLogSupported()
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, true)
+}
+
+func (s *compilerSuite) TestSupportsActLogFalse(c *C) {
+	cmd := testutil.MockCommand(c, "snap-seccomp", `
+echo "SCMP_ACT_LOG not supported"
+exit 0
+`)
+	defer cmd.Restore()
+
+	compiler, err := seccomp.New(fromCmd(c, cmd))
+	c.Assert(err, IsNil)
+
+	res, err := compiler.ActLogSupported()
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, false)
+}
+
+func (s *compilerSuite) TestSupportsActLogError(c *C) {
+	cmd := testutil.MockCommand(c, "snap-seccomp", `
+echo "i will not"
+exit 1
+`)
+	defer cmd.Restore()
+
+	compiler, err := seccomp.New(fromCmd(c, cmd))
+	c.Assert(err, IsNil)
+
+	res, err := compiler.ActLogSupported()
+	c.Assert(err, ErrorMatches, "i will not")
+	c.Assert(res, Equals, false)
+}
