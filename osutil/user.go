@@ -53,14 +53,14 @@ type AddUserOptions struct {
 // we check the (user)name ourselves, adduser is a bit too
 // strict (i.e. no `.`) - this regexp is in sync with that SSO
 // allows as valid usernames
-var isValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`).MatchString
+var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 
 func AddUser(name string, opts *AddUserOptions) error {
 	if opts == nil {
 		opts = &AddUserOptions{}
 	}
 
-	if !isValidUsername(name) {
+	if !IsValidUsername(name) {
 		return fmt.Errorf("cannot add user %q: name contains invalid characters", name)
 	}
 
