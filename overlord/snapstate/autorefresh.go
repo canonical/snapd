@@ -371,6 +371,10 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 func (m *autoRefresh) launchAutoRefresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
+	defer func() {
+		tm.Stop()
+		perfTimings.Save(m.state)
+	}()
 
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
@@ -401,10 +405,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
-
-	tm.Stop()
 	perfTimings.AddTag("change-id", chg.ID())
-	perfTimings.Save(m.state)
 
 	return nil
 }
