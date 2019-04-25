@@ -2744,6 +2744,20 @@ func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
