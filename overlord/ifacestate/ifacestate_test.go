@@ -3110,8 +3110,13 @@ plugs:
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:slot":  map[string]interface{}{"interface": "test", "hotplug-gone": true},
-		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:hotplug-slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": true,
+		},
+		"consumer:plug core:slot2": map[string]interface{}{
+			"interface": "test",
+		},
 	})
 }
 
