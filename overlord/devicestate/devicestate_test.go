@@ -2763,74 +2763,6 @@ func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
 	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Set new model assertion")
 }
 
-func (s *deviceMgrSuite) TestUpdateGadgetNopOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		c.FailNow()
-		return errors.New("not reached")
-	})
-	defer restore()
-
-	s.state.Lock()
-
-	t := s.state.NewTask("update-gadget", "update gadget")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo-gaget",
-			Revision: snap.R(33),
-			SnapID:   "foo-id",
-		},
-		Type: snap.TypeGadget,
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
-
-	s.state.Unlock()
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Assert(chg.Err(), IsNil)
-}
-
-func (s *deviceMgrSuite) TestUpdateGadgetNopWithNotGadget(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		c.FailNow()
-		return errors.New("not reached")
-	})
-	defer restore()
-
-	s.state.Lock()
-
-	t := s.state.NewTask("update-gadget", "update gadget")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(33),
-			SnapID:   "foo-id",
-		},
-		Type: snap.TypeGadget,
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
-
-	s.state.Unlock()
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Assert(chg.Err(), IsNil)
-}
-
 var snapYaml = `
 name: foo-gadget
 type: gadget
@@ -2856,12 +2788,9 @@ func mockSnapWithData(c *C, yamlText string, si *snap.SideInfo, content map[stri
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	var updateCalled, cleanupCalled bool
 	var passedRollbackDir, cleanupRollbackDir string
-	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
 		updateCalled = true
 		passedRollbackDir = path
 		return nil
@@ -2931,11 +2860,8 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	var called bool
-	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
 		called = true
 		return gadget.ErrNoUpdate
 	})
@@ -2993,12 +2919,9 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	var updateCalled, rollbackCalled bool
 	var updateRollbackDir, rollbackRollbackDir string
-	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
 		updateRollbackDir = path
 		updateCalled = true
 		return nil

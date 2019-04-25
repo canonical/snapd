@@ -790,11 +790,6 @@ func nopGadgetTrashRollback(current *gadget.Info, rollbackRootDir string) error 
 }
 
 func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		// nothing to do
-		return nil
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -803,17 +798,13 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	if snapsup.Type != snap.TypeGadget {
-		// not a gadget snap, nothing to update
-		return nil
-	}
 
 	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
 	if err != nil {
 		return err
 	}
 	if current == nil {
-		// XXX: during first boot & seeding?
+		// XXX: no updates during first boot & seeding
 		return nil
 	}
 
@@ -843,11 +834,6 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *DeviceManager) undoUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		// nothing to do
-		return nil
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -856,17 +842,13 @@ func (m *DeviceManager) undoUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	if snapsup.Type != snap.TypeGadget {
-		// not a gadget snap, nothing to undo
-		return nil
-	}
 
 	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
 	if err != nil {
 		return err
 	}
 	if current == nil {
-		// XXX: during first boot & seeding?
+		// XXX: no updates during first boot & seeding
 		return nil
 	}
 
@@ -893,11 +875,6 @@ func (m *DeviceManager) undoUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *DeviceManager) cleanupUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		// nothing to do
-		return nil
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -905,10 +882,6 @@ func (m *DeviceManager) cleanupUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 	snapsup, err := snapstate.TaskSnapSetup(t)
 	if err != nil {
 		return err
-	}
-	if snapsup.Type != snap.TypeGadget {
-		// not a gadget snap, nothing to undo
-		return nil
 	}
 
 	snapst, err := snapState(st, snapsup.InstanceName())
