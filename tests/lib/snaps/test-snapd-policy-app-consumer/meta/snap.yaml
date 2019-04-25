@@ -296,6 +296,9 @@ apps:
   screencast-legacy:
     command: bin/run
     plugs: [ screencast-legacy ]
+  session:
+    command: bin/run
+    plugs: [ session ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
