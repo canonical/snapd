@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -1498,7 +1499,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
 	s.state.Unlock()
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
 		return nil, nil
 	})
@@ -1516,7 +1517,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
 	s.state.Unlock()
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
 		return nil, nil
 	})
@@ -1531,7 +1532,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
 		return nil, nil
 	})
@@ -1543,7 +1544,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) (ts []*state.TaskSet, err error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, timings.Measurer) (ts []*state.TaskSet, err error) {
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
 		return ts, nil
@@ -2490,6 +2491,9 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+
+		c.Check(flags.Required, Equals, true)
+
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
@@ -2579,6 +2583,8 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, true)
+
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
@@ -2591,6 +2597,8 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	defer restore()
 
 	restore = devicestate.MockSnapstateUpdate(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, false)
+
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
@@ -2663,4 +2671,36 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 		// and last download in the chain finished
 		tValidateSnap1,
 	})
+}
+
+func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"some-required-snap"},
+	})
+	devicestate.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	tss, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 1)
+	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "set-model")
+	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Set new model assertion")
 }

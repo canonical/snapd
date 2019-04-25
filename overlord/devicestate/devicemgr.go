@@ -363,8 +363,8 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 
 	var tsAll []*state.TaskSet
-	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state)
+	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state, tm)
 	})
 	if err != nil {
 		return err

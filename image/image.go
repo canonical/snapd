@@ -408,6 +408,23 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 	return cps
 }
 
+// hasBase checks if the given snap has a base in the given localInfos and
+// snaps. If not an error is returned.
+func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
+	// snap needs no base: nothing to do
+	if snap.Base == "" {
+		return nil
+	}
+	// core provides everything that core16 needs
+	if snap.Base == "core16" && local.hasName(snaps, "core") {
+		return nil
+	}
+	if local.hasName(snaps, snap.Base) {
+		return nil
+	}
+	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", snap.InstanceName(), snap.Base)
+}
+
 func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -540,8 +557,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		if info.Type == snap.TypeGadget && info.Base != model.Base() {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
 		}
-		if info.Base != "" && !local.hasName(snaps, info.Base) {
-			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
+		if err := hasBase(info, local, snaps); err != nil {
+			return err
 		}
 		// warn about missing default providers
 		for _, dp := range neededDefaultProviders(info) {
