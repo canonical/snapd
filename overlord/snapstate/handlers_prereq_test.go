@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -95,6 +96,16 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 
 func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	s.state.Lock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -259,6 +270,16 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 	os.Setenv("SNAPD_PREREQS_CHANNEL", "candidate")
 	defer os.Unsetenv("SNAPD_PREREQS_CHANNEL")
 	s.state.Lock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -403,6 +424,9 @@ func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
 }
 
 func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	s.state.Lock()
 
 	t := s.state.NewTask("prerequisites", "test")
@@ -430,6 +454,18 @@ func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
 			action: store.SnapAction{
 				Action:       "install",
 				InstanceName: "core16",
+				Channel:      "stable",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "snapd",
 				Channel:      "stable",
 			},
 			revno: snap.R(11),

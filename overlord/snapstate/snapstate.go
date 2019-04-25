@@ -94,7 +94,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			return nil, err
 		}
 		if model == nil || model.Base() == "" {
-			if !experimentalAllowSnapd {
+			// always allow the snapd snap on classic
+			if !release.OnClassic && !experimentalAllowSnapd {
 				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 			}
 		}
