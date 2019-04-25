@@ -163,7 +163,8 @@ type Store struct {
 	// reused http client
 	client *http.Client
 
-	dauthCtx DeviceAndAuthContext
+	dauthCtx  DeviceAndAuthContext
+	sessionMu sync.Mutex
 
 	mu                sync.Mutex
 	suggestedCurrency string
@@ -556,6 +557,25 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no device and auth context")
 	}
 
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	// check that no other goroutine has already got a new session etc...
+	device1, err := s.dauthCtx.Device()
+	if err != nil {
+		return err
+	}
+	// We can replace device with "device1" here because Device
+	// and UpdateDeviceAuth (and the underlying SetDevice)
+	// require/use the global state lock, so the reading/setting
+	// values have a total order, and device1 cannot come before
+	// device in that order. See also:
+	// https://github.com/snapcore/snapd/pull/6716#discussion_r277025834
+	if *device1 != *device {
+		// nothing to do
+		*device = *device1
+		return nil
+	}
+
 	nonce, err := requestStoreDeviceNonce(s.client, s.endpointURL(deviceNonceEndpPath, nil).String())
 	if err != nil {
 		return err
@@ -580,9 +600,36 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 	return nil
 }
 
+// EnsureDeviceSession makes sure the store has a device session available.
+// Expects the store to have an AuthContext.
+func (s *Store) EnsureDeviceSession() (*auth.DeviceState, error) {
+	if s.dauthCtx == nil {
+		return nil, fmt.Errorf("internal error: no authContext")
+	}
+
+	device, err := s.dauthCtx.Device()
+	if err != nil {
+		return nil, err
+	}
+
+	if device.SessionMacaroon != "" {
+		return device, nil
+	}
+	if device.Serial == "" {
+		return nil, ErrNoSerial
+	}
+	// we don't have a session yet but have a serial, try
+	// to get a session
+	err = s.refreshDeviceSession(device)
+	if err != nil {
+		return nil, err
+	}
+	return device, err
+}
+
 // authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
 func authenticateDevice(r *http.Request, device *auth.DeviceState, apiLevel apiLevel) {
-	if device.SessionMacaroon != "" {
+	if device != nil && device.SessionMacaroon != "" {
 		r.Header.Set(hdrSnapDeviceAuthorization[apiLevel], fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
 	}
 }
@@ -851,23 +898,16 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	customStore := s.setStoreID(req, reqOptions.APILevel)
 
 	if s.dauthCtx != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
-		device, err := s.dauthCtx.Device()
-		if err != nil {
+		device, err := s.EnsureDeviceSession()
+		if err != nil && err != ErrNoSerial {
 			return nil, err
 		}
-		// we don't have a session yet but have a serial, try
-		// to get a session
-		if device.SessionMacaroon == "" && device.Serial != "" {
-			err = s.refreshDeviceSession(device)
-			if err == ErrNoSerial {
-				// missing serial assertion, log and continue without device authentication
-				logger.Debugf("cannot set device session: %v", err)
-			}
-			if err != nil && err != ErrNoSerial {
-				return nil, err
-			}
+		if err == ErrNoSerial {
+			// missing serial assertion, log and continue without device authentication
+			logger.Debugf("cannot set device session: %v", err)
+		} else {
+			authenticateDevice(req, device, reqOptions.APILevel)
 		}
-		authenticateDevice(req, device, reqOptions.APILevel)
 	}
 
 	// only set user authentication if user logged in to the store
