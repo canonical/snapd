@@ -33,10 +33,16 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-// DeviceAssertions helps exposing the assertions about device identity.
-// All methods should return state.ErrNoState if the underlying needed
+// A Backend exposes device information and device identity
+// assertions, signing session requests and proxy store assertion.
+// Methods can return state.ErrNoState if the underlying needed
 // information is not (yet) available.
-type DeviceAssertions interface {
+type Backend interface {
+	// Device returns current device state.
+	Device() (*auth.DeviceState, error)
+	// SetDevice sets the device details in the state.
+	SetDevice(device *auth.DeviceState) error
+
 	// Model returns the device model assertion.
 	Model() (*asserts.Model, error)
 	// Serial returns the device serial assertion.
@@ -44,46 +50,55 @@ type DeviceAssertions interface {
 
 	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
 	DeviceSessionRequestParams(nonce string) (*store.DeviceSessionRequestParams, error)
+
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
 }
 
 // storeContext implements store.DeviceAndAuthContext.
 type storeContext struct {
-	state         *state.State
-	deviceAsserts DeviceAssertions
+	state *state.State
+	b     Backend
 }
 
 var _ store.DeviceAndAuthContext = (*storeContext)(nil)
 
 // New returns a store.DeviceAndAuthContext.
-func New(st *state.State, deviceAsserts DeviceAssertions) store.DeviceAndAuthContext {
-	return &storeContext{state: st, deviceAsserts: deviceAsserts}
+func New(st *state.State, b Backend) store.DeviceAndAuthContext {
+	return &storeContext{state: st, b: b}
 }
 
 // Device returns current device state.
 func (sc *storeContext) Device() (*auth.DeviceState, error) {
+	if sc.b == nil {
+		return &auth.DeviceState{}, nil
+	}
+
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	return auth.Device(sc.state)
+	return sc.b.Device()
 }
 
 // UpdateDeviceAuth updates the device auth details in state.
 // The last update wins but other device details are left unchanged.
 // It returns the updated device state value.
 func (sc *storeContext) UpdateDeviceAuth(device *auth.DeviceState, newSessionMacaroon string) (actual *auth.DeviceState, err error) {
+	if sc.b == nil {
+		return nil, fmt.Errorf("internal error: no device state")
+	}
+
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	cur, err := auth.Device(sc.state)
+	cur, err := sc.b.Device()
 	if err != nil {
 		return nil, err
 	}
 
 	// just do it, last update wins
 	cur.SessionMacaroon = newSessionMacaroon
-	if err := auth.SetDevice(sc.state, cur); err != nil {
+	if err := sc.b.SetDevice(cur); err != nil {
 		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
 	}
 
@@ -125,9 +140,9 @@ func StoreID(mod *asserts.Model) string {
 // the fallback one if the state has none set (yet).
 func (sc *storeContext) StoreID(fallback string) (string, error) {
 	var mod *asserts.Model
-	if sc.deviceAsserts != nil {
+	if sc.b != nil {
 		var err error
-		mod, err = sc.deviceAsserts.Model()
+		mod, err = sc.b.Model()
 		if err != nil && err != state.ErrNoState {
 			return "", err
 		}
@@ -143,10 +158,10 @@ type DeviceSessionRequestParams = store.DeviceSessionRequestParams
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns store.ErrNoSerial if the device serial is not yet initialized.
 func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
-	if sc.deviceAsserts == nil {
+	if sc.b == nil {
 		return nil, store.ErrNoSerial
 	}
-	params, err := sc.deviceAsserts.DeviceSessionRequestParams(nonce)
+	params, err := sc.b.DeviceSessionRequestParams(nonce)
 	if err == state.ErrNoState {
 		return nil, store.ErrNoSerial
 	}
@@ -159,9 +174,9 @@ func (sc *storeContext) DeviceSessionRequestParams(nonce string) (*DeviceSession
 // ProxyStoreParams returns the id and URL of the proxy store if one is set. Returns the defaultURL otherwise and id = "".
 func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
 	var sto *asserts.Store
-	if sc.deviceAsserts != nil {
+	if sc.b != nil {
 		var err error
-		sto, err = sc.deviceAsserts.ProxyStore()
+		sto, err = sc.b.ProxyStore()
 		if err != nil && err != state.ErrNoState {
 			return "", nil, err
 		}

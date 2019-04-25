@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -281,7 +280,7 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 }
 
 func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return nil, err
 	}
