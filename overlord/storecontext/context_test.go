@@ -136,12 +136,7 @@ func (s *storeCtxSuite) TestDeviceForNonExistent(c *C) {
 
 func (s *storeCtxSuite) TestDevice(c *C) {
 	device := &auth.DeviceState{Brand: "some-brand"}
-	s.state.Lock()
-	err := auth.SetDevice(s.state, device)
-	s.state.Unlock()
-	c.Check(err, IsNil)
-
-	storeCtx := storecontext.New(s.state, nil)
+	storeCtx := storecontext.New(s.state, &testBackend{device: device})
 
 	deviceFromState, err := storeCtx.Device()
 	c.Check(err, IsNil)
@@ -149,16 +144,11 @@ func (s *storeCtxSuite) TestDevice(c *C) {
 }
 
 func (s *storeCtxSuite) TestUpdateDeviceAuth(c *C) {
-	s.state.Lock()
-	device, err := auth.Device(s.state)
-	s.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{})
+	device := &auth.DeviceState{}
+	storeCtx := storecontext.New(s.state, &testBackend{device: device})
 
 	sessionMacaroon := "the-device-macaroon"
-
-	storeCtx := storecontext.New(s.state, nil)
-	device, err = storeCtx.UpdateDeviceAuth(device, sessionMacaroon)
+	device, err := storeCtx.UpdateDeviceAuth(device, sessionMacaroon)
 	c.Check(err, IsNil)
 
 	deviceFromState, err := storeCtx.Device()
@@ -168,26 +158,19 @@ func (s *storeCtxSuite) TestUpdateDeviceAuth(c *C) {
 }
 
 func (s *storeCtxSuite) TestUpdateDeviceAuthOtherUpdate(c *C) {
-	s.state.Lock()
-	device, _ := auth.Device(s.state)
+	device := &auth.DeviceState{}
 	otherUpdateDevice := *device
 	otherUpdateDevice.SessionMacaroon = "othe-session-macaroon"
 	otherUpdateDevice.KeyID = "KEYID"
-	err := auth.SetDevice(s.state, &otherUpdateDevice)
-	s.state.Unlock()
-	c.Check(err, IsNil)
+
+	b := &testBackend{device: &otherUpdateDevice}
+	storeCtx := storecontext.New(s.state, b)
 
 	sessionMacaroon := "the-device-macaroon"
-
-	storeCtx := storecontext.New(s.state, nil)
 	curDevice, err := storeCtx.UpdateDeviceAuth(device, sessionMacaroon)
 	c.Assert(err, IsNil)
 
-	s.state.Lock()
-	deviceFromState, err := auth.Device(s.state)
-	s.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(deviceFromState, DeepEquals, curDevice)
+	c.Check(b.device, DeepEquals, curDevice)
 	c.Check(curDevice, DeepEquals, &auth.DeviceState{
 		KeyID:           "KEYID",
 		SessionMacaroon: sessionMacaroon,
@@ -217,7 +200,7 @@ func (s *storeCtxSuite) TestStoreIDFromEnv(c *C) {
 	c.Check(storeID, Equals, "env-store-id")
 }
 
-func (s *storeCtxSuite) TestDeviceSessionRequestParamsNilDeviceAssertions(c *C) {
+func (s *storeCtxSuite) TestDeviceSessionRequestParamsNilBackend(c *C) {
 	storeCtx := storecontext.New(s.state, nil)
 
 	_, err := storeCtx.DeviceSessionRequestParams("NONCE")
@@ -307,12 +290,26 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw=`
 )
 
-type testDeviceAssertions struct {
+type testBackend struct {
 	nothing bool
+	device  *auth.DeviceState
 }
 
-func (da *testDeviceAssertions) Model() (*asserts.Model, error) {
-	if da.nothing {
+func (b *testBackend) Device() (*auth.DeviceState, error) {
+	freshDevice := auth.DeviceState{}
+	if b.device != nil {
+		freshDevice = *b.device
+	}
+	return &freshDevice, nil
+}
+
+func (b *testBackend) SetDevice(d *auth.DeviceState) error {
+	*b.device = *d
+	return nil
+}
+
+func (b *testBackend) Model() (*asserts.Model, error) {
+	if b.nothing {
 		return nil, state.ErrNoState
 	}
 	a, err := asserts.Decode([]byte(exModel))
@@ -322,8 +319,8 @@ func (da *testDeviceAssertions) Model() (*asserts.Model, error) {
 	return a.(*asserts.Model), nil
 }
 
-func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
-	if da.nothing {
+func (b *testBackend) Serial() (*asserts.Serial, error) {
+	if b.nothing {
 		return nil, state.ErrNoState
 	}
 	a, err := asserts.Decode([]byte(exSerial))
@@ -333,8 +330,8 @@ func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
-func (da *testDeviceAssertions) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
-	if da.nothing {
+func (b *testBackend) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
+	if b.nothing {
 		return nil, state.ErrNoState
 	}
 	ex := strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)
@@ -361,8 +358,8 @@ func (da *testDeviceAssertions) DeviceSessionRequestParams(nonce string) (*store
 	}, nil
 }
 
-func (da *testDeviceAssertions) ProxyStore() (*asserts.Store, error) {
-	if da.nothing {
+func (b *testBackend) ProxyStore() (*asserts.Store, error) {
+	if b.nothing {
 		return nil, state.ErrNoState
 	}
 	a, err := asserts.Decode([]byte(exStore))
@@ -374,7 +371,7 @@ func (da *testDeviceAssertions) ProxyStore() (*asserts.Store, error) {
 
 func (s *storeCtxSuite) TestMissingDeviceAssertions(c *C) {
 	// no assertions in state
-	storeCtx := storecontext.New(s.state, &testDeviceAssertions{nothing: true})
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
 	_, err := storeCtx.DeviceSessionRequestParams("NONCE")
 	c.Check(err, Equals, store.ErrNoSerial)
@@ -391,7 +388,7 @@ func (s *storeCtxSuite) TestMissingDeviceAssertions(c *C) {
 
 func (s *storeCtxSuite) TestWithDeviceAssertions(c *C) {
 	// having assertions in state
-	storeCtx := storecontext.New(s.state, &testDeviceAssertions{})
+	storeCtx := storecontext.New(s.state, &testBackend{})
 
 	params, err := storeCtx.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)
@@ -432,7 +429,7 @@ func (s *storeCtxSuite) TestWithDeviceAssertionsGenericClassicModel(c *C) {
 	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
 	defer r()
 	// having assertions in state
-	storeCtx := storecontext.New(s.state, &testDeviceAssertions{})
+	storeCtx := storecontext.New(s.state, &testBackend{})
 
 	// for the generic classic model we continue to consider the env var
 	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
@@ -449,7 +446,7 @@ func (s *storeCtxSuite) TestWithDeviceAssertionsGenericClassicModelNoEnvVar(c *C
 	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
 	defer r()
 	// having assertions in state
-	storeCtx := storecontext.New(s.state, &testDeviceAssertions{})
+	storeCtx := storecontext.New(s.state, &testBackend{})
 
 	// for the generic classic model we continue to consider the env var
 	// but when the env var is unset we don't do anything wrong.
