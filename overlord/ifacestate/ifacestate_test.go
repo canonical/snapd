@@ -1462,16 +1462,32 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  static: plug-static-value
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+  static: slot-static-value
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	connState := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface":    "test",
-			"slot-static":  map[string]interface{}{"attr1": "value1"},
-			"slot-dynamic": map[string]interface{}{"attr2": "value2"},
-			"plug-static":  map[string]interface{}{"attr3": "value3"},
-			"plug-dynamic": map[string]interface{}{"attr4": "value4"},
+			"slot-static":  map[string]interface{}{"static": "slot-static-value"},
+			"slot-dynamic": map[string]interface{}{"dynamic": "slot-dynamic-value"},
+			"plug-static":  map[string]interface{}{"static": "plug-static-value"},
+			"plug-dynamic": map[string]interface{}{"dynamic": "plug-dynamic-value"},
 		},
 	}
 
@@ -1494,7 +1510,7 @@ func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitAll(ts)
 	change.AddTask(terr)
-	c.Assert(change.Tasks(), HasLen, 4)
+	c.Assert(change.Tasks(), HasLen, 2)
 	s.state.Unlock()
 
 	s.settle(c)
