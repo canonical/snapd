@@ -39,3 +39,9 @@ execute: |
     snap download --cohort="MSBlRmU4QlRSNUw1VjlGN3lIZU1BUHhrRXIyTmRVWE10dyAxNTU1NTE0MzA5IDg3ZmUwMjhkZDFjMTQ1MDY5N2QyZjdiMGZkMzgzODk0NjMzMmFhOTZmZmFjZmFlNmU2MGQyOTNjYzE1OTE3NWY=" test-snapd-tools
     ls test-snapd-tools_*.snap
     verify_asserts test-snapd-tools_*.assert
+    rm -v test-snapd-tools*
+
+    echo "Can't ask for invalid cohort"
+    ! snap download --cohort="what" test-snapd-tools 2>out
+    MATCH 'cannot download snap.*: Invalid cohort key' < out
+
