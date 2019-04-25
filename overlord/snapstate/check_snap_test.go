@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -867,68 +868,82 @@ var systemUsersTests = []struct {
 	noGroup bool
 	noUser  bool
 	scVer   string
+	actLog  bool
 	error   string
 }{{
 	sysIDs: "[daemon]",
 	scVer:  "2.4",
+	actLog: true,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	scVer:   "2.4",
+	actLog: true,
 }, {
 	sysIDs: "[daemon, allowed-not]",
 	scVer:  "2.4",
+	actLog: true,
 	error:  `Unsupported system user "allowed-not"`,
 }, {
 	sysIDs:  "[allowed-not, daemon]",
 	classic: true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `Unsupported system user "allowed-not"`,
 }, {
 	sysIDs: "[inv@lid]",
 	scVer:  "2.4",
+	actLog: true,
 	error:  `Invalid system user "inv@lid"`,
 }, {
 	sysIDs:  "['inv@lid']",
 	classic: true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `Invalid system user "inv@lid"`,
 }, {
 	sysIDs: "[snap.user]",
 	scVer:  "2.4",
+	actLog: true,
 	error:  `Invalid system user "snap.user"`,
 }, {
 	sysIDs:  "[snap_user]",
 	classic: true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `Invalid system user "snap_user"`,
 }, {
 	sysIDs:  "[daemon]",
 	noGroup: true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	noGroup: true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs: "[daemon]",
 	noUser: true,
 	scVer:  "2.4",
+	actLog: true,
 	error:  `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	noUser:  true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
 	noUser:  true,
 	noGroup: true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs:  "[daemon]",
@@ -936,24 +951,40 @@ var systemUsersTests = []struct {
 	noUser:  true,
 	noGroup: true,
 	scVer:   "2.4",
+	actLog: true,
 	error:   `This snap requires that the \"daemon\" system user and group are present on the system. For example, \"useradd --system --user-group --home-dir=/nonexistent --shell=/bin/false daemon\" could be used to create this user and group. See \"man useradd\" for details.`,
 }, {
 	sysIDs: "[daemon]",
 	scVer:  "2.3",
+	actLog: true,
 	error:  `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	scVer:   "2.3",
+	actLog: true,
 	error:   `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	scVer:   "3.0",
+	actLog: true,
 }, {
 	sysIDs:  "[daemon]",
 	classic: true,
 	scVer:   "3.0",
+	actLog: true,
+}, {
+	sysIDs: "[daemon]",
+	scVer:  "2.4",
+	actLog: false,
+	error:  `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
+}, {
+	sysIDs:  "[daemon]",
+	classic: true,
+	scVer:   "2.4",
+	actLog:  false,
+	error:   `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
@@ -964,6 +995,9 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 		restore = interfaces.MockLibseccompCompilerVersion(func() (string, error) {
 			return test.scVer, nil
 		})
+		defer restore()
+
+		restore = seccomp_compiler.MockGoSeccompCanActLog(func() bool { return test.actLog })
 		defer restore()
 
 		release.OnClassic = test.classic

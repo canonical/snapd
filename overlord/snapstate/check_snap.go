@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -472,6 +473,16 @@ func checkSystemUsers(si *snap.Info) error {
 	// cannot reliably work around with this feature.
 	if maj < 2 || (maj == 2 && min < 4) {
 		return fmt.Errorf(`This snap requires that snapd be compiled against libseccomp >= 2.4.`)
+	}
+
+	// Due to https://github.com/seccomp/libseccomp-golang/issues/22,
+	// golang-seccomp <= 0.9.0 cannot create correct BPFs for this feature.
+	// The package does not contain any version information, but we know
+	// that ActLog was implemented in the library after this issue was
+	// fixed, so base the decision on that. ActLog is first available in
+	// 0.9.1.
+	if !seccomp_compiler.GoSeccompCanActLog() {
+		return fmt.Errorf(`This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`)
 	}
 
 	for _, user := range si.SystemUsers {
