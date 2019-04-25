@@ -1,3 +1,9 @@
+snapd (2.39~pre1) xenial; urgency=medium
+
+  * New 2.39~pre1 beta release
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 18 Apr 2019 18:27:01 +0200
+
 snapd (2.38.1) xenial; urgency=medium
 
   * New upstream release, LP: #1824394

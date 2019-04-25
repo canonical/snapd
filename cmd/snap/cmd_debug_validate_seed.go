@@ -17,16 +17,37 @@
  *
  */
 
-package devicestate
+package main
 
 import (
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/snap"
 )
 
-func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, model *asserts.Model) error {
-	device.Brand = model.BrandID()
-	device.Model = model.Model()
-	return SetDevice(st, device)
+type cmdValidateSeed struct {
+	Positionals struct {
+		SeedYamlPath string `positional-arg-name:"<seed-yaml-path>"`
+	} `positional-args:"true"`
+}
+
+func init() {
+	cmd := addDebugCommand("validate-seed",
+		"(internal) validate seed.yaml",
+		"(internal) validate seed.yaml",
+		func() flags.Commander {
+			return &cmdValidateSeed{}
+		}, nil, nil)
+	cmd.hidden = true
+}
+
+func (x *cmdValidateSeed) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	if _, err := snap.ReadSeedYaml(x.Positionals.SeedYamlPath); err != nil {
+		return err
+	}
+	return nil
 }

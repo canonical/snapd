@@ -195,7 +195,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
 		Serial: "serialserial",
@@ -293,6 +293,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 		},
 		Current:  snap.R(1),
 		SnapType: "os",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
 	})
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
@@ -1507,7 +1510,7 @@ type: os
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -1591,7 +1594,7 @@ type: kernel`
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -2440,7 +2443,7 @@ func (s *storeCtxSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "fallback")
 
 	// setup model in system statey
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -2474,7 +2477,7 @@ func (s *storeCtxSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	c.Assert(err, IsNil)
 	err = kpMgr.Put(deviceKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -3263,6 +3266,16 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// pretend we have an old required snap installed
+	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
+	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
+
 	// create/set custom model assertion
 	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
 		"account-id":   "my-brand",
@@ -3278,7 +3291,7 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	model := makeModelAssertion(c, brandSigning, nil)
 
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -3307,10 +3320,27 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
-	info, err := snapstate.CurrentInfo(st, "foo")
+	// the new required-snap "foo" is installed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.Version, Equals, "1.0")
+
+	// and marked required
+	c.Check(snapst.Required, Equals, true)
+
+	// and core is still marked required
+	err = snapstate.Get(st, "core", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, true)
+
+	// but old-required-snap-1 is no longer marked required
+	err = snapstate.Get(st, "old-required-snap-1", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, false)
 
 	// ensure sorting is correct
 	tasks := chg.Tasks()
@@ -3354,7 +3384,7 @@ type: base`
 		"brand-id":     "can0nical",
 	})
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "can0nical",
 		Model: "my-model",
 	})
@@ -3415,7 +3445,7 @@ version: 2.0`
 		"brand-id":     "can0nical",
 	})
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "can0nical",
 		Model: "my-model",
 	})
@@ -3505,7 +3535,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 		KeyID: deviceKey.PublicKey().ID(),
@@ -3564,7 +3594,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := auth.Device(st)
+	device, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "my-model")
