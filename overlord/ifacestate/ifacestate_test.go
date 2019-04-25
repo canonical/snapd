@@ -3117,6 +3117,22 @@ plugs:
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  attr: plug-value
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+  attr: slot-value
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3125,12 +3141,12 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"plug-static": map[string]interface{}{
-				"attr1": "value2",
-				"attr3": "value3",
+				"attr":       "stored-plug-value",
+				"other-attr": "irrelevant-value",
 			},
 			"slot-static": map[string]interface{}{
-				"attr2": "value4",
-				"attr4": "value6",
+				"attr":       "stored-slot-value",
+				"other-attr": "irrelevant-value",
 			},
 		},
 	})
@@ -3148,13 +3164,13 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(conn.Plug.Name(), Equals, "plug")
 	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"attr1": "value2",
-		"attr3": "value3",
+		"other-attr": "irrelevant-value",
+		"attr":       "stored-plug-value",
 	})
 	c.Assert(conn.Slot.Name(), Equals, "slot")
 	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"attr2": "value4",
-		"attr4": "value6",
+		"other-attr": "irrelevant-value",
+		"attr":       "stored-slot-value",
 	})
 }
 
