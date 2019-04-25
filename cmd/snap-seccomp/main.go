@@ -695,12 +695,11 @@ func preprocess(content []byte) (unrestricted, complain bool) {
 	return unrestricted, complain
 }
 
-func complainAction() seccomp.ScmpAction {
-	// XXX: Work around some distributions not having a new enough
-	// libseccomp-golang that declares ActLog. Instead, we'll guess at its
-	// value by adding one to ActAllow and then verify that the string
-	// representation is what we expect for ActLog. The value and string is
-	// defined in https://github.com/seccomp/libseccomp-golang/pull/29.
+func actLogSupported() bool {
+	// Guess at the ActLog value by adding one to ActAllow and then verify
+	// that the string representation is what we expect for ActLog. The
+	// value and string is defined in
+	// https://github.com/seccomp/libseccomp-golang/pull/29.
 	//
 	// Ultimately, the fix for this workaround is to be able to use the
 	// GetApi() function created in the PR above. It'll tell us if the
@@ -708,7 +707,16 @@ func complainAction() seccomp.ScmpAction {
 	var actLog seccomp.ScmpAction = seccomp.ActAllow + 1
 
 	if actLog.String() == "Action: Log system call" {
-		return actLog
+		return true
+	}
+	return false
+}
+
+func complainAction() seccomp.ScmpAction {
+	// XXX: Work around some distributions not having a new enough
+	// libseccomp-golang that declares ActLog.
+	if actLogSupported() {
+		return seccomp.ActLog
 	}
 
 	// Because ActLog is functionally ActAllow with logging, if we don't
@@ -850,6 +858,13 @@ func main() {
 		err = showSeccompLibraryVersion()
 	case "version-info":
 		err = showVersionInfo()
+	case "actlog-supported":
+		if actLogSupported() {
+			fmt.Printf("SCMP_ACT_LOG supported\n")
+			os.Exit(0)
+		}
+		fmt.Printf("SCMP_ACT_LOG not supported\n")
+		os.Exit(1)
 	default:
 		err = fmt.Errorf("unsupported argument %q", cmd)
 	}
