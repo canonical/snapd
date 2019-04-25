@@ -42,6 +42,7 @@ prepare: |
     fi
 
 restore: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
     mv -f "$SRC".orig "$SRC"
     "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
@@ -51,6 +52,7 @@ restore: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     # other tests ensure seccomp is available so we can skip any systems that
