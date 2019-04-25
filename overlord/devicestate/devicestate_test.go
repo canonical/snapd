@@ -2788,21 +2788,14 @@ func mockSnapWithData(c *C, yamlText string, si *snap.SideInfo, content map[stri
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
-	var updateCalled, cleanupCalled bool
-	var passedRollbackDir, cleanupRollbackDir string
+	var updateCalled bool
+	var passedRollbackDir string
 	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
 		updateCalled = true
 		passedRollbackDir = path
 		return nil
 	})
 	defer restore()
-	restore = devicestate.MockGadgetTrashRollback(func(current *gadget.Info, path string) error {
-		cleanupCalled = true
-		cleanupRollbackDir = path
-		return nil
-	})
-	defer restore()
-
 	siCurrent := &snap.SideInfo{
 		RealName: "foo-gadget",
 		Revision: snap.R(33),
@@ -2850,12 +2843,8 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(updateCalled, Equals, true)
-	c.Check(cleanupCalled, Equals, true)
-	var rollbackDir string
-	t.Get("gadget-rollback-dir", &rollbackDir)
-	c.Check(rollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget"))
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
 	c.Check(rollbackDir, Equals, passedRollbackDir)
-	c.Check(rollbackDir, Equals, cleanupRollbackDir)
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
 
@@ -2912,25 +2901,15 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(called, Equals, true)
-	var rollbackDir string
-	t.Get("gadget-rollback-dir", &rollbackDir)
-	c.Check(rollbackDir, Equals, "")
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
-	var updateCalled, rollbackCalled bool
-	var updateRollbackDir, rollbackRollbackDir string
+	var updateCalled bool
+	var updateRollbackDir string
 	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
 		updateRollbackDir = path
 		updateCalled = true
-		return nil
-	})
-	defer restore()
-
-	restore = devicestate.MockGadgetRollback(func(current, update *gadget.Info, path string) error {
-		rollbackRollbackDir = path
-		rollbackCalled = true
 		return nil
 	})
 	defer restore()
@@ -2984,14 +2963,10 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
 	defer s.state.Unlock()
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Assert(chg.Err(), NotNil)
-	c.Check(t.Status(), Equals, state.UndoneStatus)
+	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(terr.Status(), Equals, state.ErrorStatus)
 	c.Check(updateCalled, Equals, true)
-	c.Check(rollbackCalled, Equals, true)
-	var rollbackDir string
-	t.Get("gadget-rollback-dir", &rollbackDir)
 	c.Check(updateRollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget"))
-	c.Check(rollbackRollbackDir, Equals, updateRollbackDir)
-	// one for do, another for undo
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem, state.RestartSystem})
+	// only one request for task do
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }

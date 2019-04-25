@@ -776,16 +776,10 @@ func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (curr
 }
 
 var (
-	gadgetUpdate        = nopGadgetOp
-	gadgetRollback      = nopGadgetOp
-	gadgetTrashRollback = nopGadgetTrashRollback
+	gadgetUpdate = nopGadgetOp
 )
 
 func nopGadgetOp(current, update *gadget.Info, rollbackRootDir string) error {
-	return nil
-}
-
-func nopGadgetTrashRollback(current *gadget.Info, rollbackRootDir string) error {
 	return nil
 }
 
@@ -824,83 +818,9 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	t.Set("gadget-rollback-dir", snapRollbackDir)
-
 	t.SetStatus(state.DoneStatus)
 
 	st.RequestRestart(state.RestartSystem)
-
-	return nil
-}
-
-func (m *DeviceManager) undoUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
-
-	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
-	if err != nil {
-		return err
-	}
-	if current == nil {
-		// XXX: no updates during first boot & seeding
-		return nil
-	}
-
-	var snapRollbackDir string
-
-	t.Get("gadget-rollback-dir", &snapRollbackDir)
-
-	st.Unlock()
-	err = gadgetRollback(current, update, snapRollbackDir)
-	st.Lock()
-	if err != nil {
-		if err == gadget.ErrNoUpdate {
-			// no update, no rollback
-			return nil
-		}
-		return err
-	}
-
-	t.SetStatus(state.UndoneStatus)
-
-	st.RequestRestart(state.RestartSystem)
-
-	return nil
-}
-
-func (m *DeviceManager) cleanupUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return err
-	}
-
-	snapst, err := snapState(st, snapsup.InstanceName())
-	if err != nil {
-		return err
-	}
-
-	currentInfo, err := currentGadgetInfo(snapst)
-	if err != nil {
-		return err
-	}
-
-	var snapRollbackDir string
-
-	t.Get("gadget-rollback-dir", &snapRollbackDir)
-
-	st.Unlock()
-	gadgetTrashRollback(currentInfo, snapRollbackDir)
-	st.Lock()
 
 	return nil
 }

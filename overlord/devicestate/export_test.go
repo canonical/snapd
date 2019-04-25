@@ -145,19 +145,3 @@ func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error
 		gadgetUpdate = old
 	}
 }
-
-func MockGadgetRollback(mock func(current, update *gadget.Info, path string) error) (restore func()) {
-	old := gadgetRollback
-	gadgetRollback = mock
-	return func() {
-		gadgetRollback = old
-	}
-}
-
-func MockGadgetTrashRollback(mock func(current *gadget.Info, path string) error) (restore func()) {
-	old := gadgetTrashRollback
-	gadgetTrashRollback = mock
-	return func() {
-		gadgetTrashRollback = old
-	}
-}
