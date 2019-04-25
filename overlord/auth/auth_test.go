@@ -374,22 +374,6 @@ func (as *authSuite) TestRemove(c *C) {
 	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
-func (as *authSuite) TestSetDevice(c *C) {
-	as.state.Lock()
-	device, err := auth.Device(as.state)
-	as.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{})
-
-	as.state.Lock()
-	err = auth.SetDevice(as.state, &auth.DeviceState{Brand: "some-brand"})
-	c.Check(err, IsNil)
-	device, err = auth.Device(as.state)
-	as.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
-}
-
 func (as *authSuite) TestUsers(c *C) {
 	as.state.Lock()
 	user1, err1 := auth.NewUser(as.state, "user1", "email1@test.com", "macaroon", []string{"discharge"})

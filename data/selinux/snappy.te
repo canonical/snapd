@@ -329,7 +329,9 @@ allow snappy_t unconfined_t:file { open read };
 # snapd executes runuser to take snapshots of user's snap data
 allow snappy_t self:capability { setuid setgid };
 allow snappy_t self:process setsched;
-# runuser also logs to audit
+# runuser uses kernel keyring
+allow snappy_t self:key { search write };
+# runuser logs to audit
 logging_send_audit_msgs(snappy_t)
 
 ########################################
@@ -432,6 +434,7 @@ kernel_getattr_proc(snappy_confine_t)
 term_getattr_pty_fs(snappy_confine_t)
 # term_getattr_generic_ptys() is not supported by core policy in RHEL7
 allow snappy_confine_t devpts_t:chr_file getattr;
+term_search_ptys(snappy_confine_t)
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 allow snappy_confine_t unconfined_t:file getattr;
