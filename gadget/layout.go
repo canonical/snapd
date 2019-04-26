@@ -31,7 +31,7 @@ type PositioningConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset Size
-	// SectorSize is the size of the sector to be used for calcualtions
+	// SectorSize is the size of the sector to be used for calculations
 	SectorSize Size
 }
 
