@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -996,7 +997,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 		})
 		defer restore()
 
-		restore = snapstate.MockSeccompCompilerActLogSupported(func() (bool, error) { return test.actLog, nil })
+		restore = seccomp_compiler.MockGoSeccompCanActLog(func() bool { return test.actLog })
 		defer restore()
 
 		release.OnClassic = test.classic

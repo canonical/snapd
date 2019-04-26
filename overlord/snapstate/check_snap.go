@@ -22,7 +22,6 @@ package snapstate
 import (
 	"fmt"
 	"os/user"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -451,32 +450,6 @@ func internalFindGid(groupname string) (uint64, error) {
 	return strconv.ParseUint(group.Gid, 10, 64)
 }
 
-// TODO: use sandbox-features instead of calling out
-var seccompCompilerActLogSupported = seccompCompilerActLogSupportedImpl
-
-// seccompCompilerActLogSupportedImpl queries snap-seccomp if ActLog is
-// supported
-func seccompCompilerActLogSupportedImpl() (bool, error) {
-	snapdPath, err := cmd.InternalToolPath("snapd")
-	if err != nil {
-		return false, err
-	}
-	path := filepath.Join(filepath.Dir(snapdPath), "snap-seccomp")
-	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
-	if err != nil {
-		return false, err
-	}
-	return compiler.ActLogSupported()
-}
-
-func MockSeccompCompilerActLogSupported(s func() (bool, error)) (restore func()) {
-	old := seccompCompilerActLogSupported
-	seccompCompilerActLogSupported = s
-	return func() {
-		seccompCompilerActLogSupported = old
-	}
-}
-
 // check that the listed system users are valid
 func checkSystemUsers(si *snap.Info) error {
 	if len(si.SystemUsers) == 0 {
@@ -508,10 +481,7 @@ func checkSystemUsers(si *snap.Info) error {
 	// that ActLog was implemented in the library after this issue was
 	// fixed, so base the decision on that. ActLog is first available in
 	// 0.9.1.
-	supported, err := seccompCompilerActLogSupported()
-	if err != nil {
-		return fmt.Errorf(`Could not determine golang-seccomp support: %v`, err)
-	} else if !supported {
+	if !seccomp_compiler.GoSeccompCanActLog() {
 		return fmt.Errorf(`This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`)
 	}
 

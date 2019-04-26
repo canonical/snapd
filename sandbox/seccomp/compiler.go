@@ -104,7 +104,8 @@ func (c *Compiler) ActLogSupported() (bool, error) {
 	if err != nil {
 		return false, osutil.OutputErr(output, err)
 	}
-	if bytes.Contains(output, []byte("SCMP_ACT_LOG supported")) {
+	s := string(bytes.TrimSpace(output))
+	if s == "SCMP_ACT_LOG supported" {
 		return true, nil
 	}
 	return false, nil
