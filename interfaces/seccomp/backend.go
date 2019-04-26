@@ -323,7 +323,7 @@ func (b *Backend) SandboxFeatures() []string {
 	}
 	tags = append(tags, "bpf-argument-filtering")
 
-	if strings.Contains(b.versionInfo, "bpf-actlog") {
+	if res, err := seccomp_compiler.HasGoSeccompFeature(b.versionInfo, "bpf-actlog"); err == nil && res {
 		tags = append(tags, "bpf-actlog")
 	}
 
