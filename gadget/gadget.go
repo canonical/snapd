@@ -39,6 +39,13 @@ import (
 // The fixed length of valid snap IDs.
 const validSnapIDLength = 32
 
+const (
+	// MBR identifies a Master Boot Record partitioning schema, or an MBR like role
+	MBR = "mbr"
+	// GPT identifies a GUID Partition Table partitioning schema
+	GPT = "gpt"
+)
+
 var (
 	validVolumeName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]+$")
 	validTypeID     = regexp.MustCompile("^[0-9A-F]{2}$")
@@ -115,8 +122,8 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	if vs.Role != "" {
 		return vs.Role
 	}
-	if vs.Role == "" && vs.Type == "mbr" {
-		return "mbr"
+	if vs.Role == "" && vs.Type == MBR {
+		return MBR
 	}
 	return ""
 }
@@ -315,7 +322,7 @@ func validateVolume(name string, vol *Volume) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != "gpt" && vol.Schema != "mbr" {
+	if vol.Schema != "" && vol.Schema != GPT && vol.Schema != MBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -366,7 +373,7 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 	// - positioned structure overlap
 	// use structures positioned within the volume
 	for pidx, ps := range structures {
-		if ps.Role == "mbr" || ps.Type == "mbr" {
+		if ps.Role == MBR || ps.Type == MBR {
 			if ps.StartOffset != 0 {
 				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
 			}
@@ -471,7 +478,7 @@ func validateStructureType(s string, vol *Volume) error {
 
 	schema := vol.Schema
 	if schema == "" {
-		schema = "gpt"
+		schema = GPT
 	}
 
 	if s == "" {
@@ -483,7 +490,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	if s == "mbr" {
+	if s == MBR {
 		// backward compatibility for type: mbr
 		return nil
 	}
@@ -510,11 +517,11 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != "gpt" && isGPT {
+	if schema != GPT && isGPT {
 		// type: <uuid> is only valid for GPT volumes
 		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
 	}
-	if schema != "mbr" && isMBR {
+	if schema != MBR && isMBR {
 		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
 	}
 
@@ -523,14 +530,14 @@ func validateStructureType(s string, vol *Volume) error {
 
 func validateRole(vs *VolumeStructure, vol *Volume) error {
 	if vs.Type == "bare" {
-		if vs.Role != "" && vs.Role != "mbr" {
+		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
 		}
 	}
 	vsRole := vs.Role
-	if vs.Type == "mbr" {
+	if vs.Type == MBR {
 		// backward compatibility
-		vsRole = "mbr"
+		vsRole = MBR
 	}
 
 	switch vsRole {
@@ -538,7 +545,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Label != "" && vs.Label != "writable" {
 			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
 		}
-	case "mbr":
+	case MBR:
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}

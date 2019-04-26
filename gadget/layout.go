@@ -107,7 +107,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 			Index:           idx,
 		}
 
-		if ps.EffectiveRole() != "mbr" {
+		if ps.EffectiveRole() != MBR {
 			if s.Size%constraints.SectorSize != 0 {
 				return nil, fmt.Errorf("cannot position volume, structure %v size is not a multiple of sector size %v",
 					ps, constraints.SectorSize)

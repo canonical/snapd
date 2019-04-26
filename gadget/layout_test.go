@@ -680,7 +680,7 @@ volumes:
 				VolumeStructure: &gadget.VolumeStructure{
 					Size:   446,
 					Type:   "bare",
-					Role:   "mbr",
+					Role:   gadget.MBR,
 					Offset: asSizePtr(0),
 				},
 				StartOffset: 0,
@@ -714,7 +714,7 @@ volumes:
 				VolumeStructure: &gadget.VolumeStructure{
 					Size:   446,
 					Type:   "bare",
-					Role:   "mbr",
+					Role:   gadget.MBR,
 					Offset: asSizePtr(0),
 				},
 				StartOffset: 0,
@@ -749,7 +749,7 @@ volumes:
 				VolumeStructure: &gadget.VolumeStructure{
 					Size:   446,
 					Type:   "bare",
-					Role:   "mbr",
+					Role:   gadget.MBR,
 					Offset: asSizePtr(0),
 				},
 				Index: 0,
