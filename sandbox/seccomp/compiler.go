@@ -28,11 +28,14 @@ import (
 )
 
 var (
-	// The format of version-info: <build-id> <libseccomp-version> <hash>
+	// version-info format: <build-id> <libseccomp-version> <hash> <features>
 	// Where, the hash is calculated over all syscall names supported by the
-	// libseccomp library.
-	// Ex: 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c
-	validVersionInfo = regexp.MustCompile(`^[0-9a-f]+ [0-9]+\.[0-9]+\.[0-9]+ [0-9a-f]+$`)
+	// libseccomp library. The build-id is a 160-bit SHA-1 (40 char) string
+	// and the hash is a 256-bit SHA-256 (64 char) string. Allow libseccomp
+	// version to be 1-5 chars per field (eg, 1.2.3 or 12345.23456.34567)
+	// and 1-30 chars of features.
+	// Ex: 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog
+	validVersionInfo = regexp.MustCompile(`^[0-9a-f]{1,40} [0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5} [0-9a-f]{1,64} [-a-z0-9]{1,30}$`)
 )
 
 type Compiler struct {
@@ -66,11 +69,7 @@ func (c *Compiler) VersionInfo() (string, error) {
 	}
 	raw := bytes.TrimSpace(output)
 	// Example valid output:
-	// 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c
-	// 111 chars + wiggle room
-	if len(raw) > 120 {
-		return "", fmt.Errorf("invalid version-info length: %q", raw)
-	}
+	// 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog
 	if match := validVersionInfo.Match(raw); !match {
 		return "", fmt.Errorf("invalid format of version-info: %q", raw)
 	}
