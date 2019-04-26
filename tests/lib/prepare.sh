@@ -639,7 +639,7 @@ prepare_ubuntu_core() {
     echo "Ensure the core snap is cached"
     # Cache snaps
     if is_core18_system; then
-        if snap list core; then
+        if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
@@ -674,6 +674,6 @@ cache_snaps(){
         # will reuse them during subsequent `snap install` operations.
         snap_file=$(ls "${snap_name}"_*.snap)
         mv "${snap_file}" /var/lib/snapd/snaps/"${snap_file}".partial
-        rm -f "${snap_name}"_*
+        rm -f "${snap_name}"_*.assert
     done
 }
