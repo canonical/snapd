@@ -207,6 +207,8 @@ admin_pattern(snappy_t, snappy_var_lib_t)
 mmap_rw_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 # snap data files
 admin_pattern(snappy_t, snappy_var_t)
+# auto transition /var/snap when created at runtime
+files_var_filetrans(snappy_t, snappy_var_t, dir, "snap")
 # some snaps may create character files, eg. lxd creates /dev/full in the
 # container's rootfs
 manage_chr_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
