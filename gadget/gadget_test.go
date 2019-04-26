@@ -603,6 +603,10 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		{"EF,21686148-6449-6E6F-744E-656564454649", "", ""},
 		// hybrid ID (UUID lowercase)
 		{"EF,21686148-6449-6e6f-744e-656564454649", "", ""},
+		// hybrid, partially lowercase UUID
+		{"EF,aa686148-6449-6e6f-744E-656564454649", "", ""},
+		// GPT UUID, partially lowercase
+		{"aa686148-6449-6e6f-744E-656564454649", "", ""},
 		// no type specified
 		{"", `invalid type "": type is not specified`, ""},
 		// plain MBR type without mbr schema
@@ -618,10 +622,6 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		{"AA686148-6449-6E6F-744E-656564454649123", `invalid type "AA686148-6449-6E6F-744E-656564454649123": invalid format`, ""},
 		// hybrid, missing MBR type
 		{",AA686148-6449-6E6F-744E-656564454649", `invalid type ",AA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
-		// hybrid, partially lowercase UUID
-		{"EF,aa686148-6449-6e6f-744E-656564454649", `invalid type "EF,aa686148-6449-6e6f-744E-656564454649": invalid format of hybrid type`, ""},
-		// GPT UUID, partially lowercase
-		{"aa686148-6449-6e6f-744E-656564454649", `invalid type "aa686148-6449-6e6f-744E-656564454649": invalid format`, ""},
 		// hybrid, missing GPT UUID
 		{"EF,", `invalid type "EF,": invalid format of hybrid type`, ""},
 		// hybrid, MBR type too long
