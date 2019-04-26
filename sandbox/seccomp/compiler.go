@@ -97,16 +97,3 @@ func (c *Compiler) Compile(in, out string) error {
 	}
 	return nil
 }
-
-func (c *Compiler) ActLogSupported() (bool, error) {
-	cmd := exec.Command(c.snapSeccomp, "actlog-supported")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return false, osutil.OutputErr(output, err)
-	}
-	s := string(bytes.TrimSpace(output))
-	if s == "SCMP_ACT_LOG supported" {
-		return true, nil
-	}
-	return false, nil
-}

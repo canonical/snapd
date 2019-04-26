@@ -80,8 +80,6 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, `
 if [ "$1" = "version-info" ]; then
     echo "abcdef 1.2.3 1234abcd"
-elif [ "$1" = "actlog-supported" ]; then
-    echo "SCMP_ACT_LOG supported"
 fi`)
 
 	s.Backend.Initialize()
@@ -91,7 +89,6 @@ fi`)
 	// make sure initialize called version-info
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "version-info"},
-		{"snap-seccomp", "actlog-supported"},
 	})
 	s.snapSeccomp.ForgetCalls()
 
@@ -177,7 +174,6 @@ fi`)
 	// ensure the snap-seccomp from the core snap was used instead
 	c.Check(snapSeccompOnCore.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "version-info"},
-		{"snap-seccomp", "actlog-supported"},
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
 	raw, err := ioutil.ReadFile(profile + ".src")
@@ -476,20 +472,6 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
-	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "bpf-actlog"})
-
-	// change version reported by snap-seccomp
-	snapSeccomp := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
-if [ "$1" = "version-info" ]; then
-    echo "abcdef 1.2.3 1234abcd"
-elif [ "$1" = "actlog-supported" ]; then
-    echo "SCMP_ACT_LOG not supported"
-fi`)
-	defer snapSeccomp.Restore()
-
-	// reload cached version info
-	err := s.Backend.Initialize()
-	c.Assert(err, IsNil)
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
 }
 
@@ -672,14 +654,12 @@ fi`)
 	err = s.Backend.Initialize()
 	c.Assert(err, IsNil)
 
-	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
+	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
 		// compilation from first Setup()
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 		// initialization with new version
 		{"snap-seccomp", "version-info"},
-		// detect actlog support
-		{"snap-seccomp", "actlog-supported"},
 	})
 
 	// the profile should be rebuilt now
@@ -687,14 +667,12 @@ fi`)
 	c.Assert(err, IsNil)
 	c.Check(profile+".src", testutil.FileEquals, updatedProfileHeader+"\ndefault\n")
 
-	c.Check(s.snapSeccomp.Calls(), HasLen, 4)
+	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
 		// compilation from first Setup()
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 		// initialization with new version
 		{"snap-seccomp", "version-info"},
-		// detect actlog support
-		{"snap-seccomp", "actlog-supported"},
 		// compilation of profiles with new compiler version
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
@@ -731,7 +709,6 @@ fi`)
 	// the one from mounted snap was used
 	c.Check(snapSeccompInMounted.Calls(), DeepEquals, [][]string{
 		{"snap-seccomp", "version-info"},
-		{"snap-seccomp", "actlog-supported"},
 	})
 
 	sb, ok := s.Backend.(*seccomp.Backend)

@@ -59,30 +59,23 @@ var (
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
 
-	snapSeccompVersionInfo     = snapSeccompVersionInfoImpl
-	seccompCompilerLookup      = cmd.InternalToolPath
-	snapSeccompActLogSupported = snapSeccompActLogSupportedImpl
+	snapSeccompVersionInfo = snapSeccompVersionInfoImpl
+	seccompCompilerLookup  = cmd.InternalToolPath
 )
 
 func snapSeccompVersionInfoImpl(c Compiler) (string, error) {
 	return c.VersionInfo()
 }
 
-func snapSeccompActLogSupportedImpl(c Compiler) (bool, error) {
-	return c.ActLogSupported()
-}
-
 type Compiler interface {
 	Compile(in, out string) error
 	VersionInfo() (string, error)
-	ActLogSupported() (bool, error)
 }
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
 type Backend struct {
-	snapSeccomp     Compiler
-	versionInfo     string
-	actLogSupported bool
+	snapSeccomp Compiler
+	versionInfo string
 }
 
 var globalProfileLE = []byte{
@@ -118,11 +111,10 @@ func isBigEndian() bool {
 	return false
 }
 
-// Initialize ensures that the global profile is on disk, interrogates
+// Initialize ensures that the global profile is on disk and interrogates
 // libseccomp wrapper to generate a version string that will be used to
 // determine if we need to recompile seccomp policy due to system
-// changes outside of snapd and determines if the snap-seccomp supports
-// ActLog.
+// changes outside of snapd.
 func (b *Backend) Initialize() error {
 	dir := dirs.SnapSeccompDir
 	fname := "global.bin"
@@ -153,9 +145,6 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot obtain snap-seccomp version information: %v", err)
 	}
 	b.versionInfo = versionInfo
-
-	// ignore error since b.actLogSupported is false then too
-	b.actLogSupported, _ = snapSeccompActLogSupported(b.snapSeccomp)
 	return nil
 }
 
@@ -356,10 +345,6 @@ func (b *Backend) SandboxFeatures() []string {
 		tags = append(tags, "kernel:"+feature)
 	}
 	tags = append(tags, "bpf-argument-filtering")
-
-	if b.actLogSupported {
-		tags = append(tags, "bpf-actlog")
-	}
 	return tags
 }
 
@@ -438,13 +423,5 @@ func MockSnapSeccompVersionInfo(s func(c Compiler) (string, error)) (restore fun
 	snapSeccompVersionInfo = s
 	return func() {
 		snapSeccompVersionInfo = old
-	}
-}
-
-func MockSnapSeccompActLogSupported(s func(c Compiler) (bool, error)) (restore func()) {
-	old := snapSeccompActLogSupported
-	snapSeccompActLogSupported = s
-	return func() {
-		snapSeccompActLogSupported = old
 	}
 }
