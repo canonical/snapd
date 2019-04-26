@@ -385,7 +385,7 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	err = update.ApplyUserFstab(ctx, "foo")
 	c.Assert(err, IsNil)
 
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, 1000)
 
 	c.Assert(changes, HasLen, 1)
 	c.Assert(changes[0].Action, Equals, update.Mount)
