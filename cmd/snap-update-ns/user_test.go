@@ -35,8 +35,22 @@ type userSuite struct{}
 
 var _ = Suite(&userSuite{})
 
+func (s *userSuite) TestLock(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+
+	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
+
+	// Locking is a no-op.
+	unlock, err := ctx.Lock()
+	c.Assert(err, IsNil)
+	c.Check(unlock, NotNil)
+	unlock()
+}
+
 func (s *userSuite) TestAssumptions(c *C) {
-	ctx := update.NewUserProfileUpdateContext("foo", 1234)
+	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
 	as := ctx.Assumptions()
 	c.Check(as.UnrestrictedPaths(), IsNil)
 }
@@ -47,7 +61,7 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	defer dirs.SetRootDir("/")
 	dirs.XdgRuntimeDirBase = "/run/user"
 
-	ctx := update.NewUserProfileUpdateContext("foo", 1234)
+	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
 
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
 	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
