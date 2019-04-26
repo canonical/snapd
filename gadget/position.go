@@ -35,6 +35,8 @@ type PositioningConstraints struct {
 	SectorSize Size
 }
 
+// PositionedVolume defines the size of a volume and positions of all the
+// structures within it
 type PositionedVolume struct {
 	// Size is the total size of the volume
 	Size Size
