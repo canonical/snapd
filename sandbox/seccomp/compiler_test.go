@@ -90,7 +90,9 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		} else {
 			c.Check(err, IsNil)
 			c.Check(v, Equals, tc.exp)
-			_, err := seccomp.LibseccompVersionInfo([]byte(v))
+			_, err := seccomp.GetLibseccompVersion(v)
+			c.Check(err, IsNil)
+			_, err = seccomp.GetGoSeccompFeatures(v)
 			c.Check(err, IsNil)
 		}
 		c.Check(cmd.Calls(), DeepEquals, [][]string{
@@ -155,4 +157,66 @@ func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
 	c.Assert(compiler, IsNil)
 
 	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
+}
+
+func (s *compilerSuite) TestGetLibseccompVersion(c *C) {
+	v, err := seccomp.GetLibseccompVersion("a 2.4.1 b -")
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, "2.4.1")
+
+	v, err = seccomp.GetLibseccompVersion("a phooey b -")
+	c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+	c.Check(v, Equals, "")
+}
+
+func (s *compilerSuite) TestGetGoSeccompFeatures(c *C) {
+	for _, tc := range []struct {
+		v   string
+		exp string
+		err string
+	}{
+		// valid
+		{"a 2.4.1 b -", "-", ""},
+		{"a 2.4.1 b foo", "foo", ""},
+		{"a 2.4.1 b foo:bar", "foo:bar", ""},
+		// invalid
+		{"a 2.4.1 b b@rf", "", "invalid format of version-info: .*"},
+	} {
+		v, err := seccomp.GetGoSeccompFeatures(tc.v)
+		if err == nil {
+			c.Assert(err, IsNil)
+			c.Check(v, Equals, tc.exp)
+		} else {
+			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+			c.Check(v, Equals, tc.exp)
+		}
+	}
+}
+
+func (s *compilerSuite) TestHasGoSeccompFeature(c *C) {
+	for _, tc := range []struct {
+		v   string
+		f   string
+		exp bool
+		err string
+	}{
+		// valid negative
+		{"a 2.4.1 b -", "foo", false, ""},
+		{"a 2.4.1 b foo:bar", "foo:bar", false, ""},
+		// valid affirmative
+		{"a 2.4.1 b foo", "foo", true, ""},
+		{"a 2.4.1 b foo:bar", "foo", true, ""},
+		{"a 2.4.1 b foo:bar", "bar", true, ""},
+		// invalid
+		{"a 1.2.3 b b@rf", "b@rf", false, "invalid format of version-info: .*"},
+	} {
+		v, err := seccomp.HasGoSeccompFeature(tc.v, tc.f)
+		if err == nil {
+			c.Assert(err, IsNil)
+			c.Check(v, Equals, tc.exp)
+		} else {
+			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+			c.Check(v, Equals, tc.exp)
+		}
+	}
 }

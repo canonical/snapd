@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -77,14 +78,37 @@ func (c *Compiler) VersionInfo() (string, error) {
 	return string(raw), nil
 }
 
-// LibseccompVersionInfo returns the libseccomp version information of the
-// compiler.
-func LibseccompVersionInfo(full []byte) (string, error) {
-	if match := validVersionInfo.Match(full); !match {
-		return "", fmt.Errorf("invalid format of version-info: %q", full)
+// GetLibseccompVersion parses the output of VersionInfo and provides the
+// libseccomp version
+func GetLibseccompVersion(versionInfo string) (string, error) {
+	if match := validVersionInfo.Match([]byte(versionInfo)); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", versionInfo)
 	}
-	tmp := bytes.Split(full, []byte(" "))
-	return string(tmp[1]), nil
+	return strings.Split(versionInfo, " ")[1], nil
+}
+
+// GetGoSeccompFeatures parses the output of VersionInfo and provides the
+// golang seccomp features
+func GetGoSeccompFeatures(versionInfo string) (string, error) {
+	if match := validVersionInfo.Match([]byte(versionInfo)); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", versionInfo)
+	}
+	return strings.Split(versionInfo, " ")[3], nil
+}
+
+// HasGoSeccompFeature parses the output of VersionInfo and answers whether or
+// not golang-seccomp supports the feature
+func HasGoSeccompFeature(versionInfo string, feature string) (bool, error) {
+	features, err := GetGoSeccompFeatures(versionInfo)
+	if err != nil {
+		return false, err
+	}
+	for _, f := range strings.Split(features, ":") {
+		if f == feature {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Compile compiles given source profile and saves the result to the out
