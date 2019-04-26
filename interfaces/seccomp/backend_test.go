@@ -79,12 +79,12 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, `
 if [ "$1" = "version-info" ]; then
-    echo "abcdef 1.2.3 1234abcd"
+    echo "abcdef 1.2.3 1234abcd -"
 fi`)
 
 	s.Backend.Initialize()
 	s.profileHeader = `# snap-seccomp version information:
-# abcdef 1.2.3 1234abcd
+# abcdef 1.2.3 1234abcd -
 `
 	// make sure initialize called version-info
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
@@ -156,7 +156,7 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
 	c.Assert(err, IsNil)
 	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
-echo "2345cdef 2.3.4 2345cdef"
+echo "2345cdef 2.3.4 2345cdef -"
 fi`)
 	defer snapSeccompOnCore.Restore()
 
@@ -179,7 +179,7 @@ fi`)
 	raw, err := ioutil.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
-# 2345cdef 2.3.4 2345cdef
+# 2345cdef 2.3.4 2345cdef -
 `)), Equals, true)
 }
 
@@ -644,11 +644,11 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	// change version reported by snap-seccomp
 	snapSeccomp := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
 if [ "$1" = "version-info" ]; then
-    echo "abcdef 2.3.3 2345abcd"
+    echo "abcdef 2.3.3 2345abcd -"
 fi`)
 	defer snapSeccomp.Restore()
 	updatedProfileHeader := `# snap-seccomp version information:
-# abcdef 2.3.3 2345abcd
+# abcdef 2.3.3 2345abcd -
 `
 	// reload cached version info
 	err = s.Backend.Initialize()
@@ -696,7 +696,7 @@ func (s *backendSuite) TestInitializationDuringBootstrap(c *C) {
 	err := os.MkdirAll(filepath.Dir(snapSeccompInMountedPath), 0755)
 	c.Assert(err, IsNil)
 	snapSeccompInMounted := testutil.MockCommand(c, snapSeccompInMountedPath, `if [ "$1" = "version-info" ]; then
-echo "2345cdef 2.3.4 2345cdef"
+echo "2345cdef 2.3.4 2345cdef -"
 fi`)
 	defer snapSeccompInMounted.Restore()
 
@@ -713,7 +713,7 @@ fi`)
 
 	sb, ok := s.Backend.(*seccomp.Backend)
 	c.Assert(ok, Equals, true)
-	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef")
+	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef -")
 }
 
 func (s *backendSuite) TestCompilerInitUnhappy(c *C) {

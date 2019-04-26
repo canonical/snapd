@@ -64,7 +64,7 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.buildID = id
 
-	s.seccompCompilerVersion = "123 2.3.3 abcdef123"
+	s.seccompCompilerVersion = "123 2.3.3 abcdef123 -"
 	testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), fmt.Sprintf(`
 if [ "$1" = "version-info" ]; then echo "%s"; exit 0; fi
 exit 1
