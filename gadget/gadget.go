@@ -373,7 +373,7 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 	// - positioned structure overlap
 	// use structures positioned within the volume
 	for pidx, ps := range structures {
-		if ps.Role == MBR || ps.Type == MBR {
+		if ps.EffectiveRole() == MBR {
 			if ps.StartOffset != 0 {
 				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
 			}
