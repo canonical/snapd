@@ -449,6 +449,7 @@ gen_require(`
   type var_log_t;
 ')
 allow snappy_confine_t admin_home_t:dir mounton;
+allow snappy_confine_t bin_t:dir mounton;
 allow snappy_confine_t cert_t:dir { getattr mounton };
 allow snappy_confine_t device_t:filesystem unmount;
 allow snappy_confine_t devpts_t:dir mounton;
@@ -461,13 +462,13 @@ allow snappy_confine_t snappy_snap_t:dir { mounton read };
 allow snappy_confine_t snappy_snap_t:file mounton;
 allow snappy_confine_t snappy_snap_t:lnk_file read;
 allow snappy_confine_t snappy_var_lib_t:dir mounton;
+allow snappy_confine_t snappy_var_run_t:dir mounton;
 allow snappy_confine_t snappy_var_run_t:file mounton;
 allow snappy_confine_t snappy_var_t:dir { getattr mounton };
 allow snappy_confine_t tmp_t:dir { add_name create mounton remove_name rmdir setattr write read };
 allow snappy_confine_t usr_t:dir mounton;
 allow snappy_confine_t var_log_t:dir mounton;
 allow snappy_confine_t var_run_t:dir mounton;
-allow snappy_confine_t snappy_var_run_t:dir mounton;
 dev_mounton(snappy_confine_t)
 dev_mounton_sysfs(snappy_confine_t)
 dev_unmount_sysfs_fs(snappy_confine_t)
