@@ -42,7 +42,7 @@ func (l *layoutTestSuite) SetUpTest(c *C) {
 	l.dir = c.MkDir()
 }
 
-var defaultConstraints = gadget.LayoutConstraints{
+var defaultConstraints = gadget.PositioningConstraints{
 	NonMBRStartOffset: 1 * gadget.SizeMiB,
 	SectorSize:        512,
 }
@@ -53,7 +53,7 @@ func (l *layoutTestSuite) TestVolumeSize(c *C) {
 			{Size: 2 * gadget.SizeMiB},
 		},
 	}
-	v, err := gadget.LayOutVolume(l.dir, &vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, &vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -88,7 +88,7 @@ volumes:
           size: 100M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first-image")
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -133,7 +133,7 @@ volumes:
           size: 100M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -198,7 +198,7 @@ volumes:
           offset: 1M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -266,7 +266,7 @@ volumes:
           offset: 1M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -326,9 +326,9 @@ volumes:
               - image: foo.img
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
-	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img":.*no such file or directory`)
 }
 
 func makeSizedFile(c *C, path string, size gadget.Size, content []byte) {
@@ -361,9 +361,9 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
-	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" does not fit in the structure`)
+	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img" does not fit in the structure`)
 }
 
 func (l *layoutTestSuite) TestVolumeLayoutErrorsContentTooLargeMany(c *C) {
@@ -384,13 +384,13 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	constraints := gadget.LayoutConstraints{
+	constraints := gadget.PositioningConstraints{
 		NonMBRStartOffset: 1 * gadget.SizeMiB,
 		SectorSize:        512,
 	}
-	v, err := gadget.LayOutVolume(l.dir, vol, constraints)
+	v, err := gadget.PositionVolume(l.dir, vol, constraints)
 	c.Assert(v, IsNil)
-	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "bar.img" does not fit in the structure`)
+	c.Assert(err, ErrorMatches, `cannot position structure #0: content "bar.img" does not fit in the structure`)
 }
 
 func (l *layoutTestSuite) TestVolumeLayoutErrorsContentTooLargeWithOffset(c *C) {
@@ -411,9 +411,9 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
-	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" does not fit in the structure`)
+	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img" does not fit in the structure`)
 }
 
 func (l *layoutTestSuite) TestVolumeLayoutErrorsContentLargerThanDeclared(c *C) {
@@ -433,9 +433,9 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot lay out structure #0: content "foo.img" size %v is larger than declared %v`, gadget.SizeMiB+1, gadget.SizeMiB))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot position structure #0: content "foo.img" size %v is larger than declared %v`, gadget.SizeMiB+1, gadget.SizeMiB))
 }
 
 func (l *layoutTestSuite) TestVolumeLayoutErrorsContentOverlap(c *C) {
@@ -461,9 +461,9 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
-	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img" overlaps with preceding image "bar.img"`)
+	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img" overlaps with preceding image "bar.img"`)
 }
 
 func (l *layoutTestSuite) TestVolumeLayoutContentExplicitOrder(c *C) {
@@ -488,7 +488,7 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -540,7 +540,7 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -589,7 +589,7 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -631,7 +631,7 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -671,7 +671,7 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.LayOutVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -700,12 +700,12 @@ volumes:
 	})
 
 	// still valid
-	constraints := gadget.LayoutConstraints{
+	constraints := gadget.PositioningConstraints{
 		// 512kiB
 		NonMBRStartOffset: 512 * gadget.SizeKiB,
 		SectorSize:        512,
 	}
-	v, err = gadget.LayOutVolume(l.dir, vol, constraints)
+	v, err = gadget.PositionVolume(l.dir, vol, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 2*gadget.SizeMiB + 512*gadget.SizeKiB,
@@ -736,11 +736,11 @@ volumes:
 	// constraints would make a non MBR structure overlap with MBR, but
 	// structures start one after another unless offset is specified
 	// explicitly
-	constraintsBad := gadget.LayoutConstraints{
+	constraintsBad := gadget.PositioningConstraints{
 		NonMBRStartOffset: 400,
 		SectorSize:        512,
 	}
-	v, err = gadget.LayOutVolume(l.dir, vol, constraintsBad)
+	v, err = gadget.PositionVolume(l.dir, vol, constraintsBad)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 2*gadget.SizeMiB + 446,
@@ -790,19 +790,19 @@ volumes:
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	constraintsBadSectorSize := gadget.LayoutConstraints{
+	constraintsBadSectorSize := gadget.PositioningConstraints{
 		NonMBRStartOffset: 1 * gadget.SizeMiB,
 		SectorSize:        384,
 	}
-	_, err := gadget.LayOutVolume(l.dir, vol, constraintsBadSectorSize)
-	c.Assert(err, ErrorMatches, "cannot lay out volume, structure #1 size is not a multiple of sector size 384")
+	_, err := gadget.PositionVolume(l.dir, vol, constraintsBadSectorSize)
+	c.Assert(err, ErrorMatches, "cannot position volume, structure #1 size is not a multiple of sector size 384")
 }
 
 func (l *layoutTestSuite) TestVolumeLayoutConstraintsNeedsSectorSize(c *C) {
-	constraintsBadSectorSize := gadget.LayoutConstraints{
+	constraintsBadSectorSize := gadget.PositioningConstraints{
 		NonMBRStartOffset: 1 * gadget.SizeMiB,
 		// SectorSize left unspecified
 	}
-	_, err := gadget.LayOutVolume(l.dir, &gadget.Volume{}, constraintsBadSectorSize)
-	c.Assert(err, ErrorMatches, "cannot lay out volume, invalid constraints: sector size cannot be 0")
+	_, err := gadget.PositionVolume(l.dir, &gadget.Volume{}, constraintsBadSectorSize)
+	c.Assert(err, ErrorMatches, "cannot position volume, invalid constraints: sector size cannot be 0")
 }

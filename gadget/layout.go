@@ -25,9 +25,14 @@ import (
 	"sort"
 )
 
-type LayoutConstraints struct {
+// PositioningConstraints defines the constraints for positioning structures
+// within a volume
+type PositioningConstraints struct {
+	// NonMBRStartOffset is the default start offset of non-MBR structure in
+	// the volume.
 	NonMBRStartOffset Size
-	SectorSize        Size
+	// SectorSize is the size of the sector to be used for calcualtions
+	SectorSize Size
 }
 
 type PositionedVolume struct {
@@ -72,15 +77,15 @@ type PositionedContent struct {
 	Size Size
 }
 
-// LayOutVolume attempts to lay out the volume using constraints and returns a
+// PositionVolume attempts to lay out the volume using constraints and returns a
 // fully positioned description of the resulting volume
-func LayOutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*PositionedVolume, error) {
+func PositionVolume(gadgetRootDir string, volume *Volume, constraints PositioningConstraints) (*PositionedVolume, error) {
 	previousEnd := Size(0)
 	farthestEnd := Size(0)
 	structures := make([]PositionedStructure, len(volume.Structure))
 
 	if constraints.SectorSize == 0 {
-		return nil, fmt.Errorf("cannot lay out volume, invalid constraints: sector size cannot be 0")
+		return nil, fmt.Errorf("cannot position volume, invalid constraints: sector size cannot be 0")
 	}
 
 	for idx, s := range volume.Structure {
@@ -104,7 +109,7 @@ func LayOutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 
 		if ps.EffectiveRole() != "mbr" {
 			if s.Size%constraints.SectorSize != 0 {
-				return nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
+				return nil, fmt.Errorf("cannot position volume, structure %v size is not a multiple of sector size %v",
 					ps, constraints.SectorSize)
 			}
 		}
@@ -123,11 +128,11 @@ func LayOutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 	previousEnd = Size(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
-			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
+			return nil, fmt.Errorf("cannot position volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
 		previousEnd = ps.StartOffset + ps.Size
 
-		content, err := layOutStructureContent(gadgetRootDir, &structures[idx])
+		content, err := positionStructureContent(gadgetRootDir, &structures[idx])
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +160,7 @@ func getImageSize(path string) (Size, error) {
 	return Size(stat.Size()), nil
 }
 
-func layOutStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]PositionedContent, error) {
+func positionStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]PositionedContent, error) {
 	if !ps.IsBare() {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
@@ -170,7 +175,7 @@ func layOutStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]Po
 	for idx, c := range ps.Content {
 		imageSize, err := getImageSize(filepath.Join(gadgetRootDir, c.Image))
 		if err != nil {
-			return nil, fmt.Errorf("cannot lay out structure %v: content %q: %v", ps, c.Image, err)
+			return nil, fmt.Errorf("cannot position structure %v: content %q: %v", ps, c.Image, err)
 		}
 
 		var start Size
@@ -184,7 +189,7 @@ func layOutStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]Po
 
 		if c.Size != 0 {
 			if c.Size < imageSize {
-				return nil, fmt.Errorf("cannot lay out structure %v: content %q size %v is larger than declared %v", ps, c.Image, actualSize, c.Size)
+				return nil, fmt.Errorf("cannot position structure %v: content %q size %v is larger than declared %v", ps, c.Image, actualSize, c.Size)
 			}
 			actualSize = c.Size
 		}
@@ -196,7 +201,7 @@ func layOutStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]Po
 		}
 		previousEnd = start + actualSize
 		if previousEnd > ps.Size {
-			return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
+			return nil, fmt.Errorf("cannot position structure %v: content %q does not fit in the structure", ps, c.Image)
 		}
 	}
 
@@ -205,7 +210,7 @@ func layOutStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]Po
 	previousEnd = ps.StartOffset
 	for idx, pc := range content {
 		if pc.StartOffset < previousEnd {
-			return nil, fmt.Errorf("cannot lay out structure %v: content %q overlaps with preceding image %q", ps, pc.Image, content[idx-1].Image)
+			return nil, fmt.Errorf("cannot position structure %v: content %q overlaps with preceding image %q", ps, pc.Image, content[idx-1].Image)
 		}
 		previousEnd = pc.StartOffset + pc.Size
 	}
