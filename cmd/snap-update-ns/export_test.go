@@ -219,9 +219,18 @@ func (ctx *CommonProfileUpdateContext) DesiredProfilePath() string {
 	return ctx.desiredProfilePath
 }
 
-func NewCommonProfileUpdateContext(instanceName string, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
+func (ctx *CommonProfileUpdateContext) FromSnapConfine() bool {
+	return ctx.fromSnapConfine
+}
+
+func (ctx *CommonProfileUpdateContext) SetFromSnapConfine(v bool) {
+	ctx.fromSnapConfine = v
+}
+
+func NewCommonProfileUpdateContext(instanceName string, fromSnapConfine bool, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
 	return &CommonProfileUpdateContext{
 		instanceName:       instanceName,
+		fromSnapConfine:    fromSnapConfine,
 		currentProfilePath: currentProfilePath,
 		desiredProfilePath: desiredProfilePath,
 	}
