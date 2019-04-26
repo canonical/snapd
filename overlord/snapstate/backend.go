@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timings"
 )
 
 // A StoreService can find, list available updates and download snaps.
@@ -59,9 +60,9 @@ type managerBackend interface {
 	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
-	LinkSnap(info *snap.Info, model *asserts.Model) error
-	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
-	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error
+	LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error
+	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
+	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error

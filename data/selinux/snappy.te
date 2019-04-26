@@ -207,6 +207,8 @@ admin_pattern(snappy_t, snappy_var_lib_t)
 mmap_rw_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 # snap data files
 admin_pattern(snappy_t, snappy_var_t)
+# auto transition /var/snap when created at runtime
+files_var_filetrans(snappy_t, snappy_var_t, dir, "snap")
 # some snaps may create character files, eg. lxd creates /dev/full in the
 # container's rootfs
 manage_chr_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
@@ -447,6 +449,7 @@ gen_require(`
   type var_log_t;
 ')
 allow snappy_confine_t admin_home_t:dir mounton;
+allow snappy_confine_t bin_t:dir mounton;
 allow snappy_confine_t cert_t:dir { getattr mounton };
 allow snappy_confine_t device_t:filesystem unmount;
 allow snappy_confine_t devpts_t:dir mounton;
@@ -459,13 +462,13 @@ allow snappy_confine_t snappy_snap_t:dir { mounton read };
 allow snappy_confine_t snappy_snap_t:file mounton;
 allow snappy_confine_t snappy_snap_t:lnk_file read;
 allow snappy_confine_t snappy_var_lib_t:dir mounton;
+allow snappy_confine_t snappy_var_run_t:dir mounton;
 allow snappy_confine_t snappy_var_run_t:file mounton;
 allow snappy_confine_t snappy_var_t:dir { getattr mounton };
 allow snappy_confine_t tmp_t:dir { add_name create mounton remove_name rmdir setattr write read };
 allow snappy_confine_t usr_t:dir mounton;
 allow snappy_confine_t var_log_t:dir mounton;
 allow snappy_confine_t var_run_t:dir mounton;
-allow snappy_confine_t snappy_var_run_t:dir mounton;
 dev_mounton(snappy_confine_t)
 dev_mounton_sysfs(snappy_confine_t)
 dev_unmount_sysfs_fs(snappy_confine_t)
