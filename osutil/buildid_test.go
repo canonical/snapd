@@ -25,7 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 
@@ -44,11 +43,16 @@ func buildID(c *C, fname string) string {
 	output, err := exec.Command("file", fname).CombinedOutput()
 	c.Assert(err, IsNil)
 
-	re := regexp.MustCompile(`BuildID\[.*\]=([a-f0-9]+)`)
+	// BuildID can look like:
+	//  BuildID[sha1]=443877f9ec13c82365478130fc95cb5ff5181912
+	//  BuildID[md5/uuid]=ae38cdf243d2111064dfee99dfc30013
+	//  Go BuildID=YDAw4RLIEKpyxl90JbFQ/s9mld--03zAIIQ1tGb_5/aL-yPp ...
+	re := regexp.MustCompile(`BuildID(\[.*\]|)=([a-zA-Z0-9/_-]+)`)
 	matches := re.FindStringSubmatch(string(output))
-	c.Assert(matches, HasLen, 2)
 
-	return matches[1]
+	c.Assert(matches, HasLen, 3)
+
+	return matches[2]
 }
 
 func (s *buildIDSuite) TestReadBuildID(c *C) {
@@ -115,7 +119,5 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 	// returns the "raw" string so we need to decode first
 	decoded, err := hex.DecodeString(id)
 	c.Assert(err, IsNil)
-	buildID, err := exec.Command("go", "tool", "buildid", goTruth).CombinedOutput()
-	c.Assert(err, IsNil)
-	c.Assert(string(decoded), Equals, strings.TrimSpace(string(buildID)))
+	c.Assert(string(decoded), Equals, buildID(c, goTruth))
 }
