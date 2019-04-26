@@ -20,10 +20,12 @@
 package osutil_test
 
 import (
+	"encoding/hex"
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 
@@ -96,4 +98,24 @@ func (s *buildIDSuite) TestMyBuildID(c *C) {
 	id, err := osutil.MyBuildID()
 	c.Assert(err, IsNil)
 	c.Check(id, Equals, buildID(c, truePath))
+}
+
+func (s *buildIDSuite) TestReadBuildGo(c *C) {
+	goTruth := filepath.Join(c.MkDir(), "true")
+	err := ioutil.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644)
+	c.Assert(err, IsNil)
+	output, err := exec.Command("go", "build", "-o", goTruth, goTruth+".go").CombinedOutput()
+	c.Assert(string(output), Equals, "")
+	c.Assert(err, IsNil)
+
+	id, err := osutil.ReadBuildID(goTruth)
+	c.Assert(err, IsNil)
+
+	// ReadBuildID returns a hex encoded string, however buildID()
+	// returns the "raw" string so we need to decode first
+	decoded, err := hex.DecodeString(id)
+	c.Assert(err, IsNil)
+	buildID, err := exec.Command("go", "tool", "buildid", goTruth).CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Assert(string(decoded), Equals, strings.TrimSpace(string(buildID)))
 }
