@@ -79,8 +79,7 @@ var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
 
-	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
-	LibseccompCompilerVersion  = libseccompCompilerVersionImpl
+	SeccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
 )
 
 func seccompCompilerVersionInfoImpl(path string) (string, error) {
@@ -89,22 +88,6 @@ func seccompCompilerVersionInfoImpl(path string) (string, error) {
 		return "", err
 	}
 	return compiler.VersionInfo()
-}
-
-func libseccompCompilerVersionImpl() (string, error) {
-	snapdPath, err := cmd.InternalToolPath("snapd")
-	if err != nil {
-		return "", err
-	}
-	full, err := seccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
-	if err != nil {
-		return "", err
-	}
-	ver, err := seccomp_compiler.LibseccompVersionInfo([]byte(full))
-	if err != nil {
-		return "", err
-	}
-	return ver, nil
 }
 
 func generateSystemKey() (*systemKey, error) {
@@ -154,7 +137,7 @@ func generateSystemKey() (*systemKey, error) {
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions()
 
-	versionInfo, err := seccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
+	versionInfo, err := SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
 	if err != nil {
 		logger.Noticef("cannot determine seccomp compiler version in generateSystemKey: %v", err)
 		return nil, err
@@ -273,17 +256,9 @@ func MockSystemKey(s string) func() {
 }
 
 func MockSeccompCompilerVersionInfo(s func(p string) (string, error)) (restore func()) {
-	old := seccompCompilerVersionInfo
-	seccompCompilerVersionInfo = s
+	old := SeccompCompilerVersionInfo
+	SeccompCompilerVersionInfo = s
 	return func() {
-		seccompCompilerVersionInfo = old
-	}
-}
-
-func MockLibseccompCompilerVersion(s func() (string, error)) (restore func()) {
-	old := LibseccompCompilerVersion
-	LibseccompCompilerVersion = s
-	return func() {
-		LibseccompCompilerVersion = old
+		SeccompCompilerVersionInfo = old
 	}
 }

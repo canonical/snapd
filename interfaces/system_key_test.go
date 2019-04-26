@@ -211,9 +211,3 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	_, err = interfaces.SystemKeyMismatch()
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
 }
-
-func (s *systemKeySuite) TestInterfaceSystemKeyLibseccompCompilerVersion(c *C) {
-	ver, err := interfaces.LibseccompCompilerVersion()
-	c.Assert(err, IsNil)
-	c.Check(ver, Equals, "2.3.3")
-}

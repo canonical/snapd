@@ -22,6 +22,7 @@ package snapstate
 import (
 	"fmt"
 	"os/user"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -456,11 +457,22 @@ func checkSystemUsers(si *snap.Info) error {
 		return nil
 	}
 
-	ver, err := interfaces.LibseccompCompilerVersion()
+	// Run /.../snap-seccomp version-info
+	path, err := cmd.InternalToolPath("snapd")
+	if err != nil {
+		return err
+	}
+	versionInfo, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
 	if err != nil {
 		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
 	}
-	tmp := strings.Split(ver, ".")
+	libseccompVersion, err := seccomp_compiler.GetLibseccompVersion(versionInfo)
+	if err != nil {
+		return err
+	}
+
+	// Parse <libseccomp version>
+	tmp := strings.Split(libseccompVersion, ".")
 	maj, err := strconv.Atoi(tmp[0])
 	if err != nil {
 		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
@@ -481,7 +493,11 @@ func checkSystemUsers(si *snap.Info) error {
 	// that ActLog was implemented in the library after this issue was
 	// fixed, so base the decision on that. ActLog is first available in
 	// 0.9.1.
-	if !seccomp_compiler.GoSeccompCanActLog() {
+	res, err := seccomp_compiler.HasGoSeccompFeature(versionInfo, "bpf-actlog")
+	if err != nil {
+		return err
+	}
+	if !res {
 		return fmt.Errorf(`This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`)
 	}
 
