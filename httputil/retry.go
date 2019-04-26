@@ -135,6 +135,57 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 	return false
 }
 
+func isNetworkDown(err error) bool {
+	urlErr, ok := err.(*url.Error)
+	if !ok {
+		return false
+	}
+	opErr, ok := urlErr.Err.(*net.OpError)
+	if !ok {
+		return false
+	}
+
+	osSyscallErr, ok := opErr.Err.(*os.SyscallError)
+	if !ok {
+		// on 16.04 we will not have SyscallError here, but DNSError, with no further details other than error message
+		dnsErr, ok := opErr.Err.(*net.DNSError)
+		if !ok {
+			return false
+		}
+		return strings.Contains(dnsErr.Err, "connect: network is unreachable")
+	}
+
+	errnoErr, ok := osSyscallErr.Err.(syscall.Errno)
+	if !ok {
+		return false
+	}
+
+	// the errno codes from kernel/libc when the network is down
+	return errnoErr == syscall.ENETUNREACH || errnoErr == syscall.ENETDOWN
+}
+
+func isDnsUnavailable(err error) bool {
+	urlErr, ok := err.(*url.Error)
+	if !ok {
+		return false
+	}
+	opErr, ok := urlErr.Err.(*net.OpError)
+	if !ok {
+		return false
+	}
+
+	dnsErr, ok := opErr.Err.(*net.DNSError)
+	if !ok {
+		return false
+	}
+
+	// We really want to check for EAI_AGAIN error here - but this is
+	// not exposed in net.DNSError and in go-1.10 it is not even
+	// a temporary error so there is no way to distiguish it other
+	// than a fugly string compare on a (potentially) localized string
+	return strings.Contains(dnsErr.Err, "Temporary failure in name resolution")
+}
+
 // RetryRequest calls doRequest and read the response body in a retry loop using the given retryStrategy.
 func RetryRequest(endpoint string, doRequest func() (*http.Response, error), readResponseBody func(resp *http.Response) error, retryStrategy retry.Strategy) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
@@ -148,18 +199,8 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 				continue
 			}
 
-			// On 16.04 the error below is "temporary", however on 18.04 it is not, so we can't relay on Temporary() flag and instead need
-			// to inspect the inner errors; note, that means the error was actually retried on 16.04 (due to the ShouldRetryError logic).
-			if urlErr, ok := err.(*url.Error); ok {
-				if netopErr, ok := urlErr.Err.(*net.OpError); ok {
-					if netopErr.Op == "dial" {
-						if dnsError, ok := netopErr.Err.(*net.DNSError); ok {
-							if strings.Contains(dnsError.Err, "connect: network is unreachable") || strings.Contains(dnsError.Err, "Temporary failure in name resolution") {
-								err = &UnretriedNetworkError{Err: err}
-							}
-						}
-					}
-				}
+			if isNetworkDown(err) || isDnsUnavailable(err) {
+				err = &UnretriedNetworkError{Err: err}
 			}
 			break
 		}
