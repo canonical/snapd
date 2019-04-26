@@ -861,10 +861,10 @@ func main() {
 	case "actlog-supported":
 		if actLogSupported() {
 			fmt.Printf("SCMP_ACT_LOG supported\n")
-		} else {
-			fmt.Printf("SCMP_ACT_LOG not supported\n")
+			os.Exit(0)
 		}
-		os.Exit(0)
+		fmt.Printf("SCMP_ACT_LOG not supported\n")
+		os.Exit(1)
 	default:
 		err = fmt.Errorf("unsupported argument %q", cmd)
 	}
