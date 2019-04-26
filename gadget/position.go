@@ -162,7 +162,8 @@ func getImageSize(path string) (Size, error) {
 
 func positionStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]PositionedContent, error) {
 	if !ps.IsBare() {
-		// structures with a filesystem do not need any extra layout
+		// structures with a filesystem do not need any extra
+		// positioning
 		return nil, nil
 	}
 	if len(ps.Content) == 0 {

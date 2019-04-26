@@ -32,14 +32,14 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-type layoutTestSuite struct {
+type positioningTestSuite struct {
 	dir string
 }
 
-var _ = Suite(&layoutTestSuite{})
+var _ = Suite(&positioningTestSuite{})
 
-func (l *layoutTestSuite) SetUpTest(c *C) {
-	l.dir = c.MkDir()
+func (p *positioningTestSuite) SetUpTest(c *C) {
+	p.dir = c.MkDir()
 }
 
 var defaultConstraints = gadget.PositioningConstraints{
@@ -47,13 +47,13 @@ var defaultConstraints = gadget.PositioningConstraints{
 	SectorSize:        512,
 }
 
-func (l *layoutTestSuite) TestVolumeSize(c *C) {
+func (p *positioningTestSuite) TestVolumeSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Size: 2 * gadget.SizeMiB},
 		},
 	}
-	v, err := gadget.PositionVolume(l.dir, &vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, &vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -75,7 +75,7 @@ func mustParseVolume(c *C, gadgetYaml, volume string) *gadget.Volume {
 	return &v
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutMinimal(c *C) {
+func (p *positioningTestSuite) TestVolumePositionMinimal(c *C) {
 	gadgetYaml := `
 volumes:
   first-image:
@@ -88,7 +88,7 @@ volumes:
           size: 100M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first-image")
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -115,7 +115,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutImplicitOrdering(c *C) {
+func (p *positioningTestSuite) TestVolumePositionImplicitOrdering(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -133,7 +133,7 @@ volumes:
           size: 100M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -176,7 +176,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutExplicitOrdering(c *C) {
+func (p *positioningTestSuite) TestVolumePositionExplicitOrdering(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -198,7 +198,7 @@ volumes:
           offset: 1M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -245,7 +245,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutMixedOrdering(c *C) {
+func (p *positioningTestSuite) TestVolumePositionMixedOrdering(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -266,7 +266,7 @@ volumes:
           offset: 1M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
@@ -312,7 +312,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutErrorsContentNoSuchFile(c *C) {
+func (p *positioningTestSuite) TestVolumePositionErrorsContentNoSuchFile(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -326,7 +326,7 @@ volumes:
               - image: foo.img
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img":.*no such file or directory`)
 }
@@ -345,7 +345,7 @@ func makeSizedFile(c *C, path string, size gadget.Size, content []byte) {
 	}
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutErrorsContentTooLargeSingle(c *C) {
+func (p *positioningTestSuite) TestVolumePositionErrorsContentTooLargeSingle(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -357,16 +357,16 @@ volumes:
           content:
               - image: foo.img
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), gadget.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB+1, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img" does not fit in the structure`)
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutErrorsContentTooLargeMany(c *C) {
+func (p *positioningTestSuite) TestVolumePositionErrorsContentTooLargeMany(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -379,8 +379,8 @@ volumes:
               - image: foo.img
               - image: bar.img
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), gadget.SizeMiB+1, nil)
-	makeSizedFile(c, filepath.Join(l.dir, "bar.img"), gadget.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB+1, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
@@ -388,12 +388,12 @@ volumes:
 		NonMBRStartOffset: 1 * gadget.SizeMiB,
 		SectorSize:        512,
 	}
-	v, err := gadget.PositionVolume(l.dir, vol, constraints)
+	v, err := gadget.PositionVolume(p.dir, vol, constraints)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot position structure #0: content "bar.img" does not fit in the structure`)
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutErrorsContentTooLargeWithOffset(c *C) {
+func (p *positioningTestSuite) TestVolumePositionErrorsContentTooLargeWithOffset(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -407,16 +407,16 @@ volumes:
                 # 512kB
                 offset: 524288
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img" does not fit in the structure`)
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutErrorsContentLargerThanDeclared(c *C) {
+func (p *positioningTestSuite) TestVolumePositionErrorsContentLargerThanDeclared(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -429,16 +429,16 @@ volumes:
               - image: foo.img
                 size: 1M
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), gadget.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB+1, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot position structure #0: content "foo.img" size %v is larger than declared %v`, gadget.SizeMiB+1, gadget.SizeMiB))
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutErrorsContentOverlap(c *C) {
+func (p *positioningTestSuite) TestVolumePositionErrorsContentOverlap(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -456,17 +456,17 @@ volumes:
                 size: 1M
                 offset: 0
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), gadget.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(l.dir, "bar.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
 	c.Assert(err, ErrorMatches, `cannot position structure #0: content "foo.img" overlaps with preceding image "bar.img"`)
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutContentExplicitOrder(c *C) {
+func (p *positioningTestSuite) TestVolumePositionContentExplicitOrder(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -483,12 +483,12 @@ volumes:
                 size: 1M
                 offset: 0
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), gadget.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(l.dir, "bar.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -520,7 +520,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutContentImplicitOrder(c *C) {
+func (p *positioningTestSuite) TestVolumePositionContentImplicitOrder(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -535,12 +535,12 @@ volumes:
               - image: bar.img
                 size: 1M
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), gadget.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(l.dir, "bar.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -572,7 +572,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutContentImplicitSize(c *C) {
+func (p *positioningTestSuite) TestVolumePositionContentImplicitSize(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -585,11 +585,11 @@ volumes:
               - image: foo.img
 `
 	size1_5MiB := gadget.SizeMiB + gadget.SizeMiB/2
-	makeSizedFile(c, filepath.Join(l.dir, "foo.img"), size1_5MiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), size1_5MiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -613,7 +613,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutContentNonBare(c *C) {
+func (p *positioningTestSuite) TestVolumePositionContentNonBare(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -627,11 +627,11 @@ volumes:
               - source: foo.txt
                 target: /boot
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.txt"), 0, []byte("foobar\n"))
+	makeSizedFile(c, filepath.Join(p.dir, "foo.txt"), 0, []byte("foobar\n"))
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -649,7 +649,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutConstraintsChange(c *C) {
+func (p *positioningTestSuite) TestVolumePositionConstraintsChange(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -667,11 +667,11 @@ volumes:
               - source: foo.txt
                 target: /boot
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.txt"), 0, []byte("foobar\n"))
+	makeSizedFile(c, filepath.Join(p.dir, "foo.txt"), 0, []byte("foobar\n"))
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
-	v, err := gadget.PositionVolume(l.dir, vol, defaultConstraints)
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 3 * gadget.SizeMiB,
@@ -705,7 +705,7 @@ volumes:
 		NonMBRStartOffset: 512 * gadget.SizeKiB,
 		SectorSize:        512,
 	}
-	v, err = gadget.PositionVolume(l.dir, vol, constraints)
+	v, err = gadget.PositionVolume(p.dir, vol, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 2*gadget.SizeMiB + 512*gadget.SizeKiB,
@@ -740,7 +740,7 @@ volumes:
 		NonMBRStartOffset: 400,
 		SectorSize:        512,
 	}
-	v, err = gadget.PositionVolume(l.dir, vol, constraintsBad)
+	v, err = gadget.PositionVolume(p.dir, vol, constraintsBad)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
 		Size: 2*gadget.SizeMiB + 446,
@@ -768,7 +768,7 @@ volumes:
 	})
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutConstraintsSectorSize(c *C) {
+func (p *positioningTestSuite) TestVolumePositionConstraintsSectorSize(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -786,7 +786,7 @@ volumes:
               - source: foo.txt
                 target: /boot
 `
-	makeSizedFile(c, filepath.Join(l.dir, "foo.txt"), 0, []byte("foobar\n"))
+	makeSizedFile(c, filepath.Join(p.dir, "foo.txt"), 0, []byte("foobar\n"))
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
@@ -794,15 +794,15 @@ volumes:
 		NonMBRStartOffset: 1 * gadget.SizeMiB,
 		SectorSize:        384,
 	}
-	_, err := gadget.PositionVolume(l.dir, vol, constraintsBadSectorSize)
+	_, err := gadget.PositionVolume(p.dir, vol, constraintsBadSectorSize)
 	c.Assert(err, ErrorMatches, "cannot position volume, structure #1 size is not a multiple of sector size 384")
 }
 
-func (l *layoutTestSuite) TestVolumeLayoutConstraintsNeedsSectorSize(c *C) {
+func (p *positioningTestSuite) TestVolumePositionConstraintsNeedsSectorSize(c *C) {
 	constraintsBadSectorSize := gadget.PositioningConstraints{
 		NonMBRStartOffset: 1 * gadget.SizeMiB,
 		// SectorSize left unspecified
 	}
-	_, err := gadget.PositionVolume(l.dir, &gadget.Volume{}, constraintsBadSectorSize)
+	_, err := gadget.PositionVolume(p.dir, &gadget.Volume{}, constraintsBadSectorSize)
 	c.Assert(err, ErrorMatches, "cannot position volume, invalid constraints: sector size cannot be 0")
 }
