@@ -36,13 +36,20 @@ type elfNoteHeader struct {
 	Type   uint32
 }
 
+const (
+	gnuElfNote = "GNU\x00"
+	gnuHdrType = 3
+	goElfNote  = "Go\x00\x00"
+	goHdrType  = 4
+)
+
 // ReadBuildID will return the GNU build-id if available and else the
 // GO build-id (the go-buildid is only available
 func ReadBuildID(fname string) (string, error) {
-	if buildId, err := readGenericBuildID(fname, "GNU\x00", 3); err == nil {
+	if buildId, err := readGenericBuildID(fname, gnuElfNote, gnuHdrType); err == nil {
 		return buildId, nil
 	}
-	return readGenericBuildID(fname, "Go\x00\x00", 4)
+	return readGenericBuildID(fname, goElfNote, goHdrType)
 }
 
 func readGenericBuildID(fname, elfNote string, hdrType uint32) (string, error) {
