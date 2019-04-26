@@ -86,9 +86,11 @@ static void setup_private_mount(const char *snap_name)
 	// user, temporarily change back to root. This workaround code can be
 	// removed once central handling of uid/gid is merged into
 	// snap-confine.
-	gid_t old_gid = getgid();
-	if (setgid(0) < 0) {
-		die("cannot set gid to 0");
+	gid_t old_egid = getegid();
+	if (old_egid != 0) {
+		if (setegid(0) < 0) {
+			die("cannot set effective gid to 0");
+		}
 	}
 	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
 	// to reuse and we will open with O_NOFOLLOW, below.
@@ -96,8 +98,10 @@ static void setup_private_mount(const char *snap_name)
 		die("cannot create base directory %s", base_dir);
 	}
 	// Restore original gid, please see the note above.
-	if (setgid(old_gid) < 0) {
-		die("cannot restore gid to %d", old_gid);
+	if (old_egid != 0) {
+		if (setegid(old_egid) < 0) {
+			die("cannot restore effective gid to %d", old_egid);
+		}
 	}
 
 	base_dir_fd = open(base_dir,
