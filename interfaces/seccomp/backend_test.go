@@ -472,6 +472,18 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
+
+	// change version reported by snap-seccomp
+	snapSeccomp := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
+if [ "$1" = "version-info" ]; then
+    echo "abcdef 1.2.3 1234abcd bpf-actlog"
+fi`)
+	defer snapSeccomp.Restore()
+
+	// reload cached version info
+	err := s.Backend.Initialize()
+	c.Assert(err, IsNil)
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "bpf-actlog"})
 }
 
 func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
