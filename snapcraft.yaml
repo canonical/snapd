@@ -29,9 +29,31 @@ parts:
     # FIXME: this should probably go upstream
     plugin: x-builddeb
     source: .
+  # xdelta is used to enable delta downloads (even if the host does not have it)
+  xdelta3:
+    plugin: nil
     stage-packages:
       - xdelta3
+    stage:
+      - usr/bin/*
+      - usr/lib/*
+      - lib/*
+  # squashfs-tools are used by `snap pack`
+  squashfs-tools:
+    plugin: nil
+    stage-packages:
       - squashfs-tools
+    stage:
+      - usr/bin/*
+      - usr/lib/*
+      - lib/*
+  # liblzma5 is part of core but the snapd snap needs to run even without core
+  liblzma5:
+    plugin: nil
+    stage-packages:
+      - liblzma5
+    stage:
+      - lib/*
   # the version in Ubuntu 16.04 (cache v6)
   fontconfig-xenial:
     plugin: nil
