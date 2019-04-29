@@ -310,7 +310,7 @@ prepare_classic() {
 repack_snapd_snap_with_deb_content() {
     local TARGET="$1"
 
-    local UNPACK_DIR="./snapd-unpack"
+    local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
