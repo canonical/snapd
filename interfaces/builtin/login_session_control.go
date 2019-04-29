@@ -27,8 +27,6 @@ const loginSessionControlBaseDeclarationSlots = `
       slot-snap-type:
         - core
     deny-auto-connection: true
-    deny-connection:
-      on-classic: false
 `
 
 const loginSessionControlConnectedPlugAppArmor = `
