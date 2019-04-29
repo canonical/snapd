@@ -52,8 +52,8 @@ func (s *cmdutilSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *cmdutilSuite) makeMockLdSoConf(c *C) {
-	ldSoConf := filepath.Join(dirs.SnapMountDir, "/core/current/etc/ld.so.conf")
+func (s *cmdutilSuite) makeMockLdSoConf(c *C, root string) {
+	ldSoConf := filepath.Join(root, "/etc/ld.so.conf")
 	ldSoConfD := ldSoConf + ".d"
 
 	err := os.MkdirAll(filepath.Dir(ldSoConf), 0755)
@@ -73,31 +73,34 @@ func (s *cmdutilSuite) makeMockLdSoConf(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *cmdutilSuite) TestCommandFromCore(c *C) {
-	s.makeMockLdSoConf(c)
-	root := filepath.Join(dirs.SnapMountDir, "/core/current")
+func (s *cmdutilSuite) TestCommandFromSystemSnap(c *C) {
+	for _, snap := range []string{"core", "snapd"} {
 
-	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
-	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
-	cmd, err := cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
-	c.Assert(err, IsNil)
+		root := filepath.Join(dirs.SnapMountDir, snap, "current")
+		s.makeMockLdSoConf(c, root)
 
-	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
-	c.Assert(err, IsNil)
-	interp := strings.TrimSpace(string(out))
+		os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+		osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
+		cmd, err := cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+		c.Assert(err, IsNil)
 
-	c.Check(cmd.Args, DeepEquals, []string{
-		filepath.Join(root, interp),
-		"--library-path",
-		fmt.Sprintf("%s/lib/x86_64-linux-gnu:%s/usr/lib/x86_64-linux-gnu", root, root),
-		filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3"),
-		"--some-xdelta-arg",
-	})
+		out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
+		c.Assert(err, IsNil)
+		interp := strings.TrimSpace(string(out))
+
+		c.Check(cmd.Args, DeepEquals, []string{
+			filepath.Join(root, interp),
+			"--library-path",
+			fmt.Sprintf("%s/lib/x86_64-linux-gnu:%s/usr/lib/x86_64-linux-gnu", root, root),
+			filepath.Join(root, "/usr/bin/xdelta3"),
+			"--some-xdelta-arg",
+		})
+	}
 }
 
 func (s *cmdutilSuite) TestCommandFromCoreSymlinkCycle(c *C) {
-	s.makeMockLdSoConf(c)
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
+	s.makeMockLdSoConf(c, root)
 
 	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
@@ -112,5 +115,4 @@ func (s *cmdutilSuite) TestCommandFromCoreSymlinkCycle(c *C) {
 
 	_, err = cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, ErrorMatches, "cannot run command from core: symlink cycle found")
-
 }
