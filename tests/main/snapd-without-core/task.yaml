@@ -15,12 +15,10 @@ execute: |
     fi
 
     echo "Create modified snapd snap"
-    UNPACK_DIR="./snapd-unpack"
+    #shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
     snap download --edge snapd
-    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
-    snap pack "$UNPACK_DIR" /tmp
+    repack_snapd_snap_with_deb_content /tmp
 
     echo "Ensure core is gone so that we can have snapd"
     #shellcheck source=tests/lib/pkgdb.sh
