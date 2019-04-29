@@ -43,8 +43,8 @@ const (
 	goHdrType  = 4
 )
 
-// ReadBuildID will return the GNU build-id if available and else the
-// GO build-id (the go-buildid is only available
+// ReadBuildID returns the build ID of a given binary. GNU BuildID is is
+// preferred over Go BuildID. Returns an error when neither is found.
 func ReadBuildID(fname string) (string, error) {
 	if buildId, err := readGenericBuildID(fname, gnuElfNote, gnuHdrType); err == nil {
 		return buildId, nil
