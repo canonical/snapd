@@ -348,7 +348,7 @@ func acquireSnap(tsto *ToolingStore, name string, dlOpts *DownloadOptions, local
 		}
 		return dst, info, nil
 	}
-	return tsto.DownloadSnap(name, snap.R(0), dlOpts)
+	return tsto.DownloadSnap(name, *dlOpts)
 }
 
 type addingFetcher struct {

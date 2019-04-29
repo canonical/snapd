@@ -39,10 +39,17 @@ import (
 // The fixed length of valid snap IDs.
 const validSnapIDLength = 32
 
+const (
+	// MBR identifies a Master Boot Record partitioning schema, or an MBR like role
+	MBR = "mbr"
+	// GPT identifies a GUID Partition Table partitioning schema
+	GPT = "gpt"
+)
+
 var (
 	validVolumeName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]+$")
 	validTypeID     = regexp.MustCompile("^[0-9A-F]{2}$")
-	validGUUID      = regexp.MustCompile("^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
+	validGUUID      = regexp.MustCompile("^(?i)[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
 )
 
 type Info struct {
@@ -108,6 +115,17 @@ type VolumeStructure struct {
 // IsBare returns true if the structure is not using a filesystem.
 func (vs *VolumeStructure) IsBare() bool {
 	return vs.Filesystem == "none" || vs.Filesystem == ""
+}
+
+// EffectiveRole returns the role of given structure
+func (vs *VolumeStructure) EffectiveRole() string {
+	if vs.Role != "" {
+		return vs.Role
+	}
+	if vs.Role == "" && vs.Type == MBR {
+		return MBR
+	}
+	return ""
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -293,27 +311,6 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	return &gi, nil
 }
 
-// PositionedStructure describes a VolumeStructure that has been positioned
-// within the volume
-type PositionedStructure struct {
-	*VolumeStructure
-	// StartOffset defines the start offset of the structure within the
-	// enclosing volume
-	StartOffset Size
-	// index of the structure definition in gadget YAML
-	index int
-}
-
-func (p PositionedStructure) String() string {
-	return fmtIndexAndName(p.index, p.Name)
-}
-
-type byStartOffset []PositionedStructure
-
-func (b byStartOffset) Len() int           { return len(b) }
-func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
-
 func fmtIndexAndName(idx int, name string) string {
 	if name != "" {
 		return fmt.Sprintf("#%v (%q)", idx, name)
@@ -325,7 +322,7 @@ func validateVolume(name string, vol *Volume) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != "gpt" && vol.Schema != "mbr" {
+	if vol.Schema != "" && vol.Schema != GPT && vol.Schema != MBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -349,7 +346,7 @@ func validateVolume(name string, vol *Volume) error {
 		ps := PositionedStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
-			index:           idx,
+			Index:           idx,
 		}
 		structures[idx] = ps
 		if s.Name != "" {
@@ -376,7 +373,7 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 	// - positioned structure overlap
 	// use structures positioned within the volume
 	for pidx, ps := range structures {
-		if ps.Role == "mbr" || ps.Type == "mbr" {
+		if ps.EffectiveRole() == MBR {
 			if ps.StartOffset != 0 {
 				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
 			}
@@ -481,7 +478,7 @@ func validateStructureType(s string, vol *Volume) error {
 
 	schema := vol.Schema
 	if schema == "" {
-		schema = "gpt"
+		schema = GPT
 	}
 
 	if s == "" {
@@ -493,7 +490,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	if s == "mbr" {
+	if s == MBR {
 		// backward compatibility for type: mbr
 		return nil
 	}
@@ -520,11 +517,11 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != "gpt" && isGPT {
+	if schema != GPT && isGPT {
 		// type: <uuid> is only valid for GPT volumes
 		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
 	}
-	if schema != "mbr" && isMBR {
+	if schema != MBR && isMBR {
 		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
 	}
 
@@ -533,14 +530,14 @@ func validateStructureType(s string, vol *Volume) error {
 
 func validateRole(vs *VolumeStructure, vol *Volume) error {
 	if vs.Type == "bare" {
-		if vs.Role != "" && vs.Role != "mbr" {
+		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
 		}
 	}
 	vsRole := vs.Role
-	if vs.Type == "mbr" {
+	if vs.Type == MBR {
 		// backward compatibility
-		vsRole = "mbr"
+		vsRole = MBR
 	}
 
 	switch vsRole {
@@ -548,7 +545,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Label != "" && vs.Label != "writable" {
 			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
 		}
-	case "mbr":
+	case MBR:
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}
@@ -625,8 +622,9 @@ func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Size uint64
 
 const (
-	SizeMiB = Size(2 << 20)
-	SizeGiB = Size(2 << 30)
+	SizeKiB = Size(1 << 10)
+	SizeMiB = Size(1 << 20)
+	SizeGiB = Size(1 << 30)
 
 	// SizeMBR is the maximum byte size of a structure of role 'mbr'
 	SizeMBR = Size(446)
