@@ -145,23 +145,18 @@ func isNetworkDown(err error) bool {
 		return false
 	}
 
-	osSyscallErr, ok := opErr.Err.(*os.SyscallError)
-	if !ok {
-		// on 16.04 we will not have SyscallError here, but DNSError, with no further details other than error message
-		dnsErr, ok := opErr.Err.(*net.DNSError)
-		if !ok {
-			return false
+	switch lowerErr := opErr.Err.(type) {
+	case *net.DNSError:
+		// on 16.04 we will not have SyscallError here, but DNSError, with
+		// no further details other than error message
+		return strings.Contains(lowerErr.Err, "connect: network is unreachable")
+	case *os.SyscallError:
+		if errnoErr, ok := lowerErr.Err.(syscall.Errno); ok {
+			// the errno codes from kernel/libc when the network is down
+			return errnoErr == syscall.ENETUNREACH || errnoErr == syscall.ENETDOWN
 		}
-		return strings.Contains(dnsErr.Err, "connect: network is unreachable")
 	}
-
-	errnoErr, ok := osSyscallErr.Err.(syscall.Errno)
-	if !ok {
-		return false
-	}
-
-	// the errno codes from kernel/libc when the network is down
-	return errnoErr == syscall.ENETUNREACH || errnoErr == syscall.ENETDOWN
+	return false
 }
 
 func isDnsUnavailable(err error) bool {
