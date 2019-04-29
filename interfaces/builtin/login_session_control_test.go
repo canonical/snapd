@@ -85,7 +85,7 @@ func (s *loginSessionControlSuite) TestConnectedPlugSnippet(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `org.freedesktop.login1`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `Can setup login session & seat.`)
 }
 
 func (s *loginSessionControlSuite) TestInterfaces(c *C) {

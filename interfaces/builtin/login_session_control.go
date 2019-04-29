@@ -30,30 +30,32 @@ const loginSessionControlBaseDeclarationSlots = `
 `
 
 const loginSessionControlConnectedPlugAppArmor = `
-# Description: Can setup login session & seat.
+# Description: Can setup login session & seat. This grants privileged access to user sessions.
 
 #include <abstractions/dbus-strict>
 
 dbus (send,receive)
     bus=system
-    path=/org/freedesktop/login1/{seat,session}/*
+    path=/org/freedesktop/login1/{seat,session}/**
     interface=org.freedesktop.DBus.Properties
     member={GetAll,PropertiesChanged,Get}
     peer=(label=unconfined),
 
 dbus (send,receive)
     bus=system
-    path=/org/freedesktop/login1/seat/*
+    path=/org/freedesktop/login1/seat/**
     interface=org.freedesktop.login1.Seat
     member={ActiveSession,SwitchTo}
     peer=(label=unconfined),
 
 dbus (send,receive)
     bus=system
-    path=/org/freedesktop/login1/session/*
+    path=/org/freedesktop/login1/session/**
     interface=org.freedesktop.login1.Session
     member={TakeControl,TakeDevice,PauseDevice,PauseDeviceComplete,ResumeDevice,ReleaseDevice,Active,State,Lock,Unlock}
     peer=(label=unconfined),
+
+/{,usr/}{,s}bin/loginctl ixr,
 `
 
 func init() {
