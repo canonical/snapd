@@ -53,4 +53,35 @@ func (s *SnapSuite) TestCreateCohort(c *check.C) {
 			"bar": {"cohort-key": "this"},
 		},
 	})
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestCreateCohortNoSnaps(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		panic("shouldn't be called")
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-cohort"})
+	c.Check(err, check.ErrorMatches, "the required argument .* was not provided")
+}
+
+func (s *SnapSuite) TestCreateCohortNotFound(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "kind": "snap-not-found"}, "status-code": 404}`)
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-cohort", "foo", "bar"})
+	c.Check(err, check.ErrorMatches, "cannot create cohorts: snap not found")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestCreateCohortError(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "something went wrong"}}`)
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-cohort", "foo", "bar"})
+	c.Check(err, check.ErrorMatches, "cannot create cohorts: something went wrong")
+	c.Check(n, check.Equals, 1)
 }
