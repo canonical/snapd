@@ -93,6 +93,8 @@ volumes:
           size: 100M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first-image")
+	c.Assert(vol.Structure, HasLen, 2)
+
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
@@ -132,6 +134,8 @@ volumes:
           size: 100M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 4)
+
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
@@ -185,6 +189,8 @@ volumes:
           offset: 1M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 4)
+
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
@@ -237,6 +243,8 @@ volumes:
           offset: 1M
 `
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 4)
+
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
@@ -443,6 +451,8 @@ volumes:
 	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 1)
+	c.Assert(vol.Structure[0].Content, HasLen, 2)
 
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
@@ -489,6 +499,8 @@ volumes:
 	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 1)
+	c.Assert(vol.Structure[0].Content, HasLen, 2)
 
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
@@ -532,6 +544,8 @@ volumes:
 	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), size1_5MiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 1)
+	c.Assert(vol.Structure[0].Content, HasLen, 1)
 
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
@@ -571,6 +585,8 @@ volumes:
 	makeSizedFile(c, filepath.Join(p.dir, "foo.txt"), 0, []byte("foobar\n"))
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 1)
+	c.Assert(vol.Structure[0].Content, HasLen, 1)
 
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
@@ -607,6 +623,8 @@ volumes:
 	makeSizedFile(c, filepath.Join(p.dir, "foo.txt"), 0, []byte("foobar\n"))
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 2)
+	c.Assert(vol.Structure[1].Content, HasLen, 1)
 
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
