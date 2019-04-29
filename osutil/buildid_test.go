@@ -43,6 +43,8 @@ func buildID(c *C, fname string) string {
 	output, err := exec.Command("file", fname).CombinedOutput()
 	c.Assert(err, IsNil)
 
+	c.Logf("file output: %q", string(output))
+
 	// BuildID can look like:
 	//  BuildID[sha1]=443877f9ec13c82365478130fc95cb5ff5181912
 	//  BuildID[md5/uuid]=ae38cdf243d2111064dfee99dfc30013
