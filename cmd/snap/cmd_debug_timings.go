@@ -43,7 +43,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
-			"ensure": i18n.G("Show timings for changes related to the given Ensure"),
+			"ensure": i18n.G("Show timings for a change related to the given Ensure"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Show more information"),
 		}), changeIDMixinArgDesc)
