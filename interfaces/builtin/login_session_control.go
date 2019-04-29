@@ -36,20 +36,21 @@ const loginSessionControlConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
-dbus (send)
+dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/{seat,session}/*
     interface=org.freedesktop.DBus.Properties
-    member=GetAll,
+    member={GetAll,PropertiesChanged}
+    peer=(label=unconfined),
 
-dbus (send)
+dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/seat/*
     interface=org.freedesktop.login1.Seat
-    member=ActiveSession
+    member={ActiveSession,SwitchTo}
     peer=(label=unconfined),
 
-dbus (send)
+dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/session/*
     interface=org.freedesktop.login1.Session
