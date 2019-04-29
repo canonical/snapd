@@ -79,7 +79,7 @@ func (s *mainSuite) TestComputeAndSaveSystemChanges(c *C) {
 	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ctx := update.NewSystemProfileUpdateContext(snapName)
+	ctx := update.NewSystemProfileUpdateContext(snapName, false)
 	err = update.ComputeAndSaveSystemChanges(ctx, snapName, s.as)
 	c.Assert(err, IsNil)
 
@@ -147,7 +147,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	ctx := update.NewSystemProfileUpdateContext(snapName)
+	ctx := update.NewSystemProfileUpdateContext(snapName, false)
 	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals,
@@ -225,7 +225,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	ctx := update.NewSystemProfileUpdateContext(snapName)
+	ctx := update.NewSystemProfileUpdateContext(snapName, false)
 	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -268,7 +268,7 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	ctx := update.NewSystemProfileUpdateContext(snapName)
+	ctx := update.NewSystemProfileUpdateContext(snapName, false)
 	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -311,7 +311,7 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	ctx := update.NewSystemProfileUpdateContext(snapName)
+	ctx := update.NewSystemProfileUpdateContext(snapName, false)
 	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, nil), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -355,7 +355,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	defer restore()
 
 	// The error was ignored, and no mount was recorded in the profile
-	ctx := update.NewSystemProfileUpdateContext(snapName)
+	ctx := update.NewSystemProfileUpdateContext(snapName, false)
 	c.Assert(update.ComputeAndSaveSystemChanges(ctx, snapName, s.as), IsNil)
 	c.Check(s.log.String(), Equals, "")
 	c.Check(currentProfilePath, testutil.FileEquals, "")
@@ -381,10 +381,11 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	err = ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
 	c.Assert(err, IsNil)
 
-	err = update.ApplyUserFstab("foo")
+	ctx := update.NewUserProfileUpdateContext(snapName, true, 1000)
+	err = update.ApplyUserFstab(ctx, "foo")
 	c.Assert(err, IsNil)
 
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, 1000)
 
 	c.Assert(changes, HasLen, 1)
 	c.Assert(changes[0].Action, Equals, update.Mount)

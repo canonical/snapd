@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -37,14 +36,22 @@ type UserProfileUpdateContext struct {
 }
 
 // NewUserProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
-func NewUserProfileUpdateContext(instanceName string, uid int) *UserProfileUpdateContext {
+func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid int) *UserProfileUpdateContext {
 	return &UserProfileUpdateContext{
 		CommonProfileUpdateContext: CommonProfileUpdateContext{
 			instanceName:       instanceName,
+			fromSnapConfine:    fromSnapConfine,
 			desiredProfilePath: desiredUserProfilePath(instanceName),
 		},
 		uid: uid,
 	}
+}
+
+// Lock acquires locks / freezes needed to synchronize mount namespace changes.
+func (ctx *UserProfileUpdateContext) Lock() (unlock func(), err error) {
+	// TODO: when persistent user mount namespaces are enabled, grab a lock
+	// protecting the snap and freeze snap processes here.
+	return func() {}, nil
 }
 
 // Assumptions returns information about file system mutability rules.
@@ -71,15 +78,14 @@ func (ctx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile,
 	return profile, nil
 }
 
-func applyUserFstab(snapName string) error {
-	ctx := NewUserProfileUpdateContext(snapName, os.Getuid())
+func applyUserFstab(ctx MountProfileUpdateContext, instanceName string) error {
 	desired, err := ctx.LoadDesiredProfile()
 	if err != nil {
-		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", instanceName, err)
 	}
 	debugShowProfile(desired, "desired mount profile")
 	as := ctx.Assumptions()
-	_, err = applyProfile(ctx, snapName, &osutil.MountProfile{}, desired, as)
+	_, err = applyProfile(ctx, instanceName, &osutil.MountProfile{}, desired, as)
 	return err
 }
 
