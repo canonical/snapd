@@ -38,7 +38,7 @@ dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/{seat,session}/*
     interface=org.freedesktop.DBus.Properties
-    member={GetAll,PropertiesChanged}
+    member={GetAll,PropertiesChanged,Get}
     peer=(label=unconfined),
 
 dbus (send,receive)
