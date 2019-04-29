@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 // the default refresh pattern
@@ -40,6 +41,9 @@ const defaultRefreshSchedule = "00:00~24:00/4"
 
 // cannot keep without refreshing for more than maxPostponement
 const maxPostponement = 60 * 24 * time.Hour
+
+// cannot inhibit refreshes for more than maxInhibition
+const maxInhibition = 7 * 24 * time.Hour
 
 // hooks setup by devicestate
 var (
@@ -49,7 +53,7 @@ var (
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
-var refreshRetryDelay = 10 * time.Minute
+var refreshRetryDelay = 30 * time.Minute
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -201,13 +205,6 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
-	// Check that we have reasonable delays between attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
-		return nil
-	}
-
 	// get lastRefresh and schedule
 	lastRefresh, err := m.LastRefresh()
 	if err != nil {
@@ -287,13 +284,15 @@ func (m *autoRefresh) Ensure() error {
 			return nil
 		}
 
-		err = m.launchAutoRefresh()
-		// clear nextRefresh only if the refresh worked. There is
-		// still the lastRefreshAttempt rate limit so things will
-		// not go into a busy store loop
-		if err == nil {
-			m.nextRefresh = time.Time{}
+		// Check that we have reasonable delays between attempts.
+		// If the store is under stress we need to make sure we do not
+		// hammer it too often
+		if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
+			return nil
 		}
+
+		err = m.launchAutoRefresh()
+		m.nextRefresh = time.Time{}
 	}
 
 	return err
@@ -370,16 +369,20 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
+	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
+	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
+	defer func() {
+		tm.Stop()
+		perfTimings.Save(m.state)
+	}()
+
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	m.state.Set("last-refresh", time.Now())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
-
-	// Set last refresh time only if the store (in AutoRefresh) gave
-	// us no error.
-	m.state.Set("last-refresh", time.Now())
 
 	var msg string
 	switch len(updated) {
@@ -402,6 +405,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	perfTimings.AddTag("change-id", chg.ID())
 
 	return nil
 }
@@ -462,4 +466,29 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return t1, nil
+}
+
+// inhibitRefresh returns an error if refresh is inhibited by running apps.
+//
+// Internally the snap state is updated to remember when the inhibition first
+// took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
+// that period the refresh will go ahead despite application activity.
+func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
+	if err := SoftNothingRunningRefreshCheck(info); err != nil {
+		now := time.Now()
+		if snapst.RefreshInhibitedTime == nil {
+			// Store the instant when the snap was first inhibited.
+			// This is reset to nil on successful refresh.
+			snapst.RefreshInhibitedTime = &now
+			Set(st, info.InstanceName(), snapst)
+			return err
+		}
+
+		if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
+			// If we are still in the allowed window then just return
+			// the error but don't change the snap state again.
+			return err
+		}
+	}
+	return nil
 }

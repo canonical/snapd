@@ -34,6 +34,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -233,10 +235,14 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw=`
 )
 
-type testAuthContext struct {
+type testDauthContext struct {
 	c      *C
 	device *auth.DeviceState
-	user   *auth.UserState
+
+	deviceMu         sync.Mutex
+	deviceGetWitness func()
+
+	user *auth.UserState
 
 	proxyStoreID  string
 	proxyStoreURL *url.URL
@@ -246,37 +252,44 @@ type testAuthContext struct {
 	cloudInfo *auth.CloudInfo
 }
 
-func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
+func (dac *testDauthContext) Device() (*auth.DeviceState, error) {
+	dac.deviceMu.Lock()
+	defer dac.deviceMu.Unlock()
 	freshDevice := auth.DeviceState{}
-	if ac.device != nil {
-		freshDevice = *ac.device
+	if dac.device != nil {
+		freshDevice = *dac.device
+	}
+	if dac.deviceGetWitness != nil {
+		dac.deviceGetWitness()
 	}
 	return &freshDevice, nil
 }
 
-func (ac *testAuthContext) UpdateDeviceAuth(d *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
-	ac.c.Assert(d, DeepEquals, ac.device)
-	updated := *ac.device
+func (dac *testDauthContext) UpdateDeviceAuth(d *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+	dac.deviceMu.Lock()
+	defer dac.deviceMu.Unlock()
+	dac.c.Assert(d, DeepEquals, dac.device)
+	updated := *dac.device
 	updated.SessionMacaroon = newSessionMacaroon
-	*ac.device = updated
+	*dac.device = updated
 	return &updated, nil
 }
 
-func (ac *testAuthContext) UpdateUserAuth(u *auth.UserState, newDischarges []string) (*auth.UserState, error) {
-	ac.c.Assert(u, DeepEquals, ac.user)
-	updated := *ac.user
+func (dac *testDauthContext) UpdateUserAuth(u *auth.UserState, newDischarges []string) (*auth.UserState, error) {
+	dac.c.Assert(u, DeepEquals, dac.user)
+	updated := *dac.user
 	updated.StoreDischarges = newDischarges
 	return &updated, nil
 }
 
-func (ac *testAuthContext) StoreID(fallback string) (string, error) {
-	if ac.storeID != "" {
-		return ac.storeID, nil
+func (dac *testDauthContext) StoreID(fallback string) (string, error) {
+	if dac.storeID != "" {
+		return dac.storeID, nil
 	}
 	return fallback, nil
 }
 
-func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (dac *testDauthContext) DeviceSessionRequestParams(nonce string) (*store.DeviceSessionRequestParams, error) {
 	model, err := asserts.Decode([]byte(exModel))
 	if err != nil {
 		return nil, err
@@ -292,22 +305,22 @@ func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.Devic
 		return nil, err
 	}
 
-	return &auth.DeviceSessionRequestParams{
+	return &store.DeviceSessionRequestParams{
 		Request: sessReq.(*asserts.DeviceSessionRequest),
 		Serial:  serial.(*asserts.Serial),
 		Model:   model.(*asserts.Model),
 	}, nil
 }
 
-func (ac *testAuthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url.URL, error) {
-	if ac.proxyStoreID != "" {
-		return ac.proxyStoreID, ac.proxyStoreURL, nil
+func (dac *testDauthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url.URL, error) {
+	if dac.proxyStoreID != "" {
+		return dac.proxyStoreID, dac.proxyStoreURL, nil
 	}
 	return "", defaultURL, nil
 }
 
-func (ac *testAuthContext) CloudInfo() (*auth.CloudInfo, error) {
-	return ac.cloudInfo, nil
+func (dac *testDauthContext) CloudInfo() (*auth.CloudInfo, error) {
+	return dac.cloudInfo, nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -766,8 +779,8 @@ func (s *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 	snap.Size = int64(len(expectedContent))
 
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&store.Config{}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{}, dauthCtx)
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := sto.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil, nil)
@@ -946,8 +959,8 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
-	authContext := &testAuthContext{c: c}
-	sto := store.New(nil, authContext)
+	dauthCtx := &testDauthContext{c: c}
+	sto := store.New(nil, dauthCtx)
 
 	for _, testCase := range downloadDeltaTests {
 		sto.SetDeltaFormat(testCase.format)
@@ -970,9 +983,9 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 		c.Assert(err, IsNil)
 		defer os.Remove(w.Name())
 
-		authContext.device = nil
+		dauthCtx.device = nil
 		if testCase.deviceSession {
-			authContext.device = s.device
+			dauthCtx.device = s.device
 		}
 
 		authedUser := s.user
@@ -1079,8 +1092,8 @@ func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := store.New(&store.Config{}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{}, dauthCtx)
 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := store.NewRequestOptions("GET", endpoint)
@@ -1109,8 +1122,8 @@ func (s *storeTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	authContext := &testAuthContext{c: c, device: s.device, user: s.localUser}
-	sto := store.New(&store.Config{}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.localUser}
+	sto := store.New(&store.Config{}, dauthCtx)
 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := store.NewRequestOptions("GET", endpoint)
@@ -1142,8 +1155,8 @@ func (s *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	// no serial and no device macaroon => no device auth
 	s.device.Serial = ""
 	s.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := store.New(&store.Config{}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{}, dauthCtx)
 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := store.NewRequestOptions("GET", endpoint)
@@ -1187,8 +1200,8 @@ func (s *storeTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := store.New(&store.Config{}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{}, dauthCtx)
 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := store.NewRequestOptions("GET", endpoint)
@@ -1226,8 +1239,8 @@ func (s *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
-	sto := store.New(&store.Config{}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{}, dauthCtx)
 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := store.NewRequestOptions("GET", endpoint)
@@ -1236,6 +1249,128 @@ func (s *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 	c.Assert(err, Equals, store.ErrInvalidCredentials)
 	c.Check(response, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
+func (s *storeTestSuite) TestEnsureDeviceSession(c *C) {
+	deviceSessionRequested := 0
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+			authorization := r.Header.Get("X-Device-Authorization")
+			c.Assert(authorization, Equals, "")
+			deviceSessionRequested++
+			io.WriteString(w, `{"macaroon": "fresh-session-macaroon"}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	// make sure device session is not set
+	s.device.SessionMacaroon = ""
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, dauthCtx)
+
+	device, err := sto.EnsureDeviceSession()
+	c.Assert(err, IsNil)
+
+	c.Check(device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	c.Check(deviceSessionRequested, Equals, 1)
+}
+
+func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
+	var deviceSessionRequested int32
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+			authorization := r.Header.Get("X-Device-Authorization")
+			c.Assert(authorization, Equals, "")
+			atomic.AddInt32(&deviceSessionRequested, 1)
+			io.WriteString(w, `{"macaroon": "fresh-session-macaroon"}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	wgGetDevice := new(sync.WaitGroup)
+
+	// make sure device session is not set
+	s.device.SessionMacaroon = ""
+	dauthCtx := &testDauthContext{
+		c:                c,
+		device:           s.device,
+		deviceGetWitness: wgGetDevice.Done,
+	}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, dauthCtx)
+
+	wg := new(sync.WaitGroup)
+
+	sto.SessionLock()
+
+	// try to acquire 10 times a device session in parallel;
+	// block these flows until all goroutines have acquired the original
+	// device state which is without a session, then let them run
+	for i := 0; i < 10; i++ {
+		wgGetDevice.Add(1)
+		wg.Add(1)
+		go func(n int) {
+			_, err := sto.EnsureDeviceSession()
+			c.Assert(err, IsNil)
+			wg.Done()
+		}(i)
+	}
+
+	wgGetDevice.Wait()
+	dauthCtx.deviceGetWitness = nil
+	// all flows have got the original device state
+	// let them run
+	sto.SessionUnlock()
+	// wait for the 10 flows to be done
+	wg.Wait()
+
+	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	// we acquired a session from the store only once
+	c.Check(int(deviceSessionRequested), Equals, 1)
 }
 
 func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
@@ -1291,10 +1426,10 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 
 	// make sure device session is not set
 	s.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
-	}, authContext)
+	}, dauthCtx)
 
 	reqOptions := store.NewRequestOptions("GET", mockServerURL)
 
@@ -1381,10 +1516,10 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 
 	// make sure device session is expired
 	s.device.SessionMacaroon = "expired-session-macaroon"
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
-	}, authContext)
+	}, dauthCtx)
 
 	reqOptions := store.NewRequestOptions("GET", mockServerURL)
 
@@ -1796,8 +1931,8 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		StoreBaseURL: mockServerURL,
 		InfoFields:   []string{"abc", "def"},
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	// the actual test
 	spec := store.SnapSpec{
@@ -1891,8 +2026,8 @@ func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 		StoreBaseURL: mockServerURL,
 		InfoFields:   []string{},
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	info, err := sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
 	c.Assert(err, IsNil)
@@ -1931,8 +2066,8 @@ func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{"abc", "def"},
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	// the actual test
 	spec := store.SnapSpec{
@@ -1961,8 +2096,8 @@ func (s *storeTestSuite) TestInfo500(c *C) {
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{},
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	// the actual test
 	spec := store.SnapSpec{
@@ -1995,8 +2130,8 @@ func (s *storeTestSuite) TestInfo500once(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	// the actual test
 	spec := store.SnapSpec{
@@ -2033,8 +2168,8 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	// the actual test
 	spec := store.SnapSpec{
@@ -2117,8 +2252,8 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	// the actual test
 	result, err := sto.SnapInfo(store.SnapSpec{Name: "eh"}, nil)
@@ -2197,7 +2332,7 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	cfg.Series = "21"
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "fallback"
-	sto := store.New(cfg, &testAuthContext{c: c, device: s.device, storeID: "my-brand-store-id"})
+	sto := store.New(cfg, &testDauthContext{c: c, device: s.device, storeID: "my-brand-store-id"})
 
 	// the actual test
 	spec := store.SnapSpec{
@@ -2224,7 +2359,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	c.Assert(err, IsNil)
 	cfg := store.DefaultConfig()
 	cfg.StoreBaseURL = nowhereURL
-	sto := store.New(cfg, &testAuthContext{
+	sto := store.New(cfg, &testDauthContext{
 		c:             c,
 		device:        s.device,
 		proxyStoreID:  "foo",
@@ -2254,7 +2389,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	mockServerURL, _ := url.Parse(mockServer.URL)
 	cfg := store.DefaultConfig()
 	cfg.StoreBaseURL = mockServerURL
-	sto := store.New(cfg, &testAuthContext{
+	sto := store.New(cfg, &testDauthContext{
 		c:      c,
 		device: s.device,
 		// mock an assertion that has id but no url
@@ -2453,8 +2588,8 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{"abc", "def"},
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	for _, query := range []store.Search{
 		{Query: "hello", Prefix: true},
@@ -2513,8 +2648,8 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: serverURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	sections, err := sto.Sections(context.TODO(), s.user)
 	c.Check(err, IsNil)
@@ -2546,8 +2681,8 @@ func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: serverURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device, storeID: "my-brand-store"}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device, storeID: "my-brand-store"}
+	sto := store.New(&cfg, dauthCtx)
 
 	sections, err := sto.Sections(context.TODO(), s.user)
 	c.Check(err, IsNil)
@@ -2625,8 +2760,8 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	defer mockServer.Close()
 
 	serverURL, _ := url.Parse(mockServer.URL)
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&store.Config{StoreBaseURL: serverURL}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)
@@ -2692,8 +2827,8 @@ func (s *storeTestSuite) TestFind(c *C) {
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{"abc", "def"},
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
 	c.Assert(err, IsNil)
@@ -2756,6 +2891,11 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "foo")
 			c.Check(query.Get("private"), Equals, "true")
+		case 1:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(name, Equals, "foo")
+			c.Check(q, Equals, "")
+			c.Check(query.Get("private"), Equals, "true")
 		default:
 			c.Fatalf("what? %d", n)
 		}
@@ -2778,6 +2918,9 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 	_, err := sto.Find(&store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
 
+	_, err = sto.Find(&store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
+	c.Check(err, IsNil)
+
 	_, err = sto.Find(&store.Search{Query: "foo", Private: true}, nil)
 	c.Check(err, Equals, store.ErrUnauthenticated)
 
@@ -2788,8 +2931,6 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
-	c.Check(err, Equals, store.ErrBadQuery)
-	_, err = sto.Find(&store.Search{Query: "foo", Private: true, Prefix: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
@@ -3000,6 +3141,45 @@ func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
 }
 
+func (s *storeTestSuite) TestFindByCommonID(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", searchPath)
+		query := r.URL.Query()
+
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(query["common_id"], DeepEquals, []string{"org.hello"})
+			c.Check(query["name"], IsNil)
+			c.Check(query["q"], IsNil)
+		default:
+			c.Fatalf("expected 1 query, now on %d", n+1)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, strings.Replace(MockSearchJSON,
+			`"common_ids": []`,
+			`"common_ids": ["org.hello"]`, -1))
+
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	sto := store.New(&cfg, nil)
+
+	infos, err := sto.Find(&store.Search{CommonID: "org.hello"}, nil)
+	c.Check(err, IsNil)
+	c.Assert(infos, HasLen, 1)
+	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
+}
+
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := store.AuthLocation()
@@ -3134,8 +3314,8 @@ func (s *storeTestSuite) TestAssertion(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
@@ -3166,13 +3346,13 @@ func (s *storeTestSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
 	cfg := store.Config{
 		AssertionsBaseURL: nowhereURL,
 	}
-	authContext := &testAuthContext{
+	dauthCtx := &testDauthContext{
 		c:             c,
 		device:        s.device,
 		proxyStoreID:  "foo",
 		proxyStoreURL: mockServerURL,
 	}
-	sto := store.New(&cfg, authContext)
+	sto := store.New(&cfg, dauthCtx)
 
 	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
@@ -3288,11 +3468,11 @@ func (s *storeTestSuite) TestDecorateOrders(c *C) {
 	defer mockPurchasesServer.Close()
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := store.New(&cfg, authContext)
+	sto := store.New(&cfg, dauthCtx)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3453,11 +3633,11 @@ func (s *storeTestSuite) TestDecorateOrdersSingle(c *C) {
 	defer mockPurchasesServer.Close()
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := store.New(&cfg, authContext)
+	sto := store.New(&cfg, dauthCtx)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3500,11 +3680,11 @@ func (s *storeTestSuite) TestDecorateOrdersSingleNotFound(c *C) {
 	defer mockPurchasesServer.Close()
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := store.New(&cfg, authContext)
+	sto := store.New(&cfg, dauthCtx)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3532,11 +3712,11 @@ func (s *storeTestSuite) TestDecorateOrdersTokenExpired(c *C) {
 	defer mockPurchasesServer.Close()
 
 	mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := store.New(&cfg, authContext)
+	sto := store.New(&cfg, dauthCtx)
 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
@@ -3651,11 +3831,11 @@ func (s *storeTestSuite) TestBuy500(c *C) {
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	sto := store.New(&cfg, authContext)
+	sto := store.New(&cfg, dauthCtx)
 
 	buyOptions := &client.BuyOptions{
 		SnapID:   helloWorldSnapID,
@@ -3723,11 +3903,11 @@ func (s *storeTestSuite) TestBuy(c *C) {
 		defer mockServer.Close()
 
 		mockServerURL, _ := url.Parse(mockServer.URL)
-		authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+		dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 		cfg := store.Config{
 			StoreBaseURL: mockServerURL,
 		}
-		sto := store.New(&cfg, authContext)
+		sto := store.New(&cfg, dauthCtx)
 
 		// Find the snap first
 		spec := store.SnapSpec{
@@ -3945,11 +4125,11 @@ func (s *storeTestSuite) TestReadyToBuy(c *C) {
 		defer mockPurchasesServer.Close()
 
 		mockServerURL, _ := url.Parse(mockPurchasesServer.URL)
-		authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+		dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 		cfg := store.Config{
 			StoreBaseURL: mockServerURL,
 		}
-		sto := store.New(&cfg, authContext)
+		sto := store.New(&cfg, dauthCtx)
 
 		err := sto.ReadyToBuy(s.user)
 		test.Test(c, err)
@@ -4066,6 +4246,8 @@ func init() {
 	helloRefreshedDate = t
 }
 
+const helloCohortKey = "this is a very short cohort key, as cohort keys go, because those are *long*"
+
 func (s *storeTestSuite) TestSnapAction(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -4076,6 +4258,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "")
 
 		// no store ID by default
 		storeID := r.Header.Get("Snap-Device-Store")
@@ -4112,6 +4295,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"cohort-key":   helloCohortKey,
 		})
 
 		io.WriteString(w, `{
@@ -4143,8 +4327,8 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4159,6 +4343,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
+			CohortKey:    helloCohortKey,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -4251,8 +4436,8 @@ func (s *storeTestSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4324,8 +4509,8 @@ func (s *storeTestSuite) TestSnapActionNoResults(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4388,8 +4573,8 @@ func (s *storeTestSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4464,8 +4649,8 @@ func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4553,8 +4738,8 @@ func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4629,8 +4814,8 @@ func (s *storeTestSuite) TestSnapActionRetryOnEOF(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4716,8 +4901,8 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4741,6 +4926,68 @@ func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
+}
+
+func (s *storeTestSuite) TestSnapActionAutoRefresh(c *C) {
+	// the bare TestSnapAction does more SnapAction checks; look there
+	// this one mostly just checks the refresh-reason header
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "scheduled")
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "epoch": {"read": [0], "write": [0]},
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, &store.RefreshOptions{IsAutoRefresh: true})
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
 }
 
 func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
@@ -4803,8 +5050,8 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4899,8 +5146,8 @@ func (s *storeTestSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	cfg.Series = "21"
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "foo"
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -4992,8 +5239,8 @@ func (s *storeTestSuite) TestSnapActionWithDeltas(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -5079,8 +5326,8 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -5179,8 +5426,8 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), nil,
 		[]*store.SnapAction{
@@ -5271,8 +5518,8 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), nil,
 		[]*store.SnapAction{
@@ -5311,8 +5558,8 @@ func (s *storeTestSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	_, err := sto.SnapAction(context.TODO(), nil,
 		[]*store.SnapAction{
@@ -5401,8 +5648,8 @@ func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), nil,
 		[]*store.SnapAction{
@@ -5536,8 +5783,8 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -5688,8 +5935,8 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -5776,8 +6023,8 @@ func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), nil, []*store.SnapAction{
 		{
@@ -5810,8 +6057,8 @@ func (s *storeTestSuite) TestSnapActionUnknownAction(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), nil,
 		[]*store.SnapAction{
@@ -6045,10 +6292,10 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 
 	// make sure device session is expired
 	s.device.SessionMacaroon = "expired-session-macaroon"
-	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
 	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
-	}, authContext)
+	}, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -6223,8 +6470,8 @@ func (s *storeTestSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -6326,8 +6573,8 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	opts := &store.RefreshOptions{PrivacyKey: "foo"}
 	currentSnaps := []*store.CurrentSnap{
@@ -6458,8 +6705,8 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C)
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -6574,8 +6821,8 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -6605,8 +6852,8 @@ func (s *storeTestSuite) TestSnapActionInstallParallelInstall(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&store.Config{}, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{}, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -6688,8 +6935,8 @@ func (s *storeTestSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -6771,8 +7018,8 @@ func (s *storeTestSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{
@@ -6873,8 +7120,8 @@ func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	authContext := &testAuthContext{c: c, device: s.device}
-	sto := store.New(&cfg, authContext)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
 
 	results, err := sto.SnapAction(context.TODO(), []*store.CurrentSnap{
 		{

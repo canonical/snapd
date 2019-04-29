@@ -40,14 +40,12 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
-# Disable -buildmode=pie mode on i386 as can panics in spectacular
-# ways (LP: #1711052).
-# See also https://forum.snapcraft.io/t/artful-i386-panics/
-# Note while the panic is only on artful, that's because artful
-# detects it; the issue potentially there on older things.
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
-ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),i386)
-BUILDFLAGS+= -buildmode=pie
+# Disable -buildmode=pie mode on all our 32bit platforms
+# (i386 and armhf). For i386 because of LP: #1711052 and for
+# armhf because of LP: #1822738
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
+ BUILDFLAGS+= -buildmode=pie
 endif
 
 GCCGOFLAGS=
@@ -85,7 +83,7 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # for stability, predicability and easy of deployment. We need to link some
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
-    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
+    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
 ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH),amd64)
 		VENDOR_ARGS+= --with-host-arch-32bit-triplet=$(shell dpkg-architecture -f -ai386 -qDEB_HOST_MULTIARCH)
 endif

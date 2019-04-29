@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -47,12 +48,12 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type FirstBootTestSuite struct {
@@ -65,6 +66,8 @@ type FirstBootTestSuite struct {
 	brandSigning *assertstest.SigningDB
 
 	overlord *overlord.Overlord
+
+	perfTimings timings.Measurer
 
 	restoreOnClassic func()
 	restoreBackends  func()
@@ -107,6 +110,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	s.perfTimings = timings.New(nil)
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -146,7 +151,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -163,7 +168,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "generic")
 	c.Check(ds.Model, Equals, "generic-classic")
@@ -191,11 +196,11 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model-classic")
@@ -224,7 +229,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
 }
 
@@ -263,11 +268,11 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudIns
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model-classic")
@@ -312,7 +317,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := devicestate.PopulateStateFromSeedImpl(st)
+	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -481,7 +486,7 @@ snaps:
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// the first taskset installs core and waits for noone
@@ -515,10 +520,10 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -656,10 +661,10 @@ func writeAssertionsToFile(fn string, assertions []asserts.Assertion) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -710,7 +715,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -814,10 +819,10 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, modName string, extra
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedConfigureHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -884,7 +889,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -985,10 +990,10 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -1049,7 +1054,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1188,7 +1193,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestate.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model")
@@ -1310,10 +1315,10 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	})
 	defer systemctlRestorer()
 
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core18_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -1355,7 +1360,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// the first taskset installs snapd and waits for noone
@@ -1502,7 +1507,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// the first taskset installs snapd and waits for noone
@@ -1572,15 +1577,15 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
-	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVars(map[string]string{
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
+	loader.SetBootVars(map[string]string{
 		"snap_core":   "core_1.snap",
 		"snap_kernel": "pc-kernel_1.snap",
 	})
@@ -1644,7 +1649,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")

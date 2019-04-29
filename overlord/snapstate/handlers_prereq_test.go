@@ -369,3 +369,72 @@ func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	s.state.Unlock()
 }
+
+func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
+	s.state.Lock()
+
+	si1 := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: "core16",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: "core16",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "core16",
+				Channel:      "stable",
+			},
+			revno: snap.R(11),
+		},
+	})
+
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}

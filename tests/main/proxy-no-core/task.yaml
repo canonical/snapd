@@ -3,6 +3,12 @@ summary: Ensure that the core.proxy.* settings are honored without core
 # only needs a test on classic
 systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
+prepare: |
+    # Make sure there is not any .partial for the core snap to be resumed,
+    # otherwise it is not going to use the proxy to download it. The .partial
+    # file is being automatically restored with the snapd state.
+    rm -f /var/lib/snapd/snaps/core_*.partial
+
 restore: |
     iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j ACCEPT -p tcp
     iptables -D OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset

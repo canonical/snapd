@@ -20,7 +20,10 @@
 package testutil
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
 )
@@ -65,4 +68,51 @@ func (s *mockCommandSuite) TestMockCommandConflictEcho(c *check.C) {
 	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
 		{"do-not-swallow-echo-args", "-E", "-n", "-e"},
 	})
+}
+
+func (s *mockCommandSuite) TestMockShellchecksWhenAvailable(c *check.C) {
+	tmpDir := c.MkDir()
+	mockShellcheck := MockCommand(c, "shellcheck", fmt.Sprintf(`cat > %s/input`, tmpDir))
+	defer mockShellcheck.Restore()
+
+	restore := MockShellcheckPath(mockShellcheck.Exe())
+	defer restore()
+
+	mock := MockCommand(c, "some-command", "echo some-command")
+
+	c.Assert(exec.Command("some-command").Run(), check.IsNil)
+
+	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
+		{"some-command"},
+	})
+	c.Assert(mockShellcheck.Calls(), check.DeepEquals, [][]string{
+		{"shellcheck", "-s", "bash", "-"},
+	})
+
+	scriptData, err := ioutil.ReadFile(mock.Exe())
+	c.Assert(err, check.IsNil)
+	c.Assert(string(scriptData), Contains, "\necho some-command\n")
+
+	data, err := ioutil.ReadFile(filepath.Join(tmpDir, "input"))
+	c.Assert(err, check.IsNil)
+	c.Assert(data, check.DeepEquals, scriptData)
+}
+
+func (s *mockCommandSuite) TestMockNoShellchecksWhenNotAvailable(c *check.C) {
+	mockShellcheck := MockCommand(c, "shellcheck", `echo "i am not called"; exit 1`)
+	defer mockShellcheck.Restore()
+
+	restore := MockShellcheckPath("")
+	defer restore()
+
+	// This would fail with proper shellcheck due to SC2086: Double quote to
+	// prevent globbing and word splitting.
+	mock := MockCommand(c, "some-command", "echo $1")
+
+	c.Assert(exec.Command("some-command").Run(), check.IsNil)
+
+	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
+		{"some-command"},
+	})
+	c.Assert(mockShellcheck.Calls(), check.HasLen, 0)
 }

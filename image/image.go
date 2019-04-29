@@ -32,9 +32,9 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -72,6 +72,11 @@ func (li *localInfos) Name(pathOrName string) string {
 		return info.InstanceName()
 	}
 	return pathOrName
+}
+
+func (li *localInfos) IsLocal(name string) bool {
+	_, ok := li.nameToPath[name]
+	return ok
 }
 
 func (li *localInfos) PreferLocal(name string) string {
@@ -343,7 +348,7 @@ func acquireSnap(tsto *ToolingStore, name string, dlOpts *DownloadOptions, local
 		}
 		return dst, info, nil
 	}
-	return tsto.DownloadSnap(name, snap.R(0), dlOpts)
+	return tsto.DownloadSnap(name, *dlOpts)
 }
 
 type addingFetcher struct {
@@ -401,6 +406,23 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 		}
 	}
 	return cps
+}
+
+// hasBase checks if the given snap has a base in the given localInfos and
+// snaps. If not an error is returned.
+func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
+	// snap needs no base: nothing to do
+	if snap.Base == "" {
+		return nil
+	}
+	// core provides everything that core16 needs
+	if snap.Base == "core16" && local.hasName(snaps, "core") {
+		return nil
+	}
+	if local.hasName(snaps, snap.Base) {
+		return nil
+	}
+	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", snap.InstanceName(), snap.Base)
 }
 
 func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
@@ -467,31 +489,29 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// that when people use model assertions with
 		// required snaps like bluez which at this point
 		// still requires core will hang forever in seeding.
-		if strutil.ListContains(opts.Snaps, "core") {
+		if strutil.ListContains(model.RequiredSnaps(), "core") || local.hasName(opts.Snaps, "core") {
 			snaps = append(snaps, "core")
 		}
 	}
 
 	if !opts.Classic {
 		// core/base,kernel,gadget first
-		snaps = append(snaps, local.PreferLocal(baseName))
-		snaps = append(snaps, local.PreferLocal(model.Kernel()))
-		snaps = append(snaps, local.PreferLocal(model.Gadget()))
+		snaps = append(snaps, baseName)
+		snaps = append(snaps, model.Kernel())
+		snaps = append(snaps, model.Gadget())
 	} else {
 		// classic image case: first core as needed and gadget
 		if classicHasSnaps(model, opts) {
 			// TODO: later use snapd+core16 or core18 if specified
-			snaps = append(snaps, local.PreferLocal("core"))
+			snaps = append(snaps, "core")
 		}
 		if model.Gadget() != "" {
-			snaps = append(snaps, local.PreferLocal(model.Gadget()))
+			snaps = append(snaps, model.Gadget())
 		}
 	}
 
 	// then required and the user requested stuff
-	for _, snapName := range model.RequiredSnaps() {
-		snaps = append(snaps, local.PreferLocal(snapName))
-	}
+	snaps = append(snaps, model.RequiredSnaps()...)
 	snaps = append(snaps, opts.Snaps...)
 
 	if !opts.Classic {
@@ -511,10 +531,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			continue
 		}
 
-		if name != snapName {
-			fmt.Fprintf(Stdout, "Copying %q (%s)\n", snapName, name)
+		if local.IsLocal(name) {
+			fmt.Fprintf(Stdout, "Copying %q (%s)\n", local.Path(name), name)
 		} else {
-			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
+			fmt.Fprintf(Stdout, "Fetching %s\n", name)
 		}
 
 		snapChannel, err := snapChannel(name, model, opts, local)
@@ -537,8 +557,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		if info.Type == snap.TypeGadget && info.Base != model.Base() {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
 		}
-		if info.Base != "" && !local.hasName(snaps, info.Base) {
-			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
+		if err := hasBase(info, local, snaps); err != nil {
+			return err
 		}
 		// warn about missing default providers
 		for _, dp := range neededDefaultProviders(info) {
@@ -582,7 +602,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 
 		// kernel/os/model.base are required for booting on core
-		if !opts.Classic && (typ == snap.TypeKernel || local.Name(snapName) == baseName) {
+		if !opts.Classic && (typ == snap.TypeKernel || name == baseName) {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			// construct a relative symlink from the blob dir
 			// to the seed file
@@ -665,7 +685,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 
 	if !opts.Classic {
 		// now do the bootloader stuff
-		if err := partition.InstallBootConfig(opts.GadgetUnpackDir); err != nil {
+		if err := bootloader.InstallBootConfig(opts.GadgetUnpackDir); err != nil {
 			return err
 		}
 
@@ -690,7 +710,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	bootloader, err := partition.FindBootloader()
+	loader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}
@@ -737,7 +757,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			m[bootvar] = name
 		}
 	}
-	if err := bootloader.SetBootVars(m); err != nil {
+	if err := loader.SetBootVars(m); err != nil {
 		return err
 	}
 

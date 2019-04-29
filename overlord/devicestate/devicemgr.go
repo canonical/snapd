@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -35,9 +36,10 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -96,7 +98,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return err
 	}
@@ -185,7 +187,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := auth.SetDevice(st, device); err != nil {
+	if err := SetDevice(st, device); err != nil {
 		return err
 	}
 	return nil
@@ -195,7 +197,9 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
+
+	device, err := Device(m.state)
 	if err != nil {
 		return err
 	}
@@ -329,6 +333,9 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
+
 	return nil
 }
 
@@ -339,6 +346,8 @@ var populateStateFromSeed = populateStateFromSeedImpl
 func (m *DeviceManager) ensureSeedYaml() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -353,7 +362,10 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := populateStateFromSeed(m.state)
+	var tsAll []*state.TaskSet
+	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state, tm)
+	})
 	if err != nil {
 		return err
 	}
@@ -368,6 +380,8 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 	m.state.EnsureBefore(0)
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
 	return nil
 }
 
@@ -380,11 +394,11 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		bootloader, err := partition.FindBootloader()
+		loader, err := bootloader.Find()
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 		}
-		if err := partition.MarkBootSuccessful(bootloader); err != nil {
+		if err := bootloader.MarkBootSuccessful(loader); err != nil {
 			return err
 		}
 		m.bootOkRan = true
@@ -487,7 +501,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return nil, err
 	}
@@ -503,9 +517,26 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
-// implementing auth.DeviceAssertions
+// Registered returns a channel that is closed when the device is known to have been registered.
+func (m *DeviceManager) Registered() <-chan struct{} {
+	return m.reg
+}
+
+// implementing storecontext.Backend
 // sanity check
-var _ auth.DeviceAssertions = (*DeviceManager)(nil)
+var _ storecontext.Backend = (*DeviceManager)(nil)
+
+// Device returns current device state.
+func (m *DeviceManager) Device() (*auth.DeviceState, error) {
+	return Device(m.state)
+}
+
+// SetDevice sets the device details in the state.
+func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
+	return SetDevice(m.state, device)
+}
+
+// XXX delegate locking back to callers!!!
 
 // Model returns the device model assertion.
 func (m *DeviceManager) Model() (*asserts.Model, error) {
@@ -523,13 +554,8 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// Registered returns a channel that is closed when the device is known to have been registered.
-func (m *DeviceManager) Registered() <-chan struct{} {
-	return m.reg
-}
-
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -559,7 +585,7 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSe
 		return nil, err
 	}
 
-	return &auth.DeviceSessionRequestParams{
+	return &storecontext.DeviceSessionRequestParams{
 		Request: a.(*asserts.DeviceSessionRequest),
 		Serial:  serial,
 		Model:   model,

@@ -572,7 +572,8 @@ version: 1
 plugs:
   p--lug: null
 `
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil)
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Plugs, HasLen, 1)
 	err = Validate(info)
@@ -584,7 +585,8 @@ version: 1
 slots:
   s--lot: null
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil)
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Slots, HasLen, 1)
 	err = Validate(info)
@@ -597,7 +599,8 @@ plugs:
   plug:
     interface: i--face
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil)
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Plugs, HasLen, 1)
 	err = Validate(info)
@@ -610,7 +613,8 @@ slots:
   slot:
     interface: i--face
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil)
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Slots, HasLen, 1)
 	err = Validate(info)
@@ -685,6 +689,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/var/lib/snapd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd/hostfs", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/var/lib/snapd/hostfs" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/firmware", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/firmware" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/modules", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/modules" in an off-limits area`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
@@ -722,7 +730,8 @@ layout:
 `
 
 	for _, yaml := range []string{yaml1, yaml1rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -747,7 +756,8 @@ layout:
     bind: $SNAP
 `
 	for _, yaml := range []string{yaml2, yaml2rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -772,7 +782,8 @@ layout:
     bind: $SNAP_DATA/foo
 `
 	for _, yaml := range []string{yaml3, yaml3rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -797,7 +808,8 @@ layout:
     symlink: $SNAP_DATA/foo
 `
 	for _, yaml := range []string{yaml4, yaml4rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -822,7 +834,8 @@ layout:
     symlink: $SNAP_DATA/foo
 `
 	for _, yaml := range []string{yaml5, yaml5rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -837,7 +850,8 @@ layout:
   /etc/norf:
     bind-file: $SNAP/etc/norf
 `
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)})
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 1)
 	err = ValidateLayoutAll(info)
@@ -854,7 +868,9 @@ layout:
   /etc/corge:
     bind-file: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)})
+
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -869,7 +885,8 @@ layout:
   /etc/corge:
     bind: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)})
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -884,7 +901,8 @@ layout:
   /etc/corge:
     bind: /snap/clashing-source-path-3/42/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)})
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -899,7 +917,9 @@ layout:
   /etc/corge:
     symlink: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)})
+
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -914,7 +934,9 @@ layout:
   /etc/corge:
     symlink: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)})
+
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
