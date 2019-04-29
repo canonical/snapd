@@ -112,7 +112,7 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	}
 	coreLdSo := filepath.Join(root, interp)
 	// we cannot use EvalSymlink here because we need to resolve
-	// relative and absolute symlinks differently. A absolute
+	// relative and an absolute symlinks differently. A absolute
 	// symlink is relative to root of the snapd/core snap.
 	seen := map[string]bool{}
 	for osutil.IsSymlink(coreLdSo) {

@@ -114,7 +114,7 @@ func coreSupportsReExec(corePath string) bool {
 	return true
 }
 
-// TODO: move to cmd/cmdutil.go
+// TODO: move to cmd/cmdutil/
 //
 // InternalToolPath returns the path of an internal snapd tool. The tool
 // *must* be located inside the same tree as the current binary.
