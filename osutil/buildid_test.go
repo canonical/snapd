@@ -40,8 +40,8 @@ var falsePath = osutil.LookPathDefault("false", "/bin/false")
 var gccPath = osutil.LookPathDefault("gcc", "/usr/bin/gcc")
 
 func buildID(c *C, fname string) string {
-	// XXX host's 'file' command may be too old to know about Go BuildID,
-	// use with caution
+	// XXX host's 'file' command may be too old to know about Go BuildID or
+	// hexstring GNU BuildID, use with caution
 	output, err := exec.Command("file", fname).CombinedOutput()
 	c.Assert(err, IsNil)
 
@@ -111,8 +111,9 @@ func (s *buildIDSuite) TestReadBuildIDFixedELF(c *C) {
 
 	id, err := osutil.ReadBuildID(md5Truth)
 	c.Assert(err, IsNil)
+	// XXX cannot call buildID() as the host's 'file' command may be too old
+	// to know about hexstring format of GNU BuildID
 	c.Assert(id, Equals, "deadcafe")
-	c.Assert(id, Equals, buildID(c, md5Truth))
 }
 
 func (s *buildIDSuite) TestMyBuildID(c *C) {
