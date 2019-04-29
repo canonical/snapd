@@ -255,7 +255,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	})
 }
 
-func asSizePtr(size uint) *gadget.Size {
+func asSizePtr(size gadget.Size) *gadget.Size {
 	gsz := gadget.Size(size)
 	return &gsz
 }
@@ -277,7 +277,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		},
 		Volumes: map[string]gadget.Volume{
 			"volumename": {
-				Schema:     "mbr",
+				Schema:     gadget.MBR,
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
@@ -317,7 +317,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"frobinator-image": {
-				Schema:     "mbr",
+				Schema:     gadget.MBR,
 				Bootloader: "u-boot",
 				Structure: []gadget.VolumeStructure{
 					{
@@ -450,7 +450,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"bootloader": {
-				Schema:     "mbr",
+				Schema:     gadget.MBR,
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
@@ -541,7 +541,7 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 		{"1234M", &gadget.RelativeOffset{Offset: 1234 * gadget.SizeMiB}, ""},
 		{"4096M", &gadget.RelativeOffset{Offset: 4096 * gadget.SizeMiB}, ""},
 		{"0", &gadget.RelativeOffset{}, ""},
-		{"mbr+0", &gadget.RelativeOffset{RelativeTo: "mbr"}, ""},
+		{"mbr+0", &gadget.RelativeOffset{RelativeTo: gadget.MBR}, ""},
 		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * gadget.SizeMiB}, ""},
 		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
 		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
@@ -594,17 +594,25 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// special case
 		{"bare", "", ""},
 		// plain MBR type
-		{"0C", "", "mbr"},
+		{"0C", "", gadget.MBR},
 		// GPT UUID
-		{"21686148-6449-6E6F-744E-656564454649", "", "gpt"},
+		{"21686148-6449-6E6F-744E-656564454649", "", gadget.GPT},
+		// GPT UUID (lowercase)
+		{"21686148-6449-6e6f-744e-656564454649", "", gadget.GPT},
 		// hybrid ID
 		{"EF,21686148-6449-6E6F-744E-656564454649", "", ""},
+		// hybrid ID (UUID lowercase)
+		{"EF,21686148-6449-6e6f-744e-656564454649", "", ""},
+		// hybrid, partially lowercase UUID
+		{"EF,aa686148-6449-6e6f-744E-656564454649", "", ""},
+		// GPT UUID, partially lowercase
+		{"aa686148-6449-6e6f-744E-656564454649", "", ""},
 		// no type specified
 		{"", `invalid type "": type is not specified`, ""},
 		// plain MBR type without mbr schema
 		{"0C", `invalid type "0C": MBR structure type with non-MBR schema ""`, ""},
 		// GPT UUID with non GPT schema
-		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": GUID structure type with non-GPT schema "mbr"`, "mbr"},
+		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": GUID structure type with non-GPT schema "mbr"`, gadget.MBR},
 		// invalid
 		{"1234", `invalid type "1234": invalid format`, ""},
 		// outside of hex range
@@ -621,7 +629,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// hybrid, GPT UUID too long
 		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
 		// GPT schema with non GPT type
-		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, "gpt"},
+		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, gadget.GPT},
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
@@ -695,7 +703,7 @@ size: 123M
 type: mbr
 size: 446`
 	vol := &gadget.Volume{}
-	mbrVol := &gadget.Volume{Schema: "mbr"}
+	mbrVol := &gadget.Volume{Schema: gadget.MBR}
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
 		v   *gadget.Volume
@@ -758,8 +766,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 		s   string
 		err string
 	}{
-		{"gpt", ""},
-		{"mbr", ""},
+		{gadget.GPT, ""},
+		{gadget.MBR, ""},
 		// implicit GPT
 		{"", ""},
 		// invalid

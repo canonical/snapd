@@ -52,13 +52,13 @@ hooks:
 
 type RunSuite struct {
 	fakeHome string
-	SnapSuite
+	BaseSnapSuite
 }
 
 var _ = check.Suite(&RunSuite{})
 
 func (s *RunSuite) SetUpTest(c *check.C) {
-	s.SnapSuite.SetUpTest(c)
+	s.BaseSnapSuite.SetUpTest(c)
 	s.fakeHome = c.MkDir()
 
 	u, err := user.Current()
