@@ -40,6 +40,8 @@ var falsePath = osutil.LookPathDefault("false", "/bin/false")
 var gccPath = osutil.LookPathDefault("gcc", "/usr/bin/gcc")
 
 func buildID(c *C, fname string) string {
+	// XXX host's 'file' command may be too old to know about Go BuildID,
+	// use with caution
 	output, err := exec.Command("file", fname).CombinedOutput()
 	c.Assert(err, IsNil)
 
@@ -86,12 +88,30 @@ func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
 	md5Truth := filepath.Join(c.MkDir(), "true")
 	err := ioutil.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
 	c.Assert(err, IsNil)
-	output, err := exec.Command(gccPath, "-Wl,-build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
+	output, err := exec.Command(gccPath, "-Wl,--build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
 
 	id, err := osutil.ReadBuildID(md5Truth)
 	c.Assert(err, IsNil)
+	c.Assert(id, Equals, buildID(c, md5Truth))
+}
+
+func (s *buildIDSuite) TestReadBuildIDFixedELF(c *C) {
+	if !osutil.FileExists(gccPath) {
+		c.Skip("No gcc found")
+	}
+
+	md5Truth := filepath.Join(c.MkDir(), "true")
+	err := ioutil.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
+	c.Assert(err, IsNil)
+	output, err := exec.Command(gccPath, "-Wl,--build-id=0xdeadcafe", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
+	c.Assert(string(output), Equals, "")
+	c.Assert(err, IsNil)
+
+	id, err := osutil.ReadBuildID(md5Truth)
+	c.Assert(err, IsNil)
+	c.Assert(id, Equals, "deadcafe")
 	c.Assert(id, Equals, buildID(c, md5Truth))
 }
 
@@ -110,7 +130,8 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 	goTruth := filepath.Join(c.MkDir(), "true")
 	err := ioutil.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644)
 	c.Assert(err, IsNil)
-	output, err := exec.Command("go", "build", "-o", goTruth, goTruth+".go").CombinedOutput()
+	// force specific Go BuildID
+	output, err := exec.Command("go", "build", "-o", goTruth, "-ldflags=-buildid=foobar", goTruth+".go").CombinedOutput()
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
 
@@ -121,5 +142,7 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 	// returns the "raw" string so we need to decode first
 	decoded, err := hex.DecodeString(id)
 	c.Assert(err, IsNil)
-	c.Assert(string(decoded), Equals, buildID(c, goTruth))
+	// XXX cannot call buildID() as the host's 'file' command may be too old
+	// to know about Go BuildID
+	c.Assert(string(decoded), Equals, "foobar")
 }
