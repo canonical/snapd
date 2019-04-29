@@ -57,8 +57,13 @@ func (p *positioningTestSuite) TestVolumeSize(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
+		Volume: &gadget.Volume{
+			Structure: []gadget.VolumeStructure{
+				{Size: 2 * gadget.SizeMiB},
+			},
+		},
 		Size: 3 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		PositionedStructure: []gadget.PositionedStructure{
 			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * gadget.SizeMiB}, StartOffset: 1 * gadget.SizeMiB},
 		},
 	})
@@ -92,24 +97,18 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 501 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   501 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 400 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-0000deadbeef",
-				},
-				StartOffset: 1 * gadget.SizeMiB,
-				Index:       0,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     1 * gadget.SizeMiB,
+				Index:           0,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 100 * gadget.SizeMiB,
-					Type: "83,00000000-0000-0000-0000-0000feedface",
-					Role: "system-data",
-				},
-				StartOffset: 401 * gadget.SizeMiB,
-				Index:       1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     401 * gadget.SizeMiB,
+				Index:           1,
 			},
 		},
 	})
@@ -137,40 +136,28 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 1101 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   1101 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 400 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-dd00deadbeef",
-				},
-				StartOffset: 1 * gadget.SizeMiB,
-				Index:       0,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     1 * gadget.SizeMiB,
+				Index:           0,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 500 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-cc00deadbeef",
-					Role: "system-data",
-				},
-				StartOffset: 401 * gadget.SizeMiB,
-				Index:       1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     401 * gadget.SizeMiB,
+				Index:           1,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 100 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-bb00deadbeef",
-				},
-				StartOffset: 901 * gadget.SizeMiB,
-				Index:       2,
+				VolumeStructure: &vol.Structure[2],
+				StartOffset:     901 * gadget.SizeMiB,
+				Index:           2,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 100 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-aa00deadbeef",
-				},
-				StartOffset: 1001 * gadget.SizeMiB,
-				Index:       3,
+				VolumeStructure: &vol.Structure[3],
+				StartOffset:     1001 * gadget.SizeMiB,
+				Index:           3,
 			},
 		},
 	})
@@ -202,44 +189,28 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 1300 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   1300 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   100 * gadget.SizeMiB,
-					Type:   "00000000-0000-0000-0000-aa00deadbeef",
-					Offset: asSizePtr(1 * gadget.SizeMiB),
-				},
-				StartOffset: 1 * gadget.SizeMiB,
-				Index:       3,
+				VolumeStructure: &vol.Structure[3],
+				StartOffset:     1 * gadget.SizeMiB,
+				Index:           3,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   500 * gadget.SizeMiB,
-					Type:   "00000000-0000-0000-0000-cc00deadbeef",
-					Role:   "system-data",
-					Offset: asSizePtr(200 * gadget.SizeMiB),
-				},
-				StartOffset: 200 * gadget.SizeMiB,
-				Index:       1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     200 * gadget.SizeMiB,
+				Index:           1,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   400 * gadget.SizeMiB,
-					Type:   "00000000-0000-0000-0000-dd00deadbeef",
-					Offset: asSizePtr(800 * gadget.SizeMiB),
-				},
-				StartOffset: 800 * gadget.SizeMiB,
-				Index:       0,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     800 * gadget.SizeMiB,
+				Index:           0,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   100 * gadget.SizeMiB,
-					Type:   "00000000-0000-0000-0000-bb00deadbeef",
-					Offset: asSizePtr(1200 * gadget.SizeMiB),
-				},
-				StartOffset: 1200 * gadget.SizeMiB,
-				Index:       2,
+				VolumeStructure: &vol.Structure[2],
+				StartOffset:     1200 * gadget.SizeMiB,
+				Index:           2,
 			},
 		},
 	})
@@ -270,43 +241,28 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 1200 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   1200 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   100 * gadget.SizeMiB,
-					Type:   "00000000-0000-0000-0000-aa00deadbeef",
-					Offset: asSizePtr(1 * gadget.SizeMiB),
-				},
-				StartOffset: 1 * gadget.SizeMiB,
-				Index:       3,
+				VolumeStructure: &vol.Structure[3],
+				StartOffset:     1 * gadget.SizeMiB,
+				Index:           3,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   500 * gadget.SizeMiB,
-					Type:   "00000000-0000-0000-0000-cc00deadbeef",
-					Role:   "system-data",
-					Offset: asSizePtr(200 * gadget.SizeMiB),
-				},
-				StartOffset: 200 * gadget.SizeMiB,
-				Index:       1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     200 * gadget.SizeMiB,
+				Index:           1,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 100 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-bb00deadbeef",
-				},
-				StartOffset: 700 * gadget.SizeMiB,
-				Index:       2,
+				VolumeStructure: &vol.Structure[2],
+				StartOffset:     700 * gadget.SizeMiB,
+				Index:           2,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   400 * gadget.SizeMiB,
-					Type:   "00000000-0000-0000-0000-dd00deadbeef",
-					Offset: asSizePtr(800 * gadget.SizeMiB),
-				},
-				StartOffset: 800 * gadget.SizeMiB,
-				Index:       0,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     800 * gadget.SizeMiB,
+				Index:           0,
 			},
 		},
 	})
@@ -491,26 +447,20 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 3 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   3 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 2 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-0000deadbeef",
-					Content: []gadget.VolumeContent{
-						{Image: "foo.img", Size: gadget.SizeMiB, Offset: asSizePtr(gadget.SizeMiB)},
-						{Image: "bar.img", Size: gadget.SizeMiB, Offset: asSizePtr(0)},
-					},
-				},
-				StartOffset: 1 * gadget.SizeMiB,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     1 * gadget.SizeMiB,
 				PositionedContent: []gadget.PositionedContent{
 					{
-						VolumeContent: &gadget.VolumeContent{Image: "bar.img", Size: gadget.SizeMiB, Offset: asSizePtr(0)},
+						VolumeContent: &vol.Structure[0].Content[1],
 						StartOffset:   1 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
 					},
 					{
-						VolumeContent: &gadget.VolumeContent{Image: "foo.img", Size: gadget.SizeMiB, Offset: asSizePtr(gadget.SizeMiB)},
+						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   2 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
 					},
@@ -543,26 +493,20 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 3 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   3 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size: 2 * gadget.SizeMiB,
-					Type: "00000000-0000-0000-0000-0000deadbeef",
-					Content: []gadget.VolumeContent{
-						{Image: "foo.img", Size: gadget.SizeMiB},
-						{Image: "bar.img", Size: gadget.SizeMiB},
-					},
-				},
-				StartOffset: 1 * gadget.SizeMiB,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     1 * gadget.SizeMiB,
 				PositionedContent: []gadget.PositionedContent{
 					{
-						VolumeContent: &gadget.VolumeContent{Image: "foo.img", Size: gadget.SizeMiB},
+						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   1 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
 					},
 					{
-						VolumeContent: &gadget.VolumeContent{Image: "bar.img", Size: gadget.SizeMiB},
+						VolumeContent: &vol.Structure[0].Content[1],
 						StartOffset:   2 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
 					},
@@ -592,18 +536,15 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 3 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   3 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:    2 * gadget.SizeMiB,
-					Type:    "00000000-0000-0000-0000-0000deadbeef",
-					Content: []gadget.VolumeContent{{Image: "foo.img"}},
-				},
-				StartOffset: 1 * gadget.SizeMiB,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     1 * gadget.SizeMiB,
 				PositionedContent: []gadget.PositionedContent{
 					{
-						VolumeContent: &gadget.VolumeContent{Image: "foo.img"},
+						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   1 * gadget.SizeMiB,
 						Size:          size1_5MiB,
 					},
@@ -634,16 +575,12 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 3 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   3 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       2 * gadget.SizeMiB,
-					Type:       "00000000-0000-0000-0000-0000deadbeef",
-					Filesystem: "ext4",
-					Content:    []gadget.VolumeContent{{Source: "foo.txt", Target: "/boot"}},
-				},
-				StartOffset: 1 * gadget.SizeMiB,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     1 * gadget.SizeMiB,
 			},
 		},
 	})
@@ -674,27 +611,18 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 3 * gadget.SizeMiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   3 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   446,
-					Type:   "bare",
-					Role:   gadget.MBR,
-					Offset: asSizePtr(0),
-				},
-				StartOffset: 0,
-				Index:       0,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     0,
+				Index:           0,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       2 * gadget.SizeMiB,
-					Type:       "00000000-0000-0000-0000-0000deadbeef",
-					Filesystem: "ext4",
-					Content:    []gadget.VolumeContent{{Source: "foo.txt", Target: "/boot"}},
-				},
-				StartOffset: 1 * gadget.SizeMiB,
-				Index:       1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     1 * gadget.SizeMiB,
+				Index:           1,
 			},
 		},
 	})
@@ -708,27 +636,18 @@ volumes:
 	v, err = gadget.PositionVolume(p.dir, vol, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 2*gadget.SizeMiB + 512*gadget.SizeKiB,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   2*gadget.SizeMiB + 512*gadget.SizeKiB,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   446,
-					Type:   "bare",
-					Role:   gadget.MBR,
-					Offset: asSizePtr(0),
-				},
-				StartOffset: 0,
-				Index:       0,
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     0,
+				Index:           0,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       2 * gadget.SizeMiB,
-					Type:       "00000000-0000-0000-0000-0000deadbeef",
-					Filesystem: "ext4",
-					Content:    []gadget.VolumeContent{{Source: "foo.txt", Target: "/boot"}},
-				},
-				StartOffset: 512 * gadget.SizeKiB,
-				Index:       1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     512 * gadget.SizeKiB,
+				Index:           1,
 			},
 		},
 	})
@@ -743,26 +662,17 @@ volumes:
 	v, err = gadget.PositionVolume(p.dir, vol, constraintsBad)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Size: 2*gadget.SizeMiB + 446,
-		Structures: []gadget.PositionedStructure{
+		Volume: vol,
+		Size:   2*gadget.SizeMiB + 446,
+		PositionedStructure: []gadget.PositionedStructure{
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:   446,
-					Type:   "bare",
-					Role:   gadget.MBR,
-					Offset: asSizePtr(0),
-				},
-				Index: 0,
+				VolumeStructure: &vol.Structure[0],
+				Index:           0,
 			},
 			{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       2 * gadget.SizeMiB,
-					Type:       "00000000-0000-0000-0000-0000deadbeef",
-					Filesystem: "ext4",
-					Content:    []gadget.VolumeContent{{Source: "foo.txt", Target: "/boot"}},
-				},
-				StartOffset: 446,
-				Index:       1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     446,
+				Index:           1,
 			},
 		},
 	})
