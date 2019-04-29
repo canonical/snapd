@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type LoginSessionControlConnectedInterfaceSuite struct {
+type loginSessionControlSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -38,11 +38,11 @@ type LoginSessionControlConnectedInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&LoginSessionControlConnectedInterfaceSuite{
+var _ = Suite(&loginSessionControlSuite{
 	iface: builtin.MustInterface("login-session-control"),
 })
 
-func (s *LoginSessionControlConnectedInterfaceSuite) SetUpTest(c *C) {
+func (s *loginSessionControlSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: other
 version: 0
@@ -61,11 +61,11 @@ apps:
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
-func (s *LoginSessionControlConnectedInterfaceSuite) TestName(c *C) {
+func (s *loginSessionControlSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "login-session-control")
 }
 
-func (s *LoginSessionControlConnectedInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *loginSessionControlSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
@@ -76,11 +76,11 @@ func (s *LoginSessionControlConnectedInterfaceSuite) TestSanitizeSlot(c *C) {
 		"login-session-control slots are reserved for the core snap")
 }
 
-func (s *LoginSessionControlConnectedInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *loginSessionControlSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *LoginSessionControlConnectedInterfaceSuite) TestConnectedPlugSnippet(c *C) {
+func (s *loginSessionControlSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -88,6 +88,6 @@ func (s *LoginSessionControlConnectedInterfaceSuite) TestConnectedPlugSnippet(c 
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `org.freedesktop.login1`)
 }
 
-func (s *LoginSessionControlConnectedInterfaceSuite) TestInterfaces(c *C) {
+func (s *loginSessionControlSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
