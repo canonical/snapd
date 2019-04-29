@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -97,7 +98,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return err
 	}
@@ -186,7 +187,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := auth.SetDevice(st, device); err != nil {
+	if err := SetDevice(st, device); err != nil {
 		return err
 	}
 	return nil
@@ -198,7 +199,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return err
 	}
@@ -362,8 +363,8 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 
 	var tsAll []*state.TaskSet
-	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state)
+	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state, tm)
 	})
 	if err != nil {
 		return err
@@ -374,12 +375,12 @@ func (m *DeviceManager) ensureSeedYaml() error {
 
 	msg := fmt.Sprintf("Initialize system state")
 	chg := m.state.NewChange("seed", msg)
-	perfTimings.AddTag("change-id", chg.ID())
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
 	m.state.EnsureBefore(0)
 
+	perfTimings.AddTag("change-id", chg.ID())
 	perfTimings.Save(m.state)
 	return nil
 }
@@ -480,7 +481,6 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeedYaml(); err != nil {
 		errs = append(errs, err)
 	}
-
 	if err := m.ensureOperational(); err != nil {
 		errs = append(errs, err)
 	}
@@ -493,9 +493,6 @@ func (m *DeviceManager) Ensure() error {
 		errs = append(errs, err)
 	}
 
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	if len(errs) > 0 {
 		return &ensureError{errs}
 	}
@@ -504,7 +501,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return nil, err
 	}
@@ -520,9 +517,26 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
-// implementing auth.DeviceAssertions
+// Registered returns a channel that is closed when the device is known to have been registered.
+func (m *DeviceManager) Registered() <-chan struct{} {
+	return m.reg
+}
+
+// implementing storecontext.Backend
 // sanity check
-var _ auth.DeviceAssertions = (*DeviceManager)(nil)
+var _ storecontext.Backend = (*DeviceManager)(nil)
+
+// Device returns current device state.
+func (m *DeviceManager) Device() (*auth.DeviceState, error) {
+	return Device(m.state)
+}
+
+// SetDevice sets the device details in the state.
+func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
+	return SetDevice(m.state, device)
+}
+
+// XXX delegate locking back to callers!!!
 
 // Model returns the device model assertion.
 func (m *DeviceManager) Model() (*asserts.Model, error) {
@@ -540,13 +554,8 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// Registered returns a channel that is closed when the device is known to have been registered.
-func (m *DeviceManager) Registered() <-chan struct{} {
-	return m.reg
-}
-
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -576,7 +585,7 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSe
 		return nil, err
 	}
 
-	return &auth.DeviceSessionRequestParams{
+	return &storecontext.DeviceSessionRequestParams{
 		Request: a.(*asserts.DeviceSessionRequest),
 		Serial:  serial,
 		Model:   model,

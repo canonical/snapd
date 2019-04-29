@@ -22,10 +22,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -35,56 +33,21 @@ type SystemProfileUpdateContext struct {
 }
 
 // NewSystemProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
-func NewSystemProfileUpdateContext(instanceName string) *SystemProfileUpdateContext {
+func NewSystemProfileUpdateContext(instanceName string, fromSnapConfine bool) *SystemProfileUpdateContext {
 	return &SystemProfileUpdateContext{CommonProfileUpdateContext: CommonProfileUpdateContext{
 		instanceName:       instanceName,
+		fromSnapConfine:    fromSnapConfine,
 		currentProfilePath: currentSystemProfilePath(instanceName),
 		desiredProfilePath: desiredSystemProfilePath(instanceName),
 	}}
 }
 
-func applySystemFstab(instanceName string, fromSnapConfine bool) error {
-	upCtx := NewSystemProfileUpdateContext(instanceName)
-
-	// Lock the mount namespace so that any concurrently attempted invocations
-	// of snap-confine are synchronized and will see consistent state.
-	lock, err := snaplock.OpenLock(instanceName)
-	if err != nil {
-		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
-	}
-	defer func() {
-		logger.Debugf("unlocking mount namespace of snap %q", instanceName)
-		lock.Close()
-	}()
-
-	logger.Debugf("locking mount namespace of snap %q", instanceName)
-	if fromSnapConfine {
-		// When --from-snap-confine is passed then we just ensure that the
-		// namespace is locked. This is used by snap-confine to use
-		// snap-update-ns to apply mount profiles.
-		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
-			return fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
-		}
-	} else {
-		if err := lock.Lock(); err != nil {
-			return fmt.Errorf("cannot lock mount namespace of snap %q: %s", instanceName, err)
-		}
-	}
-
-	// Freeze the mount namespace and unfreeze it later. This lets us perform
-	// modifications without snap processes attempting to construct
-	// symlinks or perform other malicious activity (such as attempting to
-	// introduce a symlink that would cause us to mount something other
-	// than what we expected).
-	logger.Debugf("freezing processes of snap %q", instanceName)
-	if err := freezeSnapProcesses(instanceName); err != nil {
-		return err
-	}
-	defer func() {
-		logger.Debugf("thawing processes of snap %q", instanceName)
-		thawSnapProcesses(instanceName)
-	}()
-
+// Assumptions returns information about file system mutability rules.
+//
+// System mount profiles can write to /tmp (this is required for constructing
+// writable mimics) to /var/snap (where $SNAP_DATA is for services), /snap/$SNAP_NAME,
+// and, in case of instances, /snap/$SNAP_INSTANCE_NAME.
+func (ctx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// Allow creating directories related to this snap name.
 	//
 	// Note that we allow /var/snap instead of /var/snap/$SNAP_NAME because
@@ -105,11 +68,23 @@ func applySystemFstab(instanceName string, fromSnapConfine bool) error {
 	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
 	// remapping for parallel installs only when the snap has an instance key
 	as := &Assumptions{}
+	instanceName := ctx.InstanceName()
 	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
-	return computeAndSaveSystemChanges(upCtx, instanceName, as)
+	return as
+}
+
+func applySystemFstab(ctx MountProfileUpdateContext, instanceName string) error {
+	unlock, err := ctx.Lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	as := ctx.Assumptions()
+	return computeAndSaveSystemChanges(ctx, instanceName, as)
 }
 
 func computeAndSaveSystemChanges(upCtx MountProfileUpdateContext, snapName string, as *Assumptions) error {

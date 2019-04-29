@@ -370,7 +370,11 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
-	tm := perfTimings.StartSpan("auto-refresh", "prepare auto-refresh change")
+	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
+	defer func() {
+		tm.Stop()
+		perfTimings.Save(m.state)
+	}()
 
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
@@ -396,15 +400,12 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
-	perfTimings.AddTag("change-id", chg.ID())
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
-
-	tm.Stop()
-	perfTimings.Save(m.state)
+	perfTimings.AddTag("change-id", chg.ID())
 
 	return nil
 }

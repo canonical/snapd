@@ -217,6 +217,13 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
+	// The core snap provides everything we need for core16.
+	if snapName == "core16" {
+		if hasCore, err := isInstalled(st, "core"); hasCore && err == nil {
+			return nil, nil
+		}
+	}
+
 	// installed already?
 	isInstalled, err := isInstalled(st, snapName)
 	if err != nil {
@@ -253,11 +260,12 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// can be installed together we add the tasks to the change.
 	var tss []*state.TaskSet
 	for _, prereqName := range prereq {
-		nestedTiming := tm.StartSpan("install-prereq", fmt.Sprintf("Install %q", prereqName))
-		defer nestedTiming.Stop()
-
 		var onInFlightErr error = nil
-		ts, err := m.installOneBaseOrRequired(st, prereqName, defaultPrereqSnapsChannel(), onInFlightErr, userID)
+		var err error
+		var ts *state.TaskSet
+		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
+			ts, err = m.installOneBaseOrRequired(st, prereqName, defaultPrereqSnapsChannel(), onInFlightErr, userID)
+		})
 		if err != nil {
 			return err
 		}
@@ -698,6 +706,9 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -714,7 +725,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	err = m.backend.LinkSnap(oldInfo, model)
+	err = m.backend.LinkSnap(oldInfo, model, perfTimings)
 	if err != nil {
 		return err
 	}
@@ -871,6 +882,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -940,7 +954,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	model, _ := Model(st)
-	err = m.backend.LinkSnap(newInfo, model)
+	err = m.backend.LinkSnap(newInfo, model, perfTimings)
 	if err != nil {
 		pb := NewTaskProgressAdapterLocked(t)
 		err := m.backend.UnlinkSnap(newInfo, pb)
@@ -1084,6 +1098,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -1135,7 +1152,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(snapst.Sequence) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
-		err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
+		timings.Run(perfTimings, "discard-snap-namespace", fmt.Sprintf("discard the namespace of snap %q", snapsup.InstanceName()), func(tm timings.Measurer) {
+			err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
+		})
 		if err != nil {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
@@ -1271,6 +1290,9 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
@@ -1292,7 +1314,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, pb)
+	err = m.backend.StartServices(startupOrdered, pb, perfTimings)
 	st.Lock()
 	return err
 }
@@ -1301,6 +1323,9 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
 
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
@@ -1323,7 +1348,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
-	err = m.backend.StopServices(svcs, stopReason, pb)
+	err = m.backend.StopServices(svcs, stopReason, pb, perfTimings)
 	st.Lock()
 	return err
 }

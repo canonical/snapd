@@ -104,7 +104,7 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		} `json:"change-timings,omitempty"`
 	}
 
-	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"chg-id": chgid, "ensure-id": x.EnsureID}); err != nil {
+	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure-id": x.EnsureID}); err != nil {
 		return err
 	}
 	chgid = timings.ChangeID

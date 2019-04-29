@@ -44,9 +44,44 @@ var (
 	snapstateUpdate  = snapstate.Update
 )
 
+// Device returns the device details from the state.
+func Device(st *state.State) (*auth.DeviceState, error) {
+	var authStateData auth.AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return &auth.DeviceState{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	if authStateData.Device == nil {
+		return &auth.DeviceState{}, nil
+	}
+
+	return authStateData.Device, nil
+}
+
+// SetDevice updates the device details in the state.
+func SetDevice(st *state.State, device *auth.DeviceState) error {
+	var authStateData auth.AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		authStateData = auth.AuthState{}
+	} else if err != nil {
+		return err
+	}
+
+	authStateData.Device = device
+	st.Set("auth", authStateData)
+
+	return nil
+}
+
 // Model returns the device model assertion.
 func Model(st *state.State) (*asserts.Model, error) {
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +107,7 @@ func Model(st *state.State) (*asserts.Model, error) {
 
 // Serial returns the device serial assertion.
 func Serial(st *state.State) (*asserts.Serial, error) {
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -293,12 +328,34 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
+func getAllRequiredSnapsForModel(model *asserts.Model) map[string]bool {
+	reqSnaps := model.RequiredSnaps()
+	// +4 for (snapd, base, gadget, kernel)
+	required := make(map[string]bool, len(reqSnaps)+4)
+	for _, snap := range reqSnaps {
+		required[snap] = true
+	}
+	if model.Base() != "" {
+		required["snapd"] = true
+		required[model.Base()] = true
+	} else {
+		required["core"] = true
+	}
+	if model.Kernel() != "" {
+		required[model.Kernel()] = true
+	}
+	if model.Gadget() != "" {
+		required[model.Gadget()] = true
+	}
+	return required
+}
+
 // extractDownloadInstallEdgesFromTs extracts the first, last download
 // phase and install phase tasks from a TaskSet
 func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
-	edgeTask := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
-	if edgeTask == nil {
-		return nil, nil, nil, nil, fmt.Errorf("internal error: cannot find edge task in task set: %v", ts)
+	edgeTask, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads
@@ -380,18 +437,19 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	// adjust kernel track
 	var tss []*state.TaskSet
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
+		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{NoReRefresh: true})
 		if err != nil {
 			return nil, err
 		}
 		tss = append(tss, ts)
 	}
-	// add new required snaps
+	// add new required-snaps, no longer required snaps will be cleaned
+	// in "set-model"
 	for _, snapName := range new.RequiredSnaps() {
 		_, err := snapstate.CurrentInfo(st, snapName)
-		// if the snap is not installed we need to install it now
+		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{})
+			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{Required: true})
 			if err != nil {
 				return nil, err
 			}
@@ -455,7 +513,9 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	// Make sure the first install waits for the last download. With this
 	// our (simplified) wait chain looks like:
 	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
-	firstInstallInChain.WaitFor(lastDownloadInChain)
+	if firstInstallInChain != nil && lastDownloadInChain != nil {
+		firstInstallInChain.WaitFor(lastDownloadInChain)
+	}
 
 	// Set the new model assertion - this *must* be the last thing done
 	// by the change.

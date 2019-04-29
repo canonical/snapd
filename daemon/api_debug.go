@@ -193,7 +193,7 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 			"model": string(asserts.Encode(model)),
 		}, nil)
 	case "change-timings":
-		chgID := query.Get("chg-id")
+		chgID := query.Get("change-id")
 		ensureID := query.Get("ensure-id")
 		return getChangeTimings(st, chgID, ensureID)
 	default:
