@@ -23,6 +23,7 @@ package snapstate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -63,6 +64,8 @@ const (
 const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
 )
+
+var ErrNothingToDo = errors.New("nothing to do")
 
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
@@ -1716,10 +1719,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 		ts, err := AutomaticSnapshot(st, name)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			addNext(ts)
+		} else {
+			if err != ErrNothingToDo {
+				return nil, err
+			}
 		}
-		addNext(ts)
 	}
 
 	if active { // unlink
