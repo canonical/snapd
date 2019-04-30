@@ -70,6 +70,9 @@ type Config struct {
 	// DisableKeepAlive indicates whether the connections should not be kept
 	// alive for later reuse
 	DisableKeepAlive bool
+
+	// Sent custom user agent
+	UserAgent string
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -84,6 +87,8 @@ type Client struct {
 
 	warningCount     int
 	warningTimestamp time.Time
+
+	userAgent string
 }
 
 // New returns a new instance of Client
@@ -103,6 +108,7 @@ func New(config *Config) *Client {
 			doer:        &http.Client{Transport: transport},
 			disableAuth: config.DisableAuth,
 			interactive: config.Interactive,
+			userAgent:   config.UserAgent,
 		}
 	}
 
@@ -115,6 +121,7 @@ func New(config *Config) *Client {
 		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
+		userAgent:   config.UserAgent,
 	}
 }
 
@@ -193,6 +200,9 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return nil, RequestError{err}
+	}
+	if client.userAgent != "" {
+		req.Header.Set("User-Agent", client.userAgent)
 	}
 
 	for key, value := range headers {
