@@ -35,6 +35,10 @@ prepare: |
     EOF
 
 restore: |
+    # Remove the snap before the portal clean-up to make sure dbus
+    # session is stopped in the client before
+    snap remove test-snapd-portal-client
+
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals

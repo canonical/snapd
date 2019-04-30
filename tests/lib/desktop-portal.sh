@@ -7,9 +7,7 @@ TEST_UID="$(id -u test)"
 USER_RUNTIME_DIR="/run/user/${TEST_UID}"
 
 setup_portals() {
-    # Install xdg-desktop-portal and configure service activation for
-    # fake portal UI.
-    distro_install_package xdg-desktop-portal
+    # Configure xdg-desktop-portal service activation for fake portal UI.
     cat << EOF > /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
 [D-BUS Service]
 Name=org.freedesktop.impl.portal.spread
@@ -42,14 +40,19 @@ EOF
 }
 
 teardown_portals() {
+    as_user systemctl --user unset-environment XDG_CURRENT_DESKTOP=spread
     systemctl stop "user@${TEST_UID}.service"
+
+    if ps aux | grep -E '^test.*'; then
+        echo "test users should be not running any process"
+        exit 1
+    fi
 
     rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
     rm -f /usr/lib/systemd/user/spread-portal-ui.service
     rm -f /usr/share/xdg-desktop-portal/portals/spread.portal
 
-    distro_purge_package xdg-desktop-portal
-    distro_auto_remove_packages
+    dbus-cleanup-sockets
 
     if mount | grep "${USER_RUNTIME_DIR}/doc"; then
         umount "${USER_RUNTIME_DIR}/doc"

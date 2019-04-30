@@ -613,11 +613,13 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 gccgo-8
                 evolution-data-server
+                xdg-desktop-portal
                 "
             ;;
         ubuntu-18.10-64)
             echo "
                 evolution-data-server
+                xdg-desktop-portal
                 "
             ;;
         ubuntu-*)
