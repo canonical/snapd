@@ -13,6 +13,7 @@ version-script: |
 #FIXME: enable once snapcraft understands this
 #type: snapd
 grade: stable
+base: core
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
@@ -80,7 +81,7 @@ parts:
   fontconfig-xenial:
     plugin: nil
     source: https://github.com/snapcore/fc-cache-static-builder.git
-    build: |
+    override-build: |
       ./build-from-security.py xenial
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
@@ -90,10 +91,9 @@ parts:
   fontconfig-bionic:
     plugin: nil
     source: https://github.com/snapcore/fc-cache-static-builder.git
-    build: |
+    override-build: |
       ./build-from-security.py bionic
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
     stage:
       - bin/fc-cache-v7
-

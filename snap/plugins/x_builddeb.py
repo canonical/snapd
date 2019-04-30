@@ -33,7 +33,7 @@ def patch_snapcraft():
     def _patched_check(self, target):
         return False
     snapcraft.internal.sources._local.Local._check = _patched_check
-patch_snapcraft()
+#patch_snapcraft()
 
 
 
@@ -41,9 +41,11 @@ class XBuildDeb(snapcraft.BasePlugin):
 
     def build(self):
         super().build()
-        self.run(["sudo", "apt-get", "build-dep", "-y", "./"])
         # ensure we have go in our PATH
         env=os.environ.copy()
+        env["DEBIAN_FRONTEND"] = "noninteractive"
+        env["DEBCONF_NONINTERACTIVE_SEEN"] = "true"
+        self.run(["apt-get", "build-dep", "-y", "./"], env=env)
         # ensure build with go-1.10 if available
         if os.path.exists("/usr/lib/go-1.10/bin"):
             env["PATH"] = "/usr/lib/go-1.10/bin:{}".format(env["PATH"])
@@ -56,6 +58,6 @@ class XBuildDeb(snapcraft.BasePlugin):
         # run the real build
         self.run(["dpkg-buildpackage"], env=env)
         # and "install" into the right place
-        snapd_deb = glob.glob("parts/snapd/snapd_*.deb")[0]
+        snapd_deb = glob.glob("../parts/snapd/snapd_*.deb")[0]
         self.run(["dpkg-deb", "-x", os.path.abspath(snapd_deb), self.installdir])
 
