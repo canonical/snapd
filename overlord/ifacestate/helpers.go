@@ -296,34 +296,79 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	connStateChanged := false
 	affected := make(map[string]bool)
-	for id, conn := range conns {
-		if conn.Undesired || conn.HotplugGone {
+	for connId, connState := range conns {
+		// Skip entries that just mark a connection as undesired. Those don't
+		// carry attributes that can go stale. In the same spirit, skip
+		// information about hotplug connections that don't have the associated
+		// hotplug hardware.
+		if connState.Undesired || connState.HotplugGone {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(id)
+		connRef, err := interfaces.ParseConnRef(connId)
 		if err != nil {
 			return nil, err
 		}
+		// Apply filtering, this allows us to reload only a subset of
+		// connections (and similarly, refresh the static attributes of only a
+		// subset of connections).
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
 
-		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, nil); err != nil {
-			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
-				// Some versions of snapd may have left stray connections that
-				// don't have the corresponding plug or slot anymore. Before we
-				// choose how to deal with this data we want to silently ignore
-				// that error not to worry the users.
-				continue
+		// Some versions of snapd may have left stray connections that don't
+		// have the corresponding plug or slot anymore. Before we choose how to
+		// deal with this data we want to silently ignore that error not to
+		// worry the users.
+		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+		if plugInfo == nil || slotInfo == nil {
+			continue
+		}
+
+		var updateStaticAttrs bool
+		staticPlugAttrs := connState.StaticPlugAttrs
+		staticSlotAttrs := connState.StaticSlotAttrs
+
+		// XXX: Refresh the copy of the static connection attributes for "content" interface as long
+		// as its "content" attribute
+		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
+		if plugInfo.Interface == "content" {
+			var plugContent, slotContent string
+			plugInfo.Attr("content", &plugContent)
+			slotInfo.Attr("content", &slotContent)
+
+			if plugContent != "" && plugContent == slotContent {
+				staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+				staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+				updateStaticAttrs = true
+			} else {
+				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
 			}
+		}
+
+		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
+		if _, err := m.repo.Connect(connRef, staticPlugAttrs, connState.DynamicPlugAttrs, staticSlotAttrs, connState.DynamicSlotAttrs, nil); err != nil {
 			logger.Noticef("%s", err)
 		} else {
+			// If the connection succeeded update the connection state and keep
+			// track of the snaps that were affected.
 			affected[connRef.PlugRef.Snap] = true
 			affected[connRef.SlotRef.Snap] = true
+
+			if updateStaticAttrs {
+				connState.StaticPlugAttrs = staticPlugAttrs
+				connState.StaticSlotAttrs = staticSlotAttrs
+				connStateChanged = true
+			}
 		}
 	}
+	if connStateChanged {
+		setConns(m.state, conns)
+	}
+
 	result := make([]string, 0, len(affected))
 	for name := range affected {
 		result = append(result, name)
