@@ -226,7 +226,11 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// The core snap provides everything we need for core16.
-	if snapName == "core16" && coreSnapInstalled(st) {
+	coreInstalled, err := isInstalled(st, "core")
+	if err != nil {
+		return nil, err
+	}
+	if snapName == "core16" && coreInstalled {
 		return nil, nil
 	}
 
@@ -297,7 +301,15 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// on systems without core or snapd need to install snapd to
 	// make interfaces work - LP: 1819318
 	var tsSnapd *state.TaskSet
-	if base != "core" && !snapdSnapInstalled(st) && !coreSnapInstalled(st) {
+	snapdSnapInstalled, err := isInstalled(st, "snapd")
+	if err != nil {
+		return err
+	}
+	coreSnapInstalled, err := isInstalled(st, "core")
+	if err != nil {
+		return err
+	}
+	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
 			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
 		})
@@ -1078,25 +1090,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	return nil
 }
 
-func snapdSnapInstalled(st *state.State) bool {
-	var snapst SnapState
-	err := Get(st, "snapd", &snapst)
-	return err == nil
-}
-
-func coreSnapInstalled(st *state.State) bool {
-	var snapst SnapState
-	err := Get(st, "core", &snapst)
-	return err == nil
-}
-
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
 	if release.OnClassic {
-		if (info.Type == snap.TypeOS && !snapdSnapInstalled(st)) ||
+		// ignore error here as we have no way to return to caller
+		snapdSnapInstalled, _ := isInstalled(st, "snapd")
+		if (info.Type == snap.TypeOS && !snapdSnapInstalled) ||
 			info.InstanceName() == "snapd" {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
