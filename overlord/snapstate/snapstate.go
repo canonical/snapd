@@ -641,6 +641,20 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+	return installGeneric(st, name, channel, "", revision, userID, flags)
+}
+
+// InstallCohort is like Install but instead of a revision, it takes a cohort key.
+func InstallCohort(st *state.State, name, channel, cohortKey string, userID int, flags Flags) (*state.TaskSet, error) {
+	return installGeneric(st, name, channel, cohortKey, snap.Revision{}, userID, flags)
+}
+
+// TODO: refactor things so there's a single install that takes a struct, mayeb a bit more like doInstall but public-er.
+func installGeneric(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+	if cohort != "" && !revision.Unset() {
+		return nil, errors.New("cannot specify revision and cohort")
+	}
+
 	if channel == "" {
 		channel = "stable"
 	}
@@ -663,7 +677,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, err := installInfo(st, name, channel, revision, userID)
+	info, err := installInfo(st, name, channel, cohort, revision, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -690,6 +704,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		auxStoreInfo: auxStoreInfo{
 			Media: info.Media,
 		},
+		CohortKey: cohort,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, "")
@@ -1894,7 +1909,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
+		newInfo, err := installInfo(st, newName, oldSnapst.Channel, "", snap.R(0), userID)
 		if err != nil {
 			return nil, err
 		}

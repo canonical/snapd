@@ -2434,6 +2434,32 @@ func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
+func (s *apiSuite) TestPostSnapsNoWeirdses(c *check.C) {
+	s.daemonWithOverlordMock(c)
+
+	// one could add more actions here ... 🤷
+	for _, action := range []string{"install", "refresh", "remove"} {
+		for weird, v := range map[string]string{
+			"channel":    `"beta"`,
+			"revision":   `"1"`,
+			"devmode":    "true",
+			"jailmode":   "true",
+			"cohort-key": `"what"`,
+		} {
+			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
+			req, err := http.NewRequest("POST", "/v2/snaps", buf)
+			c.Assert(err, check.IsNil)
+			req.Header.Set("Content-Type", "application/json")
+
+			rsp := postSnaps(snapsCmd, req, nil).(*resp)
+
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Status, check.Equals, 400)
+			c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
+		}
+	}
+}
+
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	d := s.daemon(c)
 	ensureStateSoon = func(st *state.State) {}

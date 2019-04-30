@@ -423,7 +423,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error) {
 	st.Lock()
 	defer st.Unlock()
-	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
+	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.CohortKey, snapsup.Revision(), snapsup.UserID)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -920,6 +920,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	snapst.JailMode = snapsup.JailMode
 	oldClassic := snapst.Classic
 	snapst.Classic = snapsup.Classic
+	oldCohortKey := snapst.CohortKey
+	snapst.CohortKey = snapsup.CohortKey
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
 	}
@@ -988,6 +990,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
+	t.Set("old-cohort-key", oldCohortKey)
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
@@ -1149,6 +1152,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var oldCohortKey string
+	if err := t.Get("old-cohort-key", &oldCohortKey); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	if len(snapst.Sequence) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
@@ -1192,6 +1199,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
+	snapst.CohortKey = oldCohortKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {

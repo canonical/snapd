@@ -889,6 +889,7 @@ type snapInstruction struct {
 	Amend            bool          `json:"amend"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
+	CohortKey        string        `json:"cohort-key"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
 	Classic          bool          `json:"classic"`
@@ -930,6 +931,7 @@ type snapInstructionResult struct {
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
+	snapstateInstallCohort     = snapstate.InstallCohort
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
@@ -1015,6 +1017,9 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 }
 
 func verifySnapInstructions(inst *snapInstruction) error {
+	if inst.CohortKey != "" && !inst.Revision.Unset() {
+		return fmt.Errorf("cannot specify both cohort-key and revision")
+	}
 	switch inst.Action {
 	case "install":
 		for _, snapName := range inst.Snaps {
@@ -1069,16 +1074,24 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
-	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
-
-	tset, err := snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	var tset *state.TaskSet
+	if inst.CohortKey == "" {
+		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
+		tset, err = snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	} else {
+		logger.Noticef("Installing snap %q from cohort %s", inst.Snaps[0], inst.CohortKey)
+		tset, err = snapstateInstallCohort(st, inst.Snaps[0], inst.Channel, inst.CohortKey, inst.userID, flags)
+	}
 	if err != nil {
 		return "", nil, err
 	}
 
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.Snaps[0])
 	if inst.Channel != "stable" && inst.Channel != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.Snaps[0], inst.Channel)
+		msg += fmt.Sprintf(" from %q channel", inst.Channel)
+	}
+	if inst.CohortKey != "" {
+		msg += fmt.Sprintf(" from %q cohort", inst.CohortKey)
 	}
 	return msg, []*state.TaskSet{tset}, nil
 }
@@ -1385,7 +1398,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err := verifySnapInstructions(&inst); err != nil {
 		return BadRequest("%v", err)
 	}
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 

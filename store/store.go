@@ -1967,6 +1967,7 @@ type CurrentSnap struct {
 	IgnoreValidation bool
 	Block            []snap.Revision
 	Epoch            snap.Epoch
+	CohortKey        string
 }
 
 type currentSnapV2JSON struct {
@@ -1977,6 +1978,7 @@ type currentSnapV2JSON struct {
 	Epoch            snap.Epoch `json:"epoch"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
+	CohortKey        string     `json:"cohort-key,omitempty"`
 }
 
 type SnapActionFlags int
@@ -2172,6 +2174,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			IgnoreValidation: curSnap.IgnoreValidation,
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
+			CohortKey:        curSnap.CohortKey,
 		}
 	}
 
