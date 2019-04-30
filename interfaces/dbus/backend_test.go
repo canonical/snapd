@@ -304,7 +304,7 @@ func (s *backendSuite) testSetupWritesUsedFilesForCoreOrSnapd(c *C, coreOrSnapdY
 	coreOrSnapdInfo := snaptest.MockInfo(c, coreOrSnapdYaml, &snap.SideInfo{Revision: snap.R(2)})
 	makeFakeDbusUserdServiceFiles(c, coreOrSnapdInfo)
 
-	err := s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range []string{
@@ -338,11 +338,11 @@ func (s *backendSuite) TestSetupWritesUsedFilesBothSnapdAndCoreInstalled(c *C) {
 	makeFakeDbusUserdServiceFiles(c, snapdInfo)
 
 	// first setup snapd which writes the files
-	err = s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err = s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	// then setup core - if both are installed snapd should win
-	err = s.Backend.Setup(coreInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err = s.Backend.Setup(coreInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range []string{
