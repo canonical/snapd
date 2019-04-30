@@ -128,6 +128,15 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	return ""
 }
 
+// EffectiveFilesystemLabel returns the effective filesystem label, either
+// explicitly provided or implied by the structure's role
+func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
+	if vs.EffectiveRole() == "system-data" {
+		return "writable"
+	}
+	return vs.Label
+}
+
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
@@ -674,6 +683,13 @@ func ParseSize(gs string) (Size, error) {
 	return size, nil
 }
 
+func (s *Size) String() string {
+	if s == nil {
+		return "unspecified"
+	}
+	return fmt.Sprintf("%d", *s)
+}
+
 // RelativeOffset describes an offset where structure data is written at.
 // The position can be specified as byte-offset relative to the start of another
 // named structure.
@@ -683,6 +699,16 @@ type RelativeOffset struct {
 	RelativeTo string
 	// Offset is a 32-bit value
 	Offset Size
+}
+
+func (r *RelativeOffset) String() string {
+	if r == nil {
+		return "unspecified"
+	}
+	if r.RelativeTo != "" {
+		return fmt.Sprintf("%s+%d", r.RelativeTo, r.Offset)
+	}
+	return fmt.Sprintf("%d", r.Offset)
 }
 
 // ParseRelativeOffset parses a string describing an offset that can be
