@@ -315,6 +315,7 @@ repack_snapd_snap_with_deb_content() {
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
     snap pack "$UNPACK_DIR" "$TARGET"
+    rm -rf "$UNPACK_DIR"
 }
 
 setup_reflash_magic() {
