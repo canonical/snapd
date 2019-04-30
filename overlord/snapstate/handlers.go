@@ -298,8 +298,9 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// make interfaces work - LP: 1819318
 	var tsSnapd *state.TaskSet
 	if base != "core" && !snapdSnapInstalled(st) && !coreSnapInstalled(st) {
-		onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
-		tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
+		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
+			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
+		})
 		if err != nil {
 			return err
 		}
