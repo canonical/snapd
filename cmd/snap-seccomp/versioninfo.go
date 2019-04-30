@@ -53,8 +53,9 @@ func versionInfo() (string, error) {
 	}
 
 	major, minor, micro := seccomp.GetLibraryVersion()
+	features := GoSeccompFeatures()
 
-	return fmt.Sprintf("%s %d.%d.%d %x", myBuildID, major, minor, micro, sh.Sum(nil)), nil
+	return fmt.Sprintf("%s %d.%d.%d %x %s", myBuildID, major, minor, micro, sh.Sum(nil), features), nil
 }
 
 func showVersionInfo() error {
@@ -64,4 +65,13 @@ func showVersionInfo() error {
 	}
 	fmt.Fprintln(os.Stdout, vi)
 	return nil
+}
+
+func GoSeccompFeatures() string {
+	features := "-"
+	// as more features are added, make this colon-separated
+	if actLogSupported() {
+		features = "bpf-actlog"
+	}
+	return features
 }
