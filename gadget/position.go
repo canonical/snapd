@@ -38,10 +38,11 @@ type PositioningConstraints struct {
 // PositionedVolume defines the size of a volume and positions of all the
 // structures within it
 type PositionedVolume struct {
+	*Volume
 	// Size is the total size of the volume
 	Size Size
-	// Structures are sorted in order of 'appearance' in the volume
-	Structures []PositionedStructure
+	// PositionedStructure are sorted in order of 'appearance' in the volume
+	PositionedStructure []PositionedStructure
 }
 
 // PositionedStructure describes a VolumeStructure that has been positioned
@@ -142,8 +143,9 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 	}
 
 	vol := &PositionedVolume{
-		Size:       farthestEnd,
-		Structures: structures,
+		Volume:              volume,
+		Size:                farthestEnd,
+		PositionedStructure: structures,
 	}
 	return vol, nil
 }
