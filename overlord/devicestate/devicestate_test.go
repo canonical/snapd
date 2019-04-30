@@ -2765,7 +2765,7 @@ func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
-	auth.SetDevice(s.state, &auth.DeviceState{
+	devicestate.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
