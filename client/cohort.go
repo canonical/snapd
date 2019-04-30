@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,31 @@
  *
  */
 
-package snap
+package client
 
-var (
-	ValidateSocketName           = validateSocketName
-	ValidateDescription          = validateDescription
-	ValidateTitle                = validateTitle
-	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 )
 
-func (info *Info) ForceRenamePlug(oldName, newName string) {
-	info.forceRenamePlug(oldName, newName)
+type CohortAction struct {
+	Action string   `json:"action"`
+	Snaps  []string `json:"snaps"`
 }
 
-func NewScopedTracker() *scopedTracker {
-	return new(scopedTracker)
+func (client *Client) CreateCohorts(snaps []string) (map[string]string, error) {
+	data, err := json.Marshal(&CohortAction{Action: "create", Snaps: snaps})
+	if err != nil {
+		return nil, fmt.Errorf("cannot request cohorts: %v", err)
+	}
+
+	var cohorts map[string]string
+
+	if _, err := client.doSync("POST", "/v2/cohorts", nil, nil, bytes.NewReader(data), &cohorts); err != nil {
+		return nil, fmt.Errorf("cannot create cohorts: %v", err)
+	}
+
+	return cohorts, nil
+
 }
