@@ -53,7 +53,7 @@ func versionInfo() (string, error) {
 	}
 
 	major, minor, micro := seccomp.GetLibraryVersion()
-	features := GoSeccompFeatures()
+	features := goSeccompFeatures()
 
 	return fmt.Sprintf("%s %d.%d.%d %x %s", myBuildID, major, minor, micro, sh.Sum(nil), features), nil
 }
@@ -67,7 +67,7 @@ func showVersionInfo() error {
 	return nil
 }
 
-func GoSeccompFeatures() string {
+func goSeccompFeatures() string {
 	features := "-"
 	// as more features are added, make this colon-separated
 	if actLogSupported() {
