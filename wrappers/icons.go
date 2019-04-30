@@ -108,6 +108,9 @@ func AddSnapIcons(s *snap.Info) error {
 }
 
 func RemoveSnapIcons(s *snap.Info) error {
+	if !osutil.IsDirectory(dirs.SnapDesktopIconsDir) {
+		return nil
+	}
 	iconGlob := fmt.Sprintf("snap.%s.*", s.SnapName())
 	_, _, err := osutil.EnsureTreeState(dirs.SnapDesktopIconsDir, []string{iconGlob}, nil)
 	return err
