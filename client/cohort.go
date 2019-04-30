@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +17,31 @@
  *
  */
 
-package backend
+package client
 
 import (
-	"os/exec"
+	"bytes"
+	"encoding/json"
+	"fmt"
 )
 
-var (
-	AddMountUnit    = addMountUnit
-	RemoveMountUnit = removeMountUnit
-)
-
-func MockUpdateFontconfigCaches(f func() error) (restore func()) {
-	oldUpdateFontconfigCaches := updateFontconfigCaches
-	updateFontconfigCaches = f
-	return func() {
-		updateFontconfigCaches = oldUpdateFontconfigCaches
-	}
+type CohortAction struct {
+	Action string   `json:"action"`
+	Snaps  []string `json:"snaps"`
 }
 
-func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (restore func()) {
-	old := commandFromSystemSnap
-	commandFromSystemSnap = f
-	return func() {
-		commandFromSystemSnap = old
+func (client *Client) CreateCohorts(snaps []string) (map[string]string, error) {
+	data, err := json.Marshal(&CohortAction{Action: "create", Snaps: snaps})
+	if err != nil {
+		return nil, fmt.Errorf("cannot request cohorts: %v", err)
 	}
+
+	var cohorts map[string]string
+
+	if _, err := client.doSync("POST", "/v2/cohorts", nil, nil, bytes.NewReader(data), &cohorts); err != nil {
+		return nil, fmt.Errorf("cannot create cohorts: %v", err)
+	}
+
+	return cohorts, nil
+
 }

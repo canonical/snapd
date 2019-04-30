@@ -85,6 +85,10 @@ func (Store) ConnectivityCheck() (map[string]bool, error) {
 	panic("ConnectivityCheck not expected")
 }
 
+func (Store) CreateCohorts(context.Context, []string) (map[string]string, error) {
+	panic("CreateCohort not expected")
+}
+
 func (Store) LoginUser(username, password, otp string) (string, string, error) {
 	panic("LoginUser not expected")
 }

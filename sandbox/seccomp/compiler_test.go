@@ -50,13 +50,25 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		err string
 	}{
 		// valid
-		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", ""},
-		{"abcdef 0.0.0 abcd", "abcdef 0.0.0 abcd", ""},
+		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog", ""},
+		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c foo:bar", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c foo:bar", ""},
+		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
+		{"abcdef 0.0.0 abcd bpf-actlog", "abcdef 0.0.0 abcd bpf-actlog", ""},
+		{"abcdef 0.0.0 abcd -", "abcdef 0.0.0 abcd -", ""},
 
 		// invalid all the way down from here
-
-		// this is over the sane length limit
-		{"b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853 2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "", "invalid version-info length: .*"},
+		// this is over/under the sane length limit for the fields
+		{"00000000000000000000000000000000000000001 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 123456.0.0 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 0.123456.0 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 0.0.123456 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4.1 00000000000000000000000000000000000000000000000000000000000000001 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 012345678901234567890123456789a", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 .4.1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4. 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2..1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 ", "", "invalid format of version-info: .*"},
 		// incorrect format
 		{"abcd 0.0.0 fg", "", "invalid format of version-info: .*"},
 		{"ggg 0.0.0 abc", "", "invalid format of version-info: .*"},
@@ -78,6 +90,10 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		} else {
 			c.Check(err, IsNil)
 			c.Check(v, Equals, tc.exp)
+			_, err := seccomp.GetLibseccompVersion(v)
+			c.Check(err, IsNil)
+			_, err = seccomp.GetGoSeccompFeatures(v)
+			c.Check(err, IsNil)
 		}
 		c.Check(cmd.Calls(), DeepEquals, [][]string{
 			{"snap-seccomp", "version-info"},
@@ -141,4 +157,66 @@ func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
 	c.Assert(compiler, IsNil)
 
 	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
+}
+
+func (s *compilerSuite) TestGetLibseccompVersion(c *C) {
+	v, err := seccomp.GetLibseccompVersion("a 2.4.1 b -")
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, "2.4.1")
+
+	v, err = seccomp.GetLibseccompVersion("a phooey b -")
+	c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+	c.Check(v, Equals, "")
+}
+
+func (s *compilerSuite) TestGetGoSeccompFeatures(c *C) {
+	for _, tc := range []struct {
+		v   string
+		exp string
+		err string
+	}{
+		// valid
+		{"a 2.4.1 b -", "-", ""},
+		{"a 2.4.1 b foo", "foo", ""},
+		{"a 2.4.1 b foo:bar", "foo:bar", ""},
+		// invalid
+		{"a 2.4.1 b b@rf", "", "invalid format of version-info: .*"},
+	} {
+		v, err := seccomp.GetGoSeccompFeatures(tc.v)
+		if err == nil {
+			c.Assert(err, IsNil)
+			c.Check(v, Equals, tc.exp)
+		} else {
+			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+			c.Check(v, Equals, tc.exp)
+		}
+	}
+}
+
+func (s *compilerSuite) TestHasGoSeccompFeature(c *C) {
+	for _, tc := range []struct {
+		v   string
+		f   string
+		exp bool
+		err string
+	}{
+		// valid negative
+		{"a 2.4.1 b -", "foo", false, ""},
+		{"a 2.4.1 b foo:bar", "foo:bar", false, ""},
+		// valid affirmative
+		{"a 2.4.1 b foo", "foo", true, ""},
+		{"a 2.4.1 b foo:bar", "foo", true, ""},
+		{"a 2.4.1 b foo:bar", "bar", true, ""},
+		// invalid
+		{"a 1.2.3 b b@rf", "b@rf", false, "invalid format of version-info: .*"},
+	} {
+		v, err := seccomp.HasGoSeccompFeature(tc.v, tc.f)
+		if err == nil {
+			c.Assert(err, IsNil)
+			c.Check(v, Equals, tc.exp)
+		} else {
+			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+			c.Check(v, Equals, tc.exp)
+		}
+	}
 }

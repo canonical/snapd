@@ -616,7 +616,7 @@ pkg_dependencies_ubuntu_classic(){
                 xdg-desktop-portal
                 "
             ;;
-        ubuntu-18.10-64)
+        ubuntu-18.10-64|ubuntu-19.04-64)
             echo "
                 evolution-data-server
                 xdg-desktop-portal
