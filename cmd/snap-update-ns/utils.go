@@ -654,7 +654,7 @@ func createWritableMimic(dir, neededBy string, as *Assumptions) ([]*Change, erro
 	return changes, nil
 }
 
-func applyProfile(up MountProfileUpdateContext, snapName string, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
+func applyProfile(up MountProfileUpdateContext, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
@@ -681,7 +681,7 @@ func applyProfile(up MountProfileUpdateContext, snapName string, currentBefore, 
 			if origin == "layout" || origin == "overname" {
 				return nil, err
 			} else if err != ErrIgnoredMissingMount {
-				logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+				logger.Noticef("cannot change mount namespace according to change %s: %s", change, err)
 			}
 			continue
 		}
