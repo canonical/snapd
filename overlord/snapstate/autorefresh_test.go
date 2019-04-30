@@ -269,7 +269,7 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh", "list-refresh"})
 }
 
-func (s *autoRefreshTestSuite) TestRefreshUnretriedError(c *C) {
+func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
 	// fake that the retryRefreshDelay is over
 	restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
 	defer restore()
@@ -279,10 +279,10 @@ func (s *autoRefreshTestSuite) TestRefreshUnretriedError(c *C) {
 	s.state.Set("last-refresh", initialLastRefresh)
 	s.state.Unlock()
 
-	s.store.err = &httputil.UnretriedNetworkError{Err: fmt.Errorf("error")}
+	s.store.err = &httputil.PerstistentNetworkError{Err: fmt.Errorf("error")}
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
-	c.Check(err, ErrorMatches, "unretried network error: error")
+	c.Check(err, ErrorMatches, "persistent network error: error")
 	c.Check(s.store.ops, HasLen, 1)
 
 	// last-refresh time remains untouched

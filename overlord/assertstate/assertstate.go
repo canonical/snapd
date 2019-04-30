@@ -158,7 +158,7 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 				continue
 			}
 			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
-				if notRetried, ok := err.(*httputil.UnretriedNetworkError); ok {
+				if notRetried, ok := err.(*httputil.PerstistentNetworkError); ok {
 					return notRetried
 				}
 				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)

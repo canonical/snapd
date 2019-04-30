@@ -36,12 +36,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type UnretriedNetworkError struct {
+type PerstistentNetworkError struct {
 	Err error
 }
 
-func (e *UnretriedNetworkError) Error() string {
-	return fmt.Sprintf("unretried network error: %v", e.Err)
+func (e *PerstistentNetworkError) Error() string {
+	return fmt.Sprintf("persistent network error: %v", e.Err)
 }
 
 func MaybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
@@ -195,7 +195,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 			}
 
 			if isNetworkDown(err) || isDnsUnavailable(err) {
-				err = &UnretriedNetworkError{Err: err}
+				err = &PerstistentNetworkError{Err: err}
 			}
 			break
 		}

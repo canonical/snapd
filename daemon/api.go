@@ -703,7 +703,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 				Status: 400,
 			}, nil)
 		}
-		if e, ok := err.(*httputil.UnretriedNetworkError); ok {
+		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
 				Result: &errorResult{Message: e.Error(), Kind: errorKindDNSFailure},

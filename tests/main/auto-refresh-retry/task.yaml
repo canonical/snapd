@@ -49,7 +49,7 @@ execute: |
         sleep 5
     done
 
-    journalctl | MATCH "state ensure error: unretried network error"
+    journalctl | MATCH "state ensure error: persistent network error"
 
     # restart snapd with network access back
     systemctl stop snapd.{service,socket}
