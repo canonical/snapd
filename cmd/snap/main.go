@@ -346,6 +346,8 @@ var ClientConfig = client.Config{
 	Socket: dirs.SnapdSocket,
 	// Allow interactivity if we have a terminal
 	Interactive: isStdinTTY,
+	// Custom user agent
+	UserAgent: "snap/" + cmd.Version,
 }
 
 // Client returns a new client using ClientConfig as configuration.

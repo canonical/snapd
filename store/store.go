@@ -686,6 +686,9 @@ type requestOptions struct {
 	ExtraHeaders map[string]string
 	Data         []byte
 
+	// XXX: add this to the context for the request instead of here?
+	ExtraUserAgent string
+
 	// DeviceAuthNeed indicates the level of need to supply device
 	// authorization for this request, can be:
 	//  - deviceAuthPreferred: should be provided if available
@@ -918,7 +921,11 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		authenticateUser(req, user)
 	}
 
-	req.Header.Set("User-Agent", httputil.UserAgent())
+	userAgent := httputil.UserAgent()
+	if reqOptions.ExtraUserAgent != "" {
+		userAgent += " " + reqOptions.ExtraUserAgent
+	}
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
@@ -1144,10 +1151,16 @@ type Search struct {
 	Section string
 	Private bool
 	Scope   string
+
+	// XXX: add this to the context for the request instead of here?
+	ExtraUserAgent string
 }
 
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
+//
+// XXX: should we add a context here that carries the user-agent instead of
+//      adding it to the Search struct?
 func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
 	if search.Private && user == nil {
 		return nil, ErrUnauthenticated
@@ -1199,6 +1212,8 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		Method: "GET",
 		URL:    u,
 		Accept: halJsonContentType,
+		// XXX: or via context
+		ExtraUserAgent: search.ExtraUserAgent,
 	}
 
 	var searchData searchResults

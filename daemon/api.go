@@ -614,6 +614,11 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(sections, nil)
 }
 
+// extractUserAgent extract the product from the user agent string
+func extractProductFromUserAgent(ua string) string {
+	return strings.Split(ua, " ")[0]
+}
+
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
@@ -674,6 +679,9 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Section:  section,
 		Private:  private,
 		Scope:    scope,
+		// XXX: or add context to theStore.Find() and use that
+		//      to transmit user-agent?
+		ExtraUserAgent: extractProductFromUserAgent(r.Header.Get("User-Agent")),
 	}, user)
 	switch err {
 	case nil:
