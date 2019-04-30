@@ -64,10 +64,6 @@ type SnapSetup struct {
 	UserID  int       `json:"user-id,omitempty"`
 	Base    string    `json:"base,omitempty"`
 	Type    snap.Type `json:"type,omitempty"`
-	// PlugsOnly indicates whether the relevant revisions for the
-	// operation have only plugs (#plugs >= 0), and absolutely no
-	// slots (#slots == 0).
-	PlugsOnly bool `json:"plugs-only,omitempty"`
 
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
@@ -139,6 +135,11 @@ type SnapState struct {
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
+
+	// RefreshInhibitedime records the time when the refresh was first
+	// attempted but inhibited because the snap was busy. This value is
+	// reset on each successful refresh.
+	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -239,6 +240,10 @@ const (
 )
 
 var snapReadInfo = snap.ReadInfo
+
+// AutomaticSnapshot allows to hook snapshot manager's AutomaticSnapshot.
+var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.TaskSet, err error)
+var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
 
 func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)

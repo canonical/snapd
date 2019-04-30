@@ -45,6 +45,8 @@ environment:
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
     # always skip removing the rsync snap
     SKIP_REMOVE_SNAPS: "$(HOST: echo ${SPREAD_SKIP_REMOVE_SNAPS:-}) test-snapd-rsync test-snapd-rsync-core18"
+    # Use the installed snapd and reset the systems without removing snapd
+    REUSE_SNAPD: "$(HOST: echo ${SPREAD_REUSE_SNAPD:-0})"
 
 backends:
     google:
@@ -62,6 +64,8 @@ backends:
                 workers: 6
             - ubuntu-18.10-64:
                 image: ubuntu-1810
+                workers: 6
+            - ubuntu-19.04-64:
                 workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
@@ -85,49 +89,19 @@ backends:
                 # golang stack cannot compile anything, needs investigation
                 manual: true
             - opensuse-15.0-64:
-                workers: 4
+                workers: 6
             - opensuse-tumbleweed-64:
-                workers: 4
+                workers: 6
             - arch-linux-64:
-                workers: 4
+                workers: 6
 
             - amazon-linux-2-64:
-                workers: 4
+                workers: 6
                 storage: preserve-size
 
             - centos-7-64:
-                workers: 4
+                workers: 6
                 image: centos-7-64
-
-    google-upgrade:
-        type: google
-        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
-        location: computeengine/us-east1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-                workers: 1
-            - ubuntu-16.04-32:
-                workers: 1
-            - ubuntu-16.04-64:
-                workers: 1
-            - ubuntu-18.04-64:
-                workers: 1
-            - ubuntu-18.10-64:
-                image: ubuntu-1810
-                workers: 1
-            - debian-9-64:
-                workers: 1
-            - fedora-29-64:
-                workers: 1
-            - arch-linux-64:
-                workers: 1
-            - amazon-linux-2-64:
-                workers: 1
-                storage: preserve-size
-            - centos-7-64:
-                workers: 1
-
 
     google-sru:
         type: google
@@ -229,6 +203,12 @@ backends:
             - fedora-28-64:
                 username: fedora
                 password: fedora
+            - fedora-29-64:
+                username: fedora
+                password: fedora
+            - centos-7-64:
+                username: centos
+                password: centos
     autopkgtest:
         type: adhoc
         allocate: |
@@ -435,10 +415,15 @@ debug-each: |
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
-                    ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
+                    ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
                 else
-                    ausearch -m AVC || true
+                    ausearch -i -m AVC || true
                 fi
+                (
+                    find /root/snap -printf '%Z\t%H/%P\n' || true
+                    find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
+                ) | grep -v snappy_home_t || true
+                find /var/snap -printf '%Z\t%H/%P\n' | grep -v snappy_var_t || true
                 ;;
             *)
                echo '# apparmor denials '
@@ -515,6 +500,8 @@ prepare: |
         systemctl enable --now auditd.service
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+        # refresh metadatadata
+        zypper ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
@@ -537,6 +524,10 @@ prepare: |
         fi
     fi
 
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        apt-get update && apt-get install -y eatmydata
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -546,7 +537,7 @@ prepare: |
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
-                apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+                apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
             fedora-*)
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
@@ -601,8 +592,37 @@ restore: |
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
     if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # Make sure that we are not leaving behind incorrectly labeled snap
+            # files on systems supporting SELinux
+            (
+                find /root/snap -printf '%Z\t%H/%P\n' || true
+                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
+            ) | grep -c -v snappy_home_t | MATCH "0"
+
+            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
+            ;;
+    esac
 
 suites:
+    # The essential tests designed to run inside the autopkgtest
+    # environment on each platform. On autopkgtest we cannot run all tests
+    # as this is very slow and we run into timeouts.
+    #
+    # These tests are executed on all other plattforms as they
+    # are designed to run on pristine systems
+    tests/smoke/:
+        summary: Essenial system level tests for snapd
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+    # All other tests run now and will heavily modify the system.
     tests/main/:
         summary: Full-system tests for snapd
         prepare: |
@@ -610,19 +630,6 @@ suites:
         debug: |
             systemctl status snapd.socket || true
             journalctl -xe
-        prepare-each: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-        restore-each: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
-        restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
-    # Essential tests run inside the autopkgtest environment on each
-    # platform. Autopkgtest can be very slow so we cannot run all
-    # tests there without running into timeouts.
-    tests/smoke/:
-        summary: Essenial system level tests for snapd
-        prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
@@ -685,9 +692,6 @@ suites:
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-*, -opensuse-*]
-        # autopkgtest runs against localhost which causes problems with
-        # this test prepare
-        backends: [google-upgrade]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
             # like other suites, needs more investigation

@@ -20,14 +20,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-__attribute__ ((noreturn))
-    __attribute__ ((format(printf, 1, 2)))
+__attribute__((noreturn))
+    __attribute__((format(printf, 1, 2)))
 void die(const char *fmt, ...);
 
-__attribute__ ((format(printf, 1, 2)))
-bool error(const char *fmt, ...);
-
-__attribute__ ((format(printf, 1, 2)))
+__attribute__((format(printf, 1, 2)))
 void debug(const char *fmt, ...);
 
 /**
@@ -58,6 +55,6 @@ void write_string_to_file(const char *filepath, const char *buf);
  *
  * The function returns -1 in case of any error.
  **/
-__attribute__ ((warn_unused_result))
+__attribute__((warn_unused_result))
 int sc_nonfatal_mkpath(const char *const path, mode_t mode);
 #endif

@@ -32,12 +32,14 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type backendSuite struct {
 	ifacetest.BackendSuite
 
 	udevadmCmd *testutil.MockCmd
+	meas       *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
@@ -69,6 +71,9 @@ func (s *backendSuite) SetUpTest(c *C) {
 	// NOTE: Normally this is a part of the OS snap.
 	err := os.MkdirAll(dirs.SnapUdevRulesDir, 0700)
 	c.Assert(err, IsNil)
+
+	perf := timings.New(nil)
+	s.meas = perf.StartSpan("", "")
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -149,7 +154,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, opts, s.Repo)
+		err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		// rules are not re-loaded when nothing changes
 		c.Check(s.udevadmCmd.Calls(), HasLen, 0)
