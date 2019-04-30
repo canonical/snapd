@@ -59,8 +59,12 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreOrSnapdRoot := snapInfo.MountDir()
 
-	// fugly - but we need to make sure that the content of the "snapd"
-	// snap wins
+	// fugly - but we need to make sure that the content of the
+	// "snapd" snap wins
+	//
+	// TODO: this is also racy but the content of the files in core and
+	// snapd is identical cleanup after link-snap and
+	// setup-profiles are unified
 	if snapInfo.InstanceName() == "core" && osutil.FileExists(filepath.Join(coreOrSnapdRoot, "../..", "snapd/current")) {
 		return nil
 	}
