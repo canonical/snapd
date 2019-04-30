@@ -11716,6 +11716,32 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-ubuntu-core")
 }
 
+func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(nil)
+	defer r()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 0)
+	// not counted as a try
+	var t time.Time
+	err := s.state.Get("ubuntu-core-transition-last-retry-time", &t)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
 func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
