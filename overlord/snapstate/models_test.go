@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 )
 
 func ModelWithBase(baseName string) *asserts.Model {
@@ -40,26 +41,5 @@ func DefaultModel() *asserts.Model {
 }
 
 func MakeModel(override map[string]string) *asserts.Model {
-	model := map[string]interface{}{
-		"type":              "model",
-		"authority-id":      "brand",
-		"series":            "16",
-		"brand-id":          "brand",
-		"model":             "baz-3000",
-		"architecture":      "armhf",
-		"gadget":            "brand-gadget",
-		"kernel":            "kernel",
-		"timestamp":         "2018-01-01T08:00:00+00:00",
-		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-	}
-	for k, v := range override {
-		model[k] = v
-	}
-
-	a, err := asserts.Assemble(model, nil, nil, []byte("AXNpZw=="))
-	if err != nil {
-		panic(err)
-	}
-
-	return a.(*asserts.Model)
+	return snapstatetest.MakeModel(override)
 }

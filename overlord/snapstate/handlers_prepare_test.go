@@ -61,12 +61,17 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
+	snapstate.DeviceCtx = func(st *state.State, task *state.Task, providedDeviceCtx snapstate.DeviceContext) (snapstate.DeviceContext, error) {
+		return nil, nil
+	}
+
 	reset1 := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 	reset2 := snapstate.MockReRefreshRetryTimeout(time.Second / 200)
 	s.reset = func() {
 		dirs.SetRootDir("/")
 		reset1()
 		reset2()
+		snapstate.DeviceCtx = nil
 	}
 }
 
