@@ -36,10 +36,10 @@ func MockUpdateFontconfigCaches(f func() error) (restore func()) {
 	}
 }
 
-func MockCommandFromCore(f func(string, string, ...string) (*exec.Cmd, error)) (restore func()) {
-	old := commandFromCore
-	commandFromCore = f
+func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (restore func()) {
+	old := commandFromSystemSnap
+	commandFromSystemSnap = f
 	return func() {
-		commandFromCore = old
+		commandFromSystemSnap = old
 	}
 }
