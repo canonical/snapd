@@ -41,10 +41,6 @@ var (
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
 
-	// main
-	ComputeAndSaveSystemChanges = computeAndSaveSystemChanges
-	ApplyUserFstab              = applyUserFstab
-
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
 
@@ -55,9 +51,11 @@ var (
 	// system
 	DesiredSystemProfilePath = desiredSystemProfilePath
 	CurrentSystemProfilePath = currentSystemProfilePath
+	ApplySystemFstab         = applySystemFstab
 
 	// user
 	DesiredUserProfilePath = desiredUserProfilePath
+	ApplyUserFstab         = applyUserFstab
 
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
