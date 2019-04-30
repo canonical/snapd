@@ -353,9 +353,9 @@ func getAllRequiredSnapsForModel(model *asserts.Model) map[string]bool {
 // extractDownloadInstallEdgesFromTs extracts the first, last download
 // phase and install phase tasks from a TaskSet
 func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
-	edgeTask := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
-	if edgeTask == nil {
-		return nil, nil, nil, nil, fmt.Errorf("internal error: cannot find edge task in task set: %v", ts)
+	edgeTask, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads

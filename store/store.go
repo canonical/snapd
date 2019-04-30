@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -393,6 +394,7 @@ const (
 	// v2
 	snapActionEndpPath = "v2/snaps/refresh"
 	snapInfoEndpPath   = "v2/snaps/info"
+	cohortsEndpPath    = "v2/cohorts"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -1302,22 +1304,6 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	return nil
 }
 
-// RefreshCandidate contains information for the store about the currently
-// installed snap so that the store can decide what update we should see
-type RefreshCandidate struct {
-	SnapID   string
-	Revision snap.Revision
-	Block    []snap.Revision
-
-	// the desired channel
-	Channel string
-	// whether validation should be ignored
-	IgnoreValidation bool
-
-	// try to refresh a local snap to a store revision
-	Amend bool
-}
-
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	for _, r := range haystack {
 		if needle == r {
@@ -2006,6 +1992,7 @@ type SnapAction struct {
 	SnapID       string
 	Channel      string
 	Revision     snap.Revision
+	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
 }
@@ -2026,6 +2013,7 @@ type snapActionJSON struct {
 	SnapID           string `json:"snap-id,omitempty"`
 	Channel          string `json:"channel,omitempty"`
 	Revision         int    `json:"revision,omitempty"`
+	CohortKey        string `json:"cohort-key,omitempty"`
 	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
 
 	// NOTE the store needs an epoch (even if null) for the "install" and "download"
@@ -2215,6 +2203,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
+			CohortKey:        a.CohortKey,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
@@ -2492,4 +2481,37 @@ func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
 	}
 
 	return status, nil
+}
+
+func (s *Store) CreateCohorts(ctx context.Context, snaps []string) (map[string]string, error) {
+	jsonData, err := json.Marshal(map[string][]string{"snaps": snaps})
+	if err != nil {
+		return nil, err
+	}
+
+	u := s.endpointURL(cohortsEndpPath, nil)
+	reqOptions := &requestOptions{
+		Method:   "POST",
+		URL:      u,
+		APILevel: apiV2Endps,
+		Data:     jsonData,
+	}
+
+	var remote struct {
+		CohortKeys map[string]string `json:"cohort-keys"`
+	}
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, nil, &remote, nil)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode {
+	case 200:
+		// OK
+	case 404:
+		return nil, ErrSnapNotFound
+	default:
+		return nil, respToError(resp, fmt.Sprintf("create cohorts for %s", strutil.Quoted(snaps)))
+	}
+
+	return remote.CohortKeys, nil
 }
