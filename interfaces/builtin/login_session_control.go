@@ -54,8 +54,6 @@ dbus (send,receive)
     interface=org.freedesktop.login1.Session
     member={TakeControl,TakeDevice,PauseDevice,PauseDeviceComplete,ResumeDevice,ReleaseDevice,Active,State,Lock,Unlock}
     peer=(label=unconfined),
-
-/{,usr/}{,s}bin/loginctl ixr,
 `
 
 func init() {
