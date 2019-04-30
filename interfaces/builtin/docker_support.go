@@ -45,6 +45,16 @@ const dockerSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const dockerSupportConnectedPlugAppArmorCore = `
+# these accesses are necessary for Ubuntu Core 16 and 18, likely due to the version 
+# of apparmor or the kernel which doesn't resolve the upper layer of an 
+# overlayfs mount correctly
+# the accesses show up as runc trying to read from
+# /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**} rwl,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**} rwl,
+`
+
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -593,7 +603,16 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	spec.SetSuppressHomeIx()
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
+		// note we don't consider classic vs core here because if we're privileged
+		// then we are unconfined and don't need to worry about apparmor overlayfs
+		// bugs
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
+	} else {
+		if release.OnClassic {
+			spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
+		} else {
+			spec.AddSnippet(dockerSupportConnectedPlugAppArmor + dockerSupportConnectedPlugAppArmorCore)
+		}
 	}
 	spec.UsesPtraceTrace()
 	return nil
