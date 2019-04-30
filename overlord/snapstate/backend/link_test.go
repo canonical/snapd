@@ -396,8 +396,8 @@ type: os
 	newCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v7"), "")
 
 	// provide our own mock, osutil.CommandFromCore expects an ELF binary
-	restore = backend.MockCommandFromCore(func(mountDir, name string, args ...string) (*exec.Cmd, error) {
-		cmd := filepath.Join(mountDir, "core", "current", name)
+	restore = backend.MockCommandFromSystemSnap(func(name string, args ...string) (*exec.Cmd, error) {
+		cmd := filepath.Join(dirs.SnapMountDir, "core", "current", name)
 		c.Logf("command from core: %v", cmd)
 		return exec.Command(cmd, args...), nil
 	})
