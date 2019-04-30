@@ -423,7 +423,7 @@ func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
+func (s *prereqSuite) testDoPrereqNoCorePullsInSnaps(c *C, base string) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -435,7 +435,7 @@ func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
 			RealName: "foo",
 			Revision: snap.R(33),
 		},
-		Base: "core16",
+		Base: base,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
@@ -453,7 +453,7 @@ func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:       "install",
-				InstanceName: "core16",
+				InstanceName: base,
 				Channel:      "stable",
 			},
 			revno: snap.R(11),
@@ -473,4 +473,16 @@ func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
 	})
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "core16")
+}
+
+func (s *prereqSuite) TestDoPrereqCore18NoCorePullsInSnapd(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "core18")
+}
+
+func (s *prereqSuite) TestDoPrereqOtherBaseNoCorePullsInSnapd(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "other-base")
 }
