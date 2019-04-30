@@ -32,12 +32,12 @@ var _ = Suite(&updateTestSuite{})
 func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 	oldInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
-			"old": gadget.Volume{},
+			"old": {},
 		},
 	}
 	noMatchInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
-			"not-old": gadget.Volume{},
+			"not-old": {},
 		},
 	}
 	oldVol, newVol, err := gadget.ResolveVolume(oldInfo, noMatchInfo)
@@ -49,13 +49,13 @@ func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 func (u *updateTestSuite) TestResolveVolumeTooMany(c *C) {
 	oldInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
-			"old":         gadget.Volume{},
-			"another-one": gadget.Volume{},
+			"old":         {},
+			"another-one": {},
 		},
 	}
 	noMatchInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
-			"old": gadget.Volume{},
+			"old": {},
 		},
 	}
 	oldVol, newVol, err := gadget.ResolveVolume(oldInfo, noMatchInfo)
@@ -67,12 +67,12 @@ func (u *updateTestSuite) TestResolveVolumeTooMany(c *C) {
 func (u *updateTestSuite) TestResolveVolumeSimple(c *C) {
 	oldInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
-			"old": gadget.Volume{Bootloader: "u-boot"},
+			"old": {Bootloader: "u-boot"},
 		},
 	}
 	noMatchInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
-			"old": gadget.Volume{Bootloader: "grub"},
+			"old": {Bootloader: "grub"},
 		},
 	}
 	oldVol, newVol, err := gadget.ResolveVolume(oldInfo, noMatchInfo)
