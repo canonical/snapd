@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mvo5/libseccomp-golang"
 
@@ -68,10 +69,13 @@ func showVersionInfo() error {
 }
 
 func goSeccompFeatures() string {
-	features := "-"
-	// as more features are added, make this colon-separated
+	var features []string
 	if actLogSupported() {
-		features = "bpf-actlog"
+		features = append(features, "bpf-actlog")
 	}
-	return features
+
+	if len(features) == 0 {
+		return "-"
+	}
+	return strings.Join(features, ":")
 }
