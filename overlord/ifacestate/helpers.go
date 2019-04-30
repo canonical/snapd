@@ -296,34 +296,64 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	connStateChanged := false
 	affected := make(map[string]bool)
-	for id, conn := range conns {
-		if conn.Undesired || conn.HotplugGone {
+	for connId, connState := range conns {
+		// Skip entries that just mark a connection as undesired. Those don't
+		// carry attributes that can go stale. In the same spirit, skip
+		// information about hotplug connections that don't have the associated
+		// hotplug hardware.
+		if connState.Undesired || connState.HotplugGone {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(id)
+		connRef, err := interfaces.ParseConnRef(connId)
 		if err != nil {
 			return nil, err
 		}
+		// Apply filtering, this allows us to reload only a subset of
+		// connections (and similarly, refresh the static attributes of only a
+		// subset of connections).
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
 
+		// Some versions of snapd may have left stray connections that don't
+		// have the corresponding plug or slot anymore. Before we choose how to
+		// deal with this data we want to silently ignore that error not to
+		// worry the users.
+		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+		if plugInfo == nil || slotInfo == nil {
+			continue
+		}
+		// XXX: Refresh the copy of the static connection attributes. This is a
+		// partial solution to https://bugs.launchpad.net/snapd/+bug/1825883
+		// Once interface hooks are invoked for refreshed snaps then the update
+		// of static and dynamic connection attributes should happen there.
+		updatedStaticPlugAttrs := utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+		updatedStaticSlotAttrs := utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, nil); err != nil {
-			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
-				// Some versions of snapd may have left stray connections that
-				// don't have the corresponding plug or slot anymore. Before we
-				// choose how to deal with this data we want to silently ignore
-				// that error not to worry the users.
-				continue
-			}
+		if _, err := m.repo.Connect(connRef, updatedStaticPlugAttrs, connState.DynamicPlugAttrs, updatedStaticSlotAttrs, connState.DynamicSlotAttrs, nil); err != nil {
 			logger.Noticef("%s", err)
 		} else {
+			// If the connection succeeded update the connection state and keep
+			// track of the snaps that were affected.
 			affected[connRef.PlugRef.Snap] = true
 			affected[connRef.SlotRef.Snap] = true
+			// XXX: ideally we'd know the revision associated with the
+			// attributes _or_ did a deep comparison but for the sake of
+			// simplicity this is not done and attributes are always refreshed.
+			connState.StaticPlugAttrs = updatedStaticPlugAttrs
+			connState.StaticSlotAttrs = updatedStaticSlotAttrs
+			connStateChanged = true
 		}
 	}
+	if connStateChanged {
+		setConns(m.state, conns)
+	}
+
 	result := make([]string, 0, len(affected))
 	for name := range affected {
 		result = append(result, name)
