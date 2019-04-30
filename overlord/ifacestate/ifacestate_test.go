@@ -2461,17 +2461,12 @@ slots:
 // LP:#1825883; make sure static attributes in conns state are updated from the snap yaml on snap refresh
 func (s *interfaceManagerSuite) testDoSetupProfilesUpdatesStaticAttributes(c *C, snapNameToSetup string) {
 	// Put a connection in the state. The connection binds the two snaps we are
-	// testing below. The connection reflects the snaps as they are now, and
+	// adding below. The connection reflects the snaps as they are now, and
 	// carries no attribute data.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
-		},
-		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
-			"interface":   "unrelated",
-			"plug-static": map[string]interface{}{"attr": "unrelated-stale"},
-			"slot-static": map[string]interface{}{"attr": "unrelated-stale"},
 		},
 	})
 	s.state.Unlock()
@@ -2509,22 +2504,6 @@ slots:
   interface: test
   attr: slot-value
 `
-	const unrelatedAYaml = `
-name: unrelated-a
-version: 1
-slots:
- slot:
-  interface: unrelated
-  attr: unrelated-new
-`
-	const unrelatedBYaml = `
-name: unrelated-b
-version: 1
-slots:
- slot:
-  interface: unrelated
-  attr: unrelated-new
-`
 	// NOTE: s.mockSnap sets the state and calls MockSnapInstance internally,
 	// which puts the snap on disk. This gives us all four YAMLs on disk and
 	// just the first version of both in the state.
@@ -2532,10 +2511,6 @@ slots:
 	s.mockSnap(c, consumerV1Yaml)
 	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
 	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
-	// Mock two unrelated snaps, those will show that the state of unrelated
-	// snaps is not clobbered by the refresh process.
-	s.mockSnap(c, unrelatedAYaml)
-	s.mockSnap(c, unrelatedBYaml)
 
 	// Create a connection reference, it's just verbose and used a few times
 	// below so it's put up here.
@@ -2576,16 +2551,10 @@ slots:
 	}
 	s.mockSecBackend(c, secBackend)
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "unrelated"})
 
 	// Create the interface manager. This indirectly adds the snaps to the
 	// repository and reloads the connection.
 	s.manager(c)
-
-	// Because in tests the system key mismatch always occurs, the backend is
-	// invoked during the startup of the interface manager. The count
-	// represents the number of snaps that are in the system.
-	c.Check(secBackend.SetupCalls, HasLen, 4)
 
 	// Alter the state of producer and consumer snaps to get new revisions.
 	s.state.Lock()
@@ -2613,58 +2582,14 @@ slots:
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Assert(change.Status(), Equals, state.DoneStatus)
-
-	// We expect our security backend to be invoked for both snaps. See above
-	// for explanation about why it has four calls already.
-	c.Check(secBackend.SetupCalls, HasLen, 4+2)
 }
 
 func (s *interfaceManagerSuite) TestDoSetupProfilesUpdatesStaticAttributesPlugSnap(c *C) {
 	s.testDoSetupProfilesUpdatesStaticAttributes(c, "consumer")
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	// For completeness, the state of all connections. The unrelated connection
-	// was removed because the snap it belongs to no longer exists. This is
-	// done by removeStaleConnections.
-	var conns map[string]interface{}
-	err := s.state.Get("conns", &conns)
-	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface":   "test",
-			"plug-static": map[string]interface{}{"attr": "plug-value"},
-		},
-		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
-			"interface":   "unrelated",
-			"plug-static": map[string]interface{}{"attr": "unrelated-stale"},
-			"slot-static": map[string]interface{}{"attr": "unrelated-stale"},
-		},
-	})
 }
 
 func (s *interfaceManagerSuite) TestDoSetupProfilesUpdatesStaticAttributesSlotSnap(c *C) {
 	s.testDoSetupProfilesUpdatesStaticAttributes(c, "producer")
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	// For completeness, the state of all connections. The unrelated connection
-	// was removed because the snap it belongs to no longer exists. This is
-	// done by removeStaleConnections.
-	var conns map[string]interface{}
-	err := s.state.Get("conns", &conns)
-	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface":   "test",
-			"slot-static": map[string]interface{}{"attr": "slot-value"},
-		},
-		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
-			"interface":   "unrelated",
-			"plug-static": map[string]interface{}{"attr": "unrelated-stale"},
-			"slot-static": map[string]interface{}{"attr": "unrelated-stale"},
-		},
-	})
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityIgnoresStrayConnection(c *C) {
