@@ -553,6 +553,13 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	if !lastUbuntuCoreTransitionAttempt.IsZero() && lastUbuntuCoreTransitionAttempt.Add(6*time.Hour).After(now) {
 		return nil
 	}
+
+	tss, trErr := TransitionCore(m.state, "ubuntu-core", "core")
+	if _, ok := trErr.(*ChangeConflictError); ok {
+		// likely just too early, retry at next Ensure
+		return nil
+	}
+
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
 	var retryCount int
@@ -562,9 +569,8 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
-	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
-	if err != nil {
-		return err
+	if trErr != nil {
+		return trErr
 	}
 
 	msg := i18n.G("Transition ubuntu-core to core")

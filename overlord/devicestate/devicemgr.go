@@ -536,40 +536,27 @@ func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
 	return SetDevice(m.state, device)
 }
 
-// XXX delegate locking back to callers!!!
-
 // Model returns the device model assertion.
 func (m *DeviceManager) Model() (*asserts.Model, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	return Model(m.state)
 }
 
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	return Serial(m.state)
 }
 
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	model, err := Model(m.state)
-	if err != nil {
-		return nil, err
-	}
-
-	serial, err := Serial(m.state)
-	if err != nil {
-		return nil, err
+// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
+func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
+	if serial == nil {
+		// shouldn't happen, but be safe
+		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
 	privKey, err := m.keyPair()
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -585,18 +572,10 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.
 		return nil, err
 	}
 
-	return &storecontext.DeviceSessionRequestParams{
-		Request: a.(*asserts.DeviceSessionRequest),
-		Serial:  serial,
-		Model:   model,
-	}, err
-
+	return a.(*asserts.DeviceSessionRequest), nil
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
 func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	return ProxyStore(m.state)
 }

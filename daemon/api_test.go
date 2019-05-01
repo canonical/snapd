@@ -43,7 +43,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
@@ -342,7 +341,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	c.Assert(err, check.IsNil)
 	model := a.(*asserts.Model)
 
-	snapstate.Model = devicestate.Model
+	snapstate.DeviceCtx = devicestate.DeviceCtx
 
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
@@ -563,6 +562,14 @@ type apiSuite struct {
 }
 
 var _ = check.Suite(&apiSuite{})
+
+func (s *apiSuite) TestUsersOnlyRoot(c *check.C) {
+	for _, cmd := range api {
+		if strings.Contains(cmd.Path, "user") {
+			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
+		}
+	}
+}
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	d := s.daemon(c)
@@ -5586,9 +5593,6 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
 }
@@ -5596,7 +5600,6 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 func (s *postCreateUserSuite) TearDownTest(c *check.C) {
 	s.apiBaseSuite.TearDownTest(c)
 
-	postCreateUserUcrednetGet = ucrednetGet
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
 }
@@ -5992,13 +5995,6 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 	defer restore()
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
-	defer func() {
-		postCreateUserUcrednetGet = ucrednetGet
-	}()
 
 	// do it!
 	buf := bytes.NewBufferString(`{"known":true}`)

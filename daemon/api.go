@@ -200,8 +200,9 @@ var (
 	}
 
 	createUserCmd = &Command{
-		Path: "/v2/create-user",
-		POST: postCreateUser,
+		Path:     "/v2/create-user",
+		POST:     postCreateUser,
+		RootOnly: true,
 	}
 
 	buyCmd = &Command{
@@ -221,8 +222,9 @@ var (
 	}
 
 	usersCmd = &Command{
-		Path: "/v2/users",
-		GET:  getUsers,
+		Path:     "/v2/users",
+		GET:      getUsers,
+		RootOnly: true,
 	}
 
 	sectionsCmd = &Command{
@@ -2102,10 +2104,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGet = ucrednetGet
-	runSnapctlUcrednetGet     = ucrednetGet
-	ctlcmdRun                 = ctlcmd.Run
-	osutilAddUser             = osutil.AddUser
+	runSnapctlUcrednetGet = ucrednetGet
+	ctlcmdRun             = ctlcmd.Run
+	osutilAddUser         = osutil.AddUser
 )
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
@@ -2285,14 +2286,6 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
-	}
-
 	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
@@ -2480,14 +2473,6 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot get users as non-root")
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
