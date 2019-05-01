@@ -54,6 +54,16 @@ parts:
       - liblzma5
     stage:
       - lib/*
+  # libc6 is part of core but we need it in the snapd snap for
+  # CommandFromSystemSnap
+  libc6:
+    plugin: nil
+    stage-packages:
+      - libc6
+    stage:
+      - lib/*
+      - usr/lib/*
+      - lib64/*
   # the version in Ubuntu 16.04 (cache v6)
   fontconfig-xenial:
     plugin: nil

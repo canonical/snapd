@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -2703,4 +2704,58 @@ func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
 	c.Assert(tss, HasLen, 1)
 	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "set-model")
 	c.Assert(tss[0].Tasks()[0].Summary(), Equals, "Set new model assertion")
+}
+
+func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// nothing in the state
+
+	_, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	devicestate.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+}
+
+func (s *deviceMgrSuite) TestDeviceCtxProvided(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	modelA, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := modelA.(*asserts.Model)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	deviceCtx1, err := devicestate.DeviceCtx(s.state, nil, deviceCtx)
+	c.Assert(err, IsNil)
+	c.Assert(deviceCtx1, Equals, deviceCtx)
 }
