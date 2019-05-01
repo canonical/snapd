@@ -221,7 +221,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
-	device, err := m.Device()
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
-	device, err := m.Device()
+	device, err := m.device()
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -43,24 +44,6 @@ var (
 	snapstateInstall = snapstate.Install
 	snapstateUpdate  = snapstate.Update
 )
-
-// getDeviceState returns the device details from the state.
-func getDeviceState(st *state.State) (*auth.DeviceState, error) {
-	var authStateData auth.AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		return &auth.DeviceState{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	if authStateData.Device == nil {
-		return &auth.DeviceState{}, nil
-	}
-
-	return authStateData.Device, nil
-}
 
 // SetDevice updates the device details in the state.
 func SetDevice(st *state.State, device *auth.DeviceState) error {
@@ -81,7 +64,7 @@ func SetDevice(st *state.State, device *auth.DeviceState) error {
 
 // findModel returns the device model assertion.
 func findModel(st *state.State) (*asserts.Model, error) {
-	device, err := getDeviceState(st)
+	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +90,7 @@ func findModel(st *state.State) (*asserts.Model, error) {
 
 // findSerial returns the device serial assertion.
 func findSerial(st *state.State) (*asserts.Serial, error) {
-	device, err := getDeviceState(st)
+	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -98,7 +99,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := m.Device()
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -199,7 +200,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
-	device, err := m.Device()
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -501,7 +502,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := m.Device()
+	device, err := m.device()
 	if err != nil {
 		return nil, err
 	}
@@ -522,13 +523,9 @@ func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
 }
 
-// implementing storecontext.Backend
-// sanity check
-var _ storecontext.Backend = (*DeviceManager)(nil)
-
-// Device returns current device state.
-func (m *DeviceManager) Device() (*auth.DeviceState, error) {
-	return getDeviceState(m.state)
+// device returns current device state.
+func (m *DeviceManager) device() (*auth.DeviceState, error) {
+	return internal.Device(m.state)
 }
 
 // SetDevice sets the device details in the state.
@@ -578,4 +575,18 @@ func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce s
 // ProxyStore returns the store assertion for the proxy store if one is set.
 func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
 	return ProxyStore(m.state)
+}
+
+// implement storecontext.Backend
+
+type storeContextBackend struct {
+	*DeviceManager
+}
+
+func (scb storeContextBackend) Device() (*auth.DeviceState, error) {
+	return scb.DeviceManager.device()
+}
+
+func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
+	return storeContextBackend{m}
 }
