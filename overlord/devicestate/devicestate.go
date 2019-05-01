@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -44,23 +43,6 @@ var (
 	snapstateInstall = snapstate.Install
 	snapstateUpdate  = snapstate.Update
 )
-
-// SetDevice updates the device details in the state.
-func SetDevice(st *state.State, device *auth.DeviceState) error {
-	var authStateData auth.AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		authStateData = auth.AuthState{}
-	} else if err != nil {
-		return err
-	}
-
-	authStateData.Device = device
-	st.Set("auth", authStateData)
-
-	return nil
-}
 
 // findModel returns the device model assertion.
 func findModel(st *state.State) (*asserts.Model, error) {

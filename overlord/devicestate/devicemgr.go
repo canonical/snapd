@@ -188,7 +188,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := SetDevice(st, device); err != nil {
+	if err := internal.SetDevice(st, device); err != nil {
 		return err
 	}
 	return nil
@@ -528,9 +528,9 @@ func (m *DeviceManager) device() (*auth.DeviceState, error) {
 	return internal.Device(m.state)
 }
 
-// SetDevice sets the device details in the state.
-func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
-	return SetDevice(m.state, device)
+// setDevice sets the device details in the state.
+func (m *DeviceManager) setDevice(device *auth.DeviceState) error {
+	return internal.SetDevice(m.state, device)
 }
 
 // Model returns the device model assertion.
@@ -585,6 +585,10 @@ type storeContextBackend struct {
 
 func (scb storeContextBackend) Device() (*auth.DeviceState, error) {
 	return scb.DeviceManager.device()
+}
+
+func (scb storeContextBackend) SetDevice(device *auth.DeviceState) error {
+	return scb.DeviceManager.setDevice(device)
 }
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {

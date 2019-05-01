@@ -63,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -347,7 +348,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
 
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
@@ -5683,7 +5684,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
-	devicestate.SetDevice(st, nil)
+	devicestatetest.SetDevice(st, nil)
 	st.Unlock()
 
 	email := "foo@example.com"
@@ -5762,7 +5763,7 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	}
 	// create fake device
 	st.Lock()
-	err = devicestate.SetDevice(st, &auth.DeviceState{
+	err = devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",

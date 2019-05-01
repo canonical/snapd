@@ -248,7 +248,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.KeyID = privKey.PublicKey().ID()
-	err = SetDevice(st, device)
+	err = m.setDevice(device)
 	if err != nil {
 		return err
 	}
@@ -578,7 +578,7 @@ func (m *DeviceManager) getSerialRequestConfig(t *state.Task, client *http.Clien
 
 func (m *DeviceManager) finishRegistration(t *state.Task, device *auth.DeviceState, serial *asserts.Serial) error {
 	device.Serial = serial.Serial()
-	err := SetDevice(t.State(), device)
+	err := m.setDevice(device)
 	if err != nil {
 		return err
 	}

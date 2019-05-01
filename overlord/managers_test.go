@@ -195,7 +195,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
 	c.Assert(err, IsNil)
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
 		Serial: "serialserial",
@@ -1510,7 +1510,7 @@ type: os
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -1594,7 +1594,7 @@ type: kernel`
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -2443,7 +2443,7 @@ func (s *storeCtxSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "fallback")
 
 	// setup model in system statey
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -2477,7 +2477,7 @@ func (s *storeCtxSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	c.Assert(err, IsNil)
 	err = kpMgr.Put(deviceKey)
 	c.Assert(err, IsNil)
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -3291,7 +3291,7 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	model := makeModelAssertion(c, brandSigning, nil)
 
 	// setup model assertion
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -3384,7 +3384,7 @@ type: base`
 		"brand-id":     "can0nical",
 	})
 	// setup model assertion
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "can0nical",
 		Model: "my-model",
 	})
@@ -3445,7 +3445,7 @@ version: 2.0`
 		"brand-id":     "can0nical",
 	})
 	// setup model assertion
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "can0nical",
 		Model: "my-model",
 	})
@@ -3535,7 +3535,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 		KeyID: deviceKey.PublicKey().ID(),

@@ -44,3 +44,20 @@ func Device(st *state.State) (*auth.DeviceState, error) {
 
 	return authStateData.Device, nil
 }
+
+// SetDevice updates the device details in the state.
+func SetDevice(st *state.State, device *auth.DeviceState) error {
+	var authStateData auth.AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		authStateData = auth.AuthState{}
+	} else if err != nil {
+		return err
+	}
+
+	authStateData.Device = device
+	st.Set("auth", authStateData)
+
+	return nil
+}

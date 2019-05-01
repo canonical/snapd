@@ -28,3 +28,7 @@ import (
 func Device(st *state.State) (*auth.DeviceState, error) {
 	return internal.Device(st)
 }
+
+func SetDevice(st *state.State, device *auth.DeviceState) error {
+	return internal.SetDevice(st, device)
+}
