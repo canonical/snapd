@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -78,9 +80,24 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	return names, nil
 }
 
-func automaticSnapshotExpiration(st *state.State) time.Duration {
-	// TODO: get from config
-	return defaultAutomaticSnapshotExpiration
+func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
+	var expirationStr string
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "snapshots.automatic.retention", &expirationStr)
+	if err != nil && !config.IsNoOption(err) {
+		return 0, err
+	}
+	if err == nil {
+		if expirationStr == "no" {
+			return 0, nil
+		}
+		dur, err := time.ParseDuration(expirationStr)
+		if err == nil {
+			return dur, nil
+		}
+		logger.Noticef("snapshots.automatic.retention cannot be parsed: %v", err)
+	}
+	return defaultAutomaticSnapshotExpiration, nil
 }
 
 // saveExpiration saves expiration date of the given snapshot set, in the state.
@@ -282,6 +299,13 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 }
 
 func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err error) {
+	expiration, err := AutomaticSnapshotExpiration(st)
+	if err != nil {
+		return nil, err
+	}
+	if expiration == 0 {
+		return nil, snapstate.ErrNothingToDo
+	}
 	setID, err := newSnapshotSetID(st)
 	if err != nil {
 		return nil, err

@@ -458,7 +458,7 @@ func delayedCrossMgrInit() {
 	once.Do(func() {
 		// hook interface checks into snapstate installation logic
 
-		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
+		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 			return CheckInterfaces(st, snapInfo)
 		})
 

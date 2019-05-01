@@ -221,7 +221,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return err
 	}
@@ -248,7 +248,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.KeyID = privKey.PublicKey().ID()
-	err = auth.SetDevice(st, device)
+	err = SetDevice(st, device)
 	if err != nil {
 		return err
 	}
@@ -578,11 +578,16 @@ func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestC
 
 func (m *DeviceManager) finishRegistration(t *state.Task, device *auth.DeviceState, serial *asserts.Serial) error {
 	device.Serial = serial.Serial()
-	err := auth.SetDevice(t.State(), device)
+	err := SetDevice(t.State(), device)
 	if err != nil {
 		return err
 	}
 	m.markRegistered()
+
+	// make sure we timely consider anything that was blocked on
+	// registration
+	t.State().EnsureBefore(0)
+
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
@@ -595,7 +600,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return err
 	}

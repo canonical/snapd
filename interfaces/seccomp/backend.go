@@ -311,16 +311,22 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxFeatures returns the list of seccomp features supported by the kernel.
+// SandboxFeatures returns the list of seccomp features supported by the kernel
+// and userspace.
 func (b *Backend) SandboxFeatures() []string {
 	features := kernelFeatures()
 	tags := make([]string, 0, len(features)+1)
 	for _, feature := range features {
-		// Prepend "kernel:" to apparmor kernel features to namespace them and
-		// allow us to introduce our own tags later.
+		// Prepend "kernel:" to apparmor kernel features to namespace
+		// them.
 		tags = append(tags, "kernel:"+feature)
 	}
 	tags = append(tags, "bpf-argument-filtering")
+
+	if res, err := seccomp_compiler.HasGoSeccompFeature(b.versionInfo, "bpf-actlog"); err == nil && res {
+		tags = append(tags, "bpf-actlog")
+	}
+
 	return tags
 }
 

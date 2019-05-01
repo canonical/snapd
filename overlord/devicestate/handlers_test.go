@@ -25,12 +25,13 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 )
 
 // TODO: should we move this into a new handlers suite?
 func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	s.state.Lock()
-	auth.SetDevice(s.state, &auth.DeviceState{
+	devicestate.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
@@ -61,12 +62,12 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
+	s.state.Lock()
+	defer s.state.Unlock()
 	m, err := s.mgr.Model()
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, newModel)
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	c.Assert(chg.Err(), IsNil)
 }
 
@@ -80,7 +81,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 
 	s.state.Lock()
 
-	auth.SetDevice(s.state, &auth.DeviceState{
+	devicestate.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})

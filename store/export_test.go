@@ -153,6 +153,14 @@ func (sto *Store) DecorateOrders(snaps []*snap.Info, user *auth.UserState) error
 	return sto.decorateOrders(snaps, user)
 }
 
+func (sto *Store) SessionLock() {
+	sto.sessionMu.Lock()
+}
+
+func (sto *Store) SessionUnlock() {
+	sto.sessionMu.Unlock()
+}
+
 func (cfg *Config) SetBaseURL(u *url.URL) error {
 	return cfg.setBaseURL(u)
 }
