@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timings"
 )
 
 var refreshHintsDelay = time.Duration(24 * time.Hour)
@@ -66,7 +67,13 @@ func (r *refreshHints) refresh() error {
 	var refreshManaged bool
 	refreshManaged, _ = refreshScheduleManaged(r.state)
 
-	_, _, _, err := refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+	var err error
+	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
+	defer perfTimings.Save(r.state)
+
+	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
+		_, _, _, err = refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())

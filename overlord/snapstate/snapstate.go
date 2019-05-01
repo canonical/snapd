@@ -23,6 +23,7 @@ package snapstate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -59,6 +60,12 @@ const (
 	TrackHookError
 	UseConfigDefaults
 )
+
+const (
+	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
+)
+
+var ErrNothingToDo = errors.New("nothing to do")
 
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
@@ -130,8 +137,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
-			if err := SoftNothingRunningRefreshCheck(info); err != nil {
-				// TODO Remember the inhibition time in snap state.
+			// Note that because we are modifying the snap state this block
+			// must be located after the conflict check done above.
+			if err := inhibitRefresh(st, snapst, info); err != nil {
 				return nil, err
 			}
 		}
@@ -171,9 +179,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 	prev = prepare
 
+	var checkAsserts *state.Task
 	if fromStore {
 		// fetch and check assertions
-		checkAsserts := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
+		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(checkAsserts)
 		prev = checkAsserts
 	}
@@ -319,6 +328,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
 	ts.AddAll(installSet)
+	if checkAsserts != nil {
+		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
+	}
 
 	if flags&skipConfigure != 0 {
 		return installSet, nil
@@ -628,6 +640,8 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
+//
+// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	if channel == "" {
 		channel = "stable"
@@ -974,7 +988,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		updated = append(updated, name)
 	}
 
-	if len(updated) > 0 {
+	if len(updated) > 0 && !globalFlags.NoReRefresh {
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
@@ -1192,6 +1206,8 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
+//
+// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Update(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -1305,7 +1321,12 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 	flat := state.NewTaskSet()
 	for _, ts := range tts {
-		flat.AddAll(ts)
+		// The tasksets we get from "doUpdate" contain important
+		// "TaskEdge" information that is needed for "Remodel".
+		// To preserve those we need to use "AddAllWithEdges()".
+		if err := flat.AddAllWithEdges(ts); err != nil {
+			return nil, err
+		}
 	}
 	return flat, nil
 }
@@ -1702,6 +1723,17 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 		addNext(state.NewTaskSet(disconnect))
 		prev = disconnect
+	}
+
+	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+		ts, err := AutomaticSnapshot(st, name)
+		if err == nil {
+			addNext(ts)
+		} else {
+			if err != ErrNothingToDo {
+				return nil, err
+			}
+		}
 	}
 
 	if active { // unlink

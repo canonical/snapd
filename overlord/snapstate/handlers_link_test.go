@@ -794,3 +794,89 @@ func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	// we end without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 }
+
+func (s *linkSnapSuite) TestLinkSnapResetsRefreshInhibitedTime(c *C) {
+	// When a snap is linked the refresh-inhibited-time is reset to zero
+	// to indicate a successful refresh. The old value is stored in task
+	// state for task undo logic.
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+
+	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &instant,
+	})
+
+	task := s.state.NewTask("link-snap", "")
+	task.Set("snap-setup", sup)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	for i := 0; i < 10; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 1)
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.RefreshInhibitedTime, IsNil)
+
+	var oldTime time.Time
+	c.Assert(task.Get("old-refresh-inhibited-time", &oldTime), IsNil)
+	c.Check(oldTime.Equal(instant), Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshInhibitedTime(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+
+	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &instant,
+	})
+
+	task := s.state.NewTask("link-snap", "")
+	task.Set("snap-setup", sup)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(task)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(chg.Err(), NotNil)
+	c.Assert(chg.Tasks(), HasLen, 2)
+	c.Check(task.Status(), Equals, state.UndoneStatus)
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.RefreshInhibitedTime.Equal(instant), Equals, true)
+}

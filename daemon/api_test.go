@@ -346,7 +346,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
 
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
@@ -2411,7 +2411,7 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	c.Check(soon, check.Equals, 1)
 }
 
-func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
+func (s *apiSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
@@ -2420,6 +2420,21 @@ func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
 	s.vars = map[string]string{"name": "ubuntu-core"}
 
 	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+}
+
+func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+
+	buf := strings.NewReader(`{"action": "install","snaps":["ubuntu-core"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
@@ -5671,7 +5686,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
-	auth.SetDevice(st, nil)
+	devicestate.SetDevice(st, nil)
 	st.Unlock()
 
 	email := "foo@example.com"
@@ -5750,7 +5765,7 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	}
 	// create fake device
 	st.Lock()
-	err = auth.SetDevice(st, &auth.DeviceState{
+	err = devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",

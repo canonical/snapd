@@ -29,3 +29,7 @@ var (
 func (info *Info) ForceRenamePlug(oldName, newName string) {
 	info.forceRenamePlug(oldName, newName)
 }
+
+func NewScopedTracker() *scopedTracker {
+	return new(scopedTracker)
+}

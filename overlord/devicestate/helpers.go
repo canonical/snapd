@@ -28,5 +28,5 @@ import (
 func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, model *asserts.Model) error {
 	device.Brand = model.BrandID()
 	device.Model = model.Model()
-	return auth.SetDevice(st, device)
+	return SetDevice(st, device)
 }

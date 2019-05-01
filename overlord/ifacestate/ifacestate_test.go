@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -117,7 +118,7 @@ func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
 	defer am.st.Unlock()
 	err = assertstate.Add(am.st, model)
 	c.Assert(err, IsNil)
-	err = auth.SetDevice(am.st, &auth.DeviceState{
+	err = devicestate.SetDevice(am.st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -222,7 +223,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
 	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-		return "abcdef 1.2.3 1234abcd", nil
+		return "abcdef 1.2.3 1234abcd -", nil
 	})
 	s.BaseTest.AddCleanup(restore)
 }
@@ -1462,16 +1463,32 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  static: plug-static-value
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+  static: slot-static-value
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	connState := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface":    "test",
-			"slot-static":  map[string]interface{}{"attr1": "value1"},
-			"slot-dynamic": map[string]interface{}{"attr2": "value2"},
-			"plug-static":  map[string]interface{}{"attr3": "value3"},
-			"plug-dynamic": map[string]interface{}{"attr4": "value4"},
+			"slot-static":  map[string]interface{}{"static": "slot-static-value"},
+			"slot-dynamic": map[string]interface{}{"dynamic": "slot-dynamic-value"},
+			"plug-static":  map[string]interface{}{"static": "plug-static-value"},
+			"plug-dynamic": map[string]interface{}{"dynamic": "plug-dynamic-value"},
 		},
 	}
 
@@ -1494,7 +1511,7 @@ func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitAll(ts)
 	change.AddTask(terr)
-	c.Assert(change.Tasks(), HasLen, 4)
+	c.Assert(change.Tasks(), HasLen, 2)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -2727,6 +2744,20 @@ func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3029,17 +3060,25 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 
 func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  attr: plug-attr
+`
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, coreSnapYaml)
 
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:slot":  map[string]interface{}{"interface": "test"},
-		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:hotplug-slot": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:slot2":        map[string]interface{}{"interface": "test"},
 	})
 	s.state.Set("hotplug-slots", map[string]interface{}{
-		"slot": map[string]interface{}{
-			"name":        "slot",
+		"hotplug-slot": map[string]interface{}{
+			"name":        "hotplug-slot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
@@ -3050,7 +3089,7 @@ func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	s.state.Lock()
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(consumerInfo.Plugs["plug"], nil, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "core"}, Name: "slot"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "core"}, Name: "hotplug-slot"}, nil, nil),
 	}
 
 	ts, err := ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithByHotplugSet())
@@ -3072,13 +3111,34 @@ func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:slot":  map[string]interface{}{"interface": "test", "hotplug-gone": true},
-		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:hotplug-slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": true,
+		},
+		"consumer:plug core:slot2": map[string]interface{}{
+			"interface": "test",
+		},
 	})
 }
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  attr: plug-value
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+  attr: slot-value
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3087,12 +3147,12 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"plug-static": map[string]interface{}{
-				"attr1": "value2",
-				"attr3": "value3",
+				"attr":       "stored-plug-value",
+				"other-attr": "irrelevant-value",
 			},
 			"slot-static": map[string]interface{}{
-				"attr2": "value4",
-				"attr4": "value6",
+				"attr":       "stored-slot-value",
+				"other-attr": "irrelevant-value",
 			},
 		},
 	})
@@ -3110,13 +3170,13 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(conn.Plug.Name(), Equals, "plug")
 	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"attr1": "value2",
-		"attr3": "value3",
+		"other-attr": "irrelevant-value",
+		"attr":       "stored-plug-value",
 	})
 	c.Assert(conn.Slot.Name(), Equals, "slot")
 	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"attr2": "value4",
-		"attr4": "value6",
+		"other-attr": "irrelevant-value",
+		"attr":       "stored-slot-value",
 	})
 }
 
@@ -5643,7 +5703,7 @@ func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]s
 	slot := repo.Slot("core", expectedName)
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, Equals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
@@ -5707,7 +5767,7 @@ func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
 	slot := repo.Slot("core", "hotplugslot-old-name")
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
@@ -5768,7 +5828,7 @@ func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
 	slot := repo.Slot("core", "hotplugslot")
 	c.Assert(slot, NotNil)
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "newfoo"})
-	c.Check(slot.HotplugKey, Equals, "1234")
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 
 	var hotplugSlots map[string]interface{}
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)

@@ -120,7 +120,7 @@ func (h *HotplugDeviceInfo) str(maxModelOrVendorLen int) string {
 
 	modelOrVendor := h.firstAttrValueOf("ID_MODEL_FROM_DATABASE", "ID_MODEL", "ID_MODEL_ID", "ID_VENDOR_FROM_DATABASE", "ID_VENDOR", "ID_VENDOR_ID")
 	if len(modelOrVendor) > maxModelOrVendorLen {
-		modelOrVendor = modelOrVendor[0:maxModelOrVendorLen] + "..."
+		modelOrVendor = modelOrVendor[0:maxModelOrVendorLen] + "…"
 	}
 
 	var serial string

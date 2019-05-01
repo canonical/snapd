@@ -102,6 +102,7 @@ var api = []*Command{
 	snapshotCmd,
 	connectionsCmd,
 	modelCmd,
+	cohortsCmd,
 }
 
 var (
@@ -1383,6 +1384,9 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
+	if err := verifySnapInstructions(&inst); err != nil {
+		return BadRequest("%v", err)
+	}
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}

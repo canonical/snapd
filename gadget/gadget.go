@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -38,10 +39,17 @@ import (
 // The fixed length of valid snap IDs.
 const validSnapIDLength = 32
 
+const (
+	// MBR identifies a Master Boot Record partitioning schema, or an MBR like role
+	MBR = "mbr"
+	// GPT identifies a GUID Partition Table partitioning schema
+	GPT = "gpt"
+)
+
 var (
 	validVolumeName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]+$")
 	validTypeID     = regexp.MustCompile("^[0-9A-F]{2}$")
-	validGUUID      = regexp.MustCompile("^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
+	validGUUID      = regexp.MustCompile("^(?i)[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
 )
 
 type Info struct {
@@ -53,6 +61,8 @@ type Info struct {
 	Connections []Connection `yaml:"connections"`
 }
 
+// Volume defines the structure and content for the image to be written into a
+// block device.
 type Volume struct {
 	// Schema describes the schema used for the volume
 	Schema string `yaml:"schema"`
@@ -64,17 +74,20 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure"`
 }
 
+// VolumeStructure describes a single structure inside a volume. A structure can
+// represent a partition, Master Boot Record, or any other contiguous range
+// within the volume.
 type VolumeStructure struct {
 	// Name, when non empty, provides the name of the structure
 	Name string `yaml:"name"`
 	// Label provides the filesystem label
 	Label string `yaml:"filesystem-label"`
 	// Offset defines a starting offset of the structure
-	Offset Size `yaml:"offset"`
+	Offset *Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite RelativeOffset `yaml:"offset-write"`
+	OffsetWrite *RelativeOffset `yaml:"offset-write"`
 	// Size of the structure
 	Size Size `yaml:"size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
@@ -104,6 +117,20 @@ func (vs *VolumeStructure) IsBare() bool {
 	return vs.Filesystem == "none" || vs.Filesystem == ""
 }
 
+// EffectiveRole returns the role of given structure
+func (vs *VolumeStructure) EffectiveRole() string {
+	if vs.Role != "" {
+		return vs.Role
+	}
+	if vs.Role == "" && vs.Type == MBR {
+		return MBR
+	}
+	return ""
+}
+
+// VolumeContent defines the contents of the structure. The content can be
+// either files within a filesystem described by the structure or raw images
+// written into the area of a bare structure.
 type VolumeContent struct {
 	// Source is the data of the partition relative to the gadget base
 	// directory
@@ -115,11 +142,11 @@ type VolumeContent struct {
 	// for a 'bare' type structure
 	Image string `yaml:"image"`
 	// Offset the image is written at
-	Offset Size `yaml:"offset"`
+	Offset *Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current image will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite RelativeOffset `yaml:"offset-write"`
+	OffsetWrite *RelativeOffset `yaml:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
 	Size Size `yaml:"size"`
@@ -295,38 +322,100 @@ func validateVolume(name string, vol *Volume) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != "gpt" && vol.Schema != "mbr" {
+	if vol.Schema != "" && vol.Schema != GPT && vol.Schema != MBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
-	structureNames := make(map[string]bool, len(vol.Structure))
+	// named structures, for cross-referencing relative offset-write names
+	knownStructures := make(map[string]*PositionedStructure, len(vol.Structure))
+	// for validating structure overlap
+	structures := make([]PositionedStructure, len(vol.Structure))
+
+	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
-			return fmt.Errorf("invalid structure %s: %v", fmtIndexAndName(idx, s.Name), err)
+			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
+		var start Size
+		if s.Offset != nil {
+			start = *s.Offset
+		} else {
+			start = previousEnd
+		}
+		end := start + s.Size
+		ps := PositionedStructure{
+			VolumeStructure: &vol.Structure[idx],
+			StartOffset:     start,
+			Index:           idx,
+		}
+		structures[idx] = ps
 		if s.Name != "" {
-			if structureNames[s.Name] {
+			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
-			structureNames[s.Name] = true
+			// keep track of named structures
+			knownStructures[s.Name] = &ps
 		}
+
+		previousEnd = end
 	}
 
-	// validate relative offsets that reference other structures by name
-	for idx, s := range vol.Structure {
-		if s.OffsetWrite.RelativeTo != "" && !structureNames[s.OffsetWrite.RelativeTo] {
-			return fmt.Errorf("structure %v refers to an unknown structure %q",
-				fmtIndexAndName(idx, s.Name), s.OffsetWrite.RelativeTo)
+	// sort by starting offset
+	sort.Sort(byStartOffset(structures))
+
+	return validateCrossVolumeStructure(structures, knownStructures)
+}
+
+func validateCrossVolumeStructure(structures []PositionedStructure, knownStructures map[string]*PositionedStructure) error {
+	previousEnd := Size(0)
+	// cross structure validation:
+	// - relative offsets that reference other structures by name
+	// - positioned structure overlap
+	// use structures positioned within the volume
+	for pidx, ps := range structures {
+		if ps.EffectiveRole() == MBR {
+			if ps.StartOffset != 0 {
+				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
+			}
+		}
+		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
+			// offset-write using a named structure
+			other := knownStructures[ps.OffsetWrite.RelativeTo]
+			if other == nil {
+				return fmt.Errorf("structure %v refers to an unknown structure %q",
+					ps, ps.OffsetWrite.RelativeTo)
+			}
+			// make sure there is enough room left in the structure to write the pointer
+			if other.Size < SizeLBA48Pointer || ps.OffsetWrite.Offset > (other.Size-SizeLBA48Pointer) {
+				return fmt.Errorf("structure %v offset-write crosses structure %v size",
+					ps, other)
+			}
+
 		}
 
-		if !s.IsBare() {
+		if ps.StartOffset < previousEnd {
+			previous := structures[pidx-1]
+			return fmt.Errorf("structure %v overlaps with the preceding structure %v", ps, previous)
+		}
+		previousEnd = ps.StartOffset + ps.Size
+
+		if !ps.IsBare() {
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
-		for cidx, c := range s.Content {
-			if c.OffsetWrite.RelativeTo != "" && !structureNames[c.OffsetWrite.RelativeTo] {
+		for cidx, c := range ps.Content {
+			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
+				continue
+			}
+			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
+			if relativeToStructure == nil {
 				return fmt.Errorf("structure %v, content %v refers to an unknown structure %q",
-					fmtIndexAndName(idx, s.Name), fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
+					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
+			}
+			// make sure there is enough room left in the structure to write the pointer
+			if relativeToStructure.Size < SizeLBA48Pointer || c.OffsetWrite.Offset > (relativeToStructure.Size-SizeLBA48Pointer) {
+				return fmt.Errorf("structure %v, content %v offset-write crosses structure %q size",
+					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}
 	}
@@ -334,6 +423,9 @@ func validateVolume(name string, vol *Volume) error {
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
+	if vs.Size == 0 {
+		return errors.New("missing size")
+	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
@@ -386,7 +478,7 @@ func validateStructureType(s string, vol *Volume) error {
 
 	schema := vol.Schema
 	if schema == "" {
-		schema = "gpt"
+		schema = GPT
 	}
 
 	if s == "" {
@@ -398,7 +490,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	if s == "mbr" {
+	if s == MBR {
 		// backward compatibility for type: mbr
 		return nil
 	}
@@ -425,11 +517,11 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != "gpt" && isGPT {
+	if schema != GPT && isGPT {
 		// type: <uuid> is only valid for GPT volumes
 		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
 	}
-	if schema != "mbr" && isMBR {
+	if schema != MBR && isMBR {
 		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
 	}
 
@@ -438,14 +530,14 @@ func validateStructureType(s string, vol *Volume) error {
 
 func validateRole(vs *VolumeStructure, vol *Volume) error {
 	if vs.Type == "bare" {
-		if vs.Role != "" && vs.Role != "mbr" {
+		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
 		}
 	}
 	vsRole := vs.Role
-	if vs.Type == "mbr" {
+	if vs.Type == MBR {
 		// backward compatibility
-		vsRole = "mbr"
+		vsRole = MBR
 	}
 
 	switch vsRole {
@@ -453,11 +545,11 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Label != "" && vs.Label != "writable" {
 			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
 		}
-	case "mbr":
-		if vs.Size > 446 {
+	case MBR:
+		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}
-		if vs.Offset != 0 {
+		if vs.Offset != nil && *vs.Offset != 0 {
 			return errors.New("mbr structure must start at offset 0")
 		}
 		if vs.ID != "" {
@@ -485,7 +577,7 @@ func validateBareContent(vc *VolumeContent) error {
 }
 
 func validateFilesystemContent(vc *VolumeContent) error {
-	if vc.Image != "" || vc.Offset != 0 || vc.OffsetWrite != (RelativeOffset{}) || vc.Size != 0 {
+	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
 	if vc.Source == "" || vc.Target == "" {
@@ -530,8 +622,15 @@ func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Size uint64
 
 const (
-	SizeMiB = Size(2 << 20)
-	SizeGiB = Size(2 << 30)
+	SizeKiB = Size(1 << 10)
+	SizeMiB = Size(1 << 20)
+	SizeGiB = Size(1 << 30)
+
+	// SizeMBR is the maximum byte size of a structure of role 'mbr'
+	SizeMBR = Size(446)
+	// SizeLBA48Pointer is the byte size of a pointer value written at the
+	// location described by 'offset-write'
+	SizeLBA48Pointer = Size(4)
 )
 
 func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {

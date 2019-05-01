@@ -70,6 +70,11 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     inv->snap_instance = sc_strdup(snap_instance);
     inv->classic_confinement = sc_args_is_classic_confinement(args);
 
+    // construct rootfs_dir based on base_snap_name
+    char mount_point[PATH_MAX] = {0};
+    sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, inv->base_snap_name);
+    inv->rootfs_dir = sc_strdup(mount_point);
+
     debug("security tag: %s", inv->security_tag);
     debug("executable:   %s", inv->executable);
     debug("confinement:  %s", inv->classic_confinement ? "classic" : "non-classic");
@@ -83,30 +88,53 @@ void sc_cleanup_invocation(sc_invocation *inv) {
         sc_cleanup_string(&inv->orig_base_snap_name);
         sc_cleanup_string(&inv->security_tag);
         sc_cleanup_string(&inv->executable);
+        sc_cleanup_string(&inv->rootfs_dir);
     }
 }
 
-void sc_maybe_pick_alt_base_snap(sc_invocation *inv) {
-    /* As a special fallback, allow the base snap to degrade from "core" to
-     * "ubuntu-core". This is needed for the migration tests. */
-    char mount_point[PATH_MAX] = {0};
-    sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, inv->base_snap_name);
-
-    if (access(mount_point, F_OK) == 0) {
+void sc_check_rootfs_dir(sc_invocation *inv) {
+    if (access(inv->rootfs_dir, F_OK) == 0) {
         return;
     }
-    /* The mount point is missing but for some snaps we may have an alternative. */
+
+    /* As a special fallback, allow the base snap to degrade from "core" to
+     * "ubuntu-core". This is needed for the migration from old
+     * ubuntu-core based systems to the new core.
+     */
     if (sc_streq(inv->base_snap_name, "core")) {
+        char mount_point[PATH_MAX] = {0};
+
         /* For "core" we can still use the ubuntu-core snap. This is helpful in
          * the migration path when new snap-confine runs before snapd has
          * finished obtaining the core snap. */
-        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current/", SNAP_MOUNT_DIR, "ubuntu-core");
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, "ubuntu-core");
         if (access(mount_point, F_OK) == 0) {
             sc_cleanup_string(&inv->base_snap_name);
             inv->base_snap_name = sc_strdup("ubuntu-core");
+            sc_cleanup_string(&inv->rootfs_dir);
+            inv->rootfs_dir = sc_strdup(mount_point);
             debug("falling back to ubuntu-core instead of unavailable core snap");
             return;
         }
     }
-    die("cannot proceed without base snap %s", inv->base_snap_name);
+
+    if (sc_streq(inv->base_snap_name, "core16")) {
+        char mount_point[PATH_MAX] = {0};
+
+        /* For "core16" we can still use the "core" snap. This is useful
+         * to help people transition to core16 bases without requiring
+         * twice the disk space.
+         */
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, "core");
+        if (access(mount_point, F_OK) == 0) {
+            sc_cleanup_string(&inv->base_snap_name);
+            inv->base_snap_name = sc_strdup("core");
+            sc_cleanup_string(&inv->rootfs_dir);
+            inv->rootfs_dir = sc_strdup(mount_point);
+            debug("falling back to core instead of unavailable core16 snap");
+            return;
+        }
+    }
+
+    die("cannot locate base snap %s", inv->base_snap_name);
 }
