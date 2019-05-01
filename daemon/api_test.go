@@ -43,7 +43,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
@@ -563,6 +562,14 @@ type apiSuite struct {
 }
 
 var _ = check.Suite(&apiSuite{})
+
+func (s *apiSuite) TestUsersOnlyRoot(c *check.C) {
+	for _, cmd := range api {
+		if strings.Contains(cmd.Path, "user") {
+			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
+		}
+	}
+}
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	d := s.daemon(c)

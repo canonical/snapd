@@ -255,6 +255,12 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
 
+	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
@@ -304,6 +310,10 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
 
+	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
@@ -320,11 +330,41 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
 }
 
+func (s *daemonSuite) TestLoggedInUserAccess(c *check.C) {
+	user := &auth.UserState{}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
+
+	cmd := &Command{d: newTestDaemon(c)}
+	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
+
+	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
+	c.Check(cmd.canAccess(get, user), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(put, user), check.Equals, accessUnauthorized)
+
+	cmd = &Command{d: newTestDaemon(c), UserOK: true}
+	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
+
+	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
+	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
+}
+
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=0;socket=;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=0;socket=;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
+
+	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
 
