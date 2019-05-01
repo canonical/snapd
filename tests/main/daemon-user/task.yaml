@@ -1,17 +1,19 @@
-summary: ensure that we allow dropping privileges to daemon-user
+summary: ensure seccomp rules for daemon user work correctly
 
 environment:
     # This is used to abbreviate some of the paths below.
     P1: /var/snap/test-snapd-sh/common/test.chown
     P2: /var/snap/test-snapd-daemon-user/common/test.chown
     P3: /var/snap/test-snapd-daemon-user/common/test.chown32
+    # List of expected snap install failures. This should only reduce with time
+    # since new systems should have newer libseccomp and golang-seccomp
+    EXFAIL: "amazon-linux-2-64 centos-7-64 debian-9-64 debian-sid-64 opensuse-15.0-64 ubuntu-1[468]\\.* ubuntu-19\\.04-.* ubuntu-core-1[68]\\.*"
 
 prepare: |
     echo "Install helper snaps with default confinement"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
-    snap install --edge test-snapd-daemon-user
 
 execute: |
     # to accommodate different distros
@@ -22,6 +24,56 @@ execute: |
     echo "Running 'chown' without system-users: [ daemon ]"
     touch "$P1"
     snap run test-snapd-sh -c "chown daemon:daemon $P1" 2>&1 | MATCH 'Operation not permitted'
+
+    # We want this test to run on all systems since the end goal is for all
+    # systems that have a new enough libseccomp (>= 2.4.0) and golang-seccomp
+    # (with ActLog support, or >= 0.9.1) to show the feature is enabled, and
+    # those not meeting these criteria to show the feature as disabled. We can
+    # check for support in an existing snap's seccomp profile header, then go
+    # from there.
+    supported="no"
+    header=$(head -2 /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh | grep -A1 'snap-seccomp verson information' | tail -1)
+    if [ -n "$header" ]; then
+        features=$(echo "$header" | cut -d ' ' -f 5)
+        if echo "$features" | grep -q "bpf-actlog" ; then
+            maj=$(echo "$header" | cut -d ' ' -f 3 | cut -d '.' -f 1)
+            min=$(echo "$header" | cut -d ' ' -f 3 | cut -d '.' -f 2)
+            if [ "$maj" -gt 2 ]; then
+                supported="yes"
+            elif [ "$maj" -eq 2 ] && [ "$min" -ge 4 ]; then
+                supported="yes"
+            fi
+        fi
+    fi
+
+    ok_to_fail="no"
+    for regex in $EXFAIL ; do
+        if echo "$SPREAD_SYSTEM" | grep -Eq "$regex" ; then
+            ok_to_fail="yes"
+            break
+        fi
+    done
+    if [ "$supported" = "no" ] && [ "$ok_to_fail" = "no" ]; then
+            # Fail if have no support when we should
+            echo "'$SPREAD_SYSTEM' does not have support when it should!!"
+            exit 1
+    elif [ "$supported" = "yes" ] && [ "$ok_to_fail" = "yes" ]; then
+        # if an old system gains, make sure we notice and adjust to not regress
+        # in the future
+        if [ "$ok_to_fail" = "yes" ]; then
+            echo "'$SPREAD_SYSTEM' now has support. Please update this test"
+            exit 1
+        fi
+    fi
+
+    # Now try to install the test snap. If we don't have support, we expect an
+    # error, if we do, then we can proceed
+    if [ "$supported" = "yes" ]; then
+        snap install --edge test-snapd-daemon-user
+    else
+        snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'This snap requires that snapd be compiled against'
+        exit 0
+    fi
 
     #
     # Test typical drop operations though libc and raw syscalls
