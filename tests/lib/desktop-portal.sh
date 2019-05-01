@@ -40,20 +40,22 @@ EOF
 }
 
 teardown_portals() {
+    # Stop the user service and revert the test user environment
     as_user systemctl --user unset-environment XDG_CURRENT_DESKTOP=spread
     systemctl stop "user@${TEST_UID}.service"
 
-    if ps aux | grep -E '^test.*'; then
-        echo "test users should be not running any process"
+    # Make sure there are not any fakeportalui process running for the test user
+    if ps -ef | grep -E '^test .*/fakeportalui/.*'; then
+        echo "test users should be not running any fakeportalui process"
         exit 1
     fi
 
+    # Clean up the service files and other user files
     rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
     rm -f /usr/lib/systemd/user/spread-portal-ui.service
     rm -f /usr/share/xdg-desktop-portal/portals/spread.portal
 
-    dbus-cleanup-sockets
-
+    # Make sure the ${USER_RUNTIME_DIR}/doc is umounted
     if mount | grep "${USER_RUNTIME_DIR}/doc"; then
         umount "${USER_RUNTIME_DIR}/doc"
     fi
