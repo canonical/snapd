@@ -58,7 +58,7 @@ parts:
   # CommandFromSystemSnap
   libc6:
     plugin: nil
-    stage-packaes:
+    stage-packages:
       - libc6
     stage:
       - lib/*
