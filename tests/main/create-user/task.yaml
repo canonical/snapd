@@ -23,7 +23,7 @@ execute: |
     fi
     [[ "$obtained" =~ $expected ]]
 
-    if [ "$MANAGED_DEVICE" = "true" ]; then
+    if [ "$(snap managed)" = "true" ]; then
         echo "snap create-user -- not success when run as non-root user with sudo on managed device"
         if su - test /bin/sh -c "sudo snap create-user --sudoer $USER_EMAIL" 2>create.error; then
             echo "Did not get expected error creating user in managed device"
