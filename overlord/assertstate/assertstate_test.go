@@ -136,10 +136,6 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.state.Unlock()
 }
 
-func (s *assertMgrSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-}
-
 func (s *assertMgrSuite) TestDB(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

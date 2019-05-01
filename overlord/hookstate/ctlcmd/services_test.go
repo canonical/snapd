@@ -190,10 +190,6 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 }
 
-func (s *servicectlSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-}
-
 func (s *servicectlSuite) TestStopCommand(c *C) {
 	var serviceChangeFuncCalled bool
 	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {

@@ -38,8 +38,6 @@ type prereqSuite struct {
 	baseHandlerSuite
 
 	fakeStore *fakeStore
-
-	restore func()
 }
 
 var _ = Suite(&prereqSuite{})
@@ -57,12 +55,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "privacy-key")
-	s.restore = snapstatetest.MockDeviceModel(DefaultModel())
-}
-
-func (s *prereqSuite) TearDownTest(c *C) {
-	s.restore()
-	s.reset()
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
