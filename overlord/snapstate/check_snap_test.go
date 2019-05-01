@@ -1008,7 +1008,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsers(c *C) {
 		}
 		restore := snapstate.MockOpenSnapFile(openSnapFile)
 		defer restore()
-		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{})
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
