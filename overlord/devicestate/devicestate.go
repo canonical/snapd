@@ -155,7 +155,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return nil
 	}
 
-	// XXX use deviceCtx
+	// XXX: remodeling: use deviceCtx
 	model, err := findModel(st)
 	if err == state.ErrNoState {
 		return fmt.Errorf("cannot install %s without model assertion", kind)
