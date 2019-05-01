@@ -543,14 +543,33 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state)
 }
 
+// implement storecontext.Backend
+
+type storeContextBackend struct {
+	*DeviceManager
+}
+
+func (scb storeContextBackend) Device() (*auth.DeviceState, error) {
+	return scb.DeviceManager.device()
+}
+
+func (scb storeContextBackend) SetDevice(device *auth.DeviceState) error {
+	return scb.DeviceManager.setDevice(device)
+}
+
+func (scb storeContextBackend) ProxyStore() (*asserts.Store, error) {
+	st := scb.DeviceManager.state
+	return proxyStore(st, config.NewTransaction(st))
+}
+
 // SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
-func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
+func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
 	if serial == nil {
 		// shouldn't happen, but be safe
 		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
-	privKey, err := m.keyPair()
+	privKey, err := scb.DeviceManager.keyPair()
 	if err == state.ErrNoState {
 		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
@@ -570,25 +589,6 @@ func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce s
 	}
 
 	return a.(*asserts.DeviceSessionRequest), nil
-}
-
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
-	return ProxyStore(m.state)
-}
-
-// implement storecontext.Backend
-
-type storeContextBackend struct {
-	*DeviceManager
-}
-
-func (scb storeContextBackend) Device() (*auth.DeviceState, error) {
-	return scb.DeviceManager.device()
-}
-
-func (scb storeContextBackend) SetDevice(device *auth.DeviceState) error {
-	return scb.DeviceManager.setDevice(device)
 }
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {

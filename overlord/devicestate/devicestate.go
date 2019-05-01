@@ -215,11 +215,7 @@ func delayedCrossMgrInit() {
 	snapstate.DeviceCtx = DeviceCtx
 }
 
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func ProxyStore(st *state.State) (*asserts.Store, error) {
-	return proxyStore(st, config.NewTransaction(st))
-}
-
+// proxyStore returns the store assertion for the proxy store if one is set.
 func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error) {
 	var proxyStore string
 	err := tr.GetMaybe("core", "proxy.store", &proxyStore)

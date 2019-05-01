@@ -1496,10 +1496,7 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	scb := s.mgr.StoreContextBackend()
 
 	// nothing in the state
-	_, err := devicestate.ProxyStore(s.state)
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, err = scb.ProxyStore()
+	_, err := scb.ProxyStore()
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a store referenced
@@ -1527,10 +1524,6 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	c.Assert(err, IsNil)
 
 	sto, err := scb.ProxyStore()
-	c.Assert(err, IsNil)
-	c.Assert(sto.Store(), Equals, "foo")
-
-	sto, err = devicestate.ProxyStore(s.state)
 	c.Assert(err, IsNil)
 	c.Assert(sto.Store(), Equals, "foo")
 	c.Assert(sto.URL().String(), Equals, mockServer.URL)
