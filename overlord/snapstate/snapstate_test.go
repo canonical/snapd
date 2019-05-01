@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -176,7 +177,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
-	snapstate.SetDefaultModel()
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	s.BaseTest.AddCleanup(r)
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
@@ -199,7 +202,6 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
-	snapstate.Model = nil
 }
 
 type ForeignTaskTracker interface {
@@ -1228,7 +1230,8 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
-	snapstate.SetModelWithBase("core18")
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1557,7 +1560,8 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithKernelTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
@@ -1575,7 +1579,8 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithKernelTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
@@ -1593,7 +1598,8 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyDefaultTrackIsOK(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithKernelTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
@@ -1611,7 +1617,8 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackForbidden(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithGadgetTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
@@ -1629,7 +1636,8 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyIsOK(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithGadgetTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
@@ -1647,7 +1655,8 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyDefaultTrackIsOK(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithGadgetTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
@@ -1740,6 +1749,8 @@ func (s *snapmgrTestSuite) TestDoInstallWithSlots(c *C) {
 	var snapsup snapstate.SnapSetup
 	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
+
+	c.Check(snapsup.PlugsOnly, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestDoUpdateHadSlots(c *C) {
@@ -1783,6 +1794,8 @@ func (s *snapmgrTestSuite) TestDoUpdateHadSlots(c *C) {
 	var snapsup snapstate.SnapSetup
 	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
+
+	c.Check(snapsup.PlugsOnly, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
@@ -1917,6 +1930,20 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	_, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(nil)
+	defer r()
+
+	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
+	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{})
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `too early for operation, device model not yet acknowledged`)
+
 }
 
 func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
@@ -2570,8 +2597,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
-		SideInfo: snapsup.SideInfo,
-		Type:     snap.TypeApp,
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -2740,6 +2768,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
+		PlugsOnly:   true,
 		InstanceKey: "instance",
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -3222,8 +3251,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
-		SideInfo: snapsup.SideInfo,
-		Type:     snap.TypeApp,
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -3371,9 +3401,10 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
-		SideInfo: snapsup.SideInfo,
-		Type:     snap.TypeApp,
-		Flags:    snapstate.Flags{Amend: true},
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
+		Flags:     snapstate.Flags{Amend: true},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -3587,8 +3618,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
-		SideInfo: snapsup.SideInfo,
-		Type:     snap.TypeApp,
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -3809,6 +3841,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
+		PlugsOnly:   true,
 		InstanceKey: "instance",
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -4116,7 +4149,8 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithKernelTrack("18")
+	r1 := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	defer r1()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -4181,8 +4215,9 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
-		SideInfo: snapsup.SideInfo,
-		Type:     snap.TypeKernel,
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeKernel,
+		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "kernel",
@@ -6339,7 +6374,8 @@ func (s *snapmgrTestSuite) TestUpdateKernelTrackChecksSwitchingTracks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithKernelTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -6374,7 +6410,8 @@ func (s *snapmgrTestSuite) TestUpdateGadgetTrackChecksSwitchingTracks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.SetModelWithGadgetTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -6485,9 +6522,10 @@ version: 1.0`)
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SnapPath: mockSnap,
-		SideInfo: snapsup.SideInfo,
-		Type:     snap.TypeApp,
+		SnapPath:  mockSnap,
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -6580,9 +6618,10 @@ epoch: 1*
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SnapPath: mockSnap,
-		SideInfo: snapsup.SideInfo,
-		Type:     snap.TypeApp,
+		SnapPath:  mockSnap,
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -6759,7 +6798,8 @@ version: 1.0`)
 		Flags: snapstate.Flags{
 			Required: true,
 		},
-		Type: snap.TypeApp,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, si)
 
@@ -6891,7 +6931,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 					Revision: snap.R(7),
 					SnapID:   "some-snap-id",
 				},
-				Type: snap.TypeApp,
+				Type:      snap.TypeApp,
+				PlugsOnly: true,
 			}
 
 		}
@@ -7030,6 +7071,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 					Revision: snap.R(7),
 				},
 				Type:        snap.TypeApp,
+				PlugsOnly:   true,
 				InstanceKey: "instance",
 			}
 
@@ -7292,7 +7334,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 					RealName: "some-snap",
 					Revision: snap.R(7),
 				},
-				Type: snap.TypeApp,
+				Type:      snap.TypeApp,
+				PlugsOnly: true,
 			}
 
 		}
@@ -7474,6 +7517,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
 		if t.Kind() == "auto-disconnect" {
+			expSnapSetup.PlugsOnly = true
 			expSnapSetup.Type = "app"
 		}
 
@@ -8577,9 +8621,10 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	snapsup, err := snapstate.TaskSnapSetup(first)
 	c.Assert(err, IsNil)
 	c.Check(snapsup, DeepEquals, &snapstate.SnapSetup{
-		SideInfo: &si,
-		Flags:    flags,
-		Type:     snap.TypeApp,
+		SideInfo:  &si,
+		Flags:     flags,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 }
 
@@ -8643,7 +8688,8 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 			RealName: "some-snap",
 			Revision: snap.R(7),
 		},
-		Type: snap.TypeApp,
+		Type:      snap.TypeApp,
+		PlugsOnly: true,
 	})
 }
 
@@ -10435,7 +10481,8 @@ type snapSetupSuite struct{}
 var _ = Suite(&snapSetupSuite{})
 
 type canRemoveSuite struct {
-	st *state.State
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
 }
 
 var _ = Suite(&canRemoveSuite{})
@@ -10443,12 +10490,11 @@ var _ = Suite(&canRemoveSuite{})
 func (s *canRemoveSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
-	snapstate.SetDefaultModel()
+	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
 }
 
 func (s *canRemoveSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
-	snapstate.Model = nil
 }
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
@@ -10457,8 +10503,8 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false, s.deviceCtx), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
@@ -10467,7 +10513,7 @@ func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
@@ -10480,29 +10526,29 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	}
 	kernel.RealName = "krnl"
 
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 
-	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	snapstate.SetModelWithBase("core18")
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
 	os := &snap.Info{
 		Type: snap.TypeOS,
 	}
 	os.RealName = "os"
 
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	snapstate.SetModelWithBase("core18")
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
 
 	// pretend we have a snap installed that has no base (which means
 	// it needs core)
@@ -10519,7 +10565,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
 		Type: snap.TypeOS,
 	}
 	os.RealName = "core"
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
@@ -10528,7 +10574,7 @@ func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
@@ -10537,9 +10583,9 @@ func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestBaseUnused(c *C) {
@@ -10551,8 +10597,8 @@ func (s *canRemoveSuite) TestBaseUnused(c *C) {
 	}
 	info.RealName = "some-base"
 
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false), Equals, true)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false, s.deviceCtx), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestBaseInUse(c *C) {
@@ -10573,7 +10619,7 @@ func (s *canRemoveSuite) TestBaseInUse(c *C) {
 		Type: snap.TypeBase,
 	}
 	info.RealName = "some-base"
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
@@ -10599,7 +10645,7 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
 	}
 	info.RealName = "some-base"
 	// revision 1 requires some-base
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, false)
 
 	// now pretend we want to remove the core snap
 	os := &snap.Info{
@@ -10607,7 +10653,7 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
 	}
 	os.RealName = "core"
 	// but revision 2 requires core
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
 
 func revs(seq []*snap.SideInfo) []int {
@@ -11114,6 +11160,17 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
 		}
 	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", nil)
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
@@ -11857,6 +11914,32 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 
 	c.Check(s.state.Changes(), HasLen, 1)
 	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-ubuntu-core")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(nil)
+	defer r()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 0)
+	// not counted as a try
+	var t time.Time
+	err := s.state.Get("ubuntu-core-transition-last-retry-time", &t)
+	c.Assert(err, Equals, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
@@ -13175,7 +13258,8 @@ func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchKernel(c *C) 
 	defer s.state.Unlock()
 
 	// snapd cannot be installed unless the model uses a base snap
-	snapstate.SetModelWithKernelTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
@@ -13205,7 +13289,8 @@ func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchGadget(c *C) 
 	defer s.state.Unlock()
 
 	// snapd cannot be installed unless the model uses a base snap
-	snapstate.SetModelWithGadgetTrack("18")
+	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
+	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
@@ -13577,7 +13662,8 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	defer s.state.Unlock()
 
 	// snapd cannot be installed unless the model uses a base snap
-	snapstate.SetModelWithBase("core18")
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
 
 	// but snapd do not for install
 	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
@@ -13856,16 +13942,18 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		if tc.kernelTrack != "" && tc.gadgetTrack != "" {
 			c.Fatalf("setting both kernel and gadget tracks is not supported by the test")
 		}
-		s.state.Lock()
+		var model *asserts.Model
 		switch {
 		case tc.kernelTrack != "":
-			snapstate.SetModelWithKernelTrack(tc.kernelTrack)
+			model = ModelWithKernelTrack(tc.kernelTrack)
 		case tc.gadgetTrack != "":
-			snapstate.SetModelWithGadgetTrack(tc.gadgetTrack)
+			model = ModelWithGadgetTrack(tc.gadgetTrack)
 		default:
-			snapstate.SetDefaultModel()
+			model = DefaultModel()
 		}
-		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new)
+		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+		s.state.Lock()
+		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new, deviceCtx)
 		s.state.Unlock()
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
@@ -13899,56 +13987,4 @@ epoch: 1*
 	si := snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
 	_, _, err = snapstate.InstallPath(s.state, &si, mockSnap, "some-snap_123_456", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
-}
-
-type modelPastSeedSuite struct {
-	st *state.State
-}
-
-var _ = Suite(&modelPastSeedSuite{})
-
-func (s *modelPastSeedSuite) SetUpTest(c *C) {
-	s.st = state.New(nil)
-}
-
-func (s *modelPastSeedSuite) TearDownTest(c *C) {
-	snapstate.Model = nil
-}
-
-func (s *modelPastSeedSuite) TestTooEarly(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return nil, state.ErrNoState
-	}
-
-	expectedErr := &snapstate.ChangeConflictError{
-		Message: "too early for operation, device not yet seeded or" +
-			" device model not acknowledged",
-		ChangeKind: "seed",
-	}
-
-	// not seeded, no model assertion
-	_, err := snapstate.ModelPastSeeding(s.st)
-	c.Assert(err, DeepEquals, expectedErr)
-
-	// seeded, no model assertion
-	s.st.Set("seeded", true)
-	_, err = snapstate.ModelPastSeeding(s.st)
-	c.Assert(err, DeepEquals, expectedErr)
-}
-
-func (s *modelPastSeedSuite) TestReady(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// seeded and model assertion
-	s.st.Set("seeded", true)
-
-	snapstate.SetDefaultModel()
-
-	modelAs, err := snapstate.ModelPastSeeding(s.st)
-	c.Assert(err, IsNil)
-	c.Check(modelAs.Model(), Equals, "baz-3000")
 }

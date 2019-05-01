@@ -40,15 +40,19 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestAssertManager(t *testing.T) { TestingT(t) }
 
 type assertMgrSuite struct {
+	testutil.BaseTest
+
 	o     *overlord.Overlord
 	state *state.State
 	se    *overlord.StateEngine
@@ -60,8 +64,6 @@ type assertMgrSuite struct {
 	brandAcct    *asserts.Account
 	brandAcctKey *asserts.AccountKey
 	brandSigning *assertstest.SigningDB
-
-	restore func()
 }
 
 var _ = Suite(&assertMgrSuite{})
@@ -89,7 +91,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
 	dev1PrivKey, _ := assertstest.GenerateKey(752)
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
@@ -135,8 +137,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 }
 
 func (s *assertMgrSuite) TearDownTest(c *C) {
-	s.restore()
-	snapstate.Model = nil
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *assertMgrSuite) TestDB(c *C) {
@@ -433,9 +434,7 @@ func (s *assertMgrSuite) settle(c *C) {
 }
 
 func (s *assertMgrSuite) setModel(model *asserts.Model) {
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return model, nil
-	}
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 	s.state.Set("seeded", true)
 }
 
@@ -745,9 +744,8 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return nil, state.ErrNoState
-	}
+	r := snapstatetest.MockDeviceModel(nil)
+	defer r()
 
 	err := assertstate.RefreshSnapDeclarations(s.state, 0)
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})

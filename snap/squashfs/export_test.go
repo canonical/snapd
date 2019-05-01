@@ -43,11 +43,11 @@ func MockLink(newLink func(string, string) error) (restore func()) {
 	}
 }
 
-func MockFromCore(newFromCore func(string, string, ...string) (*exec.Cmd, error)) (restore func()) {
-	oldFromCore := osutilCommandFromCore
-	osutilCommandFromCore = newFromCore
+func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (restore func()) {
+	oldCommandFromSystemSnap := cmdutilCommandFromSystemSnap
+	cmdutilCommandFromSystemSnap = f
 	return func() {
-		osutilCommandFromCore = oldFromCore
+		cmdutilCommandFromSystemSnap = oldCommandFromSystemSnap
 	}
 }
 

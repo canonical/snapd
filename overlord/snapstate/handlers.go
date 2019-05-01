@@ -719,7 +719,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	model, err := Model(st)
+	model, err := ModelFromTask(t)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -955,7 +955,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	snapst.SetType(newInfo.Type)
 
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
-	model, _ := Model(st)
+	model, _ := ModelFromTask(t)
 	err = m.backend.LinkSnap(newInfo, model, perfTimings)
 	if err != nil {
 		pb := NewTaskProgressAdapterLocked(t)
@@ -1085,7 +1085,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 
 	// On core systems that use a base snap we need to restart
 	// snapd when the snapd snap changes.
-	model, err := Model(st)
+	model, err := ModelFromTask(t)
 	if err != nil {
 		logger.Noticef("cannot get model assertion: %v", model)
 		return

@@ -342,7 +342,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	c.Assert(err, check.IsNil)
 	model := a.(*asserts.Model)
 
-	snapstate.Model = devicestate.Model
+	snapstate.DeviceCtx = devicestate.DeviceCtx
 
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
