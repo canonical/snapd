@@ -1,5 +1,5 @@
 name: test-snapd-profiler-core18
-version: 1.0
+version: 1.2
 summary: Basic commands profiler snap
 description: A basic snap to profile commands
 confinement: strict

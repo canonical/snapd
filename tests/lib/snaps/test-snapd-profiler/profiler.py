@@ -19,6 +19,7 @@ COMMON_DIR = os.getenv('SNAP_COMMON', '.')
 LOG_PATH = os.path.join(COMMON_DIR, 'profiler.log')
 DEFAULTS_PATH = os.path.join(SNAP_DIR, 'etc', 'config.ini')
 CONFIG_PATH = os.path.join(COMMON_DIR, 'profiler.conf')
+CONFIG_PATH_FLAG = os.path.join(COMMON_DIR, 'reconfigured')
 
 
 def prepare_config(config):
@@ -53,9 +54,9 @@ def get_config():
 
 
 def check_config():
-    if os.path.isfile(CONFIG_PATH):
+    if os.path.isfile(CONFIG_PATH) and not os.path.isfile(CONFIG_PATH_FLAG):
         new_config = read_config(CONFIG_PATH)
-        os.remove(CONFIG_PATH)
+        open(CONFIG_PATH_FLAG, 'a').close()
         return new_config
     else:
         return None
