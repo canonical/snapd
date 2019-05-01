@@ -307,6 +307,17 @@ prepare_classic() {
     fi
 }
 
+repack_snapd_snap_with_deb_content() {
+    local TARGET="$1"
+
+    local UNPACK_DIR="/tmp/snapd-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    snap pack "$UNPACK_DIR" "$TARGET"
+    rm -rf "$UNPACK_DIR"
+}
+
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
@@ -340,12 +351,8 @@ setup_reflash_magic() {
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
     if is_core18_system; then
-        # modify the snapd snap so that it has our snapd
-        UNPACK_DIR="/tmp/snapd-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
-        
+        repack_snapd_snap_with_deb_content "$IMAGE_HOME"
+
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core18-amd64.img
@@ -637,10 +644,14 @@ prepare_ubuntu_core() {
     fi
 
     echo "Ensure the core snap is cached"
+    # Cache snaps
     if is_core18_system; then
-        if ! snap list core; then
-            cache_snaps core
+        if snap list core >& /dev/null; then
+            echo "core snap on core18 should not be installed yet"
+            snap list
+            exit 1
         fi
+        cache_snaps core
     fi
 
     disable_refreshes
@@ -658,19 +669,18 @@ prepare_ubuntu_core() {
 
 cache_snaps(){
     # Pre-cache snaps so that they can be installed by tests quickly.
-    # This relies on a behavior of snapd where .partial files are
-    # used for resuming downloads.
-    (
-        set -x
-        cd "$TESTSLIB/cache/"
-        # Download each of the snaps we want to pre-cache. Note that `snap download`
-        # a quick no-op if the file is complete.
-        for snap_name in "$@"; do
-            snap download "$snap_name"
-        done
+    # This relies on a behavior of snapd which snaps installed are
+    # cached and then used when need to the installed again
+
+    # Download each of the snaps we want to pre-cache. Note that `snap download`
+    # a quick no-op if the file is complete.
+    for snap_name in "$@"; do
+        snap download "$snap_name"
+
         # Copy all of the snaps back to the spool directory. From there we
         # will reuse them during subsequent `snap install` operations.
-        cp -- *.snap /var/lib/snapd/snaps/
-        set +x
-    )
+        snap_file=$(ls "${snap_name}"_*.snap)
+        mv "${snap_file}" /var/lib/snapd/snaps/"${snap_file}".partial
+        rm -f "${snap_name}"_*.assert
+    done
 }
