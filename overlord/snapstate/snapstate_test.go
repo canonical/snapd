@@ -3092,6 +3092,7 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
+		PlugsOnly: true,
 		CohortKey: "scurries",
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
