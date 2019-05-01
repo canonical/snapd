@@ -233,7 +233,7 @@ func elliptLeft(str string) string {
 }
 
 func (opts *DownloadOptions) String() string {
-	var spec []string
+	spec := make([]string, 0, 4)
 	if !opts.Revision.Unset() {
 		spec = append(spec, fmt.Sprintf("(%s)", opts.Revision))
 	}

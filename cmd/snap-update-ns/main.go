@@ -78,9 +78,11 @@ func run() error {
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
 	}
-
+	var ctx MountProfileUpdateContext
 	if opts.UserMounts {
-		return applyUserFstab(opts.Positionals.SnapName)
+		ctx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
+		return applyUserFstab(ctx)
 	}
-	return applySystemFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
+	ctx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
+	return applySystemFstab(ctx)
 }

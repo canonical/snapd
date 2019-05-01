@@ -51,6 +51,7 @@ type StoreService interface {
 	Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
 	ConnectivityCheck() (map[string]bool, error)
+	CreateCohorts(context.Context, []string) (map[string]string, error)
 
 	LoginUser(username, password, otp string) (string, string, error)
 	UserInfo(email string) (userinfo *store.User, err error)
