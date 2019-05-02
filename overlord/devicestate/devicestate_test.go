@@ -623,7 +623,13 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -645,6 +651,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
+	c.Check(chg.Err(), IsNil)
 	device, err := devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	_, err = s.db.Find(asserts.SerialType, map[string]string{
@@ -699,6 +706,12 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -737,6 +750,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
 	device, err = devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
@@ -813,7 +827,13 @@ func (s *deviceMgrSuite) TestDoRequestSerialMaxTentatives(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
