@@ -274,6 +274,13 @@ func (m *DeviceManager) ensureOperational() error {
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
+		// if have a gadget wait until seeded to proceed
+		if !seeded {
+			// this will be run again, so eventually when the system is
+			// seeded the code below runs
+			return nil
+
+		}
 		var err error
 		gadgetInfo, err = snapstate.GadgetInfo(m.state)
 		if err == state.ErrNoState {
@@ -284,15 +291,6 @@ func (m *DeviceManager) ensureOperational() error {
 			return err
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
-	}
-
-	// When the prepare-device hook is used we need a fully seeded system
-	// to ensure the prepare-device hook has access to the things it
-	// needs
-	if !seeded && hasPrepareDeviceHook {
-		// this will be run again, so eventually when the system is
-		// seeded the code below runs
-		return nil
 	}
 
 	// have some backoff between full retries

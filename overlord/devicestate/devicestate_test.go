@@ -264,7 +264,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	// avoid full seeding
 	s.seeding()
 
-	// not started without gadget
+	// not started if not seeded
 	s.state.Unlock()
 	s.se.Ensure()
 	s.state.Lock()
@@ -273,6 +273,8 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(becomeOperational, IsNil)
 
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	// mark it as seeded
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
@@ -357,25 +359,16 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 		Model: "pc",
 	})
 
-	// avoid full seeding
-	s.seeding()
-
-	// not started without gadget
-	s.state.Unlock()
-	s.se.Ensure()
-	s.state.Lock()
-
-	becomeOperational := s.findBecomeOperationalChange()
-	c.Check(becomeOperational, IsNil)
-
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	// mark as seeded
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
 
-	becomeOperational = s.findBecomeOperationalChange()
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -882,9 +875,8 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	})
 
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
-
-	// avoid full seeding
-	s.seeding()
+	// mark as seeded
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process with polling
 	s.state.Unlock()
@@ -1181,9 +1173,8 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	})
 
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
-
-	// avoid full seeding
-	s.seeding()
+	// mark as seeded
+	s.state.Set("seeded", true)
 
 	// try the whole device registration process
 	s.state.Unlock()
@@ -1277,8 +1268,8 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) {
 		Model: "pc",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	// mark as seeded
+	s.state.Set("seeded", true)
 
 	// try the whole device registration process
 	s.state.Unlock()
