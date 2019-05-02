@@ -88,6 +88,7 @@ type apiBaseSuite struct {
 	suggestedCurrency string
 	d                 *Daemon
 	user              *auth.UserState
+	ctx               context.Context
 	restoreBackends   func()
 	currentSnaps      []*store.CurrentSnap
 	actions           []*store.SnapAction
@@ -136,11 +137,12 @@ func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*sna
 	return nil, s.err
 }
 
-func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
 	s.pokeStateLock()
 
 	s.storeSearch = *search
 	s.user = user
+	s.ctx = ctx
 
 	return s.rsnaps, s.err
 }
@@ -1842,6 +1844,18 @@ func (s *apiSuite) TestFindPrivate(c *check.C) {
 		Query:   "foo",
 		Private: true,
 	})
+}
+
+func (s *apiSuite) TestFindUserAgentContextCreated(c *check.C) {
+	s.daemon(c)
+
+	req, err := http.NewRequest("GET", "/v2/find", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Add("User-Agent", "some-agent/1.0")
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
 }
 
 func (s *apiSuite) TestFindPrefix(c *check.C) {
