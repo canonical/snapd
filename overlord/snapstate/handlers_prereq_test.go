@@ -472,6 +472,7 @@ func (s *prereqSuite) testDoPrereqNoCorePullsInSnaps(c *C, base string) {
 		},
 	})
 
+	c.Check(t.Change().Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 

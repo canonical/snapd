@@ -297,9 +297,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		return err
 	}
 	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
-		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
-			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
-		})
+		tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
 		if err != nil {
 			return err
 		}
