@@ -519,7 +519,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 }
 
 func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) error {
-	if info.InstanceName() == "snapd" {
+	// Check if the snapd can be installed on Ubuntu Core systems, it is
+	// always ok to install on classic
+	if info.InstanceName() == "snapd" && !release.OnClassic {
 		tr := config.NewTransaction(st)
 		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
 		if err != nil && !config.IsNoOption(err) {
