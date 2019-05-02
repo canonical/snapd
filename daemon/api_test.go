@@ -2419,6 +2419,24 @@ func (s *apiSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
+func (s *apiSuite) TestPostSnapCohortRandoAction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+	s.vars = map[string]string{"name": "some-snap"}
+	const expectedErr = "cohort-key can only be specified for install, refresh, or switch"
+
+	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "cohort-key": "32"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
 func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 

@@ -658,7 +658,7 @@ func InstallCohort(st *state.State, name, channel, cohortKey string, userID int,
 	return installGeneric(st, name, channel, cohortKey, snap.Revision{}, userID, flags)
 }
 
-// TODO: refactor things so there's a single install that takes a struct, mayeb a bit more like doInstall but public-er.
+// TODO: refactor things so there's a single Install again that takes a struct, maybe a bit more like doInstall but public-er.
 func installGeneric(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	if cohort != "" && !revision.Unset() {
 		return nil, errors.New("cannot specify revision and cohort")

@@ -1017,8 +1017,13 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 }
 
 func verifySnapInstructions(inst *snapInstruction) error {
-	if inst.CohortKey != "" && !inst.Revision.Unset() {
-		return fmt.Errorf("cannot specify both cohort-key and revision")
+	if inst.CohortKey != "" {
+		if !inst.Revision.Unset() {
+			return fmt.Errorf("cannot specify both cohort-key and revision")
+		}
+		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
+		}
 	}
 	switch inst.Action {
 	case "install":
@@ -1395,11 +1400,11 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
-	if err := verifySnapInstructions(&inst); err != nil {
-		return BadRequest("%v", err)
-	}
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" {
 		return BadRequest("unsupported option provided for multi-snap operation")
+	}
+	if err := verifySnapInstructions(&inst); err != nil {
+		return BadRequest("%v", err)
 	}
 
 	st := c.d.overlord.State()
