@@ -41,7 +41,7 @@ type Store struct{}
 // ensure we conform
 var _ snapstate.StoreService = Store{}
 
-func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
+func (Store) SnapInfo(context.Context, store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
 }
 

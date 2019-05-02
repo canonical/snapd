@@ -1939,7 +1939,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
@@ -2030,19 +2030,19 @@ func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	info, err := sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
+	info, err := sto.SnapInfo(context.TODO(), store.SnapSpec{Name: "hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "hello")
 
-	info, err = sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
+	info, err = sto.SnapInfo(context.TODO(), store.SnapSpec{Name: "hello"}, nil)
 	c.Check(err, Equals, store.ErrSnapNotFound)
 	c.Check(info, IsNil)
 
-	info, err = sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
+	info, err = sto.SnapInfo(context.TODO(), store.SnapSpec{Name: "hello"}, nil)
 	c.Check(err, Equals, store.ErrSnapNotFound)
 	c.Check(info, IsNil)
 
-	info, err = sto.SnapInfo(store.SnapSpec{Name: "hello"}, nil)
+	info, err = sto.SnapInfo(context.TODO(), store.SnapSpec{Name: "hello"}, nil)
 	c.Check(err, ErrorMatches, `.* invalid syntax`)
 	c.Check(info, IsNil)
 }
@@ -2074,7 +2074,7 @@ func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
@@ -2104,7 +2104,7 @@ func (s *storeTestSuite) TestInfo500(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	_, err := sto.SnapInfo(spec, nil)
+	_, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world": got unexpected HTTP status code 500 via GET to "http://.*?/info/hello-world.*"`)
 	c.Assert(n, Equals, 5)
@@ -2138,7 +2138,7 @@ func (s *storeTestSuite) TestInfo500once(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 	c.Assert(n, Equals, 2)
@@ -2176,7 +2176,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
 	c.Check(result.InstanceName(), Equals, "hello-world")
@@ -2257,7 +2257,7 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	sto := store.New(&cfg, dauthCtx)
 
 	// the actual test
-	result, err := sto.SnapInfo(store.SnapSpec{Name: "eh"}, nil)
+	result, err := sto.SnapInfo(context.TODO(), store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
 		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
@@ -2309,7 +2309,7 @@ func (s *storeTestSuite) TestInfoNonDefaults(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 }
@@ -2339,7 +2339,7 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 }
@@ -2371,7 +2371,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 }
@@ -2402,7 +2402,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 }
@@ -2431,7 +2431,7 @@ func (s *storeTestSuite) TestInfoOopses(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	_, err := sto.SnapInfo(spec, nil)
+	_, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world": got unexpected HTTP status code 5.. via GET to "http://\S+" \[OOPS-[[:xdigit:]]*\]`)
 }
 
@@ -2474,7 +2474,7 @@ func (s *storeTestSuite) TestNoInfo(c *C) {
 	spec := store.SnapSpec{
 		Name: "no-such-pkg",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, NotNil)
 	c.Assert(result, IsNil)
 }
@@ -3465,7 +3465,7 @@ func (s *storeTestSuite) TestSuggestedCurrency(c *C) {
 	spec := store.SnapSpec{
 		Name: "hello-world",
 	}
-	result, err := sto.SnapInfo(spec, nil)
+	result, err := sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(sto.SuggestedCurrency(), Equals, "GBP")
@@ -3473,7 +3473,7 @@ func (s *storeTestSuite) TestSuggestedCurrency(c *C) {
 	suggestedCurrency = "EUR"
 
 	// checking the currency updates
-	result, err = sto.SnapInfo(spec, nil)
+	result, err = sto.SnapInfo(context.TODO(), spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(sto.SuggestedCurrency(), Equals, "EUR")
@@ -3939,7 +3939,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 		spec := store.SnapSpec{
 			Name: "hello-world",
 		}
-		snap, err := sto.SnapInfo(spec, s.user)
+		snap, err := sto.SnapInfo(context.TODO(), spec, s.user)
 		c.Assert(snap, NotNil)
 		c.Assert(err, IsNil)
 

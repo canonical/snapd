@@ -147,7 +147,7 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
 	_, instanceKey := snap.SplitInstanceName(spec.Name)

@@ -129,10 +129,10 @@ func (s *apiBaseSuite) pokeStateLock() {
 	st.Unlock()
 }
 
-func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *apiBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.pokeStateLock()
-
 	s.user = user
+	s.ctx = ctx
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -1842,6 +1842,31 @@ func (s *apiSuite) TestFindUserAgentContextCreated(c *check.C) {
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/find", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Add("User-Agent", "some-agent/1.0")
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
+}
+
+func (s *apiSuite) TestFindOneUserAgentContextCreated(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		Type:    snap.TypeApp,
+		Version: "v2",
+		SideInfo: snap.SideInfo{
+			RealName: "banana",
+		},
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
+	}}
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
