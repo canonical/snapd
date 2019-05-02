@@ -3577,10 +3577,10 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	installQueue := []string{}
 	assertstateCalledUserID := 0
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	snapstateUpdate = func(s *state.State, userID int, opts *snapstate.UpdateOptions) (*state.TaskSet, error) {
+		calledFlags = opts.Flags
 		calledUserID = userID
-		installQueue = append(installQueue, name)
+		installQueue = append(installQueue, opts.Name)
 
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -3616,10 +3616,10 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	snapstateUpdate = func(s *state.State, userID int, opts *snapstate.UpdateOptions) (*state.TaskSet, error) {
+		calledFlags = opts.Flags
 		calledUserID = userID
-		installQueue = append(installQueue, name)
+		installQueue = append(installQueue, opts.Name)
 
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -3654,8 +3654,8 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 func (s *apiSuite) TestRefreshClassic(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	snapstateUpdate = func(s *state.State, userID int, opts *snapstate.UpdateOptions) (*state.TaskSet, error) {
+		calledFlags = opts.Flags
 		return nil, nil
 	}
 	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
@@ -3684,10 +3684,10 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
+	snapstateUpdate = func(s *state.State, userID int, opts *snapstate.UpdateOptions) (*state.TaskSet, error) {
+		calledFlags = opts.Flags
 		calledUserID = userID
-		installQueue = append(installQueue, name)
+		installQueue = append(installQueue, opts.Name)
 
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil

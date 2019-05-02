@@ -2597,13 +2597,13 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdate(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		c.Check(flags.Required, Equals, false)
+	restore = devicestate.MockSnapstateUpdate(func(st *state.State, userID int, opts *snapstate.UpdateOptions) (*state.TaskSet, error) {
+		c.Check(opts.Required, Equals, false)
 
-		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, channel))
-		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", opts.Name, opts.Channel))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", opts.Name))
 		tValidate.WaitFor(tDownload)
-		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, channel))
+		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", opts.Name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
 		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)

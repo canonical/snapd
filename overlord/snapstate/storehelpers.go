@@ -129,11 +129,7 @@ func installInfo(st *state.State, name, channel, cohort string, revision snap.Re
 	return singleActionResult(name, action.Action, res, err)
 }
 
-func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int) (*snap.Info, error) {
-	if opts == nil {
-		opts = &updateInfoOpts{}
-	}
-
+func updateInfo(st *state.State, snapst *SnapState, opts *UpdateOptions, userID int) (*snap.Info, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -144,13 +140,13 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		return nil, err
 	}
 
-	curInfo, user, err := preUpdateInfo(st, snapst, opts.amend, userID)
+	curInfo, user, err := preUpdateInfo(st, snapst, opts.Amend, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	var flags store.SnapActionFlags
-	if opts.ignoreValidation {
+	if opts.IgnoreValidation {
 		flags = store.SnapActionIgnoreValidation
 	} else {
 		flags = store.SnapActionEnforceValidation
@@ -161,8 +157,9 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
 		// the desired channel
-		Channel: opts.channel,
-		Flags:   flags,
+		Channel:   opts.Channel,
+		CohortKey: opts.CohortKey,
+		Flags:     flags,
 	}
 
 	if curInfo.SnapID == "" { // amend

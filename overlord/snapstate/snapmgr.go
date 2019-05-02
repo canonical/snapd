@@ -374,7 +374,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
-	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
+	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil) // also switches the cohort
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
 	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
 

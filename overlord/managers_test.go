@@ -805,7 +805,7 @@ apps:
 	snapPath, digest = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, 0, &snapstate.UpdateOptions{Name: "foo", Channel: "stable"})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -886,7 +886,7 @@ func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 
 	// refresh
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, 0, &snapstate.UpdateOptions{Name: "foo", Channel: "stable"})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -964,7 +964,7 @@ func (ms *mgrsSuite) testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c *C, doB
 
 	// refresh
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, 0, &snapstate.UpdateOptions{Name: "foo", Channel: "stable"})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -2075,7 +2075,7 @@ apps:
 	ms.serveSnap(fooPath, "15")
 
 	// refresh foo
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, 0, &snapstate.UpdateOptions{Name: "foo", Channel: "stable"})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -2919,7 +2919,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	ts, err := snapstate.Update(st, updateSnapName, "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Update(st, 0, &snapstate.UpdateOptions{Name: updateSnapName, Channel: "stable"})
 	c.Assert(err, IsNil)
 
 	// to make TaskSnapSetup work

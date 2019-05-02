@@ -1121,7 +1121,13 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	ts, err := snapstateUpdate(st, inst.userID, &snapstate.UpdateOptions{
+		Name:      inst.Snaps[0],
+		Channel:   inst.Channel,
+		Revision:  inst.Revision,
+		CohortKey: inst.CohortKey,
+		Flags:     flags,
+	})
 	if err != nil {
 		return "", nil, err
 	}
@@ -1220,7 +1226,11 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("switch takes no revision")
 	}
-	ts, err := snapstate.Switch(st, inst.Snaps[0], inst.Channel)
+	ts, err := snapstate.Switch(st, &snapstate.SwitchOptions{
+		Name:      inst.Snaps[0],
+		Channel:   inst.Channel,
+		CohortKey: inst.CohortKey,
+	})
 	if err != nil {
 		return "", nil, err
 	}

@@ -859,21 +859,22 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		}
 	}
 
-	params := func(update *snap.Info) (string, Flags, *SnapState) {
+	params := func(update *snap.Info) (string, string, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
 		updateFlags := snapst.Flags
 		if !update.NeedsClassic() && updateFlags.Classic {
 			// allow updating from classic to strict
 			updateFlags.Classic = false
 		}
-		return snapst.Channel, snapst.Flags, snapst
+		return snapst.Channel, snapst.CohortKey, snapst.Flags, snapst
 
 	}
 
 	return doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
+// TODO fix the arity of this as it's unwieldy
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel, cohort string, flags Flags, snapst *SnapState), userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
@@ -931,7 +932,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, update := range updates {
-		channel, flags, snapst := params(update)
+		channel, cohort, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
 		if err := checkInstallPreconditions(st, update, flags, snapst, deviceCtx); err != nil {
@@ -969,6 +970,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			auxStoreInfo: auxStoreInfo{
 				Media: update.Media,
 			},
+			CohortKey: cohort,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0, fromChange)
@@ -1196,18 +1198,24 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	return newChannel, nil
 }
 
-// Switch switches a snap to a new channel
-func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
+type SwitchOptions struct {
+	Name      string
+	Channel   string
+	CohortKey string
+}
+
+// Switch switches a snap to a new channel and/or cohort
+func Switch(st *state.State, opts *SwitchOptions) (*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err := Get(st, opts.Name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
-		return nil, &snap.NotInstalledError{Snap: name}
+		return nil, &snap.NotInstalledError{Snap: opts.Name}
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, opts.Name, nil); err != nil {
 		return nil, err
 	}
 
@@ -1216,7 +1224,7 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	channel, err = resolveChannel(st, name, channel, deviceCtx)
+	channel, err := resolveChannel(st, opts.Name, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1225,6 +1233,7 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		SideInfo:    snapst.CurrentSideInfo(),
 		Channel:     channel,
 		InstanceKey: snapst.InstanceKey,
+		CohortKey:   opts.CohortKey,
 	}
 
 	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.InstanceName(), snapsup.Channel))
@@ -1233,24 +1242,32 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	return state.NewTaskSet(switchSnap), nil
 }
 
+type UpdateOptions struct {
+	Name      string
+	Channel   string
+	CohortKey string
+	Revision  snap.Revision
+	Flags
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func Update(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+func Update(st *state.State, userID int, opts *UpdateOptions) (*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err := Get(st, opts.Name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
-		return nil, &snap.NotInstalledError{Snap: name}
+		return nil, &snap.NotInstalledError{Snap: opts.Name}
 	}
 
 	// FIXME: snaps that are not active are skipped for now
 	//        until we know what we want to do
 	if !snapst.Active {
-		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+		return nil, fmt.Errorf("refreshing disabled snap %q not supported", opts.Name)
 	}
 
 	// need to have a model set before trying to talk the store
@@ -1259,23 +1276,23 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return nil, err
 	}
 
-	channel, err = resolveChannel(st, name, channel, deviceCtx)
+	opts.Channel, err = resolveChannel(st, opts.Name, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	if channel == "" {
-		channel = snapst.Channel
+	if opts.Channel == "" {
+		opts.Channel = snapst.Channel
 	}
 
 	// TODO: make flags be per revision to avoid this logic (that
 	//       leaves corner cases all over the place)
-	if !(flags.JailMode || flags.DevMode) {
-		flags.Classic = flags.Classic || snapst.Flags.Classic
+	if !(opts.JailMode || opts.DevMode) {
+		opts.Classic = opts.Classic || snapst.Flags.Classic
 	}
 
 	var updates []*snap.Info
-	info, infoErr := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	info, infoErr := infoForUpdate(st, &snapst, userID, opts)
 	switch infoErr {
 	case nil:
 		updates = append(updates, info)
@@ -1285,26 +1302,26 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return nil, infoErr
 	}
 
-	params := func(update *snap.Info) (string, Flags, *SnapState) {
-		updateFlags := flags
+	params := func(update *snap.Info) (string, string, Flags, *SnapState) {
+		updateFlags := opts.Flags
 		if !update.NeedsClassic() && updateFlags.Classic {
 			// allow updating from classic to strict
 			updateFlags.Classic = false
 		}
-		return channel, updateFlags, &snapst
+		return opts.Channel, opts.CohortKey, updateFlags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, "")
+	_, tts, err := doUpdate(context.TODO(), st, []string{opts.Name}, updates, params, userID, &opts.Flags, deviceCtx, "")
 	if err != nil {
 		return nil, err
 	}
 
 	// see if we need to update the channel or toggle ignore-validation
-	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != channel || snapst.IgnoreValidation != flags.IgnoreValidation) {
+	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != opts.Channel || snapst.IgnoreValidation != opts.IgnoreValidation || snapst.CohortKey != opts.CohortKey) {
 		// NOTE: if we are in here, len(updates) == 0
 		//       (so we're free to add tasks because there's no rerefresh)
 
-		if err := CheckChangeConflict(st, name, nil); err != nil {
+		if err := CheckChangeConflict(st, opts.Name, nil); err != nil {
 			return nil, err
 		}
 
@@ -1312,16 +1329,17 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 			SideInfo:    snapst.CurrentSideInfo(),
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
+			CohortKey:   opts.CohortKey,
 		}
 
-		if snapst.Channel != channel {
+		if snapst.Channel != opts.Channel {
 			// update the tracked channel
-			snapsup.Channel = channel
+			snapsup.Channel = opts.Channel
 			// Update the current snap channel as well. This ensures that
 			// the UI displays the right values.
-			snapsup.SideInfo.Channel = channel
+			snapsup.SideInfo.Channel = opts.Channel
 
-			switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.InstanceName(), snapst.Channel, channel))
+			switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.InstanceName(), snapst.Channel, opts.Channel))
 			switchSnap.Set("snap-setup", &snapsup)
 
 			switchSnapTs := state.NewTaskSet(switchSnap)
@@ -1331,9 +1349,9 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 			tts = append(tts, switchSnapTs)
 		}
 
-		if snapst.IgnoreValidation != flags.IgnoreValidation {
+		if snapst.IgnoreValidation != opts.IgnoreValidation {
 			// toggle ignore validation
-			snapsup.IgnoreValidation = flags.IgnoreValidation
+			snapsup.IgnoreValidation = opts.IgnoreValidation
 			toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
 			toggle.Set("snap-setup", &snapsup)
 
@@ -1361,19 +1379,14 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	return flat, nil
 }
 
-func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
-	if revision.Unset() {
+func infoForUpdate(st *state.State, snapst *SnapState, userID int, opts *UpdateOptions) (*snap.Info, error) {
+	if opts.Revision.Unset() {
 		// good ol' refresh
-		opts := &updateInfoOpts{
-			channel:          channel,
-			ignoreValidation: flags.IgnoreValidation,
-			amend:            flags.Amend,
-		}
 		info, err := updateInfo(st, snapst, opts, userID)
 		if err != nil {
 			return nil, err
 		}
-		if ValidateRefreshes != nil && !flags.IgnoreValidation {
+		if ValidateRefreshes != nil && !opts.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, nil, userID)
 			if err != nil {
 				return nil, err
@@ -1383,18 +1396,18 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	var sideInfo *snap.SideInfo
 	for _, si := range snapst.Sequence {
-		if si.Revision == revision {
+		if si.Revision == opts.Revision {
 			sideInfo = si
 			break
 		}
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, revision, userID)
+		return updateToRevisionInfo(st, snapst, opts.Revision, userID)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted
-	return readInfo(name, sideInfo, errorOnBroken)
+	return readInfo(opts.Name, sideInfo, errorOnBroken)
 }
 
 // AutoRefreshAssertions allows to hook fetching of important assertions

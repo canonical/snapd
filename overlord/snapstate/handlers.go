@@ -1246,6 +1246,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// NOTE this also switches the cohort
 func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1258,6 +1259,7 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 
 	// switched the tracked channel
 	snapst.Channel = snapsup.Channel
+	snapst.CohortKey = snapsup.CohortKey
 	// optionally support switching the current snap channel too, e.g.
 	// if a snap is in both stable and candidate with the same revision
 	// we can update it here and it will be displayed correctly in the UI
@@ -1279,6 +1281,7 @@ func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Channel = snapsup.Channel
+	snapst.CohortKey = snapsup.CohortKey
 
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil
