@@ -1594,6 +1594,10 @@ func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
 	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
+func (s *interfaceManagerSuite) mockSecBackend(c *C, backend interfaces.SecurityBackend) {
+	s.extraBackends = append(s.extraBackends, backend)
+}
+
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 	s.extraIfaces = append(s.extraIfaces, iface)
 }
@@ -2373,6 +2377,371 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityKeepsExistingConnectionSt
 	})
 }
 
+func (s *interfaceManagerSuite) TestReloadingConnectionsOnStartupUpdatesStaticAttributes(c *C) {
+	// Put a connection in the state. The connection binds the two snaps we are
+	// adding below. The connection contains a copy of the static attributes
+	// but refers to the "old" values, in contrast to what the snaps define.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":   "content",
+			"plug-static": map[string]interface{}{"content": "foo", "attr": "old-plug-attr"},
+			"slot-static": map[string]interface{}{"content": "foo", "attr": "old-slot-attr"},
+		},
+	})
+	s.state.Unlock()
+
+	// Add consumer and producer snaps, with a plug and slot respectively, each
+	// carrying a single attribute with a "new" value. The "new" value is in
+	// contrast to the old value in the connection state.
+	const consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo 
+  attr: new-plug-attr
+`
+	const producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo 
+  attr: new-slot-attr
+`
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+
+	// Create a connection reference, it's just verbose and used a few times
+	// below so it's put up here.
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+
+	// Add a test security backend and a test interface. We want to use them to
+	// observe the interaction with the security backend and to allow the
+	// interface manager to keep the test plug and slot of the consumer and
+	// producer snaps we introduce below.
+	secBackend := &ifacetest.TestSecurityBackend{
+		BackendName: "test",
+		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+			// Whenever this function is invoked to setup security for a snap
+			// we check the connection attributes that it would act upon.
+			// Because of how connection state is refreshed we never expect to
+			// see the old attribute values.
+			conn, err := repo.Connection(connRef)
+			c.Assert(err, IsNil)
+			c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-plug-attr"})
+			c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-slot-attr"})
+			return nil
+		},
+	}
+	s.mockSecBackend(c, secBackend)
+	//s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "content"})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and re-connects them using the stored connection information.
+	mgr := s.manager(c)
+
+	// Inspect the repository connection data. The data no longer refers to the
+	// old connection attributes because they were updated when the connections
+	// were reloaded from the state.
+	repo := mgr.Repository()
+	conn, err := repo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-plug-attr"})
+	c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-slot-attr"})
+
+	// Because of the fact that during testing the system key always
+	// mismatches, the security setup is performed.
+	c.Check(secBackend.SetupCalls, HasLen, 2)
+}
+
+// LP:#1825883; make sure static attributes in conns state are updated from the snap yaml on snap refresh (content interface only)
+func (s *interfaceManagerSuite) testDoSetupProfilesUpdatesStaticAttributes(c *C, snapNameToSetup string) {
+	// Put a connection in the state. The connection binds the two snaps we are
+	// adding below. The connection reflects the snaps as they are now, and
+	// carries no attribute data.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "content",
+		},
+		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
+			"interface":   "unrelated",
+			"plug-static": map[string]interface{}{"attr": "unrelated-stale"},
+			"slot-static": map[string]interface{}{"attr": "unrelated-stale"},
+		},
+	})
+	s.state.Unlock()
+
+	// Add a pair of snap versions for producer and consumer snaps, with a plug
+	// and slot respectively. The second version producer and consumer snaps
+	// where the interfaces carry additional attributes.
+	const consumerV1Yaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo
+ plug2:
+  interface: content
+  content: bar
+`
+	const producerV1Yaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo
+`
+	const consumerV2Yaml = `
+name: consumer
+version: 2
+plugs:
+ plug:
+  interface: content
+  content: foo
+  attr: plug-value
+ plug2:
+  interface: content
+  content: bar-changed
+  attr: plug-value
+`
+	const producerV2Yaml = `
+name: producer
+version: 2
+slots:
+ slot:
+  interface: content
+  content: foo
+  attr: slot-value
+`
+
+	const unrelatedAYaml = `
+name: unrelated-a
+version: 1
+plugs:
+  plug:
+   interface: unrelated
+   attr: unrelated-new
+`
+	const unrelatedBYaml = `
+name: unrelated-b
+version: 1
+slots:
+  slot:
+   interface: unrelated
+   attr: unrelated-new
+`
+
+	// NOTE: s.mockSnap sets the state and calls MockSnapInstance internally,
+	// which puts the snap on disk. This gives us all four YAMLs on disk and
+	// just the first version of both in the state.
+	s.mockSnap(c, producerV1Yaml)
+	s.mockSnap(c, consumerV1Yaml)
+	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+
+	// Mock two unrelated snaps, those will show that the state of unrelated
+	// snaps is not clobbered by the refresh process.
+	s.mockSnap(c, unrelatedAYaml)
+	s.mockSnap(c, unrelatedBYaml)
+
+	// Create a connection reference, it's just verbose and used a few times
+	// below so it's put up here.
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+
+	// Add a test security backend and a test interface. We want to use them to
+	// observe the interaction with the security backend and to allow the
+	// interface manager to keep the test plug and slot of the consumer and
+	// producer snaps we introduce below.
+	secBackend := &ifacetest.TestSecurityBackend{
+		BackendName: "test",
+		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+			// Whenever this function is invoked to setup security for a snap
+			// we check the connection attributes that it would act upon.
+			// Those attributes should always match those of the snap version.
+			conn, err := repo.Connection(connRef)
+			c.Assert(err, IsNil)
+			switch snapInfo.Version {
+			case "1":
+				c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+				c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+			case "2":
+				switch snapNameToSetup {
+				case "consumer":
+					// When the consumer has security setup the consumer's plug attribute is updated.
+					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "plug-value"})
+					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+				case "producer":
+					// When the producer has security setup the producer's slot attribute is updated.
+					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "slot-value"})
+				}
+			}
+			return nil
+		},
+	}
+	s.mockSecBackend(c, secBackend)
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "unrelated"})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Because in tests the system key mismatch always occurs, the backend is
+	// invoked during the startup of the interface manager. The count
+	// represents the number of snaps that are in the system.
+	c.Check(secBackend.SetupCalls, HasLen, 4)
+
+	// Alter the state of producer and consumer snaps to get new revisions.
+	s.state.Lock()
+	for _, snapName := range []string{"producer", "consumer"} {
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}},
+			Current:  snap.R(2),
+			SnapType: string("app"),
+		})
+	}
+	s.state.Unlock()
+
+	// Setup profiles for the given snap, either consumer or producer.
+	s.state.Lock()
+	change := s.state.NewChange("test", "")
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: snapNameToSetup, Revision: snap.R(2)}})
+	change.AddTask(task)
+	s.state.Unlock()
+
+	// Spin the wheels to run the tasks we added.
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// We expect our security backend to be invoked for both snaps. See above
+	// for explanation about why it has four calls already.
+	c.Check(secBackend.SetupCalls, HasLen, 4+2)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupProfilesUpdatesStaticAttributesPlugSnap(c *C) {
+	s.testDoSetupProfilesUpdatesStaticAttributes(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestDoSetupProfilesUpdatesStaticAttributesSlotSnap(c *C) {
+	s.testDoSetupProfilesUpdatesStaticAttributes(c, "producer")
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesIgnoresContentMismatch(c *C) {
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "content",
+			"content":   "foo",
+		},
+	})
+	s.state.Unlock()
+
+	// Add a pair of snap versions for producer and consumer snaps, with a plug
+	// and slot respectively. The second version are producer and consumer snaps
+	// where the interfaces carry additional attributes but there is a mismatch
+	// on "content" attribute value.
+	const consumerV1Yaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo
+`
+	const producerV1Yaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo
+`
+	const consumerV2Yaml = `
+name: consumer
+version: 2
+plugs:
+ plug:
+  interface: content
+  content: foo-mismatch
+  attr: plug-value
+`
+	const producerV2Yaml = `
+name: producer
+version: 2
+slots:
+ slot:
+  interface: content
+  content: foo
+  attr: slot-value
+`
+
+	// NOTE: s.mockSnap sets the state and calls MockSnapInstance internally,
+	// which puts the snap on disk. This gives us all four YAMLs on disk and
+	// just the first version of both in the state.
+	s.mockSnap(c, producerV1Yaml)
+	s.mockSnap(c, consumerV1Yaml)
+	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+
+	secBackend := &ifacetest.TestSecurityBackend{BackendName: "test"}
+	s.mockSecBackend(c, secBackend)
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Alter the state of producer and consumer snaps to get new revisions.
+	s.state.Lock()
+	for _, snapName := range []string{"producer", "consumer"} {
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}},
+			Current:  snap.R(2),
+			SnapType: string("app"),
+		})
+	}
+	s.state.Unlock()
+
+	s.state.Lock()
+	change := s.state.NewChange("test", "")
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "consumer", Revision: snap.R(2)}})
+	change.AddTask(task)
+	s.state.Unlock()
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	s.state.Get("conns", &conns)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":   "content",
+			"plug-static": map[string]interface{}{"content": "foo"},
+			"slot-static": map[string]interface{}{"content": "foo"},
+		},
+	})
+}
+
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityIgnoresStrayConnection(c *C) {
 	// Add an OS snap
 	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
@@ -3128,7 +3497,8 @@ name: consumer
 version: 1
 plugs:
  plug:
-  interface: test
+  interface: content
+  content: foo
   attr: plug-value
 `
 	var producerYaml = `
@@ -3136,7 +3506,8 @@ name: producer
 version: 1
 slots:
  slot:
-  interface: test
+  interface: content
+  content: foo
   attr: slot-value
 `
 	s.mockSnap(c, consumerYaml)
@@ -3145,12 +3516,15 @@ slots:
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
-			"interface": "test",
+			"interface": "content",
 			"plug-static": map[string]interface{}{
+				"content":    "foo",
 				"attr":       "stored-plug-value",
 				"other-attr": "irrelevant-value",
 			},
 			"slot-static": map[string]interface{}{
+				"interface":  "content",
+				"content":    "foo",
 				"attr":       "stored-slot-value",
 				"other-attr": "irrelevant-value",
 			},
@@ -3170,13 +3544,13 @@ slots:
 	c.Assert(err, IsNil)
 	c.Assert(conn.Plug.Name(), Equals, "plug")
 	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"other-attr": "irrelevant-value",
-		"attr":       "stored-plug-value",
+		"content": "foo",
+		"attr":    "plug-value",
 	})
 	c.Assert(conn.Slot.Name(), Equals, "slot")
 	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"other-attr": "irrelevant-value",
-		"attr":       "stored-slot-value",
+		"content": "foo",
+		"attr":    "slot-value",
 	})
 }
 
