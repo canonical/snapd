@@ -60,10 +60,13 @@ parts:
     plugin: nil
     stage-packages:
       - libc6
+      - libc-bin
     stage:
       - lib/*
       - usr/lib/*
       - lib64/*
+      - etc/ld.so.conf
+      - etc/ld.so.conf.d/*
     override-stage: |
       snapcraftctl stage
       # fix symlinks of ld.so to be relative
