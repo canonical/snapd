@@ -1269,7 +1269,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) {
 	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
-		"gadget":       "pc",
+		"gadget":       "gadget",
 	})
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
