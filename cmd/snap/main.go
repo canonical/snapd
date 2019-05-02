@@ -350,14 +350,17 @@ var ClientConfig = client.Config{
 	Socket: dirs.SnapdSocket,
 	// Allow interactivity if we have a terminal
 	Interactive: isStdinTTY,
-	// Custom user agent
-	UserAgent: "snap/" + cmd.Version,
 }
 
 // Client returns a new client using ClientConfig as configuration.
 // commands should (in general) not use this, and instead use clientMixin.
 func mkClient() *client.Client {
-	cli := client.New(&ClientConfig)
+	cfg := &ClientConfig
+	// Set client user-agent when talking to the snapd daemon to the
+	// same value as when talking to the store.
+	cfg.UserAgent = httputil.UserAgent()
+
+	cli := client.New(cfg)
 	goos := runtime.GOOS
 	if release.OnWSL {
 		goos = "Windows Subsystem for Linux"
