@@ -71,7 +71,7 @@ type Config struct {
 	// alive for later reuse
 	DisableKeepAlive bool
 
-	// Sent custom user agent
+	// User-Agent to sent to the snapd daemon
 	UserAgent string
 }
 
