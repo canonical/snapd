@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -1451,4 +1452,28 @@ func (snapshotSuite) TestAutomaticSnapshot(c *check.C) {
 		"current": "unset",
 		"auto":    true,
 	})
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDefaultClassic(c *check.C) {
+	release.MockOnClassic(true)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(du, check.Equals, snapshotstate.DefaultAutomaticSnapshotExpiration)
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
+	release.MockOnClassic(false)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(du, check.Equals, time.Duration(0))
 }
