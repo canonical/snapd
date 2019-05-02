@@ -1511,8 +1511,9 @@ type: os
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -1595,8 +1596,9 @@ type: kernel`
 	err = assertstate.Add(st, brandAccKey)
 	c.Assert(err, IsNil)
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -3292,8 +3294,9 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -3385,8 +3388,9 @@ type: base`
 	})
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -3446,8 +3450,9 @@ version: 2.0`
 	})
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)

@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -270,7 +269,6 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	var gadgetInfo *snap.Info
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
@@ -281,12 +279,8 @@ func (m *DeviceManager) ensureOperational() error {
 			return nil
 
 		}
-		var err error
-		gadgetInfo, err = snapstate.GadgetInfo(m.state)
-		if err == state.ErrNoState {
-			// no gadget installed yet, cannot proceed
-			return nil
-		}
+
+		gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
 		if err != nil {
 			return err
 		}
@@ -310,7 +304,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if hasPrepareDeviceHook {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.InstanceName(),
+			Snap: gadget,
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
