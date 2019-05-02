@@ -168,7 +168,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	return true, nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	kind := ""
 	var currentInfo func(*state.State) (*snap.Info, error)
 	var getName func(*asserts.Model) string
@@ -246,7 +246,7 @@ func delayedCrossMgrInit() {
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
-	snapstate.Model = Model
+	snapstate.DeviceCtx = DeviceCtx
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
