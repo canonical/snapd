@@ -55,7 +55,7 @@ func ModelFromTask(task *state.Task) (*asserts.Model, error) {
 // DevicePastSeeding returns a device context if a model assertion is
 // available and the device is seeded, at that point the device store
 // is known and seeding done. Otherwise it returns a
-// ChangeConflictError about being too early unless an pre-provided
+// ChangeConflictError about being too early unless a pre-provided
 // DeviceContext is passed in.
 func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
 	var seeded bool

@@ -42,8 +42,6 @@ type linkSnapSuite struct {
 	baseHandlerSuite
 
 	stateBackend *witnessRestartReqStateBackend
-
-	restore func()
 }
 
 var _ = Suite(&linkSnapSuite{})
@@ -67,12 +65,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	s.setup(c, s.stateBackend)
 
-	s.restore = snapstatetest.MockDeviceModel(DefaultModel())
-}
-
-func (s *linkSnapSuite) TearDownTest(c *C) {
-	s.baseHandlerSuite.TearDownTest(c)
-	s.restore()
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
