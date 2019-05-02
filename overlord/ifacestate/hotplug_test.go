@@ -57,6 +57,8 @@ type hotplugSuite struct {
 	udevMon               *udevMonitorMock
 	mgr                   *ifacestate.InterfaceManager
 	handledByGadgetCalled int
+
+	ifaceTestAAutoConnect bool
 }
 
 type hotplugTasksWitness struct {
@@ -179,8 +181,19 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
+	autoConnectNo := func(*snap.PlugInfo, *snap.SlotInfo) bool {
+		return false
+	}
+	s.ifaceTestAAutoConnect = false
+	testAAutoConnect := func(*snap.PlugInfo, *snap.SlotInfo) bool {
+		return s.ifaceTestAAutoConnect
+	}
+
 	testIface1 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-a"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-a",
+			AutoConnectCallback: testAAutoConnect,
+		},
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-1", nil
 		},
@@ -194,7 +207,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		},
 	}
 	testIface2 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-b"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-b",
+			AutoConnectCallback: autoConnectNo,
+		},
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-2", nil
 		},
@@ -210,7 +226,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	}
 	// 3rd hotplug interface doesn't create hotplug slot (to simulate a case where doesn't device is not supported)
 	testIface3 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-c"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-c",
+			AutoConnectCallback: autoConnectNo,
+		},
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-3", nil
 		},
@@ -220,7 +239,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	}
 	// 3rd hotplug interface will only create a slot if default hotplug key can be computed
 	testIface4 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-d"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-d",
+			AutoConnectCallback: autoConnectNo,
+		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
 			return &hotplug.ProposedSlot{Name: "hotplugslot-d"}, nil
 		},
@@ -406,6 +428,9 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 
 func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	s.MockModel(c, nil)
+
+	s.ifaceTestAAutoConnect = true
+
 	repo := s.mgr.Repository()
 	st := s.state
 
