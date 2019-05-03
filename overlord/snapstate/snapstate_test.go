@@ -156,8 +156,12 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		ts = state.NewTaskSet(task)
 		return ts, nil
 	}
+
+	oldAutomaticSnapshotExpiration := snapstate.AutomaticSnapshotExpiration
+	snapstate.AutomaticSnapshotExpiration = func(st *state.State) (time.Duration, error) { return 1, nil }
 	s.BaseTest.AddCleanup(func() {
 		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
+		snapstate.AutomaticSnapshotExpiration = oldAutomaticSnapshotExpiration
 	})
 
 	s.state.Lock()
@@ -2343,6 +2347,38 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyRemoveTasks(c, ts)
+}
+
+func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
+		return nil, snapstate.ErrNothingToDo
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(11)},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0))
+	c.Assert(err, IsNil)
+
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"run-hook[remove]",
+		"auto-disconnect",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+	})
 }
 
 func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
