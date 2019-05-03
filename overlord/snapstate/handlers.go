@@ -132,6 +132,14 @@ func defaultBaseSnapsChannel() string {
 	return channel
 }
 
+func defaultSnapdSnapsChannel() string {
+	channel := os.Getenv("SNAPD_SNAPD_CHANNEL")
+	if channel == "" {
+		return "stable"
+	}
+	return channel
+}
+
 func defaultPrereqSnapsChannel() string {
 	channel := os.Getenv("SNAPD_PREREQS_CHANNEL")
 	if channel == "" {
@@ -214,10 +222,12 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// The core snap provides everything we need for core16.
-	if snapName == "core16" {
-		if hasCore, err := isInstalled(st, "core"); hasCore && err == nil {
-			return nil, nil
-		}
+	coreInstalled, err := isInstalled(st, "core")
+	if err != nil {
+		return nil, err
+	}
+	if snapName == "core16" && coreInstalled {
+		return nil, nil
 	}
 
 	// installed already?
@@ -275,6 +285,24 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		return err
 	}
 
+	// on systems without core or snapd need to install snapd to
+	// make interfaces work - LP: 1819318
+	var tsSnapd *state.TaskSet
+	snapdSnapInstalled, err := isInstalled(st, "snapd")
+	if err != nil {
+		return err
+	}
+	coreSnapInstalled, err := isInstalled(st, "core")
+	if err != nil {
+		return err
+	}
+	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
+		tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
+		if err != nil {
+			return err
+		}
+	}
+
 	chg := t.Change()
 	// add all required snaps, no ordering, this will be done in the
 	// auto-connect task handler
@@ -282,13 +310,21 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		ts.JoinLane(st.NewLane())
 		chg.AddAll(ts)
 	}
-	// add the base if needed, everything else must wait on this
+	// add the base if needed, prereqs else must wait on this
 	if tsBase != nil {
 		tsBase.JoinLane(st.NewLane())
 		for _, t := range chg.Tasks() {
 			t.WaitAll(tsBase)
 		}
 		chg.AddAll(tsBase)
+	}
+	// add snapd if needed, everything must wait on this
+	if tsSnapd != nil {
+		tsSnapd.JoinLane(st.NewLane())
+		for _, t := range chg.Tasks() {
+			t.WaitAll(tsSnapd)
+		}
+		chg.AddAll(tsSnapd)
 	}
 
 	// make sure that the new change is committed to the state
@@ -1013,19 +1049,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	return nil
 }
 
-func snapdSnapInstalled(st *state.State) bool {
-	var snapst SnapState
-	err := Get(st, "snapd", &snapst)
-	return err == nil
-}
-
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
 	if release.OnClassic {
-		if (info.Type == snap.TypeOS && !snapdSnapInstalled(st)) ||
+		// ignore error here as we have no way to return to caller
+		snapdSnapInstalled, _ := isInstalled(st, "snapd")
+		if (info.Type == snap.TypeOS && !snapdSnapInstalled) ||
 			info.InstanceName() == "snapd" {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)

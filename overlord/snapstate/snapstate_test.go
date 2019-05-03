@@ -13353,7 +13353,10 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	c.Check(hasConfigureTask(ts), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 

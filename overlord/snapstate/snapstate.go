@@ -80,24 +80,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if err != nil && !config.IsNoOption(err) {
 		return nil, err
 	}
-	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, err
-	}
 
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
-	}
-	if snapsup.InstanceName() == "snapd" {
-		model, err := Model(st)
-		if err != nil && err != state.ErrNoState {
-			return nil, err
-		}
-		if model == nil || model.Base() == "" {
-			if !experimentalAllowSnapd {
-				return nil, fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
-			}
-		}
 	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
@@ -528,6 +513,26 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 }
 
 func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) error {
+	// Check if the snapd can be installed on Ubuntu Core systems, it is
+	// always ok to install on classic
+	if info.InstanceName() == "snapd" && !release.OnClassic {
+		tr := config.NewTransaction(st)
+		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+
+		model, err := Model(st)
+		if err != nil {
+			return err
+		}
+		if model != nil && model.Base() == "" {
+			if !experimentalAllowSnapd {
+				return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
+			}
+		}
+	}
+
 	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 		return err
 	}
