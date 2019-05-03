@@ -146,7 +146,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner())
+	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil)
 	c.Assert(err, IsNil)
 
 	s.db = db
@@ -1967,11 +1967,11 @@ func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, 
 	assertstatetest.AddMany(s.state, modelAs)
 }
 
-func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {
+func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) {
 	devKey, _ := assertstest.GenerateKey(752)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            brandID,
 		"model":               model,
 		"serial":              serialN,
@@ -1980,8 +1980,12 @@ func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serial
 		"timestamp":           time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, serial)
+	err = assertstate.Add(st, serial)
 	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {
+	makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
@@ -2229,7 +2233,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	runner1 := state.NewTaskRunner(st)
 	hookMgr1, err := hookstate.Manager(st, runner1)
 	c.Assert(err, IsNil)
-	mgr1, err := devicestate.Manager(st, hookMgr1, runner1)
+	mgr1, err := devicestate.Manager(st, hookMgr1, runner1, nil)
 	c.Assert(err, IsNil)
 
 	ok := false
@@ -2251,7 +2255,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	runner2 := state.NewTaskRunner(st)
 	hookMgr2, err := hookstate.Manager(st, runner2)
 	c.Assert(err, IsNil)
-	mgr2, err := devicestate.Manager(st, hookMgr2, runner2)
+	mgr2, err := devicestate.Manager(st, hookMgr2, runner2, nil)
 	c.Assert(err, IsNil)
 
 	ok = false
@@ -2386,7 +2390,7 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 	runner := state.NewTaskRunner(st)
 	hookMgr, err := hookstate.Manager(st, runner)
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(st, hookMgr, runner)
+	mgr, err := devicestate.Manager(st, hookMgr, runner, nil)
 	c.Assert(err, IsNil)
 
 	st.Lock()
