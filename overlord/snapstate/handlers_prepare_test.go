@@ -24,7 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -61,10 +60,6 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 	s.se = overlord.NewStateEngine(s.state)
 	s.se.AddManager(s.snapmgr)
 	s.se.AddManager(s.runner)
-
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return nil, state.ErrNoState
-	}
 
 	AddForeignTaskHandlers(s.runner, s.fakeBackend)
 

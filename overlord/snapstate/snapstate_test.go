@@ -13720,9 +13720,6 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnCoreWithoutBase(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 	r := release.MockOnClassic(false)
@@ -13736,17 +13733,6 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C)
 	// but snapd do not for install
 	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
-}
-
-func (s *snapmgrTestSuite) TestNoSnapdSnapOnClassic(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	r := release.MockOnClassic(true)
-	defer r()
-
-	// but snapd do not for install
-	_, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "cannot install snapd snap on classic without setting the `experimental.snapd-snap` option")
 }
 
 func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {
