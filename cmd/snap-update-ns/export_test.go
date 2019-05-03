@@ -32,16 +32,14 @@ var (
 	// change
 	ValidateInstanceName = validateInstanceName
 	ProcessArguments     = processArguments
+
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
+
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
-
-	// main
-	ComputeAndSaveSystemChanges = computeAndSaveSystemChanges
-	ApplyUserFstab              = applyUserFstab
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
@@ -53,9 +51,11 @@ var (
 	// system
 	DesiredSystemProfilePath = desiredSystemProfilePath
 	CurrentSystemProfilePath = currentSystemProfilePath
+	ApplySystemFstab         = applySystemFstab
 
 	// user
 	DesiredUserProfilePath = desiredUserProfilePath
+	ApplyUserFstab         = applyUserFstab
 
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
@@ -207,6 +207,10 @@ func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, err
 	return as.canWriteToDirectory(dirFd, dirName)
 }
 
+func (as *Assumptions) UnrestrictedPaths() []string {
+	return as.unrestrictedPaths
+}
+
 func (ctx *CommonProfileUpdateContext) CurrentProfilePath() string {
 	return ctx.currentProfilePath
 }
@@ -215,9 +219,18 @@ func (ctx *CommonProfileUpdateContext) DesiredProfilePath() string {
 	return ctx.desiredProfilePath
 }
 
-func NewCommonProfileUpdateContext(instanceName string, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
+func (ctx *CommonProfileUpdateContext) FromSnapConfine() bool {
+	return ctx.fromSnapConfine
+}
+
+func (ctx *CommonProfileUpdateContext) SetFromSnapConfine(v bool) {
+	ctx.fromSnapConfine = v
+}
+
+func NewCommonProfileUpdateContext(instanceName string, fromSnapConfine bool, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
 	return &CommonProfileUpdateContext{
 		instanceName:       instanceName,
+		fromSnapConfine:    fromSnapConfine,
 		currentProfilePath: currentProfilePath,
 		desiredProfilePath: desiredProfilePath,
 	}

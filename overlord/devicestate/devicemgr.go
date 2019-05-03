@@ -98,7 +98,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := auth.SetDevice(st, device); err != nil {
+	if err := SetDevice(st, device); err != nil {
 		return err
 	}
 	return nil
@@ -199,7 +199,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return err
 	}
@@ -363,8 +363,8 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 
 	var tsAll []*state.TaskSet
-	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state)
+	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state, tm)
 	})
 	if err != nil {
 		return err
@@ -501,7 +501,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := auth.Device(m.state)
+	device, err := Device(m.state)
 	if err != nil {
 		return nil, err
 	}
@@ -517,47 +517,46 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
-// implementing storecontext.DeviceAssertions
-// sanity check
-var _ storecontext.DeviceAssertions = (*DeviceManager)(nil)
-
-// Model returns the device model assertion.
-func (m *DeviceManager) Model() (*asserts.Model, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Model(m.state)
-}
-
-// Serial returns the device serial assertion.
-func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Serial(m.state)
-}
-
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
 }
 
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
+// implementing storecontext.Backend
+// sanity check
+var _ storecontext.Backend = (*DeviceManager)(nil)
 
-	model, err := Model(m.state)
-	if err != nil {
-		return nil, err
-	}
+// Device returns current device state.
+func (m *DeviceManager) Device() (*auth.DeviceState, error) {
+	return Device(m.state)
+}
 
-	serial, err := Serial(m.state)
-	if err != nil {
-		return nil, err
+// SetDevice sets the device details in the state.
+func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
+	return SetDevice(m.state, device)
+}
+
+// Model returns the device model assertion.
+func (m *DeviceManager) Model() (*asserts.Model, error) {
+	return Model(m.state)
+}
+
+// Serial returns the device serial assertion.
+func (m *DeviceManager) Serial() (*asserts.Serial, error) {
+	return Serial(m.state)
+}
+
+// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
+func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
+	if serial == nil {
+		// shouldn't happen, but be safe
+		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
 	privKey, err := m.keyPair()
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -573,18 +572,10 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.
 		return nil, err
 	}
 
-	return &storecontext.DeviceSessionRequestParams{
-		Request: a.(*asserts.DeviceSessionRequest),
-		Serial:  serial,
-		Model:   model,
-	}, err
-
+	return a.(*asserts.DeviceSessionRequest), nil
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
 func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	return ProxyStore(m.state)
 }

@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -337,6 +338,9 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
+
+	r := snapstatetest.UseFallbackDeviceModel()
+	defer r()
 
 	chg := st.NewChange("rm foo", "...")
 	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0))

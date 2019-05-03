@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -117,7 +118,7 @@ func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
 	defer am.st.Unlock()
 	err = assertstate.Add(am.st, model)
 	c.Assert(err, IsNil)
-	err = auth.SetDevice(am.st, &auth.DeviceState{
+	err = devicestate.SetDevice(am.st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -222,7 +223,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
 	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-		return "abcdef 1.2.3 1234abcd", nil
+		return "abcdef 1.2.3 1234abcd -", nil
 	})
 	s.BaseTest.AddCleanup(restore)
 }

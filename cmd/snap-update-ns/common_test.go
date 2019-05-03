@@ -28,6 +28,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -41,9 +43,66 @@ var _ = Suite(&commonSuite{})
 
 func (s *commonSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-	s.ctx = update.NewCommonProfileUpdateContext("foo",
+	s.ctx = update.NewCommonProfileUpdateContext("foo", false,
 		filepath.Join(s.dir, "current.fstab"),
 		filepath.Join(s.dir, "desired.fstab"))
+}
+
+func (s *commonSuite) TestInstanceName(c *C) {
+	c.Check(s.ctx.InstanceName(), Equals, "foo")
+}
+
+func (s *commonSuite) TestLock(c *C) {
+	// Mock away real freezer code, allowing test code to return an error when freezing.
+	var freezingError error
+	restore := update.MockFreezing(func(string) error { return freezingError }, func(string) error { return nil })
+	defer restore()
+	// Mock system directories, we use the lock directory.
+	dirs.SetRootDir(s.dir)
+	defer dirs.SetRootDir("")
+
+	// We will use 2nd lock for our testing.
+	testLock, err := snaplock.OpenLock(s.ctx.InstanceName())
+	c.Assert(err, IsNil)
+	defer testLock.Close()
+
+	// When fromSnapConfine is false we acquire our own lock.
+	s.ctx.SetFromSnapConfine(false)
+	c.Check(s.ctx.FromSnapConfine(), Equals, false)
+	unlock, err := s.ctx.Lock()
+	c.Assert(err, IsNil)
+	// The lock is acquired now. We should not be able to get another lock.
+	c.Check(testLock.TryLock(), Equals, osutil.ErrAlreadyLocked)
+	// We can release the original lock now and see our test lock working.
+	unlock()
+	c.Assert(testLock.TryLock(), IsNil)
+
+	// When fromSnapConfine is true we test existing lock but don't grab one.
+	s.ctx.SetFromSnapConfine(true)
+	c.Check(s.ctx.FromSnapConfine(), Equals, true)
+	err = testLock.Lock()
+	c.Assert(err, IsNil)
+	unlock, err = s.ctx.Lock()
+	c.Assert(err, IsNil)
+	unlock()
+
+	// When the test lock is unlocked the common update helper reports an error
+	// since it was expecting the lock to be held. Oh, and the lock is not leaked.
+	testLock.Unlock()
+	unlock, err = s.ctx.Lock()
+	c.Check(err, ErrorMatches, `mount namespace of snap "foo" is not locked but --from-snap-confine was used`)
+	c.Check(unlock, IsNil)
+	c.Assert(testLock.TryLock(), IsNil)
+
+	// When freezing fails the lock acquired internally is not leaked.
+	freezingError = errTesting
+	s.ctx.SetFromSnapConfine(false)
+	c.Check(s.ctx.FromSnapConfine(), Equals, false)
+	testLock.Unlock()
+	unlock, err = s.ctx.Lock()
+	c.Check(err, Equals, errTesting)
+	c.Check(unlock, IsNil)
+	c.Check(testLock.TryLock(), IsNil)
 }
 
 func (s *commonSuite) TestLoadDesiredProfile(c *C) {
