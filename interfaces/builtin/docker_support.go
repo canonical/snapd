@@ -603,16 +603,10 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	spec.SetSuppressHomeIx()
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
-		// note we don't consider classic vs core here because if we're privileged
-		// then we are unconfined and don't need to worry about apparmor overlayfs
-		// bugs
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
-	} else {
-		if release.OnClassic {
-			spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
-		} else {
-			spec.AddSnippet(dockerSupportConnectedPlugAppArmor + dockerSupportConnectedPlugAppArmorCore)
-		}
+	}
+	if !release.OnClassic {
+		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)
 	}
 	spec.UsesPtraceTrace()
 	return nil
