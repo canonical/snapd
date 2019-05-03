@@ -43,7 +43,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
@@ -297,6 +296,8 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	snapstateTryPath = nil
 	snapstateUpdate = nil
 	snapstateUpdateMany = nil
+
+	devicestateRemodel = nil
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
@@ -320,6 +321,38 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	snapstateUpdateMany = snapstate.UpdateMany
 }
 
+func makeMockModelHdrs() map[string]interface{} {
+	return map[string]interface{}{
+		"type":         "model",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"brand-id":     "can0nical",
+		"model":        "pc",
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+}
+
+func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
+	// realistic model setup
+	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, makeMockModelHdrs(), nil, "")
+	c.Assert(err, check.IsNil)
+	model := a.(*asserts.Model)
+
+	snapstate.DeviceCtx = devicestate.DeviceCtx
+
+	err = assertstate.Add(st, model)
+	c.Assert(err, check.IsNil)
+
+	devicestate.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "pc",
+		Serial: "serialserial",
+	})
+}
+
 func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	if s.d != nil {
 		panic("called daemon() twice")
@@ -335,32 +368,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
-	// realistic model setup
-	modelHdrs := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "can0nical",
-		"series":       "16",
-		"brand-id":     "can0nical",
-		"model":        "pc",
-		"architecture": "amd64",
-		"gadget":       "gadget",
-		"kernel":       "kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, modelHdrs, nil, "")
-	c.Assert(err, check.IsNil)
-	model := a.(*asserts.Model)
-
-	snapstate.Model = devicestate.Model
-
-	err = assertstate.Add(st, model)
-	c.Assert(err, check.IsNil)
-
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "can0nical",
-		Model:  "pc",
-		Serial: "serialserial",
-	})
+	s.mockModel(c, st)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -554,6 +562,14 @@ type apiSuite struct {
 }
 
 var _ = check.Suite(&apiSuite{})
+
+func (s *apiSuite) TestUsersOnlyRoot(c *check.C) {
+	for _, cmd := range api {
+		if strings.Contains(cmd.Path, "user") {
+			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
+		}
+	}
+}
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	d := s.daemon(c)
@@ -1907,6 +1923,33 @@ func (s *apiSuite) TestFindCommonID(c *check.C) {
 	c.Check(snaps[0]["common-ids"], check.DeepEquals, []interface{}{"org.foo"})
 }
 
+func (s *apiSuite) TestFindByCommonID(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName: "store",
+		},
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
+		CommonIDs: []string{"org.foo"},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?common-id=org.foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{CommonID: "org.foo"})
+}
+
 func (s *apiSuite) TestFindOne(c *check.C) {
 	s.daemon(c)
 
@@ -1966,14 +2009,37 @@ func (s *apiSuite) TestFindOneNotFound(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 404)
 }
 
-func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/find?select=refresh&q=foo", nil)
-	c.Assert(err, check.IsNil)
+func (s *apiSuite) TestFindRefreshNotOther(c *check.C) {
+	for _, other := range []string{"name", "q", "common-id"} {
+		req, err := http.NewRequest("GET", "/v2/find?select=refresh&"+other+"=foo*", nil)
+		c.Assert(err, check.IsNil)
 
-	rsp := searchStore(findCmd, req, nil).(*resp)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
+		rsp := searchStore(findCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot use '"+other+"' with 'select=refresh'")
+	}
+}
+
+func (s *apiSuite) TestFindNotTogether(c *check.C) {
+	queries := map[string]string{"q": "foo", "name": "foo*", "common-id": "foo"}
+	for ki, vi := range queries {
+		for kj, vj := range queries {
+			if ki == kj {
+				continue
+			}
+
+			req, err := http.NewRequest("GET", fmt.Sprintf("/v2/find?%s=%s&%s=%s", ki, vi, kj, vj), nil)
+			c.Assert(err, check.IsNil)
+
+			rsp := searchStore(findCmd, req, nil).(*resp)
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Status, check.Equals, 400)
+			exp1 := "cannot use '" + ki + "' and '" + kj + "' together"
+			exp2 := "cannot use '" + kj + "' and '" + ki + "' together"
+			c.Check(rsp.Result.(*errorResult).Message, check.Matches, exp1+"|"+exp2)
+		}
+	}
 }
 
 func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
@@ -2345,7 +2411,7 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	c.Check(soon, check.Equals, 1)
 }
 
-func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
+func (s *apiSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
@@ -2354,6 +2420,21 @@ func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
 	s.vars = map[string]string{"name": "ubuntu-core"}
 
 	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+}
+
+func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+
+	buf := strings.NewReader(`{"action": "install","snaps":["ubuntu-core"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
@@ -4966,14 +5047,6 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestGetAsserts(c *check.C) {
-	s.daemon(c)
-	resp := assertsCmd.GET(assertsCmd, nil, nil).(*resp)
-	c.Check(resp.Status, check.Equals, 200)
-	c.Check(resp.Type, check.Equals, ResponseTypeSync)
-	c.Check(resp.Result, check.DeepEquals, map[string][]string{"types": asserts.TypeNames()})
-}
-
 func assertAdd(st *state.State, a asserts.Assertion) {
 	st.Lock()
 	defer st.Unlock()
@@ -4981,195 +5054,6 @@ func assertAdd(st *state.State, a asserts.Assertion) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func (s *apiSuite) TestAssertOK(c *check.C) {
-	// Setup
-	d := s.daemon(c)
-	st := d.overlord.State()
-	// add store key
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
-
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	buf := bytes.NewBuffer(asserts.Encode(acct))
-	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
-	c.Assert(err, check.IsNil)
-	rsp := doAssert(assertsCmd, req, nil).(*resp)
-	// Verify (external)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, 200)
-	// Verify (internal)
-	st.Lock()
-	defer st.Unlock()
-	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
-		"account-id": acct.AccountID(),
-	})
-	c.Check(err, check.IsNil)
-}
-
-func (s *apiSuite) TestAssertStreamOK(c *check.C) {
-	// Setup
-	d := s.daemon(c)
-	st := d.overlord.State()
-
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	buf := &bytes.Buffer{}
-	enc := asserts.NewEncoder(buf)
-	err := enc.Encode(acct)
-	c.Assert(err, check.IsNil)
-	err = enc.Encode(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, check.IsNil)
-
-	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
-	c.Assert(err, check.IsNil)
-	rsp := doAssert(assertsCmd, req, nil).(*resp)
-	// Verify (external)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, 200)
-	// Verify (internal)
-	st.Lock()
-	defer st.Unlock()
-	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
-		"account-id": acct.AccountID(),
-	})
-	c.Check(err, check.IsNil)
-}
-
-func (s *apiSuite) TestAssertInvalid(c *check.C) {
-	// Setup
-	buf := bytes.NewBufferString("blargh")
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	// Execute
-	assertsCmd.POST(assertsCmd, req, nil).ServeHTTP(rec, req)
-	// Verify (external)
-	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rec.Body.String(), testutil.Contains,
-		"cannot decode request body into assertions")
-}
-
-func (s *apiSuite) TestAssertError(c *check.C) {
-	s.daemon(c)
-	// Setup
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	buf := bytes.NewBuffer(asserts.Encode(acct))
-	req, err := http.NewRequest("POST", "/v2/assertions", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	// Execute
-	assertsCmd.POST(assertsCmd, req, nil).ServeHTTP(rec, req)
-	// Verify (external)
-	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rec.Body.String(), testutil.Contains, "assert failed")
-}
-
-func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
-	// Setup
-	d := s.daemon(c)
-	// add store key
-	st := d.overlord.State()
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
-		"account-id": "developer1-id",
-	}, "")
-	assertAdd(st, acct)
-
-	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account", nil)
-	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"assertType": "account"}
-	rec := httptest.NewRecorder()
-	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
-	// Verify
-	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "4")
-	dec := asserts.NewDecoder(rec.Body)
-	a1, err := dec.Decode()
-	c.Assert(err, check.IsNil)
-	c.Check(a1.Type(), check.Equals, asserts.AccountType)
-
-	a2, err := dec.Decode()
-	c.Assert(err, check.IsNil)
-
-	a3, err := dec.Decode()
-	c.Assert(err, check.IsNil)
-
-	a4, err := dec.Decode()
-	c.Assert(err, check.IsNil)
-
-	_, err = dec.Decode()
-	c.Assert(err, check.Equals, io.EOF)
-
-	ids := []string{a1.(*asserts.Account).AccountID(), a2.(*asserts.Account).AccountID(), a3.(*asserts.Account).AccountID(), a4.(*asserts.Account).AccountID()}
-	sort.Strings(ids)
-	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1-id", "generic"})
-}
-
-func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
-	// Setup
-	d := s.daemon(c)
-	// add store key
-	st := d.overlord.State()
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	assertAdd(st, acct)
-
-	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account?username=developer1", nil)
-	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"assertType": "account"}
-	rec := httptest.NewRecorder()
-	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
-	// Verify
-	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
-	dec := asserts.NewDecoder(rec.Body)
-	a1, err := dec.Decode()
-	c.Assert(err, check.IsNil)
-	c.Check(a1.Type(), check.Equals, asserts.AccountType)
-	c.Check(a1.(*asserts.Account).Username(), check.Equals, "developer1")
-	c.Check(a1.(*asserts.Account).AccountID(), check.Equals, acct.AccountID())
-	_, err = dec.Decode()
-	c.Check(err, check.Equals, io.EOF)
-}
-
-func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
-	// Setup
-	d := s.daemon(c)
-	// add store key
-	st := d.overlord.State()
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	assertAdd(st, acct)
-
-	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account?username=xyzzyx", nil)
-	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"assertType": "account"}
-	rec := httptest.NewRecorder()
-	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
-	// Verify
-	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "0")
-	dec := asserts.NewDecoder(rec.Body)
-	_, err = dec.Decode()
-	c.Check(err, check.Equals, io.EOF)
-}
-
-func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
-	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/foo", nil)
-	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"assertType": "foo"}
-	rec := httptest.NewRecorder()
-	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
-	// Verify
-	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
 }
 
 func setupChanges(st *state.State) []string {
@@ -5709,9 +5593,6 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
 }
@@ -5719,7 +5600,6 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 func (s *postCreateUserSuite) TearDownTest(c *check.C) {
 	s.apiBaseSuite.TearDownTest(c)
 
-	postCreateUserUcrednetGet = ucrednetGet
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
 }
@@ -5806,7 +5686,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
-	auth.SetDevice(st, nil)
+	devicestate.SetDevice(st, nil)
 	st.Unlock()
 
 	email := "foo@example.com"
@@ -5885,7 +5765,7 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	}
 	// create fake device
 	st.Lock()
-	err = auth.SetDevice(st, &auth.DeviceState{
+	err = devicestate.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",
@@ -6115,13 +5995,6 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 	defer restore()
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
-	defer func() {
-		postCreateUserUcrednetGet = ucrednetGet
-	}()
 
 	// do it!
 	buf := bytes.NewBufferString(`{"known":true}`)

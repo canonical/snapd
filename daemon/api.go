@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -81,6 +82,7 @@ var api = []*Command{
 	findCmd,
 	snapsCmd,
 	snapCmd,
+	snapFileCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -100,6 +102,8 @@ var api = []*Command{
 	debugCmd,
 	snapshotCmd,
 	connectionsCmd,
+	modelCmd,
+	cohortsCmd,
 }
 
 var (
@@ -182,20 +186,6 @@ var (
 		POST:     changeInterfaces,
 	}
 
-	// TODO: allow to post assertions for UserOK? they are verified anyway
-	assertsCmd = &Command{
-		Path:   "/v2/assertions",
-		UserOK: true,
-		GET:    getAssertTypeNames,
-		POST:   doAssert,
-	}
-
-	assertsFindManyCmd = &Command{
-		Path:   "/v2/assertions/{assertType}",
-		UserOK: true,
-		GET:    assertsFindMany,
-	}
-
 	stateChangeCmd = &Command{
 		Path:     "/v2/changes/{id}",
 		UserOK:   true,
@@ -211,8 +201,9 @@ var (
 	}
 
 	createUserCmd = &Command{
-		Path: "/v2/create-user",
-		POST: postCreateUser,
+		Path:     "/v2/create-user",
+		POST:     postCreateUser,
+		RootOnly: true,
 	}
 
 	buyCmd = &Command{
@@ -232,8 +223,9 @@ var (
 	}
 
 	usersCmd = &Command{
-		Path: "/v2/users",
-		GET:  getUsers,
+		Path:     "/v2/users",
+		GET:      getUsers,
+		RootOnly: true,
 	}
 
 	sectionsCmd = &Command{
@@ -629,29 +621,20 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	query := r.URL.Query()
 	q := query.Get("q")
+	commonID := query.Get("common-id")
 	section := query.Get("section")
 	name := query.Get("name")
 	scope := query.Get("scope")
 	private := false
 	prefix := false
 
-	if name != "" {
-		if q != "" {
-			return BadRequest("cannot use 'q' and 'name' together")
-		}
-
-		if name[len(name)-1] != '*' {
-			return findOne(c, r, user, name)
-		}
-
-		prefix = true
-		q = name[:len(name)-1]
-	}
-
 	if sel := query.Get("select"); sel != "" {
 		switch sel {
 		case "refresh":
-			if prefix {
+			if commonID != "" {
+				return BadRequest("cannot use 'common-id' with 'select=refresh'")
+			}
+			if name != "" {
 				return BadRequest("cannot use 'name' with 'select=refresh'")
 			}
 			if q != "" {
@@ -663,13 +646,34 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
+	if name != "" {
+		if q != "" {
+			return BadRequest("cannot use 'q' and 'name' together")
+		}
+		if commonID != "" {
+			return BadRequest("cannot use 'common-id' and 'name' together")
+		}
+
+		if name[len(name)-1] != '*' {
+			return findOne(c, r, user, name)
+		}
+
+		prefix = true
+		q = name[:len(name)-1]
+	}
+
+	if commonID != "" && q != "" {
+		return BadRequest("cannot use 'common-id' and 'q' together")
+	}
+
 	theStore := getStore(c)
 	found, err := theStore.Find(&store.Search{
-		Query:   q,
-		Section: section,
-		Private: private,
-		Prefix:  prefix,
-		Scope:   scope,
+		Query:    q,
+		Prefix:   prefix,
+		CommonID: commonID,
+		Section:  section,
+		Private:  private,
+		Scope:    scope,
 	}, user)
 	switch err {
 	case nil:
@@ -698,6 +702,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
 				Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+				Status: 400,
+			}, nil)
+		}
+		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
+			return SyncResponse(&resp{
+				Type:   ResponseTypeError,
+				Result: &errorResult{Message: e.Error(), Kind: errorKindDNSFailure},
 				Status: 400,
 			}, nil)
 		}
@@ -1381,6 +1392,9 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
+	if err := verifySnapInstructions(&inst); err != nil {
+		return BadRequest("%v", err)
+	}
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
@@ -1907,59 +1921,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
-	return SyncResponse(map[string][]string{
-		"types": asserts.TypeNames(),
-	}, nil)
-}
-
-func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	batch := assertstate.NewBatch()
-	_, err := batch.AddStream(r.Body)
-	if err != nil {
-		return BadRequest("cannot decode request body into assertions: %v", err)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-
-	if err := batch.Commit(state); err != nil {
-		return BadRequest("assert failed: %v", err)
-	}
-	// TODO: what more info do we want to return on success?
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: 200,
-	}
-}
-
-func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
-	assertTypeName := muxVars(r)["assertType"]
-	assertType := asserts.Type(assertTypeName)
-	if assertType == nil {
-		return BadRequest("invalid assert type: %q", assertTypeName)
-	}
-	headers := map[string]string{}
-	q := r.URL.Query()
-	for k := range q {
-		headers[k] = q.Get(k)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	db := assertstate.DB(state)
-	state.Unlock()
-
-	assertions, err := db.FindMany(assertType, headers)
-	if asserts.IsNotFound(err) {
-		return AssertResponse(nil, true)
-	} else if err != nil {
-		return InternalError("searching assertions failed: %v", err)
-	}
-	return AssertResponse(assertions, true)
-}
-
 type changeInfo struct {
 	ID      string      `json:"id"`
 	Kind    string      `json:"kind"`
@@ -2151,10 +2112,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGet = ucrednetGet
-	runSnapctlUcrednetGet     = ucrednetGet
-	ctlcmdRun                 = ctlcmd.Run
-	osutilAddUser             = osutil.AddUser
+	runSnapctlUcrednetGet = ucrednetGet
+	ctlcmdRun             = ctlcmd.Run
+	osutilAddUser         = osutil.AddUser
 )
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
@@ -2334,14 +2294,6 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
-	}
-
 	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
@@ -2451,6 +2403,7 @@ func convertBuyError(err error) Response {
 		return InternalError("%v", err)
 	}
 }
+
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts client.BuyOptions
 
@@ -2528,14 +2481,6 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot get users as non-root")
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)

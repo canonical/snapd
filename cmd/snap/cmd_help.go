@@ -198,7 +198,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
-		Commands:    []string{"connections", "interfaces", "interface", "connect", "disconnect"},
+		Commands:    []string{"connections", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
@@ -206,7 +206,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay", "ack", "known"},
+		Commands:    []string{"version", "warnings", "okay", "ack", "known", "create-cohort"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),

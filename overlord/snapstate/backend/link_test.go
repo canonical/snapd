@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
@@ -44,6 +45,8 @@ type linkSuite struct {
 	be backend.Backend
 
 	systemctlRestorer func()
+
+	perfTimings *timings.Timings
 }
 
 var _ = Suite(&linkSuite{})
@@ -51,6 +54,7 @@ var _ = Suite(&linkSuite{})
 func (s *linkSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
+	s.perfTimings = timings.New(nil)
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -76,7 +80,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.be.LinkSnap(info, nil)
+	err := s.be.LinkSnap(info, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -106,7 +110,7 @@ version: 1.0
 
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.be.LinkSnap(info, nil)
+	err := s.be.LinkSnap(info, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	mountDir := info.MountDir()
@@ -148,10 +152,10 @@ apps:
 
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.be.LinkSnap(info, nil)
+	err := s.be.LinkSnap(info, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	err = s.be.LinkSnap(info, nil)
+	err = s.be.LinkSnap(info, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -190,7 +194,7 @@ apps:
 
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := s.be.LinkSnap(info, nil)
+	err := s.be.LinkSnap(info, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	err = s.be.UnlinkSnap(info, progress.Null)
@@ -218,7 +222,7 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	info := &snap.Info{
 		SuggestedName: "foo",
 	}
-	err := s.be.LinkSnap(info, nil)
+	err := s.be.LinkSnap(info, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
@@ -275,9 +279,11 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0), IsNil)
 	defer os.Chmod(dir, 0755)
 
-	err := s.be.LinkSnap(s.info, nil)
+	err := s.be.LinkSnap(s.info, nil, s.perfTimings)
 	c.Assert(err, NotNil)
-	c.Assert(err, FitsTypeOf, &os.PathError{})
+	_, isPathError := err.(*os.PathError)
+	_, isLinkError := err.(*os.LinkError)
+	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%T", err))
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
 		l, err := filepath.Glob(filepath.Join(d, "*"))
@@ -300,13 +306,17 @@ func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
 	s.testLinkCleanupDirOnFail(c, dirs.SnapServicesDir)
 }
 
+func (s *linkCleanupSuite) TestLinkCleanupOnMountDirFail(c *C) {
+	s.testLinkCleanupDirOnFail(c, filepath.Dir(s.info.MountDir()))
+}
+
 func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
 		return nil, errors.New("ouchie")
 	})
 	defer r()
 
-	err := s.be.LinkSnap(s.info, nil)
+	err := s.be.LinkSnap(s.info, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
@@ -314,6 +324,24 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
 	}
+}
+
+func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C) {
+	// sanity check
+	c.Assert(s.info.DataDir(), testutil.FileAbsent)
+
+	// the mountdir symlink is currently the last thing in
+	// LinkSnap that can make it fail
+	d := filepath.Dir(s.info.MountDir())
+	c.Assert(os.Chmod(d, 0), IsNil)
+	defer os.Chmod(d, 0755)
+
+	err := s.be.LinkSnap(s.info, nil, s.perfTimings)
+	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
+
+	c.Check(s.info.DataDir(), testutil.FileAbsent)
+	c.Check(filepath.Join(s.info.DataDir(), "..", "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(s.info.MountDir(), "..", "current"), testutil.FileAbsent)
 }
 
 func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
@@ -331,7 +359,7 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 		})
 		defer restore()
 
-		err := s.be.LinkSnap(s.info, nil)
+		err := s.be.LinkSnap(s.info, nil, s.perfTimings)
 		c.Assert(err, IsNil)
 		if onClassic {
 			c.Assert(updateFontconfigCaches, Equals, 1)
@@ -372,14 +400,14 @@ type: os
 	newCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v7"), "")
 
 	// provide our own mock, osutil.CommandFromCore expects an ELF binary
-	restore = backend.MockCommandFromCore(func(mountDir, name string, args ...string) (*exec.Cmd, error) {
-		cmd := filepath.Join(mountDir, "core", "current", name)
+	restore = backend.MockCommandFromSystemSnap(func(name string, args ...string) (*exec.Cmd, error) {
+		cmd := filepath.Join(dirs.SnapMountDir, "core", "current", name)
 		c.Logf("command from core: %v", cmd)
 		return exec.Command(cmd, args...), nil
 	})
 	defer restore()
 
-	err = s.be.LinkSnap(infoNew, nil)
+	err = s.be.LinkSnap(infoNew, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(oldCmdV6.Calls(), HasLen, 0)

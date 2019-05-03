@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
 )
@@ -78,6 +77,8 @@ var (
 	LintDesc = lintDesc
 
 	FixupArg = fixupArg
+
+	InterfacesDeprecationNotice = interfacesDeprecationNotice
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -112,7 +113,7 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 	}
 }
 
-func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+func MockStoreNew(f func(*store.Config, store.DeviceAndAuthContext) *store.Store) (restore func()) {
 	storeNewOrig := storeNew
 	storeNew = f
 	return func() {
@@ -213,7 +214,10 @@ func Wait(cli *client.Client, id string) (*client.Change, error) {
 }
 
 func ColorMixin(cmode, umode string) colorMixin {
-	return colorMixin{Color: cmode, Unicode: umode}
+	return colorMixin{
+		Color:        cmode,
+		unicodeMixin: unicodeMixin{Unicode: umode},
+	}
 }
 
 func CmdAdviseSnap() *cmdAdviseSnap {

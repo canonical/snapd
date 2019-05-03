@@ -28,10 +28,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -67,7 +67,7 @@ func (s *setupSuite) SetUpTest(c *C) {
 func (s *setupSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-	partition.ForceBootloader(nil)
+	bootloader.Force(nil)
 	s.umount.Restore()
 	s.systemctlRestorer()
 }
@@ -144,8 +144,8 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 }
 
 func (s *setupSuite) TestSetupDoUndoKernelUboot(c *C) {
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -170,7 +170,7 @@ type: kernel
 	snapType, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
-	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
+	l, _ := filepath.Glob(filepath.Join(loader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -179,7 +179,7 @@ type: kernel
 	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
 
-	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
+	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
 }
 
@@ -189,8 +189,8 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -228,7 +228,7 @@ type: kernel
 
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
 
-	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
+	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
 }
 
@@ -238,8 +238,8 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(bootloader)
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -280,7 +280,7 @@ type: kernel
 
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
 
-	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
+	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
 }
 

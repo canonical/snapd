@@ -101,12 +101,14 @@ var (
 	CompletionHelper string
 	CompletersDir    string
 
-	SystemFontsDir           string
-	SystemLocalFontsDir      string
-	SystemFontconfigCacheDir string
+	SystemFontsDir            string
+	SystemLocalFontsDir       string
+	SystemFontconfigCacheDirs []string
 
 	FreezerCgroupDir string
-	SnapshotsDir     string
+	PidsCgroupDir    string
+
+	SnapshotsDir string
 
 	ErrtrackerDbDir string
 	SysfsDir        string
@@ -296,7 +298,7 @@ func SetRootDir(rootdir string) {
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
 	// The cache path is true for Ubuntu, Debian, openSUSE, Arch
-	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
+	SystemFontconfigCacheDirs = []string{filepath.Join(rootdir, "/var/cache/fontconfig")}
 	if release.DistroLike("fedora") && !release.DistroLike("amzn") {
 		// Applies to Fedora and CentOS, Amazon Linux 2 is behind with
 		// updates to fontconfig and uses /var/cache/fontconfig instead,
@@ -304,10 +306,16 @@ func SetRootDir(rootdir string) {
 		// https://fedoraproject.org/wiki/Changes/FontconfigCacheDirChange
 		// https://bugzilla.redhat.com/show_bug.cgi?id=1416380
 		// https://bugzilla.redhat.com/show_bug.cgi?id=1377367
-		SystemFontconfigCacheDir = filepath.Join(rootdir, "/usr/lib/fontconfig/cache")
+		//
+		// However, snaps may still use older libfontconfig, which fails
+		// to parse the new config and defaults to
+		// /var/cache/fontconfig. In this case we need to make both
+		// locations available
+		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
+	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")

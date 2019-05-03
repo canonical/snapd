@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -176,7 +176,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -635,19 +634,25 @@ func preprocess(content []byte) (unrestricted, complain bool) {
 	return unrestricted, complain
 }
 
+// With golang-seccomp <= 0.9.0, seccomp.ActLog is not available so guess
+// at the ActLog value by adding one to ActAllow and then verify that the
+// string representation is what we expect for ActLog. The value and string is
+// defined in https://github.com/seccomp/libseccomp-golang/pull/29.
+//
+// Ultimately, the fix for this workaround is to be able to use the GetApi()
+// function created in the PR above. It'll tell us if the kernel, libseccomp,
+// and libseccomp-golang all support ActLog, but GetApi() is also not available
+// in golang-seccomp <= 0.9.0.
+const actLog seccomp.ScmpAction = seccomp.ActAllow + 1
+
+func actLogSupported() bool {
+	return actLog.String() == "Action: Log system call"
+}
+
 func complainAction() seccomp.ScmpAction {
 	// XXX: Work around some distributions not having a new enough
-	// libseccomp-golang that declares ActLog. Instead, we'll guess at its
-	// value by adding one to ActAllow and then verify that the string
-	// representation is what we expect for ActLog. The value and string is
-	// defined in https://github.com/seccomp/libseccomp-golang/pull/29.
-	//
-	// Ultimately, the fix for this workaround is to be able to use the
-	// GetApi() function created in the PR above. It'll tell us if the
-	// kernel, libseccomp, and libseccomp-golang all support ActLog.
-	var actLog seccomp.ScmpAction = seccomp.ActAllow + 1
-
-	if actLog.String() == "Action: Log system call" {
+	// libseccomp-golang that declares ActLog.
+	if actLogSupported() {
 		return actLog
 	}
 
@@ -725,13 +730,9 @@ func compile(content []byte, out string) error {
 	return fout.Commit()
 }
 
-// Be very strict so usernames and groups specified in policy are widely
-// compatible. From NAME_REGEX in /etc/adduser.conf
-var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
-
 // findUid returns the identifier of the given UNIX user name.
 func findUid(username string) (uint64, error) {
-	if !userGroupNamePattern.MatchString(username) {
+	if !osutil.IsValidUsername(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
 	return osutil.FindUid(username)
@@ -739,7 +740,7 @@ func findUid(username string) (uint64, error) {
 
 // findGid returns the identifier of the given UNIX group name.
 func findGid(group string) (uint64, error) {
-	if !userGroupNamePattern.MatchString(group) {
+	if !osutil.IsValidUsername(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
 	return osutil.FindGid(group)
@@ -774,6 +775,8 @@ func main() {
 		err = compile(content, os.Args[3])
 	case "library-version":
 		err = showSeccompLibraryVersion()
+	case "version-info":
+		err = showVersionInfo()
 	default:
 		err = fmt.Errorf("unsupported argument %q", cmd)
 	}

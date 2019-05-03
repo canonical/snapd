@@ -571,7 +571,7 @@ type FatalError struct {
 func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
-		if _, err := changePerform(change, as); err != nil {
+		if _, err := change.Perform(as); err != nil {
 			// Drat, we failed! Let's undo everything according to our own undo
 			// plan, by following it in reverse order.
 
@@ -594,7 +594,7 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 				if recoveryUndoChange.Entry.OptBool("rbind") {
 					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
-				if _, err2 := changePerform(recoveryUndoChange, as); err2 != nil {
+				if _, err2 := recoveryUndoChange.Perform(as); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
 					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
@@ -654,7 +654,7 @@ func createWritableMimic(dir, neededBy string, as *Assumptions) ([]*Change, erro
 	return changes, nil
 }
 
-func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
+func applyProfile(up MountProfileUpdateContext, currentBefore, desired *osutil.MountProfile, as *Assumptions) (*osutil.MountProfile, error) {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
@@ -665,7 +665,7 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change, as)
+		synthesised, err := change.Perform(as)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -681,7 +681,7 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 			if origin == "layout" || origin == "overname" {
 				return nil, err
 			} else if err != ErrIgnoredMissingMount {
-				logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+				logger.Noticef("cannot change mount namespace according to change %s: %s", change, err)
 			}
 			continue
 		}

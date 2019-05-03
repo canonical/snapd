@@ -33,16 +33,16 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 var errNothingToDo = errors.New("nothing to do")
 
-func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags, tm timings.Measurer) (*state.TaskSet, *snap.Info, error) {
 	if sn.Classic {
 		flags.Classic = true
 	}
@@ -56,7 +56,11 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 	if sn.Unasserted {
 		sideInfo.RealName = sn.Name
 	} else {
-		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+		var si *snap.SideInfo
+		var err error
+		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
+			si, err = snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+		})
 		if asserts.IsNotFound(err) {
 			return nil, nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
@@ -79,7 +83,7 @@ func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
+func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -93,7 +97,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
 	// ack all initial assertions
-	model, err := importAssertionsFromSeed(st)
+	var model *asserts.Model
+	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
+		model, err = importAssertionsFromSeed(st)
+	})
 	if err == errNothingToDo {
 		return trivialSeeding(st, markSeeded), nil
 	}
@@ -112,15 +119,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
-	reqSnaps := model.RequiredSnaps()
-	// +4 for (snapd, base, gadget, kernel)
-	required := make(map[string]bool, len(reqSnaps)+4)
-	if len(reqSnaps) > 0 {
-		for _, snap := range reqSnaps {
-			required[snap] = true
-		}
-	}
-
+	required := getAllRequiredSnapsForModel(model)
 	seeding := make(map[string]*snap.SeedSnap, len(seed.Snaps))
 	for _, sn := range seed.Snaps {
 		seeding[sn.Name] = sn
@@ -140,7 +139,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if seedSnap == nil {
 			return nil, fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
-		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
+		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true}, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +231,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			flags.Required = true
 		}
 
-		ts, info, err := installSeedSnap(st, sn, flags)
+		ts, info, err := installSeedSnap(st, sn, flags, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -281,7 +280,7 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 }
 
 func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
-	device, err := auth.Device(st)
+	device, err := Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -347,9 +346,7 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	}
 
 	// set device,model from the model assertion
-	device.Brand = modelAssertion.BrandID()
-	device.Model = modelAssertion.Model()
-	if err := auth.SetDevice(st, device); err != nil {
+	if err := setDeviceFromModelAssertion(st, device, modelAssertion); err != nil {
 		return nil, err
 	}
 
