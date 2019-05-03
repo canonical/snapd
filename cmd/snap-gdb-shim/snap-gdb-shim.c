@@ -29,7 +29,10 @@ int main(int argc, char **argv)
 			printf("-%s-\n", argv[i]);
 		}
 	}
-	// signal gdb to stop here
+	// signal gdb to stop here, after that snap run will `gdb -p` and
+	// sent SIGCONT
+	raise(SIGSTOP);
+
 	printf("\n\n");
 	printf("Welcome to `snap run --gdb`.\n");
 	printf("You are right before your application is execed():\n");

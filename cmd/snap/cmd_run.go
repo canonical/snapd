@@ -715,15 +715,24 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	env = append(env, "SNAP_CONFINE_RUN_UNDER_GDB=1")
 
-	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
-	cmd = append(cmd, origCmd...)
-
-	gcmd := exec.Command(cmd[0], cmd[1:]...)
+	gcmd := exec.Command(origCmd[0], origCmd[1:]...)
 	gcmd.Stdin = os.Stdin
 	gcmd.Stdout = os.Stdout
 	gcmd.Stderr = os.Stderr
 	gcmd.Env = env
-	return gcmd.Run()
+	if err := gcmd.Start(); err != nil {
+		return err
+	}
+	var status syscall.WaitStatus
+	_, err := syscall.Wait4(gcmd.Process.Pid, &status, syscall.WSTOPPED, nil)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("sudo", "-E", "gdb", "-ex=continue", "-ex=signal SIGCONT", "-p", strconv.Itoa(gcmd.Process.Pid))
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
