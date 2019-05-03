@@ -458,10 +458,10 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error) {
+func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceContext) (*snap.Info, error) {
 	st.Lock()
 	defer st.Unlock()
-	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
+	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -482,24 +482,38 @@ func autoRefreshRateLimited(st *state.State) (rate int64) {
 	return val
 }
 
-func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	perfTimings := timings.NewForTask(t)
+func downloadSnapParams(st *state.State, t *state.Task) (*SnapSetup, StoreService, *auth.UserState, error) {
 	snapsup, err := TaskSnapSetup(t)
-	st.Unlock()
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
-	st.Lock()
-	theStore := Store(st)
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	sto := Store(st, deviceCtx)
+
+	user, err := userFromUserID(st, snapsup.UserID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return snapsup, sto, user, nil
+}
+
+func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
 	var rate int64
-	if snapsup.IsAutoRefresh {
+
+	st.Lock()
+	perfTimings := timings.NewForTask(t)
+	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	if snapsup != nil && snapsup.IsAutoRefresh {
 		// NOTE rate is never negative
 		rate = autoRefreshRateLimited(st)
 	}
-	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -516,8 +530,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
-		// yet.
-		storeInfo, err = installInfoUnlocked(st, snapsup)
+		// yet. Therefore do not worry about DeviceContext.
+		storeInfo, err = installInfoUnlocked(st, snapsup, nil)
 		if err != nil {
 			return err
 		}

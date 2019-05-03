@@ -676,7 +676,10 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 var repeatRequestSerial string // for tests
 
 func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
-	sto := snapstate.Store(st)
+	// TODO: right now any store should be good enough here but
+	// that might change, also this is brittle, best would be to
+	// receive a stream with any relevant assertions
+	sto := snapstate.Store(st, nil)
 	db := assertstate.DB(st)
 	for {
 		_, err := db.FindPredefined(asserts.AccountKeyType, map[string]string{
