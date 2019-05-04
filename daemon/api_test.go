@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -344,8 +345,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 
 	snapstate.DeviceCtx = devicestate.DeviceCtx
 
-	err = assertstate.Add(st, model)
-	c.Assert(err, check.IsNil)
+	assertstatetest.AddMany(st, model)
 
 	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
@@ -506,18 +506,10 @@ version: %s
 		return snapInfo
 	}
 
-	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
-	if _, ok := err.(*asserts.RevisionError); !ok {
-		c.Assert(err, check.IsNil)
-	}
-
 	devAcct := assertstest.NewAccount(s.storeSigning, developer, map[string]interface{}{
 		"account-id": developer + "-id",
 	}, "")
-	err = assertstate.Add(st, devAcct)
-	if _, ok := err.(*asserts.RevisionError); !ok {
-		c.Assert(err, check.IsNil)
-	}
+
 	snapInfo.Publisher = snap.StoreAccount{
 		ID:          devAcct.AccountID(),
 		Username:    devAcct.Username(),
@@ -533,10 +525,6 @@ version: %s
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	err = assertstate.Add(st, snapDecl)
-	if _, ok := err.(*asserts.RevisionError); !ok {
-		c.Assert(err, check.IsNil)
-	}
 
 	content, err := ioutil.ReadFile(snapInfo.MountFile())
 	c.Assert(err, check.IsNil)
@@ -552,8 +540,8 @@ version: %s
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	err = assertstate.Add(st, snapRev)
-	c.Assert(err, check.IsNil)
+
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""), devAcct, snapDecl, snapRev)
 
 	return snapInfo
 }
@@ -2727,10 +2715,8 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 	// add the assertions first
 	st := d.overlord.State()
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 
 	dev1Acct := assertstest.NewAccount(s.storeSigning, "devel1", nil, "")
-	assertAdd(st, dev1Acct)
 
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
@@ -2740,7 +2726,6 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	assertAdd(st, snapDecl)
 
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": "YK0GWATaZf09g_fvspYPqm_qtaiqf-KjaNj5uMEQCjQpuXWPjqQbeBINL5H_A0Lo",
@@ -2751,7 +2736,12 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	assertAdd(st, snapRev)
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+		assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""), dev1Acct, snapDecl, snapRev)
+	}()
 
 	body := "" +
 		"----hello--\r\n" +
@@ -5048,15 +5038,6 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	})
 }
 
-func assertAdd(st *state.State, a asserts.Assertion) {
-	st.Lock()
-	defer st.Unlock()
-	err := assertstate.Add(st, a)
-	if err != nil {
-		panic(err)
-	}
-}
-
 func setupChanges(st *state.State) []string {
 	chg1 := st.NewChange("install", "install...")
 	chg1.Set("snap-names", []string{"funky-snap-name"})
@@ -5708,12 +5689,11 @@ func (s *postCreateUserSuite) setupSigner(accountID string, signerPrivKey assert
 		"account-id":   accountID,
 		"verification": "verified",
 	}, "")
-	s.storeSigning.Add(signerAcct)
-	assertAdd(st, signerAcct)
 
 	signerAccKey := assertstest.NewAccountKey(s.storeSigning, signerAcct, nil, signerPrivKey.PublicKey(), "")
-	s.storeSigning.Add(signerAccKey)
-	assertAdd(st, signerAccKey)
+
+	assertstest.AddMany(s.storeSigning, signerAcct, signerAccKey)
+	assertstatetest.AddMany(st, signerAcct, signerAccKey)
 
 	return signerSigning
 }
@@ -5726,8 +5706,10 @@ var (
 
 func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
 	st := s.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 
 	brandSigning := s.setupSigner("my-brand", brandPrivKey)
 	partnerSigning := s.setupSigner("partner", partnerPrivKey)
@@ -5755,23 +5737,21 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	model = model.(*asserts.Model)
 
 	// now add model related stuff to the system
-	assertAdd(st, model)
+	assertstatetest.AddMany(st, model)
 
 	for _, suMap := range systemUsers {
 		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, suMap, nil, "")
 		c.Assert(err, check.IsNil)
 		su = su.(*asserts.SystemUser)
 		// now add system-user assertion to the system
-		assertAdd(st, su)
+		assertstatetest.AddMany(st, su)
 	}
 	// create fake device
-	st.Lock()
 	err = devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",
 	})
-	st.Unlock()
 	c.Assert(err, check.IsNil)
 }
 

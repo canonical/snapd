@@ -479,3 +479,20 @@ func FakeAssertionWithBody(body []byte, headerLayers ...map[string]interface{}) 
 func FakeAssertion(headerLayers ...map[string]interface{}) asserts.Assertion {
 	return FakeAssertionWithBody(nil, headerLayers...)
 }
+
+type accuDB interface {
+	Add(asserts.Assertion) error
+}
+
+// AddMany conveniently adds the given assertions to the db.
+// It is idempotent but otherwise panics on error.
+func AddMany(db accuDB, assertions ...asserts.Assertion) {
+	for _, a := range assertions {
+		err := db.Add(a)
+		if _, ok := err.(*asserts.RevisionError); !ok {
+			if err != nil {
+				panic(fmt.Sprintf("cannot add test assertions: %v", err))
+			}
+		}
+	}
+}
