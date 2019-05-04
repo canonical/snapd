@@ -35,16 +35,15 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 		Brand: "canonical",
 		Model: "pc-model",
 	})
-	err := assertstate.Add(s.state, s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"revision":     "1",
-	}))
-	c.Assert(err, IsNil)
+	})
 	s.state.Unlock()
 
-	newModel := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -72,7 +71,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 }
 
 func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
-	model := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",

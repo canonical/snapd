@@ -496,3 +496,116 @@ func AddMany(db accuDB, assertions ...asserts.Assertion) {
 		}
 	}
 }
+
+// SigningAccounts manages a set of brand or user accounts,
+// with their keys that can sign models etc.
+type SigningAccounts struct {
+	store *StoreStack
+
+	signing map[string]*SigningDB
+
+	accts    map[string]*asserts.Account
+	acctKeys map[string]*asserts.AccountKey
+}
+
+// NewSigningAccounts creates a new SigningAccounts instance.
+func NewSigningAccounts(store *StoreStack) *SigningAccounts {
+	return &SigningAccounts{
+		store:    store,
+		signing:  make(map[string]*SigningDB),
+		accts:    make(map[string]*asserts.Account),
+		acctKeys: make(map[string]*asserts.AccountKey),
+	}
+}
+
+func (sa *SigningAccounts) Register(accountID string, brandPrivKey asserts.PrivateKey, extra map[string]interface{}) *SigningDB {
+	brandSigning := NewSigningDB(accountID, brandPrivKey)
+	sa.signing[accountID] = brandSigning
+
+	acctHeaders := map[string]interface{}{
+		"account-id": accountID,
+	}
+	for k, v := range extra {
+		acctHeaders[k] = v
+	}
+
+	brandAcct := NewAccount(sa.store, accountID, acctHeaders, "")
+	sa.accts[accountID] = brandAcct
+
+	brandPubKey, err := brandSigning.PublicKey("")
+	if err != nil {
+		panic(err)
+	}
+	brandAcctKey := NewAccountKey(sa.store, brandAcct, nil, brandPubKey, "")
+	sa.acctKeys[accountID] = brandAcctKey
+
+	return brandSigning
+}
+
+func (sa *SigningAccounts) Account(accountID string) *asserts.Account {
+	if acct := sa.accts[accountID]; acct != nil {
+		return acct
+	}
+	panic(fmt.Sprintf("unknown test account-id: %s", accountID))
+}
+
+func (sa *SigningAccounts) AccountKey(accountID string) *asserts.AccountKey {
+	if acctKey := sa.acctKeys[accountID]; acctKey != nil {
+		return acctKey
+	}
+	panic(fmt.Sprintf("unknown test account-id: %s", accountID))
+}
+
+func (sa *SigningAccounts) PublicKey(accountID string) asserts.PublicKey {
+	pubKey, err := sa.Signing(accountID).PublicKey("")
+	if err != nil {
+		panic(err)
+	}
+	return pubKey
+}
+
+func (sa *SigningAccounts) Signing(accountID string) *SigningDB {
+	if signer := sa.signing[accountID]; signer != nil {
+		return signer
+	}
+	panic(fmt.Sprintf("unknown test account-id: %s", accountID))
+}
+
+// Model creates a new model for accountID. accountID can also be the account-id of the underlying store stack.
+func (sa *SigningAccounts) Model(accountID, model string, extras ...map[string]interface{}) *asserts.Model {
+	headers := map[string]interface{}{
+		"series":    "16",
+		"brand-id":  accountID,
+		"model":     model,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+	for _, extra := range extras {
+		for k, v := range extra {
+			headers[k] = v
+		}
+	}
+
+	var signer SignerDB
+	if accountID == sa.store.RootSigning.AuthorityID {
+		signer = sa.store.RootSigning
+	} else {
+		signer = sa.Signing(accountID)
+	}
+
+	modelAs, err := signer.Sign(asserts.ModelType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+	return modelAs.(*asserts.Model)
+}
+
+// AccountsAndKeys returns the account and account-key for each given
+// accountID in that order.
+func (sa *SigningAccounts) AccountsAndKeys(accountIDs ...string) []asserts.Assertion {
+	res := make([]asserts.Assertion, 0, 2*len(accountIDs))
+	for _, accountID := range accountIDs {
+		res = append(res, sa.Account(accountID))
+		res = append(res, sa.AccountKey(accountID))
+	}
+	return res
+}
