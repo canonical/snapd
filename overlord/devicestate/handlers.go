@@ -258,56 +258,76 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 
 // A registrationContext handles the contextual information needed
 // for the initial registration or a re-registration.
-// DeviceManager itself is a registrationContext.
 type registrationContext interface {
-	device() (*auth.DeviceState, error)
+	Device() (*auth.DeviceState, error)
 
-	gadgetForSerialRequestConfig() (string, error)
-	serialRequestExtraHeaders() map[string]interface{}
-	serialRequestAncillaryAssertions() []asserts.Assertion
+	GadgetForSerialRequestConfig() string
+	SerialRequestExtraHeaders() map[string]interface{}
+	SerialRequestAncillaryAssertions() []asserts.Assertion
 
-	finishRegistration(serial *asserts.Serial) error
+	FinishRegistration(serial *asserts.Serial) error
+
+	ForRemodeling() bool
 }
 
-func (m *DeviceManager) gadgetForSerialRequestConfig() (string, error) {
-	model, err := m.Model()
-	if err != nil {
-		return "", err
-	}
-	return model.Gadget(), nil
+// initialRegistrationContext is a thin wrapper around DeviceManager
+// implementing registrationContext for initial regitration
+type initialRegistrationContext struct {
+	*DeviceManager
+
+	gadget string
 }
 
-func (m *DeviceManager) serialRequestExtraHeaders() map[string]interface{} {
+func (rc *initialRegistrationContext) ForRemodeling() bool {
+	return false
+}
+
+func (rc *initialRegistrationContext) Device() (*auth.DeviceState, error) {
+	return rc.DeviceManager.device()
+}
+
+func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
+	return rc.gadget
+}
+
+func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]interface{} {
 	return nil
 }
 
-func (m *DeviceManager) serialRequestAncillaryAssertions() []asserts.Assertion {
+func (rc *initialRegistrationContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
 	return nil
 }
 
-func (m *DeviceManager) finishRegistration(serial *asserts.Serial) error {
-	device, err := m.device()
+func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial) error {
+	device, err := rc.DeviceManager.device()
 	if err != nil {
 		return err
 	}
 
 	device.Serial = serial.Serial()
-	if err := m.setDevice(device); err != nil {
+	if err := rc.DeviceManager.setDevice(device); err != nil {
 		return err
 	}
-	m.markRegistered()
+	rc.DeviceManager.markRegistered()
 
 	// make sure we timely consider anything that was blocked on
 	// registration
-	m.state.EnsureBefore(0)
+	rc.DeviceManager.state.EnsureBefore(0)
 
 	return nil
 }
 
 // registrationCtx returns a registrationContext appropriate for the task and its change.
 func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, error) {
-	// for the initial registration the DeviceManager itself is good enough
-	return m, nil
+	model, err := m.Model()
+	if err != nil {
+		return nil, err
+	}
+
+	return &initialRegistrationContext{
+		DeviceManager: m,
+		gadget:        model.Gadget(),
+	}, nil
 }
 
 type serialSetup struct {
@@ -415,7 +435,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 		headers["serial"] = cfg.proposedSerial
 	}
 
-	for k, v := range regCtx.serialRequestExtraHeaders() {
+	for k, v := range regCtx.SerialRequestExtraHeaders() {
 		headers[k] = v
 	}
 
@@ -430,7 +450,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 		return "", fmt.Errorf("cannot encode serial-request: %v", err)
 	}
 
-	for _, ancillaryAs := range regCtx.serialRequestAncillaryAssertions() {
+	for _, ancillaryAs := range regCtx.SerialRequestAncillaryAssertions() {
 		if err := encoder.Encode(ancillaryAs); err != nil {
 			return "", fmt.Errorf("cannot encode ancillary assertion: %v", err)
 		}
@@ -588,10 +608,7 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 
 	cfg := serialRequestConfig{}
 
-	gadgetName, err := regCtx.gadgetForSerialRequestConfig()
-	if err != nil {
-		return nil, err
-	}
+	gadgetName := regCtx.GadgetForSerialRequestConfig()
 	// gadget is optional on classic
 	if gadgetName != "" {
 		var gadgetSt snapstate.SnapState
@@ -600,7 +617,7 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 		}
 
 		var svcURI string
-		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURI)
+		err := tr.GetMaybe(gadgetName, "device-service.url", &svcURI)
 		if err != nil {
 			return nil, err
 		}
@@ -657,7 +674,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	device, err := regCtx.device()
+	device, err := regCtx.Device()
 	if err != nil {
 		return err
 	}
@@ -683,7 +700,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	finish := func(serial *asserts.Serial) error {
-		if regCtx.finishRegistration(serial); err != nil {
+		if regCtx.FinishRegistration(serial); err != nil {
 			return err
 		}
 		t.SetStatus(state.DoneStatus)
