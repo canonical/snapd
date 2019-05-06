@@ -51,6 +51,13 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	s.mockModel(c, st)
 	st.Unlock()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+	defer func() { ensureStateSoon = func(st *state.State) {} }()
+
 	var devicestateRemodelGotModel *asserts.Model
 	devicestateRemodel = func(st *state.State, nm *asserts.Model) (*state.Change, error) {
 		devicestateRemodelGotModel = nm
@@ -83,4 +90,6 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	c.Assert(chg, check.DeepEquals, chg1)
 	c.Assert(chg.Kind(), check.Equals, "remodel")
 	c.Assert(chg.Err(), check.IsNil)
+
+	c.Assert(soon, check.Equals, 1)
 }
