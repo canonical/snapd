@@ -150,6 +150,7 @@ const (
 	// v2
 	snapActionPath  = "/v2/snaps/refresh"
 	infoPathPattern = "/v2/snaps/info/.*"
+	cohortsPath     = "/v2/cohorts"
 )
 
 // Build details path for a snap name.
@@ -7149,4 +7150,44 @@ func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "foo-2")
 	c.Assert(results[0].SnapID, Equals, "foo-2-id")
+}
+
+func (s *storeTestSuite) TestCreateCohort(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", cohortsPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		dec := json.NewDecoder(r.Body)
+		var req struct {
+			Snaps []string
+		}
+		err := dec.Decode(&req)
+		c.Assert(err, IsNil)
+		c.Check(dec.More(), Equals, false)
+
+		c.Check(req.Snaps, DeepEquals, []string{"foo", "bar"})
+
+		io.WriteString(w, `{
+    "cohort-keys": {
+        "potato": "U3VwZXIgc2VjcmV0IHN0dWZmIGVuY3J5cHRlZCBoZXJlLg=="
+    }
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	cohorts, err := sto.CreateCohorts(context.TODO(), []string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Assert(cohorts, DeepEquals, map[string]string{
+		"potato": "U3VwZXIgc2VjcmV0IHN0dWZmIGVuY3J5cHRlZCBoZXJlLg==",
+	})
 }

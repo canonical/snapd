@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -85,13 +86,13 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
-	snapstate.SetDefaultModel()
+	bs.restore = snapstatetest.MockDeviceModel(DefaultModel())
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
 	bs.BaseTest.TearDownTest(c)
 	snapstate.AutoAliases = nil
-	snapstate.Model = nil
+	bs.restore()
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	bootloader.Force(nil)
@@ -345,7 +346,8 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 }
 
 func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
-	snapstate.SetModelWithBase("core18")
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
 
 	st := bs.state
 	st.Lock()

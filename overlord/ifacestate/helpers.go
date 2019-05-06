@@ -327,27 +327,42 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		if plugInfo == nil || slotInfo == nil {
 			continue
 		}
-		// XXX: Refresh the copy of the static connection attributes. This is a
-		// partial solution to https://bugs.launchpad.net/snapd/+bug/1825883
-		// Once interface hooks are invoked for refreshed snaps then the update
-		// of static and dynamic connection attributes should happen there.
-		updatedStaticPlugAttrs := utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
-		updatedStaticSlotAttrs := utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+
+		var updateStaticAttrs bool
+		staticPlugAttrs := connState.StaticPlugAttrs
+		staticSlotAttrs := connState.StaticSlotAttrs
+
+		// XXX: Refresh the copy of the static connection attributes for "content" interface as long
+		// as its "content" attribute
+		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
+		if plugInfo.Interface == "content" {
+			var plugContent, slotContent string
+			plugInfo.Attr("content", &plugContent)
+			slotInfo.Attr("content", &slotContent)
+
+			if plugContent != "" && plugContent == slotContent {
+				staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+				staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+				updateStaticAttrs = true
+			} else {
+				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
+			}
+		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, updatedStaticPlugAttrs, connState.DynamicPlugAttrs, updatedStaticSlotAttrs, connState.DynamicSlotAttrs, nil); err != nil {
+		if _, err := m.repo.Connect(connRef, staticPlugAttrs, connState.DynamicPlugAttrs, staticSlotAttrs, connState.DynamicSlotAttrs, nil); err != nil {
 			logger.Noticef("%s", err)
 		} else {
 			// If the connection succeeded update the connection state and keep
 			// track of the snaps that were affected.
 			affected[connRef.PlugRef.Snap] = true
 			affected[connRef.SlotRef.Snap] = true
-			// XXX: ideally we'd know the revision associated with the
-			// attributes _or_ did a deep comparison but for the sake of
-			// simplicity this is not done and attributes are always refreshed.
-			connState.StaticPlugAttrs = updatedStaticPlugAttrs
-			connState.StaticSlotAttrs = updatedStaticSlotAttrs
-			connStateChanged = true
+
+			if updateStaticAttrs {
+				connState.StaticPlugAttrs = staticPlugAttrs
+				connState.StaticSlotAttrs = staticSlotAttrs
+				connStateChanged = true
+			}
 		}
 	}
 	if connStateChanged {
