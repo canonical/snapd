@@ -533,10 +533,10 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), current.BrandID(), new.Model(), new.Revision())
 	}
 	chg := st.NewChange("remodel", msg)
+	chg.Set("new-model", string(asserts.Encode(new)))
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
-	chg.Set("new-model", asserts.Encode(new))
 
 	return chg, nil
 }
