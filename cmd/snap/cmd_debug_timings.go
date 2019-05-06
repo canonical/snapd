@@ -121,6 +121,13 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		return err
 	}
 
+	w := tabWriter()
+	if x.Verbose {
+		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tLabel\tSummary\n", "Doing", "Undoing")
+	} else {
+		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
+	}
+
 	// If a specific change was requested, we expect exactly one timingsData element.
 	// If "ensure" activity was requested, we may get multiple elements (for multiple executions of the ensure)
 	for _, td := range timings {
@@ -133,29 +140,15 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		}
 
 		if len(td.EnsureTimings) > 0 {
-			ew := tabWriter()
-			if x.Verbose {
-				fmt.Fprintf(ew, "Duration\tLabel\tSummary\n")
-			} else {
-				fmt.Fprintf(ew, "Duration\tSummary\n")
-			}
 			for _, t := range td.EnsureTimings {
 				if x.Verbose {
-					fmt.Fprintf(ew, "%s\t%s\t%s\n", formatDuration(t.Duration), t.Label, t.Summary)
+					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Label, t.Summary)
 				} else {
-					fmt.Fprintf(ew, "%s\t%s\n", formatDuration(t.Duration), t.Summary)
+					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Summary)
 				}
 			}
-			fmt.Fprintf(ew, "\n")
-			ew.Flush()
 		}
 
-		w := tabWriter()
-		if x.Verbose {
-			fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tLabel\tSummary\n", "Doing", "Undoing")
-		} else {
-			fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
-		}
 		for _, t := range chg.Tasks {
 			doingTime := formatDuration(td.ChangeTimings[t.ID].DoingTime)
 			if td.ChangeTimings[t.ID].DoingTime == 0 {
@@ -184,8 +177,8 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 			}
 		}
 		w.Flush()
+		fmt.Fprintln(Stdout)
 	}
-	fmt.Fprintln(Stdout)
 
 	return nil
 }
