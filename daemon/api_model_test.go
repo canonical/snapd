@@ -77,4 +77,10 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
+
+	c.Assert(st.Changes(), check.HasLen, 1)
+	chg1 := st.Changes()[0]
+	c.Assert(chg, check.DeepEquals, chg1)
+	c.Assert(chg.Kind(), check.Equals, "remodel")
+	c.Assert(chg.Err(), check.IsNil)
 }
