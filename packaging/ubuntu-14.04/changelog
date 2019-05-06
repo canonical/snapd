@@ -1,3 +1,181 @@
+snapd (2.39~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1827495
+    - overlord/ifacestate: update static attributes of "content"
+      interface
+    - data/selinux: tweak the policy for runuser and s-c, interpret
+      audit entries
+    - snapshotstate: disable automatic snapshots on core for now
+    - overlord/corecfg: make expiration of automatic snapshots
+      configurable
+    - snapstate: auto-install snapd when needed
+    - interfaces: add support for the snapd snap in the dbus backend
+    - overlord/snapstate: tweak autorefresh logic if network is not
+      available
+    - interfaces/apparmor: allow running /usr/bin/od
+    - osutil,cmdutil: move CommandFromCore and make it use the snapd
+      snap (if available)
+    - daemon: also verify snap instructions for multi-snap requests
+    - data/selinux: allow snap-confine to mount on top of bin
+    - data/selinux: auto transition /var/snap to snappy_var_t
+    - cmd: add `snap debug validate-seed <path>` cmd
+    - interfaces/builtin/desktop: fonconfig v6/v7 cache handling on
+      Fedora
+    - interfaces/builtin/intel_mei: fix /dev/mei* AppArmor pattern
+    - tests: make snap-connections test work on boards with snaps pre-
+      installed
+    - tests: check for /snap/core16/current in core16-provided-by-core
+    - tests: run livepatch test on 18.04 as well
+    - devicestate: deal correctly with the "required" flag on Remodel
+    - snapstate,state: add TaskSet.AddAllWithEdges() and use in doUpdate
+    - snapstate: add new NoReRefresh flag and use in Remodel()
+    - many: allow core as a fallback for core16
+    - snapcraft: build static fontconfig in the snapd snap
+    - cmd/snap-confine: remove unused sc_open_snap_{update,discard}_ns
+    - data/selinux: allow snapd to execute runuser under snappy_t
+    - spread, tests: do not leave mislabeled files in restorecon test,
+      attempt to catch similar files
+    - interfaces: cleanup internal tool lookup in system-key
+    - many: move auth.AuthContext to store.DeviceAndAuthContext, the
+      implemention to a separate storecontext packageThis:
+    - overlord/devicestate: measurements around ensure and related tasks
+    - cmd: tweak internal tool lookup to accept more possible locations
+    - overlord/snapstate,snapshotstate: create snapshot on snap removal
+    - tests: run smoke tests on (almost) pristine systems
+    - tests: system disable ssh for config defaults in gadget
+    - cmd/debug: integrate new task timings with "snap debug timings"
+    - tests/upgrade/basic, packaging/fedoar: restore SELinux context of
+      /var/cache/fontconfig, patch pre-2.39 mount units
+    - image: simplify prefer local logic  and fixes
+    - tests/main/selinux-lxd: make sure LXD from snaps works cleanly
+      with enforcing SELinux
+    - tests: deny ioctl - TIOCSTI with garbage in high bits
+    - overlord: factor out mocking of device service and gadget w.
+      prepare-device for registration tests
+    - data/selinux, tests/main/selinux-clean: fine tune the policy, make
+      sure that no denials are raised
+    - cmd/libsnap,osutil: fix parsing of mountinfo
+    - ubuntu: disable -buildmode=pie on armhf to fix memory issue
+    - overlord/snapstate: inhibit refresh for up to a week
+    - cmd/snap-confine: prevent cwd restore permission bypass
+    - overlord/ifacestate: introduce HotplugKey type use short key in
+      change summaries
+    - many: make Remodel() download everything first before installing
+    - tests: fixes discovered debugging refresh-app-awareness
+    - overlord/snapstate: track time of postponed refreshes
+    - snap-confine: set rootfs_dir in sc_invocation struct
+    - tests: run create-user on core devices
+    - boot: add flag file "meta/force-kernel-extraction"
+    - tests: add regression test for systemctl race fix
+    - overlord/snapshotstate: helpers for snapshot expirations
+    - overlord,tests: perform soft refresh check in doInstall
+    - tests: enable tests that write /etc/{hostname,timezone} on core18
+    - overlord/ifacestate: implement String() method of
+      HotplugDeviceInfo for better logs/messages
+    - cmd/snap-confine: move ubuntu-core fallback checks
+    - testutil: fix MockCmd for shellcheck 0.5
+    - snap, gadget: move gadget read/validation into separate package,
+      tweak naming
+    - tests: split travis spread execution in 2 jobs for ubuntu and non
+      ubuntu systems
+    - testutil: make mocked command work with shellcheck from snaps
+    - packaging/fedora, tests/upgrade/basic: patch existing mount units
+      with SELinux context on upgrade
+    - metautil, snap: extract yaml value normalization to a helper
+      package
+    - tests: use apt via eatmydata
+    - dirs,overlord/snapstate: add Soft and Hard refresh checks
+    - cmd/snap-confine: allow using tools from snapd snap
+    - cmd,interfaces: replace local helpers with cmd.InternalToolPath
+    - tweak: fix "make hack" on Fedora
+    - snap: add validation of gadget.yaml
+    - cmd/snap-update-ns: refactor of profile application
+    - cmd/snap,client,daemon,store: layout and sanity tweaks for
+      find/search options
+    - tests: add workaround for missing cache reset on older snapd
+    - interfaces: deal with the snapd snap correctly for apparmor 2.13
+    - release-tools: add debian-package-builder
+    - tests: enable opensuse 15 and add force-resolution installing
+      packages
+    - timings: AddTag helper
+    - testutil: run mocked commands through shellcheck
+    - overlord/snapshotstate: support auto flag
+    - client, daemon, store: search by common-id
+    - tests: all the systems for google backend with 6 workers
+    - interfaces: hotplug nested vm test, updated serial-port interface
+      for hotplug.
+    - sanity: use proper SELinux context when mounting squashfs
+    - cmd/libsnap: neuter variables in cleanup functions
+    - interfaces/adb-support: account for hubs on sysfs path
+    - interfaces/seccomp: regenerate changed profiles only
+    - snap: reject layouts to /lib/{firmware,modules}
+    - cmd/snap-confine, packaging: support SELinux
+    - selinux, systemd: support mount contexts for snap images
+    - interfaces/builtin/opengl: allow access to Tegra X1
+    - cmd/snap: make 'snap warnings' output yamlish
+    - tests: add check to detect a broken snap on reset
+    - interfaces: add one-plus devices to adb-support
+    - cmd: prevent umask from breaking snap-run chain
+    - tests/lib/pkgdb: allow downgrade when installing packages in
+      openSUSE
+    - cmd/snap-confine: use fixed private tmp directory
+    - snap: tweak parsing errors of gadget updates
+    - overlord/ifacemgr: basic measurements
+    - spread: refresh metadata on openSUSE
+    - cmd/snap-confine: pass sc_invocation instead of numerous args
+      around
+    - snap/gadget: introduce volume update info
+    - partition,bootloader: rename 'partition' package to 'bootloader'
+    - interfaces/builtin: add dev/pts/ptmx access to docker_support
+    - tests: restore sbuild test
+    - strutil: make SplitUnit public, allow negative numbers
+    - overlord/snapstate,: retry less for auto-stuff
+    - interfaces/builtin: add add exec "/" to docker-support
+    - cmd/snap: fix regression of snap saved command
+    - cmd/libsnap: rename C enum for feature flag
+    - cmd: typedef mountinfo structures
+    - tests/main/remodel: clean up before reverting the state
+    - cmd/snap-confine: umount scratch dir using UMOUNT_NOFOLLOW
+    - timings: add new helpers, Measurer interface and DurationThreshold
+    - cmd/snap-seccomp: version-info subcommand
+    - errortracker: fix panic in Report if db cannot be opened
+    - sandbox/seccomp: a helper package wrapping calls to snap-seccomp
+    - many: add /v2/model API, `snap remodel` CLI and spread test
+    - tests: enable opensuse tumbleweed back
+    - overlord/snapstate, store: set a header when auto-refreshing
+    - data/selinux, tests: refactor SELinux policy, add minimal tests
+    - spread: restore SELinux context when we mess with system files
+    - daemon/api: filter connections with hotplug-gone=true
+    - daemon: support returning assertion information as JSON with the
+      "json" query parameter
+    - cmd/snap: hide 'interfaces' command, show deprecation notice
+    - timings: base API for recording timings in state
+    - cmd/snap-confine: drop unused dependency on libseccomp
+    - interfaces/apparmor: factor out test boilerplate
+    - daemon: extract assertions api endpoint implementation into
+      api_asserts.go
+    - spread.yaml: bump delta reference
+    - cmd/snap-confine: track per-app and per-hook processes
+    - cmd/snap-confine: make sc_args helpers const-correct
+    - daemon: move a function that was between an other struct and its
+      methods
+    - overlord/snapstate: fix restoring of "old-current" revision config
+      in undoLinkSnap
+    - cmd/snap, client, daemon, ifacestate: show a leading attribute of
+      a connection
+    - cmd/snap-confine: call sc_should_use_normal_mode once
+    - cmd/snap-confine: populate enter_non_classic_execution_environment
+    - daemon: allow downloading snaps blobs via .../file
+    - cmd/snap-confine: introduce sc_invocation
+    - devicestate: add initial Remodel support
+    - snap: remove obsolete license-* fields in the yaml
+    - cmd/libsnap: add cgroup-pids-support module
+    - overlord/snapstate/backend: make LinkSnap clean up more
+    - snapstate: only keep 2 snaps on classic
+    - ctlcmd/tests: tests tweaks (followup to #6322)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 03 May 2019 11:29:50 +0200
+
 snapd (2.38.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1824394
