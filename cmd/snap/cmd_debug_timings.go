@@ -32,8 +32,8 @@ import (
 
 type cmdChangeTimings struct {
 	changeIDMixin
-	EnsureID string `long:"ensure"`
-	Verbose  bool   `long:"verbose"`
+	EnsureTag string `long:"ensure"`
+	Verbose   bool   `long:"verbose"`
 }
 
 func init() {
@@ -43,7 +43,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
-			"ensure": i18n.G("Show timings for a change related to the given Ensure"),
+			"ensure": i18n.G("Show timings for a change related to the given Ensure activity"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Show more information"),
 		}), changeIDMixinArgDesc)
@@ -85,7 +85,7 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 
 	var chgid string
 	var err error
-	if x.EnsureID == "" || x.Positional.ID != "" {
+	if x.EnsureTag == "" || x.Positional.ID != "" {
 		chgid, err = x.GetChangeID()
 		if err != nil {
 			return err
@@ -104,7 +104,7 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		} `json:"change-timings,omitempty"`
 	}
 
-	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure-id": x.EnsureID}); err != nil {
+	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure": x.EnsureTag}); err != nil {
 		return err
 	}
 	chgid = timings.ChangeID

@@ -98,35 +98,35 @@ type debugTimings struct {
 	ChangeTimings map[string]*changeTimings `json:"change-timings,omitempty"`
 }
 
-func getChangeTimings(st *state.State, changeID, ensureID string) Response {
+func getChangeTimings(st *state.State, changeID, ensureTag string) Response {
 	doingTimingsByTask := make(map[string][]*timings.TimingJSON)
 	undoingTimingsByTask := make(map[string][]*timings.TimingJSON)
 
 	var err error
 	var ensureTimings []*timings.TimingJSON
-	// if ensureID was passed by the client, find its related change
-	if ensureID != "" {
+	// if ensure tag was passed by the client, find its related change
+	if ensureTag != "" {
 		ensures, err := timings.Get(st, -1, func(tags map[string]string) bool {
-			return tags["ensure"] == ensureID
+			return tags["ensure"] == ensureTag
 		})
 		if err != nil {
-			return InternalError("cannot get timings of ensure %s: %v", ensureID, err)
+			return InternalError("cannot get timings of ensure %s: %v", ensureTag, err)
 		}
 		if len(ensures) == 0 {
-			return BadRequest("cannot find ensure: %v", ensureID)
+			return BadRequest("cannot find ensure: %v", ensureTag)
 		}
 		if len(ensures) > 1 {
 			var changes []string
 			for _, ensure := range ensures {
-				if chg, ok := ensure.Tags[""]; ok {
+				if chg, ok := ensure.Tags["change-id"]; ok {
 					changes = append(changes, chg)
 				}
 			}
-			return BadRequest("multiple timings found for ensure %q, please specify change ID (%s)", ensureID, strings.Join(changes, ","))
+			return BadRequest("multiple timings found for ensure %q, please specify change ID (%s)", ensureTag, strings.Join(changes, ","))
 		}
 		ensureChangeID := ensures[0].Tags["change-id"]
 		if changeID != "" && ensureChangeID != changeID {
-			return InternalError("the requested change %s doesn't match change ID of the requested ensure %q", changeID, ensureID)
+			return InternalError("the requested change %s doesn't match change ID of the requested ensure %q", changeID, ensureTag)
 		}
 		changeID = ensureChangeID
 		ensureTimings = ensures[0].NestedTimings
@@ -194,7 +194,7 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	case "change-timings":
 		chgID := query.Get("change-id")
-		ensureID := query.Get("ensure-id")
+		ensureID := query.Get("ensure")
 		return getChangeTimings(st, chgID, ensureID)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
