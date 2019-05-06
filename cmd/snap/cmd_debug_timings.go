@@ -33,6 +33,7 @@ import (
 type cmdChangeTimings struct {
 	changeIDMixin
 	EnsureTag string `long:"ensure"`
+	All       bool   `long:"all"`
 	Verbose   bool   `long:"verbose"`
 }
 
@@ -44,6 +45,7 @@ func init() {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
 			"ensure": i18n.G("Show timings for a change related to the given Ensure activity"),
+			"all":    i18n.G("Show timings for all executions of the given Ensure activity, not just the latest"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Show more information"),
 		}), changeIDMixinArgDesc)
@@ -78,14 +80,29 @@ func printTiming(w io.Writer, t *Timing, verbose, doing bool) {
 	}
 }
 
+type timingsData struct {
+	ChangeID      string   `json:"change-id"`
+	EnsureTimings []Timing `json:"ensure-timings,omitempty"`
+	ChangeTimings map[string]struct {
+		DoingTime      time.Duration `json:"doing-time,omitempty"`
+		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
+		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
+		UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
+	} `json:"change-timings,omitempty"`
+}
+
 func (x *cmdChangeTimings) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
+	if x.EnsureTag != "" && x.Positional.ID != "" {
+		return fmt.Errorf("cannot use 'ensure' and change id together")
+	}
+
 	var chgid string
 	var err error
-	if x.EnsureTag == "" || x.Positional.ID != "" {
+	if x.Positional.ID != "" {
 		chgid, err = x.GetChangeID()
 		if err != nil {
 			return err
@@ -93,80 +110,81 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	}
 
 	// gather debug timings first
-	var timings struct {
-		ChangeID      string   `json:"change-id"`
-		EnsureTimings []Timing `json:"ensure-timings,omitempty"`
-		ChangeTimings map[string]struct {
-			DoingTime      time.Duration `json:"doing-time,omitempty"`
-			UndoingTime    time.Duration `json:"undoing-time,omitempty"`
-			DoingTimings   []Timing      `json:"doing-timings,omitempty"`
-			UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
-		} `json:"change-timings,omitempty"`
+	var timings []*timingsData
+	var allEnsures string
+	if x.All {
+		allEnsures = "true"
+	} else {
+		allEnsures = "false"
 	}
-
-	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure": x.EnsureTag}); err != nil {
-		return err
-	}
-	chgid = timings.ChangeID
-
-	// now combine with the other data about the change
-	chg, err := x.client.Change(chgid)
-	if err != nil {
+	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure": x.EnsureTag, "all": allEnsures}); err != nil {
 		return err
 	}
 
-	if len(timings.EnsureTimings) > 0 {
-		ew := tabWriter()
-		if x.Verbose {
-			fmt.Fprintf(ew, "Duration\tLabel\tSummary\n")
-		} else {
-			fmt.Fprintf(ew, "Duration\tSummary\n")
+	// If a specific change was requested, we expect exactly one timingsData element.
+	// If "ensure" activity was requested, we may get multiple elements (for multiple executions of the ensure)
+	for _, td := range timings {
+		chgid = td.ChangeID
+
+		// now combine with the other data about the change
+		chg, err := x.client.Change(chgid)
+		if err != nil {
+			return err
 		}
-		for _, t := range timings.EnsureTimings {
+
+		if len(td.EnsureTimings) > 0 {
+			ew := tabWriter()
 			if x.Verbose {
-				fmt.Fprintf(ew, "%s\t%s\t%s\n", formatDuration(t.Duration), t.Label, t.Summary)
+				fmt.Fprintf(ew, "Duration\tLabel\tSummary\n")
 			} else {
-				fmt.Fprintf(ew, "%s\t%s\n", formatDuration(t.Duration), t.Summary)
+				fmt.Fprintf(ew, "Duration\tSummary\n")
+			}
+			for _, t := range td.EnsureTimings {
+				if x.Verbose {
+					fmt.Fprintf(ew, "%s\t%s\t%s\n", formatDuration(t.Duration), t.Label, t.Summary)
+				} else {
+					fmt.Fprintf(ew, "%s\t%s\n", formatDuration(t.Duration), t.Summary)
+				}
+			}
+			fmt.Fprintf(ew, "\n")
+			ew.Flush()
+		}
+
+		w := tabWriter()
+		if x.Verbose {
+			fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tLabel\tSummary\n", "Doing", "Undoing")
+		} else {
+			fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
+		}
+		for _, t := range chg.Tasks {
+			doingTime := formatDuration(td.ChangeTimings[t.ID].DoingTime)
+			if td.ChangeTimings[t.ID].DoingTime == 0 {
+				doingTime = "-"
+			}
+			undoingTime := formatDuration(td.ChangeTimings[t.ID].UndoingTime)
+			if td.ChangeTimings[t.ID].UndoingTime == 0 {
+				undoingTime = "-"
+			}
+			summary := t.Summary
+			// Duration formats to 17m14.342s or 2.038s or 970ms, so with
+			// 11 chars we can go up to 59m59.999s
+			if x.Verbose {
+				fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
+			} else {
+				fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
+			}
+
+			for _, nested := range td.ChangeTimings[t.ID].DoingTimings {
+				showDoing := true
+				printTiming(w, &nested, x.Verbose, showDoing)
+			}
+			for _, nested := range td.ChangeTimings[t.ID].UndoingTimings {
+				showDoing := false
+				printTiming(w, &nested, x.Verbose, showDoing)
 			}
 		}
-		fmt.Fprintf(ew, "\n")
-		ew.Flush()
+		w.Flush()
 	}
-
-	w := tabWriter()
-	if x.Verbose {
-		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tLabel\tSummary\n", "Doing", "Undoing")
-	} else {
-		fmt.Fprintf(w, "ID\tStatus\t%11s\t%11s\tSummary\n", "Doing", "Undoing")
-	}
-	for _, t := range chg.Tasks {
-		doingTime := formatDuration(timings.ChangeTimings[t.ID].DoingTime)
-		if timings.ChangeTimings[t.ID].DoingTime == 0 {
-			doingTime = "-"
-		}
-		undoingTime := formatDuration(timings.ChangeTimings[t.ID].UndoingTime)
-		if timings.ChangeTimings[t.ID].UndoingTime == 0 {
-			undoingTime = "-"
-		}
-		summary := t.Summary
-		// Duration formats to 17m14.342s or 2.038s or 970ms, so with
-		// 11 chars we can go up to 59m59.999s
-		if x.Verbose {
-			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
-		} else {
-			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
-		}
-
-		for _, nested := range timings.ChangeTimings[t.ID].DoingTimings {
-			showDoing := true
-			printTiming(w, &nested, x.Verbose, showDoing)
-		}
-		for _, nested := range timings.ChangeTimings[t.ID].UndoingTimings {
-			showDoing := false
-			printTiming(w, &nested, x.Verbose, showDoing)
-		}
-	}
-	w.Flush()
 	fmt.Fprintln(Stdout)
 
 	return nil
