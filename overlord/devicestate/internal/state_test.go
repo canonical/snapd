@@ -17,17 +17,42 @@
  *
  */
 
-package devicestate
+package internal_test
 
 import (
-	"github.com/snapcore/snapd/asserts"
+	"testing"
+
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, model *asserts.Model) error {
-	device.Brand = model.BrandID()
-	device.Model = model.Model()
-	return internal.SetDevice(st, device)
+func TestInternal(t *testing.T) { TestingT(t) }
+
+type internalSuite struct {
+	state *state.State
+}
+
+var _ = Suite(&internalSuite{})
+
+func (s *internalSuite) SetUpTest(c *C) {
+	s.state = state.New(nil)
+}
+
+func (s *internalSuite) TestSetDevice(c *C) {
+	s.state.Lock()
+	device, err := internal.Device(s.state)
+	s.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{})
+
+	s.state.Lock()
+	err = internal.SetDevice(s.state, &auth.DeviceState{Brand: "some-brand"})
+	c.Check(err, IsNil)
+	device, err = internal.Device(s.state)
+	s.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
 }

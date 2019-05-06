@@ -2157,6 +2157,8 @@ func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
 	return res[0], nil
 }
 
+// XXX: remodeling: decide what to do with Gadget/KernelInfo and their derived functions
+
 // GadgetInfo finds the current gadget snap's info.
 func GadgetInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeGadget)
