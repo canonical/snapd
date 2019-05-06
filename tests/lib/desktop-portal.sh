@@ -45,7 +45,7 @@ teardown_portals() {
     systemctl stop "user@${TEST_UID}.service"
 
     # Make sure there are not any fakeportalui process running for the test user
-    if ps -ef | grep -E '^test .*/fakeportalui/.*'; then
+    if pgrep -U "$TEST_UID" -f fakeportalui &>/dev/null; then
         echo "test users should be not running any fakeportalui process"
         exit 1
     fi
