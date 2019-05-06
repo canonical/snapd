@@ -588,6 +588,11 @@ func (m *DeviceManager) finishRegistration(t *state.Task, device *auth.DeviceSta
 		return err
 	}
 	m.markRegistered()
+
+	// make sure we timely consider anything that was blocked on
+	// registration
+	t.State().EnsureBefore(0)
+
 	t.SetStatus(state.DoneStatus)
 	return nil
 }

@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
@@ -102,6 +103,7 @@ var api = []*Command{
 	snapshotCmd,
 	connectionsCmd,
 	modelCmd,
+	cohortsCmd,
 }
 
 var (
@@ -199,8 +201,9 @@ var (
 	}
 
 	createUserCmd = &Command{
-		Path: "/v2/create-user",
-		POST: postCreateUser,
+		Path:     "/v2/create-user",
+		POST:     postCreateUser,
+		RootOnly: true,
 	}
 
 	buyCmd = &Command{
@@ -220,8 +223,9 @@ var (
 	}
 
 	usersCmd = &Command{
-		Path: "/v2/users",
-		GET:  getUsers,
+		Path:     "/v2/users",
+		GET:      getUsers,
+		RootOnly: true,
 	}
 
 	sectionsCmd = &Command{
@@ -698,6 +702,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
 				Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+				Status: 400,
+			}, nil)
+		}
+		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
+			return SyncResponse(&resp{
+				Type:   ResponseTypeError,
+				Result: &errorResult{Message: e.Error(), Kind: errorKindDNSFailure},
 				Status: 400,
 			}, nil)
 		}
@@ -1381,6 +1392,9 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
+	if err := verifySnapInstructions(&inst); err != nil {
+		return BadRequest("%v", err)
+	}
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
@@ -2098,10 +2112,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGet = ucrednetGet
-	runSnapctlUcrednetGet     = ucrednetGet
-	ctlcmdRun                 = ctlcmd.Run
-	osutilAddUser             = osutil.AddUser
+	runSnapctlUcrednetGet = ucrednetGet
+	ctlcmdRun             = ctlcmd.Run
+	osutilAddUser         = osutil.AddUser
 )
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
@@ -2281,14 +2294,6 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
-	}
-
 	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
@@ -2476,14 +2481,6 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot get users as non-root")
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
