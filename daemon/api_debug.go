@@ -157,7 +157,7 @@ func getChangeTimings(st *state.State, changeID, ensureTag string, allEnsures bo
 			first = 0
 		}
 		var responseData []*debugTimings
-		for _, ensureTm := range ensures[first:len(ensures)] {
+		for _, ensureTm := range ensures[first:] {
 			ensureChangeID := ensureTm.Tags["change-id"]
 			changeTimings, errorResponse := collectChangeTimings(st, ensureChangeID)
 			if errorResponse != nil {
@@ -180,7 +180,7 @@ func getChangeTimings(st *state.State, changeID, ensureTag string, allEnsures bo
 	}
 
 	responseData := []*debugTimings{
-		&debugTimings{
+		{
 			ChangeID:      changeID,
 			ChangeTimings: changeTimings,
 		},
