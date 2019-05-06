@@ -5,7 +5,8 @@ systems: [ubuntu-1*, ubuntu-2*]
 
 environment:
     TUSER: jim
-    THOME: /var/home/jim
+    THOME/var: /var/home/jim
+    THOME/home2: /home2/jim
 
 prepare: |
     echo "create a non home user"
