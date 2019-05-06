@@ -924,7 +924,7 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
 	if cua := ClientUserAgent(ctx); cua != "" {
-		req.Header.Set("Client-User-Agent", cua)
+		req.Header.Set("Snap-Client-User-Agent", cua)
 	}
 	if reqOptions.APILevel == apiV1Endps {
 		req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)

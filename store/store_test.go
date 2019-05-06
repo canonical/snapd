@@ -3186,7 +3186,7 @@ func (s *storeTestSuite) TestFindClientUserAgent(c *C) {
 
 	serverWasHit := false
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Client-User-Agent"), Equals, clientUserAgent)
+		c.Check(r.Header.Get("Snap-Client-User-Agent"), Equals, clientUserAgent)
 		serverWasHit = true
 
 		http.Error(w, http.StatusText(418), 418) // I'm a teapot
