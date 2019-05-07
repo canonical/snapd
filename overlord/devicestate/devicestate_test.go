@@ -341,7 +341,6 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	c.Assert(tr.Set("core", "proxy.store", "foo"), IsNil)
 	tr.Commit()
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
-	c.Assert(assertstate.Add(s.state, operatorAcct), IsNil)
 
 	// have a store assertion.
 	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
@@ -351,7 +350,8 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	c.Assert(assertstate.Add(s.state, stoAs), IsNil)
+
+	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
 	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
@@ -1090,7 +1090,6 @@ func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, n
 	c.Assert(tr.Set("core", "proxy.store", "foo"), IsNil)
 	tr.Commit()
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
-	c.Assert(assertstate.Add(s.state, operatorAcct), IsNil)
 
 	// have a store assertion.
 	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
@@ -1100,7 +1099,8 @@ func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, n
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	c.Assert(assertstate.Add(s.state, stoAs), IsNil)
+
+	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
 	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]interface{}{
 		"architecture": "amd64",
@@ -1441,8 +1441,7 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 		"timestamp":           time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, seriala)
-	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, seriala)
 	serial := seriala.(*asserts.Serial)
 
 	_, err = scb.SignDeviceSessionRequest(serial, "NONCE-1")
@@ -1493,8 +1492,6 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	c.Check(err, Equals, state.ErrNoState)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
-	err = assertstate.Add(s.state, operatorAcct)
-	c.Assert(err, IsNil)
 
 	// have a store assertion.
 	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
@@ -1504,8 +1501,8 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, stoAs)
-	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 
 	sto, err := scb.ProxyStore()
 	c.Assert(err, IsNil)
@@ -1684,12 +1681,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 func (s *deviceMgrSuite) setupBrands(c *C) {
 	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
-
 	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
 		"account-id": "other-brand",
 	}, "")
-	err := assertstate.Add(s.state, otherAcct)
-	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, otherAcct)
 }
 
 func (s *deviceMgrSuite) setupSnapDecl(c *C, name, snapID, publisherID string) {
@@ -1908,8 +1903,7 @@ func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, 
 	modelAs := s.brands.Model(brandID, model, extras)
 
 	s.setupBrands(c)
-	err := assertstate.Add(s.state, modelAs)
-	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, modelAs)
 }
 
 func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {
