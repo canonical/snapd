@@ -26,12 +26,14 @@ import (
 	"context"
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/mvo5/goconfigparser"
@@ -206,37 +208,80 @@ func NewToolingStore() (*ToolingStore, error) {
 
 // DownloadOptions carries options for downloading snaps plus assertions.
 type DownloadOptions struct {
+	Revision  snap.Revision
 	TargetDir string
 	Channel   string
+	CohortKey string
 }
 
-// DownloadSnap downloads the snap with the given name and optionally revision  using the provided store and options. It returns the final full path of the snap inside the opts.TargetDir and a snap.Info for the snap.
-func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts *DownloadOptions) (targetFn string, info *snap.Info, err error) {
-	if opts == nil {
-		opts = &DownloadOptions{}
+var errRevisionAndCohort = errors.New("cannot specify both revision and cohort")
+
+func (opts *DownloadOptions) validate() error {
+	if opts.Revision.Unset() || opts.CohortKey == "" {
+		return nil
+	}
+	return errRevisionAndCohort
+}
+
+// TODO: maybe move this to strutil next to ElliptRight
+func elliptLeft(str string) string {
+	if len(str) < 10 {
+		// shouldn't happen outside of tests
+		return str
+	}
+	return "…" + str[len(str)-8:]
+}
+
+func (opts *DownloadOptions) String() string {
+	spec := make([]string, 0, 4)
+	if !opts.Revision.Unset() {
+		spec = append(spec, fmt.Sprintf("(%s)", opts.Revision))
+	}
+	if opts.Channel != "" {
+		spec = append(spec, fmt.Sprintf("from channel %q", opts.Channel))
+	}
+	if opts.CohortKey != "" {
+		// cohort keys are really long, and the rightmost bit being the
+		// interesting bit, so ellipt the rest
+		spec = append(spec, fmt.Sprintf(`from cohort %q`, elliptLeft(opts.CohortKey)))
+	}
+	if opts.TargetDir != "" {
+		spec = append(spec, fmt.Sprintf("to %q", opts.TargetDir))
+	}
+	return strings.Join(spec, " ")
+}
+
+// DownloadSnap downloads the snap with the given name and optionally revision
+// using the provided store and options. It returns the final full path of the
+// snap inside the opts.TargetDir and a snap.Info for the snap.
+func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targetFn string, info *snap.Info, err error) {
+	if err := opts.validate(); err != nil {
+		return "", nil, err
 	}
 	sto := tsto.sto
 
-	targetDir := opts.TargetDir
-	if targetDir == "" {
+	if opts.TargetDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return "", nil, err
 		}
-		targetDir = pwd
+		opts.TargetDir = pwd
 	}
 
-	logger.Debugf("Going to download snap %q (%s) from channel %q to %q.", name, revision, opts.Channel, opts.TargetDir)
+	if !opts.Revision.Unset() {
+		// XXX: is this really necessary (and, if it is, shoudn't we error out instead)
+		opts.Channel = ""
+	}
+
+	logger.Debugf("Going to download snap %q %s.", name, &opts)
 
 	actions := []*store.SnapAction{{
 		Action:       "download",
 		InstanceName: name,
-		Revision:     revision,
+		Revision:     opts.Revision,
+		CohortKey:    opts.CohortKey,
+		Channel:      opts.Channel,
 	}}
-
-	if revision.Unset() {
-		actions[0].Channel = opts.Channel
-	}
 
 	snaps, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
 	if err != nil {
@@ -246,7 +291,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 	snap := snaps[0]
 
 	baseName := filepath.Base(snap.MountFile())
-	targetFn = filepath.Join(targetDir, baseName)
+	targetFn = filepath.Join(opts.TargetDir, baseName)
 
 	// check if we already have the right file
 	if osutil.FileExists(targetFn) {

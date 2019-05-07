@@ -43,7 +43,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
@@ -63,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -342,12 +342,12 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	c.Assert(err, check.IsNil)
 	model := a.(*asserts.Model)
 
-	snapstate.Model = devicestate.Model
+	snapstate.DeviceCtx = devicestate.DeviceCtx
 
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
 
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
@@ -563,6 +563,14 @@ type apiSuite struct {
 }
 
 var _ = check.Suite(&apiSuite{})
+
+func (s *apiSuite) TestUsersOnlyRoot(c *check.C) {
+	for _, cmd := range api {
+		if strings.Contains(cmd.Path, "user") {
+			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
+		}
+	}
+}
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	d := s.daemon(c)
@@ -2404,7 +2412,7 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	c.Check(soon, check.Equals, 1)
 }
 
-func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
+func (s *apiSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
@@ -2413,6 +2421,21 @@ func (s *apiSuite) TestPostSnapVerfySnapInstruction(c *check.C) {
 	s.vars = map[string]string{"name": "ubuntu-core"}
 
 	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+}
+
+func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+
+	buf := strings.NewReader(`{"action": "install","snaps":["ubuntu-core"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
@@ -5571,9 +5594,6 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
 }
@@ -5581,7 +5601,6 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 func (s *postCreateUserSuite) TearDownTest(c *check.C) {
 	s.apiBaseSuite.TearDownTest(c)
 
-	postCreateUserUcrednetGet = ucrednetGet
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
 }
@@ -5668,12 +5687,12 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
-	devicestate.SetDevice(st, nil)
+	devicestatetest.SetDevice(st, nil)
 	st.Unlock()
 
 	email := "foo@example.com"
 
-	username, opts, err := getUserDetailsFromAssertion(st, email)
+	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, email)
 	c.Check(username, check.Equals, "")
 	c.Check(opts, check.IsNil)
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
@@ -5747,7 +5766,7 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	}
 	// create fake device
 	st.Lock()
-	err = devicestate.SetDevice(st, &auth.DeviceState{
+	err = devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",
@@ -5814,8 +5833,7 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	st := s.d.overlord.State()
-	username, opts, err := getUserDetailsFromAssertion(st, "foo@bar.com")
+	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, "foo@bar.com")
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
 		Gecos:    "foo@bar.com,Boring Guy",
@@ -5977,13 +5995,6 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 	defer restore()
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
-	defer func() {
-		postCreateUserUcrednetGet = ucrednetGet
-	}()
 
 	// do it!
 	buf := bytes.NewBufferString(`{"known":true}`)

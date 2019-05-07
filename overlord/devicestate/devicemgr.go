@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -98,7 +99,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := Device(m.state)
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -187,7 +188,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := SetDevice(st, device); err != nil {
+	if err := internal.SetDevice(st, device); err != nil {
 		return err
 	}
 	return nil
@@ -199,7 +200,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
-	device, err := Device(m.state)
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -245,7 +246,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	var storeID, gadget string
-	model, err := Model(m.state)
+	model, err := m.Model()
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -501,7 +502,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := Device(m.state)
+	device, err := m.device()
 	if err != nil {
 		return nil, err
 	}
@@ -522,54 +523,56 @@ func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
 }
 
-// implementing storecontext.Backend
-// sanity check
-var _ storecontext.Backend = (*DeviceManager)(nil)
-
-// Device returns current device state.
-func (m *DeviceManager) Device() (*auth.DeviceState, error) {
-	return Device(m.state)
+// device returns current device state.
+func (m *DeviceManager) device() (*auth.DeviceState, error) {
+	return internal.Device(m.state)
 }
 
-// SetDevice sets the device details in the state.
-func (m *DeviceManager) SetDevice(device *auth.DeviceState) error {
-	return SetDevice(m.state, device)
+// setDevice sets the device details in the state.
+func (m *DeviceManager) setDevice(device *auth.DeviceState) error {
+	return internal.SetDevice(m.state, device)
 }
-
-// XXX delegate locking back to callers!!!
 
 // Model returns the device model assertion.
 func (m *DeviceManager) Model() (*asserts.Model, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Model(m.state)
+	return findModel(m.state)
 }
 
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Serial(m.state)
+	return findSerial(m.state)
 }
 
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.DeviceSessionRequestParams, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
+// implement storecontext.Backend
 
-	model, err := Model(m.state)
-	if err != nil {
-		return nil, err
+type storeContextBackend struct {
+	*DeviceManager
+}
+
+func (scb storeContextBackend) Device() (*auth.DeviceState, error) {
+	return scb.DeviceManager.device()
+}
+
+func (scb storeContextBackend) SetDevice(device *auth.DeviceState) error {
+	return scb.DeviceManager.setDevice(device)
+}
+
+func (scb storeContextBackend) ProxyStore() (*asserts.Store, error) {
+	st := scb.DeviceManager.state
+	return proxyStore(st, config.NewTransaction(st))
+}
+
+// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
+func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
+	if serial == nil {
+		// shouldn't happen, but be safe
+		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
-	serial, err := Serial(m.state)
-	if err != nil {
-		return nil, err
+	privKey, err := scb.DeviceManager.keyPair()
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
-
-	privKey, err := m.keyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -585,18 +588,9 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*storecontext.
 		return nil, err
 	}
 
-	return &storecontext.DeviceSessionRequestParams{
-		Request: a.(*asserts.DeviceSessionRequest),
-		Serial:  serial,
-		Model:   model,
-	}, err
-
+	return a.(*asserts.DeviceSessionRequest), nil
 }
 
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return ProxyStore(m.state)
+func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
+	return storeContextBackend{m}
 }
