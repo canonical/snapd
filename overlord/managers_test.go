@@ -320,11 +320,6 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.restoreBackends()
 }
 
-// XXX
-func (ms *mgrsSuite) assertAdd(a asserts.Assertion) error {
-	return assertstate.Add(ms.o.State(), a)
-}
-
 var settleTimeout = 15 * time.Second
 
 func makeTestSnap(c *C, snapYamlContent string) string {
@@ -2415,12 +2410,8 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// XXX
-	prereqs := []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.brands.Account("my-brand"), s.brands.AccountKey("my-brand")}
-	for _, a := range prereqs {
-		err = assertstate.Add(st, a)
-		c.Assert(err, IsNil)
-	}
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 }
 
 func (s *storeCtxSetupSuite) TearDownTest(c *C) {
