@@ -27,7 +27,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -79,6 +78,64 @@ func printTiming(w io.Writer, t *Timing, verbose, doing bool) {
 	} else {
 		fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\n", strings.Repeat(" ", t.Level+1)+"^", doingTimeStr, undoingTimeStr, strings.Repeat(" ", 2*(t.Level+1))+t.Summary)
 	}
+}
+
+func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) error {
+	chgid := timing.ChangeID
+	chg, err := x.client.Change(chgid)
+	if err != nil {
+		return err
+	}
+
+	for _, t := range chg.Tasks {
+		doingTime := formatDuration(timing.ChangeTimings[t.ID].DoingTime)
+		if timing.ChangeTimings[t.ID].DoingTime == 0 {
+			doingTime = "-"
+		}
+		undoingTime := formatDuration(timing.ChangeTimings[t.ID].UndoingTime)
+		if timing.ChangeTimings[t.ID].UndoingTime == 0 {
+			undoingTime = "-"
+		}
+		summary := t.Summary
+		// Duration formats to 17m14.342s or 2.038s or 970ms, so with
+		// 11 chars we can go up to 59m59.999s
+		if x.Verbose {
+			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
+		}
+
+		for _, nested := range timing.ChangeTimings[t.ID].DoingTimings {
+			showDoing := true
+			printTiming(w, &nested, x.Verbose, showDoing)
+		}
+		for _, nested := range timing.ChangeTimings[t.ID].UndoingTimings {
+			showDoing := false
+			printTiming(w, &nested, x.Verbose, showDoing)
+		}
+	}
+
+	return nil
+}
+
+func (x *cmdChangeTimings) printEnsureTimings(w io.Writer, timings []*timingsData) error {
+	for _, td := range timings {
+		if len(td.EnsureTimings) > 0 {
+			for _, t := range td.EnsureTimings {
+				if x.Verbose {
+					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Label, t.Summary)
+				} else {
+					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Summary)
+				}
+			}
+		}
+
+		// change is optional for ensure timings
+		if td.ChangeID != "" {
+			x.printChangeTimings(w, td)
+		}
+	}
+	return nil
 }
 
 type timingsData struct {
@@ -134,63 +191,14 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 
 	// If a specific change was requested, we expect exactly one timingsData element.
 	// If "ensure" activity was requested, we may get multiple elements (for multiple executions of the ensure)
-	for _, td := range timings {
-		chgid = td.ChangeID
-
-		// now combine with the other data about the change
-		var chg *client.Change
-
-		// change is optional for ensure timings
-		if chgid != "" {
-			chg, err = x.client.Change(chgid)
-			if err != nil {
-				return err
-			}
-		}
-
-		if len(td.EnsureTimings) > 0 {
-			for _, t := range td.EnsureTimings {
-				if x.Verbose {
-					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Label, t.Summary)
-				} else {
-					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Summary)
-				}
-			}
-		}
-
-		if chg != nil {
-			for _, t := range chg.Tasks {
-				doingTime := formatDuration(td.ChangeTimings[t.ID].DoingTime)
-				if td.ChangeTimings[t.ID].DoingTime == 0 {
-					doingTime = "-"
-				}
-				undoingTime := formatDuration(td.ChangeTimings[t.ID].UndoingTime)
-				if td.ChangeTimings[t.ID].UndoingTime == 0 {
-					undoingTime = "-"
-				}
-				summary := t.Summary
-				// Duration formats to 17m14.342s or 2.038s or 970ms, so with
-				// 11 chars we can go up to 59m59.999s
-				if x.Verbose {
-					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
-				} else {
-					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
-				}
-
-				for _, nested := range td.ChangeTimings[t.ID].DoingTimings {
-					showDoing := true
-					printTiming(w, &nested, x.Verbose, showDoing)
-				}
-				for _, nested := range td.ChangeTimings[t.ID].UndoingTimings {
-					showDoing := false
-					printTiming(w, &nested, x.Verbose, showDoing)
-				}
-			}
-		}
-
-		w.Flush()
-		fmt.Fprintln(Stdout)
+	if chgid != "" && len(timings) > 0 {
+		x.printChangeTimings(w, timings[0])
+	} else {
+		x.printEnsureTimings(w, timings)
 	}
+
+	w.Flush()
+	fmt.Fprintln(Stdout)
 
 	return nil
 }
