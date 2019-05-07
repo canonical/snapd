@@ -66,7 +66,7 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
-	model, err := devicestate.Model(st)
+	model, err := c.d.overlord.DeviceManager().Model()
 	if err != nil {
 		return InternalError("cannot get model: %v", err)
 	}

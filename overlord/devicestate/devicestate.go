@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,8 +30,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -44,44 +44,9 @@ var (
 	snapstateUpdate  = snapstate.Update
 )
 
-// Device returns the device details from the state.
-func Device(st *state.State) (*auth.DeviceState, error) {
-	var authStateData auth.AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		return &auth.DeviceState{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	if authStateData.Device == nil {
-		return &auth.DeviceState{}, nil
-	}
-
-	return authStateData.Device, nil
-}
-
-// SetDevice updates the device details in the state.
-func SetDevice(st *state.State, device *auth.DeviceState) error {
-	var authStateData auth.AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		authStateData = auth.AuthState{}
-	} else if err != nil {
-		return err
-	}
-
-	authStateData.Device = device
-	st.Set("auth", authStateData)
-
-	return nil
-}
-
-// Model returns the device model assertion.
-func Model(st *state.State) (*asserts.Model, error) {
-	device, err := Device(st)
+// findModel returns the device model assertion.
+func findModel(st *state.State) (*asserts.Model, error) {
+	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -105,9 +70,9 @@ func Model(st *state.State) (*asserts.Model, error) {
 	return a.(*asserts.Model), nil
 }
 
-// Serial returns the device serial assertion.
-func Serial(st *state.State) (*asserts.Serial, error) {
-	device, err := Device(st)
+// findSerial returns the device serial assertion.
+func findSerial(st *state.State) (*asserts.Serial, error) {
+	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +114,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 
 	// Check model exists, for sanity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
-	_, err := Model(st)
+	_, err := findModel(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -157,7 +122,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	_, err = Serial(st)
+	_, err = findSerial(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -190,7 +155,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return nil
 	}
 
-	model, err := Model(st)
+	// XXX: remodeling: use deviceCtx
+	model, err := findModel(st)
 	if err == state.ErrNoState {
 		return fmt.Errorf("cannot install %s without model assertion", kind)
 	}
@@ -249,11 +215,7 @@ func delayedCrossMgrInit() {
 	snapstate.DeviceCtx = DeviceCtx
 }
 
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func ProxyStore(st *state.State) (*asserts.Store, error) {
-	return proxyStore(st, config.NewTransaction(st))
-}
-
+// proxyStore returns the store assertion for the proxy store if one is set.
 func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error) {
 	var proxyStore string
 	err := tr.GetMaybe("core", "proxy.store", &proxyStore)
@@ -390,7 +352,7 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot remodel until fully seeded")
 	}
 
-	current, err := Model(st)
+	current, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}

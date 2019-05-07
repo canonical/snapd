@@ -214,7 +214,7 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "connectivity":
 		return checkConnectivity(st)
 	case "model":
-		model, err := devicestate.Model(st)
+		model, err := c.d.overlord.DeviceManager().Model()
 		if err != nil {
 			return InternalError("cannot get model: %v", err)
 		}

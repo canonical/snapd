@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -346,7 +347,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, check.IsNil)
 
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
 		Model:  "pc",
 		Serial: "serialserial",
@@ -5686,12 +5687,12 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
-	devicestate.SetDevice(st, nil)
+	devicestatetest.SetDevice(st, nil)
 	st.Unlock()
 
 	email := "foo@example.com"
 
-	username, opts, err := getUserDetailsFromAssertion(st, email)
+	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, email)
 	c.Check(username, check.Equals, "")
 	c.Check(opts, check.IsNil)
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
@@ -5765,7 +5766,7 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	}
 	// create fake device
 	st.Lock()
-	err = devicestate.SetDevice(st, &auth.DeviceState{
+	err = devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",
@@ -5832,8 +5833,7 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	st := s.d.overlord.State()
-	username, opts, err := getUserDetailsFromAssertion(st, "foo@bar.com")
+	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, "foo@bar.com")
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
 		Gecos:    "foo@bar.com,Boring Guy",
