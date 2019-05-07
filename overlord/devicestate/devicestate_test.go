@@ -2862,7 +2862,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(updateCalled, Equals, true)
-	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	c.Check(rollbackDir, Equals, passedRollbackDir)
 	// should have been removed right after update
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
@@ -2987,7 +2987,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(terr.Status(), Equals, state.ErrorStatus)
 	c.Check(updateCalled, Equals, true)
-	c.Check(updateRollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget"))
+	c.Check(updateRollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34"))
 	// only one request for task do
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
@@ -3040,7 +3040,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirExistsRemovedByUpdate(
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
 
-	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	err := os.MkdirAll(rollbackDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -3103,7 +3103,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
 
-	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
 	c.Assert(err, IsNil)
 
@@ -3174,7 +3174,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(gadget exploded\).*`)
 	c.Check(t.Status(), Equals, state.ErrorStatus)
-	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	// update rollback left for inspection
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, true)
 	c.Check(s.restartRequests, HasLen, 0)

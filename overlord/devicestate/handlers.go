@@ -806,7 +806,7 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	snapRollbackDir, err := makeRollbackDir(snapsup.InstanceName())
+	snapRollbackDir, err := makeRollbackDir(fmt.Sprintf("%v_%v", snapsup.InstanceName(), snapsup.SideInfo.Revision))
 	if err != nil {
 		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
 	}
