@@ -39,6 +39,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
@@ -206,6 +207,10 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 			return err
 		}
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(changed))
+	res := make(chan error, len(changed))
 	for _, c := range changed {
 		in := bpfSrcPath(c)
 		out := bpfBinPath(c)
@@ -216,14 +221,39 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 			return err
 		}
 
-		// snap-seccomp uses AtomicWriteFile internally, on failure the
-		// output file is unlinked
-		if err := b.snapSeccomp.Compile(in, out); err != nil {
-			return fmt.Errorf("cannot compile %s: %v", in, err)
+		go func(in, out string) {
+			defer wg.Done()
+			// snap-seccomp uses AtomicWriteFile internally, on failure the
+			// output file is unlinked
+			if err := b.snapSeccomp.Compile(in, out); err != nil {
+				res <- fmt.Errorf("cannot compile %s: %v", in, err)
+			} else {
+				res <- nil
+			}
+		}(in, out)
+	}
+
+	wg.Wait()
+	close(res)
+
+	var firstErr error
+	for err := range res {
+		if err != nil && firstErr == nil {
+			firstErr = err
 		}
 	}
 
-	return nil
+	if firstErr != nil {
+		for _, c := range changed {
+			out := bpfBinPath(c)
+			// unlink all profiles that could have been successfuly
+			// compiled
+			os.Remove(out)
+		}
+
+	}
+
+	return firstErr
 }
 
 // Remove removes seccomp profiles of a given snap.
