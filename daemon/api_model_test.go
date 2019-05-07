@@ -27,6 +27,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -46,10 +48,22 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	newModel := makeMockModelHdrs()
 
 	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
 	s.mockModel(c, st)
 	st.Unlock()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+	defer func() { ensureStateSoon = func(st *state.State) {} }()
 
 	var devicestateRemodelGotModel *asserts.Model
 	devicestateRemodel = func(st *state.State, nm *asserts.Model) (*state.Change, error) {
@@ -77,4 +91,12 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
+
+	c.Assert(st.Changes(), check.HasLen, 1)
+	chg1 := st.Changes()[0]
+	c.Assert(chg, check.DeepEquals, chg1)
+	c.Assert(chg.Kind(), check.Equals, "remodel")
+	c.Assert(chg.Err(), check.IsNil)
+
+	c.Assert(soon, check.Equals, 1)
 }
