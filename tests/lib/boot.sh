@@ -45,3 +45,10 @@ get_boot_path() {
         exit 1
     fi
 }
+
+wait_core_post_boot() {
+    # booted
+    while [ "$(bootenv snap_mode)" != "" ]; do
+        sleep 1
+    done
+}

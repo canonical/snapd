@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -30,6 +32,23 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if providedDeviceCtx != nil {
 		return providedDeviceCtx, nil
 	}
+
+	// see if we have a remodel in progress
+	if task != nil {
+		var modelass string
+		if err := task.Change().Get("new-model", &modelass); err == nil {
+			ass, err := asserts.Decode([]byte(modelass))
+			if err != nil {
+				return nil, err
+			}
+			new, ok := ass.(*asserts.Model)
+			if !ok {
+				return nil, fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
+			}
+			return &remodelDeviceContext{new}, nil
+		}
+	}
+
 	modelAs, err := findModel(st)
 	if err != nil {
 		return nil, err
@@ -54,4 +73,23 @@ func (dc modelDeviceContext) Store() snapstate.StoreService {
 
 func (dc modelDeviceContext) ForRemodeling() bool {
 	return false
+}
+
+// ensure the remodelDeviceContex has the right interface
+var _ snapstate.DeviceContext = remodelDeviceContext{}
+
+type remodelDeviceContext struct {
+	newModel *asserts.Model
+}
+
+func (dc remodelDeviceContext) Model() *asserts.Model {
+	return dc.newModel
+}
+
+func (dc remodelDeviceContext) Store() snapstate.StoreService {
+	return nil
+}
+
+func (dc remodelDeviceContext) ForRemodeling() bool {
+	return true
 }

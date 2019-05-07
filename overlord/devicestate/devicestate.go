@@ -347,6 +347,20 @@ func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSe
 		}
 		tss = append(tss, ts)
 	}
+	// add new kernel
+	if current.Kernel() != new.Kernel() {
+		// TODO: we need to support corner cases here like:
+		//  0. start with "old-kernel"
+		//  1. remodel to "new-kernel"
+		//  2. remodel back to "old-kernel"
+		// In step (2) we will get a "already-installed" error
+		// here right now (workaround: remove "old-kernel")
+		ts, err := snapstateInstall(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
 	// add new required-snaps, no longer required snaps will be cleaned
 	// in "set-model"
 	for _, snapName := range new.RequiredSnaps() {
@@ -482,11 +496,6 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	// FIXME: this needs work to switch the base to boot as well
 	if current.Base() != new.Base() {
 		return nil, fmt.Errorf("cannot remodel to different bases yet")
-	}
-	// FIXME: we need to support this soon but right now only a single
-	// snap of type "gadget/kernel" is allowed so this needs work
-	if current.Kernel() != new.Kernel() {
-		return nil, fmt.Errorf("cannot remodel to different kernels yet")
 	}
 	if current.Gadget() != new.Gadget() {
 		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
