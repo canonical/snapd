@@ -760,18 +760,18 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup, classic bool) (*gadget.Info
 	return update, nil
 }
 
-func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.Info, update *gadget.Info, err error) {
+func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup, classic bool) (current *gadget.Info, update *gadget.Info, err error) {
 	snapst, err := snapState(st, snapsup.InstanceName())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	currentInfo, err := currentGadgetInfo(snapst, release.OnClassic)
+	currentInfo, err := currentGadgetInfo(snapst, classic)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	newInfo, err := pendingGadgetInfo(snapsup, release.OnClassic)
+	newInfo, err := pendingGadgetInfo(snapsup, classic)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -797,7 +797,7 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
+	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup, release.OnClassic)
 	if err != nil {
 		return err
 	}
