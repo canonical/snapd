@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -270,29 +269,22 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	var gadgetInfo *snap.Info
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
-		var err error
-		gadgetInfo, err = snapstate.GadgetInfo(m.state)
-		if err == state.ErrNoState {
-			// no gadget installed yet, cannot proceed
+		// if have a gadget wait until seeded to proceed
+		if !seeded {
+			// this will be run again, so eventually when the system is
+			// seeded the code below runs
 			return nil
+
 		}
+
+		gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
 		if err != nil {
 			return err
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
-	}
-
-	// When the prepare-device hook is used we need a fully seeded system
-	// to ensure the prepare-device hook has access to the things it
-	// needs
-	if !seeded && hasPrepareDeviceHook {
-		// this will be run again, so eventually when the system is
-		// seeded the code below runs
-		return nil
 	}
 
 	// have some backoff between full retries
@@ -312,7 +304,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if hasPrepareDeviceHook {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.InstanceName(),
+			Snap: gadget,
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
