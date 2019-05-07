@@ -1687,17 +1687,16 @@ func (s *deviceMgrSuite) setupBrands(c *C) {
 	assertstatetest.AddMany(s.state, otherAcct)
 }
 
-func (s *deviceMgrSuite) setupSnapDecl(c *C, name, snapID, publisherID string) {
-	brandGadgetDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+func (s *deviceMgrSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-name":    name,
-		"snap-id":      snapID,
+		"snap-name":    info.SnapName(),
+		"snap-id":      info.SnapID,
 		"publisher-id": publisherID,
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, brandGadgetDecl)
-	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, snapDecl)
 }
 
 func fakeMyModel(extra map[string]interface{}) *asserts.Model {
@@ -1730,19 +1729,19 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	c.Check(err, ErrorMatches, `cannot install gadget "other-gadget", model assertion requests "gadget"`)
 
 	// brand gadget
-	s.setupSnapDecl(c, "gadget", "brand-gadget-id", "my-brand")
 	brandGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	brandGadgetInfo.SnapID = "brand-gadget-id"
+	s.setupSnapDecl(c, brandGadgetInfo, "my-brand")
 
 	// canonical gadget
-	s.setupSnapDecl(c, "gadget", "canonical-gadget-id", "canonical")
 	canonicalGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	canonicalGadgetInfo.SnapID = "canonical-gadget-id"
+	s.setupSnapDecl(c, canonicalGadgetInfo, "canonical")
 
 	// other gadget
-	s.setupSnapDecl(c, "gadget", "other-gadget-id", "other-brand")
 	otherGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	otherGadgetInfo.SnapID = "other-gadget-id"
+	s.setupSnapDecl(c, otherGadgetInfo, "other-brand")
 
 	// install brand gadget ok
 	err = devicestate.CheckGadgetOrKernel(s.state, brandGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
@@ -1787,19 +1786,19 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 	c.Check(err, ErrorMatches, `cannot install gadget "other-gadget", model assertion requests "gadget"`)
 
 	// brand gadget
-	s.setupSnapDecl(c, "gadget", "brand-gadget-id", "my-brand")
 	brandGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	brandGadgetInfo.SnapID = "brand-gadget-id"
+	s.setupSnapDecl(c, brandGadgetInfo, "my-brand")
 
 	// canonical gadget
-	s.setupSnapDecl(c, "gadget", "canonical-gadget-id", "canonical")
 	canonicalGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	canonicalGadgetInfo.SnapID = "canonical-gadget-id"
+	s.setupSnapDecl(c, canonicalGadgetInfo, "canonical")
 
 	// other gadget
-	s.setupSnapDecl(c, "gadget", "other-gadget-id", "other-brand")
 	otherGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	otherGadgetInfo.SnapID = "other-gadget-id"
+	s.setupSnapDecl(c, otherGadgetInfo, "other-brand")
 
 	// install brand gadget ok
 	err = devicestate.CheckGadgetOrKernel(s.state, brandGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
@@ -1862,19 +1861,19 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
 
 	// brand kernel
-	s.setupSnapDecl(c, "krnl", "brand-krnl-id", "my-brand")
 	brandKrnlInfo := snaptest.MockInfo(c, "{type: kernel, name: krnl, version: 0}", nil)
 	brandKrnlInfo.SnapID = "brand-krnl-id"
+	s.setupSnapDecl(c, brandKrnlInfo, "my-brand")
 
 	// canonical kernel
-	s.setupSnapDecl(c, "krnl", "canonical-krnl-id", "canonical")
 	canonicalKrnlInfo := snaptest.MockInfo(c, "{type: kernel, name: krnl, version: 0}", nil)
 	canonicalKrnlInfo.SnapID = "canonical-krnl-id"
+	s.setupSnapDecl(c, canonicalKrnlInfo, "canonical")
 
 	// other kernel
-	s.setupSnapDecl(c, "krnl", "other-krnl-id", "other-brand")
 	otherKrnlInfo := snaptest.MockInfo(c, "{type: kernel, name: krnl, version: 0}", nil)
 	otherKrnlInfo.SnapID = "other-krnl-id"
+	s.setupSnapDecl(c, otherKrnlInfo, "other-brand")
 
 	// install brand kernel ok
 	err = devicestate.CheckGadgetOrKernel(s.state, brandKrnlInfo, nil, snapstate.Flags{}, deviceCtx)
@@ -2111,19 +2110,6 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	ifacerepo.Replace(st, repo)
 }
 
-func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
-	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
-		"series":       "16",
-		"snap-name":    info.SnapName(),
-		"snap-id":      info.SideInfo.SnapID,
-		"publisher-id": "canonical",
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, decl)
-	c.Assert(err, IsNil)
-}
-
 func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
 	st := s.state
 	st.Lock()
@@ -2147,7 +2133,7 @@ func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
 
 	// if all of the above plus a snap declaration are in place we can
 	// manage schedules
-	s.makeSnapDeclaration(c, st, info11)
+	s.setupSnapDecl(c, info11, "canonical")
 	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
 
 	// works if the snap is not active as well (to fix race when a
@@ -2170,7 +2156,7 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlOnlyYAML)
 	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
 	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
-	s.makeSnapDeclaration(c, st, info11)
+	s.setupSnapDecl(c, info11, "canonical")
 
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 }
