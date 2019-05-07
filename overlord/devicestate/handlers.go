@@ -719,20 +719,20 @@ func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
 }
 
 func makeRollbackDir(name string) (string, error) {
-	snapRollbackDir := filepath.Join(dirs.SnapRollbackDir, name)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, name)
 
 	if err := os.MkdirAll(dirs.SnapRollbackDir, 0755); err != nil {
 		return "", err
 	}
 
-	if err := os.Mkdir(snapRollbackDir, 0755); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(rollbackDir, 0755); err != nil && !os.IsExist(err) {
 		return "", err
 	}
 
-	return snapRollbackDir, nil
+	return rollbackDir, nil
 }
 
-func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
+func currentGadgetInfo(snapst *snapstate.SnapState, classic bool) (*gadget.Info, error) {
 	var gi *gadget.Info
 
 	currentInfo, err := snapst.CurrentInfo()
@@ -740,7 +740,7 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
 		return nil, err
 	}
 	if currentInfo != nil {
-		gi, err = snap.ReadGadgetInfo(currentInfo, release.OnClassic)
+		gi, err = snap.ReadGadgetInfo(currentInfo, classic)
 		if err != nil {
 			return nil, err
 		}
@@ -748,12 +748,12 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
 	return gi, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.Info, error) {
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup, classic bool) (*gadget.Info, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, err
 	}
-	update, err := snap.ReadGadgetInfo(info, release.OnClassic)
+	update, err := snap.ReadGadgetInfo(info, classic)
 	if err != nil {
 		return nil, err
 	}
@@ -766,12 +766,12 @@ func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (curr
 		return nil, nil, err
 	}
 
-	currentInfo, err := currentGadgetInfo(snapst)
+	currentInfo, err := currentGadgetInfo(snapst, release.OnClassic)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	newInfo, err := pendingGadgetInfo(snapsup)
+	newInfo, err := pendingGadgetInfo(snapsup, release.OnClassic)
 	if err != nil {
 		return nil, nil, err
 	}
