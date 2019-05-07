@@ -69,7 +69,7 @@ func (s *iconsTestSuite) TestFindIconFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "snap.whatever"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(iconsDir, "snap.whatever", "snap.hello-snap.foo.png"), []byte("bad dir"), 0644), IsNil)
 
-	icons, err := wrappers.FindIconFiles(iconsDir, "snap.hello-snap.*")
+	icons, err := wrappers.FindIconFiles(info, iconsDir)
 	sort.Strings(icons)
 	c.Assert(err, IsNil)
 	c.Check(icons, DeepEquals, []string{
@@ -92,13 +92,46 @@ func (s *iconsTestSuite) TestAddSnapIcons(c *C) {
 }
 
 func (s *iconsTestSuite) TestRemoveSnapIcons(c *C) {
-	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
-
 	iconDir := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps")
 	iconFile := filepath.Join(iconDir, "snap.hello-snap.foo.svg")
 	c.Assert(os.MkdirAll(iconDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(iconFile, []byte("contents"), 0644), IsNil)
 
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
 	c.Assert(wrappers.RemoveSnapIcons(info), IsNil)
 	c.Check(iconFile, testutil.FileAbsent)
+}
+
+func (s *iconsTestSuite) TestParallelInstanceAddIcons(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
+	info.InstanceKey = "instance"
+
+	baseDir := info.MountDir()
+	iconsDir := filepath.Join(baseDir, "meta", "gui", "icons")
+	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "scalable", "apps"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg"), []byte("scalable"), 0644), IsNil)
+
+	c.Assert(wrappers.AddSnapIcons(info), IsNil)
+	iconFile := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps", "snap.hello-snap_instance.foo.svg")
+	c.Check(iconFile, testutil.FileEquals, "scalable")
+
+	// No file installed without the instance qualifier
+	iconFile = filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg")
+	c.Check(iconFile, testutil.FileAbsent)
+}
+
+func (s *iconsTestSuite) TestParallelInstanceRemoveIcons(c *C) {
+	iconDir := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps")
+	c.Assert(os.MkdirAll(iconDir, 0755), IsNil)
+	snapNameFile := filepath.Join(iconDir, "snap.hello-snap.foo.svg")
+	c.Assert(ioutil.WriteFile(snapNameFile, []byte("contents"), 0644), IsNil)
+	instanceNameFile := filepath.Join(iconDir, "snap.hello-snap_instance.foo.svg")
+	c.Assert(ioutil.WriteFile(instanceNameFile, []byte("contents"), 0644), IsNil)
+
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
+	info.InstanceKey = "instance"
+	c.Assert(wrappers.RemoveSnapIcons(info), IsNil)
+	c.Check(instanceNameFile, testutil.FileAbsent)
+	// The non-instance qualified icon remains
+	c.Check(snapNameFile, testutil.FilePresent)
 }

@@ -24,16 +24,18 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-func findIconFiles(rootDir string, iconGlob string) (icons []string, err error) {
+func findIconFiles(s *snap.Info, rootDir string) (icons []string, err error) {
 	if !osutil.IsDirectory(rootDir) {
 		return nil, nil
 	}
+	iconGlob := fmt.Sprintf("snap.%s.*", s.SnapName())
 	forbiddenDirGlob := "snap.*"
 	err = filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -64,8 +66,10 @@ func findIconFiles(rootDir string, iconGlob string) (icons []string, err error) 
 	return icons, err
 }
 
-func deriveIconContent(rootDir string, icons []string) (content map[string]map[string]*osutil.FileState, err error) {
+func deriveIconContent(s *snap.Info, rootDir string, icons []string) (content map[string]map[string]*osutil.FileState, err error) {
 	content = make(map[string]map[string]*osutil.FileState)
+	snapPrefix := fmt.Sprintf("snap.%s.", s.SnapName())
+	instancePrefix := fmt.Sprintf("snap.%s.", s.InstanceName())
 
 	for _, iconFile := range icons {
 		dir := filepath.Dir(iconFile)
@@ -78,6 +82,10 @@ func deriveIconContent(rootDir string, icons []string) (content map[string]map[s
 		data, err := ioutil.ReadFile(filepath.Join(rootDir, iconFile))
 		if err != nil {
 			return nil, err
+		}
+		// rename icons to match snap instance name
+		if strings.HasPrefix(base, snapPrefix) {
+			base = instancePrefix + base[len(snapPrefix):]
 		}
 		dirContent[base] = &osutil.FileState{
 			Content: data,
@@ -93,16 +101,16 @@ func AddSnapIcons(s *snap.Info) error {
 	}
 
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui", "icons")
-	iconGlob := fmt.Sprintf("snap.%s.*", s.SnapName())
-	icons, err := findIconFiles(rootDir, iconGlob)
+	icons, err := findIconFiles(s, rootDir)
 	if err != nil {
 		return err
 	}
 
-	content, err := deriveIconContent(rootDir, icons)
+	content, err := deriveIconContent(s, rootDir, icons)
 	if err != nil {
 		return err
 	}
+	iconGlob := fmt.Sprintf("snap.%s.*", s.InstanceName())
 	_, _, err = osutil.EnsureTreeState(dirs.SnapDesktopIconsDir, []string{iconGlob}, content)
 	return err
 }
@@ -111,7 +119,7 @@ func RemoveSnapIcons(s *snap.Info) error {
 	if !osutil.IsDirectory(dirs.SnapDesktopIconsDir) {
 		return nil
 	}
-	iconGlob := fmt.Sprintf("snap.%s.*", s.SnapName())
+	iconGlob := fmt.Sprintf("snap.%s.*", s.InstanceName())
 	_, _, err := osutil.EnsureTreeState(dirs.SnapDesktopIconsDir, []string{iconGlob}, nil)
 	return err
 }
