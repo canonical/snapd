@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"time"
@@ -97,16 +98,16 @@ type debugTimings struct {
 	ChangeTimings map[string]*changeTimings `json:"change-timings,omitempty"`
 }
 
-func collectChangeTimings(st *state.State, changeID string) (map[string]*changeTimings, Response) {
+func collectChangeTimings(st *state.State, changeID string) (map[string]*changeTimings, error) {
 	chg := st.Change(changeID)
 	if chg == nil {
-		return nil, BadRequest("cannot find change: %v", changeID)
+		return nil, fmt.Errorf("cannot find change: %v", changeID)
 	}
 
 	// collect "timings" for tasks of given change
 	stateTimings, err := timings.Get(st, -1, func(tags map[string]string) bool { return tags["change-id"] == changeID })
 	if err != nil {
-		return nil, InternalError("cannot get timings of change %s: %v", changeID, err)
+		return nil, fmt.Errorf("cannot get timings of change %s: %v", changeID, err)
 	}
 
 	doingTimingsByTask := make(map[string][]*timings.TimingJSON)
@@ -120,7 +121,7 @@ func collectChangeTimings(st *state.State, changeID string) (map[string]*changeT
 			case status == state.UndoingStatus.String():
 				undoingTimingsByTask[taskID] = tm.NestedTimings
 			default:
-				return nil, InternalError("unexpected task status %q for timing of task %s", status, taskID)
+				return nil, fmt.Errorf("unexpected task status %q for timing of task %s", status, taskID)
 			}
 		}
 	}
@@ -137,46 +138,59 @@ func collectChangeTimings(st *state.State, changeID string) (map[string]*changeT
 	return m, nil
 }
 
+func collectEnsureTimings(st *state.State, ensureTag string, allEnsures bool) ([]*debugTimings, error) {
+	ensures, err := timings.Get(st, -1, func(tags map[string]string) bool {
+		return tags["ensure"] == ensureTag
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot get timings of ensure %s: %v", ensureTag, err)
+	}
+	if len(ensures) == 0 {
+		return nil, fmt.Errorf("cannot find ensure: %v", ensureTag)
+	}
+
+	// If allEnsures is true, then report all activities of given ensure, otherwise just the latest
+	first := len(ensures) - 1
+	if allEnsures {
+		first = 0
+	}
+	var responseData []*debugTimings
+	var changeTimings map[string]*changeTimings
+	for _, ensureTm := range ensures[first:] {
+		ensureChangeID := ensureTm.Tags["change-id"]
+		// change is optional for ensure timings
+		if ensureChangeID != "" {
+			changeTimings, err = collectChangeTimings(st, ensureChangeID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		debugTm := &debugTimings{
+			ChangeID:      ensureChangeID,
+			ChangeTimings: changeTimings,
+			EnsureTimings: ensureTm.NestedTimings,
+		}
+		responseData = append(responseData, debugTm)
+	}
+
+	return responseData, nil
+}
+
 func getChangeTimings(st *state.State, changeID, ensureTag string, allEnsures bool) Response {
 	// If ensure tag was passed by the client, find its related changes;
 	// we can have many ensure executions and their changes in the responseData array.
 	if ensureTag != "" {
-		ensures, err := timings.Get(st, -1, func(tags map[string]string) bool {
-			return tags["ensure"] == ensureTag
-		})
+		responseData, err := collectEnsureTimings(st, ensureTag, allEnsures)
 		if err != nil {
-			return InternalError("cannot get timings of ensure %s: %v", ensureTag, err)
-		}
-		if len(ensures) == 0 {
-			return BadRequest("cannot find ensure: %v", ensureTag)
-		}
-
-		// If allEnsures is true, then report all activities of given ensure, otherwise just the latest
-		first := len(ensures) - 1
-		if allEnsures {
-			first = 0
-		}
-		var responseData []*debugTimings
-		for _, ensureTm := range ensures[first:] {
-			ensureChangeID := ensureTm.Tags["change-id"]
-			changeTimings, errorResponse := collectChangeTimings(st, ensureChangeID)
-			if errorResponse != nil {
-				return errorResponse
-			}
-			debugTm := &debugTimings{
-				ChangeID:      ensureChangeID,
-				ChangeTimings: changeTimings,
-				EnsureTimings: ensureTm.NestedTimings,
-			}
-			responseData = append(responseData, debugTm)
+			return BadRequest(err.Error())
 		}
 		return SyncResponse(responseData, nil)
 	}
 
 	// timings for single change ID
-	changeTimings, errorResponse := collectChangeTimings(st, changeID)
-	if errorResponse != nil {
-		return errorResponse
+	changeTimings, err := collectChangeTimings(st, changeID)
+	if err != nil {
+		return BadRequest(err.Error())
 	}
 
 	responseData := []*debugTimings{

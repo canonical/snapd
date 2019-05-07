@@ -27,6 +27,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -99,6 +100,9 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	if x.EnsureTag != "" && x.Positional.ID != "" {
 		return fmt.Errorf("cannot use 'ensure' and change id together")
 	}
+	if x.All && x.Positional.ID != "" {
+		return fmt.Errorf("cannot use 'all' and change id together")
+	}
 
 	var chgid string
 	var err error
@@ -134,9 +138,14 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		chgid = td.ChangeID
 
 		// now combine with the other data about the change
-		chg, err := x.client.Change(chgid)
-		if err != nil {
-			return err
+		var chg *client.Change
+
+		// change is optional for ensure timings
+		if chgid != "" {
+			chg, err = x.client.Change(chgid)
+			if err != nil {
+				return err
+			}
 		}
 
 		if len(td.EnsureTimings) > 0 {
@@ -149,33 +158,36 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 			}
 		}
 
-		for _, t := range chg.Tasks {
-			doingTime := formatDuration(td.ChangeTimings[t.ID].DoingTime)
-			if td.ChangeTimings[t.ID].DoingTime == 0 {
-				doingTime = "-"
-			}
-			undoingTime := formatDuration(td.ChangeTimings[t.ID].UndoingTime)
-			if td.ChangeTimings[t.ID].UndoingTime == 0 {
-				undoingTime = "-"
-			}
-			summary := t.Summary
-			// Duration formats to 17m14.342s or 2.038s or 970ms, so with
-			// 11 chars we can go up to 59m59.999s
-			if x.Verbose {
-				fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
-			} else {
-				fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
-			}
+		if chg != nil {
+			for _, t := range chg.Tasks {
+				doingTime := formatDuration(td.ChangeTimings[t.ID].DoingTime)
+				if td.ChangeTimings[t.ID].DoingTime == 0 {
+					doingTime = "-"
+				}
+				undoingTime := formatDuration(td.ChangeTimings[t.ID].UndoingTime)
+				if td.ChangeTimings[t.ID].UndoingTime == 0 {
+					undoingTime = "-"
+				}
+				summary := t.Summary
+				// Duration formats to 17m14.342s or 2.038s or 970ms, so with
+				// 11 chars we can go up to 59m59.999s
+				if x.Verbose {
+					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
+				} else {
+					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
+				}
 
-			for _, nested := range td.ChangeTimings[t.ID].DoingTimings {
-				showDoing := true
-				printTiming(w, &nested, x.Verbose, showDoing)
-			}
-			for _, nested := range td.ChangeTimings[t.ID].UndoingTimings {
-				showDoing := false
-				printTiming(w, &nested, x.Verbose, showDoing)
+				for _, nested := range td.ChangeTimings[t.ID].DoingTimings {
+					showDoing := true
+					printTiming(w, &nested, x.Verbose, showDoing)
+				}
+				for _, nested := range td.ChangeTimings[t.ID].UndoingTimings {
+					showDoing := false
+					printTiming(w, &nested, x.Verbose, showDoing)
+				}
 			}
 		}
+
 		w.Flush()
 		fmt.Fprintln(Stdout)
 	}
