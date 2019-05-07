@@ -160,10 +160,8 @@ func collectEnsureTimings(st *state.State, ensureTag string, allEnsures bool) ([
 		ensureChangeID := ensureTm.Tags["change-id"]
 		// change is optional for ensure timings
 		if ensureChangeID != "" {
-			changeTimings, err = collectChangeTimings(st, ensureChangeID)
-			if err != nil {
-				return nil, err
-			}
+			// ignore an error when getting a change, it may no longer be present in the state
+			changeTimings, _ = collectChangeTimings(st, ensureChangeID)
 		}
 		debugTm := &debugTimings{
 			ChangeID:      ensureChangeID,

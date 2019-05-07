@@ -157,13 +157,14 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	if x.EnsureTag != "" && x.Positional.ID != "" {
 		return fmt.Errorf("cannot use 'ensure' and change id together")
 	}
-	if x.All && x.Positional.ID != "" {
-		return fmt.Errorf("cannot use 'all' and change id together")
+	if x.All && (x.Positional.ID != "" || x.LastChangeType != "") {
+		return fmt.Errorf("cannot use 'all' with change id or 'last'")
 	}
 
 	var chgid string
 	var err error
-	if x.Positional.ID != "" {
+	if x.EnsureTag == "" {
+		// GetChangeID takes care of --last=... if change ID was not specified by the user
 		chgid, err = x.GetChangeID()
 		if err != nil {
 			return err
