@@ -17,17 +17,18 @@
  *
  */
 
-package devicestate
+package devicestatetest
 
 import (
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, model *asserts.Model) error {
-	device.Brand = model.BrandID()
-	device.Model = model.Model()
+func Device(st *state.State) (*auth.DeviceState, error) {
+	return internal.Device(st)
+}
+
+func SetDevice(st *state.State, device *auth.DeviceState) error {
 	return internal.SetDevice(st, device)
 }

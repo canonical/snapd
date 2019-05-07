@@ -277,7 +277,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -306,7 +306,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
@@ -373,7 +373,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -402,7 +402,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
@@ -454,7 +454,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 		"store":   "alt-store",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "classic-alt-store",
 	})
@@ -473,7 +473,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "classic-alt-store")
@@ -538,7 +538,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
@@ -595,7 +595,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -614,7 +614,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "my-model")
@@ -653,7 +653,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
@@ -673,7 +673,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	_, err = s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
@@ -697,7 +697,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
-	device, err = devicestate.Device(s.state)
+	device, err = devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
 
@@ -729,7 +729,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
@@ -749,7 +749,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	_, err = s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
@@ -765,7 +765,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
-	device, err = devicestate.Device(s.state)
+	device, err = devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
 }
@@ -796,7 +796,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
@@ -843,7 +843,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialMaxTentatives(c *C) {
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
@@ -897,7 +897,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -925,7 +925,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
@@ -990,7 +990,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 		"gadget":       "gadget",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc2",
 	})
@@ -1021,7 +1021,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc2")
@@ -1132,7 +1132,7 @@ func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, n
 		"gadget":       "gadget",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc2",
 	})
@@ -1151,7 +1151,7 @@ func (s *deviceMgrSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c *C, n
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc2")
@@ -1196,7 +1196,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -1218,7 +1218,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*cannot deliver device serial request: bad serial-request.*`)
 
-	device, err := devicestate.Device(s.state)
+	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.KeyID, Not(Equals), "")
 	keyID := device.KeyID
@@ -1242,7 +1242,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 2)
 
-	device, err = devicestate.Device(s.state)
+	device, err = devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.KeyID, Equals, keyID)
 	c.Check(device.Serial, Equals, "10000")
@@ -1293,7 +1293,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -1313,52 +1313,17 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) {
 	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*obtained serial assertion does not match provided device identity information.*`)
 }
 
-func (s *deviceMgrSuite) TestSetDevice(c *C) {
-	s.state.Lock()
-	device, err := devicestate.Device(s.state)
-	s.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{})
-
-	s.state.Lock()
-	err = devicestate.SetDevice(s.state, &auth.DeviceState{Brand: "some-brand"})
-	c.Check(err, IsNil)
-	device, err = devicestate.Device(s.state)
-	s.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
-}
-
-func (s *deviceMgrSuite) TestStoreContextBackendSetDevice(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	device, err := s.mgr.Device()
-	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{})
-
-	err = s.mgr.SetDevice(&auth.DeviceState{Brand: "some-brand"})
-	c.Check(err, IsNil)
-	device, err = s.mgr.Device()
-	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
-}
-
-func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
+func (s *deviceMgrSuite) TestModelAndSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	// nothing in the state
-	_, err := devicestate.Model(s.state)
-	c.Check(err, Equals, state.ErrNoState)
-	_, err = devicestate.Serial(s.state)
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, err = s.mgr.Model()
+	_, err := s.mgr.Model()
 	c.Check(err, Equals, state.ErrNoState)
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)
 
 	// just brand and model
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -1385,15 +1350,11 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
-	mod, err = devicestate.Model(s.state)
-	c.Assert(err, IsNil)
-	c.Assert(mod.BrandID(), Equals, "canonical")
-
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a serial as well
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "8989",
@@ -1411,8 +1372,85 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	ser, err := s.mgr.Serial()
 	c.Assert(err, IsNil)
 	c.Check(ser.Serial(), Equals, "8989")
+}
 
-	ser, err = devicestate.Serial(s.state)
+func (s *deviceMgrSuite) TestStoreContextBackendSetDevice(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	scb := s.mgr.StoreContextBackend()
+
+	device, err := scb.Device()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{})
+
+	err = scb.SetDevice(&auth.DeviceState{Brand: "some-brand"})
+	c.Check(err, IsNil)
+	device, err = scb.Device()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
+}
+
+func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	scb := s.mgr.StoreContextBackend()
+
+	// nothing in the state
+	_, err := scb.Model()
+	c.Check(err, Equals, state.ErrNoState)
+	_, err = scb.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// just brand and model
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	_, err = scb.Model()
+	c.Check(err, Equals, state.ErrNoState)
+	_, err = scb.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+
+	mod, err := scb.Model()
+	c.Assert(err, IsNil)
+	c.Assert(mod.BrandID(), Equals, "canonical")
+
+	_, err = scb.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a serial as well
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	_, err = scb.Model()
+	c.Assert(err, IsNil)
+	_, err = scb.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a serial assertion
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+
+	_, err = scb.Model()
+	c.Assert(err, IsNil)
+	ser, err := scb.Serial()
 	c.Assert(err, IsNil)
 	c.Check(ser.Serial(), Equals, "8989")
 }
@@ -1421,8 +1459,10 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	scb := s.mgr.StoreContextBackend()
+
 	// nothing there
-	_, err := s.mgr.SignDeviceSessionRequest(nil, "NONCE-1")
+	_, err := scb.SignDeviceSessionRequest(nil, "NONCE-1")
 	c.Check(err, ErrorMatches, "internal error: cannot sign a session request without a serial")
 
 	// setup state as done by device initialisation
@@ -1442,20 +1482,20 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 	c.Assert(err, IsNil)
 	serial := seriala.(*asserts.Serial)
 
-	_, err = s.mgr.SignDeviceSessionRequest(serial, "NONCE-1")
+	_, err = scb.SignDeviceSessionRequest(serial, "NONCE-1")
 	c.Check(err, ErrorMatches, "internal error: inconsistent state with serial but no device key")
 
 	// have a key
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "8989",
 		KeyID:  devKey.PublicKey().ID(),
 	})
 
-	sessReq, err := s.mgr.SignDeviceSessionRequest(serial, "NONCE-1")
+	sessReq, err := scb.SignDeviceSessionRequest(serial, "NONCE-1")
 	c.Assert(err, IsNil)
 
 	// correctly signed with device key
@@ -1474,11 +1514,10 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// nothing in the state
-	_, err := devicestate.ProxyStore(s.state)
-	c.Check(err, Equals, state.ErrNoState)
+	scb := s.mgr.StoreContextBackend()
 
-	_, err = s.mgr.ProxyStore()
+	// nothing in the state
+	_, err := scb.ProxyStore()
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a store referenced
@@ -1487,7 +1526,7 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	tr.Commit()
 	c.Assert(err, IsNil)
 
-	_, err = s.mgr.ProxyStore()
+	_, err = scb.ProxyStore()
 	c.Check(err, Equals, state.ErrNoState)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
@@ -1505,11 +1544,7 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	err = assertstate.Add(s.state, stoAs)
 	c.Assert(err, IsNil)
 
-	sto, err := s.mgr.ProxyStore()
-	c.Assert(err, IsNil)
-	c.Assert(sto.Store(), Equals, "foo")
-
-	sto, err = devicestate.ProxyStore(s.state)
+	sto, err := scb.ProxyStore()
 	c.Assert(err, IsNil)
 	c.Assert(sto.Store(), Equals, "foo")
 	c.Assert(sto.URL().String(), Equals, mockServer.URL)
@@ -1669,7 +1704,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 	// seeded
 	s.state.Set("seeded", true)
 	// has serial
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "8989",
@@ -1740,7 +1775,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
-	err = devicestate.SetDevice(s.state, &auth.DeviceState{
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -1809,7 +1844,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
-	err = devicestate.SetDevice(s.state, &auth.DeviceState{
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -1872,7 +1907,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
-	err = devicestate.SetDevice(s.state, &auth.DeviceState{
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -1912,7 +1947,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
-	err = devicestate.SetDevice(s.state, &auth.DeviceState{
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 	})
@@ -2021,7 +2056,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
 
 	// seeded, model, no serial -> no auto-refresh
 	s.state.Set("seeded", true)
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -2033,7 +2068,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
 	c.Check(canAutoRefresh(), Equals, false)
 
 	// seeded, model, serial -> auto-refresh
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "8989",
@@ -2061,7 +2096,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNoSerialFallback(c *C) {
 	devicestate.IncEnsureOperationalAttempts(s.state)
 	devicestate.IncEnsureOperationalAttempts(s.state)
 	s.state.Set("seeded", true)
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -2101,7 +2136,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 	c.Check(canAutoRefresh(), Equals, false)
 
 	// seeded, model, no serial -> no auto-refresh
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
@@ -2111,7 +2146,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 	c.Check(canAutoRefresh(), Equals, false)
 
 	// seeded, model, serial -> auto-refresh
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "8989",
@@ -2275,7 +2310,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	c.Check(ok, Equals, true)
 
 	st.Lock()
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "serial",
@@ -2304,7 +2339,7 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	defer st.Unlock()
 
 	// avoid device registration
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Serial: "123",
 	})
 
@@ -2470,7 +2505,7 @@ func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 		"gadget":       cur["gadget"],
 		"base":         cur["base"],
 	})
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: cur["brand"],
 		Model: cur["model"],
 	})
@@ -2534,7 +2569,7 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
@@ -2639,7 +2674,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
@@ -2709,7 +2744,7 @@ func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
 		"base":           "core18",
 		"required-snaps": []interface{}{"some-required-snap"},
 	})
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
@@ -2748,7 +2783,7 @@ func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})

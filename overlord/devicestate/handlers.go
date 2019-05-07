@@ -226,7 +226,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
-	device, err := Device(st)
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.KeyID = privKey.PublicKey().ID()
-	err = SetDevice(st, device)
+	err = m.setDevice(device)
 	if err != nil {
 		return err
 	}
@@ -420,7 +420,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (*asserts.Serial, error) {
+func (m *DeviceManager) getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -444,7 +444,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		Proxy:      proxyConf.Conf,
 	})
 
-	cfg, err := getSerialRequestConfig(t, client)
+	cfg, err := m.getSerialRequestConfig(t, client)
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +509,7 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 	}
 }
 
-func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestConfig, error) {
+func (m *DeviceManager) getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestConfig, error) {
 	var svcURL, proxyURL *url.URL
 
 	st := t.State()
@@ -521,7 +521,7 @@ func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestC
 	}
 
 	// gadget is optional on classic
-	model, err := Model(st)
+	model, err := m.Model()
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -583,7 +583,7 @@ func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestC
 
 func (m *DeviceManager) finishRegistration(t *state.Task, device *auth.DeviceState, serial *asserts.Serial) error {
 	device.Serial = serial.Serial()
-	err := SetDevice(t.State(), device)
+	err := m.setDevice(device)
 	if err != nil {
 		return err
 	}
@@ -605,7 +605,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
-	device, err := Device(st)
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -639,7 +639,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	var serial *asserts.Serial
 	timings.Run(perfTimings, "get-serial", "get device serial", func(tm timings.Measurer) {
-		serial, err = getSerial(t, privKey, device, tm)
+		serial, err = m.getSerial(t, privKey, device, tm)
 	})
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
