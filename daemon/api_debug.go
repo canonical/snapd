@@ -65,7 +65,7 @@ func getBaseDeclaration(st *state.State) Response {
 }
 
 func checkConnectivity(st *state.State) Response {
-	theStore := snapstate.Store(st)
+	theStore := snapstate.Store(st, nil)
 	st.Unlock()
 	defer st.Lock()
 	checkResult, err := theStore.ConnectivityCheck()
