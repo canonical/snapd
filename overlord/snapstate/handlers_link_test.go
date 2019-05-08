@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -879,4 +880,67 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshInhibitedTime(c *C) {
 	err := snapstate.Get(s.state, "snap", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.RefreshInhibitedTime.Equal(instant), Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	chg := s.testDoUnlinkSnapRefreshAwareness(c)
+
+	c.Check(chg.Err(), ErrorMatches, `(?ms).*^- some-change-descr \(snap "some-snap" has running apps \(some-app\)\).*`)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.testDoUnlinkSnapRefreshAwareness(c)
+
+	c.Check(chg.Err(), IsNil)
+}
+
+func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// mock that "some-snap" has an app and that this app has pids running
+	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, Type: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"some-app": {Snap: info, Name: "some-app"},
+		}
+		return info, nil
+	})
+
+	si1 := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Active:   true,
+	})
+	t := s.state.NewTask("unlink-current-snap", "some-change-descr")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si1,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	return chg
 }
