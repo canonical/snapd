@@ -535,3 +535,16 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 
 	return chg, nil
 }
+
+// Remodeling returns true whether there's a remodeling in progress
+func Remodeling(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+		if chg.Kind() == "remodel" {
+			return true
+		}
+	}
+	return false
+}

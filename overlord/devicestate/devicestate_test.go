@@ -2883,6 +2883,26 @@ func (s *deviceMgrSuite) TestRemodelStoreSwitch(c *C) {
 	c.Check(remodCtx.Store(), Equals, testStore)
 }
 
+func (s *deviceMgrSuite) TestRemodeling(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no changes
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+
+	// other change
+	s.state.NewChange("other", "...")
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+
+	// remodel change
+	chg := s.state.NewChange("remodel", "...")
+	c.Check(devicestate.Remodeling(s.state), Equals, true)
+
+	// done
+	chg.SetStatus(state.DoneStatus)
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+}
+
 func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
