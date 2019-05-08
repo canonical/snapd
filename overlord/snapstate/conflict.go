@@ -104,6 +104,12 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		if chg.Kind() == "transition-ubuntu-core" {
 			return &ChangeConflictError{Message: "ubuntu-core to core transition in progress, no other changes allowed until this is done", ChangeKind: "transition-ubuntu-core"}
 		}
+		if chg.Kind() == "remodel" {
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{Message: "remodeling in progress, no other changes allowed until this is done", ChangeKind: "remodel"}
+		}
 	}
 
 	for _, task := range st.Tasks() {
