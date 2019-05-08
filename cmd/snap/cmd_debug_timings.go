@@ -62,7 +62,21 @@ func formatDuration(dur time.Duration) string {
 	return fmt.Sprintf("%dms", dur/time.Millisecond)
 }
 
-func printTiming(w io.Writer, t *Timing, verbose, doing bool) {
+func printTiming(w io.Writer, verbose bool, nestLevel int, id, status, doingTimeStr, undoingTimeStr, label, summary string) {
+	// don't display id for nesting>1, instead show nesting indicator
+	if nestLevel > 0 {
+		id = strings.Repeat(" ", nestLevel) + "^"
+	}
+	// Duration formats to 17m14.342s or 2.038s or 970ms, so with
+	// 11 chars we can go up to 59m59.999s
+	if verbose {
+		fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", id, status, doingTimeStr, undoingTimeStr, label, strings.Repeat(" ", 2*nestLevel)+summary)
+	} else {
+		fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", id, status, doingTimeStr, undoingTimeStr, strings.Repeat(" ", 2*nestLevel)+summary)
+	}
+}
+
+func printTaskTiming(w io.Writer, t *Timing, verbose, doing bool) {
 	var doingTimeStr, undoingTimeStr string
 	if doing {
 		doingTimeStr = formatDuration(t.Duration)
@@ -73,11 +87,7 @@ func printTiming(w io.Writer, t *Timing, verbose, doing bool) {
 			undoingTimeStr = formatDuration(t.Duration)
 		}
 	}
-	if verbose {
-		fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\t%s\n", strings.Repeat(" ", t.Level+1)+"^", doingTimeStr, undoingTimeStr, t.Label, strings.Repeat(" ", 2*(t.Level+1))+t.Summary)
-	} else {
-		fmt.Fprintf(w, "%s\t \t%11s\t%11s\t%s\n", strings.Repeat(" ", t.Level+1)+"^", doingTimeStr, undoingTimeStr, strings.Repeat(" ", 2*(t.Level+1))+t.Summary)
-	}
+	printTiming(w, verbose, t.Level+1, "", "", doingTimeStr, undoingTimeStr, t.Label, t.Summary)
 }
 
 func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) error {
@@ -96,22 +106,15 @@ func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) 
 		if timing.ChangeTimings[t.ID].UndoingTime == 0 {
 			undoingTime = "-"
 		}
-		summary := t.Summary
-		// Duration formats to 17m14.342s or 2.038s or 970ms, so with
-		// 11 chars we can go up to 59m59.999s
-		if x.Verbose {
-			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", t.ID, t.Status, doingTime, undoingTime, t.Kind, summary)
-		} else {
-			fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", t.ID, t.Status, doingTime, undoingTime, summary)
-		}
 
+		printTiming(w, x.Verbose, 0, t.ID, t.Status, doingTime, undoingTime, t.Kind, t.Summary)
 		for _, nested := range timing.ChangeTimings[t.ID].DoingTimings {
 			showDoing := true
-			printTiming(w, &nested, x.Verbose, showDoing)
+			printTaskTiming(w, &nested, x.Verbose, showDoing)
 		}
 		for _, nested := range timing.ChangeTimings[t.ID].UndoingTimings {
 			showDoing := false
-			printTiming(w, &nested, x.Verbose, showDoing)
+			printTaskTiming(w, &nested, x.Verbose, showDoing)
 		}
 	}
 
@@ -120,14 +123,8 @@ func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) 
 
 func (x *cmdChangeTimings) printEnsureTimings(w io.Writer, timings []*timingsData) error {
 	for _, td := range timings {
-		if len(td.EnsureTimings) > 0 {
-			for _, t := range td.EnsureTimings {
-				if x.Verbose {
-					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Label, t.Summary)
-				} else {
-					fmt.Fprintf(w, "%s\t%s\t%11s\t%11s\t%s\n", "ensure", "-", formatDuration(t.Duration), "-", t.Summary)
-				}
-			}
+		for _, t := range td.EnsureTimings {
+			printTiming(w, x.Verbose, t.Level, "ensure", "", formatDuration(t.Duration), "-", t.Label, t.Summary)
 		}
 
 		// change is optional for ensure timings
