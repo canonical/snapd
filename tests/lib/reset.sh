@@ -138,7 +138,15 @@ reset_all_snap() {
     done
     # remove all base/os snaps at the end
     if [ -n "$remove_bases" ]; then
-        snap remove "$remove_bases"
+        for base in $remove_bases; do
+            snap remove "$base"
+            if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
+                echo "Error removing base snap $base"
+                ls -al "$SNAP_MOUNT_DIR"
+                ls -al "$SNAP_MOUNT_DIR/$base"
+                exit 1
+            fi
+        done
     fi
 
     # ensure we have the same state as initially
