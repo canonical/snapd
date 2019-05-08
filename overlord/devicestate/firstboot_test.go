@@ -908,8 +908,9 @@ snaps:
 		ctx.Lock()
 		defer ctx.Unlock()
 		// we have a gadget at this point(s)
-		_, err := snapstate.GadgetInfo(st)
+		ok, err := snapstate.HasSnapOfType(st, snap.TypeGadget)
 		c.Check(err, IsNil)
+		c.Check(ok, Equals, true)
 		configured = append(configured, ctx.InstanceName())
 		return nil, nil
 	}

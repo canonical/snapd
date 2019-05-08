@@ -525,11 +525,11 @@ func (m *DeviceManager) getSerialRequestConfig(t *state.Task, client *http.Clien
 
 	if model != nil && model.Gadget() != "" {
 		// model specifies a gadget
-		gadgetInfo, err := snapstate.GadgetInfo(st)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
+		gadgetName := model.Gadget()
+		var gadgetSt snapstate.SnapState
+		if err := snapstate.Get(st, gadgetName, &gadgetSt); err != nil {
+			return nil, fmt.Errorf("cannot find gadget snap %q: %v", gadgetName, err)
 		}
-		gadgetName := gadgetInfo.InstanceName()
 
 		var svcURI string
 		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURI)
@@ -676,7 +676,10 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 var repeatRequestSerial string // for tests
 
 func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
-	sto := snapstate.Store(st)
+	// TODO: right now any store should be good enough here but
+	// that might change, also this is brittle, best would be to
+	// receive a stream with any relevant assertions
+	sto := snapstate.Store(st, nil)
 	db := assertstate.DB(st)
 	for {
 		_, err := db.FindPredefined(asserts.AccountKeyType, map[string]string{

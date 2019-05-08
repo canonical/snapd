@@ -135,12 +135,12 @@ func canAutoRefresh(st *state.State) (bool, error) {
 
 func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	kind := ""
-	var currentInfo func(*state.State) (*snap.Info, error)
+	var snapType snap.Type
 	var getName func(*asserts.Model) string
 	switch snapInfo.Type {
 	case snap.TypeGadget:
 		kind = "gadget"
-		currentInfo = snapstate.GadgetInfo
+		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
 		if release.OnClassic {
@@ -148,7 +148,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		}
 
 		kind = "kernel"
-		currentInfo = snapstate.KernelInfo
+		snapType = snap.TypeKernel
 		getName = (*asserts.Model).Kernel
 	default:
 		// not a relevant check
@@ -177,11 +177,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		logger.Noticef("installing unasserted %s %q", kind, snapInfo.InstanceName())
 	}
 
-	currentSnap, err := currentInfo(st)
-	if err != nil && err != state.ErrNoState {
-		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
+	found, err := snapstate.HasSnapOfType(st, snapType)
+	if err != nil {
+		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
 	}
-	if currentSnap != nil {
+	if found {
 		// already installed, snapstate takes care
 		return nil
 	}
