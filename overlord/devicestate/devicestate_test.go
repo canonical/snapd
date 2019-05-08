@@ -2432,7 +2432,7 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 	defer restore()
 
 	// set a model assertion
-	current := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -2445,7 +2445,7 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 		Model: "pc-model",
 	})
 
-	new := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
