@@ -29,6 +29,7 @@ import (
 type TrivialDeviceContext struct {
 	DeviceModel *asserts.Model
 	Remodeling  bool
+	CtxStore    snapstate.StoreService
 }
 
 func (dc *TrivialDeviceContext) Model() *asserts.Model {
@@ -36,7 +37,7 @@ func (dc *TrivialDeviceContext) Model() *asserts.Model {
 }
 
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
-	return nil
+	return dc.CtxStore
 }
 
 func (dc *TrivialDeviceContext) ForRemodeling() bool {
