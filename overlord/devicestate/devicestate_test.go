@@ -3314,3 +3314,32 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
 	c.Check(s.restartRequests, HasLen, 0)
 }
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		return errors.New("gadget exploded")
+	})
+	defer restore()
+
+	s.state.Lock()
+
+	t := s.state.NewTask("update-gadget", "update gadget")
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget task on a classic system\).*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+}

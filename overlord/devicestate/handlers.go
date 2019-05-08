@@ -732,7 +732,7 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(snapst *snapstate.SnapState, classic bool) (*gadget.Info, error) {
+func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
 	var gi *gadget.Info
 
 	currentInfo, err := snapst.CurrentInfo()
@@ -740,7 +740,7 @@ func currentGadgetInfo(snapst *snapstate.SnapState, classic bool) (*gadget.Info,
 		return nil, err
 	}
 	if currentInfo != nil {
-		gi, err = snap.ReadGadgetInfo(currentInfo, classic)
+		gi, err = snap.ReadGadgetInfo(currentInfo, false)
 		if err != nil {
 			return nil, err
 		}
@@ -748,30 +748,30 @@ func currentGadgetInfo(snapst *snapstate.SnapState, classic bool) (*gadget.Info,
 	return gi, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup, classic bool) (*gadget.Info, error) {
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.Info, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, err
 	}
-	update, err := snap.ReadGadgetInfo(info, classic)
+	update, err := snap.ReadGadgetInfo(info, false)
 	if err != nil {
 		return nil, err
 	}
 	return update, nil
 }
 
-func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup, classic bool) (current *gadget.Info, update *gadget.Info, err error) {
+func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.Info, update *gadget.Info, err error) {
 	snapst, err := snapState(st, snapsup.InstanceName())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	currentInfo, err := currentGadgetInfo(snapst, classic)
+	currentInfo, err := currentGadgetInfo(snapst)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	newInfo, err := pendingGadgetInfo(snapsup, classic)
+	newInfo, err := pendingGadgetInfo(snapsup)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -788,6 +788,10 @@ func nopGadgetOp(current, update *gadget.Info, rollbackRootDir string) error {
 }
 
 func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
+	if release.OnClassic {
+		return fmt.Errorf("cannot run update gadget task on a classic system")
+	}
+
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -797,7 +801,7 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup, release.OnClassic)
+	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
 	if err != nil {
 		return err
 	}
