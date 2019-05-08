@@ -26,6 +26,6 @@ execute: |
     ! su -c "snap run test-snapd-tools.echo foo" "$TUSER" 2>stderr.log
 
     echo "Ensure we get a useful error message"
-    MATCH "Sorry, cannot use home directories outside /home" < stderr.log
+    MATCH "Sorry, home directories outside of /home" < stderr.log
     # ensure no (useless) "Read-only file system..." error is shown to the user
     MATCH -v "Read-only file system" < stderr.log
