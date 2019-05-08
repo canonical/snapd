@@ -170,6 +170,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 func (s *downloadSnapSuite) TestDoDownloadSnapWithDeviceContext(c *C) {
 	s.state.Lock()
 
+	// unset the global store, it will need to come via the device context
+	// CtxStore
 	snapstate.ReplaceStore(s.state, nil)
 
 	r := snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
