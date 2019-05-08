@@ -492,6 +492,11 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
 	}
 
+	// TODO: should we run a remodel only while no other change is
+	// running?  do we add a task upfron that waits for that to be
+	// true? Do we do this only for the more complicated cases
+	// (anything more than adding required-snaps really)?
+
 	remodCtx, err := remodelCtx(st, current, new)
 	if err != nil {
 		return nil, err
