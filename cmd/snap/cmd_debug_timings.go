@@ -44,7 +44,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
-			"ensure": i18n.G("Show timings for a change related to the given Ensure activity"),
+			"ensure": i18n.G("Show timings for a change related to the given Ensure activity (one of: auto-refresh, become-operational, refresh-catalogs, refresh-hints, seed)"),
 			"all":    i18n.G("Show timings for all executions of the given Ensure activity, not just the latest"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Show more information"),
