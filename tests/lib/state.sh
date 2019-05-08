@@ -110,7 +110,7 @@ restore_snapd_state() {
 restore_snapd_lib() {
     # Clean all the state but the snaps and seed dirs. Then make a selective clean for 
     # snaps and seed dirs leaving the .snap files which then are going to be synchronized.
-    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec rm -rf {} \;
+    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache'\) -exec rm -rf {} \;
 
     # Copy the whole state but the snaps, seed and cache dirs
     find "$SNAPD_STATE_PATH"/snapd-lib/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache' \) -exec cp -rf {} /var/lib/snapd \;
