@@ -445,7 +445,10 @@ func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSe
 //   (need to check that even unchanged snaps are accessible)
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
-	st.Get("seeded", &seeded)
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
 	if !seeded {
 		return nil, fmt.Errorf("cannot remodel until fully seeded")
 	}
