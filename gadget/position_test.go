@@ -734,3 +734,41 @@ func (p *positioningTestSuite) TestVolumePositionConstraintsNeedsSectorSize(c *C
 	_, err := gadget.PositionVolume(p.dir, &gadget.Volume{}, constraintsBadSectorSize)
 	c.Assert(err, ErrorMatches, "cannot position volume, invalid constraints: sector size cannot be 0")
 }
+
+func (p *positioningTestSuite) TestVolumePositionMBRImplicitConstraints(c *C) {
+	gadgetYaml := `
+volumes:
+  first:
+    schema: gpt
+    bootloader: grub
+    structure:
+        - name: mbr
+          type: bare
+          role: mbr
+          size: 446
+        - name: other
+          type: 00000000-0000-0000-0000-0000deadbeef
+          size: 1M
+`
+	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 2)
+
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
+		Volume: vol,
+		Size:   2 * gadget.SizeMiB,
+		PositionedStructure: []gadget.PositionedStructure{
+			{
+				// MBR
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     0,
+				Index:           0,
+			}, {
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     1 * gadget.SizeMiB,
+				Index:           1,
+			},
+		},
+	})
+}

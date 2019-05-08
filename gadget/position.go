@@ -94,7 +94,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 	for idx, s := range volume.Structure {
 		var start Size
 		if s.Offset == nil {
-			if previousEnd < constraints.NonMBRStartOffset {
+			if s.EffectiveRole() != MBR && previousEnd < constraints.NonMBRStartOffset {
 				start = constraints.NonMBRStartOffset
 			} else {
 				start = previousEnd
