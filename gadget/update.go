@@ -28,7 +28,7 @@ var (
 )
 
 func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
-	// TODO: support only one volume
+	// support only one volume
 	if len(new.Volumes) != 1 || len(old.Volumes) != 1 {
 		return nil, nil, errors.New("cannot update with more than one volume")
 	}
