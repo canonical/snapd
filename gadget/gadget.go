@@ -44,6 +44,12 @@ const (
 	MBR = "mbr"
 	// GPT identifies a GUID Partition Table partitioning schema
 	GPT = "gpt"
+
+	SystemBoot = "system-boot"
+	SystemData = "system-data"
+	// ImplicitSystemDataLabel is the implicit filesystem label of structure
+	// of system-data role
+	ImplicitSystemDataLabel = "writable"
 )
 
 var (
@@ -131,8 +137,8 @@ func (vs *VolumeStructure) EffectiveRole() string {
 // EffectiveFilesystemLabel returns the effective filesystem label, either
 // explicitly provided or implied by the structure's role
 func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
-	if vs.EffectiveRole() == "system-data" {
-		return "writable"
+	if vs.EffectiveRole() == SystemData {
+		return ImplicitSystemDataLabel
 	}
 	return vs.Label
 }
@@ -550,9 +556,9 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	switch vsRole {
-	case "system-data":
-		if vs.Label != "" && vs.Label != "writable" {
-			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
+	case SystemData:
+		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel {
+			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
 		}
 	case MBR:
 		if vs.Size > SizeMBR {
@@ -567,7 +573,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case "system-boot", "":
+	case SystemBoot, "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")
