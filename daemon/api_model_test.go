@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"gopkg.in/check.v1"
 
@@ -45,7 +44,9 @@ func (s *apiSuite) TestPostRemodelUnhappy(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
-func (s *apiSuite) testPostRemodel(c *check.C, newModel map[string]interface{}, expectedChgSummary string) {
+func (s *apiSuite) TestPostRemodel(c *check.C) {
+	newModel := makeMockModelHdrs()
+
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
 	c.Assert(err, check.IsNil)
@@ -57,10 +58,18 @@ func (s *apiSuite) testPostRemodel(c *check.C, newModel map[string]interface{}, 
 	s.mockModel(c, st)
 	st.Unlock()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+	defer func() { ensureStateSoon = func(st *state.State) {} }()
+
 	var devicestateRemodelGotModel *asserts.Model
-	devicestateRemodel = func(st *state.State, nm *asserts.Model) ([]*state.TaskSet, error) {
+	devicestateRemodel = func(st *state.State, nm *asserts.Model) (*state.Change, error) {
 		devicestateRemodelGotModel = nm
-		return nil, nil
+		chg := st.NewChange("remodel", "...")
+		return chg, nil
 	}
 
 	// create a valid model assertion
@@ -81,31 +90,13 @@ func (s *apiSuite) testPostRemodel(c *check.C, newModel map[string]interface{}, 
 	st.Lock()
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
-	c.Check(chg.Summary(), check.Equals, expectedChgSummary)
-}
+	c.Assert(chg, check.NotNil)
 
-func (s *apiSuite) TestPostRemodelDifferentBrandModel(c *check.C) {
-	newModel := map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	expectedChgSummary := "Remodel device to my-brand/my-model (0)"
-	s.testPostRemodel(c, newModel, expectedChgSummary)
-}
+	c.Assert(st.Changes(), check.HasLen, 1)
+	chg1 := st.Changes()[0]
+	c.Assert(chg, check.DeepEquals, chg1)
+	c.Assert(chg.Kind(), check.Equals, "remodel")
+	c.Assert(chg.Err(), check.IsNil)
 
-func (s *apiSuite) TestPostRemodelSameBrandModelDifferentRev(c *check.C) {
-	newModel := make(map[string]interface{})
-	for k, v := range makeMockModelHdrs() {
-		newModel[k] = v
-	}
-	newModel["revision"] = "2"
-
-	expectedChgSummary := "Refresh model assertion from revision 0 to 2"
-	s.testPostRemodel(c, newModel, expectedChgSummary)
+	c.Assert(soon, check.Equals, 1)
 }
