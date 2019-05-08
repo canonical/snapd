@@ -536,6 +536,9 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 	vsRole := vs.Role
 	if vs.Type == MBR {
+		if vsRole != "" && vsRole != MBR {
+			return fmt.Errorf(`conflicting legacy type: "mbr"`)
+		}
 		// backward compatibility
 		vsRole = MBR
 	}
