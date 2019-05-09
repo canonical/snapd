@@ -44,6 +44,12 @@ const (
 	MBR = "mbr"
 	// GPT identifies a GUID Partition Table partitioning schema
 	GPT = "gpt"
+
+	SystemBoot = "system-boot"
+	SystemData = "system-data"
+	// ImplicitSystemDataLabel is the implicit filesystem label of structure
+	// of system-data role
+	ImplicitSystemDataLabel = "writable"
 )
 
 var (
@@ -126,6 +132,15 @@ func (vs *VolumeStructure) EffectiveRole() string {
 		return MBR
 	}
 	return ""
+}
+
+// EffectiveFilesystemLabel returns the effective filesystem label, either
+// explicitly provided or implied by the structure's role
+func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
+	if vs.EffectiveRole() == SystemData {
+		return ImplicitSystemDataLabel
+	}
+	return vs.Label
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -544,9 +559,9 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	switch vsRole {
-	case "system-data":
-		if vs.Label != "" && vs.Label != "writable" {
-			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
+	case SystemData:
+		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel {
+			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
 		}
 	case MBR:
 		if vs.Size > SizeMBR {
@@ -561,7 +576,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case "system-boot", "":
+	case SystemBoot, "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")
@@ -677,6 +692,13 @@ func ParseSize(gs string) (Size, error) {
 	return size, nil
 }
 
+func (s *Size) String() string {
+	if s == nil {
+		return "unspecified"
+	}
+	return fmt.Sprintf("%d", *s)
+}
+
 // RelativeOffset describes an offset where structure data is written at.
 // The position can be specified as byte-offset relative to the start of another
 // named structure.
@@ -686,6 +708,16 @@ type RelativeOffset struct {
 	RelativeTo string
 	// Offset is a 32-bit value
 	Offset Size
+}
+
+func (r *RelativeOffset) String() string {
+	if r == nil {
+		return "unspecified"
+	}
+	if r.RelativeTo != "" {
+		return fmt.Sprintf("%s+%d", r.RelativeTo, r.Offset)
+	}
+	return fmt.Sprintf("%d", r.Offset)
 }
 
 // ParseRelativeOffset parses a string describing an offset that can be
