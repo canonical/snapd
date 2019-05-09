@@ -179,8 +179,7 @@ type kubernetesSupportInterface struct {
 }
 
 func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	iface.commonInterface.BeforePrepareSlot(slot)
-	return sanitizeSlotReservedForOS(iface, slot)
+	return iface.commonInterface.BeforePrepareSlot(slot)
 }
 
 func k8sFlavor(plug *interfaces.ConnectedPlug) string {

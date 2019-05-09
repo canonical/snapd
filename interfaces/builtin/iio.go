@@ -78,10 +78,6 @@ var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *iioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
-		return err
-	}
-
 	// Validate the path
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {

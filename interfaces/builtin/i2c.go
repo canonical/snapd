@@ -84,10 +84,6 @@ var i2cValidSysfsName = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
 
 // Check validity of the defined slot
 func (iface *i2cInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
-		return err
-	}
-
 	sysfsName, ok := slot.Attrs["sysfs-name"].(string)
 	if ok {
 		if !i2cValidSysfsName.MatchString(sysfsName) {
