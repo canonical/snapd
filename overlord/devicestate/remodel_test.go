@@ -160,12 +160,12 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
@@ -178,11 +178,6 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	c.Check(remodCtx.Model(), DeepEquals, newModel)
 	// an update remodel does not need a new/dedicated store
 	c.Check(remodCtx.Store(), IsNil)
-
-	// caching
-	remodCtx1, err := devicestate.RemodelCtx(oldModel, newModel, chg)
-	c.Assert(err, IsNil)
-	c.Check(remodCtx1, Equals, remodCtx)
 }
 
 func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
@@ -203,12 +198,12 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 		SessionMacaroon: "prev-session",
 	})
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
@@ -230,6 +225,70 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 	c.Check(remodCtx.Model(), DeepEquals, newModel)
 }
 
+func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
+	oldModel := fakeRemodelingModel(nil)
+	newModel := fakeRemodelingModel(map[string]interface{}{
+		"store":    "my-other-store",
+		"revision": "1",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// we have a device state
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	devBE := devicestate.RemodelDeviceBackend(remodCtx)
+
+	device, err := devBE.Device()
+	c.Assert(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+
+	mod, err := devBE.Model()
+	c.Assert(err, IsNil)
+	c.Check(mod, DeepEquals, newModel)
+
+	err = devBE.SetDevice(&auth.DeviceState{
+		Brand:           "my-brand",
+		Model:           "my-model",
+		Serial:          "serialserialserial",
+		SessionMacaroon: "session",
+	})
+	c.Assert(err, IsNil)
+
+	expectedDevice := &auth.DeviceState{
+		Brand:           "my-brand",
+		Model:           "my-model",
+		Serial:          "serialserialserial",
+		SessionMacaroon: "session",
+	}
+
+	device, err = devBE.Device()
+	c.Assert(err, IsNil)
+	c.Check(device, DeepEquals, expectedDevice)
+
+	// have a change
+	chg := s.state.NewChange("remodel", "...")
+
+	err = remodCtx.Init(chg)
+	c.Assert(err, IsNil)
+
+	device, err = devBE.Device()
+	c.Assert(err, IsNil)
+	c.Check(device, DeepEquals, expectedDevice)
+}
+
 func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 	oldModel := fakeRemodelingModel(nil)
 	newModel := fakeRemodelingModel(map[string]interface{}{
@@ -247,10 +306,10 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
@@ -310,10 +369,10 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
@@ -357,9 +416,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 		SessionMacaroon: "prev-session",
 	})
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
 
 	c.Check(s.capturedDevBE, NotNil)
@@ -390,10 +447,10 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
@@ -442,10 +499,10 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDevice
 		SessionMacaroon: "old-session",
 	})
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
@@ -523,15 +580,23 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendSerial(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(serial.Serial(), Equals, "serialserialserial1")
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
+
+	devBE := devicestate.RemodelDeviceBackend(remodCtx)
+
+	serial0, err := devBE.Serial()
+	c.Assert(err, IsNil)
+	c.Check(serial0.Serial(), Equals, "serialserialserial1")
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
 
-	devBE := devicestate.RemodelDeviceBackend(remodCtx)
+	serial0, err = devBE.Serial()
+	c.Assert(err, IsNil)
+	c.Check(serial0.Serial(), Equals, "serialserialserial1")
 
 	err = devBE.SetDevice(&auth.DeviceState{
 		Brand: "canonical",
@@ -589,12 +654,12 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 		Serial: "serialserialserial",
 	})
 
-	chg := s.state.NewChange("remodel", "...")
-
-	remodCtx, err := devicestate.RemodelCtx(oldModel, newModel, chg)
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
+
+	chg := s.state.NewChange("remodel", "...")
 
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)

@@ -114,26 +114,30 @@ type remodelContext interface {
 	Init(chg *state.Change) error
 	Finish() error
 	snapstate.DeviceContext
+
+	// initialDevice takes the current/initial device state
+	// when setting up the remodel context
+	initialDevice(device *auth.DeviceState)
+	// associate associates the remodel context with the change
+	// and caches it
+	associate(chg *state.Change)
 }
 
-// remodelCtx returns a remodeling context for the given transition via chg.
+// remodelCtx returns a remodeling context for the given transition.
 // It constructs and caches a dedicated store as needed as well.
-func remodelCtx(oldModel, newModel *asserts.Model, chg *state.Change) (remodelContext, error) {
-	// cached?
-	if remodCtx, ok := cachedRemodelCtx(chg); ok {
-		return remodCtx, nil
-	}
-
+func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelContext, error) {
 	var remodCtx remodelContext
+
+	devMgr := deviceMgr(st)
+
 	switch kind := ClassifyRemodel(oldModel, newModel); kind {
 	case UpdateRemodel:
 		// simple context for the simple case
 		remodCtx = &updateRemodelContext{baseRemodelContext{newModel}}
 	case StoreSwitchRemodel:
-		devMgr := deviceMgr(chg.State())
 		storeSwitchCtx := &newStoreRemodelContext{
 			baseRemodelContext: baseRemodelContext{newModel},
-			remodelChange:      chg,
+			st:                 st,
 			deviceMgr:          devMgr,
 		}
 		storeSwitchCtx.store = devMgr.newStore(storeSwitchCtx.deviceBackend())
@@ -142,8 +146,12 @@ func remodelCtx(oldModel, newModel *asserts.Model, chg *state.Change) (remodelCo
 		return nil, fmt.Errorf("unsupported remodel: %s", kind)
 	}
 
-	// cache it as well
-	chg.State().Cache(remodelCtxKey{chg.ID()}, remodCtx)
+	device, err := devMgr.device()
+	if err != nil {
+		return nil, err
+	}
+	remodCtx.initialDevice(device)
+
 	return remodCtx, nil
 }
 
@@ -169,7 +177,8 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 		return remodCtx, nil
 	}
 
-	oldModel, err := findModel(t.State())
+	st := t.State()
+	oldModel, err := findModel(st)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find old model during remodel: %v", err)
 	}
@@ -182,7 +191,12 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 		return nil, fmt.Errorf("internal error: cannot use a remodel new-model, wrong type")
 	}
 
-	return remodelCtx(oldModel, newModel, chg)
+	remodCtx, err := remodelCtx(st, oldModel, newModel)
+	if err != nil {
+		return nil, err
+	}
+	remodCtx.associate(chg)
+	return remodCtx, nil
 }
 
 type baseRemodelContext struct {
@@ -197,6 +211,14 @@ func (rc baseRemodelContext) Model() *asserts.Model {
 	return rc.newModel
 }
 
+func (rc baseRemodelContext) initialDevice(*auth.DeviceState) {
+	// do nothing
+}
+
+func (rc baseRemodelContext) cacheViaChange(chg *state.Change, remodCtx remodelContext) {
+	chg.State().Cache(remodelCtxKey{chg.ID()}, remodCtx)
+}
+
 func (rc baseRemodelContext) init(chg *state.Change) {
 	chg.Set("new-model", string(asserts.Encode(rc.newModel)))
 }
@@ -205,8 +227,14 @@ type updateRemodelContext struct {
 	baseRemodelContext
 }
 
+func (rc *updateRemodelContext) associate(chg *state.Change) {
+	rc.cacheViaChange(chg, rc)
+}
+
 func (rc *updateRemodelContext) Init(chg *state.Change) error {
 	rc.init(chg)
+
+	rc.associate(chg)
 	return nil
 }
 
@@ -221,29 +249,37 @@ func (rc *updateRemodelContext) Finish() error {
 
 type newStoreRemodelContext struct {
 	baseRemodelContext
+
+	// device state storage before this is associate with a change
+	deviceState *auth.DeviceState
+	// the associated change
 	remodelChange *state.Change
 
 	store snapstate.StoreService
 
+	st        *state.State
 	deviceMgr *DeviceManager
 }
 
-func (rc *newStoreRemodelContext) Init(chg *state.Change) error {
-	device, err := rc.deviceMgr.device()
-	if err != nil {
-		return err
-	}
-
-	rc.init(chg)
-	// we will need a new one, it might embed the store as well
-	device.SessionMacaroon = ""
-	chg.Set("device", device)
-
-	return nil
+func (rc *newStoreRemodelContext) associate(chg *state.Change) {
+	rc.remodelChange = chg
+	rc.cacheViaChange(chg, rc)
 }
 
-func (rc *newStoreRemodelContext) deviceBackend() storecontext.DeviceBackend {
-	return &remodelDeviceBackend{rc}
+func (rc *newStoreRemodelContext) initialDevice(device *auth.DeviceState) {
+	device1 := *device
+	// we will need a new one, it might embed the store as well
+	device1.SessionMacaroon = ""
+	rc.deviceState = &device1
+}
+
+func (rc *newStoreRemodelContext) Init(chg *state.Change) error {
+	rc.init(chg)
+	chg.Set("device", rc.deviceState)
+	rc.deviceState = nil
+
+	rc.associate(chg)
+	return nil
 }
 
 func (rc *newStoreRemodelContext) Store() snapstate.StoreService {
@@ -251,13 +287,24 @@ func (rc *newStoreRemodelContext) Store() snapstate.StoreService {
 }
 
 func (rc *newStoreRemodelContext) device() (*auth.DeviceState, error) {
+	var err error
 	var device auth.DeviceState
-	err := rc.remodelChange.Get("device", &device)
+	if rc.remodelChange == nil {
+		// no remodelChange yet
+		device = *rc.deviceState
+	} else {
+		err = rc.remodelChange.Get("device", &device)
+	}
 	return &device, err
 }
 
 func (rc *newStoreRemodelContext) setCtxDevice(device *auth.DeviceState) {
-	rc.remodelChange.Set("device", device)
+	if rc.remodelChange == nil {
+		// no remodelChange yet
+		rc.deviceState = device
+	} else {
+		rc.remodelChange.Set("device", device)
+	}
 }
 
 func (rc *newStoreRemodelContext) Finish() error {
@@ -268,6 +315,10 @@ func (rc *newStoreRemodelContext) Finish() error {
 		return err
 	}
 	return rc.deviceMgr.setDevice(remodelDevice)
+}
+
+func (rc *newStoreRemodelContext) deviceBackend() storecontext.DeviceBackend {
+	return &remodelDeviceBackend{rc}
 }
 
 type remodelDeviceBackend struct {
@@ -294,6 +345,5 @@ func (b remodelDeviceBackend) Serial() (*asserts.Serial, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return findSerial(b.remodelChange.State(), device)
+	return findSerial(b.st, device)
 }
