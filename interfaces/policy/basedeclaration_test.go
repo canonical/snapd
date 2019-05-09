@@ -559,41 +559,41 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
-		"adb-support":             {"core"},
-		"autopilot-introspection": {"core"},
-		"avahi-control":           {"app", "core"},
-		"avahi-observe":           {"app", "core"},
-		"bluez":                   {"app", "core"},
-		"bool-file":               {"core", "gadget"},
-		"browser-support":         {"core"},
-		"content":                 {"app", "gadget"},
-		"core-support":            {"core"},
-		"dbus":                    {"app"},
-		"docker-support":          {"core"},
-		"fwupd":                   {"app"},
-		"gpio":                    {"core", "gadget"},
-		"greengrass-support":      {"core"},
-		"hidraw":                  {"core", "gadget"},
-		"i2c":                     {"core", "gadget"},
-		"iio":                     {"core", "gadget"},
-		"kubernetes-support":      {"core"},
-		"location-control":        {"app"},
-		"location-observe":        {"app"},
-		"lxd-support":             {"core"},
-		"maliit":                  {"app"},
-		"media-hub":               {"app", "core"},
-		"mir":                     {"app"},
-		"modem-manager":           {"app", "core"},
-		"mpris":                   {"app"},
-		"network-manager":         {"app", "core"},
-		"network-manager-observe": {"app", "core"},
-		"network-status":          {"app"},
-		"ofono":                   {"app", "core"},
-		"online-accounts-service": {"app"},
-		"ppp":         {"core"},
-		"pulseaudio":  {"app", "core"},
-		"serial-port": {"core", "gadget"},
-		"spi":         {"core", "gadget"},
+		"adb-support":               {"core"},
+		"autopilot-introspection":   {"core"},
+		"avahi-control":             {"app", "core"},
+		"avahi-observe":             {"app", "core"},
+		"bluez":                     {"app", "core"},
+		"bool-file":                 {"core", "gadget"},
+		"browser-support":           {"core"},
+		"content":                   {"app", "gadget"},
+		"core-support":              {"core"},
+		"dbus":                      {"app"},
+		"docker-support":            {"core"},
+		"fwupd":                     {"app"},
+		"gpio":                      {"core", "gadget"},
+		"greengrass-support":        {"core"},
+		"hidraw":                    {"core", "gadget"},
+		"i2c":                       {"core", "gadget"},
+		"iio":                       {"core", "gadget"},
+		"kubernetes-support":        {"core"},
+		"location-control":          {"app"},
+		"location-observe":          {"app"},
+		"lxd-support":               {"core"},
+		"maliit":                    {"app"},
+		"media-hub":                 {"app", "core"},
+		"mir":                       {"app"},
+		"modem-manager":             {"app", "core"},
+		"mpris":                     {"app"},
+		"network-manager":           {"app", "core"},
+		"network-manager-observe":   {"app", "core"},
+		"network-status":            {"app"},
+		"ofono":                     {"app", "core"},
+		"online-accounts-service":   {"app"},
+		"ppp":                       {"core"},
+		"pulseaudio":                {"app", "core"},
+		"serial-port":               {"core", "gadget"},
+		"spi":                       {"core", "gadget"},
 		"storage-framework-service": {"app"},
 		"dummy":                     {"app"},
 		"thumbnailer-service":       {"app"},
@@ -629,12 +629,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 
 	for _, iface := range all {
 		types, ok := slotInstallation[iface.Name()]
-		compareWithSanitize := false
 		if !ok { // common ones, only core can install them,
-			// their plain BeforePrepareSlot checked for that
 			types = []string{"core"}
-			compareWithSanitize = true
 		}
+
 		if types == nil {
 			// snowflake needs to be tested specially
 			continue
@@ -642,21 +640,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		for name, snapType := range snapTypeMap {
 			ok := strutil.ListContains(types, name)
 			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
-			slotInfo := ic.Snap.Slots[iface.Name()]
 			err := ic.Check()
 			comm := Commentf("%s by %s snap", iface.Name(), name)
 			if ok {
 				c.Check(err, IsNil, comm)
 			} else {
 				c.Check(err, NotNil, comm)
-			}
-			if compareWithSanitize {
-				sanitizeErr := interfaces.BeforePrepareSlot(iface, slotInfo)
-				if err == nil {
-					c.Check(sanitizeErr, IsNil, comm)
-				} else {
-					c.Check(sanitizeErr, NotNil, comm)
-				}
 			}
 		}
 	}
