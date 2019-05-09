@@ -29,6 +29,13 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-desktop
     install_local test-snapd-tools
+
+    # Make sure the package xdg-desktop-portal is not installed
+    if [ -e /usr/libexec/xdg-desktop-portal ]; then
+        distro_purge_package xdg-desktop-portal
+        touch .install-xdg-desktop-portal
+    fi
+
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     mkdir -p "$XDG_RUNTIME_DIR"
     rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
@@ -39,6 +46,12 @@ restore: |
     [ -f dbus-launch.pid ] && kill "$(cat dbus-launch.pid)"
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
+
+    # Reinstall the package xdg-desktop-portal if it was removed in the prepare
+    if [ -e .install-xdg-desktop-portal ]; then
+        distro_install_package xdg-desktop-portal
+        rm -f .install-xdg-desktop-portal
+    fi
 
 execute: |
     echo "No output on stderr when running without a session bus"
