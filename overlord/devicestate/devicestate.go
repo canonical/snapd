@@ -417,7 +417,6 @@ func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSe
 	// Set the new model assertion - this *must* be the last thing done
 	// by the change.
 	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
-	setModel.Set("new-model", asserts.Encode(new))
 	for _, tsPrev := range tss {
 		setModel.WaitAll(tsPrev)
 	}
@@ -502,6 +501,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
 	}
 	chg := st.NewChange("remodel", msg)
+	chg.Set("new-model", string(asserts.Encode(new)))
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}

@@ -2562,6 +2562,11 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
+	var modelOnChange string
+	err = chg.Get("new-model", &modelOnChange)
+	c.Assert(err, IsNil)
+	c.Assert(string(asserts.Encode(new)), Equals, modelOnChange)
+
 	tl := chg.Tasks()
 	// 2 snaps,
 	c.Assert(tl, HasLen, 2*3+1)
