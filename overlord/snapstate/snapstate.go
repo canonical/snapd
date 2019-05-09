@@ -338,6 +338,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		ts.AddAll(configSet)
 	}
 
+	healthCheck := HealthCheckHook(st, snapsup.InstanceName())
+	healthCheck.WaitAll(ts)
+	ts.AddTask(healthCheck)
+
 	return ts, nil
 }
 
@@ -371,6 +375,10 @@ var SetupPostRefreshHook = func(st *state.State, snapName string) *state.Task {
 
 var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupRemoveHook is unset")
+}
+
+var HealthCheckHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.HealthCheckHook is unset")
 }
 
 // WaitRestart will return a Retry error if there is a pending restart

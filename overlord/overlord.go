@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -148,6 +149,7 @@ func New() (*Overlord, error) {
 	o.addManager(snapshotstate.Manager(s, o.runner))
 
 	configstateInit(hookMgr)
+	healthstate.Init(hookMgr)
 
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)

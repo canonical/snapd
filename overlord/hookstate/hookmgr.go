@@ -302,6 +302,8 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 		}
 	}
 
+	// XXX: why not return nil at this point if !(hookExists || mustHijack) ?
+
 	if hookExists || mustHijack {
 		// we will run something, not a noop
 		if ok, _ := task.State().Restarting(); ok {

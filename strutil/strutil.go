@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -208,4 +209,20 @@ func ElliptRight(str string, n int) string {
 
 	// this is expensive; look into a cheaper way maybe sometime
 	return string([]rune(str)[:n-1]) + "…"
+}
+
+// IsCtrl reports whether the rune is a control character.
+func IsCtrl(r rune) bool {
+	// Cc, bottom half
+	if r < 0x20 {
+		return true
+	}
+	// Cc, top half
+	if r >= 0x7f && r <= 0x9f {
+		return true
+	}
+	if unicode.Is(Ctrl, r) {
+		return true
+	}
+	return false
 }
