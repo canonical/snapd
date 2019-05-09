@@ -27,6 +27,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -45,7 +46,10 @@ func (s *apiSuite) TestPostRemodelUnhappy(c *check.C) {
 }
 
 func (s *apiSuite) TestPostRemodel(c *check.C) {
-	newModel := makeMockModelHdrs()
+	oldModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+	newModel := s.brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+		"revision": "2",
+	})
 
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
@@ -55,7 +59,9 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
-	s.mockModel(c, st)
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(c, st, oldModel)
 	st.Unlock()
 
 	soon := 0
@@ -73,10 +79,9 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	}
 
 	// create a valid model assertion
-	mockModel, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, newModel, nil, "")
 	c.Assert(err, check.IsNil)
-	mockModelEncoded := string(asserts.Encode(mockModel))
-	data, err := json.Marshal(postModelData{NewModel: mockModelEncoded})
+	modelEncoded := string(asserts.Encode(newModel))
+	data, err := json.Marshal(postModelData{NewModel: modelEncoded})
 	c.Check(err, check.IsNil)
 
 	// set it and validate that this is what we was passed to
@@ -85,7 +90,7 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := postModel(appsCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 202)
-	c.Check(devicestateRemodelGotModel, check.DeepEquals, mockModel)
+	c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
 
 	st.Lock()
 	defer st.Unlock()

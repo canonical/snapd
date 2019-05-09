@@ -17,23 +17,26 @@
  *
  */
 
-package daemon
+package assertstatetest
 
 import (
-	"net/http"
+	"fmt"
 
-	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
-func GetAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return getAssertTypeNames(c, r, user).(*resp)
+// AddMany adds the given assertions to the system assertion database,
+// associated with the state.
+// It is idempotent but otherwise panics on error.
+func AddMany(st *state.State, assertions ...asserts.Assertion) {
+	for _, a := range assertions {
+		err := assertstate.Add(st, a)
+		if _, ok := err.(*asserts.RevisionError); !ok {
+			if err != nil {
+				panic(fmt.Sprintf("cannot add test assertions: %v", err))
+			}
+		}
+	}
 }
-
-func DoAssert(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return doAssert(c, r, user).(*resp)
-}
-
-var (
-	AssertsCmd         = assertsCmd
-	AssertsFindManyCmd = assertsFindManyCmd
-)
