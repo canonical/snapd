@@ -76,16 +76,12 @@ type automaticSnapshotCall struct {
 }
 
 type mgrsSuite struct {
+	testutil.BaseTest
+
 	tempdir string
 
-	restore func()
-
-	restoreSystemctl func()
-
-	storeSigning   *assertstest.StoreStack
-	brands         *assertstest.SigningAccounts
-	restoreTrusted func()
-	mockSnapCmd    *testutil.MockCmd
+	storeSigning *assertstest.StoreStack
+	brands       *assertstest.SigningAccounts
 
 	devAcct *asserts.Account
 
@@ -102,8 +98,6 @@ type mgrsSuite struct {
 	failNextDownload string
 
 	automaticSnapshots []automaticSnapshotCall
-
-	restoreBackends func()
 }
 
 var (
@@ -131,49 +125,50 @@ func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
 }
 
 func (s *mgrsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
 	// needed by hooks
-	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
+	s.AddCleanup(testutil.MockCommand(c, "snap", "").Restore)
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
+	s.AddCleanup(func() {
+		snapstate.SetupRemoveHook = oldSetupRemoveHook
+		snapstate.SetupInstallHook = oldSetupInstallHook
+	})
 
 	s.automaticSnapshots = nil
-	restoreBackendSave := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *snapshotbackend.Flags) (*client.Snapshot, error) {
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *snapshotbackend.Flags) (*client.Snapshot, error) {
 		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Flags: flags})
 		return nil, nil
 	})
+	s.AddCleanup(r)
 
-	restoreConnectRetryTimeout := ifacestate.MockConnectRetryTimeout(connectRetryTimeout)
-
-	s.restore = func() {
-		snapstate.SetupRemoveHook = oldSetupRemoveHook
-		snapstate.SetupInstallHook = oldSetupInstallHook
-		restoreBackendSave()
-		restoreConnectRetryTimeout()
-	}
+	s.AddCleanup(ifacestate.MockConnectRetryTimeout(connectRetryTimeout))
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
-	s.restoreSystemctl = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	r = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
+	s.AddCleanup(r)
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
 	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"validation": "verified",
 	})
-	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
 	s.devAcct = assertstest.NewAccount(s.storeSigning, "devdevdev", map[string]interface{}{
 		"account-id": "devdevdev",
@@ -188,7 +183,7 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 	s.serveOldRevs = make(map[string][]string)
 	s.hijackServeSnap = nil
 
-	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -311,13 +306,9 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 }
 
 func (s *mgrsSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.restoreTrusted()
-	s.restore()
-	s.restoreSystemctl()
-	s.mockSnapCmd.Restore()
+	s.BaseTest.TearDownTest(c)
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
-	s.restoreBackends()
+	dirs.SetRootDir("")
 }
 
 var settleTimeout = 15 * time.Second
