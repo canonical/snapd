@@ -62,7 +62,8 @@ func (p *positioningTestSuite) TestVolumeSize(c *C) {
 				{Size: 2 * gadget.SizeMiB},
 			},
 		},
-		Size: 3 * gadget.SizeMiB,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * gadget.SizeMiB}, StartOffset: 1 * gadget.SizeMiB},
 		},
@@ -99,8 +100,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   501 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       501 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -140,8 +142,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   1101 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       1101 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -195,8 +198,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   1300 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       1300 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -249,8 +253,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   1200 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       1200 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -457,8 +462,9 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   3 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -505,8 +511,9 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   3 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -550,8 +557,9 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   3 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -591,8 +599,9 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   3 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -629,8 +638,9 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   3 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -654,8 +664,9 @@ volumes:
 	v, err = gadget.PositionVolume(p.dir, vol, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   2*gadget.SizeMiB + 512*gadget.SizeKiB,
+		Volume:     vol,
+		Size:       2*gadget.SizeMiB + 512*gadget.SizeKiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -680,8 +691,9 @@ volumes:
 	v, err = gadget.PositionVolume(p.dir, vol, constraintsBad)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   2*gadget.SizeMiB + 446,
+		Volume:     vol,
+		Size:       2*gadget.SizeMiB + 446,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -690,6 +702,30 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     446,
+				Index:           1,
+			},
+		},
+	})
+
+	// sector size is properly recorded
+	constraintsSector := gadget.PositioningConstraints{
+		NonMBRStartOffset: 1 * gadget.SizeMiB,
+		SectorSize:        1024,
+	}
+	v, err = gadget.PositionVolume(p.dir, vol, constraintsSector)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
+		Volume:     vol,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 1024,
+		PositionedStructure: []gadget.PositionedStructure{
+			{
+				VolumeStructure: &vol.Structure[0],
+				Index:           0,
+			},
+			{
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     1 * gadget.SizeMiB,
 				Index:           1,
 			},
 		},
@@ -756,8 +792,9 @@ volumes:
 	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
-		Volume: vol,
-		Size:   2 * gadget.SizeMiB,
+		Volume:     vol,
+		Size:       2 * gadget.SizeMiB,
+		SectorSize: 512,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				// MBR
