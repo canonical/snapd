@@ -171,6 +171,7 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
 
 	chg := s.state.NewChange("remodel", "...")
 
@@ -209,6 +210,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
 
 	chg := s.state.NewChange("remodel", "...")
 

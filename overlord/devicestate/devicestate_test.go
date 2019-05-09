@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -80,6 +81,8 @@ type deviceMgrSuite struct {
 	restoreOnClassic         func()
 	restoreGenericClassicMod func()
 	restoreSanitize          func()
+
+	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -146,7 +149,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil)
+	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
 	s.db = db
@@ -162,6 +165,10 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 		db:    s.storeSigning,
 	})
 	s.state.Unlock()
+}
+
+func (s *deviceMgrSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
+	return s.newFakeStore(devBE)
 }
 
 func (s *deviceMgrSuite) TearDownTest(c *C) {
@@ -2450,8 +2457,8 @@ func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 		new    map[string]string
 		errStr string
 	}{
-		{map[string]string{"brand": "my-brand"}, "cannot remodel to different brands yet"},
-		{map[string]string{"model": "other-model"}, "cannot remodel to different models yet"},
+		{map[string]string{"brand": "my-brand"}, "cannot remodel to different brand/model yet"},
+		{map[string]string{"model": "other-model"}, "cannot remodel to different brand/model yet"},
 		{map[string]string{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
 		{map[string]string{"base": "core20"}, "cannot remodel to different bases yet"},
 		{map[string]string{"kernel": "other-kernel"}, "cannot remodel to different kernels yet"},
@@ -2482,9 +2489,12 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	var testDeviceCtx snapstate.DeviceContext
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 
 		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, Equals, testDeviceCtx)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2519,7 +2529,10 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
-	tss, err := devicestate.RemodelTasks(s.state, current, new)
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{}
+
+	tss, err := devicestate.RemodelTasks(s.state, current, new, testDeviceCtx)
 	c.Assert(err, IsNil)
 	// 2 snaps plus the remodel task, the wait chain is tested in
 	// TestRemodel*
@@ -2532,9 +2545,11 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 
 		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2571,14 +2586,16 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
-	var modelOnChange string
-	err = chg.Get("new-model", &modelOnChange)
-	c.Assert(err, IsNil)
-	c.Assert(string(asserts.Encode(new)), Equals, modelOnChange)
-
 	tl := chg.Tasks()
 	// 2 snaps,
 	c.Assert(tl, HasLen, 2*3+1)
+
+	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	c.Assert(err, IsNil)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), IsNil)
 
 	// check the tasks
 	tDownloadSnap1 := tl[0]
@@ -2636,8 +2653,10 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2650,8 +2669,11 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdate(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2769,6 +2791,95 @@ func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
 	tSetModel := tl[0]
 	c.Assert(tSetModel.Kind(), Equals, "set-model")
 	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
+}
+
+type freshSessionStore struct {
+	storetest.Store
+
+	ensureDeviceSession int
+}
+
+func (sto *freshSessionStore) EnsureDeviceSession() (*auth.DeviceState, error) {
+	sto.ensureDeviceSession += 1
+	return nil, nil
+}
+
+func (s *deviceMgrSuite) TestRemodelStoreSwitch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testStore snapstate.StoreService
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
+
+		c.Check(deviceCtx.Store(), Equals, testStore)
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"store":          "switched-store",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+
+	freshStore := &freshSessionStore{}
+	testStore = freshStore
+
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		mod, err := devBE.Model()
+		c.Check(err, IsNil)
+		if err == nil {
+			c.Check(mod, DeepEquals, new)
+		}
+		return testStore
+	}
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	c.Check(freshStore.ensureDeviceSession, Equals, 1)
+
+	tl := chg.Tasks()
+	// 2 snaps,
+	c.Assert(tl, HasLen, 2*3+1)
+
+	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	c.Assert(err, IsNil)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), Equals, testStore)
 }
 
 func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {

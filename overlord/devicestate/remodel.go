@@ -115,6 +115,8 @@ type remodelContext interface {
 	Finish() error
 	snapstate.DeviceContext
 
+	Kind() RemodelKind
+
 	// initialDevice takes the current/initial device state
 	// when setting up the remodel context
 	initialDevice(device *auth.DeviceState)
@@ -230,6 +232,10 @@ type updateRemodelContext struct {
 	baseRemodelContext
 }
 
+func (rc *updateRemodelContext) Kind() RemodelKind {
+	return UpdateRemodel
+}
+
 func (rc *updateRemodelContext) associate(chg *state.Change) {
 	rc.cacheViaChange(chg, rc)
 }
@@ -264,6 +270,10 @@ type newStoreRemodelContext struct {
 
 	st        *state.State
 	deviceMgr *DeviceManager
+}
+
+func (rc *newStoreRemodelContext) Kind() RemodelKind {
+	return StoreSwitchRemodel
 }
 
 func (rc *newStoreRemodelContext) associate(chg *state.Change) {

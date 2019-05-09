@@ -35,6 +35,8 @@ import (
 
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
+	EnsureDeviceSession() (*auth.DeviceState, error)
+
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 

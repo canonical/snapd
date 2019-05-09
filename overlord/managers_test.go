@@ -22,10 +22,12 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -92,6 +94,11 @@ type mgrsSuite struct {
 	serveOldRevs  map[string][]string
 
 	hijackServeSnap func(http.ResponseWriter)
+
+	checkDeviceAndAuthContext func(store.DeviceAndAuthContext)
+	expectedSerial            string
+	expectedStore             string
+	sessionMacaroon           string
 
 	o *overlord.Overlord
 
@@ -182,6 +189,11 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 	s.serveOldPaths = make(map[string][]string)
 	s.serveOldRevs = make(map[string][]string)
 	s.hijackServeSnap = nil
+
+	s.checkDeviceAndAuthContext = nil
+	s.expectedSerial = ""
+	s.expectedStore = ""
+	s.sessionMacaroon = ""
 
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
@@ -575,6 +587,9 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 				panic("unexpected url path: " + r.URL.Path)
 			}
 			comps = comps[4:]
+			if comps[0] == "auth" {
+				comps[0] = "auth:" + comps[1]
+			}
 		} else { // v2
 			if len(comps) <= 3 {
 				panic("unexpected url path: " + r.URL.Path)
@@ -584,6 +599,21 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 		}
 
 		switch comps[0] {
+		case "auth:nonces":
+			w.Write([]byte(`{"nonce": "NONCE"}`))
+			return
+		case "auth:sessions":
+			// quick sanity check
+			reqBody, err := ioutil.ReadAll(r.Body)
+			c.Check(err, IsNil)
+			c.Check(bytes.Contains(reqBody, []byte("nonce: NONCE")), Equals, true)
+			c.Check(bytes.Contains(reqBody, []byte(fmt.Sprintf("serial: %s", s.expectedSerial))), Equals, true)
+			c.Check(bytes.Contains(reqBody, []byte(fmt.Sprintf("store: %s", s.expectedStore))), Equals, true)
+
+			c.Check(s.sessionMacaroon, Not(Equals), "")
+			w.WriteHeader(200)
+			w.Write([]byte(fmt.Sprintf(`{"macaroon": "%s"}`, s.sessionMacaroon)))
+			return
 		case "assertions":
 			ref := &asserts.Ref{
 				Type:       asserts.Type(comps[1]),
@@ -619,6 +649,10 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 			}
 			io.Copy(w, snapR)
 		case "v2:refresh":
+			if s.sessionMacaroon != "" {
+				c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, fmt.Sprintf(`Macaroon root="%s"`, s.sessionMacaroon))
+
+			}
 			dec := json.NewDecoder(r.Body)
 			var input struct {
 				Actions []struct {
@@ -694,6 +728,17 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 	st.Lock()
 	snapstate.ReplaceStore(s.o.State(), mStore)
 	st.Unlock()
+
+	// this will be used by remodeling cases
+	storeNew := func(cfg *store.Config, dac store.DeviceAndAuthContext) *store.Store {
+		cfg.StoreBaseURL = baseURL
+		if s.checkDeviceAndAuthContext != nil {
+			s.checkDeviceAndAuthContext(dac)
+		}
+		return store.New(cfg, dac)
+	}
+
+	s.AddCleanup(overlord.MockStoreNew(storeNew))
 
 	return mockServer
 }
@@ -3436,6 +3481,109 @@ version: 2.0`
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
+}
+
+func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+	})
+	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", "foo"), "1")
+	s.serveSnap(snapPath, "1")
+
+	newDAC := false
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.checkDeviceAndAuthContext = func(dac store.DeviceAndAuthContext) {
+		// the DeviceAndAuthContext assumes state is unlocked
+		st.Unlock()
+		defer st.Lock()
+		c.Check(dac, NotNil)
+		stoID, err := dac.StoreID("")
+		c.Assert(err, IsNil)
+		c.Check(stoID, Equals, "switched-store")
+		newDAC = true
+	}
+
+	// create/set custom model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+
+	model := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	// setup model assertion
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// have a serial as well
+	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+	err = kpMgr.Put(deviceKey)
+	c.Assert(err, IsNil)
+
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+		"authority-id":        "my-brand",
+		"brand-id":            "my-brand",
+		"model":               "my-model",
+		"serial":              "store-switch-serial",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, serial)
+	c.Assert(err, IsNil)
+
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		KeyID:  deviceKey.PublicKey().ID(),
+		Serial: "store-switch-serial",
+	})
+
+	// create a new model
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+		"store":          "switched-store",
+		"required-snaps": []interface{}{"foo"},
+		"revision":       "1",
+	})
+
+	s.expectedSerial = "store-switch-serial"
+	s.expectedStore = "switched-store"
+	s.sessionMacaroon = "switched-store-session"
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// the new required-snap "foo" is installed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	// and marked required
+	c.Check(snapst.Required, Equals, true)
+
+	// a new store was made
+	c.Check(newDAC, Equals, true)
+
+	// we have a session with the new store
+	device, err := devicestatetest.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, "store-switch-serial")
+	c.Check(device.SessionMacaroon, Equals, "switched-store-session")
 }
 
 func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
