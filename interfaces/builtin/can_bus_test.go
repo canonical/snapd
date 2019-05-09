@@ -67,13 +67,6 @@ func (s *CanBusInterfaceSuite) TestName(c *C) {
 
 func (s *CanBusInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "can-bus",
-		Interface: "can-bus",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"can-bus slots are reserved for the core snap")
 }
 
 func (s *CanBusInterfaceSuite) TestSanitizePlug(c *C) {

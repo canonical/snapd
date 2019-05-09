@@ -67,13 +67,6 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "physical-memory-control",
-		Interface: "physical-memory-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"physical-memory-control slots are reserved for the core snap")
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizePlug(c *C) {

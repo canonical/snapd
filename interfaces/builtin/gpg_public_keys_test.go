@@ -66,13 +66,6 @@ func (s *GpgPublicKeysInterfaceSuite) TestName(c *C) {
 
 func (s *GpgPublicKeysInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slotInfo := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "gpg-public-keys",
-		Interface: "gpg-public-keys",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slotInfo), ErrorMatches,
-		"gpg-public-keys slots are reserved for the core snap")
 }
 
 func (s *GpgPublicKeysInterfaceSuite) TestSanitizePlug(c *C) {

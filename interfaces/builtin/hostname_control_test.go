@@ -67,13 +67,6 @@ func (s *HostnameControlInterfaceSuite) TestName(c *C) {
 
 func (s *HostnameControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "hostname-control",
-		Interface: "hostname-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"hostname-control slots are reserved for the core snap")
 }
 
 func (s *HostnameControlInterfaceSuite) TestSanitizePlug(c *C) {

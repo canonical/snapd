@@ -76,13 +76,6 @@ func (s *displayControlInterfaceSuite) TestName(c *C) {
 
 func (s *displayControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "display-control",
-		Interface: "display-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"display-control slots are reserved for the core snap")
 }
 
 func (s *displayControlInterfaceSuite) TestSanitizePlug(c *C) {

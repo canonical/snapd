@@ -72,13 +72,6 @@ func (s *BroadcomAsicControlSuite) TestName(c *C) {
 
 func (s *BroadcomAsicControlSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "broadcom-asic-control",
-		Interface: "broadcom-asic-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"broadcom-asic-control slots are reserved for the core snap")
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizePlug(c *C) {

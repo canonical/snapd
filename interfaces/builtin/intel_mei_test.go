@@ -68,13 +68,6 @@ func (s *IntelMEISuite) TestName(c *C) {
 
 func (s *IntelMEISuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "intel-mei",
-		Interface: "intel-mei",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"intel-mei slots are reserved for the core snap")
 }
 
 func (s *IntelMEISuite) TestSanitizePlug(c *C) {

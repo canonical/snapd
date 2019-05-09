@@ -67,13 +67,6 @@ func (s *passwordManagerServiceInterfaceSuite) TestName(c *C) {
 
 func (s *passwordManagerServiceInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "password-manager-service",
-		Interface: "password-manager-service",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"password-manager-service slots are reserved for the core snap")
 }
 
 func (s *passwordManagerServiceInterfaceSuite) TestSanitizePlug(c *C) {

@@ -67,13 +67,6 @@ func (s *DvbInterfaceSuite) TestName(c *C) {
 
 func (s *DvbInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "dvb",
-		Interface: "dvb",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"dvb slots are reserved for the core snap")
 }
 
 func (s *DvbInterfaceSuite) TestSanitizePlug(c *C) {

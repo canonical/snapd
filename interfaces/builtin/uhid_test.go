@@ -66,14 +66,6 @@ func (s *UhidInterfaceSuite) TestName(c *C) {
 
 func (s *UhidInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "uhid",
-		Interface: "uhid",
-	}
-
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"uhid slots are reserved for the core snap")
 }
 
 func (s *UhidInterfaceSuite) TestSanitizePlug(c *C) {

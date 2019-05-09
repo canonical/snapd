@@ -67,13 +67,6 @@ func (s *CifsMountInterfaceSuite) TestName(c *C) {
 
 func (s *CifsMountInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "cifs-mount",
-		Interface: "cifs-mount",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"cifs-mount slots are reserved for the core snap")
 }
 
 func (s *CifsMountInterfaceSuite) TestSanitizePlug(c *C) {

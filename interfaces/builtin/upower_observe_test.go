@@ -91,13 +91,6 @@ func (s *UPowerObserveInterfaceSuite) TestName(c *C) {
 
 func (s *UPowerObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "upower-observe",
-		Interface: "upower-observe",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"upower-observe slots are reserved for the core and app snaps")
 }
 
 func (s *UPowerObserveInterfaceSuite) TestSanitizePlug(c *C) {

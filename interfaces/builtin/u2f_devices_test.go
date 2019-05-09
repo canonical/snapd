@@ -69,12 +69,6 @@ func (s *u2fDevicesInterfaceSuite) TestName(c *C) {
 
 func (s *u2fDevicesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "u2f-devices",
-		Interface: "u2f-devices",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "u2f-devices slots are reserved for the core snap")
 }
 
 func (s *u2fDevicesInterfaceSuite) TestSanitizePlug(c *C) {
