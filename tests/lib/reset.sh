@@ -141,7 +141,7 @@ reset_all_snap() {
         for base in $remove_bases; do
             snap remove "$base"
             if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
-                echo "Error removing base snap $base"
+                echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
                 ls -al "$SNAP_MOUNT_DIR"
                 ls -al "$SNAP_MOUNT_DIR/$base"
                 exit 1
