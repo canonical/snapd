@@ -444,3 +444,38 @@ func MockBuiltinBaseDeclaration(headers []byte) (restore func()) {
 		}
 	}
 }
+
+// FakeAssertionWithBody builds a fake assertion with the given body
+// and layered headers. A fake assertion cannot be verified or added
+// to a database or properly encoded. It can still be useful for unit
+// tests but shouldn't be used in integration tests.
+func FakeAssertionWithBody(body []byte, headerLayers ...map[string]interface{}) asserts.Assertion {
+	headers := map[string]interface{}{
+		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+	}
+	for _, h := range headerLayers {
+		for k, v := range h {
+			headers[k] = v
+		}
+	}
+
+	_, hasTimestamp := headers["timestamp"]
+	_, hasSince := headers["since"]
+	if !(hasTimestamp || hasSince) {
+		headers["timestamp"] = time.Now().Format(time.RFC3339)
+	}
+
+	a, err := asserts.Assemble(headers, body, nil, []byte("AXNpZw=="))
+	if err != nil {
+		panic(fmt.Sprintf("cannot build fake assertion: %v", err))
+	}
+	return a
+}
+
+// FakeAssertion builds a fake assertion with given layered headers
+// and an empty body. A fake assertion cannot be verified or added to
+// a database or properly encoded. It can still be useful for unit
+// tests but shouldn't be used in integration tests.
+func FakeAssertion(headerLayers ...map[string]interface{}) asserts.Assertion {
+	return FakeAssertionWithBody(nil, headerLayers...)
+}

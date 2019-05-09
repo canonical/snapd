@@ -616,7 +616,7 @@ func (s *snapmgrTestSuite) TestInstallUnderDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// it will need to come via the device context
+	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
@@ -2144,7 +2144,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// it will need to come via the device context
+	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
@@ -2181,7 +2181,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContextToRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// it will need to come via the device context
+	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{

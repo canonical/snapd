@@ -66,7 +66,6 @@ type cleaner interface {
 type AssertsMock struct {
 	Db           *asserts.Database
 	storeSigning *assertstest.StoreStack
-	brandSigning *assertstest.SigningDB
 	st           *state.State
 
 	cleaner cleaner
@@ -76,8 +75,6 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	am.st = st
 	am.cleaner = cleaner
 	am.storeSigning = assertstest.NewStoreStack("canonical", nil)
-	brandPrivKey, _ := assertstest.GenerateKey(752)
-	am.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -90,23 +87,13 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 
 	st.Lock()
 	assertstate.ReplaceDB(st, am.Db)
-
-	brandAcct := assertstest.NewAccount(am.storeSigning, "my-brand", map[string]interface{}{
-		"account-id": "my-brand",
-	}, "")
-	err = assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-
-	brandPubKey, err := am.brandSigning.PublicKey("")
-	c.Assert(err, IsNil)
-	brandAccKey := assertstest.NewAccountKey(am.storeSigning, brandAcct, nil, brandPubKey, "")
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
 	st.Unlock()
 }
 
 func (am *AssertsMock) mockModel(c *C, extraHeaders map[string]interface{}) *asserts.Model {
-	headers := map[string]interface{}{
+	model := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
 		"series":       "16",
 		"brand-id":     "my-brand",
 		"model":        "my-model",
@@ -115,12 +102,7 @@ func (am *AssertsMock) mockModel(c *C, extraHeaders map[string]interface{}) *ass
 		"architecture": "amd64",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	for k, v := range extraHeaders {
-		headers[k] = v
-	}
-	model, err := am.brandSigning.Sign(asserts.ModelType, headers, nil, "")
-	c.Assert(err, IsNil)
-	return model.(*asserts.Model)
+	return assertstest.FakeAssertion(model, extraHeaders).(*asserts.Model)
 }
 
 func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {

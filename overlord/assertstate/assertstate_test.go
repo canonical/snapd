@@ -61,9 +61,6 @@ type assertMgrSuite struct {
 	storeSigning *assertstest.StoreStack
 	dev1Acct     *asserts.Account
 	dev1Signing  *assertstest.SigningDB
-	brandAcct    *asserts.Account
-	brandAcctKey *asserts.AccountKey
-	brandSigning *assertstest.SigningDB
 
 	fakeStore        snapstate.StoreService
 	trivialDeviceCtx snapstate.DeviceContext
@@ -90,13 +87,16 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return ref.Resolve(sto.db.Find)
 }
 
+var (
+	dev1PrivKey, _ = assertstest.GenerateKey(752)
+)
+
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
-	dev1PrivKey, _ := assertstest.GenerateKey(752)
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	err := s.storeSigning.Add(s.dev1Acct)
 	c.Assert(err, IsNil)
@@ -107,19 +107,6 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
-
-	// brand
-	brandPrivKey, _ := assertstest.GenerateKey(752)
-	s.brandAcct = assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAcctKey := assertstest.NewAccountKey(s.storeSigning, s.brandAcct, nil, brandPrivKey.PublicKey(), "")
-	err = s.storeSigning.Add(s.brandAcct)
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(brandAcctKey)
-	c.Assert(err, IsNil)
-	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
@@ -444,21 +431,20 @@ func (s *assertMgrSuite) setModel(model *asserts.Model) {
 
 func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 	// setup a model and store assertion
-	a, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
 		"authority-id": "my-brand",
+		"series":       "16",
 		"brand-id":     "my-brand",
 		"model":        "my-model",
 		"architecture": "amd64",
 		"store":        "my-brand-store",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	})
 	s.setModel(a.(*asserts.Model))
 
-	a, err = s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
