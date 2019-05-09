@@ -29,11 +29,6 @@ func (e AlreadyInstalledError) Error() string {
 	return fmt.Sprintf("snap %q is already installed", e.Snap)
 }
 
-func AlreadyInstalled(err error) bool {
-	_, ok := err.(*AlreadyInstalledError)
-	return ok
-}
-
 type NotInstalledError struct {
 	Snap string
 	Rev  Revision
