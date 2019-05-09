@@ -485,3 +485,91 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 	}
 	u.testCanUpdate(c, cases)
 }
+
+func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
+
+	for idx, tc := range []struct {
+		from gadget.PositionedVolume
+		to   gadget.PositionedVolume
+		err  string
+	}{
+		{
+			from: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: ""},
+			},
+			to: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: "mbr"},
+			},
+			err: `cannot change volume schema from "gpt" to "mbr"`,
+		}, {
+			from: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: "gpt"},
+			},
+			to: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: "mbr"},
+			},
+			err: `cannot change volume schema from "gpt" to "mbr"`,
+		}, {
+			from: gadget.PositionedVolume{
+				Volume: &gadget.Volume{ID: "00000000-0000-0000-0000-0000deadbeef"},
+			},
+			to: gadget.PositionedVolume{
+				Volume: &gadget.Volume{ID: "00000000-0000-0000-0000-0000deadcafe"},
+			},
+			err: `cannot change volume ID from "00000000-0000-0000-0000-0000deadbeef" to "00000000-0000-0000-0000-0000deadcafe"`,
+		}, {
+			from: gadget.PositionedVolume{
+				Volume: &gadget.Volume{},
+				PositionedStructure: []gadget.PositionedStructure{
+					{}, {},
+				},
+			},
+			to: gadget.PositionedVolume{
+				Volume: &gadget.Volume{},
+				PositionedStructure: []gadget.PositionedStructure{
+					{},
+				},
+			},
+			err: `cannot change the number of structures within volume from 2 to 1`,
+		}, {
+			// valid, implicit schema
+			from: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: ""},
+				PositionedStructure: []gadget.PositionedStructure{
+					{}, {},
+				},
+			},
+			to: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: "gpt"},
+				PositionedStructure: []gadget.PositionedStructure{
+					{}, {},
+				},
+			},
+			err: ``,
+		}, {
+			// valid
+			from: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: "mbr"},
+				PositionedStructure: []gadget.PositionedStructure{
+					{}, {},
+				},
+			},
+			to: gadget.PositionedVolume{
+				Volume: &gadget.Volume{Schema: "mbr"},
+				PositionedStructure: []gadget.PositionedStructure{
+					{}, {},
+				},
+			},
+			err: ``,
+		},
+	} {
+		c.Logf("tc: %v", idx)
+		err := gadget.CanUpdateVolume(&tc.from, &tc.to)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+
+	}
+}

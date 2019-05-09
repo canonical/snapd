@@ -27,4 +27,5 @@ var (
 
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
+	CanUpdateVolume    = canUpdateVolume
 )
