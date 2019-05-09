@@ -623,7 +623,13 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -645,6 +651,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
+	c.Check(chg.Err(), IsNil)
 	device, err := devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	_, err = s.db.Find(asserts.SerialType, map[string]string{
@@ -699,6 +706,12 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -737,6 +750,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 
 	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
 	device, err = devicestatetest.Device(s.state)
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
@@ -813,7 +827,13 @@ func (s *deviceMgrSuite) TestDoRequestSerialMaxTentatives(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -1518,6 +1538,48 @@ func (s *deviceMgrSuite) TestStoreContextBackendProxyStore(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(sto.Store(), Equals, "foo")
 	c.Assert(sto.URL().String(), Equals, mockServer.URL)
+}
+
+func (s *deviceMgrSuite) TestInitialRegistrationContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc-gadget",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	// TODO: will need to pass in a task later
+	regCtx, err := devicestate.RegistrationCtx(s.mgr, nil)
+	c.Assert(err, IsNil)
+	c.Assert(regCtx, NotNil)
+
+	c.Check(regCtx.ForRemodeling(), Equals, false)
+
+	device, err := regCtx.Device()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	c.Check(regCtx.GadgetForSerialRequestConfig(), Equals, "pc-gadget")
+	c.Check(regCtx.SerialRequestExtraHeaders(), HasLen, 0)
+	c.Check(regCtx.SerialRequestAncillaryAssertions(), HasLen, 0)
+
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
