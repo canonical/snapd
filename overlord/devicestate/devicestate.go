@@ -155,14 +155,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return nil
 	}
 
-	// XXX: remodeling: use deviceCtx
-	model, err := findModel(st)
-	if err == state.ErrNoState {
-		return fmt.Errorf("cannot install %s without model assertion", kind)
-	}
-	if err != nil {
-		return err
-	}
+	model := deviceCtx.Model()
 
 	if snapInfo.SnapID != "" {
 		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
