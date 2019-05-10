@@ -26,13 +26,11 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/healthstate"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	shortHealthHelp = i18n.G("Report on snap's health")
 	longHealthHelp  = i18n.G(`
-
 The set-health command can signal to the system and the user that something is
 not well with the snap.
 
@@ -44,16 +42,15 @@ status can be one of
 
 - okay: the snap is healthy. This status takes no message and no code.
 
-- waiting: some resource the snap needs isn’t ready yet; the user just needs
-  to wait.  The message (and optionally the code) must explain what it’s
-  waiting for.
+- waiting: some resource (e.g. a device, network, or service) the snap needs
+  isn’t ready yet; the user just needs to wait.  The message (and optionally
+  the code) must explain what it’s waiting for.
 
 - blocked: the user needs to do something for the snap to do something; the
-  message (and optionally the) must say what it is needs doing.
+  message (and optionally the code) must say what it is needs doing.
 
 - error: something is broken; the message (and optionally the code) must
   explain what.
-
 `)
 )
 
@@ -73,9 +70,7 @@ type healthCommand struct {
 }
 
 var (
-	// "choice" on positional args doesn't work
-	validStatus = regexp.MustCompile(`^(?:okay|waiting|blocked|error)$`).MatchString
-	validCode   = regexp.MustCompile(`^[a-z](?:-?[a-z0-9]){2,}$`).MatchString
+	validCode = regexp.MustCompile(`^[a-z](?:-?[a-z0-9]){2,}$`).MatchString
 )
 
 func (c *healthCommand) Execute([]string) error {
@@ -86,6 +81,9 @@ func (c *healthCommand) Execute([]string) error {
 	status, err := healthstate.StatusLookup(c.Status)
 	if err != nil {
 		return err
+	}
+	if status == healthstate.UnknownStatus {
+		return fmt.Errorf(`status cannot be manually set to "unknown"`)
 	}
 
 	if len(c.Code) > 0 {
@@ -102,23 +100,12 @@ func (c *healthCommand) Execute([]string) error {
 			return fmt.Errorf(`when status is not "okay", message is required`)
 		}
 
-		// n is the number of runes
-		// j is the index of the 71st rune
-		var j, n int
-		for i, r := range c.Message {
-			if strutil.IsCtrl(r) {
-				return fmt.Errorf(`character %+q at position %d is not allowed`, r, i)
-			}
-			if n == 70 {
-				j = i
-			}
-			n++
+		rmsg := []rune(c.Message)
+		if len(rmsg) < 7 {
+			return fmt.Errorf(`message must be at least 7 characters long (%q has %d)`, c.Message, len(rmsg))
 		}
-		if n < 7 {
-			return fmt.Errorf(`message must be at least 7 characters long (%q has %d)`, c.Message, n)
-		}
-		if j > 0 {
-			c.Message = c.Message[:j]
+		if len(rmsg) > 70 {
+			c.Message = string(rmsg[:69]) + "…"
 		}
 	}
 
@@ -131,7 +118,7 @@ func (c *healthCommand) Execute([]string) error {
 	defer ctx.Unlock()
 
 	health := &healthstate.HealthState{
-		Revision:  ctx.SnapRevision(),
+		Revision:  ctx.SnapRevision(), // will be "unset" for unasserted installs, and trys
 		Timestamp: time.Now(),
 		Status:    status,
 		Message:   c.Message,
