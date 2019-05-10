@@ -95,6 +95,25 @@ func (s *EnsureTreeStateSuite) TestRemovesUnexpectedFiles(c *C) {
 	c.Check(name2, testutil.FileAbsent)
 }
 
+func (s *EnsureTreeStateSuite) TestRemovesEmptyDirectories(c *C) {
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "bar", "baz"), 0755), IsNil)
+	name1 := filepath.Join(s.dir, "foo", "file1.snap")
+	name2 := filepath.Join(s.dir, "foo", "unrelated")
+	name3 := filepath.Join(s.dir, "bar", "baz", "file2.snap")
+	c.Assert(ioutil.WriteFile(name1, []byte(`text`), 0600), IsNil)
+	c.Assert(ioutil.WriteFile(name2, []byte(`text`), 0600), IsNil)
+	c.Assert(ioutil.WriteFile(name3, []byte(`text`), 0600), IsNil)
+
+	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, nil)
+	c.Assert(err, IsNil)
+
+	// The "foo" directory is still present, while the "bar" tree
+	// has been removed.
+	c.Check(filepath.Join(s.dir, "foo"), testutil.FilePresent)
+	c.Check(filepath.Join(s.dir, "bar"), testutil.FileAbsent)
+}
+
 func (s *EnsureTreeStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo"), 0755), IsNil)
 	name := filepath.Join(s.dir, "foo", "unrelated")

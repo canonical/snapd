@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"syscall"
 )
 
 func appendWithPrefix(paths []string, prefix string, filenames []string) []string {
@@ -30,6 +31,24 @@ func appendWithPrefix(paths []string, prefix string, filenames []string) []strin
 		paths = append(paths, filepath.Join(prefix, filename))
 	}
 	return paths
+}
+
+func removeEmptyDirs(baseDir, relPath string) error {
+	for relPath != "." {
+		if err := os.Remove(filepath.Join(baseDir, relPath)); err != nil {
+			// If the directory doesn't exist, then stop.
+			if os.IsNotExist(err) {
+				return nil
+			}
+			// If the directory is not empty, then stop.
+			if pathErr, ok := err.(*os.PathError); ok && pathErr.Err == syscall.ENOTEMPTY {
+				return nil
+			}
+			return err
+		}
+		relPath = filepath.Dir(relPath)
+	}
+	return nil
 }
 
 func EnsureTreeState(baseDir string, globs []string, content map[string]map[string]*FileState) (changed, removed []string, err error) {
@@ -59,6 +78,8 @@ func EnsureTreeState(baseDir string, globs []string, content map[string]map[stri
 		subdirs[relPath] = true
 	}
 
+	maybeEmpty := []string{}
+
 	// TODO: ensure that no directories in the tree match a
 	// directory glob (one that would match any globs that would
 	// be passed in a particular context).
@@ -75,8 +96,22 @@ func EnsureTreeState(baseDir string, globs []string, content map[string]map[stri
 		if err != nil {
 			break
 		}
+		if len(removed) != 0 {
+			maybeEmpty = append(maybeEmpty, relPath)
+		}
 	}
 	sort.Strings(changed)
 	sort.Strings(removed)
+	if err != nil {
+		return changed, removed, err
+	}
+
+	// For directories where files were removed, attempt to remove
+	// empty directories.
+	for _, relPath := range maybeEmpty {
+		if err = removeEmptyDirs(baseDir, relPath); err != nil {
+			break
+		}
+	}
 	return changed, removed, err
 }
