@@ -406,6 +406,8 @@ exclude:
     - cmd/snap-exec/snap-exec
     - "*.o"
     - "*.a"
+    - ".*_defer_*"
+    - ".defer_lock"
 
 
 debug-each: |

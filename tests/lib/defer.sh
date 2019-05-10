@@ -1,5 +1,18 @@
 #!/bin/sh
 
+# prime_defer schedules execution of deferred commands at script termination.
+prime_defer() {
+    scope=auto
+    case "${1:-}" in
+        --scope=*)
+            scope=$(echo "$1" | cut -d = -f 2)
+            shift
+            ;;
+    esac
+    rm -f ".${scope}_defer_*"
+    test -n "$SNAP_NO_CLEANUP" || trap "run_deferred --scope=\"$scope\"" EXIT
+}
+
 # defer enqueues execution of shell commands.
 #
 # synopsis: defer [--scope=SCOPE] <COMMANDS>
@@ -51,6 +64,7 @@ defer() {
 # of deferred commands to execute. This allows to have separate groups for the
 # prepare/restore and for the execute sections.
 run_deferred() {
+    printf "\nRUNNING DEFERRED COMMANDS\n\n"
     scope=auto
     case "${1:-}" in
         --scope=*)
@@ -65,6 +79,7 @@ run_deferred() {
         fi
         count="$(cat ".${scope}_defer_count")"
         for i in $(seq "$count" -1 0); do
+            echo "DEFER-${i}"
             "./.${scope}_defer_${i}"
             rm "./.${scope}_defer_${i}"
         done
