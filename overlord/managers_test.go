@@ -3207,6 +3207,8 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string) int {
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
 	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run health check of "%s" snap`, name))
+	i++
 	return i
 }
 
@@ -3241,6 +3243,8 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string) int {
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Clean up "%s" (%s) install`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run health check of "%s" snap`, name))
 	i++
 	return i
 }
