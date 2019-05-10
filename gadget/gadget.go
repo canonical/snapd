@@ -82,7 +82,7 @@ type Volume struct {
 
 func (v *Volume) EffectiveSchema() string {
 	if v.Schema == "" {
-		return "gpt"
+		return GPT
 	}
 	return v.Schema
 }
