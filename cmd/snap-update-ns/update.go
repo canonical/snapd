@@ -41,7 +41,7 @@ type MountProfileUpdateContext interface {
 	SaveCurrentProfile(*osutil.MountProfile) error
 }
 
-func applyFstab(ctx MountProfileUpdateContext) error {
+func executeMountProfileUpdate(ctx MountProfileUpdateContext) error {
 	unlock, err := ctx.Lock()
 	if err != nil {
 		return err
