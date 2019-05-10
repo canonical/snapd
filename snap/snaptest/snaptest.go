@@ -82,6 +82,17 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return mockSnap(c, "", yamlText, sideInfo)
 }
 
+// MockSnapWithFiles puts a snap.yaml file on disk so to mock an
+// installed snap, based on the provided arguments and the given files
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockSnapWithFiles(c *check.C, yamlText string, sideInfo *snap.SideInfo, files [][]string) *snap.Info {
+	info := mockSnap(c, "", yamlText, sideInfo)
+	PopulateDir(info.MountDir(), files)
+	return info
+}
+
 // MockSnapInstance puts a snap.yaml file on disk so to mock an installed snap
 // instance, based on the provided arguments.
 //

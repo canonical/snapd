@@ -3525,8 +3525,21 @@ func (ms *mgrsSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 		SnapType: "kernel",
 	})
 	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
-	gadgetYaml := "name: pc\nversion: 1.0\ntype: gadget"
-	snaptest.MockSnap(c, gadgetYaml, si2)
+	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si2, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
 
 	// add "brand-kernel" snap to fake store
 	const brandKernelYaml = `name: brand-kernel
