@@ -51,19 +51,19 @@ var timingsTests = []timingsCmdArgs{{
 }, {
 	args: "debug timings --last=install",
 	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  .\n" +
+		"40   Doing         910ms            -  task bar summary\n" +
 		" ^                   1ms            -    foo summary\n" +
 		"  ^                  1ms            -      bar summary\n\n",
 }, {
 	args: "debug timings 1",
 	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  .\n" +
+		"40   Doing         910ms            -  task bar summary\n" +
 		" ^                   1ms            -    foo summary\n" +
 		"  ^                  1ms            -      bar summary\n\n",
 }, {
 	args: "debug timings 1 --verbose",
 	stdout: "ID   Status        Doing      Undoing  Label  Summary\n" +
-		"40   Doing         910ms            -  bar    .\n" +
+		"40   Doing         910ms            -  bar    task bar summary\n" +
 		" ^                   1ms            -  foo      foo summary\n" +
 		"  ^                  1ms            -  bar        bar summary\n\n",
 }, {
@@ -71,7 +71,7 @@ var timingsTests = []timingsCmdArgs{{
 	stdout: "ID      Status        Doing      Undoing  Summary\n" +
 		"ensure                  8ms            -  baz summary\n" +
 		" ^                      8ms            -    booze summary\n" +
-		"40      Doing         910ms            -  .\n" +
+		"40      Doing         910ms            -  task bar summary\n" +
 		" ^                      1ms            -    foo summary\n" +
 		"  ^                     1ms            -      bar summary\n\n",
 }, {
@@ -79,7 +79,7 @@ var timingsTests = []timingsCmdArgs{{
 	stdout: "ID      Status        Doing      Undoing  Summary\n" +
 		"ensure                  8ms            -  bar summary 1\n" +
 		"ensure                  8ms            -  bar summary 2\n" +
-		"40      Doing         910ms            -  .\n" +
+		"40      Doing         910ms            -  task bar summary\n" +
 		" ^                      1ms            -    foo summary\n" +
 		"  ^                     1ms            -      bar summary\n\n",
 }, {
@@ -87,7 +87,7 @@ var timingsTests = []timingsCmdArgs{{
 	stdout: "ID      Status        Doing      Undoing  Label  Summary\n" +
 		"ensure                  8ms            -  abc    bar summary 1\n" +
 		"ensure                  8ms            -  abc    bar summary 2\n" +
-		"40      Doing         910ms            -  bar    .\n" +
+		"40      Doing         910ms            -  bar    task bar summary\n" +
 		" ^                      1ms            -  foo      foo summary\n" +
 		"  ^                     1ms            -  bar        bar summary\n\n",
 }}
@@ -194,7 +194,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 				"ready": false,
 				"spawn-time": "2016-04-21T01:02:03Z",
 				"ready-time": "2016-04-21T01:02:04Z",
-				"tasks": [{"id":"40", "kind": "bar", "summary": ".", "status": "Doing", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
+				"tasks": [{"id":"40", "kind": "bar", "summary": "task bar summary", "status": "Doing", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
 			  }}`)
 			return
 		}
