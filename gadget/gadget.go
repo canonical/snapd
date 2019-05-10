@@ -80,6 +80,13 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure"`
 }
 
+func (v *Volume) EffectiveSchema() string {
+	if v.Schema == "" {
+		return GPT
+	}
+	return v.Schema
+}
+
 // VolumeStructure describes a single structure inside a volume. A structure can
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.

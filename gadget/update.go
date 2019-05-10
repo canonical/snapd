@@ -119,3 +119,16 @@ func canUpdateStructure(from *PositionedStructure, to *PositionedStructure) erro
 
 	return nil
 }
+
+func canUpdateVolume(from *PositionedVolume, to *PositionedVolume) error {
+	if from.ID != to.ID {
+		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
+	}
+	if from.EffectiveSchema() != to.EffectiveSchema() {
+		return fmt.Errorf("cannot change volume schema from %q to %q", from.EffectiveSchema(), to.EffectiveSchema())
+	}
+	if len(from.PositionedStructure) != len(to.PositionedStructure) {
+		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.PositionedStructure), len(to.PositionedStructure))
+	}
+	return nil
+}
