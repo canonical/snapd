@@ -32,7 +32,7 @@ import (
 var ErrDeviceNotFound = errors.New("device not found")
 
 // FindDeviceForStructure attempts to find an existing device matching given
-// volume structure, by inspecting it's name and, optionally, the filesystem
+// volume structure, by inspecting its name and, optionally, the filesystem
 // label. Assumes that the host's udev has set up device symlinks correctly.
 func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	var candidates []string
