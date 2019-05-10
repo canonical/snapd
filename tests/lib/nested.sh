@@ -47,34 +47,22 @@ create_assertions_disk(){
 }
 
 get_qemu_for_nested_vm(){
-    case "$NESTED_ARCH" in
-    amd64)
-        command -v qemu-system-x86_64
-        ;;
-    i386)
-        command -v qemu-system-i386
-        ;;
-    *)
-        echo "unsupported architecture"
-        exit 1
-        ;;
-    esac
+    command -v qemu-system-x86_64
 }
 
 get_image_url_for_nested_vm(){
-    case "$NESTED_SYSTEM" in
-    xenial|trusty)
-        echo "https://cloud-images.ubuntu.com/${NESTED_SYSTEM}/current/${NESTED_SYSTEM}-server-cloudimg-${NESTED_ARCH}-disk1.img"
+    case "$SPREAD_SYSTEM" in
+    ubuntu-16.04-64)
+        echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
         ;;
-    bionic)
-        echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-${NESTED_ARCH}.img"
+    ubuntu-18.04-64)
+        echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
         ;;
     *)
         echo "unsupported system"
         exit 1
         ;;
     esac
-
 }
 
 create_nested_core_vm(){
@@ -88,7 +76,21 @@ create_nested_core_vm(){
     fi
     mkdir -p "$WORK_DIR"
 
-    "$UBUNTU_IMAGE" --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
+    local NESTED_MODEL=""
+    case "$SPREAD_SYSTEM" in
+    ubuntu-16.04-64)
+        NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
+        ;;
+    ubuntu-18.04-64)
+        NESTED_MODEL="$TESTSLIB/assertions/ubuntu-core-18-amd64.model"
+        ;;
+    *)
+        echo "unsupported system"
+        exit 1
+        ;;
+    esac
+
+    "$UBUNTU_IMAGE" --image-size 3G "$NESTED_MODEL" \
         --channel "$CORE_CHANNEL" \
         --output "$WORK_DIR/ubuntu-core.img" "$EXTRA_SNAPS"
 
