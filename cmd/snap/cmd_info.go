@@ -209,6 +209,13 @@ func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
 	}
 	indent := pad + string(text[:idx])
 	text = text[idx:]
+	if len(indent) > termWidth/2 {
+		// If indent is too big there's not enough space for the actual
+		// text, in the pathological case the indent can even be bigger
+		// than the terminal which leads to lp:1828425.
+		// Rather than let that happen, give up.
+		indent = pad + "  "
+	}
 	return wrapGeneric(out, text, indent, indent, termWidth)
 }
 

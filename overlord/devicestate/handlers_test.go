@@ -25,26 +25,25 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 )
 
 // TODO: should we move this into a new handlers suite?
 func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	s.state.Lock()
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
-	err := assertstate.Add(s.state, s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"revision":     "1",
-	}))
-	c.Assert(err, IsNil)
+	})
 	s.state.Unlock()
 
-	newModel := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -53,9 +52,9 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	t.Set("new-model", asserts.Encode(newModel))
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
+	chg.Set("new-model", string(asserts.Encode(newModel)))
 
 	s.state.Unlock()
 
@@ -72,7 +71,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 }
 
 func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
-	model := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -81,7 +80,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 
 	s.state.Lock()
 
-	devicestate.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
@@ -89,9 +88,9 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	c.Assert(err, IsNil)
 
 	t := s.state.NewTask("set-model", "set-model test")
-	t.Set("new-model", asserts.Encode(model))
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
+	chg.Set("new-model", string(asserts.Encode(model)))
 
 	s.state.Unlock()
 

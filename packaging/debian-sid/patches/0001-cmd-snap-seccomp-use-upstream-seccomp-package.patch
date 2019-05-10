@@ -21,11 +21,11 @@ Signed-off-by: Maciej Borzecki <maciej.zenon.borzecki@canonical.com>
  cmd/snap-seccomp/versioninfo_test.go | 2 +-
  4 files changed, 4 insertions(+), 7 deletions(-)
 
-diff --git a/cmd/snap-seccomp/main.go b/cmd/snap-seccomp/main.go
-index 7056c0309dbcc1b6bf9f3b69e6adf454bed4fcbd..dce0f086bde290839a108d90945c880d5f387e5d 100644
---- a/cmd/snap-seccomp/main.go
-+++ b/cmd/snap-seccomp/main.go
-@@ -181,10 +181,7 @@ import (
+Index: snapd/cmd/snap-seccomp/main.go
+===================================================================
+--- snapd.orig/cmd/snap-seccomp/main.go
++++ snapd/cmd/snap-seccomp/main.go
+@@ -180,10 +180,7 @@ import (
  	"strings"
  	"syscall"
  
@@ -37,10 +37,10 @@ index 7056c0309dbcc1b6bf9f3b69e6adf454bed4fcbd..dce0f086bde290839a108d90945c880d
  
  	"github.com/snapcore/snapd/arch"
  	"github.com/snapcore/snapd/osutil"
-diff --git a/cmd/snap-seccomp/main_test.go b/cmd/snap-seccomp/main_test.go
-index 9a8a28fbfbbf733bcc31963c4b90f2385bd801b6..5c64abf52e006ad25da5de2897d68cf73cb849d6 100644
---- a/cmd/snap-seccomp/main_test.go
-+++ b/cmd/snap-seccomp/main_test.go
+Index: snapd/cmd/snap-seccomp/main_test.go
+===================================================================
+--- snapd.orig/cmd/snap-seccomp/main_test.go
++++ snapd/cmd/snap-seccomp/main_test.go
 @@ -32,7 +32,7 @@ import (
  
  	. "gopkg.in/check.v1"
@@ -50,23 +50,23 @@ index 9a8a28fbfbbf733bcc31963c4b90f2385bd801b6..5c64abf52e006ad25da5de2897d68cf7
  
  	"github.com/snapcore/snapd/arch"
  	main "github.com/snapcore/snapd/cmd/snap-seccomp"
-diff --git a/cmd/snap-seccomp/versioninfo.go b/cmd/snap-seccomp/versioninfo.go
-index e60b26363c39355f95a8ad2878bc672528cc1f5b..a2840f04830c24692539d8b7b4467a007fbbd537 100644
---- a/cmd/snap-seccomp/versioninfo.go
-+++ b/cmd/snap-seccomp/versioninfo.go
-@@ -24,7 +24,7 @@ import (
- 	"fmt"
+Index: snapd/cmd/snap-seccomp/versioninfo.go
+===================================================================
+--- snapd.orig/cmd/snap-seccomp/versioninfo.go
++++ snapd/cmd/snap-seccomp/versioninfo.go
+@@ -25,7 +25,7 @@ import (
  	"os"
+ 	"strings"
  
 -	"github.com/mvo5/libseccomp-golang"
 +	"github.com/seccomp/libseccomp-golang"
  
  	"github.com/snapcore/snapd/cmd/snap-seccomp/syscalls"
  	"github.com/snapcore/snapd/osutil"
-diff --git a/cmd/snap-seccomp/versioninfo_test.go b/cmd/snap-seccomp/versioninfo_test.go
-index 0fb23757019c517a3881cd4c9325b6ec864da3f6..f55f7cf6ff7508bb7fae3a5389341a1a01e46630 100644
---- a/cmd/snap-seccomp/versioninfo_test.go
-+++ b/cmd/snap-seccomp/versioninfo_test.go
+Index: snapd/cmd/snap-seccomp/versioninfo_test.go
+===================================================================
+--- snapd.orig/cmd/snap-seccomp/versioninfo_test.go
++++ snapd/cmd/snap-seccomp/versioninfo_test.go
 @@ -25,7 +25,7 @@ import (
  
  	. "gopkg.in/check.v1"
@@ -76,6 +76,3 @@ index 0fb23757019c517a3881cd4c9325b6ec864da3f6..f55f7cf6ff7508bb7fae3a5389341a1a
  
  	main "github.com/snapcore/snapd/cmd/snap-seccomp"
  	"github.com/snapcore/snapd/osutil"
--- 
-2.21.0
-
