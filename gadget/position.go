@@ -41,6 +41,8 @@ type PositionedVolume struct {
 	*Volume
 	// Size is the total size of the volume
 	Size Size
+	// SectorSize sector size of the volume
+	SectorSize Size
 	// PositionedStructure are sorted in order of 'appearance' in the volume
 	PositionedStructure []PositionedStructure
 }
@@ -145,6 +147,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 	vol := &PositionedVolume{
 		Volume:              volume,
 		Size:                farthestEnd,
+		SectorSize:          constraints.SectorSize,
 		PositionedStructure: structures,
 	}
 	return vol, nil
