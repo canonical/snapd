@@ -67,6 +67,13 @@ execute: |
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
     [ "$(wc -c < stderr.log)" -eq 0 ]
 
+    echo "Wait until the .portals-unavailable is created"
+    for _ in $(seq 20); do
+        if [ -f "$XDG_RUNTIME_DIR/.portals-unavailable" ]; then
+            break
+        fi
+        sleep .5
+    done
     echo "The absence of the document portal service was recorded"
     [ -f "$XDG_RUNTIME_DIR/.portals-unavailable" ]
 
