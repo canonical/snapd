@@ -3505,10 +3505,8 @@ version: 1.0`
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
-	model := makeModelAssertion(c, ms.storeSigning.SigningDB, map[string]interface{}{
-		"authority-id": "can0nical",
-		"brand-id":     "can0nical",
-	})
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
+
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "can0nical",
@@ -3518,9 +3516,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// create a new model
-	newModel := makeModelAssertion(c, ms.storeSigning.SigningDB, map[string]interface{}{
-		"authority-id":   "can0nical",
-		"brand-id":       "can0nical",
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
 		"kernel":         "brand-kernel",
 		"revision":       "1",
 		"required-snaps": []interface{}{"foo"},
