@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -741,6 +742,25 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
+	}
+
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+
+	if experimentalRefreshAppAwareness {
+		// A process may be created after the soft refresh done upon
+		// the request to refresh a snap. If such process is alive by
+		// the time this code is reached the refresh process is stopped.
+		// In case of failure the snap state is modified to indicate
+		// when the refresh was first inhibited. If the first
+		// inhibition is outside of a grace period then refresh
+		// proceeds regardless of the existing processes.
+		if err := inhibitRefresh(st, snapst, oldInfo, HardNothingRunningRefreshCheck); err != nil {
+			return err
+		}
 	}
 
 	// Make a copy of configuration of given snap revision
