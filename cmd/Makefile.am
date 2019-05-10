@@ -78,7 +78,7 @@ fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
+hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap/snap snapd/snapd
 	sudo install -D -m 6755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
@@ -86,13 +86,24 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
 	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
+	sudo install -m 755 snap/snap $(DESTDIR)$(libexecdir)/snap
+	sudo install -m 755 snapd/snapd $(DESTDIR)$(libexecdir)/snapd
 	if [ "$$(command -v restorecon)" != "" ]; then sudo restorecon -R -v $(DESTDIR)$(libexecdir)/; fi
+	sudo systemctl restart snapd.service
+	sudo ln -sf $(libexecdir)/snap $(DESTDIR)/usr/bin/snap
 
 # for the hack target also:
-snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
+snap-update-ns/snap-update-ns: $(shell find .. -name '*.go')
 	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
-snap-seccomp/snap-seccomp: snap-seccomp/*.go
+
+snap-seccomp/snap-seccomp: $(shell find .. -name '*.go')
 	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+
+snap/snap: $(shell find .. -name '*.go')
+	cd snap && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+
+snapd/snapd: $(shell find .. -name '*.go')
+	cd snapd && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
 
 ##
 ## libsnap-confine-private.a
