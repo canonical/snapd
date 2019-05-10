@@ -48,6 +48,7 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	}
 
 	var found string
+	var match string
 	for _, candidate := range candidates {
 		if !osutil.FileExists(candidate) {
 			continue
@@ -57,12 +58,13 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 			return "", fmt.Errorf("cannot read device link: %v", err)
 		}
 		if found != "" && target != found {
-			// partition label and filesystem label links point to
+			// partition and filesystem label links point to
 			// different devices
-			return "", fmt.Errorf("conflicting device match, %q points to %q, while other match points to %q",
-				candidate, target, found)
+			return "", fmt.Errorf("conflicting device match, %q points to %q, previous match %q points to %q",
+				candidate, target, match, found)
 		}
 		found = target
+		match = candidate
 	}
 
 	if found == "" {

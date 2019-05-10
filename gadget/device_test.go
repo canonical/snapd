@@ -135,7 +135,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 			Label: "foo",
 		},
 	})
-	c.Check(err, ErrorMatches, `conflicting device match, ".*/by-label/foo" points to ".*/fakedevice", while other match points to ".*/fakedevice-other"`)
+	c.Check(err, ErrorMatches, `conflicting device match, ".*/by-label/foo" points to ".*/fakedevice", previous match ".*/by-partlabel/bar" points to ".*/fakedevice-other"`)
 	c.Check(found, Equals, "")
 }
 
