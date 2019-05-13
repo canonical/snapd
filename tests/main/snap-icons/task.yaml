@@ -17,3 +17,9 @@ execute: |
 
     echo "The icon has been removed"
     [ ! -f "$iconfile" ]
+
+    echo "The empty icon theme subdirectories have also been removed"
+    [ ! -d /var/lib/snapd/desktop/icons/hicolor ]
+
+    echo "But the base icons directory remains"
+    [ -d /var/lib/snapd/desktop/icons ]
