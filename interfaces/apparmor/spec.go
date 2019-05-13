@@ -419,6 +419,7 @@ func (spec *Specification) SetUsesPtraceTrace() {
 	spec.usesPtraceTrace = true
 }
 
+// UsesPtraceTrace indicates if SetUsesPtraceTrace was called
 func (spec *Specification) UsesPtraceTrace() bool {
 	return spec.usesPtraceTrace
 }
@@ -428,6 +429,7 @@ func (spec *Specification) SetSuppressPtraceTrace() {
 	spec.suppressPtraceTrace = true
 }
 
+// SuppressPtraceTrace indicates if SetSuppressPtraceTrace was called
 func (spec *Specification) SuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
 }
@@ -437,6 +439,7 @@ func (spec *Specification) SetSuppressHomeIx() {
 	spec.suppressHomeIx = true
 }
 
+// SuppressHomeIx indicates if SetSuppressHomeIx was called
 func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
 }
