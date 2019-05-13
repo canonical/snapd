@@ -19,14 +19,16 @@
 package gadget
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var ErrDeviceNotFound = errors.New("device not found")
@@ -38,12 +40,12 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	var candidates []string
 
 	if ps.Name != "" {
-		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", strutil.HexEscapePath(ps.Name))
+		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", encodeLabel(ps.Name))
 		candidates = append(candidates, byPartlabel)
 	}
 
 	if ps.Label != "" {
-		byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", strutil.HexEscapePath(ps.Label))
+		byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(ps.Label))
 		candidates = append(candidates, byFsLabel)
 	}
 
@@ -72,4 +74,26 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	}
 
 	return found, nil
+}
+
+// encodeLabel encodes a name for use a partition or filesystem label symlink by
+// udev. The result matches the output of blkid_encode_string().
+func encodeLabel(in string) string {
+	const allowed = `#+-.:=@_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
+
+	buf := &bytes.Buffer{}
+
+	for _, r := range in {
+		switch {
+		case utf8.RuneLen(r) > 1:
+			buf.WriteRune(r)
+		case r == '\\':
+			fallthrough
+		case strings.IndexRune(allowed, r) == -1:
+			fmt.Fprintf(buf, `\x%x`, r)
+		default:
+			buf.WriteRune(r)
+		}
+	}
+	return buf.String()
 }

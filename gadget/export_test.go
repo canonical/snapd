@@ -27,4 +27,6 @@ var (
 
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
+
+	EncodeLabel = encodeLabel
 )
