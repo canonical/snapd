@@ -82,7 +82,7 @@ create_nested_core_vm(){
         NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
         ;;
     ubuntu-18.04-64)
-        NESTED_MODEL="$TESTSLIB/assertions/ubuntu-core-18-amd64.model"
+        NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
         ;;
     *)
         echo "unsupported system"
