@@ -478,11 +478,39 @@ func (s *changeSuite) TestPerformFilesystemMount(c *C) {
 	})
 }
 
+// Change.Perform wants to mount a filesystem with sharing changes.
+func (s *changeSuite) TestPerformFilesystemMountAndShareChanges(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type", Options: []string{"shared"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoDir},
+		{C: `mount "device" "/target" "type" 0 ""`},
+		{C: `mount "" "/target" "" MS_SHARED ""`},
+	})
+}
+
 // Change.Perform wants to mount a filesystem but it fails.
 func (s *changeSuite) TestPerformFilesystemMountWithError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`mount "device" "/target" "type" 0 ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, Equals, errTesting)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoDir},
+		{C: `mount "device" "/target" "type" 0 ""`, E: errTesting},
+	})
+}
+
+// Change.Perform wants to mount a filesystem with sharing changes but mounting fails.
+func (s *changeSuite) TestPerformFilesystemMountAndShareWithError(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`mount "device" "/target" "type" 0 ""`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type", Options: []string{"shared"}}}
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(synth, HasLen, 0)
@@ -873,6 +901,34 @@ func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`},
 		{C: `close 5`},
 		{C: `close 4`},
+	})
+}
+
+// Change.Perform wants to bind mount a directory with sharing changes.
+func (s *changeSuite) TestPerformRecursiveDirectorySharedBindMount(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"rshared", "rbind"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoDir},
+		{C: `lstat "/source"`, R: testutil.FileInfoDir},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND|MS_REC ""`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `mount "" "/target" "" MS_REC|MS_SHARED ""`},
 	})
 }
 
