@@ -90,9 +90,9 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		} else {
 			c.Check(err, IsNil)
 			c.Check(v, Equals, tc.exp)
-			_, err := seccomp.GetLibseccompVersion(v)
+			_, err := seccomp.VersionInfo(v).LibseccompVersion()
 			c.Check(err, IsNil)
-			_, err = seccomp.GetGoSeccompFeatures(v)
+			_, err = seccomp.VersionInfo(v).Features()
 			c.Check(err, IsNil)
 		}
 		c.Check(cmd.Calls(), DeepEquals, [][]string{
@@ -160,11 +160,11 @@ func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
 }
 
 func (s *compilerSuite) TestGetLibseccompVersion(c *C) {
-	v, err := seccomp.GetLibseccompVersion("a 2.4.1 b -")
+	v, err := seccomp.VersionInfo("a 2.4.1 b -").LibseccompVersion()
 	c.Assert(err, IsNil)
 	c.Check(v, Equals, "2.4.1")
 
-	v, err = seccomp.GetLibseccompVersion("a phooey b -")
+	v, err = seccomp.VersionInfo("a phooey b -").LibseccompVersion()
 	c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
 	c.Check(v, Equals, "")
 }
@@ -182,7 +182,7 @@ func (s *compilerSuite) TestGetGoSeccompFeatures(c *C) {
 		// invalid
 		{"a 2.4.1 b b@rf", "", "invalid format of version-info: .*"},
 	} {
-		v, err := seccomp.GetGoSeccompFeatures(tc.v)
+		v, err := seccomp.VersionInfo(tc.v).Features()
 		if err == nil {
 			c.Assert(err, IsNil)
 			c.Check(v, Equals, tc.exp)
@@ -210,7 +210,7 @@ func (s *compilerSuite) TestHasGoSeccompFeature(c *C) {
 		// invalid
 		{"a 1.2.3 b b@rf", "b@rf", false, "invalid format of version-info: .*"},
 	} {
-		v, err := seccomp.HasGoSeccompFeature(tc.v, tc.f)
+		v, err := seccomp.VersionInfo(tc.v).HasFeature(tc.f)
 		if err == nil {
 			c.Assert(err, IsNil)
 			c.Check(v, Equals, tc.exp)

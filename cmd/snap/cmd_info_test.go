@@ -603,3 +603,21 @@ func (infoSuite) TestWrapCornerCase(c *check.C) {
   All hail EN SPACE.
 `[1:])
 }
+
+func (infoSuite) TestBug1828425(c *check.C) {
+	const s = `This is a description
+                                  that has
+                                  lines
+                                  too deeply
+                                  indented.
+`
+	var buf bytes.Buffer
+	err := snap.PrintDescr(&buf, s, 30)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.String(), check.Equals, `  This is a description
+    that has
+    lines
+    too deeply
+    indented.
+`)
+}

@@ -583,7 +583,7 @@ func getStore(c *Command) snapstate.StoreService {
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstate.Store(st)
+	return snapstate.Store(st, nil)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
