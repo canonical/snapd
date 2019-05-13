@@ -78,28 +78,31 @@ func (c *Compiler) VersionInfo() (string, error) {
 	return string(raw), nil
 }
 
-// GetLibseccompVersion parses the output of VersionInfo and provides the
+// VersionInfo represents information about the seccomp compilter
+type VersionInfo string
+
+// LibseccompVersion parses VersionInfo and provides the
 // libseccomp version
-func GetLibseccompVersion(versionInfo string) (string, error) {
-	if match := validVersionInfo.Match([]byte(versionInfo)); !match {
-		return "", fmt.Errorf("invalid format of version-info: %q", versionInfo)
+func (vi VersionInfo) LibseccompVersion() (string, error) {
+	if match := validVersionInfo.Match([]byte(vi)); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", vi)
 	}
-	return strings.Split(versionInfo, " ")[1], nil
+	return strings.Split(string(vi), " ")[1], nil
 }
 
-// GetGoSeccompFeatures parses the output of VersionInfo and provides the
+// Features parses the output of VersionInfo and provides the
 // golang seccomp features
-func GetGoSeccompFeatures(versionInfo string) (string, error) {
-	if match := validVersionInfo.Match([]byte(versionInfo)); !match {
-		return "", fmt.Errorf("invalid format of version-info: %q", versionInfo)
+func (vi VersionInfo) Features() (string, error) {
+	if match := validVersionInfo.Match([]byte(vi)); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", vi)
 	}
-	return strings.Split(versionInfo, " ")[3], nil
+	return strings.Split(string(vi), " ")[3], nil
 }
 
 // HasGoSeccompFeature parses the output of VersionInfo and answers whether or
 // not golang-seccomp supports the feature
-func HasGoSeccompFeature(versionInfo string, feature string) (bool, error) {
-	features, err := GetGoSeccompFeatures(versionInfo)
+func (vi VersionInfo) HasFeature(feature string) (bool, error) {
+	features, err := vi.Features()
 	if err != nil {
 		return false, err
 	}
