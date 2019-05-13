@@ -101,6 +101,7 @@ build_rpm() {
     case "$SPREAD_SYSTEM" in
         fedora-*|amazon-*|centos-*)
             extra_tar_args="$extra_tar_args --exclude=vendor/*"
+            archive_name=snapd_$version.no-vendor.tar.xz
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -119,10 +120,12 @@ build_rpm() {
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
     (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* || "$SPREAD_SYSTEM" == centos-* ]]; then
-        # need to build the vendor tree
-        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
-    fi
+    case "$SPREAD_SYSTEM" in
+        fedora-*|amazon-*|centos-*)
+            # need to build the vendor tree
+            (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
+            ;;
+    esac
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
