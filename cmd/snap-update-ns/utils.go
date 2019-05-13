@@ -482,7 +482,10 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// The undo logic handles rbind mounts and adds x-snapd.unbind
 			// flag to them, which in turns translates to MNT_DETACH on
 			// umount2(2) system call.
-			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
+			//
+			// The rprivate is here to ensure that changes made to the
+			// original directory do not propagate into or out of this view.
+			Name: dir, Dir: safeKeepingDir, Options: []string{"rprivate", "rbind"}},
 	})
 
 	// Mount tmpfs over the original directory, hiding its contents.

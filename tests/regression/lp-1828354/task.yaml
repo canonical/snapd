@@ -1,0 +1,43 @@
+summary: mount event propagation works inside snapd-created tmpfs
+details: |
+    When snapd mounts a tmpfs the sharing on the tmpfs is incorrect and breaks
+    per-user mount namespaces since events don't propagate there correctly.
+environment:
+    VARIANT/mimic: mimic
+    VARIANT/layout: layout
+    snap/mimic: test-snapd-app-mimic
+    snap/layout: test-snapd-app-layout
+prepare: |
+    # Enable persistence of per-user-mount-namespaces.
+    #
+    # This allows us to see persistent state of the per-user mount namespace.
+    # This test relies on this because otherwise per-user mount namespace is always
+    # re-created from per-snap mount namespace, on each command invocation.
+    snap set system experimental.per-user-mount-namespace=true
+
+    # Install our primary snap and connect it to mount-observe.
+    # We need the interface connection for reading mountinfo table.
+    snap pack "$snap"
+    snap install --dangerous "./${snap}_1_all.snap"
+    snap connect "$snap:mount-observe"
+
+    # Install the supporting content snap.
+    snap pack test-snapd-content
+    snap install --dangerous ./test-snapd-content_1_all.snap
+restore: |
+    snap unset system experimental.per-user-mount-namespace
+
+    rm -f "${snap}_1_all.snap"
+    snap remove "$snap"
+
+    rm -f test-snapd-content_1_all.snap
+    snap remove test-snapd-content
+
+    # Remove the private temporary directories we created.
+    rm -rf "/tmp/snap.$snap"
+execute: |
+    ./task.sh
+debug: |
+    mountinfo-tool >host.txt
+    su root -c "snap run \"$snap.sh\" -c \"cat /proc/self/mountinfo\"" | mountinfo-tool -f- >per-snap.txt
+    su test -c "snap run \"$snap.sh\" -c \"cat /proc/self/mountinfo\"" | mountinfo-tool -f- >per-user.txt

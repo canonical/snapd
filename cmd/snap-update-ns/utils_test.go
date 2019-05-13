@@ -339,7 +339,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// Store /foo in /tmp/.snap/foo while we set things up
-		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"rbind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"rprivate", "rbind"}}, Action: update.Mount},
 		// Put a tmpfs over /foo
 		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar", "mode=0755", "uid=0", "gid=0"}}, Action: update.Mount},
 		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.

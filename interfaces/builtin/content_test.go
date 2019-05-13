@@ -328,6 +328,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/ rw,
   mount options=(rbind, rw) / -> /tmp/.snap/,
+  mount options=(rprivate) -> /tmp/.snap/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /,
   # Allow creating empty files and directories for bind mounting things
@@ -357,6 +358,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
+  mount options=(rprivate) -> /tmp/.snap/snap/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
   # Allow creating empty files and directories for bind mounting things
@@ -386,6 +388,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/ rw,
   mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
   # Allow creating empty files and directories for bind mounting things
@@ -415,6 +418,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/5/ rw,
   mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/5/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
   # Allow creating empty files and directories for bind mounting things
@@ -446,6 +450,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/ rw,
   mount options=(rbind, rw) / -> /tmp/.snap/,
+  mount options=(rprivate) -> /tmp/.snap/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /,
   # Allow creating empty files and directories for bind mounting things
@@ -475,6 +480,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
+  mount options=(rprivate) -> /tmp/.snap/snap/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
   # Allow creating empty files and directories for bind mounting things
@@ -504,6 +510,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/consumer/ rw,
   mount options=(rbind, rw) /snap/consumer/ -> /tmp/.snap/snap/consumer/,
+  mount options=(rprivate) -> /tmp/.snap/snap/consumer/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/,
   # Allow creating empty files and directories for bind mounting things
@@ -533,6 +540,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/consumer/7/ rw,
   mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
+  mount options=(rprivate) -> /tmp/.snap/snap/consumer/7/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
   # Allow creating empty files and directories for bind mounting things
@@ -850,6 +858,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/ rw,
   mount options=(rbind, rw) / -> /tmp/.snap/,
+  mount options=(rprivate) -> /tmp/.snap/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /,
   # Allow creating empty files and directories for bind mounting things
@@ -879,6 +888,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
+  mount options=(rprivate) -> /tmp/.snap/snap/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
   # Allow creating empty files and directories for bind mounting things
@@ -908,6 +918,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/ rw,
   mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
   # Allow creating empty files and directories for bind mounting things
@@ -937,6 +948,7 @@ slots:
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/2/ rw,
   mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/2/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
   # Allow creating empty files and directories for bind mounting things

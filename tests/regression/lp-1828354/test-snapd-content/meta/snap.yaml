@@ -1,0 +1,12 @@
+name: test-snapd-content
+version: 1
+summary: Snap providing shared content
+architectures: [all]
+slots:
+  content:
+    # This is an old-style, non-aggregating content slot. The "content"
+    # directory is directly mounted over the connected plug's target path. Had
+    # we used the "source:" section to hold the "read:" entry we would get the
+    # new, spool-like content slot where "content" is a sub-directory of the
+    # directory designated by the connected plug's target path.
+    read: [$SNAP/content]

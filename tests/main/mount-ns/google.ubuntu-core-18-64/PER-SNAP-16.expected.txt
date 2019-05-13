@@ -1,151 +1,151 @@
-0:2 / / ro,nodev,relatime master:38 - squashfs /dev/loop2 ro
-2:0 / /dev rw,nosuid,relatime master:3 - devtmpfs udev rw,size=VARIABLE,nr_inodes=0,mode=755
-2:1 / /dev/hugepages rw,relatime master:4 - hugetlbfs hugetlbfs rw,pagesize=2M
-2:2 / /dev/mqueue rw,relatime master:5 - mqueue mqueue rw
-2:35 /ptmx /dev/ptmx rw,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
-2:3 / /dev/pts rw,nosuid,noexec,relatime master:6 - devpts devpts rw,gid=5,mode=620,ptmxmode=000
-2:35 / /dev/pts rw,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
-2:4 / /dev/shm rw,nosuid,nodev master:7 - tmpfs tmpfs rw
-0:0 /etc /etc ro,relatime master:1 - squashfs /dev/loop0 ro
-1:1 /system-data/etc/apparmor.d/cache /etc/apparmor.d/cache rw,relatime master:8 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/cloud /etc/cloud rw,relatime master:9 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/dbus-1/system.d /etc/dbus-1/system.d rw,relatime master:10 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/default/swapfile /etc/default/swapfile rw,relatime master:11 - ext4 /dev/sda3 rw,data=ordered
-2:5 /image.fstab /etc/fstab rw,nosuid,noexec,relatime master:12 - tmpfs tmpfs rw,mode=755
-1:1 /system-data/root/test-etc/group /etc/group ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/root/test-etc/gshadow /etc/gshadow ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/hosts /etc/hosts rw,relatime master:14 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/iproute2 /etc/iproute2 rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/machine-id /etc/machine-id rw,relatime master:16 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/modprobe.d /etc/modprobe.d rw,relatime master:17 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/modules-load.d /etc/modules-load.d rw,relatime master:18 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/netplan /etc/netplan rw,relatime master:19 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/network/if-up.d /etc/network/if-up.d rw,relatime master:20 - ext4 /dev/sda3 rw,data=ordered
+0:2 / / ro,nodev,relatime shared:1001 master:38 - squashfs /dev/loop2 ro
+2:0 / /dev rw,nosuid,relatime shared:1002 master:3 - devtmpfs udev rw,size=VARIABLE,nr_inodes=0,mode=755
+2:1 / /dev/hugepages rw,relatime shared:1003 master:4 - hugetlbfs hugetlbfs rw,pagesize=2M
+2:2 / /dev/mqueue rw,relatime shared:1004 master:5 - mqueue mqueue rw
+2:35 /ptmx /dev/ptmx rw,relatime shared:1005 - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+2:3 / /dev/pts rw,nosuid,noexec,relatime shared:1006 master:6 - devpts devpts rw,gid=5,mode=620,ptmxmode=000
+2:35 / /dev/pts rw,relatime shared:1005 - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+2:4 / /dev/shm rw,nosuid,nodev shared:1007 master:7 - tmpfs tmpfs rw
+0:0 /etc /etc ro,relatime shared:1008 master:1 - squashfs /dev/loop0 ro
+1:1 /system-data/etc/apparmor.d/cache /etc/apparmor.d/cache rw,relatime shared:1009 master:8 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/cloud /etc/cloud rw,relatime shared:1010 master:9 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/dbus-1/system.d /etc/dbus-1/system.d rw,relatime shared:1011 master:10 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/default/swapfile /etc/default/swapfile rw,relatime shared:1012 master:11 - ext4 /dev/sda3 rw,data=ordered
+2:5 /image.fstab /etc/fstab rw,nosuid,noexec,relatime shared:1013 master:12 - tmpfs tmpfs rw,mode=755
+1:1 /system-data/root/test-etc/group /etc/group ro,relatime shared:1014 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/root/test-etc/gshadow /etc/gshadow ro,relatime shared:1015 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/hosts /etc/hosts rw,relatime shared:1016 master:14 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/iproute2 /etc/iproute2 rw,relatime shared:1017 master:15 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/machine-id /etc/machine-id rw,relatime shared:1018 master:16 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/modprobe.d /etc/modprobe.d rw,relatime shared:1019 master:17 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/modules-load.d /etc/modules-load.d rw,relatime shared:1020 master:18 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/netplan /etc/netplan rw,relatime shared:1021 master:19 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/network/if-up.d /etc/network/if-up.d rw,relatime shared:1022 master:20 - ext4 /dev/sda3 rw,data=ordered
 0:2 /etc/nsswitch.conf /etc/nsswitch.conf ro,nodev,relatime master:38 - squashfs /dev/loop2 ro
-1:1 /system-data/root/test-etc/passwd /etc/passwd ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/root/test-etc/shadow /etc/shadow ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/ssh /etc/ssh rw,relatime master:21 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/root/test-etc/passwd /etc/passwd ro,relatime shared:1023 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/root/test-etc/shadow /etc/shadow ro,relatime shared:1024 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/ssh /etc/ssh rw,relatime shared:1025 master:21 - ext4 /dev/sda3 rw,data=ordered
 0:2 /etc/ssl /etc/ssl ro,nodev,relatime master:38 - squashfs /dev/loop2 ro
-1:1 /system-data/etc/sudoers.d /etc/sudoers.d rw,relatime master:22 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/sysctl.d /etc/sysctl.d rw,relatime master:23 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/systemd /etc/systemd rw,relatime master:24 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/systemd/system /etc/systemd/system rw,relatime master:25 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/udev/rules.d /etc/udev/rules.d rw,relatime master:26 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/writable /etc/writable rw,relatime master:27 - ext4 /dev/sda3 rw,data=ordered
-1:1 /user-data /home rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-0:1 /firmware /lib/firmware ro,relatime master:28 - squashfs /dev/loop1 ro
-0:1 /modules /lib/modules ro,relatime master:29 - squashfs /dev/loop1 ro
+1:1 /system-data/etc/sudoers.d /etc/sudoers.d rw,relatime shared:1026 master:22 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/sysctl.d /etc/sysctl.d rw,relatime shared:1027 master:23 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/systemd /etc/systemd rw,relatime shared:1028 master:24 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/systemd/system /etc/systemd/system rw,relatime shared:1029 master:25 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/udev/rules.d /etc/udev/rules.d rw,relatime shared:1030 master:26 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/writable /etc/writable rw,relatime shared:1031 master:27 - ext4 /dev/sda3 rw,data=ordered
+1:1 /user-data /home rw,relatime shared:1032 master:13 - ext4 /dev/sda3 rw,data=ordered
+0:1 /firmware /lib/firmware ro,relatime shared:1033 master:28 - squashfs /dev/loop1 ro
+0:1 /modules /lib/modules ro,relatime shared:1034 master:29 - squashfs /dev/loop1 ro
 2:6 / /media rw,relatime shared:30 - tmpfs tmpfs rw
-2:7 / /mnt rw,relatime master:31 - tmpfs tmpfs rw
-2:8 / /proc rw,nosuid,nodev,noexec,relatime master:32 - proc proc rw
-2:9 / /proc/sys/fs/binfmt_misc rw,relatime master:33 - autofs systemd-1 rw,fd=0,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=0
-1:1 /system-data/root /root rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-2:10 / /run rw,nosuid,noexec,relatime master:34 - tmpfs tmpfs rw,size=VARIABLE,mode=755
-2:11 / /run/lock rw,nosuid,nodev,noexec,relatime master:36 - tmpfs tmpfs rw,size=VARIABLE
+2:7 / /mnt rw,relatime shared:1035 master:31 - tmpfs tmpfs rw
+2:8 / /proc rw,nosuid,nodev,noexec,relatime shared:1036 master:32 - proc proc rw
+2:9 / /proc/sys/fs/binfmt_misc rw,relatime shared:1037 master:33 - autofs systemd-1 rw,fd=0,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=0
+1:1 /system-data/root /root rw,relatime shared:1038 master:13 - ext4 /dev/sda3 rw,data=ordered
+2:10 / /run rw,nosuid,noexec,relatime shared:1039 master:34 - tmpfs tmpfs rw,size=VARIABLE,mode=755
+2:11 / /run/lock rw,nosuid,nodev,noexec,relatime shared:1040 master:36 - tmpfs tmpfs rw,size=VARIABLE
 2:10 /netns /run/netns rw,nosuid,noexec,relatime shared:34 - tmpfs tmpfs rw,size=VARIABLE,mode=755
-2:10 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=VARIABLE,mode=755
-2:12 / /run/user/0 rw,nosuid,nodev,relatime master:37 - tmpfs tmpfs rw,size=VARIABLE,mode=700
-1:1 /system-data/snap /snap rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-0:2 / /snap/core/1 ro,nodev,relatime master:38 - squashfs /dev/loop2 ro
-0:0 / /snap/core18/1 ro,nodev,relatime master:39 - squashfs /dev/loop0 ro
-0:1 / /snap/pc-kernel/1 ro,nodev,relatime master:40 - squashfs /dev/loop1 ro
-0:3 / /snap/pc/1 ro,nodev,relatime master:41 - squashfs /dev/loop3 ro
-0:4 / /snap/snapd/1 ro,nodev,relatime master:42 - squashfs /dev/loop4 ro
-0:5 / /snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:43 - squashfs /dev/loop5 ro
-0:6 / /snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:44 - squashfs /dev/loop6 ro
-0:7 / /snap/test-snapd-rsync-core18/1 ro,nodev,relatime master:45 - squashfs /dev/loop7 ro
-2:13 / /sys rw,nosuid,nodev,noexec,relatime master:46 - sysfs sysfs rw
-2:14 / /sys/fs/cgroup ro,nosuid,nodev,noexec master:47 - tmpfs tmpfs ro,mode=755
-2:15 / /sys/fs/cgroup/blkio rw,nosuid,nodev,noexec,relatime master:48 - cgroup cgroup rw,blkio
-2:16 / /sys/fs/cgroup/cpu,cpuacct rw,nosuid,nodev,noexec,relatime master:49 - cgroup cgroup rw,cpu,cpuacct
-2:17 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime master:50 - cgroup cgroup rw,cpuset
-2:18 / /sys/fs/cgroup/devices rw,nosuid,nodev,noexec,relatime master:51 - cgroup cgroup rw,devices
-2:19 / /sys/fs/cgroup/freezer rw,nosuid,nodev,noexec,relatime master:52 - cgroup cgroup rw,freezer
-2:20 / /sys/fs/cgroup/hugetlb rw,nosuid,nodev,noexec,relatime master:53 - cgroup cgroup rw,hugetlb
-2:21 / /sys/fs/cgroup/memory rw,nosuid,nodev,noexec,relatime master:54 - cgroup cgroup rw,memory
-2:22 / /sys/fs/cgroup/net_cls,net_prio rw,nosuid,nodev,noexec,relatime master:55 - cgroup cgroup rw,net_cls,net_prio
-2:23 / /sys/fs/cgroup/perf_event rw,nosuid,nodev,noexec,relatime master:56 - cgroup cgroup rw,perf_event
-2:24 / /sys/fs/cgroup/pids rw,nosuid,nodev,noexec,relatime master:57 - cgroup cgroup rw,pids
-2:25 / /sys/fs/cgroup/rdma rw,nosuid,nodev,noexec,relatime master:58 - cgroup cgroup rw,rdma
-2:26 / /sys/fs/cgroup/systemd rw,nosuid,nodev,noexec,relatime master:59 - cgroup cgroup rw,xattr,name=systemd
-2:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime master:60 - cgroup2 cgroup rw,nsdelegate
-2:28 / /sys/fs/fuse/connections rw,relatime master:61 - fusectl fusectl rw
-2:29 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime master:62 - pstore pstore rw
-2:30 / /sys/kernel/config rw,relatime master:63 - configfs configfs rw
-2:31 / /sys/kernel/debug rw,relatime master:64 - debugfs debugfs rw
-2:32 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime master:65 - securityfs securityfs rw
-2:33 / /tmp rw,relatime master:66 - tmpfs tmpfs rw
+2:10 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime shared:1041 - tmpfs tmpfs rw,size=VARIABLE,mode=755
+2:12 / /run/user/0 rw,nosuid,nodev,relatime shared:1042 master:37 - tmpfs tmpfs rw,size=VARIABLE,mode=700
+1:1 /system-data/snap /snap rw,relatime shared:1043 master:13 - ext4 /dev/sda3 rw,data=ordered
+0:2 / /snap/core/1 ro,nodev,relatime shared:1044 master:38 - squashfs /dev/loop2 ro
+0:0 / /snap/core18/1 ro,nodev,relatime shared:1045 master:39 - squashfs /dev/loop0 ro
+0:1 / /snap/pc-kernel/1 ro,nodev,relatime shared:1046 master:40 - squashfs /dev/loop1 ro
+0:3 / /snap/pc/1 ro,nodev,relatime shared:1047 master:41 - squashfs /dev/loop3 ro
+0:4 / /snap/snapd/1 ro,nodev,relatime shared:1048 master:42 - squashfs /dev/loop4 ro
+0:5 / /snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime shared:1049 master:43 - squashfs /dev/loop5 ro
+0:6 / /snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime shared:1050 master:44 - squashfs /dev/loop6 ro
+0:7 / /snap/test-snapd-rsync-core18/1 ro,nodev,relatime shared:1051 master:45 - squashfs /dev/loop7 ro
+2:13 / /sys rw,nosuid,nodev,noexec,relatime shared:1052 master:46 - sysfs sysfs rw
+2:14 / /sys/fs/cgroup ro,nosuid,nodev,noexec shared:1053 master:47 - tmpfs tmpfs ro,mode=755
+2:15 / /sys/fs/cgroup/blkio rw,nosuid,nodev,noexec,relatime shared:1054 master:48 - cgroup cgroup rw,blkio
+2:16 / /sys/fs/cgroup/cpu,cpuacct rw,nosuid,nodev,noexec,relatime shared:1055 master:49 - cgroup cgroup rw,cpu,cpuacct
+2:17 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:1056 master:50 - cgroup cgroup rw,cpuset
+2:18 / /sys/fs/cgroup/devices rw,nosuid,nodev,noexec,relatime shared:1057 master:51 - cgroup cgroup rw,devices
+2:19 / /sys/fs/cgroup/freezer rw,nosuid,nodev,noexec,relatime shared:1058 master:52 - cgroup cgroup rw,freezer
+2:20 / /sys/fs/cgroup/hugetlb rw,nosuid,nodev,noexec,relatime shared:1059 master:53 - cgroup cgroup rw,hugetlb
+2:21 / /sys/fs/cgroup/memory rw,nosuid,nodev,noexec,relatime shared:1060 master:54 - cgroup cgroup rw,memory
+2:22 / /sys/fs/cgroup/net_cls,net_prio rw,nosuid,nodev,noexec,relatime shared:1061 master:55 - cgroup cgroup rw,net_cls,net_prio
+2:23 / /sys/fs/cgroup/perf_event rw,nosuid,nodev,noexec,relatime shared:1062 master:56 - cgroup cgroup rw,perf_event
+2:24 / /sys/fs/cgroup/pids rw,nosuid,nodev,noexec,relatime shared:1063 master:57 - cgroup cgroup rw,pids
+2:25 / /sys/fs/cgroup/rdma rw,nosuid,nodev,noexec,relatime shared:1064 master:58 - cgroup cgroup rw,rdma
+2:26 / /sys/fs/cgroup/systemd rw,nosuid,nodev,noexec,relatime shared:1065 master:59 - cgroup cgroup rw,xattr,name=systemd
+2:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:1066 master:60 - cgroup2 cgroup rw,nsdelegate
+2:28 / /sys/fs/fuse/connections rw,relatime shared:1067 master:61 - fusectl fusectl rw
+2:29 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:1068 master:62 - pstore pstore rw
+2:30 / /sys/kernel/config rw,relatime shared:1069 master:63 - configfs configfs rw
+2:31 / /sys/kernel/debug rw,relatime shared:1070 master:64 - debugfs debugfs rw
+2:32 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:1071 master:65 - securityfs securityfs rw
+2:33 / /tmp rw,relatime shared:1072 master:66 - tmpfs tmpfs rw
 2:33 /snap.test-snapd-mountinfo-core16/tmp /tmp rw,relatime - tmpfs tmpfs rw
-0:4 /usr/lib/snapd /usr/lib/snapd ro,nodev,relatime master:42 - squashfs /dev/loop4 ro
-2:36 / /usr/share/gdb rw,relatime - tmpfs tmpfs rw,mode=755
-0:2 /usr/share/gdb/auto-load /usr/share/gdb/auto-load ro,nodev,relatime master:38 - squashfs /dev/loop2 ro
-2:37 / /usr/share/gdb/test rw,relatime - tmpfs tmpfs rw
-0:0 /usr/src /usr/src ro,relatime master:1 - squashfs /dev/loop0 ro
-1:1 /system-data/var/lib/extrausers /var/lib/extrausers rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/snapd /var/lib/snapd rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-0:0 / /var/lib/snapd/hostfs ro,relatime master:1 - squashfs /dev/loop0 ro
+0:4 /usr/lib/snapd /usr/lib/snapd ro,nodev,relatime shared:1073 master:42 - squashfs /dev/loop4 ro
+2:36 / /usr/share/gdb rw,relatime shared:1074 - tmpfs tmpfs rw,mode=755
+0:2 /usr/share/gdb/auto-load /usr/share/gdb/auto-load ro,nodev,relatime shared:1075 - squashfs /dev/loop2 ro
+2:37 / /usr/share/gdb/test rw,relatime shared:1076 - tmpfs tmpfs rw
+0:0 /usr/src /usr/src ro,relatime shared:1077 master:1 - squashfs /dev/loop0 ro
+1:1 /system-data/var/lib/extrausers /var/lib/extrausers rw,relatime shared:1078 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/snapd /var/lib/snapd rw,relatime shared:1079 master:13 - ext4 /dev/sda3 rw,data=ordered
+0:0 / /var/lib/snapd/hostfs ro,relatime shared:1080 master:1 - squashfs /dev/loop0 ro
 1:1 /system-data/var/lib/snapd/hostfs /var/lib/snapd/hostfs rw,relatime - ext4 /dev/sda3 rw,data=ordered
-1:0 / /var/lib/snapd/hostfs/boot/efi rw,relatime master:2 - vfat /dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
-1:0 /EFI/ubuntu /var/lib/snapd/hostfs/boot/grub rw,relatime master:2 - vfat /dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
-1:1 /system-data/etc/apparmor.d/cache /var/lib/snapd/hostfs/etc/apparmor.d/cache rw,relatime master:8 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/cloud /var/lib/snapd/hostfs/etc/cloud rw,relatime master:9 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/dbus-1/system.d /var/lib/snapd/hostfs/etc/dbus-1/system.d rw,relatime master:10 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/default/swapfile /var/lib/snapd/hostfs/etc/default/swapfile rw,relatime master:11 - ext4 /dev/sda3 rw,data=ordered
-2:5 /image.fstab /var/lib/snapd/hostfs/etc/fstab rw,nosuid,noexec,relatime master:12 - tmpfs tmpfs rw,mode=755
-1:1 /system-data/root/test-etc/group /var/lib/snapd/hostfs/etc/group ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/root/test-etc/gshadow /var/lib/snapd/hostfs/etc/gshadow ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/hosts /var/lib/snapd/hostfs/etc/hosts rw,relatime master:14 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/iproute2 /var/lib/snapd/hostfs/etc/iproute2 rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/machine-id /var/lib/snapd/hostfs/etc/machine-id rw,relatime master:16 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/modprobe.d /var/lib/snapd/hostfs/etc/modprobe.d rw,relatime master:17 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/modules-load.d /var/lib/snapd/hostfs/etc/modules-load.d rw,relatime master:18 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/netplan /var/lib/snapd/hostfs/etc/netplan rw,relatime master:19 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/network/if-up.d /var/lib/snapd/hostfs/etc/network/if-up.d rw,relatime master:20 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/root/test-etc/passwd /var/lib/snapd/hostfs/etc/passwd ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/root/test-etc/shadow /var/lib/snapd/hostfs/etc/shadow ro,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/ssh /var/lib/snapd/hostfs/etc/ssh rw,relatime master:21 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/sudoers.d /var/lib/snapd/hostfs/etc/sudoers.d rw,relatime master:22 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/sysctl.d /var/lib/snapd/hostfs/etc/sysctl.d rw,relatime master:23 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/systemd /var/lib/snapd/hostfs/etc/systemd rw,relatime master:24 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/systemd/system /var/lib/snapd/hostfs/etc/systemd/system rw,relatime master:25 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/udev/rules.d /var/lib/snapd/hostfs/etc/udev/rules.d rw,relatime master:26 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/etc/writable /var/lib/snapd/hostfs/etc/writable rw,relatime master:27 - ext4 /dev/sda3 rw,data=ordered
-1:1 /user-data /var/lib/snapd/hostfs/home rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-0:1 /firmware /var/lib/snapd/hostfs/lib/firmware ro,relatime master:28 - squashfs /dev/loop1 ro
-0:1 /modules /var/lib/snapd/hostfs/lib/modules ro,relatime master:29 - squashfs /dev/loop1 ro
-2:6 / /var/lib/snapd/hostfs/media rw,relatime master:30 - tmpfs tmpfs rw
-2:7 / /var/lib/snapd/hostfs/mnt rw,relatime master:31 - tmpfs tmpfs rw
-1:1 /system-data/root /var/lib/snapd/hostfs/root rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-2:5 / /var/lib/snapd/hostfs/run rw,nosuid,noexec,relatime master:35 - tmpfs tmpfs rw,mode=755
-2:10 / /var/lib/snapd/hostfs/run rw,nosuid,noexec,relatime master:34 - tmpfs tmpfs rw,size=VARIABLE,mode=755
-2:11 / /var/lib/snapd/hostfs/run/lock rw,nosuid,nodev,noexec,relatime master:36 - tmpfs tmpfs rw,size=VARIABLE
-2:10 /snapd/ns /var/lib/snapd/hostfs/run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=VARIABLE,mode=755
-2:12 / /var/lib/snapd/hostfs/run/user/0 rw,nosuid,nodev,relatime master:37 - tmpfs tmpfs rw,size=VARIABLE,mode=700
-1:1 /system-data/snap /var/lib/snapd/hostfs/snap rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-0:2 / /var/lib/snapd/hostfs/snap/core/1 ro,nodev,relatime master:38 - squashfs /dev/loop2 ro
-0:0 / /var/lib/snapd/hostfs/snap/core18/1 ro,nodev,relatime master:39 - squashfs /dev/loop0 ro
-0:1 / /var/lib/snapd/hostfs/snap/pc-kernel/1 ro,nodev,relatime master:40 - squashfs /dev/loop1 ro
-0:3 / /var/lib/snapd/hostfs/snap/pc/1 ro,nodev,relatime master:41 - squashfs /dev/loop3 ro
-0:4 / /var/lib/snapd/hostfs/snap/snapd/1 ro,nodev,relatime master:42 - squashfs /dev/loop4 ro
-0:5 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:43 - squashfs /dev/loop5 ro
-0:6 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:44 - squashfs /dev/loop6 ro
-0:7 / /var/lib/snapd/hostfs/snap/test-snapd-rsync-core18/1 ro,nodev,relatime master:45 - squashfs /dev/loop7 ro
-2:33 / /var/lib/snapd/hostfs/tmp rw,relatime master:66 - tmpfs tmpfs rw
-0:4 /usr/lib/snapd /var/lib/snapd/hostfs/usr/lib/snapd ro,nodev,relatime master:42 - squashfs /dev/loop4 ro
-1:1 /system-data/var/cache /var/lib/snapd/hostfs/var/cache rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/cloud /var/lib/snapd/hostfs/var/lib/cloud rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/console-conf /var/lib/snapd/hostfs/var/lib/console-conf rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/dbus /var/lib/snapd/hostfs/var/lib/dbus rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/dhcp /var/lib/snapd/hostfs/var/lib/dhcp rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/extrausers /var/lib/snapd/hostfs/var/lib/extrausers rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/misc /var/lib/snapd/hostfs/var/lib/misc rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/private/systemd /var/lib/snapd/hostfs/var/lib/private/systemd rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/lib/snapd /var/lib/snapd/hostfs/var/lib/snapd rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-2:34 / /var/lib/snapd/hostfs/var/lib/sudo rw,relatime master:67 - tmpfs tmpfs rw,mode=700
-1:1 /system-data/var/lib/systemd /var/lib/snapd/hostfs/var/lib/systemd rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/log /var/lib/snapd/hostfs/var/log rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/snap /var/lib/snapd/hostfs/var/snap rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/tmp /var/lib/snapd/hostfs/var/tmp rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/log /var/log rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/snap /var/snap rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
-1:1 /system-data/var/tmp /var/tmp rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
+1:0 / /var/lib/snapd/hostfs/boot/efi rw,relatime shared:1081 master:2 - vfat /dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+1:0 /EFI/ubuntu /var/lib/snapd/hostfs/boot/grub rw,relatime shared:1082 master:2 - vfat /dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+1:1 /system-data/etc/apparmor.d/cache /var/lib/snapd/hostfs/etc/apparmor.d/cache rw,relatime shared:1083 master:8 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/cloud /var/lib/snapd/hostfs/etc/cloud rw,relatime shared:1084 master:9 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/dbus-1/system.d /var/lib/snapd/hostfs/etc/dbus-1/system.d rw,relatime shared:1085 master:10 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/default/swapfile /var/lib/snapd/hostfs/etc/default/swapfile rw,relatime shared:1086 master:11 - ext4 /dev/sda3 rw,data=ordered
+2:5 /image.fstab /var/lib/snapd/hostfs/etc/fstab rw,nosuid,noexec,relatime shared:1087 master:12 - tmpfs tmpfs rw,mode=755
+1:1 /system-data/root/test-etc/group /var/lib/snapd/hostfs/etc/group ro,relatime shared:1088 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/root/test-etc/gshadow /var/lib/snapd/hostfs/etc/gshadow ro,relatime shared:1089 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/hosts /var/lib/snapd/hostfs/etc/hosts rw,relatime shared:1090 master:14 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/iproute2 /var/lib/snapd/hostfs/etc/iproute2 rw,relatime shared:1091 master:15 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/machine-id /var/lib/snapd/hostfs/etc/machine-id rw,relatime shared:1092 master:16 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/modprobe.d /var/lib/snapd/hostfs/etc/modprobe.d rw,relatime shared:1093 master:17 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/modules-load.d /var/lib/snapd/hostfs/etc/modules-load.d rw,relatime shared:1094 master:18 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/netplan /var/lib/snapd/hostfs/etc/netplan rw,relatime shared:1095 master:19 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/network/if-up.d /var/lib/snapd/hostfs/etc/network/if-up.d rw,relatime shared:1096 master:20 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/root/test-etc/passwd /var/lib/snapd/hostfs/etc/passwd ro,relatime shared:1097 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/root/test-etc/shadow /var/lib/snapd/hostfs/etc/shadow ro,relatime shared:1098 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/ssh /var/lib/snapd/hostfs/etc/ssh rw,relatime shared:1099 master:21 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/sudoers.d /var/lib/snapd/hostfs/etc/sudoers.d rw,relatime shared:1100 master:22 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/sysctl.d /var/lib/snapd/hostfs/etc/sysctl.d rw,relatime shared:1101 master:23 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/systemd /var/lib/snapd/hostfs/etc/systemd rw,relatime shared:1102 master:24 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/systemd/system /var/lib/snapd/hostfs/etc/systemd/system rw,relatime shared:1103 master:25 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/udev/rules.d /var/lib/snapd/hostfs/etc/udev/rules.d rw,relatime shared:1104 master:26 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/etc/writable /var/lib/snapd/hostfs/etc/writable rw,relatime shared:1105 master:27 - ext4 /dev/sda3 rw,data=ordered
+1:1 /user-data /var/lib/snapd/hostfs/home rw,relatime shared:1106 master:13 - ext4 /dev/sda3 rw,data=ordered
+0:1 /firmware /var/lib/snapd/hostfs/lib/firmware ro,relatime shared:1107 master:28 - squashfs /dev/loop1 ro
+0:1 /modules /var/lib/snapd/hostfs/lib/modules ro,relatime shared:1108 master:29 - squashfs /dev/loop1 ro
+2:6 / /var/lib/snapd/hostfs/media rw,relatime shared:1109 master:30 - tmpfs tmpfs rw
+2:7 / /var/lib/snapd/hostfs/mnt rw,relatime shared:1110 master:31 - tmpfs tmpfs rw
+1:1 /system-data/root /var/lib/snapd/hostfs/root rw,relatime shared:1111 master:13 - ext4 /dev/sda3 rw,data=ordered
+2:5 / /var/lib/snapd/hostfs/run rw,nosuid,noexec,relatime shared:1112 master:35 - tmpfs tmpfs rw,mode=755
+2:10 / /var/lib/snapd/hostfs/run rw,nosuid,noexec,relatime shared:1113 master:34 - tmpfs tmpfs rw,size=VARIABLE,mode=755
+2:11 / /var/lib/snapd/hostfs/run/lock rw,nosuid,nodev,noexec,relatime shared:1114 master:36 - tmpfs tmpfs rw,size=VARIABLE
+2:10 /snapd/ns /var/lib/snapd/hostfs/run/snapd/ns rw,nosuid,noexec,relatime shared:1115 - tmpfs tmpfs rw,size=VARIABLE,mode=755
+2:12 / /var/lib/snapd/hostfs/run/user/0 rw,nosuid,nodev,relatime shared:1116 master:37 - tmpfs tmpfs rw,size=VARIABLE,mode=700
+1:1 /system-data/snap /var/lib/snapd/hostfs/snap rw,relatime shared:1117 master:13 - ext4 /dev/sda3 rw,data=ordered
+0:2 / /var/lib/snapd/hostfs/snap/core/1 ro,nodev,relatime shared:1118 master:38 - squashfs /dev/loop2 ro
+0:0 / /var/lib/snapd/hostfs/snap/core18/1 ro,nodev,relatime shared:1119 master:39 - squashfs /dev/loop0 ro
+0:1 / /var/lib/snapd/hostfs/snap/pc-kernel/1 ro,nodev,relatime shared:1120 master:40 - squashfs /dev/loop1 ro
+0:3 / /var/lib/snapd/hostfs/snap/pc/1 ro,nodev,relatime shared:1121 master:41 - squashfs /dev/loop3 ro
+0:4 / /var/lib/snapd/hostfs/snap/snapd/1 ro,nodev,relatime shared:1122 master:42 - squashfs /dev/loop4 ro
+0:5 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime shared:1123 master:43 - squashfs /dev/loop5 ro
+0:6 / /var/lib/snapd/hostfs/snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime shared:1124 master:44 - squashfs /dev/loop6 ro
+0:7 / /var/lib/snapd/hostfs/snap/test-snapd-rsync-core18/1 ro,nodev,relatime shared:1125 master:45 - squashfs /dev/loop7 ro
+2:33 / /var/lib/snapd/hostfs/tmp rw,relatime shared:1126 master:66 - tmpfs tmpfs rw
+0:4 /usr/lib/snapd /var/lib/snapd/hostfs/usr/lib/snapd ro,nodev,relatime shared:1127 master:42 - squashfs /dev/loop4 ro
+1:1 /system-data/var/cache /var/lib/snapd/hostfs/var/cache rw,relatime shared:1128 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/cloud /var/lib/snapd/hostfs/var/lib/cloud rw,relatime shared:1129 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/console-conf /var/lib/snapd/hostfs/var/lib/console-conf rw,relatime shared:1130 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/dbus /var/lib/snapd/hostfs/var/lib/dbus rw,relatime shared:1131 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/dhcp /var/lib/snapd/hostfs/var/lib/dhcp rw,relatime shared:1132 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/extrausers /var/lib/snapd/hostfs/var/lib/extrausers rw,relatime shared:1133 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/misc /var/lib/snapd/hostfs/var/lib/misc rw,relatime shared:1134 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/private/systemd /var/lib/snapd/hostfs/var/lib/private/systemd rw,relatime shared:1135 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/lib/snapd /var/lib/snapd/hostfs/var/lib/snapd rw,relatime shared:1136 master:13 - ext4 /dev/sda3 rw,data=ordered
+2:34 / /var/lib/snapd/hostfs/var/lib/sudo rw,relatime shared:1137 master:67 - tmpfs tmpfs rw,mode=700
+1:1 /system-data/var/lib/systemd /var/lib/snapd/hostfs/var/lib/systemd rw,relatime shared:1138 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/log /var/lib/snapd/hostfs/var/log rw,relatime shared:1139 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/snap /var/lib/snapd/hostfs/var/snap rw,relatime shared:1140 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/tmp /var/lib/snapd/hostfs/var/tmp rw,relatime shared:1141 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/log /var/log rw,relatime shared:1142 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/snap /var/snap rw,relatime shared:1143 master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 /system-data/var/tmp /var/tmp rw,relatime shared:1144 master:13 - ext4 /dev/sda3 rw,data=ordered

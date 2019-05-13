@@ -38,14 +38,15 @@ prepare: |
     mkdir -p "$MOUNT_POINT_OUTSIDE"
 
 restore: |
-    # remove the mount point
-    mounts=$(nsenter "--mount=/run/snapd/ns/$NAME.mnt" cat /proc/mounts | \
-             grep "$(basename "$MOUNT_POINT") fuse" | cut -f2 -d' ')
-    for m in $mounts; do
-        nsenter "--mount=/run/snapd/ns/$NAME.mnt" umount "$m"
-    done
+    # Unmount the filesystem mounted inside the mount namespace of the
+    # application. Due to propagation settings this is sufficient even if
+    # instances are used, where the mount point was visible under two
+    # locations, because the unmount event propagates across.
+    nsenter "--mount=/run/snapd/ns/$NAME.mnt" umount /var/snap/test-snapd-fuse-consumer/current/mount_point
+    if nsenter "--mount=/run/snapd/ns/$NAME.mnt" findmnt | grep fuse; then
+        echo "unexepcted fuse mounts left behind"
+    fi
     rm -rf "$MOUNT_POINT_OUTSIDE"
-
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=null
     fi
