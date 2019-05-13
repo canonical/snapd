@@ -20,7 +20,6 @@
 package gadget_test
 
 import (
-	// "fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -47,6 +46,10 @@ func (d *deviceSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice"), []byte(""), 0644)
 	c.Assert(err, IsNil)
+}
+
+func (d *deviceSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 }
 
 func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
