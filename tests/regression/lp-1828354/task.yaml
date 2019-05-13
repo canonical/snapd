@@ -1,0 +1,14 @@
+summary: mount event propagation works inside snapd-created tmpfs
+# NOTE: The limitations come from availability of Python 3.7
+systems: [ubuntu-18.04-64, ubuntu-core-18-64]
+details: |
+    When snapd mounts a tmpfs the sharing on the tmpfs is incorrect and breaks
+    per-user mount namespaces since events don't propagate there correctly.
+environment:
+    VARIANT/mimic: mimic
+    VARIANT/layout: layout
+execute: |
+  case "$VARIANT" in
+    mimic)  ./task-mimic.sh ;;
+    layout) ./task-layout.sh ;;
+  esac

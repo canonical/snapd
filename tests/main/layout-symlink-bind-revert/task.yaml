@@ -1,4 +1,8 @@
-summary: TBD
+summary: Layouts can change from one revision to another
+details: |
+    This test used to show how layouts could *not* change, in some cases, from
+    one version to another due to bugs in mount namespace mechanics. With those
+    bugs fixed the test now shows how everything behaves correctly.
 
 prepare: |
     echo "Ensure feature flag is enabled"
@@ -17,7 +21,7 @@ execute: |
 
     echo "The application is refreshed with another layout"
     snap install --dangerous ./app_2_all.snap
-    app 2>&1 | MATCH '/snap/app/x2/bin/app: 2: /snap/app/x2/bin/app: /opt/runtime/runner: not found'
+    app 2>&1 | MATCH "RUNTIME: Hello from the app"
 
     echo "The broken application is reverted"
     snap revert app 2>&1 | MATCH 'app reverted to 1'

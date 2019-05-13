@@ -1,0 +1,15 @@
+name: test-snapd-app-mimic
+version: 1
+summary: Snap using the content snap for shared resources
+plugs:
+    content:
+        # It is essential that the target directory does *NOT* exist in the snap.
+        # This is because we want snapd to create a writable mimic that replaces
+        # $SNAP/ and allows $SNAP/content to be created. The test will exercise the
+        # properties of that tmpfs.
+        target: $SNAP/tmpfs/content
+    mount-observe:
+architectures: [all]
+apps:
+    sh:
+        command: bin/sh
