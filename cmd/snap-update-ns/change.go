@@ -289,13 +289,29 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
+			// Split the mount flags from the event propagation changes.
+			// Those have to be applied happen separately.
+			const sharingFlags = syscall.MS_SHARED | syscall.MS_SLAVE | syscall.MS_PRIVATE | syscall.MS_UNBINDABLE
+			flagsJustRecursive := flags & syscall.MS_REC
+			flagsJustSharing := flags & sharingFlags
+			flagsExceptSharingAndRecursive := flags & ^(sharingFlags | syscall.MS_REC)
+
 			// Use Secure.BindMount for bind mounts
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
-				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+				flagsForMount := uintptr(flagsExceptSharingAndRecursive | flagsJustRecursive)
+				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flagsForMount))
+				logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, flagsForMount, strings.Join(unparsed, ","), err)
 			} else {
-				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+				flagsForMount := uintptr(flagsExceptSharingAndRecursive)
+				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","))
+				logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","), err)
 			}
-			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+			// If necessary apply mount event sharing changes as well. Note that we also take the MS_REC flag into account.
+			if err == nil && flagsJustSharing != 0 {
+				flagsForMount := uintptr(flagsJustSharing | flagsJustRecursive)
+				err = sysMount("", c.Entry.Dir, "", flagsForMount, "")
+				logger.Debugf("mount %q %q %q %d %q (error: %v)", "", c.Entry.Dir, "", flagsForMount, "", err)
+			}
 			if err == nil {
 				as.AddChange(c)
 			}
