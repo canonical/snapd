@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -193,6 +192,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/etc/ rw,
   mount options=(rbind, rw) /etc/ -> /tmp/.snap/etc/,
+  mount options=(rprivate) -> /tmp/.snap/etc/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /etc/,
   # Allow creating empty files and directories for bind mounting things
@@ -223,6 +223,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
   # Allow creating empty files and directories for bind mounting things
@@ -257,6 +258,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/usr/ rw,
   mount options=(rbind, rw) /usr/ -> /tmp/.snap/usr/,
+  mount options=(rprivate) -> /tmp/.snap/usr/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /usr/,
   # Allow creating empty files and directories for bind mounting things
@@ -287,6 +289,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
   # Allow creating empty files and directories for bind mounting things
@@ -312,6 +315,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/usr/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/usr/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
   # Allow creating empty files and directories for bind mounting things
@@ -345,6 +349,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/ rw,
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
+  mount options=(rprivate) -> /tmp/.snap/var/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
   # Allow creating empty files and directories for bind mounting things
@@ -370,6 +375,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/cache/ rw,
   mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
+  mount options=(rprivate) -> /tmp/.snap/var/cache/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
   # Allow creating empty files and directories for bind mounting things
@@ -404,6 +410,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/ rw,
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
+  mount options=(rprivate) -> /tmp/.snap/var/,
   # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
   # Allow creating empty files and directories for bind mounting things

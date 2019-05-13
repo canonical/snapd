@@ -1,0 +1,206 @@
+summary: mount event propagation works inside snapd-created tmpfs
+# NOTE: The limitation comes from availability of Python 3.7 for mountinfo-tool
+systems: [ubuntu-18.04-64, ubuntu-core-18-64]
+details: |
+    When snapd mounts a tmpfs the sharing on the tmpfs is incorrect and breaks
+    per-user mount namespaces since events don't propagate there correctly.
+environment:
+    VARIANT/mimic: mimic
+    VARIANT/layout: layout
+    snap/mimic: test-snapd-app-mimic
+    snap/layout: test-snapd-app-layout
+prepare: |
+    # Enable persistence of per-user-mount-namespaces.
+    #
+    # This allows us to see persistent state of the per-user mount namespace.
+    # This test relies on this because otherwise per-user mount namespace is always
+    # re-created from per-snap mount namespace, on each command invocation.
+    snap set system experimental.per-user-mount-namespace=true
+
+    # Install our primary snap and connect it to mount-observe.
+    # We need the interface connection for reading mountinfo table.
+    snap pack "$snap"
+    snap install --dangerous "./${snap}_1_all.snap"
+    snap connect "$snap:mount-observe"
+
+    # Install the supporting content snap.
+    snap pack test-snapd-content
+    snap install --dangerous ./test-snapd-content_1_all.snap
+restore: |
+    # TODO: when snap unset is supported unset instead of explicitly disabling.
+    snap set system experimental.per-user-mount-namespace=false
+
+    rm -f "${snap}_1_all.snap"
+    snap remove "$snap"
+
+    rm -f test-snapd-content_1_all.snap
+    snap remove test-snapd-content
+
+    # Remove the private temporary directories we created.
+    rm -rf "/tmp/snap.$snap"
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    # Define helpers that run a command inside the snap as root or test user.
+    # The call to "su root -c" is redundant but makes for nice parity with the
+    # second function below.
+    as_snap_root() {
+        su root -c "snap run \"$snap.sh\" -c \"$*\""
+    }
+
+    as_snap_user() {
+        su test -c "snap run \"$snap.sh\" -c \"$*\""
+    }
+
+    # Depending on the test variant define different assert functions.
+    case "$VARIANT" in
+        mimic)
+            # Define properties that should hold in at all times.
+            assert_invariant() {
+                # Existing canary files are not clobbered.
+                as_snap_root /usr/bin/test -f "/snap/$snap/x1/canary"
+                as_snap_root /usr/bin/test -f "/snap/$snap/x1/dir/canary"
+                as_snap_root /usr/bin/test -f "/snap/$snap/x1/meta/canary"
+                test "$(as_snap_root /bin/cat "/snap/$snap/x1/canary")" = "app:canary"
+                test "$(as_snap_root /bin/cat "/snap/$snap/x1/dir/canary")" = "app:dir/canary"
+                test "$(as_snap_root /bin/cat "/snap/$snap/x1/meta/canary")" = "app:meta/canary"
+
+                # Same as above but for snap user in per-user mount namespace.
+                as_snap_user /usr/bin/test -f "/snap/$snap/x1/canary"
+                as_snap_user /usr/bin/test -f "/snap/$snap/x1/dir/canary"
+                as_snap_user /usr/bin/test -f "/snap/$snap/x1/meta/canary"
+                test "$(as_snap_user /bin/cat "/snap/$snap/x1/canary")" = "app:canary"
+                test "$(as_snap_user /bin/cat "/snap/$snap/x1/dir/canary")" = "app:dir/canary"
+                test "$(as_snap_user /bin/cat "/snap/$snap/x1/meta/canary")" = "app:meta/canary"
+            }
+
+            # Define properties that should hold when the content snap is not connected.
+            assert_disconnected() {
+                # The dynamically-created tmpfs directory does not exist.
+                # There's no writable mimic so nothing shadows $SNAP.
+                # Mount event propagation from $SNAP is shared (to ns:user) and slave (from ns:sys).
+                as_snap_root /usr/bin/test ! -e "/snap/$snap/x1/tmpfs"
+                test squashfs = "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1" .fs_type)"
+                test "shared:1 master:2" = "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one --renumber .opt_fields "/snap/$snap/x1")"
+
+                # Same as above but for snap user in per-user mount namespace.
+                as_snap_user /usr/bin/test ! -e "/snap/$snap/x1/tmpfs"
+                test squashfs = "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1" .fs_type)"
+                test "shared:1 master:2" = "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one --renumber .opt_fields "/snap/$snap/x1")"
+            }
+
+            # Define properties that should hold when the content snap connected.
+            assert_connected() {
+                # The dynamically-created tmpfs directory exists.
+                as_snap_root /usr/bin/test -d "/snap/$snap/x1/tmpfs/"
+                # There's a writable mimic shadowing the original squashfs.
+                test "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- "/snap/$snap/x1" .fs_type)" \
+                    = "$(printf "squashfs\ntmpfs\n")"
+
+                # The content is mounted underneath and is not clobbered.
+                as_snap_root /usr/bin/test -d "/snap/$snap/x1/tmpfs/content"
+                as_snap_root /usr/bin/test -f "/snap/$snap/x1/tmpfs/content/canary"
+                test "$(as_snap_root /bin/cat "/snap/$snap/x1/tmpfs/content/canary")" = "content:content/canary"
+
+                # Same as above but for snap user in per-user mount namespace.
+                as_snap_user /usr/bin/test -d "/snap/$snap/x1/tmpfs/"
+                test "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- "/snap/$snap/x1" .fs_type)" \
+                    = "$(printf "squashfs\ntmpfs\n")"
+                as_snap_user /usr/bin/test -d "/snap/$snap/x1/tmpfs/content"
+                as_snap_user /usr/bin/test -f "/snap/$snap/x1/tmpfs/content/canary"
+                test "$(as_snap_user /bin/cat "/snap/$snap/x1/tmpfs/content/canary")" = "content:content/canary"
+
+                # The block device fueling the mimic is the same in both namespaces.
+                # NOTE: we don't do remapping and we expect to see the exact same numbers.
+                test \
+                    "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- "/snap/$snap/x1" .fs_type=tmpfs .dev)" \
+                    = \
+                    "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- "/snap/$snap/x1" .fs_type=tmpfs .dev)"
+
+                # Propagation of the tmpfs is identical in both namespaces (shared:xxx)
+                test \
+                    "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1" .fs_type=tmpfs .opt_fields)" \
+                    = \
+                    "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1" .fs_type=tmpfs .opt_fields)"
+                test "shared:1" = "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one --renumber "/snap/$snap/x1" .fs_type=tmpfs .opt_fields)"
+            }
+        ;;
+        layout)
+            # Define properties that should hold in at all times.
+            assert_invariant() {
+                # Existing canary files are not clobbered except for
+                # the file that is shadowed by layout-defined tmpfs.
+                as_snap_root /usr/bin/test -f "/snap/$snap/x1/canary"
+                as_snap_root /usr/bin/test -f "/snap/$snap/x1/meta/canary"
+                test "$(as_snap_root /bin/cat "/snap/$snap/x1/canary")" = "app:canary"
+                test "$(as_snap_root /bin/cat "/snap/$snap/x1/meta/canary")" = "app:meta/canary"
+                as_snap_root /usr/bin/test -d "/snap/$snap/x1/tmpfs"
+                as_snap_root /usr/bin/test ! -f "/snap/$snap/x1/tmpfs/canary"
+
+                # Same as above but for snap user in per-user mount namespace.
+                as_snap_user /usr/bin/test -f "/snap/$snap/x1/canary"
+                as_snap_user /usr/bin/test -f "/snap/$snap/x1/meta/canary"
+                test "$(as_snap_user /bin/cat "/snap/$snap/x1/canary")" = "app:canary"
+                test "$(as_snap_user /bin/cat "/snap/$snap/x1/meta/canary")" = "app:meta/canary"
+                as_snap_user /usr/bin/test -d "/snap/$snap/x1/tmpfs"
+                as_snap_root /usr/bin/test ! -f "/snap/$snap/x1/tmpfs/canary"
+            }
+
+            # Define properties that should hold when the content snap is not connected.
+            assert_disconnected() {
+                # Content mount is simply gone.
+                as_snap_root /usr/bin/test ! -e "/snap/$snap/x1/tmpfs/content"
+                as_snap_user /usr/bin/test ! -e "/snap/$snap/x1/tmpfs/content"
+
+                # Mount event propagation from $SNAP/tmpfs is shared (to ns:user) and slave (from ns:sys).
+                test "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1/tmpfs" .fs_type)" = tmpfs
+                test "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one --renumber .opt_fields "/snap/$snap/x1/tmpfs")" = "shared:1"
+                test "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1/tmpfs" .fs_type)" = tmpfs
+                test "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one --renumber .opt_fields "/snap/$snap/x1/tmpfs")" = "shared:1"
+            }
+
+            # Define properties that should hold when the content snap connected.
+            assert_connected() {
+                # The content is mounted underneath and is not clobbered.
+                as_snap_root /usr/bin/test -d "/snap/$snap/x1/tmpfs/content"
+                as_snap_root /usr/bin/test -f "/snap/$snap/x1/tmpfs/content/canary"
+                test "$(as_snap_root /bin/cat "/snap/$snap/x1/tmpfs/content/canary")" = "content:content/canary"
+
+                # Same as above but for snap user in per-user mount namespace.
+                as_snap_user /usr/bin/test -d "/snap/$snap/x1/tmpfs/content"
+                as_snap_user /usr/bin/test -f "/snap/$snap/x1/tmpfs/content/canary"
+                test "$(as_snap_user /bin/cat "/snap/$snap/x1/tmpfs/content/canary")" = "content:content/canary"
+
+                # Propagation of the tmpfs is identical in both namespaces (shared:xxx)
+                test \
+                    "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1/tmpfs" .fs_type=tmpfs .opt_fields)" \
+                    = \
+                    "$(as_snap_user /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one "/snap/$snap/x1/tmpfs" .fs_type=tmpfs .opt_fields)"
+                test \
+                    "$(as_snap_root /bin/cat /proc/self/mountinfo | mountinfo-tool -f- --one --renumber "/snap/$snap/x1/tmpfs" .fs_type=tmpfs .opt_fields)" \
+                    = shared:1
+            }
+        ;;
+    esac
+
+    # Verify that initial state when the content is not connected is as expected.
+    "$LIBEXECDIR/snapd/snap-discard-ns" "$snap"
+    assert_invariant
+    assert_disconnected
+
+    # Verify that initial state when the content connected is as expected.
+    "$LIBEXECDIR/snapd/snap-discard-ns" "$snap"
+    snap connect "$snap:content" test-snapd-content:content
+    assert_invariant
+    assert_connected
+
+    # Now, without discarding the mount namespace verify we can perform transitions:
+    # connected -> disconnected -> connected
+    snap disconnect "$snap:content" test-snapd-content:content
+    assert_invariant
+    assert_disconnected
+
+    snap connect "$snap:content" test-snapd-content:content
+    assert_invariant
+    assert_connected

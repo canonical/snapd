@@ -245,7 +245,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// be shared with any peer group, This effectively detaches us from the
 	// original namespace and coupled with pivot_root below serves as the
 	// foundation of the mount sandbox.
+	//
+	// Following that, make it recursively shared so that changes migrate to
+	// per-user mount namespaces.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
+	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SHARED, NULL);
 	// Bind mount certain directories from the host filesystem to the scratch
 	// directory. By default mount events will propagate in both into and out
 	// of the peer group. This way the running application can alter any global
@@ -276,6 +280,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			// from that of its own snap.
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
+		sc_do_mount("none", dst, NULL, MS_REC | MS_SHARED, NULL);
 		if (mnt->altpath == NULL) {
 			continue;
 		}
@@ -294,6 +299,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		if (!mnt->is_bidirectional) {
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
+		sc_do_mount("none", dst, NULL, MS_REC | MS_SHARED, NULL);
 	}
 	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
@@ -401,6 +407,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 
 		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+		sc_do_mount("none", dst, NULL, MS_SHARED, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
@@ -410,6 +417,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
 	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
 	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+	sc_do_mount("none", dst, NULL, MS_REC | MS_SHARED, NULL);
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
@@ -492,6 +500,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// performed in this mount namespace will not propagate to the peer group.
 	// This is another essential part of the confinement system.
 	sc_do_mount("none", SC_HOSTFS_DIR, NULL, MS_REC | MS_SLAVE, NULL);
+	sc_do_mount("none", SC_HOSTFS_DIR, NULL, MS_REC | MS_SHARED, NULL);
 	// Detach the redundant hostfs version of sysfs since it shows up in the
 	// mount table and software inspecting the mount table may become confused
 	// (eg, docker and LP:# 162601).

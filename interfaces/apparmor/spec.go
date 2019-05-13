@@ -252,6 +252,7 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 		fmt.Fprintf(buf, "  # Allow setting the read-only directory aside via a bind mount.\n")
 		fmt.Fprintf(buf, "  %s rw,\n", mimicAuxPath)
 		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)
+		fmt.Fprintf(buf, "  mount options=(rprivate) -> %s,\n", mimicAuxPath)
 		fmt.Fprintf(buf, "  # Allow mounting tmpfs over the read-only directory.\n")
 		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", mimicPath)
 		fmt.Fprintf(buf, "  # Allow creating empty files and directories for bind mounting things\n"+

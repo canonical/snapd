@@ -629,6 +629,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
 		{C: `close 7`},
 		{C: `close 4`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
@@ -1138,6 +1139,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
 		{C: `close 7`},
 		{C: `close 4`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
@@ -1286,6 +1288,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
 		{C: `close 7`},
 		{C: `close 4`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
@@ -1677,6 +1680,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
 		{C: `close 7`},
 		{C: `close 4`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
@@ -2069,6 +2073,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
 		{C: `close 7`},
 		{C: `close 4`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
@@ -2273,6 +2278,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`},
 		{C: `close 7`},
 		{C: `close 4`},
+		{C: `mount "none" "/tmp/.snap/etc" "" MS_REC|MS_PRIVATE ""`},
 
 		// Mount a tmpfs over /etc, re-constructing the original mode and
 		// ownership. Bind mount each original file over and detach the copy

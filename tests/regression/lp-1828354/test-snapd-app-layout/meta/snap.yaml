@@ -1,0 +1,20 @@
+name: test-snapd-app-layout
+version: 1
+summary: Snap using the content snap for shared resources
+plugs:
+    content:
+        # The content is connected beneath a tmpfs belonging to a layout.
+        target: $SNAP/tmpfs/content
+    mount-observe:
+layout:
+    # NOTE: it is essential that the $SNAP/tmpfs directory exists. This is
+    # because we only want to construct one tmpfs, the one described by the
+    # layout below, not two, where the second one would be created to allow the
+    # $SNAP/tmpfs mount point to exist. The test will exercise the tmpfs
+    # created by the layout.
+    $SNAP/tmpfs:
+        type: tmpfs
+architectures: [all]
+apps:
+    sh:
+        command: bin/sh
