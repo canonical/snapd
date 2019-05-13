@@ -51,17 +51,18 @@ var (
 	// system
 	DesiredSystemProfilePath = desiredSystemProfilePath
 	CurrentSystemProfilePath = currentSystemProfilePath
-	ApplySystemFstab         = applySystemFstab
 
 	// user
 	DesiredUserProfilePath = desiredUserProfilePath
 	CurrentUserProfilePath = currentUserProfilePath
-	ApplyUserFstab         = applyUserFstab
 
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+
+	// update
+	ExecuteMountProfileUpdate = executeMountProfileUpdate
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.

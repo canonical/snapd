@@ -35,6 +35,7 @@ type utilsSuite struct {
 	iface      interfaces.Interface
 	slotOS     *snap.SlotInfo
 	slotApp    *snap.SlotInfo
+	slotSnapd  *snap.SlotInfo
 	slotGadget *snap.SlotInfo
 }
 
@@ -42,6 +43,7 @@ var _ = Suite(&utilsSuite{
 	iface:      &ifacetest.TestInterface{InterfaceName: "iface"},
 	slotOS:     &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}},
 	slotApp:    &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}},
+	slotSnapd:  &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp, SuggestedName: "snapd"}},
 	slotGadget: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}},
 })
 
