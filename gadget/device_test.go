@@ -61,6 +61,8 @@ func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 		{"123", "123"},
 		{"foo\\x20bar", "foo bar"},
 		{"foo#bar", "foo#bar"},
+		{"Новый_том", "Новый_том"},
+		{`pinkié\x20pie`, `pinkié pie`},
 	}
 	for _, name := range names {
 		err := os.Symlink(filepath.Join(d.dir, "/dev/fakedevice"), filepath.Join(d.dir, "/dev/disk/by-partlabel", name.escaped))
@@ -86,6 +88,8 @@ func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 		{"123", "123"},
 		{`foo\x20bar`, "foo bar"},
 		{"foo#bar", "foo#bar"},
+		{"Новый_том", "Новый_том"},
+		{`pinkié\x20pie`, `pinkié pie`},
 	}
 	for _, name := range names {
 		err := os.Symlink(filepath.Join(d.dir, "/dev/fakedevice"), filepath.Join(d.dir, "/dev/disk/by-label", name.escaped))
