@@ -7,7 +7,6 @@ set -e -x
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
@@ -125,7 +124,11 @@ reset_all_snap() {
                 fi
                 if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
                     if snap info "$snap" | grep -E '^type: +(base|core)'; then
-                        remove_bases="$remove_bases $snap"
+                        if [ -z "$remove_bases" ]; then
+                            remove_bases="$snap"
+                        else
+                            remove_bases="$remove_bases $snap"
+                        fi
                     else
                         snap remove "$snap"
                     fi
@@ -135,7 +138,15 @@ reset_all_snap() {
     done
     # remove all base/os snaps at the end
     if [ -n "$remove_bases" ]; then
-        snap remove "$remove_bases"
+        for base in $remove_bases; do
+            snap remove "$base"
+            if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
+                echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
+                ls -al "$SNAP_MOUNT_DIR"
+                ls -al "$SNAP_MOUNT_DIR/$base"
+                exit 1
+            fi
+        done
     fi
 
     # ensure we have the same state as initially

@@ -78,7 +78,7 @@ type imageSuite struct {
 	tsto            *image.ToolingStore
 
 	storeSigning *assertstest.StoreStack
-	brandSigning *assertstest.SigningDB
+	brands       *assertstest.SigningAccounts
 
 	model *asserts.Model
 }
@@ -107,31 +107,19 @@ func (s *imageSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
-	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
-
-	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
+	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
+	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
-	}, "")
-	s.storeSigning.Add(brandAcct)
+	})
+	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("my-brand")...)
 
-	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	s.storeSigning.Add(brandAccKey)
-
-	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	s.model = s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my display name",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"required-snap1"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	s.model = model.(*asserts.Model)
+	})
 
 	otherAcct := assertstest.NewAccount(s.storeSigning, "other", map[string]interface{}{
 		"account-id": "other",
@@ -285,6 +273,12 @@ const snapReqOtherBase = `
 name: snap-req-other-base
 version: 1.0
 base: other-base
+`
+
+const snapReqCore16Base = `
+name: snap-req-core16-base
+version: 1.0
+base: core16
 `
 
 const snapReqContentProvider = `
@@ -527,18 +521,12 @@ func (s *imageSuite) TestDownloadUnpackGadgetFromTrack(c *C) {
 	s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, nil)
 	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1818))
 
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+
 		"architecture": "amd64",
 		"gadget":       "pc=18",
 		"kernel":       "pc-kernel=18",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
 	opts := &image.Options{
@@ -606,6 +594,10 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	s.storeSnapInfo["other-base"] = infoFromSnapYaml(c, otherBase, snap.R(18))
 	s.addSystemSnapAssertions(c, "other-base", "other")
 
+	s.downloadedSnaps["snap-req-core16-base"] = snaptest.MakeTestSnapWithFiles(c, snapReqCore16Base, nil)
+	s.storeSnapInfo["snap-req-core16-base"] = infoFromSnapYaml(c, snapReqCore16Base, snap.R(16))
+	s.addSystemSnapAssertions(c, "snap-req-core16-base", "other")
+
 	s.downloadedSnaps["required-snap1"] = snaptest.MakeTestSnapWithFiles(c, requiredSnap1, nil)
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
 	s.storeSnapInfo["required-snap1"].Contact = "foo@example.com"
@@ -668,8 +660,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	c.Check(seed.Snaps[3].Contact, Equals, "foo@example.com")
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
-	brandPubKey, err := s.brandSigning.PublicKey("")
-	c.Assert(err, IsNil)
+	brandPubKey := s.brands.PublicKey("my-brand")
 
 	// check the assertions are in place
 	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
@@ -776,8 +767,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 	c.Check(l, HasLen, 4)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
-	brandPubKey, err := s.brandSigning.PublicKey("")
-	c.Assert(err, IsNil)
+	brandPubKey := s.brands.PublicKey("my-brand")
 
 	// check the assertions are in place
 	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
@@ -929,20 +919,13 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	defer restore()
 
 	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"gadget":         "pc18",
 		"kernel":         "pc-kernel",
 		"base":           "core18",
 		"required-snaps": []interface{}{"other-base"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
@@ -1173,8 +1156,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	c.Check(l, HasLen, 4)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
-	brandPubKey, err := s.brandSigning.PublicKey("")
-	c.Assert(err, IsNil)
+	brandPubKey := s.brands.PublicKey("my-brand")
 
 	// check the assertions are in place
 	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
@@ -1336,18 +1318,12 @@ func (s *imageSuite) TestPrepareClassicModelNoClassicMode(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
-	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"classic":      "true",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic": "true",
+	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1360,19 +1336,13 @@ func (s *imageSuite) TestPrepareClassicModelArchOverrideFails(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
-	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"classic":      "true",
 		"architecture": "amd64",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1387,19 +1357,13 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
-	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"classic":      "true",
-		"gadget":       "classic-gadget",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic": "true",
+		"gadget":  "classic-gadget",
+	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1414,18 +1378,11 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	defer restore()
 
 	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc=18",
 		"kernel":       "pc-kernel=18",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
@@ -1474,18 +1431,11 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackWithDefaultChannel(c *C) {
 	defer restore()
 
 	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel=18",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
@@ -1536,18 +1486,11 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 	defer restore()
 
 	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel=18",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
@@ -1597,20 +1540,13 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 	defer restore()
 
 	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc18",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"required-snap1"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
@@ -1677,20 +1613,13 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 	defer restore()
 
 	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc18",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"required-snap1", "core"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
@@ -1754,20 +1683,14 @@ func (s *imageSuite) TestSetupSeedGadgetBaseModelBaseMismatch(c *C) {
 	defer restore()
 	// replace model with a model that uses core18 and a gadget
 	// without a base
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"required-snap1"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
@@ -1788,19 +1711,13 @@ func (s *imageSuite) TestSetupSeedGadgetBaseModelBaseMismatch(c *C) {
 func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"snap-req-other-base"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
@@ -1819,22 +1736,44 @@ func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
 }
 
+func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"snap-req-core16-base"},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":                "canonical",
+		"pc":                  "canonical",
+		"pc-kernel":           "canonical",
+		"snap-req-other-base": "canonical",
+	})
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+	err = image.SetupSeed(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+}
+
 func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel",
 		"store":        "my-store",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
@@ -1866,19 +1805,13 @@ func (s *imageSuite) TestSetupSeedStoreAssertionFetched(c *C) {
 	err = s.storeSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel",
 		"store":        "my-store",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
 	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
@@ -1906,19 +1839,13 @@ func (s *imageSuite) TestSetupSeedStoreAssertionFetched(c *C) {
 func (s *imageSuite) TestSetupSeedSnapReqBaseFromLocal(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"snap-req-other-base"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
@@ -1943,19 +1870,13 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromLocal(c *C) {
 func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
 		"required-snaps": []interface{}{"snap-req-content-provider"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
@@ -1990,19 +1911,12 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 	defer restore()
 
 	// classic model with gadget etc
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"classic":        "true",
 		"architecture":   "amd64",
 		"gadget":         "classic-gadget",
 		"required-snaps": []interface{}{"required-snap1"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
 	s.setupSnaps(c, "", map[string]string{
@@ -2067,17 +1981,10 @@ func (s *imageSuite) TestSetupSeedClassicWithClassicSnap(c *C) {
 	defer restore()
 
 	// classic model
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"classic":      "true",
 		"architecture": "amd64",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
 	s.setupSnaps(c, "", nil)
@@ -2137,16 +2044,9 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 	defer restore()
 
 	// classic model with gadget etc
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"classic":      "true",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic": "true",
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
 
@@ -2184,18 +2084,11 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 }
 
 func (s *imageSuite) TestSnapChannel(c *C) {
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc=18",
 		"kernel":       "pc-kernel=18",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	opts := &image.Options{
 		Channel: "stable",
@@ -2238,19 +2131,12 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 	defer restore()
 
 	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc18",
 		"kernel":       "pc-kernel",
 		"base":         "core18",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
+	})
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 	gadgetUnpackDir := c.MkDir()

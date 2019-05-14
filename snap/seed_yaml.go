@@ -58,20 +58,36 @@ type Seed struct {
 }
 
 func ReadSeedYaml(fn string) (*Seed, error) {
+	errPrefix := "cannot read seed yaml"
+
 	yamlData, err := ioutil.ReadFile(fn)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read seed yaml: %s", fn)
+		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 
 	var seed Seed
 	if err := yaml.Unmarshal(yamlData, &seed); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal %q: %s", yamlData, err)
+		return nil, fmt.Errorf("%s: cannot unmarshal %q: %s", errPrefix, yamlData, err)
 	}
 
 	// validate
 	for _, sn := range seed.Snaps {
+		if sn == nil {
+			return nil, fmt.Errorf("%s: empty element in seed", errPrefix)
+		}
+		if err := ValidateInstanceName(sn.Name); err != nil {
+			return nil, fmt.Errorf("%s: %v", errPrefix, err)
+		}
+		if sn.Channel != "" {
+			if _, err := ParseChannel(sn.Channel, ""); err != nil {
+				return nil, fmt.Errorf("%s: %v", errPrefix, err)
+			}
+		}
+		if sn.File == "" {
+			return nil, fmt.Errorf(`%s: "file" attribute for %q cannot be empty`, errPrefix, sn.Name)
+		}
 		if strings.Contains(sn.File, "/") {
-			return nil, fmt.Errorf("%q must be a filename, not a path", sn.File)
+			return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, sn.File)
 		}
 	}
 

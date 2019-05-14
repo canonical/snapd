@@ -96,7 +96,7 @@ func (f *fetcher) commit() error {
 	return nil
 }
 
-func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) error {
+func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetching func(asserts.Fetcher) error) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
 
 	user, err := userFromUserID(s, userID)
@@ -104,7 +104,7 @@ func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) e
 		return err
 	}
 
-	sto := snapstate.Store(s)
+	sto := snapstate.Store(s, deviceCtx)
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?

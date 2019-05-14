@@ -227,11 +227,11 @@ func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool 
 }
 
 func (iface *desktopInterface) fontconfigDirs() []string {
-	return []string{
+	fontDirs := []string{
 		dirs.SystemFontsDir,
 		dirs.SystemLocalFontsDir,
-		dirs.SystemFontconfigCacheDir,
 	}
+	return append(fontDirs, dirs.SystemFontconfigCacheDirs...)
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

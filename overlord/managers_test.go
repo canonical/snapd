@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -82,6 +83,7 @@ type mgrsSuite struct {
 	restoreSystemctl func()
 
 	storeSigning   *assertstest.StoreStack
+	brands         *assertstest.SigningAccounts
 	restoreTrusted func()
 	mockSnapCmd    *testutil.MockCmd
 
@@ -167,6 +169,10 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	})
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
+	ms.brands = assertstest.NewSigningAccounts(ms.storeSigning)
+	ms.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"validation": "verified",
+	})
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
 	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
@@ -195,7 +201,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
 		Serial: "serialserial",
@@ -272,6 +278,19 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(st, a5), IsNil)
 	c.Assert(ms.storeSigning.Add(a5), IsNil)
 
+	// add pc-kernel snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "pc-kernel",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a6, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a6), IsNil)
+	c.Assert(ms.storeSigning.Add(a6), IsNil)
+
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active: true,
@@ -280,6 +299,9 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 		},
 		Current:  snap.R(1),
 		SnapType: "os",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
 	})
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
@@ -1452,6 +1474,22 @@ version: @VERSION@
 
 // core & kernel
 
+var modelDefaults = map[string]interface{}{
+	"architecture": "amd64",
+	"store":        "my-brand-store-id",
+	"gadget":       "pc",
+	"kernel":       "pc-kernel",
+}
+
+func findKind(chg *state.Change, kind string) *state.Task {
+	for _, t := range chg.Tasks() {
+		if t.Kind() == kind {
+			return t
+		}
+	}
+	return nil
+}
+
 func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
@@ -1460,14 +1498,7 @@ func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, nil)
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults)
 
 	const packageOS = `
 name: core
@@ -1481,15 +1512,13 @@ type: os
 	defer st.Unlock()
 
 	// setup model assertion
-	err := assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
-	err = assertstate.Add(st, model)
+	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", "", snapstate.Flags{})
@@ -1507,14 +1536,6 @@ type: os
 	c.Assert(ok, Equals, true)
 	c.Assert(rst, Equals, state.RestartSystem)
 
-	findKind := func(chg *state.Change, kind string) *state.Task {
-		for _, t := range chg.Tasks() {
-			if t.Kind() == kind {
-				return t
-			}
-		}
-		return nil
-	}
 	t := findKind(chg, "auto-connect")
 	c.Assert(t, NotNil)
 	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
@@ -1547,14 +1568,7 @@ func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, nil)
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults)
 
 	const packageKernel = `
 name: pc-kernel
@@ -1573,15 +1587,13 @@ type: kernel`
 	defer st.Unlock()
 
 	// setup model assertion
-	err := assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
-	err = assertstate.Add(st, model)
+	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{})
@@ -2339,8 +2351,9 @@ type storeCtxSetupSuite struct {
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
 
-	brandSigning *assertstest.SigningDB
-	deviceKey    asserts.PrivateKey
+	brands *assertstest.SigningAccounts
+
+	deviceKey asserts.PrivateKey
 
 	model  *asserts.Model
 	serial *asserts.Serial
@@ -2364,21 +2377,17 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
-	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
-
-	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
+	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
+	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
-	}, "")
-	s.storeSigning.Add(brandAcct)
+	})
+	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("my-brand")...)
 
-	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	s.storeSigning.Add(brandAccKey)
-	s.model = makeModelAssertion(c, s.brandSigning, nil)
+	s.model = s.brands.Model("my-brand", "my-model", modelDefaults)
 
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.brandSigning.Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -2401,11 +2410,8 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	prereqs := []asserts.Assertion{s.storeSigning.StoreAccountKey(""), brandAcct, brandAccKey}
-	for _, a := range prereqs {
-		err = assertstate.Add(st, a)
-		c.Assert(err, IsNil)
-	}
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 }
 
 func (s *storeCtxSetupSuite) TearDownTest(c *C) {
@@ -2426,7 +2432,7 @@ func (s *storeCtxSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "fallback")
 
 	// setup model in system statey
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -2460,7 +2466,7 @@ func (s *storeCtxSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	c.Assert(err, IsNil)
 	err = kpMgr.Put(deviceKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -3131,27 +3137,76 @@ func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	c.Assert(conns, HasLen, 0)
 }
 
-// makeMockModel creates a model assertion using the given brandSigning DB.
-// The fields can be customized with the modelExtra map.
-func makeModelAssertion(c *C, brandSigning *assertstest.SigningDB, modelExtra map[string]interface{}) *asserts.Model {
-	modelV := map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"store":        "my-brand-store-id",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	for k, v := range modelExtra {
-		modelV[k] = v
-	}
-	model, err := brandSigning.Sign(asserts.ModelType, modelV, nil, "")
-	c.Assert(err, IsNil)
+// TODO: add a custom checker in testutils for this and similar
+func validateDownloadCheckTasks(c *C, tasks []*state.Task, name, revno, channel string) int {
+	var i int
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Ensure prerequisites for "%s" are available`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Download snap "%s" (%s) from channel "%s"`, name, revno, channel))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Fetch and check assertions for snap "%s" (%s)`, name, revno))
+	i++
+	return i
+}
 
-	return model.(*asserts.Model)
+func validateInstallTasks(c *C, tasks []*state.Task, name, revno string) int {
+	var i int
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (%s)`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run install hook of "%s" snap if present`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
+	i++
+	return i
+}
+
+func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string) int {
+	var i int
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (%s)`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run pre-refresh hook of "%s" snap if present`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Stop snap "%s" services`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Remove aliases for snap "%s"`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make current revision for snap "%s" unavailable`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run post-refresh hook of "%s" snap if present`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Clean up "%s" (%s) install`, name, revno))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
+	i++
+	return i
 }
 
 // byReadyTime sorts a list of tasks by their "ready" time
@@ -3177,42 +3232,38 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// create/set custom model assertion
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	err := assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
+	// pretend we have an old required snap installed
+	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
+	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
 
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, nil)
+	// create/set custom model assertion
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
+
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults)
 
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
-	err = assertstate.Add(st, model)
+	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	// create a new model
-	newModel := makeModelAssertion(c, brandSigning, map[string]interface{}{
+	newModel := ms.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
 		"required-snaps": []interface{}{"foo", "bar", "baz"},
 		"revision":       "1",
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
-	chg := st.NewChange("install-snap", "...")
-	c.Check(tss, HasLen, 4)
-	chg.AddAll(tss[0])
-	chg.AddAll(tss[1])
-	chg.AddAll(tss[2])
-	chg.AddAll(tss[3])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -3221,10 +3272,27 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
-	info, err := snapstate.CurrentInfo(st, "foo")
+	// the new required-snap "foo" is installed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.Version, Equals, "1.0")
+
+	// and marked required
+	c.Check(snapst.Required, Equals, true)
+
+	// and core is still marked required
+	err = snapstate.Get(st, "core", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, true)
+
+	// but old-required-snap-1 is no longer marked required
+	err = snapstate.Get(st, "old-required-snap-1", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, false)
 
 	// ensure sorting is correct
 	tasks := chg.Tasks()
@@ -3233,36 +3301,15 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	var i int
 	// first all downloads/checks in sequential order
 	for _, name := range []string{"foo", "bar", "baz"} {
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Ensure prerequisites for "%s" are available`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Download snap "%s" (1) from channel "stable"`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Fetch and check assertions for snap "%s" (1)`, name))
-		i++
+		i += validateDownloadCheckTasks(c, tasks[i:], name, "1", "stable")
 	}
 	// then all installs in sequential order
 	for _, name := range []string{"foo", "bar", "baz"} {
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (1)`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (1) security profiles`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (1) available to the system`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Run install hook of "%s" snap if present`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (1) services`, name))
-		i++
-		c.Check(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
-		i++
+		i += validateInstallTasks(c, tasks[i:], name, "1")
 	}
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
 }
 
 func (ms *mgrsSuite) TestRemodelDifferentBase(c *C) {
@@ -3284,47 +3331,124 @@ type: base`
 	defer st.Unlock()
 
 	// create/set custom model assertion
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	err := assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
-
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, nil)
-
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
-	err = assertstate.Add(st, model)
+	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	// create a new model
-	newModel := makeModelAssertion(c, brandSigning, map[string]interface{}{
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
 		"base":     "core18",
 		"revision": "1",
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, ErrorMatches, "cannot remodel to different bases yet")
-	c.Assert(tss, HasLen, 0)
+	c.Assert(chg, IsNil)
+}
+
+func (ms *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(loader)
+	defer bootloader.Force(nil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+
+	const kernelYaml = `name: pc-kernel
+type: kernel
+version: 2.0`
+	snapPath, _ := ms.makeStoreTestSnap(c, kernelYaml, "2")
+	ms.serveSnap(snapPath, "2")
+
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+	})
+	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0}`, "1")
+	ms.serveSnap(snapPath, "1")
+
+	// create/set custom model assertion
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"kernel":         "pc-kernel=18",
+		"revision":       "1",
+		"required-snaps": []interface{}{"foo"},
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// system waits for a restart because of the new kernel
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus)
+
+	// simulate successful restart happened
+	state.MockRestarting(st, state.RestartUnset)
+
+	// continue
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// ensure tasks were run in the right order
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	// first all downloads/checks in sequential order
+	var i int
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "2", "18")
+	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
+
+	// then all installs in sequential order
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "2")
+	i += validateInstallTasks(c, tasks[i:], "foo", "1")
+
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
 }
 
 func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, map[string]interface{}{
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
 		"gadget": "gadget",
 	})
 
@@ -3339,11 +3463,8 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	err = assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 		KeyID: deviceKey.PublicKey().ID(),
@@ -3357,7 +3478,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "my-model")
 		headers["authority-id"] = brandID
-		return brandSigning.Sign(asserts.SerialType, headers, body, "")
+		return ms.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
@@ -3402,7 +3523,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := auth.Device(st)
+	device, err := devicestatetest.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "my-model")

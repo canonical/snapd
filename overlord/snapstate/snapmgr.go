@@ -247,6 +247,7 @@ var snapReadInfo = snap.ReadInfo
 
 // AutomaticSnapshot allows to hook snapshot manager's AutomaticSnapshot.
 var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.TaskSet, err error)
+var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
 
 func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)
@@ -326,8 +327,16 @@ func cachedStore(st *state.State) StoreService {
 // the store implementation has the interface consumed here
 var _ StoreService = (*store.Store)(nil)
 
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
+// Store returns the store service provided by the optional device context or
+// the one used by the snapstate package if the former has no
+// override.
+func Store(st *state.State, deviceCtx DeviceContext) StoreService {
+	if deviceCtx != nil {
+		sto := deviceCtx.Store()
+		if sto != nil {
+			return sto
+		}
+	}
 	if cachedStore := cachedStore(st); cachedStore != nil {
 		return cachedStore
 	}
@@ -552,6 +561,13 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	if !lastUbuntuCoreTransitionAttempt.IsZero() && lastUbuntuCoreTransitionAttempt.Add(6*time.Hour).After(now) {
 		return nil
 	}
+
+	tss, trErr := TransitionCore(m.state, "ubuntu-core", "core")
+	if _, ok := trErr.(*ChangeConflictError); ok {
+		// likely just too early, retry at next Ensure
+		return nil
+	}
+
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
 	var retryCount int
@@ -561,9 +577,8 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
-	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
-	if err != nil {
-		return err
+	if trErr != nil {
+		return trErr
 	}
 
 	msg := i18n.G("Transition ubuntu-core to core")
