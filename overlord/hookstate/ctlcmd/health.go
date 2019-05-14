@@ -88,10 +88,10 @@ func (c *healthCommand) Execute([]string) error {
 
 	if len(c.Code) > 0 {
 		if len(c.Code) < 3 || len(c.Code) > 30 {
-			return fmt.Errorf("error code should have between 3 and 30 bytes, got %d", len(c.Code))
+			return fmt.Errorf("code should have between 3 and 30 bytes, got %d", len(c.Code))
 		}
 		if !validCode(c.Code) {
-			return fmt.Errorf("invalid error code %q", c.Code)
+			return fmt.Errorf("invalid code %q", c.Code)
 		}
 	}
 
@@ -102,7 +102,7 @@ func (c *healthCommand) Execute([]string) error {
 
 		rmsg := []rune(c.Message)
 		if len(rmsg) < 7 {
-			return fmt.Errorf(`message must be at least 7 characters long (%q has %d)`, c.Message, len(rmsg))
+			return fmt.Errorf(`message must be at least 7 characters long (got %d)`, len(rmsg))
 		}
 		if len(rmsg) > 70 {
 			c.Message = string(rmsg[:69]) + "…"
