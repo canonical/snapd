@@ -809,3 +809,126 @@ volumes:
 		},
 	})
 }
+
+func (p *positioningTestSuite) TestVolumePositionOffsetWriteAll(c *C) {
+	var gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: foo.img
+            offset-write: bar+10
+      - name: bar
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset-write: 600
+        content:
+          - image: bar.img
+            offset-write: 450
+`
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*gadget.SizeKiB, []byte(""))
+
+	vol := mustParseVolume(c, gadgetYaml, "pc")
+	c.Assert(vol.Structure, HasLen, 3)
+
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, &gadget.PositionedVolume{
+		Volume:     vol,
+		Size:       3 * gadget.SizeMiB,
+		SectorSize: 512,
+		PositionedStructure: []gadget.PositionedStructure{
+			{
+				// mbr
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     0,
+				Index:           0,
+			}, {
+				// foo
+				VolumeStructure:       &vol.Structure[1],
+				StartOffset:           1 * gadget.SizeMiB,
+				Index:                 1,
+				PositionedOffsetWrite: asSizePtr(92),
+				PositionedContent: []gadget.PositionedContent{
+					{
+						VolumeContent: &vol.Structure[1].Content[0],
+						StartOffset:   1 * gadget.SizeMiB,
+						// offset-write: bar+10
+						PositionedOffsetWrite: asSizePtr(2*gadget.SizeMiB + 10),
+						Size:                  200 * gadget.SizeKiB,
+					},
+				},
+			}, {
+				// bar
+				VolumeStructure:       &vol.Structure[2],
+				StartOffset:           2 * gadget.SizeMiB,
+				Index:                 2,
+				PositionedOffsetWrite: asSizePtr(600),
+				PositionedContent: []gadget.PositionedContent{
+					{
+						VolumeContent: &vol.Structure[2].Content[0],
+						StartOffset:   2 * gadget.SizeMiB,
+						// offset-write: bar+10
+						PositionedOffsetWrite: asSizePtr(450),
+						Size:                  150 * gadget.SizeKiB,
+					},
+				},
+			},
+		},
+	})
+}
+
+func (p *positioningTestSuite) TestVolumePositionOffsetWriteBadRelativeTo(c *C) {
+	// define volumes explicitly as those would not pass validation
+	volBadStructure := gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{
+				Name: "foo",
+				Type: "DA,21686148-6449-6E6F-744E-656564454649",
+				Size: 1 * gadget.SizeMiB,
+				OffsetWrite: &gadget.RelativeOffset{
+					RelativeTo: "bar",
+					Offset:     10,
+				},
+			},
+		},
+	}
+	volBadContent := gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{
+				Name: "foo",
+				Type: "DA,21686148-6449-6E6F-744E-656564454649",
+				Size: 1 * gadget.SizeMiB,
+				Content: []gadget.VolumeContent{
+					{
+						Image: "foo.img",
+						OffsetWrite: &gadget.RelativeOffset{
+							RelativeTo: "bar",
+							Offset:     10,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
+
+	v, err := gadget.PositionVolume(p.dir, &volBadStructure, defaultConstraints)
+	c.Check(v, IsNil)
+	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\): refers to an unknown structure "bar"`)
+
+	v, err = gadget.PositionVolume(p.dir, &volBadContent, defaultConstraints)
+	c.Check(v, IsNil)
+	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\) content "foo.img": refers to an unknown structure "bar"`)
+}
