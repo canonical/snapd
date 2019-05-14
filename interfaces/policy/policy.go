@@ -30,6 +30,48 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// InstallCandidateMinimalCheck represents a candidate snap installed with --dangerous flag that should pass minimum checks
+type InstallCandidateMinimalCheck struct {
+	Snap            *snap.Info
+	BaseDeclaration *asserts.BaseDeclaration
+	Model           *asserts.Model
+	Store           *asserts.Store
+}
+
+func (ic *InstallCandidateMinimalCheck) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule) error {
+	if checkMinimalSlotInstallationConstraints(ic, slot, rule.DenyInstallation) == nil {
+		return fmt.Errorf("installation denied by %q slot rule of interface %q", slot.Name, slot.Interface)
+	}
+	if checkMinimalSlotInstallationConstraints(ic, slot, rule.AllowInstallation) != nil {
+		return fmt.Errorf("installation not allowed by %q slot rule of interface %q", slot.Name, slot.Interface)
+	}
+	return nil
+}
+
+func (ic *InstallCandidateMinimalCheck) checkSlot(slot *snap.SlotInfo) error {
+	iface := slot.Interface
+	if rule := ic.BaseDeclaration.SlotRule(iface); rule != nil {
+		return ic.checkSlotRule(slot, rule)
+	}
+	return nil
+}
+
+// Check checks whether the installation is allowed.
+func (ic *InstallCandidateMinimalCheck) Check() error {
+	if ic.BaseDeclaration == nil {
+		return fmt.Errorf("internal error: improperly initialized InstallCandidate")
+	}
+
+	for _, slot := range ic.Snap.Slots {
+		err := ic.checkSlot(slot)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // InstallCandidate represents a candidate snap for installation.
 type InstallCandidate struct {
 	Snap            *snap.Info

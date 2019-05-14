@@ -48,7 +48,7 @@ func checkSnapType(snap *snap.Info, types []string) error {
 	}
 	snapID := snap.SnapID
 	s := string(snap.Type)
-	if s == "os" || snapIDSnapd(snapID) {
+	if s == "os" || snapIDSnapd(snapID) || snap.InstanceName() == "snapd" {
 		// we use "core" in the assertions and we need also to
 		// allow for the "snapd" snap
 		s = "core"
@@ -211,6 +211,35 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Sl
 	// OR of constraints
 	for _, cstrs1 := range cstrs {
 		err := checkSlotConnectionConstraints1(connc, cstrs1)
+		if err == nil {
+			return nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func checkMinimalSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
+	// TODO: allow evaluated attr constraints here too?
+	if err := cstrs.SlotAttributes.Check(slot, nil); err != nil {
+		return err
+	}
+	if err := checkSnapType(slot.Snap, cstrs.SlotSnapTypes); err != nil {
+		return err
+	}
+	if err := checkOnClassic(cstrs.OnClassic); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkMinimalSlotInstallationConstraints(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, cstrs []*asserts.SlotInstallationConstraints) error {
+	var firstErr error
+	// OR of constraints
+	for _, cstrs1 := range cstrs {
+		err := checkMinimalSlotInstallationConstraints1(ic, slot, cstrs1)
 		if err == nil {
 			return nil
 		}
