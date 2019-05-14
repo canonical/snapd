@@ -855,32 +855,34 @@ volumes:
 				Index:           0,
 			}, {
 				// foo
-				VolumeStructure:       &vol.Structure[1],
-				StartOffset:           1 * gadget.SizeMiB,
-				Index:                 1,
+				VolumeStructure: &vol.Structure[1],
+				StartOffset:     1 * gadget.SizeMiB,
+				Index:           1,
+				// break for gofmt < 1.11
 				PositionedOffsetWrite: asSizePtr(92),
 				PositionedContent: []gadget.PositionedContent{
 					{
 						VolumeContent: &vol.Structure[1].Content[0],
+						Size:          200 * gadget.SizeKiB,
 						StartOffset:   1 * gadget.SizeMiB,
 						// offset-write: bar+10
 						PositionedOffsetWrite: asSizePtr(2*gadget.SizeMiB + 10),
-						Size:                  200 * gadget.SizeKiB,
 					},
 				},
 			}, {
 				// bar
-				VolumeStructure:       &vol.Structure[2],
-				StartOffset:           2 * gadget.SizeMiB,
-				Index:                 2,
+				VolumeStructure: &vol.Structure[2],
+				StartOffset:     2 * gadget.SizeMiB,
+				Index:           2,
+				// break for gofmt < 1.11
 				PositionedOffsetWrite: asSizePtr(600),
 				PositionedContent: []gadget.PositionedContent{
 					{
 						VolumeContent: &vol.Structure[2].Content[0],
+						Size:          150 * gadget.SizeKiB,
 						StartOffset:   2 * gadget.SizeMiB,
 						// offset-write: bar+10
 						PositionedOffsetWrite: asSizePtr(450),
-						Size:                  150 * gadget.SizeKiB,
 					},
 				},
 			},

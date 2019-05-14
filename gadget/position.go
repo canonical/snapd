@@ -243,9 +243,9 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, kno
 
 		content[idx] = PositionedContent{
 			VolumeContent:         &ps.Content[idx],
+			Size:                  actualSize,
 			StartOffset:           ps.StartOffset + start,
 			PositionedOffsetWrite: offsetWrite,
-			Size:                  actualSize,
 		}
 		previousEnd = start + actualSize
 		if previousEnd > ps.Size {
