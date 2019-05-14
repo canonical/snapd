@@ -93,6 +93,7 @@ type PositionedContent struct {
 func PositionVolume(gadgetRootDir string, volume *Volume, constraints PositioningConstraints) (*PositionedVolume, error) {
 	previousEnd := Size(0)
 	farthestEnd := Size(0)
+	fartherstOffsetWrite := Size(0)
 	structures := make([]PositionedStructure, len(volume.Structure))
 	structuresByName := make(map[string]*PositionedStructure, len(volume.Structure))
 
@@ -154,16 +155,32 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 		}
 		structures[idx].PositionedOffsetWrite = offsetWrite
 
+		if offsetWrite != nil && *offsetWrite > fartherstOffsetWrite {
+			fartherstOffsetWrite = *offsetWrite
+		}
+
 		content, err := positionStructureContent(gadgetRootDir, &structures[idx], structuresByName)
 		if err != nil {
 			return nil, err
 		}
+
+		for _, c := range content {
+			if c.PositionedOffsetWrite != nil && *c.PositionedOffsetWrite > fartherstOffsetWrite {
+				fartherstOffsetWrite = *c.PositionedOffsetWrite
+			}
+		}
+
 		structures[idx].PositionedContent = content
+	}
+
+	volumeSize := farthestEnd
+	if fartherstOffsetWrite+SizeLBA48Pointer > farthestEnd {
+		volumeSize = fartherstOffsetWrite + SizeLBA48Pointer
 	}
 
 	vol := &PositionedVolume{
 		Volume:              volume,
-		Size:                farthestEnd,
+		Size:                volumeSize,
 		SectorSize:          constraints.SectorSize,
 		PositionedStructure: structures,
 	}

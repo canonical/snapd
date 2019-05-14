@@ -932,3 +932,63 @@ func (p *positioningTestSuite) TestVolumePositionOffsetWriteBadRelativeTo(c *C) 
 	c.Check(v, IsNil)
 	c.Check(err, ErrorMatches, `cannot resolve offset-write of structure #0 \("foo"\) content "foo.img": refers to an unknown structure "bar"`)
 }
+
+func (p *positioningTestSuite) TestVolumePositionOffsetWriteEnlargesVolume(c *C) {
+	var gadgetYamlStructure = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        # 1GB
+        offset-write: mbr+1073741824
+
+`
+	vol := mustParseVolume(c, gadgetYamlStructure, "pc")
+
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+	// offset-write is at 1GB
+	c.Check(v.Size, Equals, 1*gadget.SizeGiB+gadget.SizeLBA48Pointer)
+
+	var gadgetYamlContent = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        content:
+          - image: foo.img
+            # 2GB
+            offset-write: mbr+2147483648
+          - image: bar.img
+            # 1GB
+            offset-write: mbr+1073741824
+          - image: baz.img
+            # 3GB
+            offset-write: mbr+3221225472
+
+`
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "baz.img"), 100*gadget.SizeKiB, []byte(""))
+
+	vol = mustParseVolume(c, gadgetYamlContent, "pc")
+
+	v, err = gadget.PositionVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+	// foo.img offset-write is at 3GB
+	c.Check(v.Size, Equals, 3*gadget.SizeGiB+gadget.SizeLBA48Pointer)
+}
