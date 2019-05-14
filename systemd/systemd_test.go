@@ -197,7 +197,8 @@ Type=potato
 Id=baz.service
 ActiveState=inactive
 UnitFileState=disabled
-
+`[1:]),
+		[]byte(`
 Id=some.timer
 ActiveState=active
 UnitFileState=enabled
@@ -237,7 +238,10 @@ UnitFileState=disabled
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
-	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "some.timer", "other.socket"}})
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
+	})
 }
 
 func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
