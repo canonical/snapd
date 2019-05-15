@@ -290,7 +290,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			// Split the mount flags from the event propagation changes.
-			// Those have to be applied happen separately.
+			// Those have to be applied separately.
 			const sharingFlags = syscall.MS_SHARED | syscall.MS_SLAVE | syscall.MS_PRIVATE | syscall.MS_UNBINDABLE
 			flagsJustRecursive := flags & syscall.MS_REC
 			flagsJustSharing := flags & sharingFlags
