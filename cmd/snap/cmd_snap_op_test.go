@@ -1560,6 +1560,26 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
+	s.srv.total = 3
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "remove",
+			"purge":  true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
@@ -1586,17 +1606,25 @@ func (s *SnapOpSuite) TestRemoveManyRevision(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the revision`)
 }
 
-func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
+func (s *SnapOpSuite) testRemoveMany(c *check.C, purge bool) {
 	total := 3
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action": "remove",
-				"snaps":  []interface{}{"one", "two"},
-			})
+			if purge {
+				c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+					"action": "remove",
+					"snaps":  []interface{}{"one", "two"},
+					"purge":  true,
+				})
+			} else {
+				c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+					"action": "remove",
+					"snaps":  []interface{}{"one", "two"},
+				})
+			}
 
 			c.Check(r.Method, check.Equals, "POST")
 			w.WriteHeader(202)
@@ -1616,7 +1644,11 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "one", "two"})
+	args := []string{"remove", "one", "two"}
+	if purge {
+		args = append(args, "--purge")
+	}
+	rest, err := snap.Parser(snap.Client()).ParseArgs(args)
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*one removed`)
@@ -1624,6 +1656,14 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
+	s.testRemoveMany(c, false)
+}
+
+func (s *SnapOpSuite) TestRemoveManyPurge(c *check.C) {
+	s.testRemoveMany(c, true)
 }
 
 func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {
