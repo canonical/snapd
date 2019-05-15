@@ -475,6 +475,15 @@ distro_install_build_snapd(){
 
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*)
+                # We need to wait until the man db cache is updated before do daemon-reexec
+                # Otherwise the service fails and the system will be degraded during tests executions
+                for i in $(seq 20); do
+                    if ! systemctl is-active run-*.service; then
+                        break
+                    fi
+                    sleep .5
+                done
+
                 # systemd caches SELinux policy data and subsequently attempts
                 # to create sockets with incorrect context, this installation of
                 # socket activated snaps fails, see:
@@ -606,7 +615,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 "
             ;;
-        ubuntu-18.10-64)
+        ubuntu-18.10-64|ubuntu-19.04-64)
             echo "
                 evolution-data-server
                 "

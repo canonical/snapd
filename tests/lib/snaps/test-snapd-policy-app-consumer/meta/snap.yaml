@@ -191,6 +191,9 @@ apps:
   log-observe:
     command: bin/run
     plugs: [ log-observe ]
+  login-session-control:
+    command: bin/run
+    plugs: [ login-session-control ]
   lxd:
     command: bin/run
     plugs: [ lxd ]

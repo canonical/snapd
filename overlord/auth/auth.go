@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,16 +25,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/url"
-	"os"
 	"sort"
 	"strconv"
 
 	"gopkg.in/macaroon.v1"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -126,6 +121,8 @@ func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
 
 	return serializedMacaroon, nil
 }
+
+// TODO: possibly move users' related functions to a userstate package
 
 // NewUser tracks a new authenticated user and saves its details in the state
 func NewUser(st *state.State, username, email, macaroon string, discharges []string) (*UserState, error) {
@@ -259,41 +256,6 @@ func UpdateUser(st *state.State, user *UserState) error {
 	return ErrInvalidUser
 }
 
-// Device returns the device details from the state.
-func Device(st *state.State) (*DeviceState, error) {
-	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		return &DeviceState{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	if authStateData.Device == nil {
-		return &DeviceState{}, nil
-	}
-
-	return authStateData.Device, nil
-}
-
-// SetDevice updates the device details in the state.
-func SetDevice(st *state.State, device *DeviceState) error {
-	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		authStateData = AuthState{}
-	} else if err != nil {
-		return err
-	}
-
-	authStateData.Device = device
-	st.Set("auth", authStateData)
-
-	return nil
-}
-
 var ErrInvalidAuth = fmt.Errorf("invalid authentication")
 
 // CheckMacaroon returns the UserState for the given macaroon/discharges credentials
@@ -353,205 +315,11 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.
-type DeviceSessionRequestParams struct {
-	Request *asserts.DeviceSessionRequest
-	Serial  *asserts.Serial
-	Model   *asserts.Model
-}
-
-func (p *DeviceSessionRequestParams) EncodedRequest() string {
-	return string(asserts.Encode(p.Request))
-}
-
-func (p *DeviceSessionRequestParams) EncodedSerial() string {
-	return string(asserts.Encode(p.Serial))
-}
-
-func (p *DeviceSessionRequestParams) EncodedModel() string {
-	return string(asserts.Encode(p.Model))
-}
-
-// DeviceAssertions helps exposing the assertions about device identity.
-// All methods should return state.ErrNoState if the underlying needed
-// information is not (yet) available.
-type DeviceAssertions interface {
-	// Model returns the device model assertion.
-	Model() (*asserts.Model, error)
-	// Serial returns the device serial assertion.
-	Serial() (*asserts.Serial, error)
-
-	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
-	// ProxyStore returns the store assertion for the proxy store if one is set.
-	ProxyStore() (*asserts.Store, error)
-}
-
-var (
-	// ErrNoSerial indicates that a device serial is not set yet.
-	ErrNoSerial = errors.New("no device serial yet")
-)
-
 // CloudInfo reflects cloud information for the system (as captured in the core configuration).
 type CloudInfo struct {
 	Name             string `json:"name"`
 	Region           string `json:"region,omitempty"`
 	AvailabilityZone string `json:"availability-zone,omitempty"`
-}
-
-// TODO: move AuthContext to something like a storecontext package, it
-// is about more than just authorization now.
-
-// An AuthContext exposes authorization data and handles its updates.
-type AuthContext interface {
-	Device() (*DeviceState, error)
-
-	UpdateDeviceAuth(device *DeviceState, sessionMacaroon string) (actual *DeviceState, err error)
-
-	UpdateUserAuth(user *UserState, discharges []string) (actual *UserState, err error)
-
-	StoreID(fallback string) (string, error)
-
-	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
-	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
-
-	CloudInfo() (*CloudInfo, error)
-}
-
-// authContext helps keeping track of auth data in the state and exposing it.
-type authContext struct {
-	state         *state.State
-	deviceAsserts DeviceAssertions
-}
-
-// NewAuthContext returns an AuthContext for state.
-func NewAuthContext(st *state.State, deviceAsserts DeviceAssertions) AuthContext {
-	return &authContext{state: st, deviceAsserts: deviceAsserts}
-}
-
-// Device returns current device state.
-func (ac *authContext) Device() (*DeviceState, error) {
-	ac.state.Lock()
-	defer ac.state.Unlock()
-
-	return Device(ac.state)
-}
-
-// UpdateDeviceAuth updates the device auth details in state.
-// The last update wins but other device details are left unchanged.
-// It returns the updated device state value.
-func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon string) (actual *DeviceState, err error) {
-	ac.state.Lock()
-	defer ac.state.Unlock()
-
-	cur, err := Device(ac.state)
-	if err != nil {
-		return nil, err
-	}
-
-	// just do it, last update wins
-	cur.SessionMacaroon = newSessionMacaroon
-	if err := SetDevice(ac.state, cur); err != nil {
-		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
-	}
-
-	return cur, nil
-}
-
-// UpdateUserAuth updates the user auth details in state.
-// The last update wins but other user details are left unchanged.
-// It returns the updated user state value.
-func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (actual *UserState, err error) {
-	ac.state.Lock()
-	defer ac.state.Unlock()
-
-	cur, err := User(ac.state, user.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	// just do it, last update wins
-	cur.StoreDischarges = newDischarges
-	if err := UpdateUser(ac.state, cur); err != nil {
-		return nil, fmt.Errorf("internal error: cannot update just read user state: %v", err)
-	}
-
-	return cur, nil
-}
-
-// StoreID returns the store set in the model assertion, if mod != nil
-// and it's not the generic classic model, or the override from the
-// UBUNTU_STORE_ID envvar.
-func StoreID(mod *asserts.Model) string {
-	if mod != nil && mod.Ref().Unique() != sysdb.GenericClassicModel().Ref().Unique() {
-		return mod.Store()
-	}
-	return os.Getenv("UBUNTU_STORE_ID")
-}
-
-// StoreID returns the store id according to system state or
-// the fallback one if the state has none set (yet).
-func (ac *authContext) StoreID(fallback string) (string, error) {
-	var mod *asserts.Model
-	if ac.deviceAsserts != nil {
-		var err error
-		mod, err = ac.deviceAsserts.Model()
-		if err != nil && err != state.ErrNoState {
-			return "", err
-		}
-	}
-	storeID := StoreID(mod)
-	if storeID != "" {
-		return storeID, nil
-	}
-	return fallback, nil
-}
-
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.
-func (ac *authContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
-	if ac.deviceAsserts == nil {
-		return nil, ErrNoSerial
-	}
-	params, err := ac.deviceAsserts.DeviceSessionRequestParams(nonce)
-	if err == state.ErrNoState {
-		return nil, ErrNoSerial
-	}
-	if err != nil {
-		return nil, err
-	}
-	return params, nil
-}
-
-// ProxyStoreParams returns the id and URL of the proxy store if one is set. Returns the defaultURL otherwise and id = "".
-func (ac *authContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
-	var sto *asserts.Store
-	if ac.deviceAsserts != nil {
-		var err error
-		sto, err = ac.deviceAsserts.ProxyStore()
-		if err != nil && err != state.ErrNoState {
-			return "", nil, err
-		}
-	}
-	if sto != nil {
-		return sto.Store(), sto.URL(), nil
-	}
-	return "", defaultURL, nil
-}
-
-// CloudInfo returns the cloud instance information (if available).
-func (ac *authContext) CloudInfo() (*CloudInfo, error) {
-	ac.state.Lock()
-	defer ac.state.Unlock()
-	tr := config.NewTransaction(ac.state)
-	var cloudInfo CloudInfo
-	err := tr.Get("core", "cloud", &cloudInfo)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, err
-	}
-	if cloudInfo.Name != "" {
-		return &cloudInfo, nil
-	}
-	return nil, nil
 }
 
 type ensureContextKey struct{}

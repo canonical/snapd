@@ -50,14 +50,6 @@
 
 #define MAX_BUF 1000
 
-/*!
- * The void directory.
- *
- * Snap confine moves to that directory in case it cannot retain the current
- * working directory across the pivot_root call.
- **/
-#define SC_VOID_DIR "/var/lib/snapd/void"
-
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -124,23 +116,8 @@ static void setup_private_mount(const char *snap_name)
 		die("cannot chown private tmp directory %s/tmp to root.root",
 		    base_dir);
 	}
-	// TODO: move cwd jump to main of snap-confine.
-	// chdir to '/' since the mount won't apply to the current directory
-	char *pwd SC_CLEANUP(sc_cleanup_string) = NULL;
-	pwd = get_current_dir_name();
-	if (pwd == NULL) {
-		die("cannot get current working directory");
-	}
-	if (chdir("/") < 0) {
-		die("cannot change directory to \"/\"");
-	}
 	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
 	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
-
-	// TODO: Remove after switching to global handling of working directory.
-	if (chdir(pwd) < 0) {
-		die("cannot restore working directory to %s", pwd);
-	}
 }
 
 // TODO: fold this into bootstrap
@@ -556,14 +533,6 @@ static bool __attribute__((used))
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const sc_invocation * inv)
 {
-	// Get the current working directory before we start fiddling with
-	// mounts and possibly pivot_root.  At the end of the whole process, we
-	// will try to re-locate to the same directory (if possible).
-	char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
-	vanilla_cwd = get_current_dir_name();
-	if (vanilla_cwd == NULL) {
-		die("cannot get the current working directory");
-	}
 	// Classify the current distribution, as claimed by /etc/os-release.
 	sc_distro distro = sc_classify_distro();
 
@@ -598,16 +567,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/var/lib/extrausers",.is_optional = true},	// access to UID/GID of extrausers (if available)
 			{},
 		};
-		char rootfs_dir[PATH_MAX] = { 0 };
-		sc_must_snprintf(rootfs_dir, sizeof rootfs_dir,
-				 "%s/%s/current/", SNAP_MOUNT_DIR,
-				 inv->base_snap_name);
-		if (access(rootfs_dir, F_OK) != 0) {
-			die("cannot locate the base snap: %s",
-			    inv->base_snap_name);
-		}
 		struct sc_mount_config normal_config = {
-			.rootfs_dir = rootfs_dir,
+			.rootfs_dir = inv->rootfs_dir,
 			.mounts = mounts,
 			.distro = distro,
 			.normal_mode = true,
@@ -642,17 +603,6 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 
 	// setup the security backend bind mounts
 	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
-
-	// Try to re-locate back to vanilla working directory. This can fail
-	// because that directory is no longer present.
-	if (chdir(vanilla_cwd) != 0) {
-		debug("cannot remain in %s, moving to the void directory",
-		      vanilla_cwd);
-		if (chdir(SC_VOID_DIR) != 0) {
-			die("cannot change directory to %s", SC_VOID_DIR);
-		}
-		debug("successfully moved to %s", SC_VOID_DIR);
-	}
 }
 
 static bool is_mounted_with_shared_option(const char *dir)
@@ -697,9 +647,6 @@ void sc_ensure_shared_snap_mount(void)
 
 static void sc_make_slave_mount_ns(void)
 {
-	if (unshare(CLONE_NEWNS) < 0) {
-		die("can not unshare mount namespace");
-	}
 	// In our new mount namespace, recursively change all mounts
 	// to slave mode, so we see changes from the parent namespace
 	// but don't propagate our own changes.

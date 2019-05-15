@@ -562,16 +562,16 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		// u:<username>
 		{"setuid :root", `cannot parse line: cannot parse token ":root" .*`},
 		{"setuid u:", `cannot parse line: cannot parse token "u:" \(line "setuid u:"\): "" must be a valid username`},
-		{"setuid u:0", `cannot parse line: cannot parse token "u:0" \(line "setuid u:0"\): "0" must be a valid username`},
+		{"setuid u:!", `cannot parse line: cannot parse token "u:!" \(line "setuid u:!"\): "!" must be a valid username`},
 		{"setuid u:b@d|npu+", `cannot parse line: cannot parse token "u:b@d|npu+" \(line "setuid u:b@d|npu+"\): "b@d|npu+" must be a valid username`},
-		{"setuid u:snap.bad", `cannot parse line: cannot parse token "u:snap.bad" \(line "setuid u:snap.bad"\): "snap.bad" must be a valid username`},
+		{"setuid u:snap|bad", `cannot parse line: cannot parse token "u:snap|bad" \(line "setuid u:snap|bad"\): "snap|bad" must be a valid username`},
 		{"setuid U:root", `cannot parse line: cannot parse token "U:root" .*`},
 		{"setuid u:nonexistent", `cannot parse line: cannot parse token "u:nonexistent" \(line "setuid u:nonexistent"\): user: unknown user nonexistent`},
 		// g:<groupname>
 		{"setgid g:", `cannot parse line: cannot parse token "g:" \(line "setgid g:"\): "" must be a valid group name`},
-		{"setgid g:0", `cannot parse line: cannot parse token "g:0" \(line "setgid g:0"\): "0" must be a valid group name`},
+		{"setgid g:!", `cannot parse line: cannot parse token "g:!" \(line "setgid g:!"\): "!" must be a valid group name`},
 		{"setgid g:b@d|npu+", `cannot parse line: cannot parse token "g:b@d|npu+" \(line "setgid g:b@d|npu+"\): "b@d|npu+" must be a valid group name`},
-		{"setgid g:snap.bad", `cannot parse line: cannot parse token "g:snap.bad" \(line "setgid g:snap.bad"\): "snap.bad" must be a valid group name`},
+		{"setgid g:snap|bad", `cannot parse line: cannot parse token "g:snap|bad" \(line "setgid g:snap|bad"\): "snap|bad" must be a valid group name`},
 		{"setgid G:root", `cannot parse line: cannot parse token "G:root" .*`},
 		{"setgid g:nonexistent", `cannot parse line: cannot parse token "g:nonexistent" \(line "setgid g:nonexistent"\): group: unknown group nonexistent`},
 	} {

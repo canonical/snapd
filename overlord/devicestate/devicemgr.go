@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,11 +33,13 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -96,7 +98,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -185,7 +187,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := auth.SetDevice(st, device); err != nil {
+	if err := internal.SetDevice(st, device); err != nil {
 		return err
 	}
 	return nil
@@ -195,7 +197,9 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
+
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -241,7 +245,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	var storeID, gadget string
-	model, err := Model(m.state)
+	model, err := m.Model()
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -265,29 +269,22 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	var gadgetInfo *snap.Info
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
-		var err error
-		gadgetInfo, err = snapstate.GadgetInfo(m.state)
-		if err == state.ErrNoState {
-			// no gadget installed yet, cannot proceed
+		// if have a gadget wait until seeded to proceed
+		if !seeded {
+			// this will be run again, so eventually when the system is
+			// seeded the code below runs
 			return nil
+
 		}
+
+		gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
 		if err != nil {
 			return err
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
-	}
-
-	// When the prepare-device hook is used we need a fully seeded system
-	// to ensure the prepare-device hook has access to the things it
-	// needs
-	if !seeded && hasPrepareDeviceHook {
-		// this will be run again, so eventually when the system is
-		// seeded the code below runs
-		return nil
 	}
 
 	// have some backoff between full retries
@@ -307,7 +304,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if hasPrepareDeviceHook {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.InstanceName(),
+			Snap: gadget,
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
@@ -329,6 +326,9 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
+
 	return nil
 }
 
@@ -339,6 +339,8 @@ var populateStateFromSeed = populateStateFromSeedImpl
 func (m *DeviceManager) ensureSeedYaml() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -353,7 +355,10 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := populateStateFromSeed(m.state)
+	var tsAll []*state.TaskSet
+	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state, tm)
+	})
 	if err != nil {
 		return err
 	}
@@ -368,6 +373,8 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 	m.state.EnsureBefore(0)
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
 	return nil
 }
 
@@ -487,7 +494,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := auth.Device(m.state)
+	device, err := m.device()
 	if err != nil {
 		return nil, err
 	}
@@ -503,47 +510,61 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
-// implementing auth.DeviceAssertions
-// sanity check
-var _ auth.DeviceAssertions = (*DeviceManager)(nil)
-
-// Model returns the device model assertion.
-func (m *DeviceManager) Model() (*asserts.Model, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Model(m.state)
-}
-
-// Serial returns the device serial assertion.
-func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Serial(m.state)
-}
-
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
 }
 
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
+// device returns current device state.
+func (m *DeviceManager) device() (*auth.DeviceState, error) {
+	return internal.Device(m.state)
+}
 
-	model, err := Model(m.state)
-	if err != nil {
-		return nil, err
+// setDevice sets the device details in the state.
+func (m *DeviceManager) setDevice(device *auth.DeviceState) error {
+	return internal.SetDevice(m.state, device)
+}
+
+// Model returns the device model assertion.
+func (m *DeviceManager) Model() (*asserts.Model, error) {
+	return findModel(m.state)
+}
+
+// Serial returns the device serial assertion.
+func (m *DeviceManager) Serial() (*asserts.Serial, error) {
+	return findSerial(m.state)
+}
+
+// implement storecontext.Backend
+
+type storeContextBackend struct {
+	*DeviceManager
+}
+
+func (scb storeContextBackend) Device() (*auth.DeviceState, error) {
+	return scb.DeviceManager.device()
+}
+
+func (scb storeContextBackend) SetDevice(device *auth.DeviceState) error {
+	return scb.DeviceManager.setDevice(device)
+}
+
+func (scb storeContextBackend) ProxyStore() (*asserts.Store, error) {
+	st := scb.DeviceManager.state
+	return proxyStore(st, config.NewTransaction(st))
+}
+
+// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
+func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
+	if serial == nil {
+		// shouldn't happen, but be safe
+		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
-	serial, err := Serial(m.state)
-	if err != nil {
-		return nil, err
+	privKey, err := scb.DeviceManager.keyPair()
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
-
-	privKey, err := m.keyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -559,18 +580,9 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSe
 		return nil, err
 	}
 
-	return &auth.DeviceSessionRequestParams{
-		Request: a.(*asserts.DeviceSessionRequest),
-		Serial:  serial,
-		Model:   model,
-	}, err
-
+	return a.(*asserts.DeviceSessionRequest), nil
 }
 
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return ProxyStore(m.state)
+func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
+	return storeContextBackend{m}
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -76,10 +77,19 @@ func (s *assertsSuite) TestGetAsserts(c *check.C) {
 	c.Check(resp.Result, check.DeepEquals, map[string][]string{"types": asserts.TypeNames()})
 }
 
+func (s *assertsSuite) addAsserts(assertions ...asserts.Assertion) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, assertions...)
+}
+
 func (s *assertsSuite) TestAssertOK(c *check.C) {
 	// add store key
+	s.addAsserts()
+
 	st := s.o.State()
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
 
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
@@ -155,14 +165,10 @@ func (s *assertsSuite) TestAssertError(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyAll(c *check.C) {
-	// add store key
-	st := s.o.State()
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
-
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
 		"account-id": "developer1-id",
 	}, "")
-	daemon.AssertAdd(st, acct)
+	s.addAsserts(acct)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account", nil)
@@ -200,12 +206,8 @@ func (s *assertsSuite) TestAssertsFindManyAll(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyFilter(c *check.C) {
-	st := s.o.State()
-	// add store key
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
-
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	daemon.AssertAdd(st, acct)
+	s.addAsserts(acct)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account?username=developer1", nil)
@@ -230,12 +232,8 @@ func (s *assertsSuite) TestAssertsFindManyFilter(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyNoResults(c *check.C) {
-	// add store key
-	st := s.o.State()
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
-
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	daemon.AssertAdd(st, acct)
+	s.addAsserts(acct)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account?username=xyzzyx", nil)
@@ -270,12 +268,8 @@ func (s *assertsSuite) TestAssertsInvalidType(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONFilter(c *check.C) {
-	st := s.o.State()
-	// add store key
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
-
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	daemon.AssertAdd(st, acct)
+	s.addAsserts(acct)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account?json=true&username=developer1", nil)
@@ -301,12 +295,8 @@ func (s *assertsSuite) TestAssertsFindManyJSONFilter(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
-	st := s.o.State()
-	// add store key
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
-
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	daemon.AssertAdd(st, acct)
+	s.addAsserts(acct)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account?json=true&username=xyz", nil)
@@ -328,9 +318,8 @@ func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
-	st := s.o.State()
 	// add store key
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
+	s.addAsserts()
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account-key?json=true", nil)
@@ -362,9 +351,8 @@ func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
-	st := s.o.State()
 	// add store key
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
+	s.addAsserts()
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account-key?json=headers&account-id=can0nical", nil)
@@ -395,9 +383,8 @@ func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
-	st := s.o.State()
 	// add store key
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
+	s.addAsserts()
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account-key?json=header&account-id=can0nical", nil)
@@ -422,12 +409,8 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONNopFilter(c *check.C) {
-	st := s.o.State()
-	// add store key
-	daemon.AssertAdd(st, s.storeSigning.StoreAccountKey(""))
-
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	daemon.AssertAdd(st, acct)
+	s.addAsserts(acct)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account?json=false&username=developer1", nil)

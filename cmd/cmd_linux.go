@@ -114,6 +114,8 @@ func coreSupportsReExec(corePath string) bool {
 	return true
 }
 
+// TODO: move to cmd/cmdutil/
+//
 // InternalToolPath returns the path of an internal snapd tool. The tool
 // *must* be located inside the same tree as the current binary.
 //
@@ -143,6 +145,14 @@ func InternalToolPath(tool string) (string, error) {
 			// /usr/, but does not start with one
 			prefix := exe[:idx]
 			return filepath.Join(prefix, "/usr/lib/snapd", tool), nil
+		}
+		if idx == -1 {
+			// or perhaps some other random location, make sure the tool
+			// exists there and is an executable
+			maybeTool := filepath.Join(filepath.Dir(exe), tool)
+			if osutil.IsExecutable(maybeTool) {
+				return maybeTool, nil
+			}
 		}
 	}
 
