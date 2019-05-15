@@ -308,7 +308,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			}
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, flagsForMount, strings.Join(unparsed, ","), err)
 			if err == nil && maskedFlagsPropagation != 0 {
-				// now change mount propagationi (shared/rshared, private/rprivate,
+				// now change mount propagation (shared/rshared, private/rprivate,
 				// slave/rslave, unbindable/runbindable).
 				flagsForMount := uintptr(maskedFlagsPropagation | maskedFlagsRecursive)
 				err = sysMount("", c.Entry.Dir, "", flagsForMount, "")
