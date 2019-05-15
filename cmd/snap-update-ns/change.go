@@ -296,18 +296,20 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			maskedFlagsPropagation := flags & propagationMask
 			maskedFlagsNotPropagationNotRecursive := flags & ^(propagationMask | syscall.MS_REC)
 
-			// Use Secure.BindMount for bind mounts
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
+				// bind / rbind mount
 				flagsForMount := uintptr(maskedFlagsNotPropagationNotRecursive | maskedFlagsRecursive)
 				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flagsForMount))
 				logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, flagsForMount, strings.Join(unparsed, ","), err)
 			} else {
+				// normal mount, not bind / rbind, not propagation change
 				flagsForMount := uintptr(maskedFlagsNotPropagationNotRecursive)
 				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","))
 				logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","), err)
 			}
-			// If necessary apply mount event sharing changes as well. Note that we also take the MS_REC flag into account.
 			if err == nil && maskedFlagsPropagation != 0 {
+				// now change mount propagationi (shared/rshared, private/rprivate,
+				// slave/rslave, unbindable/runbindable).
 				flagsForMount := uintptr(maskedFlagsPropagation | maskedFlagsRecursive)
 				err = sysMount("", c.Entry.Dir, "", flagsForMount, "")
 				logger.Debugf("mount %q %q %q %d %q (error: %v)", "", c.Entry.Dir, "", flagsForMount, "", err)
