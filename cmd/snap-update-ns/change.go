@@ -291,24 +291,24 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			// Split the mount flags from the event propagation changes.
 			// Those have to be applied separately.
-			const sharingFlags = syscall.MS_SHARED | syscall.MS_SLAVE | syscall.MS_PRIVATE | syscall.MS_UNBINDABLE
-			flagsJustRecursive := flags & syscall.MS_REC
-			flagsJustSharing := flags & sharingFlags
-			flagsExceptSharingAndRecursive := flags & ^(sharingFlags | syscall.MS_REC)
+			const propagationMask = syscall.MS_SHARED | syscall.MS_SLAVE | syscall.MS_PRIVATE | syscall.MS_UNBINDABLE
+			maskedFlagsRecursive := flags & syscall.MS_REC
+			maskedFlagsPropagation := flags & propagationMask
+			maskedFlagsNotPropagationNotRecursive := flags & ^(propagationMask | syscall.MS_REC)
 
 			// Use Secure.BindMount for bind mounts
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
-				flagsForMount := uintptr(flagsExceptSharingAndRecursive | flagsJustRecursive)
+				flagsForMount := uintptr(maskedFlagsNotPropagationNotRecursive | maskedFlagsRecursive)
 				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flagsForMount))
 				logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, flagsForMount, strings.Join(unparsed, ","), err)
 			} else {
-				flagsForMount := uintptr(flagsExceptSharingAndRecursive)
+				flagsForMount := uintptr(maskedFlagsNotPropagationNotRecursive)
 				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","))
 				logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","), err)
 			}
 			// If necessary apply mount event sharing changes as well. Note that we also take the MS_REC flag into account.
-			if err == nil && flagsJustSharing != 0 {
-				flagsForMount := uintptr(flagsJustSharing | flagsJustRecursive)
+			if err == nil && maskedFlagsPropagation != 0 {
+				flagsForMount := uintptr(maskedFlagsPropagation | maskedFlagsRecursive)
 				err = sysMount("", c.Entry.Dir, "", flagsForMount, "")
 				logger.Debugf("mount %q %q %q %d %q (error: %v)", "", c.Entry.Dir, "", flagsForMount, "", err)
 			}
