@@ -1126,7 +1126,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps, inst.Purge)
+	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps, &snapstate.RemoveFlags{Purge: inst.Purge})
 	if err != nil {
 		return nil, err
 	}
@@ -1151,7 +1151,7 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision, inst.Purge)
+	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision, &snapstate.RemoveFlags{Purge: inst.Purge})
 	if err != nil {
 		return "", nil, err
 	}
