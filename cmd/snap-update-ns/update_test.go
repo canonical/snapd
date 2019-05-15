@@ -183,7 +183,7 @@ func (s *updateSuite) TestSyntheticChanges(c *C) {
 }
 
 func (s *updateSuite) TestCannotPerformContentInterfaceChange(c *C) {
-	// When performing a mount change for a content interface fails we simply
+	// When performing a mount change for a content interface fails, we simply
 	// ignore the error carry on. Such changes are not stored in the updated
 	// current profile.
 	var saved *osutil.MountProfile
