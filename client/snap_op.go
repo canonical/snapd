@@ -85,7 +85,6 @@ type multiActionData struct {
 	Action string   `json:"action"`
 	Snaps  []string `json:"snaps,omitempty"`
 	Users  []string `json:"users,omitempty"`
-	Purge  bool     `json:"purge,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
