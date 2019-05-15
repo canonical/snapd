@@ -102,7 +102,6 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-                manual: true
 
     google-sru:
         type: google

@@ -21,11 +21,9 @@ package daemon
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 )
@@ -62,23 +60,10 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	tss, err := devicestateRemodel(st, newModel)
+	chg, err := devicestateRemodel(st, newModel)
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
-	model, err := devicestate.Model(st)
-	if err != nil {
-		return InternalError("cannot get model: %v", err)
-	}
-
-	var msg string
-	if model.BrandID() == newModel.BrandID() && model.Model() == newModel.Model() {
-		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), model.Revision(), newModel.Revision())
-	} else {
-		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), newModel.BrandID(), newModel.Model(), newModel.Revision())
-	}
-	chg := newChange(st, "remodel", msg, tss, nil)
-
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
