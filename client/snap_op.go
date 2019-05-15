@@ -39,6 +39,7 @@ type SnapOptions struct {
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
+	Purge            bool   `json:"purge,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -84,6 +85,7 @@ type multiActionData struct {
 	Action string   `json:"action"`
 	Snaps  []string `json:"snaps,omitempty"`
 	Users  []string `json:"users,omitempty"`
+	Purge  bool     `json:"purge,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -175,8 +177,8 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 }
 
 func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
-	if options != nil {
-		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
+	if options != nil && options.Dangerous {
+		return "", ErrDangerousNotApplicable
 	}
 	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
 
@@ -188,8 +190,10 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		Action: actionName,
 		Snaps:  snaps,
 	}
+	// XXX: options were not really supported till introduction of '--purge', is action.Users expected to work?
 	if options != nil {
 		action.Users = options.Users
+		action.Purge = options.Purge
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {
