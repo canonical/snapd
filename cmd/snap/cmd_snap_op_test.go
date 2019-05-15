@@ -1617,6 +1617,7 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 				"action": "remove",
 				"snaps":  []interface{}{"one", "two"},
 			})
+
 			c.Check(r.Method, check.Equals, "POST")
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
