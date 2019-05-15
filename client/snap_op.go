@@ -177,8 +177,8 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 }
 
 func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
-	if options != nil && options.Dangerous {
-		return "", ErrDangerousNotApplicable
+	if options != nil {
+		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
 	}
 	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
 
@@ -190,10 +190,8 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		Action: actionName,
 		Snaps:  snaps,
 	}
-	// XXX: options were not really supported till introduction of '--purge', is action.Users expected to work?
 	if options != nil {
 		action.Users = options.Users
-		action.Purge = options.Purge
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {

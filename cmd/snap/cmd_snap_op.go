@@ -185,17 +185,15 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) Execute([]string) error {
+	opts := &client.SnapOptions{Revision: x.Revision, Purge: x.Purge}
 	if len(x.Positional.Snaps) == 1 {
-		opts := &client.SnapOptions{Revision: x.Revision, Purge: x.Purge}
 		return x.removeOne(opts)
 	}
 
 	if x.Revision != "" {
 		return errors.New(i18n.G("a single snap name is needed to specify the revision"))
 	}
-
-	opts := &client.SnapOptions{Purge: x.Purge}
-	return x.removeMany(opts)
+	return x.removeMany(nil)
 }
 
 type channelMixin struct {
@@ -994,7 +992,8 @@ func init() {
 		waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Remove only the given revision"),
-			"purge":    i18n.G("Don't create automatic snapshot, just purge all snap data"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"purge": i18n.G("Don't create automatic snapshot, just purge all snap data"),
 		}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{

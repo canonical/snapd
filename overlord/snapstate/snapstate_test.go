@@ -11216,7 +11216,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 		Current: snap.R(1),
 	})
 
-	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, nil)
+	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})

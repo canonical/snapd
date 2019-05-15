@@ -1606,26 +1606,17 @@ func (s *SnapOpSuite) TestRemoveManyRevision(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the revision`)
 }
 
-func (s *SnapOpSuite) testRemoveMany(c *check.C, purge bool) {
+func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 	total := 3
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			if purge {
-				c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-					"action": "remove",
-					"snaps":  []interface{}{"one", "two"},
-					"purge":  true,
-				})
-			} else {
-				c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-					"action": "remove",
-					"snaps":  []interface{}{"one", "two"},
-				})
-			}
-
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action": "remove",
+				"snaps":  []interface{}{"one", "two"},
+			})
 			c.Check(r.Method, check.Equals, "POST")
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
@@ -1644,11 +1635,7 @@ func (s *SnapOpSuite) testRemoveMany(c *check.C, purge bool) {
 		n++
 	})
 
-	args := []string{"remove", "one", "two"}
-	if purge {
-		args = append(args, "--purge")
-	}
-	rest, err := snap.Parser(snap.Client()).ParseArgs(args)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "one", "two"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*one removed`)
@@ -1656,14 +1643,6 @@ func (s *SnapOpSuite) testRemoveMany(c *check.C, purge bool) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
-}
-
-func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
-	s.testRemoveMany(c, false)
-}
-
-func (s *SnapOpSuite) TestRemoveManyPurge(c *check.C) {
-	s.testRemoveMany(c, true)
 }
 
 func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {

@@ -3833,7 +3833,7 @@ func (s *apiSuite) TestInstallManyEmptyName(c *check.C) {
 }
 
 func (s *apiSuite) TestRemoveMany(c *check.C) {
-	snapstateRemoveMany = func(s *state.State, names []string, flags *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+	snapstateRemoveMany = func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-remove-2", "Remove two")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
