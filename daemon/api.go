@@ -32,7 +32,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -54,7 +53,6 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -200,12 +198,6 @@ var (
 		GET:    getChanges,
 	}
 
-	createUserCmd = &Command{
-		Path:     "/v2/create-user",
-		POST:     postCreateUser,
-		RootOnly: true,
-	}
-
 	buyCmd = &Command{
 		Path: "/v2/buy",
 		POST: postBuy,
@@ -220,12 +212,6 @@ var (
 		Path:   "/v2/snapctl",
 		SnapOK: true,
 		POST:   runSnapctl,
-	}
-
-	usersCmd = &Command{
-		Path:     "/v2/users",
-		GET:      getUsers,
-		RootOnly: true,
 	}
 
 	sectionsCmd = &Command{
@@ -2114,250 +2100,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 var (
 	runSnapctlUcrednetGet = ucrednetGet
 	ctlcmdRun             = ctlcmd.Run
-	osutilAddUser         = osutil.AddUser
 )
-
-func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
-	v, err := theStore.UserInfo(email)
-	if err != nil {
-		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
-	}
-	if len(v.SSHKeys) == 0 {
-		return "", nil, fmt.Errorf("cannot create user for %q: no ssh keys found", email)
-	}
-
-	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)
-	opts := &osutil.AddUserOptions{
-		SSHKeys: v.SSHKeys,
-		Gecos:   gecos,
-	}
-	return v.Username, opts, nil
-}
-
-func createAllKnownSystemUsers(o *overlord.Overlord, createData *postUserCreateData) Response {
-	var createdUsers []userResponseData
-
-	st := o.State()
-	st.Lock()
-	db := assertstate.DB(st)
-	modelAs, err := o.DeviceManager().Model()
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get model assertion")
-	}
-
-	headers := map[string]string{
-		"brand-id": modelAs.BrandID(),
-	}
-	st.Lock()
-	assertions, err := db.FindMany(asserts.SystemUserType, headers)
-	st.Unlock()
-	if err != nil && !asserts.IsNotFound(err) {
-		return BadRequest("cannot find system-user assertion: %s", err)
-	}
-
-	for _, as := range assertions {
-		email := as.(*asserts.SystemUser).Email()
-		// we need to use getUserDetailsFromAssertion as this verifies
-		// the assertion against the current brand/model/time
-		username, opts, err := getUserDetailsFromAssertion(o, email)
-		if err != nil {
-			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
-			continue
-		}
-		// ignore already existing users
-		if _, err := user.Lookup(username); err == nil {
-			continue
-		}
-
-		// FIXME: duplicated code
-		opts.Sudoer = createData.Sudoer
-		opts.ExtraUsers = !release.OnClassic
-
-		if err := osutilAddUser(username, opts); err != nil {
-			return InternalError("cannot add user %q: %s", username, err)
-		}
-		if err := setupLocalUser(st, username, email); err != nil {
-			return InternalError("%s", err)
-		}
-		createdUsers = append(createdUsers, userResponseData{
-			Username: username,
-			SSHKeys:  opts.SSHKeys,
-		})
-	}
-
-	return SyncResponse(createdUsers, nil)
-}
-
-func getUserDetailsFromAssertion(o *overlord.Overlord, email string) (string, *osutil.AddUserOptions, error) {
-	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
-
-	st := o.State()
-	st.Lock()
-	db := assertstate.DB(st)
-	modelAs, err := o.DeviceManager().Model()
-	st.Unlock()
-	if err != nil {
-		return "", nil, fmt.Errorf(errorPrefix+"cannot get model assertion: %s", err)
-	}
-
-	brandID := modelAs.BrandID()
-	series := modelAs.Series()
-	model := modelAs.Model()
-
-	a, err := db.Find(asserts.SystemUserType, map[string]string{
-		"brand-id": brandID,
-		"email":    email,
-	})
-	if err != nil {
-		return "", nil, fmt.Errorf(errorPrefix+"%v", err)
-	}
-	// the asserts package guarantees that this cast will work
-	su := a.(*asserts.SystemUser)
-
-	// cross check that the assertion is valid for the given series/model
-
-	// check that the signer of the assertion is one of the accepted ones
-	sysUserAuths := modelAs.SystemUserAuthority()
-	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
-	}
-	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
-	}
-	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
-	}
-	if !su.ValidAt(time.Now()) {
-		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
-	}
-
-	gecos := fmt.Sprintf("%s,%s", email, su.Name())
-	opts := &osutil.AddUserOptions{
-		SSHKeys:             su.SSHKeys(),
-		Gecos:               gecos,
-		Password:            su.Password(),
-		ForcePasswordChange: su.ForcePasswordChange(),
-	}
-	return su.Username(), opts, nil
-}
-
-type postUserCreateData struct {
-	Email        string `json:"email"`
-	Sudoer       bool   `json:"sudoer"`
-	Known        bool   `json:"known"`
-	ForceManaged bool   `json:"force-managed"`
-}
-
-var userLookup = user.Lookup
-
-func setupLocalUser(st *state.State, username, email string) error {
-	user, err := userLookup(username)
-	if err != nil {
-		return fmt.Errorf("cannot lookup user %q: %s", username, err)
-	}
-	uid, gid, err := osutil.UidGid(user)
-	if err != nil {
-		return err
-	}
-	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
-	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
-		return err
-	}
-
-	// setup new user, local-only
-	st.Lock()
-	authUser, err := auth.NewUser(st, username, email, "", nil)
-	st.Unlock()
-	if err != nil {
-		return fmt.Errorf("cannot persist authentication details: %v", err)
-	}
-	// store macaroon auth, user's ID, email and username in auth.json in
-	// the new users home dir
-	outStr, err := json.Marshal(struct {
-		ID       int    `json:"id"`
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Macaroon string `json:"macaroon"`
-	}{
-		ID:       authUser.ID,
-		Username: authUser.Username,
-		Email:    authUser.Email,
-		Macaroon: authUser.Macaroon,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot marshal auth data: %s", err)
-	}
-	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
-		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
-	}
-
-	return nil
-}
-
-func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	var createData postUserCreateData
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&createData); err != nil {
-		return BadRequest("cannot decode create-user data from request body: %v", err)
-	}
-
-	// verify request
-	st := c.d.overlord.State()
-	st.Lock()
-	users, err := auth.Users(st)
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get user count: %s", err)
-	}
-
-	if !createData.ForceManaged {
-		if len(users) > 0 {
-			return BadRequest("cannot create user: device already managed")
-		}
-		if release.OnClassic {
-			return BadRequest("cannot create user: device is a classic system")
-		}
-	}
-
-	// special case: the user requested the creation of all known
-	// system-users
-	if createData.Email == "" && createData.Known {
-		return createAllKnownSystemUsers(c.d.overlord, &createData)
-	}
-	if createData.Email == "" {
-		return BadRequest("cannot create user: 'email' field is empty")
-	}
-
-	var username string
-	var opts *osutil.AddUserOptions
-	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(c.d.overlord, createData.Email)
-	} else {
-		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
-	}
-	if err != nil {
-		return BadRequest("%s", err)
-	}
-
-	// FIXME: duplicated code
-	opts.Sudoer = createData.Sudoer
-	opts.ExtraUsers = !release.OnClassic
-
-	if err := osutilAddUser(username, opts); err != nil {
-		return BadRequest("cannot create user %s: %s", username, err)
-	}
-
-	if err := setupLocalUser(c.d.overlord.State(), username, createData.Email); err != nil {
-		return InternalError("%s", err)
-	}
-
-	return SyncResponse(&userResponseData{
-		Username: username,
-		SSHKeys:  opts.SSHKeys,
-	}, nil)
-}
 
 func convertBuyError(err error) Response {
 	switch err {
@@ -2480,26 +2223,6 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(result, nil)
-}
-
-func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	st := c.d.overlord.State()
-	st.Lock()
-	users, err := auth.Users(st)
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get users: %s", err)
-	}
-
-	resp := make([]userResponseData, len(users))
-	for i, u := range users {
-		resp[i] = userResponseData{
-			Username: u.Username,
-			Email:    u.Email,
-			ID:       u.ID,
-		}
-	}
-	return SyncResponse(resp, nil)
 }
 
 // aliasAction is an action performed on aliases
