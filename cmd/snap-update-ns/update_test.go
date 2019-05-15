@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"fmt"
 
 	. "gopkg.in/check.v1"
 
@@ -55,38 +56,36 @@ func (s *updateSuite) TestUpdateFlow(c *C) {
 	// - the needed changes are computed
 	// - the needed changes are performed (one by one)
 	// - the updated current profile is saved
-	var loadedCurrent, loadedDesired, changesComputed, savedCurrent bool
-	var changesPerformed int
+	var funcsCalled []string
+	var nChanges int
 	ctx := &testProfileUpdateContext{
 		loadCurrentProfile: func() (*osutil.MountProfile, error) {
-			loadedCurrent = true
+			funcsCalled = append(funcsCalled, "loaded-current")
 			return &osutil.MountProfile{}, nil
 		},
 		loadDesiredProfile: func() (*osutil.MountProfile, error) {
-			loadedDesired = true
+			funcsCalled = append(funcsCalled, "loaded-desired")
 			return &osutil.MountProfile{}, nil
 		},
 		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			changesComputed = true
+			funcsCalled = append(funcsCalled, "changes-computed")
 			return []*update.Change{{}, {}}
 		},
 		performChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			changesPerformed++
+			nChanges++
+			funcsCalled = append(funcsCalled, fmt.Sprintf("change-%d-performed", nChanges))
 			return nil, nil
 		},
 		saveCurrentProfile: func(*osutil.MountProfile) error {
-			savedCurrent = true
+			funcsCalled = append(funcsCalled, "saved-current")
 			return nil
 		},
 	}
 	restore := ctx.MockRelatedFunctions()
 	defer restore()
 	c.Assert(update.ExecuteMountProfileUpdate(ctx), IsNil)
-	c.Check(loadedCurrent, Equals, true)
-	c.Check(loadedDesired, Equals, true)
-	c.Check(changesComputed, Equals, true)
-	c.Check(changesPerformed, Equals, 2)
-	c.Check(savedCurrent, Equals, true)
+	c.Assert(funcsCalled, DeepEquals, []string{"loaded-desired", "loaded-current",
+		"changes-computed", "change-1-performed", "change-2-performed", "saved-current"})
 }
 
 func (s *updateSuite) TestResultingProfile(c *C) {
