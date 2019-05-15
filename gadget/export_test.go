@@ -31,3 +31,7 @@ var (
 
 	EncodeLabel = encodeLabel
 )
+
+func (r *RawStructureUpdater) ContentBackupPath(ps *PositionedStructure, pc *PositionedContent, idx int) string {
+	return r.contentBackupPath(ps, pc, idx)
+}
