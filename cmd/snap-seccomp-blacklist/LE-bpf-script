@@ -1,0 +1,3 @@
+load bpf-blob LE-blacklist.bpf
+disassemble
+dump

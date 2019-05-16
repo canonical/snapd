@@ -26,8 +26,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -36,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -188,14 +187,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 
 	s.st.Set("seeded", true)
 	s.st.Set("refresh-privacy-key", "privacy-key")
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return sysdb.GenericClassicModel(), nil
-	}
-}
-
-func (s *servicectlSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-	snapstate.Model = nil
+	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
@@ -368,15 +360,17 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	c.Assert(tts[0].Tasks(), HasLen, 18)
 	c.Assert(tts[1].Tasks(), HasLen, 18)
+	c.Assert(tts[2].Tasks(), HasLen, 1)
+	c.Assert(tts[2].Tasks()[0].Kind(), Equals, "check-rerefresh")
 	chg.AddAll(tts[0])
 	chg.AddAll(tts[1])
 
 	s.st.Unlock()
 
-	for _, ts := range tts {
+	for _, ts := range tts[:2] {
 		tsTasks := ts.Tasks()
 		// assumes configure task is last
 		task := tsTasks[len(tsTasks)-1]

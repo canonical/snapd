@@ -42,6 +42,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -54,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -285,13 +287,38 @@ func profileGlobs(snapName string) []string {
 	return []string{interfaces.SecurityTagGlob(snapName), nsProfile(snapName)}
 }
 
+// Determine if a profile filename is removable during core refresh/rollback.
+// This is needed because core devices are also special, the apparmor cache
+// gets confused too easy, especially at rollbacks, so we delete the cache. See
+// Setup(), below. Some systems employ a unified cache directory where all
+// apparmor cache files are stored under one location so ensure we don't remove
+// the snap profiles since snapd manages them elsewhere and instead only remove
+// snap-confine and system profiles (eg, as shipped by distro package manager
+// or created by the administrator). snap-confine profiles are like the
+// following:
+// - usr.lib.snapd.snap-confine.real
+// - usr.lib.snapd.snap-confine (historic)
+// - snap.core.NNNN.usr.lib.snapd.snap-confine (historic)
+// - var.lib.snapd.snap.core.NNNN.usr.lib.snapd.snap-confine (historic)
+// - snap-confine.core.NNNN
+// - snap-confine.snapd.NNNN
+func profileIsRemovableOnCoreSetup(fn string) bool {
+	bn := path.Base(fn)
+	if strings.HasPrefix(bn, ".") {
+		return false
+	} else if strings.HasPrefix(bn, "snap") && !strings.HasPrefix(bn, "snap-confine.core.") && !strings.HasPrefix(bn, "snap-confine.snapd.") && !strings.Contains(bn, "usr.lib.snapd.snap-confine") {
+		return false
+	}
+	return true
+}
+
 // Setup creates and loads apparmor profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
 // the offending application process.
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -325,11 +352,10 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// See LP:#1460152 and
 	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
 	//
-	// TODO: we need to deal with the "snapd" snap here soon
-	if snapName == "core" && !release.OnClassic {
+	if (snapName == "core" || snapName == "snapd") && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
 			for _, p := range li {
-				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
 					if err := os.Remove(p); err != nil {
 						logger.Noticef("cannot remove %q: %s", p, err)
 					}
@@ -369,7 +395,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	for i, profile := range changed {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
-	errReloadChanged := loadProfiles(pathnames, cache, skipReadCache)
+
+	var errReloadChanged error
+	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+		errReloadChanged = loadProfiles(pathnames, cache, skipReadCache)
+	})
+
 	// Load all unchanged profiles anyway. This ensures those are correct in
 	// the kernel even if the files on disk were not changed. We rely on
 	// apparmor cache to make this performant.
@@ -377,7 +408,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	for i, profile := range unchanged {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
-	errReloadOther := loadProfiles(pathnames, cache, 0)
+
+	var errReloadOther error
+	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+		errReloadOther = loadProfiles(pathnames, cache, 0)
+	})
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)

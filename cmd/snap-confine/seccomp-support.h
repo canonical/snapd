@@ -17,7 +17,6 @@
 #ifndef SNAP_CONFINE_SECCOMP_SUPPORT_H
 #define SNAP_CONFINE_SECCOMP_SUPPORT_H
 
-#include <seccomp.h>
 #include <stdbool.h>
 
 /** 

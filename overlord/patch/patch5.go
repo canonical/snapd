@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -47,6 +48,8 @@ func patch5(st *state.State) error {
 		return err
 	}
 
+	// create timings to satisfy StartServices/StopServices API, but don't save them
+	tm := timings.New(nil)
 	for snapName, snapst := range snapStates {
 		if !snapst.Active {
 			continue
@@ -63,7 +66,7 @@ func patch5(st *state.State) error {
 			continue
 		}
 
-		err = wrappers.StopServices(svcs, snap.StopReasonRefresh, log)
+		err = wrappers.StopServices(svcs, snap.StopReasonRefresh, log, tm)
 		if err != nil {
 			return err
 		}
@@ -73,7 +76,7 @@ func patch5(st *state.State) error {
 			return err
 		}
 
-		err = wrappers.StartServices(svcs, log)
+		err = wrappers.StartServices(svcs, log, tm)
 		if err != nil {
 			return err
 		}

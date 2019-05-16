@@ -176,19 +176,7 @@ static void test_is_on_custom_base(void)
 	g_assert_cmpint(sc_classify_distro(), ==, SC_DISTRO_CORE_OTHER);
 }
 
-static void test_should_use_normal_mode(void)
-{
-	g_assert_false(sc_should_use_normal_mode(SC_DISTRO_CORE16, "core"));
-	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CORE_OTHER, "core"));
-	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CLASSIC, "core"));
-
-	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CORE16, "core18"));
-	g_assert_true(sc_should_use_normal_mode
-		      (SC_DISTRO_CORE_OTHER, "core18"));
-	g_assert_true(sc_should_use_normal_mode(SC_DISTRO_CLASSIC, "core18"));
-}
-
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
 	g_test_add_func("/classic/on-classic-with-long-line",
@@ -199,6 +187,4 @@ static void __attribute__ ((constructor)) init(void)
 	g_test_add_func("/classic/on-fedora-base", test_is_on_fedora_base);
 	g_test_add_func("/classic/on-fedora-ws", test_is_on_fedora_ws);
 	g_test_add_func("/classic/on-custom-base", test_is_on_custom_base);
-	g_test_add_func("/classic/should-use-normal-mode",
-			test_should_use_normal_mode);
 }

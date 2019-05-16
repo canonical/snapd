@@ -37,10 +37,10 @@ struct sc_args {
 };
 
 struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
-				       struct sc_error **errorp)
+				       sc_error **errorp)
 {
 	struct sc_args *args = NULL;
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	if (argcp == NULL || argvp == NULL) {
 		err = sc_error_init(SC_ARGS_DOMAIN, 0,
@@ -214,7 +214,7 @@ void sc_cleanup_args(struct sc_args **ptr)
 	*ptr = NULL;
 }
 
-bool sc_args_is_version_query(struct sc_args *args)
+bool sc_args_is_version_query(const struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain version query flag from NULL argument parser");
@@ -222,7 +222,7 @@ bool sc_args_is_version_query(struct sc_args *args)
 	return args->is_version_query;
 }
 
-bool sc_args_is_classic_confinement(struct sc_args * args)
+bool sc_args_is_classic_confinement(const struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain classic confinement flag from NULL argument parser");
@@ -230,7 +230,7 @@ bool sc_args_is_classic_confinement(struct sc_args * args)
 	return args->is_classic_confinement;
 }
 
-const char *sc_args_security_tag(struct sc_args *args)
+const char *sc_args_security_tag(const struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain security tag from NULL argument parser");
@@ -238,7 +238,7 @@ const char *sc_args_security_tag(struct sc_args *args)
 	return args->security_tag;
 }
 
-const char *sc_args_executable(struct sc_args *args)
+const char *sc_args_executable(const struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain executable from NULL argument parser");
@@ -246,7 +246,7 @@ const char *sc_args_executable(struct sc_args *args)
 	return args->executable;
 }
 
-const char *sc_args_base_snap(struct sc_args *args)
+const char *sc_args_base_snap(const struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain base snap name from NULL argument parser");

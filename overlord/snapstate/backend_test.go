@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/timings"
 )
 
 type fakeOp struct {
@@ -293,6 +294,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeBase
 	case "snap-content-plug-id":
 		name = "snap-content-plug"
+	case "snap-content-slot-id":
+		name = "snap-content-slot"
 	case "snapd-id":
 		name = "snapd"
 	case "kernel-id":
@@ -694,6 +697,8 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		snapName = "alias-snap"
 	}
 	switch snapName {
+	case "snap-with-empty-epoch":
+		info.Epoch = snap.Epoch{}
 	case "some-epoch-snap":
 		info.Epoch = snap.E("13")
 	case "gadget":
@@ -780,7 +785,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -811,7 +816,7 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
@@ -824,7 +829,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.M
 	return nil
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),

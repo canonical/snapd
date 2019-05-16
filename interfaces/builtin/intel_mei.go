@@ -34,7 +34,7 @@ const intelMEIBaseDeclarationSlots = `
 
 const intelMEIConnectedPlugAppArmor = `
 # Description: Allow access to the Intel MEI management interface.
-/dev/mei[0-9]+ rw,
+/dev/mei[0-9]* rw,
 `
 
 var intelMEIConnectedPlugUDev = []string{`SUBSYSTEM=="mei"`}

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -51,9 +52,11 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.state.Set("refresh-privacy-key", "privacy-key")
+
+	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 }
 
-func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
+func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -128,6 +131,70 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 			DownloadURL: "http://some-url.com/snap",
 		},
 	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// only the download endpoint of the store was hit
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:   "storesvc-download",
+			name: "foo",
+		},
+	})
+
+	var snapsup snapstate.SnapSetup
+	t.Get("snap-setup", &snapsup)
+	c.Check(snapsup.SideInfo, DeepEquals, si)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check no IsAutoRefresh was passed in
+	c.Assert(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{
+			name:   "foo",
+			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
+			opts:   nil,
+		},
+	})
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapWithDeviceContext(c *C) {
+	s.state.Lock()
+
+	// unset the global store, it will need to come via the device context
+	// CtxStore
+	snapstate.ReplaceStore(s.state, nil)
+
+	r := snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
+		CtxStore: s.fakeStore,
+	})
+	defer r()
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "mySnapID",
+		Revision: snap.R(11),
+		Channel:  "my-channel",
+	}
+
+	// download, ensure the store does not query
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Channel:  "some-channel",
+		SideInfo: si,
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://some-url.com/snap",
+		},
+	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
 	s.state.Unlock()
@@ -142,14 +209,6 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 			name: "foo",
 		},
 	})
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	var snapsup snapstate.SnapSetup
-	t.Get("snap-setup", &snapsup)
-	c.Check(snapsup.SideInfo, DeepEquals, si)
-	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
 func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
@@ -229,7 +288,8 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 			name:   "foo",
 			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
 			opts: &store.DownloadOptions{
-				RateLimit: 1234,
+				RateLimit:     1234,
+				IsAutoRefresh: true,
 			},
 		},
 	})

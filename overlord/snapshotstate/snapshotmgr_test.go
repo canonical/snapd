@@ -23,8 +23,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -52,6 +54,180 @@ func (snapshotSuite) TestManager(c *check.C) {
 		"restore-snapshot",
 		"save-snapshot",
 	})
+}
+
+func mockDummySnapshot(c *check.C) (restore func()) {
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	c.Assert(err, check.IsNil)
+
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			Snapshot: client.Snapshot{SetID: 1, Snap: "a-snap", SnapID: "a-id", Epoch: snap.Epoch{Read: []uint32{42}, Write: []uint32{17}}},
+			File:     shotfile,
+		}), check.IsNil)
+		return nil
+	}
+
+	restoreBackendIter := snapshotstate.MockBackendIter(fakeIter)
+
+	return func() {
+		shotfile.Close()
+		restoreBackendIter()
+	}
+}
+
+func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
+	var removedSnapshot string
+	restoreOsRemove := snapshotstate.MockOsRemove(func(fileName string) error {
+		removedSnapshot = fileName
+		return nil
+	})
+	defer restoreOsRemove()
+
+	restore := mockDummySnapshot(c)
+	defer restore()
+
+	st := state.New(nil)
+	runner := state.NewTaskRunner(st)
+	mgr := snapshotstate.Manager(st, runner)
+	c.Assert(mgr, check.NotNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("snapshots", map[uint64]interface{}{
+		1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+		2: map[string]interface{}{"expiry-time": "2037-02-12T12:50:00Z"},
+	})
+
+	st.Unlock()
+	c.Assert(mgr.Ensure(), check.IsNil)
+	st.Lock()
+
+	// verify expired snapshots were removed
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		2: map[string]interface{}{"expiry-time": "2037-02-12T12:50:00Z"}})
+	c.Check(removedSnapshot, check.Matches, ".*/foo.zip")
+}
+
+func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
+	var backendIterCalls int
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
+	c.Assert(err, check.IsNil)
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			Snapshot: client.Snapshot{SetID: 1, Snap: "a-snap", SnapID: "a-id", Epoch: snap.Epoch{Read: []uint32{42}, Write: []uint32{17}}},
+			File:     shotfile,
+		}), check.IsNil)
+		backendIterCalls++
+		return nil
+	}
+	restoreBackendIter := snapshotstate.MockBackendIter(fakeIter)
+	defer restoreBackendIter()
+
+	restoreOsRemove := snapshotstate.MockOsRemove(func(fileName string) error {
+		return nil
+	})
+	defer restoreOsRemove()
+
+	st := state.New(nil)
+	runner := state.NewTaskRunner(st)
+	mgr := snapshotstate.Manager(st, runner)
+	c.Assert(mgr, check.NotNil)
+
+	storeExpiredSnapshot := func() {
+		st.Lock()
+		// we need at least one snapshot set in the state for forgetExpiredSnapshots to do any work
+		st.Set("snapshots", map[uint64]interface{}{
+			1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+		})
+		st.Unlock()
+	}
+
+	// consecutive runs of Ensure call the backend just once because of the snapshotExpirationLoopInterval
+	for i := 0; i < 3; i++ {
+		storeExpiredSnapshot()
+		c.Assert(mgr.Ensure(), check.IsNil)
+		c.Check(backendIterCalls, check.Equals, 1)
+	}
+
+	// pretend we haven't run for a while
+	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	mgr.SetLastForgetExpiredSnapshotTime(t)
+	c.Assert(mgr.Ensure(), check.IsNil)
+	c.Check(backendIterCalls, check.Equals, 2)
+
+	c.Assert(mgr.Ensure(), check.IsNil)
+	c.Check(backendIterCalls, check.Equals, 2)
+}
+
+func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskKind string) {
+	removeCalled := 0
+	restoreOsRemove := snapshotstate.MockOsRemove(func(string) error {
+		removeCalled++
+		return nil
+	})
+	defer restoreOsRemove()
+
+	restore := mockDummySnapshot(c)
+	defer restore()
+
+	st := state.New(nil)
+	runner := state.NewTaskRunner(st)
+	mgr := snapshotstate.Manager(st, runner)
+	c.Assert(mgr, check.NotNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("snapshots", map[uint64]interface{}{
+		1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+	})
+
+	chg := st.NewChange("snapshot-change", "...")
+	tsk := st.NewTask(snapshotTaskKind, "...")
+	tsk.SetStatus(state.DoingStatus)
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 1})
+	chg.AddTask(tsk)
+
+	st.Unlock()
+	c.Assert(mgr.Ensure(), check.IsNil)
+	st.Lock()
+
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
+	})
+	c.Check(removeCalled, check.Equals, 0)
+
+	// sanity check of the test setup: snapshot gets removed once conflict goes away
+	tsk.SetStatus(state.DoneStatus)
+
+	// pretend we haven't run for a while
+	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	mgr.SetLastForgetExpiredSnapshotTime(t)
+
+	st.Unlock()
+	c.Assert(mgr.Ensure(), check.IsNil)
+	st.Lock()
+
+	expirations = nil
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(removeCalled, check.Equals, 1)
+	c.Check(expirations, check.HasLen, 0)
+}
+
+func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithCheckSnapshot(c *check.C) {
+	s.testEnsureForgetSnapshotsConflict(c, "check-snapshot")
+}
+
+func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithRestoreSnapshot(c *check.C) {
+	s.testEnsureForgetSnapshotsConflict(c, "restore-snapshot")
 }
 
 func (snapshotSuite) TestFilename(c *check.C) {
@@ -84,11 +260,12 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
 		c.Check(usernames, check.DeepEquals, []string{"a-user", "b-user"})
+		c.Check(flags.Auto, check.Equals, false)
 		return nil, nil
 	})()
 
@@ -110,7 +287,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {
 		return nil, errors.New("bzzt")
 	})()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -137,7 +314,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -161,7 +338,7 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, errors.New("bzzt")
 	})()
 
@@ -190,7 +367,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
 		return nil, errors.New("bzzt")
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -221,7 +398,7 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 		buf := json.RawMessage(`"hello-there"`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -236,6 +413,54 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 	st.Unlock()
 	err := snapshotstate.DoSave(task, &tomb.Tomb{})
 	c.Assert(err, check.ErrorMatches, ".* cannot unmarshal .*")
+}
+
+func (snapshotSuite) TestDoSaveFailureRemovesStateEntry(c *check.C) {
+	st := state.New(nil)
+
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(-1),
+		},
+		Version: "1.33",
+	}
+	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
+		return &snapInfo, nil
+	})()
+	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
+		return nil, nil
+	})()
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+		var expirations map[uint64]interface{}
+		st.Lock()
+		defer st.Unlock()
+		// verify that prepareSave stored expiration in the state
+		c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+		c.Assert(expirations, check.HasLen, 1)
+		c.Check(expirations[42], check.NotNil)
+		return nil, errors.New("error")
+	})()
+
+	st.Lock()
+
+	task := st.NewTask("save-snapshot", "...")
+	task.Set("snapshot-setup", map[string]interface{}{
+		"set-id": 42,
+		"snap":   "a-snap",
+		"auto":   true,
+	})
+	st.Unlock()
+	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	c.Assert(err, check.ErrorMatches, "error")
+
+	st.Lock()
+	defer st.Unlock()
+
+	// verify that after backend.Save failure expiration was removed from the state
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.HasLen, 0)
 }
 
 type readerSuite struct {
@@ -478,4 +703,41 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 	err := snapshotstate.DoForget(rs.task, &tomb.Tomb{})
 	c.Assert(err, check.IsNil)
 	c.Check(rs.calls, check.DeepEquals, []string{"remove"})
+}
+
+func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
+	defer snapshotstate.MockOsRemove(func(filename string) error {
+		return nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("forget-snapshot", "...")
+	task.Set("snapshot-setup", map[string]interface{}{
+		"set-id":   1,
+		"filename": "a-file",
+		"snap":     "a-snap",
+	})
+
+	st.Set("snapshots", map[uint64]interface{}{
+		1: map[string]interface{}{
+			"expiry-time": "2001-03-11T11:24:00Z",
+		},
+		2: map[string]interface{}{
+			"expiry-time": "2037-02-12T12:50:00Z",
+		},
+	})
+
+	st.Unlock()
+	c.Assert(snapshotstate.DoForget(task, &tomb.Tomb{}), check.IsNil)
+
+	st.Lock()
+	var expirations map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		2: map[string]interface{}{
+			"expiry-time": "2037-02-12T12:50:00Z",
+		}})
 }

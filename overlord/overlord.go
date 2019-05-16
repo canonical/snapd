@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
@@ -45,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -156,10 +156,10 @@ func New() (*Overlord, error) {
 	defer s.Unlock()
 	// setting up the store
 	proxyConf := proxyconf.New(s)
-	authContext := auth.NewAuthContext(s, o.deviceMgr)
+	storeCtx := storecontext.New(s, o.deviceMgr.StoreContextBackend())
 	cfg := store.DefaultConfig()
 	cfg.Proxy = proxyConf.Conf
-	sto := storeNew(cfg, authContext)
+	sto := storeNew(cfg, storeCtx)
 	sto.SetCacheDownloads(defaultCachedDownloads)
 
 	snapstate.ReplaceStore(s, sto)

@@ -20,12 +20,15 @@
 package seccomp_test
 
 import (
+	"bytes"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -35,12 +38,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type backendSuite struct {
 	ifacetest.BackendSuite
 
-	snapSeccomp *testutil.MockCmd
+	snapSeccomp   *testutil.MockCmd
+	profileHeader string
+	meas          *timings.Span
+
+	restoreReadlink func()
 }
 
 var _ = Suite(&backendSuite{})
@@ -62,16 +70,37 @@ func (s *backendSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(dirs.SnapSeccompDir, 0700)
 	c.Assert(err, IsNil)
 
+	s.restoreReadlink = cmd.MockOsReadlink(func(string) (string, error) {
+		// pretend that snapd is run from distro libexecdir
+		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
+	})
 	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
 	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
 	c.Assert(err, IsNil)
-	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, "")
+	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, `
+if [ "$1" = "version-info" ]; then
+    echo "abcdef 1.2.3 1234abcd -"
+fi`)
+
+	s.Backend.Initialize()
+	s.profileHeader = `# snap-seccomp version information:
+# abcdef 1.2.3 1234abcd -
+`
+	// make sure initialize called version-info
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "version-info"},
+	})
+	s.snapSeccomp.ForgetCalls()
+
+	perf := timings.New(nil)
+	s.meas = perf.StartSpan("", "")
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
 	s.BackendSuite.TearDownTest(c)
 
 	s.snapSeccomp.Restore()
+	s.restoreReadlink()
 }
 
 func (s *backendSuite) TestInitialize(c *C) {
@@ -116,8 +145,7 @@ func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
-
-	restore := seccomp.MockOsReadlink(func(string) (string, error) {
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
 		// simulate that we run snapd from core
 		return filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snapd"), nil
 	})
@@ -127,7 +155,14 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 	snapSeccompOnCorePath := filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snap-seccomp")
 	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
 	c.Assert(err, IsNil)
-	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, "")
+	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
+echo "2345cdef 2.3.4 2345cdef -"
+fi`)
+	defer snapSeccompOnCore.Restore()
+
+	// rerun initialization
+	err = s.Backend.Initialize()
+	c.Assert(err, IsNil)
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
@@ -138,8 +173,14 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 	c.Check(s.snapSeccomp.Calls(), HasLen, 0)
 	// ensure the snap-seccomp from the core snap was used instead
 	c.Check(snapSeccompOnCore.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "version-info"},
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
+	raw, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
+	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
+# 2345cdef 2.3.4 2345cdef -
+`)), Equals, true)
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesProfiles(c *C) {
@@ -226,7 +267,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithNoHooks(c *C) {
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile + ".src")
@@ -293,7 +334,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 
 		snapInfo := s.InstallSnap(c, scenario.opts, "", ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-		c.Check(profile+".src", testutil.FileEquals, scenario.content)
+		c.Check(profile+".src", testutil.FileEquals, s.profileHeader+scenario.content)
 		stat, err := os.Stat(profile + ".src")
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -335,7 +376,7 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo")
-	c.Check(profile+".src", testutil.FileEquals, "default\naaa\nzzz\n")
+	c.Check(profile+".src", testutil.FileEquals, s.profileHeader+"default\naaa\nzzz\n")
 	stat, err := os.Stat(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -347,7 +388,7 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
@@ -359,7 +400,7 @@ func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "\nsocketcall\n")
@@ -371,7 +412,7 @@ func (s *backendSuite) TestSocketcallIsNotAddedWhenNotRequired(c *C) {
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", Not(testutil.FileContains), "\nsocketcall\n")
@@ -431,6 +472,18 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
+
+	// change version reported by snap-seccomp
+	snapSeccomp := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
+if [ "$1" = "version-info" ]; then
+    echo "abcdef 1.2.3 1234abcd bpf-actlog"
+fi`)
+	defer snapSeccomp.Restore()
+
+	// reload cached version info
+	err := s.Backend.Initialize()
+	c.Assert(err, IsNil)
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "bpf-actlog"})
 }
 
 func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
@@ -567,4 +620,119 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 	for _, baseSnap := range testBases {
 		c.Assert(seccomp.RequiresSocketcall(baseSnap), Equals, false)
 	}
+}
+
+func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
+	restore := release.MockForcedDevmode(false)
+	defer restore()
+	restore = release.MockSecCompActions([]string{"log"})
+	defer restore()
+	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
+	defer restore()
+
+	// NOTE: replace the real template with a shorter variant
+	restore = seccomp.MockTemplate([]byte("\ndefault\n"))
+	defer restore()
+
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	c.Check(profile+".src", testutil.FileEquals, s.profileHeader+"\ndefault\n")
+
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+	})
+
+	// unchanged snap-seccomp version will not trigger a rebuild
+	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+
+	// compilation from this first Setup()
+	c.Check(s.snapSeccomp.Calls(), HasLen, 1)
+
+	// change version reported by snap-seccomp
+	snapSeccomp := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
+if [ "$1" = "version-info" ]; then
+    echo "abcdef 2.3.3 2345abcd -"
+fi`)
+	defer snapSeccomp.Restore()
+	updatedProfileHeader := `# snap-seccomp version information:
+# abcdef 2.3.3 2345abcd -
+`
+	// reload cached version info
+	err = s.Backend.Initialize()
+	c.Assert(err, IsNil)
+
+	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		// compilation from first Setup()
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		// initialization with new version
+		{"snap-seccomp", "version-info"},
+	})
+
+	// the profile should be rebuilt now
+	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	c.Check(profile+".src", testutil.FileEquals, updatedProfileHeader+"\ndefault\n")
+
+	c.Check(s.snapSeccomp.Calls(), HasLen, 3)
+	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
+		// compilation from first Setup()
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+		// initialization with new version
+		{"snap-seccomp", "version-info"},
+		// compilation of profiles with new compiler version
+		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
+	})
+}
+
+func (s *backendSuite) TestInitializationDuringBootstrap(c *C) {
+	// undo what was done in test set-up
+	s.snapSeccomp.Restore()
+	os.Remove(s.snapSeccomp.Exe())
+
+	// during bootstrap, before seeding, snapd/core snap is mounted at some
+	// random location under /tmp
+	tmpDir := c.MkDir()
+	restore := cmd.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(tmpDir, "usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
+	// ensure we have a mocked snap-seccomp on core
+	snapSeccompInMountedPath := filepath.Join(tmpDir, "usr/lib/snapd/snap-seccomp")
+	err := os.MkdirAll(filepath.Dir(snapSeccompInMountedPath), 0755)
+	c.Assert(err, IsNil)
+	snapSeccompInMounted := testutil.MockCommand(c, snapSeccompInMountedPath, `if [ "$1" = "version-info" ]; then
+echo "2345cdef 2.3.4 2345cdef -"
+fi`)
+	defer snapSeccompInMounted.Restore()
+
+	// rerun initialization
+	err = s.Backend.Initialize()
+	c.Assert(err, IsNil)
+
+	// ensure the snap-seccomp from the regular path was *not* used
+	c.Check(s.snapSeccomp.Calls(), HasLen, 0)
+	// the one from mounted snap was used
+	c.Check(snapSeccompInMounted.Calls(), DeepEquals, [][]string{
+		{"snap-seccomp", "version-info"},
+	})
+
+	sb, ok := s.Backend.(*seccomp.Backend)
+	c.Assert(ok, Equals, true)
+	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef -")
+}
+
+func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
+	restore := seccomp.MockSeccompCompilerLookup(func(name string) (string, error) {
+		c.Check(name, Equals, "snap-seccomp")
+		return "", errors.New("failed")
+	})
+	defer restore()
+	err := s.Backend.Initialize()
+	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
 }

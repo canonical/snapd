@@ -23,7 +23,10 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 func MockKeyLength(n int) (restore func()) {
@@ -86,13 +89,29 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
+func MockSnapstateInstall(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstall
+	snapstateInstall = f
+	return func() {
+		snapstateInstall = old
+	}
+}
+
+func MockSnapstateUpdate(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdate
+	snapstateUpdate = f
+	return func() {
+		snapstateUpdate = old
+	}
+}
+
 func EnsureSeedYaml(m *DeviceManager) error {
 	return m.ensureSeedYaml()
 }
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
-func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (restore func()) {
+func MockPopulateStateFromSeed(f func(*state.State, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := populateStateFromSeed
 	populateStateFromSeed = f
 	return func() {
@@ -108,6 +127,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
+	return m.registrationCtx(t)
+}
+
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
@@ -116,4 +139,6 @@ var (
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RemodelTasks = remodelTasks
 )

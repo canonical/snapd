@@ -20,9 +20,21 @@
 
 package cmd
 
+import (
+	"errors"
+)
+
 // ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
 // the snapd/core snap.
 // On this OS this is a stub.
 func ExecInSnapdOrCoreSnap() {
 	return
+}
+
+// InternalToolPath returns the path of an internal snapd tool. The tool
+// *must* be located inside the same tree as the current binary.
+//
+// On this OS this is a stub and always returns an error.
+func InternalToolPath(tool string) (string, error) {
+	return "", errors.New("unsupported on non-Linux systems")
 }
