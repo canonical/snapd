@@ -121,7 +121,7 @@ func maybePrintBase(w io.Writer, base string, verbose bool) {
 	}
 }
 
-func loadDirect(path string) (*client.Snap, error) {
+func clientSnapFromPath(path string) (*client.Snap, error) {
 	snapf, err := snap.Open(path)
 	if err != nil {
 		return nil, err
@@ -436,28 +436,17 @@ func (x *infoCmd) Execute([]string) error {
 
 		var direct, local, remote *client.Snap
 		var resInfo *client.ResultInfo
-		var directErr, remoteErr, localErr error
+		var err error
 
-		direct, directErr = loadDirect(snapName)
-		if directErr != nil {
-			remote, resInfo, remoteErr = x.client.FindOne(snapName)
-			local, _, localErr = x.client.Snap(snapName)
+		direct, err = clientSnapFromPath(snapName)
+		if err != nil {
+			remote, resInfo, _ = x.client.FindOne(snapName)
+			local, _, _ = x.client.Snap(snapName)
 		}
 		// note direct == nil, or local == nil and remote == nil
 		theSnap := coalesce(direct, local, remote)
 
 		if theSnap == nil {
-			if x.Verbose {
-				if directErr != nil {
-					fmt.Fprintf(w, i18n.G("error:\ttreating %q as a path to a snap: %v\n"), snapName, directErr)
-				}
-				if localErr != nil {
-					fmt.Fprintf(w, i18n.G("error:\ttreating %q as a locally-installed snap name: %v\n"), snapName, localErr)
-				}
-				if remoteErr != nil {
-					fmt.Fprintf(w, i18n.G("error:\ttreating %q as a snap name in the store: %v\n"), snapName, remoteErr)
-				}
-			}
 			if len(x.Positional.Snaps) == 1 {
 				w.Flush()
 				return fmt.Errorf("no snap found for %q", snapName)
@@ -503,10 +492,8 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintln(w, "notes:\t")
 			fmt.Fprintf(w, "  private:\t%t\n", theSnap.Private)
 			fmt.Fprintf(w, "  confinement:\t%s\n", theSnap.Confinement)
-		}
 
-		if local != nil {
-			if x.Verbose {
+			if local != nil {
 				jailMode := local.Confinement == client.DevModeConfinement && !local.DevMode
 				fmt.Fprintf(w, "  devmode:\t%t\n", local.DevMode)
 				fmt.Fprintf(w, "  jailmode:\t%t\n", jailMode)
@@ -530,7 +517,7 @@ func (x *infoCmd) Execute([]string) error {
 			if sha3_384 != "" {
 				fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
 			}
-		} else {
+		} else if direct == nil {
 			maybePrintID(w, theSnap)
 			if local != nil {
 				if local.TrackingChannel != "" {

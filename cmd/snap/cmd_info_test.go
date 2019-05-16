@@ -408,11 +408,7 @@ func (s *infoSuite) TestInfoNotFound(c *check.C) {
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", "/x"})
 	c.Check(err, check.ErrorMatches, `no snap found for "/x"`)
-	c.Check(s.Stdout(), check.Equals, `
-error: treating "/x" as a path to a snap: cannot open snap: open /x: no such file or directory
-error: treating "/x" as a locally-installed snap name: cannot retrieve snap "/x": No.
-error: treating "/x" as a snap name in the store: cannot find snap "/x": No.
-`[1:])
+	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 

@@ -57,7 +57,7 @@ else:
 
 res = list(yaml.load_all(sys.stdin))
 
-# equals("number of entries", len(res), 7)
+equals("number of entries", len(res), 7)
 
 check("basic", res[0],
    ("name", equals, "basic"),
