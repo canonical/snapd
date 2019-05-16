@@ -169,6 +169,33 @@ func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	c.Check(found, Equals, "")
 }
 
+func (d *deviceSuite) TestDeviceFindNotFoundSymlinkPointsNowhere(c *C) {
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice-not-found")
+	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
+	c.Assert(err, IsNil)
+
+	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label: "foo",
+		},
+	})
+	c.Check(err, ErrorMatches, `device not found`)
+	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
+	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label: "foo",
+		},
+	})
+	c.Check(err, ErrorMatches, `cannot read device link: .*`)
+	c.Check(found, Equals, "")
+}
+
 func (d *deviceSuite) TestDeviceEncodeLabel(c *C) {
 	// Test output obtained with the following program:
 	//

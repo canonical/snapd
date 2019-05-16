@@ -59,6 +59,9 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("cannot read device link: %v", err)
 		}
+		if !osutil.FileExists(target) {
+			continue
+		}
 		if found != "" && target != found {
 			// partition and filesystem label links point to
 			// different devices
