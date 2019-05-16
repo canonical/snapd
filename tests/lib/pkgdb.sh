@@ -441,6 +441,12 @@ distro_install_build_snapd(){
         apt install -y --only-upgrade snapd
         mv sources.list.back /etc/apt/sources.list
         apt update
+
+        # In case the PPA does not have an updated snapd the apt install snapd call will not
+        # error and we only test the distro snapd. So we make apt show to double check the
+        # snapd package comes from a ppa
+        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
+
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
