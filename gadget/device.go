@@ -32,6 +32,8 @@ import (
 )
 
 var ErrDeviceNotFound = errors.New("device not found")
+var ErrMountNotFound = errors.New("mount point not found")
+var ErrNoFilesystemDefined = errors.New("no filesystem defined")
 
 // FindDeviceForStructure attempts to find an existing device matching given
 // volume structure, by inspecting its name and, optionally, the filesystem
@@ -97,4 +99,43 @@ func encodeLabel(in string) string {
 		}
 	}
 	return buf.String()
+}
+
+// FindMountPointForStructure locates a mount point of a device that matches
+// given structure. The structure must have a filesystem defined, otherwise an
+// error is raised.
+func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
+	if ps.IsBare() {
+		return "", ErrNoFilesystemDefined
+	}
+
+	devpath, err := FindDeviceForStructure(ps)
+	if err != nil {
+		return "", err
+	}
+
+	var mountPoint string
+	mountInfo, err := osutil.LoadMountInfo(filepath.Join(dirs.GlobalRootDir, osutil.ProcSelfMountInfo))
+	if err != nil {
+		return "", fmt.Errorf("cannot read mount info: %v", err)
+	}
+	for _, entry := range mountInfo {
+		if entry.MountSource != devpath || entry.FsType != ps.Filesystem {
+			// different device or filesystem
+			continue
+		}
+		if entry.Root != "/" {
+			// only interested at the location where root of the
+			// structure filesystem is mounted
+			continue
+		}
+		mountPoint = entry.MountDir
+		break
+	}
+
+	if mountPoint == "" {
+		return "", ErrMountNotFound
+	}
+
+	return mountPoint, nil
 }
