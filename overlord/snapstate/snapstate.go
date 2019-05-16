@@ -66,7 +66,9 @@ const (
 
 var ErrNothingToDo = errors.New("nothing to do")
 
+// RemoveFlags are used to pass additional flags to Remove operation.
 type RemoveFlags struct {
+	// Remove the snap without creating snapshot data
 	Purge bool
 }
 

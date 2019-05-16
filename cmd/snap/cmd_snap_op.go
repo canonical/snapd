@@ -993,7 +993,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Remove only the given revision"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"purge": i18n.G("Don't create automatic snapshot, just purge all snap data"),
+			"purge": i18n.G("Remove the snap without creating snapshot data"),
 		}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
