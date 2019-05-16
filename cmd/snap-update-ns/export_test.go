@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -178,6 +179,14 @@ func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) 
 	changePerform = f
 	return func() {
 		changePerform = origChangePerform
+	}
+}
+
+func MockNeededChanges(f func(old, new *osutil.MountProfile) []*Change) (restore func()) {
+	origNeededChanges := NeededChanges
+	NeededChanges = f
+	return func() {
+		NeededChanges = origNeededChanges
 	}
 }
 
