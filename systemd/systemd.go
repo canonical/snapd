@@ -287,13 +287,11 @@ var unitProperties = map[string][]string{
 	".mount": extendedProperties,
 }
 
-// Status fetches the status of given units. Statuses are returned in the same
-// order as unit names passed in argument.
-func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+func getUnitStatus(properties []string, unitNames []string) ([]*UnitStatus, error) {
 	cmd := make([]string, len(unitNames)+2)
 	cmd[0] = "show"
 	// ask for all properties, regardless of unit type
-	cmd[1] = "--property=" + strings.Join(extendedProperties, ",")
+	cmd[1] = "--property=" + strings.Join(properties, ",")
 	copy(cmd[2:], unitNames)
 	bs, err := systemctlCmd(cmd...)
 	if err != nil {
@@ -367,6 +365,53 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 
 	if len(sts) != len(unitNames) {
 		return nil, fmt.Errorf("cannot get unit status: expected %d results, got %d", len(unitNames), len(sts))
+	}
+	return sts, nil
+}
+
+// Status fetches the status of given units. Statuses are returned in the same
+// order as unit names passed in argument.
+func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+	unitToStatus := make(map[string]*UnitStatus, len(unitNames))
+
+	var limitedUnits []string
+	var extendedUnits []string
+
+	for _, name := range unitNames {
+		if strings.HasSuffix(name, ".timer") || strings.HasSuffix(name, ".socket") {
+			limitedUnits = append(limitedUnits, name)
+		} else {
+			extendedUnits = append(extendedUnits, name)
+		}
+	}
+
+	for _, set := range []struct {
+		units      []string
+		properties []string
+	}{
+		{units: extendedUnits, properties: extendedProperties},
+		{units: limitedUnits, properties: baseProperties},
+	} {
+		if len(set.units) == 0 {
+			continue
+		}
+		sts, err := getUnitStatus(set.properties, set.units)
+		if err != nil {
+			return nil, err
+		}
+		for _, status := range sts {
+			unitToStatus[status.UnitName] = status
+		}
+	}
+
+	// unpack to preserve the promised order
+	sts := make([]*UnitStatus, len(unitNames))
+	for idx, name := range unitNames {
+		var ok bool
+		sts[idx], ok = unitToStatus[name]
+		if !ok {
+			return nil, fmt.Errorf("cannot determine status of unit %q", name)
+		}
 	}
 
 	return sts, nil
