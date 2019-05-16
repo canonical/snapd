@@ -322,7 +322,7 @@ func (d *deviceSuite) TestDeviceFindMountPointByLabeHappySimple(c *C) {
 170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 172 27 8:2 /EFI/ubuntu /boot/grub rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 `
-	mockProcSelfFilesystem(c, d.dir, strings.ReplaceAll(mountInfo[1:], "${rootDir}", d.dir))
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
 
 	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -351,7 +351,7 @@ func (d *deviceSuite) TestDeviceFindMountPointByLabeHappyReversed(c *C) {
 170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 `
 
-	mockProcSelfFilesystem(c, d.dir, strings.ReplaceAll(mountInfoReversed[1:], "${rootDir}", d.dir))
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfoReversed[1:], "${rootDir}", d.dir, -1))
 
 	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -375,7 +375,7 @@ func (d *deviceSuite) TestDeviceFindMountPointByPartlabel(c *C) {
 170 27 8:2 / /mount-point rw,relatime shared:58 - ext4 ${rootDir}/dev/fakedevice rw
 `
 
-	mockProcSelfFilesystem(c, d.dir, strings.ReplaceAll(mountInfo[1:], "${rootDir}", d.dir))
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
 
 	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -398,7 +398,7 @@ func (d *deviceSuite) TestDeviceFindMountPointChecksFilesystem(c *C) {
 170 27 8:2 / /mount-point rw,relatime shared:58 - vfat ${rootDir}/dev/fakedevice rw
 `
 
-	mockProcSelfFilesystem(c, d.dir, strings.ReplaceAll(mountInfo[1:], "${rootDir}", d.dir))
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
 
 	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
