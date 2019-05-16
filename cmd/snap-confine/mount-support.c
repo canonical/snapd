@@ -310,14 +310,29 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		};
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
-			struct stat buf;
 			if (access(dir, F_OK) == 0) {
+				struct stat dst_stat;
+				struct stat src_stat;
 				sc_must_snprintf(src, sizeof src, "%s%s",
 						 config->rootfs_dir, dir);
 				sc_must_snprintf(dst, sizeof dst, "%s%s",
 						 scratch_dir, dir);
-				if (lstat(src, &buf) == 0
-				    && lstat(dst, &buf) == 0) {
+				if (lstat(src, &src_stat) == 0
+				    && lstat(dst, &dst_stat) == 0) {
+					if (!S_ISREG(dst_stat.st_mode)
+					    && !S_ISDIR(dst_stat.st_mode)) {
+						debug
+						    ("entry %s from the host is not a file or directory, skipping mount",
+						     dst);
+						continue;
+					}
+					if (!S_ISREG(src_stat.st_mode)
+					    && !S_ISDIR(src_stat.st_mode)) {
+						debug
+						    ("entry %s from the desired rootfs is not a file or directory, skipping mount",
+						     src);
+						continue;
+					}
 					sc_do_mount(src, dst, NULL, MS_BIND,
 						    NULL);
 					sc_do_mount("none", dst, NULL, MS_SLAVE,
