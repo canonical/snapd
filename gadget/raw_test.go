@@ -277,18 +277,6 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	c.Check(getFileSize(c, emptyDiskPath), Equals, int64(0))
 }
 
-func copyFile(c *C, dst, src string) {
-	from, err := os.Open(src)
-	c.Assert(err, IsNil)
-	defer from.Close()
-	to, err := os.Create(dst)
-	c.Assert(err, IsNil)
-	defer to.Close()
-
-	_, err = io.Copy(to, from)
-	c.Assert(err, IsNil)
-}
-
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 
 	diskPath := filepath.Join(r.dir, "disk.img")
@@ -298,7 +286,8 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 	})
 
 	pristinePath := filepath.Join(r.dir, "pristine.img")
-	copyFile(c, pristinePath, diskPath)
+	err := osutil.CopyFile(diskPath, pristinePath, 0)
+	c.Assert(err, IsNil)
 
 	expectedPath := filepath.Join(r.dir, "expected.img")
 	mutateFile(c, expectedPath, 2048, []mutateWrite{
@@ -334,7 +323,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 		return diskPath, nil
 	})
 
-	err := ru.Backup(nil, ps)
+	err = ru.Backup(nil, ps)
 	c.Assert(err, IsNil)
 
 	for _, e := range []struct {
