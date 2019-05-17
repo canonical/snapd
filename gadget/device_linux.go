@@ -120,17 +120,15 @@ func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
 		return "", fmt.Errorf("cannot read mount info: %v", err)
 	}
 	for _, entry := range mountInfo {
-		if entry.MountSource != devpath || entry.FsType != ps.Filesystem {
-			// different device or filesystem
-			continue
-		}
 		if entry.Root != "/" {
 			// only interested at the location where root of the
 			// structure filesystem is mounted
 			continue
 		}
-		mountPoint = entry.MountDir
-		break
+		if entry.MountSource == devpath && entry.FsType == ps.Filesystem {
+			mountPoint = entry.MountDir
+			break
+		}
 	}
 
 	if mountPoint == "" {
