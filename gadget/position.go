@@ -84,7 +84,7 @@ type PositionedContent struct {
 
 func (p PositionedContent) String() string {
 	if p.Image != "" {
-		return fmt.Sprintf("%v@0x%x", p.Image, p.StartOffset)
+		return fmt.Sprintf("%v@%#x", p.Image, p.StartOffset)
 	}
 	return fmt.Sprintf("data:%s", p.Source)
 }
