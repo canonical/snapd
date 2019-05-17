@@ -5,6 +5,8 @@ details: |
     revision to a new one. It expects to find a new snap revision in the
     channel pointed by the NEW_CORE_CHANNEL env var.
 
+systems: [ubuntu-16.04-64]
+
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

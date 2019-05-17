@@ -65,6 +65,20 @@ get_image_url_for_nested_vm(){
     esac
 }
 
+is_core_18_nested_system(){
+    if [ "$SPREAD_SYSTEM" = ubuntu-18.04-64 ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_core_16_nested_system(){
+    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+        return 0
+    fi
+    return 1
+}
+
 create_nested_core_vm(){
     local UBUNTU_IMAGE
     UBUNTU_IMAGE=$(command -v ubuntu-image)
@@ -109,8 +123,8 @@ start_nested_core_vm(){
     QEMU=$(get_qemu_for_nested_vm)
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
-        -drive file=$WORK_DIR/ubuntu-core.img,if=virtio,cache=none,format=raw \
-        -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw \
+        -drive file=$WORK_DIR/ubuntu-core.img,cache=none,format=raw \
+        -drive file=${PWD}/assertions.disk,cache=none,format=raw \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
         -machine accel=kvm"
     if ! wait_for_ssh; then

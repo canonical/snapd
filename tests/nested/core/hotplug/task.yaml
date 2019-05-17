@@ -7,8 +7,13 @@ prepare: |
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
     copy_remote serial-port-hotplug_1.0_all.snap
-    
-    execute_remote "sudo snap install --devmode jq"
+
+    if is_core_18_nested_system; then
+        execute_remote "sudo snap install --devmode jq-core18"
+        execute_remote "sudo snap alias jq-core18.jq jq"
+    else
+        execute_remote "sudo snap install --devmode jq"
+    fi
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
@@ -134,6 +139,20 @@ execute: |
 
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+
+    if [ "$NEW_CORE_CHANNEL" = "" ]; then
+        echo "please set the SPREAD_NEW_CORE_CHANNEL environment"
+        exit 1
+    else
+        echo "Refreshing the core snap"
+        if is_core_18_nested_system; then
+            execute_remote "snap refresh core18 --${NEW_CORE_CHANNEL}"
+        else
+            execute_remote "snap refresh core --${NEW_CORE_CHANNEL}"
+        fi
+        wait_for_no_ssh
+        wait_for_ssh
+    fi
 
     if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial already registered, exiting..."
