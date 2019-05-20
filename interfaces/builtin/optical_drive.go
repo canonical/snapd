@@ -46,6 +46,7 @@ const opticalDriveConnectedPlugAppArmor = `
 # Allow read access to optical drives
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
+/dev/sg[0-9]* r,
 @{PROC}/sys/dev/cdrom/info r,
 /run/udev/data/b11:[0-9]* r,
 `
@@ -53,6 +54,7 @@ const opticalDriveConnectedPlugAppArmor = `
 var opticalDriveConnectedPlugUDev = []string{
 	`KERNEL=="sr[0-9]*"`,
 	`KERNEL=="scd[0-9]*"`,
+	`SUBSYSTEM=="scsi_generic", SUBSYSTEMS=="scsi", ATTRS{type}=="4|5"`,
 }
 
 // opticalDriveInterface is the type for optical drive interfaces.
@@ -87,6 +89,7 @@ func (iface *opticalDriveInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 		spec.AddSnippet("# Allow write access to optical drives")
 		spec.AddSnippet("/dev/sr[0-9]* w,")
 		spec.AddSnippet("/dev/scd[0-9]* w,")
+		spec.AddSnippet("/dev/sg[0-9]* w,")
 	}
 	return nil
 }
