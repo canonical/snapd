@@ -3464,11 +3464,12 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
-		Current:  si.Revision,
-		SnapType: "app",
-		Channel:  "stable",
+		Active:    true,
+		Sequence:  []*snap.SideInfo{&si},
+		Current:   si.Revision,
+		SnapType:  "app",
+		Channel:   "stable",
+		CohortKey: "embattled",
 	})
 
 	chg := s.state.NewChange("refresh", "refresh a snap")
@@ -3491,6 +3492,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
 				Epoch:           snap.E("0"),
+				CohortKey:       "embattled",
 			}},
 			userID: 1,
 		},
