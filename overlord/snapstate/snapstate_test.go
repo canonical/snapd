@@ -617,6 +617,7 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 	defer s.state.Unlock()
 
 	ts, err := snapstate.InstallCohort(s.state, "some-snap", "some-channel", "what", 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
 	c.Check(snapsup.CohortKey, Equals, "what")
