@@ -1082,11 +1082,13 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	}
 
 	var tset *state.TaskSet
+	var ckey string
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 		tset, err = snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	} else {
-		logger.Noticef("Installing snap %q from cohort %s", inst.Snaps[0], inst.CohortKey)
+		ckey = strutil.ElliptRight(inst.CohortKey, 10)
+		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 		tset, err = snapstateInstallCohort(st, inst.Snaps[0], inst.Channel, inst.CohortKey, inst.userID, flags)
 	}
 	if err != nil {
@@ -1098,7 +1100,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		msg += fmt.Sprintf(" from %q channel", inst.Channel)
 	}
 	if inst.CohortKey != "" {
-		msg += fmt.Sprintf(" from %q cohort", inst.CohortKey)
+		msg += fmt.Sprintf(" from %q cohort", ckey)
 	}
 	return msg, []*state.TaskSet{tset}, nil
 }
