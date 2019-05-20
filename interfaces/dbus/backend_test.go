@@ -329,7 +329,7 @@ func (s *backendSuite) TestSetupWritesUsedFilesForSnapd(c *C) {
 }
 
 func (s *backendSuite) TestSetupWritesUsedFilesBothSnapdAndCoreInstalled(c *C) {
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/snap/snapd/current"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current"), 0755)
 	c.Assert(err, IsNil)
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(2)})

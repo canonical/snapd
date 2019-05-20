@@ -361,6 +361,25 @@ func (s *lowLevelSuite) TestMountSuccess(c *check.C) {
 	})
 }
 
+func (s *lowLevelSuite) TestMountPropagation(c *check.C) {
+	c.Assert(s.sys.Mount("", "target", "", syscall.MS_SHARED, ""), check.IsNil)
+	c.Assert(s.sys.Mount("", "target", "", syscall.MS_SLAVE, ""), check.IsNil)
+	c.Assert(s.sys.Mount("", "target", "", syscall.MS_PRIVATE, ""), check.IsNil)
+	c.Assert(s.sys.Mount("", "target", "", syscall.MS_UNBINDABLE, ""), check.IsNil)
+	c.Assert(s.sys.Calls(), check.DeepEquals, []string{
+		`mount "" "target" "" MS_SHARED ""`,
+		`mount "" "target" "" MS_SLAVE ""`,
+		`mount "" "target" "" MS_PRIVATE ""`,
+		`mount "" "target" "" MS_UNBINDABLE ""`,
+	})
+	c.Assert(s.sys.RCalls(), check.DeepEquals, []testutil.CallResultError{
+		{C: `mount "" "target" "" MS_SHARED ""`},
+		{C: `mount "" "target" "" MS_SLAVE ""`},
+		{C: `mount "" "target" "" MS_PRIVATE ""`},
+		{C: `mount "" "target" "" MS_UNBINDABLE ""`},
+	})
+}
+
 func (s *lowLevelSuite) TestMountFailure(c *check.C) {
 	s.sys.InsertFault(`mount "source" "target" "fstype" 0 ""`, syscall.EPERM)
 	err := s.sys.Mount("source", "target", "fstype", 0, "")
