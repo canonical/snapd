@@ -50,9 +50,7 @@ execute: |
     execute_remote "test-snapd-tools.echo hello" | MATCH hello
 
     # Refresh
-    execute_remote "snap refresh core --${NEW_CORE_CHANNEL}"
-    wait_for_no_ssh
-    wait_for_ssh
+    refresh_to_new_core "$NEW_CORE_CHANNEL"
 
     # After refresh, check new core is installed  
     test "$(get_nested_core_revision_installed)" = "${NEW_REV}"

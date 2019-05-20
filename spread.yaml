@@ -784,6 +784,7 @@ suites:
         backends: [google-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
+            NESTED_TYPE: classic
             CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
         manual: true
@@ -802,6 +803,7 @@ suites:
         backends: [google-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
+            NESTED_TYPE: core
             CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-stable})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-edge})"
         manual: true

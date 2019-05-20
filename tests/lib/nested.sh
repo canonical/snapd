@@ -65,6 +65,30 @@ get_image_url_for_nested_vm(){
     esac
 }
 
+is_core_nested_system(){
+    if [ -z "NESTED_TYPE" ]; then
+        echo "Variable NESTED_TYPE not defined. Exiting..."
+        exit 1
+    fi
+
+    if [ "$NESTED_TYPE" = core ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_classic_nested_system(){
+    if [ -z "NESTED_TYPE" ]; then
+        echo "Variable NESTED_TYPE not defined. Exiting..."
+        exit 1
+    fi
+
+    if [ "$NESTED_TYPE" = classic ]; then
+        return 0
+    fi
+    return 1
+}
+
 is_core_18_nested_system(){
     if [ "$SPREAD_SYSTEM" = ubuntu-18.04-64 ]; then
         return 0
@@ -77,6 +101,30 @@ is_core_16_nested_system(){
         return 0
     fi
     return 1
+}
+
+refresh_to_new_core(){
+    local NEW_CHANNEL=$1
+    if [ "$NEW_CHANNEL" = "" ]; then
+        echo "Channel to refresh is not defined."
+        exit 1
+    else
+        echo "Refreshing the core/snapd snap"
+        if is_classic_nested_system; then
+            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            execute_remote "snap info core" | grep -E "^tracking: +${NEW_CHANNEL}"
+        fi
+
+        if is_core_18_nested_system; then
+            execute_remote "snap refresh snapd --${NEW_CHANNEL}"
+            execute_remote "snap info snapd" | grep -E "^tracking: +${NEW_CHANNEL}"
+        else
+            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            wait_for_no_ssh
+            wait_for_ssh
+            execute_remote "snap info core" | grep -E "^tracking: +${NEW_CHANNEL}"
+        fi
+    fi
 }
 
 create_nested_core_vm(){
