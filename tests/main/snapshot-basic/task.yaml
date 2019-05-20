@@ -4,6 +4,11 @@ prepare: |
     snap install test-snapd-tools
     snap install --edge test-snapd-just-edge
 
+debug: |
+    snap list || true
+    snap info core || true
+    snap saved || true
+
 execute: |
     # use the snaps, so they create the dirs:
     test-snapd-tools.echo

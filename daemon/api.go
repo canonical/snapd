@@ -48,16 +48,17 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -582,7 +583,7 @@ func getStore(c *Command) snapstate.StoreService {
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstate.Store(st)
+	return snapstate.Store(st, nil)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -701,6 +702,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
 				Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+				Status: 400,
+			}, nil)
+		}
+		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
+			return SyncResponse(&resp{
+				Type:   ResponseTypeError,
+				Result: &errorResult{Message: e.Error(), Kind: errorKindDNSFailure},
 				Status: 400,
 			}, nil)
 		}
@@ -2146,12 +2154,13 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	return v.Username, opts, nil
 }
 
-func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
+func createAllKnownSystemUsers(o *overlord.Overlord, createData *postUserCreateData) Response {
 	var createdUsers []userResponseData
 
+	st := o.State()
 	st.Lock()
 	db := assertstate.DB(st)
-	modelAs, err := devicestate.Model(st)
+	modelAs, err := o.DeviceManager().Model()
 	st.Unlock()
 	if err != nil {
 		return InternalError("cannot get model assertion")
@@ -2171,7 +2180,7 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 		email := as.(*asserts.SystemUser).Email()
 		// we need to use getUserDetailsFromAssertion as this verifies
 		// the assertion against the current brand/model/time
-		username, opts, err := getUserDetailsFromAssertion(st, email)
+		username, opts, err := getUserDetailsFromAssertion(o, email)
 		if err != nil {
 			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 			continue
@@ -2200,12 +2209,13 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 	return SyncResponse(createdUsers, nil)
 }
 
-func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
+func getUserDetailsFromAssertion(o *overlord.Overlord, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
+	st := o.State()
 	st.Lock()
 	db := assertstate.DB(st)
-	modelAs, err := devicestate.Model(st)
+	modelAs, err := o.DeviceManager().Model()
 	st.Unlock()
 	if err != nil {
 		return "", nil, fmt.Errorf(errorPrefix+"cannot get model assertion: %s", err)
@@ -2334,7 +2344,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	// special case: the user requested the creation of all known
 	// system-users
 	if createData.Email == "" && createData.Known {
-		return createAllKnownSystemUsers(c.d.overlord.State(), &createData)
+		return createAllKnownSystemUsers(c.d.overlord, &createData)
 	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
@@ -2343,7 +2353,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var username string
 	var opts *osutil.AddUserOptions
 	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
+		username, opts, err = getUserDetailsFromAssertion(c.d.overlord, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
 	}

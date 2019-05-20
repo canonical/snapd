@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -108,7 +108,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(refreshPrivacyKey, HasLen, 16)
 
 	// store is setup
-	sto := snapstate.Store(s)
+	sto := snapstate.Store(s, nil)
 	c.Check(sto, FitsTypeOf, &store.Store{})
 	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
 }
@@ -232,7 +232,7 @@ func markSeeded(o *overlord.Overlord) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "serialserial",
