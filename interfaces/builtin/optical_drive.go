@@ -54,6 +54,9 @@ const opticalDriveConnectedPlugAppArmor = `
 var opticalDriveConnectedPlugUDev = []string{
 	`KERNEL=="sr[0-9]*"`,
 	`KERNEL=="scd[0-9]*"`,
+	// ATTRS{type} below takes scsi peripheral device types.
+	// Type 4 is 'Write-once device'; type 5 is 'CD/DVD-ROM device'
+	// ref: https://en.wikipedia.org/wiki/SCSI_Peripheral_Device_Type
 	`SUBSYSTEM=="scsi_generic", SUBSYSTEMS=="scsi", ATTRS{type}=="4|5"`,
 }
 
