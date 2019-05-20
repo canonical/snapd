@@ -324,30 +324,29 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 					continue;
 				}
 				die("cannot stat %s from desired rootfs", src);
-			} else {
-				if (!S_ISREG(src_stat.st_mode)
-				    && !S_ISDIR(src_stat.st_mode)) {
-					debug
-					    ("entry %s from the desired rootfs is not a file or directory, skipping mount",
-					     src);
-					continue;
-				}
 			}
+			if (!S_ISREG(src_stat.st_mode)
+			    && !S_ISDIR(src_stat.st_mode)) {
+				debug
+				    ("entry %s from the desired rootfs is not a file or directory, skipping mount",
+				     src);
+				continue;
+			}
+
 			if (lstat(dst, &dst_stat) != 0) {
 				if (errno == ENOENT) {
 					continue;
 				}
 				die("cannot stat %s from host", src);
-			} else {
-				if (!S_ISREG(dst_stat.st_mode)
-				    && !S_ISDIR(dst_stat.st_mode)) {
-					debug
-					    ("entry %s from the host is not a file or directory, skipping mount",
-					     src);
-					continue;
-				}
-
 			}
+			if (!S_ISREG(dst_stat.st_mode)
+			    && !S_ISDIR(dst_stat.st_mode)) {
+				debug
+				    ("entry %s from the host is not a file or directory, skipping mount",
+				     src);
+				continue;
+			}
+
 			if ((dst_stat.st_mode & S_IFMT) !=
 			    (src_stat.st_mode & S_IFMT)) {
 				debug
