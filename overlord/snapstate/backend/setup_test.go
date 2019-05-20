@@ -21,6 +21,7 @@ package backend_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,7 +145,14 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 }
 
 func (s *setupSuite) TestSetupDoUndoKernelUboot(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	// setup uboot config, so we can get uboot bootloader
+	mockGadgetDir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = bootloader.InstallBootConfig(mockGadgetDir)
+	c.Assert(err, IsNil)
+	loader, _ := bootloader.Find()
+	c.Assert(loader, NotNil)
 	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -171,7 +179,7 @@ type: kernel
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
 	l, _ := filepath.Glob(filepath.Join(loader.Dir(), "*"))
-	c.Assert(l, HasLen, 1)
+	c.Assert(l, HasLen, 2) // kernel + uboot.conf
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
@@ -180,7 +188,7 @@ type: kernel
 	c.Assert(err, IsNil)
 
 	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
-	c.Assert(l, HasLen, 0)
+	c.Assert(l, HasLen, 1) // uboot.conf
 }
 
 func (s *setupSuite) TestSetupDoIdempotent(c *C) {
@@ -189,7 +197,14 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	// setup uboot config, so we can get uboot bootloader
+	mockGadgetDir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = bootloader.InstallBootConfig(mockGadgetDir)
+	c.Assert(err, IsNil)
+	loader, _ := bootloader.Find()
+	c.Assert(loader, NotNil)
 	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -212,7 +227,7 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
@@ -229,7 +244,7 @@ type: kernel
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
 
 	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
-	c.Assert(l, HasLen, 1)
+	c.Assert(l, HasLen, 2) // kernel snap + uboot.env
 }
 
 func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
