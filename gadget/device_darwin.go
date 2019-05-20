@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
 package gadget
 
-var (
-	ValidateStructureType   = validateStructureType
-	ValidateVolumeStructure = validateVolumeStructure
-	ValidateRole            = validateRole
-	ValidateVolume          = validateVolume
-
-	ResolveVolume      = resolveVolume
-	CanUpdateStructure = canUpdateStructure
-	CanUpdateVolume    = canUpdateVolume
-
-	EncodeLabel = encodeLabel
+import (
+	"errors"
 )
+
+var errNotImplemented = errors.New("not implemented")
+
+func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
+	return "", errNotImplemented
+}
+
+func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
+	return "", errNotImplemented
+}
