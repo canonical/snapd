@@ -452,6 +452,16 @@ distro_install_build_snapd(){
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
+    elif [ -n "$PPA_VALIDATION_NAME" ]; then
+        apt install -y snapd
+        add-apt-repository -y "$PPA_VALIDATION_NAME"
+        apt update
+        apt install -y --only-upgrade snapd
+        add-apt-repository --remove "$PPA_VALIDATION_NAME"
+        apt update
+
+        # Double check that it really comes from the PPA
+        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
     else
         packages=
         case "$SPREAD_SYSTEM" in
