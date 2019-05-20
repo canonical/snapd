@@ -633,8 +633,8 @@ UnitFileState=potatoes
 Id=snap.foo.svc5.service
 ActiveState=inactive
 UnitFileState=static
-
-Id=snap.foo.svc5.timer
+`),
+		[]byte(`Id=snap.foo.svc5.timer
 ActiveState=active
 UnitFileState=enabled
 `),
@@ -642,8 +642,8 @@ UnitFileState=enabled
 Id=snap.foo.svc6.service
 ActiveState=inactive
 UnitFileState=static
-
-Id=snap.foo.svc6.sock.socket
+`),
+		[]byte(`Id=snap.foo.svc6.sock.socket
 ActiveState=active
 UnitFileState=enabled
 `),
@@ -651,8 +651,8 @@ UnitFileState=enabled
 Id=snap.foo.svc7.service
 ActiveState=inactive
 UnitFileState=static
-
-Id=snap.foo.svc7.other-sock.socket
+`),
+		[]byte(`Id=snap.foo.svc7.other-sock.socket
 ActiveState=inactive
 UnitFileState=enabled
 `),
