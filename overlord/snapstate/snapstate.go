@@ -651,7 +651,7 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+func Install(ctx context.Context, st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	return InstallUnderDeviceContext(st, name, channel, revision, userID, flags, nil)
 }
 

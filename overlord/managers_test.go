@@ -762,7 +762,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -863,7 +863,7 @@ func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -944,7 +944,7 @@ func (ms *mgrsSuite) testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c *C, doB
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1374,7 +1374,7 @@ version: @VERSION@
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1863,7 +1863,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1923,7 +1923,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2029,7 +2029,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{Unaliased: true})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{Unaliased: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2142,7 +2142,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2156,7 +2156,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	ts, err = snapstate.Install(st, "bar", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Install(nil, st, "bar", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2289,7 +2289,7 @@ version: 1.0
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2330,7 +2330,7 @@ version: 1.0
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(nil, st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)

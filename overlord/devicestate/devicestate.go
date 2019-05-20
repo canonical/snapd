@@ -22,6 +22,7 @@
 package devicestate
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -346,7 +347,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSe
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{Required: true})
+			ts, err := snapstateInstall(context.TODO(), st, snapName, "", snap.R(0), userID, snapstate.Flags{Required: true})
 			if err != nil {
 				return nil, err
 			}

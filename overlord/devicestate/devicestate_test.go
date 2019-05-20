@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -2478,7 +2479,7 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstall(func(ctx context.Context, st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 
 		c.Check(flags.Required, Equals, true)
 
@@ -2528,7 +2529,7 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstall(func(ctx context.Context, st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 
 		c.Check(flags.Required, Equals, true)
 
@@ -2632,7 +2633,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstall(func(ctx context.Context, st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))

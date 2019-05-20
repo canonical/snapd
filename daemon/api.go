@@ -1081,7 +1081,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 
-	tset, err := snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	tset, err := snapstateInstall(context.TODO(), st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}

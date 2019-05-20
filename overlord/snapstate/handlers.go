@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -253,7 +254,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channe
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, channel, snap.R(0), userID, Flags{})
+	ts, err := Install(context.TODO(), st, snapName, channel, snap.R(0), userID, Flags{})
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
