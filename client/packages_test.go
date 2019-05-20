@@ -115,6 +115,10 @@ func (cs *clientSuite) TestClientNoSnaps(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
+	healthTimestamp, err := time.Parse(time.RFC3339Nano, "2019-05-13T16:27:01.475851677+01:00")
+	c.Assert(err, check.IsNil)
+
+	// TODO: update this JSON as it's ancient
 	cs.rsp = `{
 		"type": "sync",
 		"result": [{
@@ -123,6 +127,11 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"summary": "salutation snap",
 			"description": "hello-world",
 			"download-size": 22212,
+                        "health": {
+				"revision": "29",
+				"timestamp": "2019-05-13T16:27:01.475851677+01:00",
+				"status": "okay"
+                        },
 			"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
 			"installed-size": -1,
 			"license": "GPL-3.0",
@@ -147,12 +156,17 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	applications, err := cs.cli.List(nil, nil)
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
-		ID:            "funky-snap-id",
-		Title:         "Title",
-		Summary:       "salutation snap",
-		Description:   "hello-world",
-		DownloadSize:  22212,
-		Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		ID:           "funky-snap-id",
+		Title:        "Title",
+		Summary:      "salutation snap",
+		Description:  "hello-world",
+		DownloadSize: 22212,
+		Icon:         "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		Health: &client.SnapHealth{
+			Revision:  snap.R(29),
+			Timestamp: healthTimestamp,
+			Status:    "okay",
+		},
 		InstalledSize: -1,
 		License:       "GPL-3.0",
 		Name:          "hello-world",

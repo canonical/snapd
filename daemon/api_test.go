@@ -63,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -662,6 +663,9 @@ UnitFileState=enabled
 	var snapst snapstate.SnapState
 	st := s.d.overlord.State()
 	st.Lock()
+	st.Set("health", map[string]healthstate.HealthState{
+		"foo": {Status: healthstate.OkayStatus},
+	})
 	err := snapstate.Get(st, "foo", &snapst)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -713,6 +717,7 @@ UnitFileState=enabled
 				Validation:  "unproven",
 			},
 			Status:      "active",
+			Health:      &client.SnapHealth{Status: "okay"},
 			Icon:        "/v2/icons/foo/icon",
 			Type:        string(snap.TypeApp),
 			Base:        "base18",
@@ -1630,6 +1635,12 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Set("health", map[string]healthstate.HealthState{
+		"local": {Status: healthstate.OkayStatus},
+	})
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local", nil)
 	c.Assert(err, check.IsNil)
@@ -1641,6 +1652,11 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "local")
+	c.Check(snaps[0]["health"], check.DeepEquals, map[string]interface{}{
+		"status":    "okay",
+		"revision":  "unset",
+		"timestamp": "0001-01-01T00:00:00Z",
+	})
 }
 
 func (s *apiSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {

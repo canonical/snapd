@@ -475,6 +475,7 @@ snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+// only used for results on /v2/find
 const mockInfoJSON = `
 {
   "type": "sync",
@@ -594,6 +595,7 @@ snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+// only used for /v2/snaps/hello
 const mockInfoJSONOtherLicense = `
 {
   "type": "sync",
@@ -610,6 +612,7 @@ const mockInfoJSONOtherLicense = `
          "display-name": "Canonical",
          "validation": "verified"
       },
+      "health": {"revision": "1", "status": "blocked", "message": "please configure the grawflit", "timestamp": "2019-05-13T16:27:01.475851677+01:00"},
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
       "installed-size": 1024,
@@ -680,8 +683,11 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `name:      hello
-summary:   The GNU Hello snap
+	c.Check(s.Stdout(), check.Equals, `
+name:    hello
+summary: The GNU Hello snap
+health:  blocked (please configure the grawflit), last run
+  2019-05-13T16:27:01+01:00 for revision 1.
 publisher: Canonical*
 license:   BSD-3
 description: |
@@ -690,8 +696,8 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (1) 1kB disabled
-`)
+installed:    2.10 (1) 1kB disabled,blocked
+`[1:])
 	c.Check(s.Stderr(), check.Equals, "")
 }
 

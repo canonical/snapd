@@ -76,6 +76,69 @@ func init() {
 		}), nil)
 }
 
+func (iw *infoWriter) maybePrintHealth() {
+	if iw.localSnap == nil {
+		return
+	}
+	health := iw.localSnap.Health
+	if health == nil {
+		if iw.verbose {
+			fmt.Fprintln(iw, "health:\tunknown (no hook)")
+		}
+		return
+	}
+	if health.Status == "okay" && !iw.verbose {
+		return
+	}
+	buf := new(strings.Builder)
+	fmt.Fprint(buf, health.Status)
+	if health.Message != "" {
+		fmt.Fprintf(buf, " (%s)", health.Message)
+	}
+	if health.Code != "" {
+		fmt.Fprintf(buf, " code %q", health.Code)
+	}
+	fmt.Fprintf(buf, ", last run %s for revision %s.\n", iw.fmtTime(health.Timestamp), health.Revision)
+
+	wrapFlow(iw, []rune(quotedIfNeeded(buf.String())), "health:\t", iw.termWidth)
+}
+
+func maybePrintPrice(w io.Writer, snap *client.Snap, resInfo *client.ResultInfo) {
+	if resInfo == nil {
+		return
+	}
+	price, currency, err := getPrice(snap.Prices, resInfo.SuggestedCurrency)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "price:\t%s\n", formatPrice(price, currency))
+}
+
+func maybePrintType(w io.Writer, t string) {
+	// XXX: using literals here until we reshuffle snap & client properly
+	// (and os->core rename happens, etc)
+	switch t {
+	case "", "app", "application":
+		return
+	case "os":
+		t = "core"
+	}
+
+	fmt.Fprintf(w, "type:\t%s\n", t)
+}
+
+func maybePrintID(w io.Writer, snap *client.Snap) {
+	if snap.ID != "" {
+		fmt.Fprintf(w, "snap-id:\t%s\n", snap.ID)
+	}
+}
+
+func maybePrintBase(w io.Writer, base string, verbose bool) {
+	if verbose && base != "" {
+		fmt.Fprintf(w, "base:\t%s\n", base)
+	}
+}
+
 func clientSnapFromPath(path string) (*client.Snap, error) {
 	snapf, err := snap.Open(path)
 	if err != nil {
@@ -196,6 +259,24 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth i
 	}
 	_, err = fmt.Fprint(out, indent, string(text), "\n")
 	return err
+}
+
+func quotedIfNeeded(raw string) string {
+	// simplest way of checking to see if it needs quoting is to try
+	raw = strings.TrimSpace(raw)
+	type T struct {
+		S string
+	}
+	if len(raw) == 0 {
+		raw = `""`
+	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
+		raw = strconv.Quote(raw)
+	}
+	return raw
+}
+
+func printSummary(w io.Writer, raw string, termWidth int) error {
+	return wrapFlow(w, []rune(quotedIfNeeded(raw)), "summary:\t", termWidth)
 }
 
 // printDescr formats a given string (typically a snap description)
@@ -687,6 +768,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintCommands()
 		iw.maybePrintServices()
 		iw.maybePrintNotes()
+		iw.maybePrintHealth()
 		// stops the notes etc trying to be aligned with channels
 		iw.Flush()
 		iw.maybePrintType()
