@@ -66,7 +66,7 @@ const (
 
 var ErrNothingToDo = errors.New("nothing to do")
 
-// RemoveFlags are used to pass additional flags to Remove operation.
+// RemoveFlags are used to pass additional flags to the Remove operation.
 type RemoveFlags struct {
 	// Remove the snap without creating snapshot data
 	Purge bool
@@ -1786,7 +1786,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	}
 
 	// 'purge' flag disables automatic snapshot for given remove op
-	if flags == nil || flags.Purge == false {
+	if flags == nil || !flags.Purge {
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
