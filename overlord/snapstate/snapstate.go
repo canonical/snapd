@@ -652,7 +652,21 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
-	return InstallUnderDeviceContext(st, name, channel, revision, userID, flags, nil)
+	return installGeneric(st, name, channel, "", revision, userID, flags)
+}
+
+// InstallCohort is like Install but instead of a revision, it takes a cohort key.
+func InstallCohort(st *state.State, name, channel, cohortKey string, userID int, flags Flags) (*state.TaskSet, error) {
+	return installGeneric(st, name, channel, cohortKey, snap.Revision{}, userID, flags)
+}
+
+// TODO: refactor things so there's a single Install again that takes a struct, maybe a bit more like doInstall but public-er.
+func installGeneric(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+	if cohort != "" && !revision.Unset() {
+		return nil, errors.New("cannot specify revision and cohort")
+	}
+
+	return InstallUnderDeviceContext(st, name, channel, cohort, revision, userID, flags, nil)
 }
 
 // InstallUnderDeviceContext returns a set of tasks for installing snap.
@@ -660,7 +674,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func InstallUnderDeviceContext(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func InstallUnderDeviceContext(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if channel == "" {
 		channel = "stable"
 	}
@@ -684,7 +698,7 @@ func InstallUnderDeviceContext(st *state.State, name, channel string, revision s
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, err := installInfo(st, name, channel, revision, userID, deviceCtx)
+	info, err := installInfo(st, name, channel, cohort, revision, userID, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -712,6 +726,7 @@ func InstallUnderDeviceContext(st *state.State, name, channel string, revision s
 		auxStoreInfo: auxStoreInfo{
 			Media: info.Media,
 		},
+		CohortKey: cohort,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, "")
@@ -1943,7 +1958,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(st, newName, oldSnapst.Channel, snap.R(0), userID, nil)
+		newInfo, err := installInfo(st, newName, oldSnapst.Channel, "", snap.R(0), userID, nil)
 		if err != nil {
 			return nil, err
 		}
