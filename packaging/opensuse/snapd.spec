@@ -393,6 +393,8 @@ fi
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-exec
+# Not making snap-verify available as its specialized for Ubuntu Core systems
+#%{_libexecdir}/snapd/snap-verify
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-seccomp

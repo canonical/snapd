@@ -1,3 +1,5 @@
 usr/bin/snap-repair
 usr/bin/snap-failure
 usr/lib/snapd/system-shutdown
+# Not making snap-verify available as its specialized for Ubuntu Core systems
+usr/bin/snap-verify

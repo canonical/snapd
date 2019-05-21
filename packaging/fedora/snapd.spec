@@ -560,6 +560,9 @@ install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
 # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
 install -p -m 0755 bin/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
 ln -s %{_libexecdir}/snapd/snapctl  %{buildroot}%{_bindir}/snapctl
+# Not making snap-verify available as its specialized for Ubuntu Core systems
+#install -p -m 0755 bin/snap-verify %{buildroot}%{_libexecdir}/snapd
+
 
 %if 0%{?with_selinux}
 # Install SELinux module
@@ -759,6 +762,8 @@ popd
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
+# Not making snap-verify available as its specialized for Ubuntu Core systems
+#%{_libexecdir}/snapd/snap-verify
 %{_mandir}/man8/snap-confine.8*
 %{_mandir}/man8/snap-discard-ns.8*
 %{_systemdgeneratordir}/snapd-generator

@@ -86,6 +86,7 @@ install:: snap | $(DESTDIR)$(bindir)
 	install -m 755 $^ $|
 
 # Install snapctl snapd, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
+# (but not snap-verify)
 install:: snapctl snapd snap-exec snap-update-ns snap-seccomp | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
