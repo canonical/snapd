@@ -7359,7 +7359,7 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 		}
 	}()
 
-	ts, err := snapstate.Remove(st, "snap-a", snap.R(0))
+	ts, err := snapstate.Remove(st, "snap-a", snap.R(0), nil)
 	c.Assert(err, check.IsNil)
 	// need a change to make the tasks visible
 	st.NewChange("enable", "...").AddAll(ts)

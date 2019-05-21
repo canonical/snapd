@@ -399,7 +399,7 @@ apps:
 	c.Assert(tr.Set("foo", "key", "value"), IsNil)
 	tr.Commit()
 
-	ts, err := snapstate.Remove(st, "foo", snap.R(0))
+	ts, err := snapstate.Remove(st, "foo", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -1660,7 +1660,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 func (ms *mgrsSuite) removeSnap(c *C, name string) {
 	st := ms.o.State()
 
-	ts, err := snapstate.Remove(st, name, snap.R(0))
+	ts, err := snapstate.Remove(st, name, snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -2619,7 +2619,7 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 
 	_ = ms.installLocalTestSnap(c, snapYamlContent1+"version: 1.0")
 
-	ts, err := snapstate.Remove(st, "snap1", snap.R(0))
+	ts, err := snapstate.Remove(st, "snap1", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -2916,7 +2916,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0))
+	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("remove-snap", "...")
 	chg2.AddAll(ts2)
@@ -3031,13 +3031,13 @@ hooks:
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0))
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("uninstall", "...")
 	chg2.AddAll(ts2)
@@ -3119,7 +3119,7 @@ func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)

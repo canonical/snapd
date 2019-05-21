@@ -905,6 +905,7 @@ type snapInstruction struct {
 	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	Unaliased        bool          `json:"unaliased"`
+	Purge            bool          `json:"purge,omitempty"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -1170,7 +1171,7 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision)
+	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision, &snapstate.RemoveFlags{Purge: inst.Purge})
 	if err != nil {
 		return "", nil, err
 	}

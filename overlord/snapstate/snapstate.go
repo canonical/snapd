@@ -1670,9 +1670,15 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	return true
 }
 
+// RemoveFlags are used to pass additional flags to the Remove operation.
+type RemoveFlags struct {
+	// Remove the snap without creating snapshot data
+	Purge bool
+}
+
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSet, error) {
+func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -1779,13 +1785,16 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		prev = disconnect
 	}
 
-	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
-		ts, err := AutomaticSnapshot(st, name)
-		if err == nil {
-			addNext(ts)
-		} else {
-			if err != ErrNothingToDo {
-				return nil, err
+	// 'purge' flag disables automatic snapshot for given remove op
+	if flags == nil || !flags.Purge {
+		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+			ts, err := AutomaticSnapshot(st, name)
+			if err == nil {
+				addNext(ts)
+			} else {
+				if err != ErrNothingToDo {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -1849,7 +1858,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
 	for _, name := range names {
-		ts, err := Remove(st, name, snap.R(0))
+		ts, err := Remove(st, name, snap.R(0), nil)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
@@ -1994,7 +2003,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	})
 
 	// then remove the old snap
-	tsRm, err := Remove(st, oldName, snap.R(0))
+	tsRm, err := Remove(st, oldName, snap.R(0), nil)
 	if err != nil {
 		return nil, err
 	}
