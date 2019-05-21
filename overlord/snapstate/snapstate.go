@@ -66,12 +66,6 @@ const (
 
 var ErrNothingToDo = errors.New("nothing to do")
 
-// RemoveFlags are used to pass additional flags to the Remove operation.
-type RemoveFlags struct {
-	// Remove the snap without creating snapshot data
-	Purge bool
-}
-
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
 		return nil
@@ -1674,6 +1668,12 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	return true
+}
+
+// RemoveFlags are used to pass additional flags to the Remove operation.
+type RemoveFlags struct {
+	// Remove the snap without creating snapshot data
+	Purge bool
 }
 
 // Remove returns a set of tasks for removing snap.
