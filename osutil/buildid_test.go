@@ -22,6 +22,7 @@ package osutil_test
 import (
 	"encoding/hex"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -128,11 +129,16 @@ func (s *buildIDSuite) TestMyBuildID(c *C) {
 }
 
 func (s *buildIDSuite) TestReadBuildGo(c *C) {
-	goTruth := filepath.Join(c.MkDir(), "true")
+	tmpdir := c.MkDir()
+	goTruth := filepath.Join(tmpdir, "true")
 	err := ioutil.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644)
 	c.Assert(err, IsNil)
 	// force specific Go BuildID
-	output, err := exec.Command("go", "build", "-o", goTruth, "-ldflags=-buildid=foobar", goTruth+".go").CombinedOutput()
+	cmd := exec.Command("go", "build", "-o", goTruth, "-ldflags=-buildid=foobar", goTruth+".go")
+	// set custom homedir to ensure tests work in an sbuild environment
+	// that force a non-existing homedir
+	cmd.Env = append(os.Environ(), "HOME="+tmpdir)
+	output, err := cmd.CombinedOutput()
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
 

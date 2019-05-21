@@ -156,7 +156,7 @@ func New() (*Overlord, error) {
 	defer s.Unlock()
 	// setting up the store
 	proxyConf := proxyconf.New(s)
-	storeCtx := storecontext.New(s, o.deviceMgr)
+	storeCtx := storecontext.New(s, o.deviceMgr.StoreContextBackend())
 	cfg := store.DefaultConfig()
 	cfg.Proxy = proxyConf.Conf
 	sto := storeNew(cfg, storeCtx)

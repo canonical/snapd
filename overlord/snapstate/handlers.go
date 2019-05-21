@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -133,6 +134,14 @@ func defaultBaseSnapsChannel() string {
 	return channel
 }
 
+func defaultSnapdSnapsChannel() string {
+	channel := os.Getenv("SNAPD_SNAPD_CHANNEL")
+	if channel == "" {
+		return "stable"
+	}
+	return channel
+}
+
 func defaultPrereqSnapsChannel() string {
 	channel := os.Getenv("SNAPD_PREREQS_CHANNEL")
 	if channel == "" {
@@ -218,10 +227,12 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// The core snap provides everything we need for core16.
-	if snapName == "core16" {
-		if hasCore, err := isInstalled(st, "core"); hasCore && err == nil {
-			return nil, nil
-		}
+	coreInstalled, err := isInstalled(st, "core")
+	if err != nil {
+		return nil, err
+	}
+	if snapName == "core16" && coreInstalled {
+		return nil, nil
 	}
 
 	// installed already?
@@ -288,6 +299,26 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		return err
 	}
 
+	// on systems without core or snapd need to install snapd to
+	// make interfaces work - LP: 1819318
+	var tsSnapd *state.TaskSet
+	snapdSnapInstalled, err := isInstalled(st, "snapd")
+	if err != nil {
+		return err
+	}
+	coreSnapInstalled, err := isInstalled(st, "core")
+	if err != nil {
+		return err
+	}
+	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
+		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
+			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	chg := t.Change()
 	// add all required snaps, no ordering, this will be done in the
 	// auto-connect task handler
@@ -295,13 +326,21 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		ts.JoinLane(st.NewLane())
 		chg.AddAll(ts)
 	}
-	// add the base if needed, everything else must wait on this
+	// add the base if needed, prereqs else must wait on this
 	if tsBase != nil {
 		tsBase.JoinLane(st.NewLane())
 		for _, t := range chg.Tasks() {
 			t.WaitAll(tsBase)
 		}
 		chg.AddAll(tsBase)
+	}
+	// add snapd if needed, everything must wait on this
+	if tsSnapd != nil {
+		tsSnapd.JoinLane(st.NewLane())
+		for _, t := range chg.Tasks() {
+			t.WaitAll(tsSnapd)
+		}
+		chg.AddAll(tsSnapd)
 	}
 
 	// make sure that the new change is committed to the state
@@ -420,10 +459,10 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error) {
+func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceContext) (*snap.Info, error) {
 	st.Lock()
 	defer st.Unlock()
-	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
+	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.CohortKey, snapsup.Revision(), snapsup.UserID, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -444,24 +483,38 @@ func autoRefreshRateLimited(st *state.State) (rate int64) {
 	return val
 }
 
-func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	perfTimings := timings.NewForTask(t)
+func downloadSnapParams(st *state.State, t *state.Task) (*SnapSetup, StoreService, *auth.UserState, error) {
 	snapsup, err := TaskSnapSetup(t)
-	st.Unlock()
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
-	st.Lock()
-	theStore := Store(st)
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	sto := Store(st, deviceCtx)
+
+	user, err := userFromUserID(st, snapsup.UserID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return snapsup, sto, user, nil
+}
+
+func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
 	var rate int64
-	if snapsup.IsAutoRefresh {
+
+	st.Lock()
+	perfTimings := timings.NewForTask(t)
+	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	if snapsup != nil && snapsup.IsAutoRefresh {
 		// NOTE rate is never negative
 		rate = autoRefreshRateLimited(st)
 	}
-	user, err := userFromUserID(st, snapsup.UserID)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -478,8 +531,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
-		// yet.
-		storeInfo, err = installInfoUnlocked(st, snapsup)
+		// yet. Therefore do not worry about DeviceContext.
+		storeInfo, err = installInfoUnlocked(st, snapsup, nil)
 		if err != nil {
 			return err
 		}
@@ -689,6 +742,25 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
+	}
+
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+
+	if experimentalRefreshAppAwareness {
+		// A process may be created after the soft refresh done upon
+		// the request to refresh a snap. If such process is alive by
+		// the time this code is reached the refresh process is stopped.
+		// In case of failure the snap state is modified to indicate
+		// when the refresh was first inhibited. If the first
+		// inhibition is outside of a grace period then refresh
+		// proceeds regardless of the existing processes.
+		if err := inhibitRefresh(st, snapst, oldInfo, HardNothingRunningRefreshCheck); err != nil {
+			return err
+		}
 	}
 
 	// Make a copy of configuration of given snap revision
@@ -928,6 +1000,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	snapst.JailMode = snapsup.JailMode
 	oldClassic := snapst.Classic
 	snapst.Classic = snapsup.Classic
+	oldCohortKey := snapst.CohortKey
+	snapst.CohortKey = snapsup.CohortKey
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
 	}
@@ -996,6 +1070,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
+	t.Set("old-cohort-key", oldCohortKey)
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
@@ -1060,19 +1135,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	return nil
 }
 
-func snapdSnapInstalled(st *state.State) bool {
-	var snapst SnapState
-	err := Get(st, "snapd", &snapst)
-	return err == nil
-}
-
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
 	if release.OnClassic {
-		if (info.Type == snap.TypeOS && !snapdSnapInstalled(st)) ||
+		// ignore error here as we have no way to return to caller
+		snapdSnapInstalled, _ := isInstalled(st, "snapd")
+		if (info.Type == snap.TypeOS && !snapdSnapInstalled) ||
 			info.InstanceName() == "snapd" {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
@@ -1157,6 +1228,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var oldCohortKey string
+	if err := t.Get("old-cohort-key", &oldCohortKey); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	if len(snapst.Sequence) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
@@ -1200,6 +1275,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
+	snapst.CohortKey = oldCohortKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {

@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -296,34 +295,79 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	connStateChanged := false
 	affected := make(map[string]bool)
-	for id, conn := range conns {
-		if conn.Undesired || conn.HotplugGone {
+	for connId, connState := range conns {
+		// Skip entries that just mark a connection as undesired. Those don't
+		// carry attributes that can go stale. In the same spirit, skip
+		// information about hotplug connections that don't have the associated
+		// hotplug hardware.
+		if connState.Undesired || connState.HotplugGone {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(id)
+		connRef, err := interfaces.ParseConnRef(connId)
 		if err != nil {
 			return nil, err
 		}
+		// Apply filtering, this allows us to reload only a subset of
+		// connections (and similarly, refresh the static attributes of only a
+		// subset of connections).
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
 
-		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, nil); err != nil {
-			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
-				// Some versions of snapd may have left stray connections that
-				// don't have the corresponding plug or slot anymore. Before we
-				// choose how to deal with this data we want to silently ignore
-				// that error not to worry the users.
-				continue
+		// Some versions of snapd may have left stray connections that don't
+		// have the corresponding plug or slot anymore. Before we choose how to
+		// deal with this data we want to silently ignore that error not to
+		// worry the users.
+		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+		if plugInfo == nil || slotInfo == nil {
+			continue
+		}
+
+		var updateStaticAttrs bool
+		staticPlugAttrs := connState.StaticPlugAttrs
+		staticSlotAttrs := connState.StaticSlotAttrs
+
+		// XXX: Refresh the copy of the static connection attributes for "content" interface as long
+		// as its "content" attribute
+		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
+		if plugInfo.Interface == "content" {
+			var plugContent, slotContent string
+			plugInfo.Attr("content", &plugContent)
+			slotInfo.Attr("content", &slotContent)
+
+			if plugContent != "" && plugContent == slotContent {
+				staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+				staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+				updateStaticAttrs = true
+			} else {
+				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
 			}
+		}
+
+		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
+		if _, err := m.repo.Connect(connRef, staticPlugAttrs, connState.DynamicPlugAttrs, staticSlotAttrs, connState.DynamicSlotAttrs, nil); err != nil {
 			logger.Noticef("%s", err)
 		} else {
+			// If the connection succeeded update the connection state and keep
+			// track of the snaps that were affected.
 			affected[connRef.PlugRef.Snap] = true
 			affected[connRef.SlotRef.Snap] = true
+
+			if updateStaticAttrs {
+				connState.StaticPlugAttrs = staticPlugAttrs
+				connState.StaticSlotAttrs = staticSlotAttrs
+				connStateChanged = true
+			}
 		}
 	}
+	if connStateChanged {
+		setConns(m.state, conns)
+	}
+
 	result := make([]string, 0, len(affected))
 	for name := range affected {
 		result = append(result, name)
@@ -463,20 +507,22 @@ type connState struct {
 }
 
 type autoConnectChecker struct {
-	st       *state.State
-	cache    map[string]*asserts.SnapDeclaration
-	baseDecl *asserts.BaseDeclaration
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
+	cache     map[string]*asserts.SnapDeclaration
+	baseDecl  *asserts.BaseDeclaration
 }
 
-func newAutoConnectChecker(s *state.State) (*autoConnectChecker, error) {
+func newAutoConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &autoConnectChecker{
-		st:       s,
-		cache:    make(map[string]*asserts.SnapDeclaration),
-		baseDecl: baseDecl,
+		st:        s,
+		deviceCtx: deviceCtx,
+		cache:     make(map[string]*asserts.SnapDeclaration),
+		baseDecl:  baseDecl,
 	}, nil
 }
 
@@ -494,10 +540,7 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 }
 
 func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
-	modelAs, err := devicestate.Model(c.st)
-	if err != nil {
-		return false, err
-	}
+	modelAs := c.deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
@@ -543,26 +586,25 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 }
 
 type connectChecker struct {
-	st       *state.State
-	baseDecl *asserts.BaseDeclaration
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
+	baseDecl  *asserts.BaseDeclaration
 }
 
-func newConnectChecker(s *state.State) (*connectChecker, error) {
+func newConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*connectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &connectChecker{
-		st:       s,
-		baseDecl: baseDecl,
+		st:        s,
+		deviceCtx: deviceCtx,
+		baseDecl:  baseDecl,
 	}, nil
 }
 
 func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
-	modelAs, err := devicestate.Model(c.st)
-	if err != nil {
-		return false, fmt.Errorf("cannot get model assertion: %v", err)
-	}
+	modelAs := c.deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {

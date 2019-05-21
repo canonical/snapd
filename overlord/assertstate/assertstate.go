@@ -176,7 +176,7 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 
 		return nil
 	}
-	return doFetch(s, userID, fetching)
+	return doFetch(s, userID, deviceCtx, fetching)
 }
 
 type refreshControlError struct {
@@ -199,7 +199,7 @@ func (e *refreshControlError) Error() string {
 // it returns a validated subset in validated and a summary error if not all
 // candidates validated. ignoreValidation is a set of snap-instance-names that
 // should not be gated.
-func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error) {
+func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) (validated []*snap.Info, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
 	// maps gating snap-ids to their snap names
@@ -272,7 +272,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			}
 			return nil
 		}
-		err := doFetch(s, userID, fetching)
+		err := doFetch(s, userID, deviceCtx, fetching)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.InstanceName(), candInfo.Revision, err))
 			continue

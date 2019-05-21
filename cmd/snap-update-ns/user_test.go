@@ -29,6 +29,8 @@ import (
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type userSuite struct{}
@@ -81,6 +83,61 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	c.Check(builder.String(), Equals, output)
 }
 
+func (s *userSuite) TestLoadCurrentProfile(c *C) {
+	// Mock directories.
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
+
+	// Write a current user mount profile for snap "foo".
+	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
+	path := update.CurrentUserProfilePath(ctx.InstanceName(), ctx.UID())
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(path, []byte(text), 0644), IsNil)
+
+	// Ask the user profile update helper to read the current profile.
+	profile, err := ctx.LoadCurrentProfile()
+	c.Assert(err, IsNil)
+	builder := &bytes.Buffer{}
+	profile.WriteTo(builder)
+
+	// Note that the profile is empty.
+	// Currently user profiles are not persisted so the presence of a profile on-disk is ignored.
+	c.Check(builder.String(), Equals, "")
+}
+
+func (s *userSuite) TestSaveCurrentProfile(c *C) {
+	// Mock directories and create directory runtime mount profiles.
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
+
+	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
+
+	// Prepare a mount profile to be saved.
+	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
+	profile, err := osutil.LoadMountProfileText(text)
+	c.Assert(err, IsNil)
+
+	// Write a fake current user mount profile for snap "foo".
+	path := update.CurrentUserProfilePath("foo", 1234)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(path, []byte("banana"), 0644), IsNil)
+
+	// Ask the user profile update helper to write the current profile.
+	err = ctx.SaveCurrentProfile(profile)
+	c.Assert(err, IsNil)
+
+	// Note that the profile was not modified.
+	// Currently user profiles are not persisted.
+	c.Check(path, testutil.FileEquals, "banana")
+}
+
 func (s *userSuite) TestDesiredUserProfilePath(c *C) {
 	c.Check(update.DesiredUserProfilePath("foo"), Equals, "/var/lib/snapd/mount/snap.foo.user-fstab")
+}
+
+func (s *userSuite) TestCurrentUserProfilePath(c *C) {
+	c.Check(update.CurrentUserProfilePath("foo", 12345), Equals, "/run/snapd/ns/snap.foo.12345.user-fstab")
 }
