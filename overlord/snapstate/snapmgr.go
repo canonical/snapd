@@ -69,6 +69,8 @@ type SnapSetup struct {
 	// slots (#slots == 0).
 	PlugsOnly bool `json:"plugs-only,omitempty"`
 
+	CohortKey string `json:"cohort-key,omitempty"`
+
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
 	//
@@ -139,6 +141,7 @@ type SnapState struct {
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
+	CohortKey   string `json:"cohort-key,omitempty"`
 
 	// RefreshInhibitedime records the time when the refresh was first
 	// attempted but inhibited because the snap was busy. This value is

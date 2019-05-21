@@ -88,7 +88,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
-func installInfo(st *state.State, name, channel string, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
+func installInfo(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
 	// TODO: support ignore-validation?
 
 	curSnaps, err := currentSnaps(st)
@@ -117,7 +117,8 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 		// the desired channel
 		Channel: channel,
 		// the desired revision
-		Revision: revision,
+		Revision:  revision,
+		CohortKey: cohort,
 	}
 
 	theStore := Store(st, deviceCtx)
@@ -313,6 +314,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
 			Epoch:            snapInfo.Epoch,
+			CohortKey:        snapst.CohortKey,
 		}
 		curSnaps = append(curSnaps, installed)
 
