@@ -5,7 +5,8 @@
     "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
     "model": "pc",
     "architecture": "amd64",
-    "gadget": "pc",
-    "kernel": "pc-kernel",
+    "gadget": "pc=18",
+    "base": "core18",
+    "kernel": "pc-kernel=18",
     "timestamp": "2019-05-16T18:06:04+00:00"
 }

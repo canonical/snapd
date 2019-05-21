@@ -407,12 +407,6 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 				return fmt.Errorf("structure %v refers to an unknown structure %q",
 					ps, ps.OffsetWrite.RelativeTo)
 			}
-			// make sure there is enough room left in the structure to write the pointer
-			if other.Size < SizeLBA48Pointer || ps.OffsetWrite.Offset > (other.Size-SizeLBA48Pointer) {
-				return fmt.Errorf("structure %v offset-write crosses structure %v size",
-					ps, other)
-			}
-
 		}
 
 		if ps.StartOffset < previousEnd {
@@ -432,11 +426,6 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
 			if relativeToStructure == nil {
 				return fmt.Errorf("structure %v, content %v refers to an unknown structure %q",
-					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
-			}
-			// make sure there is enough room left in the structure to write the pointer
-			if relativeToStructure.Size < SizeLBA48Pointer || c.OffsetWrite.Offset > (relativeToStructure.Size-SizeLBA48Pointer) {
-				return fmt.Errorf("structure %v, content %v offset-write crosses structure %q size",
 					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}

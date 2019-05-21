@@ -2483,7 +2483,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -2507,7 +2507,35 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"run-hook[remove]",
+		"auto-disconnect",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabledByPurgeFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(11)},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
@@ -2535,7 +2563,7 @@ func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
 		Current: snap.R(12),
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(11))
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(11), nil)
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
@@ -2553,12 +2581,12 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 		Current:  snap.R(11),
 	})
 
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("remove", "...").AddAll(ts)
 
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0))
+	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "remove" change in progress`)
 }
 
@@ -6940,7 +6968,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7078,7 +7106,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7221,7 +7249,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7323,7 +7351,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7485,7 +7513,7 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7553,7 +7581,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(2))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7651,7 +7679,7 @@ func (s *snapmgrTestSuite) TestRemoveCurrentActiveRevisionRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2))
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
 
 	c.Check(err, ErrorMatches, `cannot remove active revision 2 of snap "some-snap"`)
 }
@@ -7672,7 +7700,7 @@ func (s *snapmgrTestSuite) TestRemoveCurrentRevisionOfSeveralRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2))
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `cannot remove active revision 2 of snap "some-snap" (revert first?)`)
 }
@@ -7693,7 +7721,7 @@ func (s *snapmgrTestSuite) TestRemoveMissingRevisionRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(1))
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(1), nil)
 
 	c.Check(err, ErrorMatches, `revision 1 of snap "some-snap" is not installed`)
 }
@@ -7714,7 +7742,7 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "gadget", snap.R(0))
+	_, err := snapstate.Remove(s.state, "gadget", snap.R(0), nil)
 
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
@@ -7735,7 +7763,7 @@ func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "gadget", snap.R(7))
+	_, err := snapstate.Remove(s.state, "gadget", snap.R(7), nil)
 
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
@@ -7778,7 +7806,7 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	c.Assert(tr.Get("another-snap", "bar", &res), IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7831,7 +7859,7 @@ func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
 	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", si1.Revision)
+	ts, err := snapstate.Remove(s.state, "some-snap", si1.Revision, nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
