@@ -55,10 +55,14 @@ type infoSuite struct {
 
 var _ = check.Suite(&infoSuite{})
 
+type flushBuffer struct{ bytes.Buffer }
+
+func (*flushBuffer) Flush() error { return nil }
+
 func (s *infoSuite) TestMaybePrintServices(c *check.C) {
 	for _, infos := range [][]client.AppInfo{svcAppInfos, mixedAppInfos} {
-		var buf bytes.Buffer
-		snap.MaybePrintServices(&buf, "foo", infos, -1)
+		var buf flushBuffer
+		snap.MaybePrintServices(&buf, &client.Snap{Name: "foo", Apps: infos})
 
 		c.Check(buf.String(), check.Equals, `services:
   foo.svc1:	simple, disabled, active
@@ -69,17 +73,16 @@ func (s *infoSuite) TestMaybePrintServices(c *check.C) {
 
 func (s *infoSuite) TestMaybePrintServicesNoServices(c *check.C) {
 	for _, infos := range [][]client.AppInfo{cmdAppInfos, nil} {
-		var buf bytes.Buffer
-		snap.MaybePrintServices(&buf, "foo", infos, -1)
-
+		var buf flushBuffer
+		snap.MaybePrintServices(&buf, &client.Snap{Name: "foo", Apps: infos})
 		c.Check(buf.String(), check.Equals, "")
 	}
 }
 
 func (s *infoSuite) TestMaybePrintCommands(c *check.C) {
 	for _, infos := range [][]client.AppInfo{cmdAppInfos, mixedAppInfos} {
-		var buf bytes.Buffer
-		snap.MaybePrintCommands(&buf, "foo", infos, -1)
+		var buf flushBuffer
+		snap.MaybePrintCommands(&buf, &client.Snap{Name: "foo", Apps: infos})
 
 		c.Check(buf.String(), check.Equals, `commands:
   - foo.app1
@@ -90,8 +93,8 @@ func (s *infoSuite) TestMaybePrintCommands(c *check.C) {
 
 func (s *infoSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
 	for _, infos := range [][]client.AppInfo{svcAppInfos, nil} {
-		var buf bytes.Buffer
-		snap.MaybePrintCommands(&buf, "foo", infos, -1)
+		var buf flushBuffer
+		snap.MaybePrintCommands(&buf, &client.Snap{Name: "foo", Apps: infos})
 
 		c.Check(buf.String(), check.Equals, "")
 	}

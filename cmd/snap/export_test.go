@@ -41,8 +41,6 @@ var (
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	SnapdHelperPath    = snapdHelperPath
-	MaybePrintServices = maybePrintServices
-	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
 	AdviseCommand      = adviseCommand
 	Antialias          = antialias
@@ -80,6 +78,16 @@ var (
 
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
 )
+
+func MaybePrintServices(w writeflusher, theSnap *client.Snap) {
+	iw := &infoWriter{writeflusher: w, theSnap: theSnap}
+	iw.maybePrintServices()
+}
+
+func MaybePrintCommands(w writeflusher, theSnap *client.Snap) {
+	iw := &infoWriter{writeflusher: w, theSnap: theSnap}
+	iw.maybePrintCommands()
+}
 
 func MockPollTime(d time.Duration) (restore func()) {
 	d0 := pollTime
