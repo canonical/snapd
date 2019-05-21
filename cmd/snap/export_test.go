@@ -89,6 +89,90 @@ func MaybePrintCommands(w writeflusher, theSnap *client.Snap) {
 	iw.maybePrintCommands()
 }
 
+func MaybePrintType(w writeflusher, theSnap *client.Snap) {
+	iw := &infoWriter{writeflusher: w, theSnap: theSnap}
+	iw.maybePrintType()
+}
+
+func PrintSummary(w writeflusher, theSnap *client.Snap) {
+	iw := &infoWriter{writeflusher: w, theSnap: theSnap, termWidth: 20}
+	iw.printSummary()
+}
+
+func MaybePrintPublisher(w writeflusher, diskSnap, theSnap *client.Snap) {
+	iw := &infoWriter{
+		writeflusher: w,
+		theSnap:      theSnap,
+		diskSnap:     diskSnap,
+		esc:          &escapes{dash: "--", tick: "*"},
+	}
+	iw.maybePrintPublisher()
+}
+
+func MaybePrintStandaloneVersion(w writeflusher, diskSnap *client.Snap) {
+	iw := &infoWriter{
+		writeflusher: w,
+		diskSnap:     diskSnap,
+		esc:          &escapes{dash: "--", tick: "*"},
+	}
+	iw.maybePrintStandaloneVersion()
+}
+
+func MaybePrintBuildDate(w writeflusher, diskSnap *client.Snap, path string) {
+	iw := &infoWriter{
+		writeflusher: w,
+		diskSnap:     diskSnap,
+		path:         path,
+		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+	}
+	iw.maybePrintBuildDate()
+}
+
+func MaybePrintContact(w writeflusher, contact string) {
+	iw := &infoWriter{
+		writeflusher: w,
+		theSnap:      &client.Snap{Contact: contact},
+	}
+	iw.maybePrintContact()
+}
+
+func MaybePrintBase(w writeflusher, base string, verbose bool) {
+	iw := &infoWriter{
+		writeflusher: w,
+		theSnap:      &client.Snap{Base: base},
+		verbose:      verbose,
+	}
+	iw.maybePrintBase()
+}
+
+func MaybePrintPath(w writeflusher, path string) {
+	iw := &infoWriter{
+		writeflusher: w,
+		path:         path,
+	}
+	iw.maybePrintPath()
+}
+
+func MaybePrintSum(w writeflusher, diskSnap *client.Snap, path string, verbose bool) {
+	iw := &infoWriter{
+		writeflusher: w,
+		diskSnap:     diskSnap,
+		path:         path,
+		verbose:      verbose,
+	}
+	iw.maybePrintSum()
+}
+
+func MaybePrintNotes(w writeflusher, localSnap, theSnap *client.Snap, verbose bool) {
+	iw := &infoWriter{
+		writeflusher: w,
+		localSnap:    localSnap,
+		theSnap:      theSnap,
+		verbose:      verbose,
+	}
+	iw.maybePrintNotes()
+}
+
 func MockPollTime(d time.Duration) (restore func()) {
 	d0 := pollTime
 	pollTime = d

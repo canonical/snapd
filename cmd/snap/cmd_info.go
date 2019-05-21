@@ -94,15 +94,6 @@ func clientSnapFromPath(path string) (*client.Snap, error) {
 	return direct, nil
 }
 
-func coalesce(snaps ...*client.Snap) *client.Snap {
-	for _, s := range snaps {
-		if s != nil {
-			return s
-		}
-	}
-	return nil
-}
-
 func norm(path string) string {
 	path = filepath.Clean(path)
 	if osutil.IsDirectory(path) {
@@ -232,18 +223,39 @@ type writeflusher interface {
 }
 
 type infoWriter struct {
-	writeflusher
+	// these fields are set every iteration:
 	theSnap    *client.Snap
 	diskSnap   *client.Snap
 	localSnap  *client.Snap
 	remoteSnap *client.Snap
 	resInfo    *client.ResultInfo
-	esc        *escapes
-	arg        string
-	termWidth  int
-	fmtTime    func(time.Time) string
-	absTime    bool
-	verbose    bool
+	path       string
+	// these fields don't change and so can be set once:
+	writeflusher
+	esc       *escapes
+	termWidth int
+	fmtTime   func(time.Time) string
+	absTime   bool
+	verbose   bool
+}
+
+func (iw *infoWriter) setupDiskSnap(path string, diskSnap *client.Snap) {
+	iw.localSnap, iw.remoteSnap, iw.resInfo = nil, nil, nil
+	iw.path = path
+	iw.diskSnap = diskSnap
+	iw.theSnap = diskSnap
+}
+
+func (iw *infoWriter) setupSnap(localSnap, remoteSnap *client.Snap, resInfo *client.ResultInfo) {
+	iw.path, iw.diskSnap = "", nil
+	iw.localSnap = localSnap
+	iw.remoteSnap = remoteSnap
+	iw.resInfo = resInfo
+	if localSnap != nil {
+		iw.theSnap = localSnap
+	} else {
+		iw.theSnap = remoteSnap
+	}
 }
 
 func (iw *infoWriter) maybePrintPrice() {
@@ -327,11 +339,9 @@ func (iw *infoWriter) maybePrintBase() {
 }
 
 func (iw *infoWriter) maybePrintPath() {
-	if iw.diskSnap == nil {
-		return
+	if iw.path != "" {
+		fmt.Fprintf(iw, "path:\t%q\n", iw.path)
 	}
-	// is diskSnap -> arg is the path
-	fmt.Fprintf(iw, "path:\t%q\n", iw.arg)
 }
 
 func (iw *infoWriter) printName() {
@@ -361,23 +371,27 @@ func (iw *infoWriter) maybePrintPublisher() {
 	fmt.Fprintf(iw, "publisher:\t%s\n", longPublisher(iw.esc, iw.theSnap.Publisher))
 }
 
-func (iw *infoWriter) maybePrintVersion() {
+func (iw *infoWriter) maybePrintStandaloneVersion() {
 	if iw.diskSnap == nil {
 		// snaps not read from disk will have version information shown elsewhere
 		return
 	}
+	version := iw.diskSnap.Version
+	if version == "" {
+		version = iw.esc.dash
+	}
 	// NotesFromRemote might be better called NotesFromNotInstalled but that's nasty
-	fmt.Fprintf(iw, "version:\t%s %s\n", iw.diskSnap.Version, NotesFromRemote(iw.diskSnap, nil))
+	fmt.Fprintf(iw, "version:\t%s %s\n", version, NotesFromRemote(iw.diskSnap, nil))
 }
 
 func (iw *infoWriter) maybePrintBuildDate() {
 	if iw.diskSnap == nil {
 		return
 	}
-	if osutil.IsDirectory(iw.arg) {
+	if osutil.IsDirectory(iw.path) {
 		return
 	}
-	buildDate := squashfs.BuildDate(iw.arg)
+	buildDate := squashfs.BuildDate(iw.path)
 	if buildDate.IsZero() {
 		return
 	}
@@ -497,11 +511,11 @@ func (iw *infoWriter) maybePrintSum() {
 		// TODO: expose the sha via /v2/snaps and /v2/find
 		return
 	}
-	if osutil.IsDirectory(iw.arg) {
+	if osutil.IsDirectory(iw.path) {
 		// no sha3_384 of a directory :-)
 		return
 	}
-	sha3_384, _, _ := asserts.SnapFileSHA3_384(iw.arg)
+	sha3_384, _, _ := asserts.SnapFileSHA3_384(iw.path)
 	if sha3_384 == "" {
 		return
 	}
@@ -622,17 +636,12 @@ func (x *infoCmd) Execute([]string) error {
 			continue
 		}
 
-		iw.arg = snapName
-		var err error
-
-		iw.diskSnap, err = clientSnapFromPath(snapName)
-		if err == nil {
-			iw.localSnap, iw.remoteSnap, iw.resInfo = nil, nil, nil
-			iw.theSnap = iw.diskSnap
+		if diskSnap, err := clientSnapFromPath(snapName); err == nil {
+			iw.setupDiskSnap(snapName, diskSnap)
 		} else {
-			iw.remoteSnap, iw.resInfo, _ = x.client.FindOne(snapName)
-			iw.localSnap, _, _ = x.client.Snap(snapName)
-			iw.theSnap = coalesce(iw.localSnap, iw.remoteSnap)
+			remoteSnap, resInfo, _ := x.client.FindOne(snapName)
+			localSnap, _, _ := x.client.Snap(snapName)
+			iw.setupSnap(localSnap, remoteSnap, resInfo)
 		}
 		// note diskSnap == nil, or localSnap == nil and remoteSnap == nil
 
@@ -651,7 +660,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.printName()
 		iw.printSummary()
 		iw.maybePrintPublisher()
-		iw.maybePrintVersion()
+		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()
 		iw.maybePrintContact()
 		iw.printLicense()

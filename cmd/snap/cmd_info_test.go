@@ -22,13 +22,17 @@ package main_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	snaplib "github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 var cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
@@ -98,6 +102,235 @@ func (s *infoSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
 
 		c.Check(buf.String(), check.Equals, "")
 	}
+}
+
+func (infoSuite) TestPrintType(c *check.C) {
+	for from, to := range map[string]string{
+		"":            "",
+		"app":         "",
+		"application": "",
+		"gadget":      "type:\tgadget\n",
+		"core":        "type:\tcore\n",
+		"os":          "type:\tcore\n",
+	} {
+		var buf flushBuffer
+		snap.MaybePrintType(&buf, &client.Snap{Type: from})
+		c.Check(buf.String(), check.Equals, to, check.Commentf("%q", from))
+	}
+}
+
+func (infoSuite) TestPrintSummary(c *check.C) {
+	for from, to := range map[string]string{
+		"":               `""`,                // empty results in quoted empty
+		"foo":            "foo",               // plain text results in unquoted
+		"two words":      "two words",         // ...even when multi-word
+		"{":              `"{"`,               // but yaml-breaking is quoted
+		"very long text": "very long\n  text", // too-long text gets split (TODO: split with tabbed indent to preserve alignment)
+	} {
+		var buf flushBuffer
+		snap.PrintSummary(&buf, &client.Snap{Summary: from})
+		c.Check(buf.String(), check.Equals, "summary:\t"+to+"\n", check.Commentf("%q", from))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintPublisher(c *check.C) {
+	acct := &snaplib.StoreAccount{
+		Validation:  "verified",
+		Username:    "team-potato",
+		DisplayName: "Team Potato",
+	}
+
+	type T struct {
+		diskSnap, theSnap *client.Snap
+		expected          string
+	}
+
+	for i, t := range []T{
+		{&client.Snap{}, nil, ""},                 // nothing output for on-disk snap
+		{nil, &client.Snap{}, "publisher:\t--\n"}, // from-snapd snap with no publisher is explicit
+		{nil, &client.Snap{Publisher: acct}, "publisher:\tTeam Potato*\n"},
+	} {
+		var buf flushBuffer
+		snap.MaybePrintPublisher(&buf, t.diskSnap, t.theSnap)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d", i))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintNotes(c *check.C) {
+	var buf flushBuffer
+	type T struct {
+		localSnap, theSnap *client.Snap
+		expected           string
+	}
+
+	for i, t := range []T{
+		{
+			nil,
+			&client.Snap{Private: true, Confinement: "devmode"},
+			"notes:\t\n" +
+				"  private:\ttrue\n" +
+				"  confinement:\tdevmode\n",
+		}, {
+			&client.Snap{Private: true, Confinement: "devmode"},
+			&client.Snap{Private: true, Confinement: "devmode"},
+			"notes:\t\n" +
+				"  private:\ttrue\n" +
+				"  confinement:\tdevmode\n" +
+				"  devmode:\tfalse\n" +
+				"  jailmode:\ttrue\n" +
+				"  trymode:\tfalse\n" +
+				"  enabled:\tfalse\n" +
+				"  broken:\tfalse\n" +
+				"  ignore-validation:\tfalse\n",
+		}, {
+			&client.Snap{Private: true, Confinement: "devmode", Broken: "ouch"},
+			&client.Snap{Private: true, Confinement: "devmode"},
+			"notes:\t\n" +
+				"  private:\ttrue\n" +
+				"  confinement:\tdevmode\n" +
+				"  devmode:\tfalse\n" +
+				"  jailmode:\ttrue\n" +
+				"  trymode:\tfalse\n" +
+				"  enabled:\tfalse\n" +
+				"  broken:\ttrue (ouch)\n" +
+				"  ignore-validation:\tfalse\n",
+		},
+	} {
+		buf.Reset()
+		snap.MaybePrintNotes(&buf, t.localSnap, t.theSnap, false)
+		c.Check(buf.String(), check.Equals, "", check.Commentf("%d/false", i))
+
+		buf.Reset()
+		snap.MaybePrintNotes(&buf, t.localSnap, t.theSnap, true)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d/true", i))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintStandaloneVersion(c *check.C) {
+	var buf flushBuffer
+
+	// no disk snap -> no version
+	snap.MaybePrintStandaloneVersion(&buf, nil)
+	c.Check(buf.String(), check.Equals, "")
+
+	for version, expected := range map[string]string{
+		"":    "--",
+		"4.2": "4.2",
+	} {
+		buf.Reset()
+		snap.MaybePrintStandaloneVersion(&buf, &client.Snap{Version: version})
+		c.Check(buf.String(), check.Equals, "version:\t"+expected+" -\n", check.Commentf("%q", version))
+
+		buf.Reset()
+		snap.MaybePrintStandaloneVersion(&buf, &client.Snap{Version: version, Confinement: "devmode"})
+		c.Check(buf.String(), check.Equals, "version:\t"+expected+" devmode\n", check.Commentf("%q", version))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintBuildDate(c *check.C) {
+	var buf flushBuffer
+	// some prep
+	dir := c.MkDir()
+	arbfile := filepath.Join(dir, "arb")
+	c.Assert(ioutil.WriteFile(arbfile, nil, 0600), check.IsNil)
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	diskSnap := squashfs.New(filename)
+	c.Assert(diskSnap.Build(dir, "app"), check.IsNil)
+	buildDate := diskSnap.BuildDate().Format(time.Kitchen)
+
+	// no disk snap -> no build date
+	snap.MaybePrintBuildDate(&buf, nil, "")
+	c.Check(buf.String(), check.Equals, "")
+
+	// path is directory -> no build date
+	buf.Reset()
+	snap.MaybePrintBuildDate(&buf, &client.Snap{}, dir)
+	c.Check(buf.String(), check.Equals, "")
+
+	// not actually a snap -> no build date
+	buf.Reset()
+	snap.MaybePrintBuildDate(&buf, &client.Snap{}, arbfile)
+	c.Check(buf.String(), check.Equals, "")
+
+	// disk snap -> get build date
+	buf.Reset()
+	snap.MaybePrintBuildDate(&buf, &client.Snap{}, filename)
+	c.Check(buf.String(), check.Equals, "build-date:\t"+buildDate+"\n")
+}
+
+func (s *infoSuite) TestMaybePrintSum(c *check.C) {
+	var buf flushBuffer
+	// some prep
+	dir := c.MkDir()
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	diskSnap := squashfs.New(filename)
+	c.Assert(diskSnap.Build(dir, "app"), check.IsNil)
+
+	// no disk snap -> no checksum
+	snap.MaybePrintSum(&buf, nil, "", true)
+	c.Check(buf.String(), check.Equals, "")
+
+	// path is directory -> no checksum
+	buf.Reset()
+	snap.MaybePrintSum(&buf, &client.Snap{}, dir, true)
+	c.Check(buf.String(), check.Equals, "")
+
+	// disk snap and verbose -> get checksum
+	buf.Reset()
+	snap.MaybePrintSum(&buf, &client.Snap{}, filename, true)
+	c.Check(buf.String(), check.Matches, "sha3-384:\t\\S+\n")
+
+	// disk snap but not verbose -> no checksum
+	buf.Reset()
+	snap.MaybePrintSum(&buf, &client.Snap{}, filename, false)
+	c.Check(buf.String(), check.Equals, "")
+}
+
+func (s *infoSuite) TestMaybePrintContact(c *check.C) {
+	var buf flushBuffer
+
+	for contact, expected := range map[string]string{
+		"": "",
+		"mailto:joe@example.com": "contact:\tjoe@example.com\n",
+		"foo": "contact:\tfoo\n",
+	} {
+		buf.Reset()
+		snap.MaybePrintContact(&buf, contact)
+		c.Check(buf.String(), check.Equals, expected, check.Commentf("%q", contact))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintBase(c *check.C) {
+	var buf flushBuffer
+
+	// no verbose -> no base
+	snap.MaybePrintBase(&buf, "xyzzy", false)
+	c.Check(buf.String(), check.Equals, "")
+	buf.Reset()
+
+	// base + verbose -> base
+	snap.MaybePrintBase(&buf, "xyzzy", true)
+	c.Check(buf.String(), check.Equals, "base:\txyzzy\n")
+	buf.Reset()
+
+	// no base -> no base :)
+	snap.MaybePrintBase(&buf, "", true)
+	c.Check(buf.String(), check.Equals, "")
+	buf.Reset()
+}
+
+func (s *infoSuite) TestMaybePrintPath(c *check.C) {
+	var buf flushBuffer
+
+	// no path -> no path
+	snap.MaybePrintPath(&buf, "")
+	c.Check(buf.String(), check.Equals, "")
+	buf.Reset()
+
+	// path -> path (quoted!)
+	snap.MaybePrintPath(&buf, "xyzzy")
+	c.Check(buf.String(), check.Equals, "path:\t\"xyzzy\"\n")
+	buf.Reset()
 }
 
 func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {
