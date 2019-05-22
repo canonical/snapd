@@ -83,6 +83,7 @@ var api = []*Command{
 	snapsCmd,
 	snapCmd,
 	snapFileCmd,
+	snapDownloadCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
