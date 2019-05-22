@@ -39,9 +39,10 @@ execute: |
     systemctl daemon-reload
     systemctl start snapd.{socket,service}
 
+    wanted="state ensure error: persistent network error"
     echo "wait for auto-refresh to happen and fail"
     for _ in $(seq 120); do
-        if get_journalctl_log | MATCH "state ensure error"; then
+        if check_journalctl_log "$wanted" --system -u snapd; then
             break
         fi
         echo "Ensure refresh"
@@ -49,7 +50,7 @@ execute: |
         sleep 5
     done
 
-    journalctl | MATCH "state ensure error: persistent network error"
+    get_journalctl_log --system -u snapd | MATCH "$wanted"
 
     # restart snapd with network access back
     systemctl stop snapd.{service,socket}
