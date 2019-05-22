@@ -1560,6 +1560,26 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
+	s.srv.total = 3
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "remove",
+			"purge":  true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {

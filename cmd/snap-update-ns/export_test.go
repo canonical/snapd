@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -51,16 +52,18 @@ var (
 	// system
 	DesiredSystemProfilePath = desiredSystemProfilePath
 	CurrentSystemProfilePath = currentSystemProfilePath
-	ApplySystemFstab         = applySystemFstab
 
 	// user
 	DesiredUserProfilePath = desiredUserProfilePath
-	ApplyUserFstab         = applyUserFstab
+	CurrentUserProfilePath = currentUserProfilePath
 
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+
+	// update
+	ExecuteMountProfileUpdate = executeMountProfileUpdate
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -176,6 +179,14 @@ func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) 
 	changePerform = f
 	return func() {
 		changePerform = origChangePerform
+	}
+}
+
+func MockNeededChanges(f func(old, new *osutil.MountProfile) []*Change) (restore func()) {
+	origNeededChanges := NeededChanges
+	NeededChanges = f
+	return func() {
+		NeededChanges = origNeededChanges
 	}
 }
 

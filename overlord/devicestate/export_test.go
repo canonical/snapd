@@ -127,6 +127,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
+	return m.registrationCtx(t)
+}
+
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
@@ -135,4 +139,6 @@ var (
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RemodelTasks = remodelTasks
 )

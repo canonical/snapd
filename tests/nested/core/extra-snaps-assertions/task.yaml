@@ -1,5 +1,7 @@
 summary: create ubuntu-core image and execute the suite in a nested qemu instance
 
+systems: [ubuntu-16.04-64]
+
 prepare: |
     # download core and save it as extra snap
     mkdir -p extra-snaps

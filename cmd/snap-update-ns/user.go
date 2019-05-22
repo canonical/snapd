@@ -41,10 +41,16 @@ func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid 
 		CommonProfileUpdateContext: CommonProfileUpdateContext{
 			instanceName:       instanceName,
 			fromSnapConfine:    fromSnapConfine,
+			currentProfilePath: currentUserProfilePath(instanceName, uid),
 			desiredProfilePath: desiredUserProfilePath(instanceName),
 		},
 		uid: uid,
 	}
+}
+
+// UID returns the user ID of the mount namespace being updated.
+func (ctx *UserProfileUpdateContext) UID() int {
+	return ctx.uid
 }
 
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
@@ -78,18 +84,26 @@ func (ctx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile,
 	return profile, nil
 }
 
-func applyUserFstab(ctx MountProfileUpdateContext) error {
-	desired, err := ctx.LoadDesiredProfile()
-	if err != nil {
-		return err
-	}
-	debugShowProfile(desired, "desired mount profile")
-	as := ctx.Assumptions()
-	_, err = applyProfile(ctx, &osutil.MountProfile{}, desired, as)
-	return err
+// SaveCurrentProfile does nothing at all.
+//
+// Per-user mount profiles are not persisted yet.
+func (ctx *UserProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	return nil
+}
+
+// LoadCurrentProfile returns the empty profile.
+//
+// Per-user mount profiles are not persisted yet.
+func (ctx *UserProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	return &osutil.MountProfile{}, nil
 }
 
 // desiredUserProfilePath returns the path of the fstab-like file with the desired, user-specific mount profile for a snap.
 func desiredUserProfilePath(snapName string) string {
 	return fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+}
+
+// currentUserProfilePath returns the path of the fstab-like file with the applied, user-specific mount profile for a snap.
+func currentUserProfilePath(snapName string, uid int) string {
+	return fmt.Sprintf("%s/snap.%s.%d.user-fstab", dirs.SnapRunNsDir, snapName, uid)
 }

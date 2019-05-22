@@ -24,6 +24,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -53,7 +54,7 @@ var (
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
-var refreshRetryDelay = 30 * time.Minute
+var refreshRetryDelay = 20 * time.Minute
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -292,7 +293,9 @@ func (m *autoRefresh) Ensure() error {
 		}
 
 		err = m.launchAutoRefresh()
-		m.nextRefresh = time.Time{}
+		if _, ok := err.(*httputil.PerstistentNetworkError); !ok {
+			m.nextRefresh = time.Time{}
+		} // else - refresh will be retried after refreshRetryDelay
 	}
 
 	return err
@@ -378,6 +381,10 @@ func (m *autoRefresh) launchAutoRefresh() error {
 
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	if _, ok := err.(*httputil.PerstistentNetworkError); ok {
+		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
+		return err
+	}
 	m.state.Set("last-refresh", time.Now())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
@@ -473,8 +480,8 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // Internally the snap state is updated to remember when the inhibition first
 // took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
 // that period the refresh will go ahead despite application activity.
-func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
-	if err := SoftNothingRunningRefreshCheck(info); err != nil {
+func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
+	if err := checker(info); err != nil {
 		now := time.Now()
 		if snapst.RefreshInhibitedTime == nil {
 			// Store the instant when the snap was first inhibited.

@@ -292,12 +292,32 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 
 	sto := &store.Store{}
 	snapstate.ReplaceStore(s.state, sto)
-	store1 := snapstate.Store(s.state)
+	store1 := snapstate.Store(s.state, nil)
 	c.Check(store1, Equals, sto)
 
 	// cached
-	store2 := snapstate.Store(s.state)
+	store2 := snapstate.Store(s.state, nil)
 	c.Check(store2, Equals, sto)
+}
+
+func (s *snapmgrTestSuite) TestStoreWithDeviceContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	stoA := &store.Store{}
+	snapstate.ReplaceStore(s.state, stoA)
+	store1 := snapstate.Store(s.state, nil)
+	c.Check(store1, Equals, stoA)
+
+	stoB := &store.Store{}
+
+	// cached
+	store2 := snapstate.Store(s.state, &snapstatetest.TrivialDeviceContext{})
+	c.Check(store2, Equals, stoA)
+
+	// from context
+	store3 := snapstate.Store(s.state, &snapstatetest.TrivialDeviceContext{CtxStore: stoB})
+	c.Check(store3, Equals, stoB)
 }
 
 func (s *snapmgrTestSuite) TestUserFromUserID(c *C) {
@@ -598,12 +618,29 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 
 	ts, err := snapstate.InstallCohort(s.state, "some-snap", "some-channel", "what", 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
-
-	verifyInstallTasks(c, 0, 0, ts, s.state)
-	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
 	c.Check(snapsup.CohortKey, Equals, "what")
+
+	verifyInstallTasks(c, 0, 0, ts, s.state)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+}
+
+func (s *snapmgrTestSuite) TestInstallUnderDeviceContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+
+	ts, err := snapstate.InstallUnderDeviceContext(s.state, "some-snap", "some-channel", "", snap.R(0), 0, snapstate.Flags{}, deviceCtx)
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, 0, 0, ts, s.state)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
@@ -1331,7 +1368,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	})
 
 	validateCalled := false
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		validateCalled = true
 		c.Check(refreshes, HasLen, 1)
 		c.Check(refreshes[0].InstanceName(), Equals, "some-snap")
@@ -1380,7 +1417,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C)
 	})
 
 	validateCalled := false
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		validateCalled = true
 		c.Check(refreshes, HasLen, 2)
 		instanceIdx := 0
@@ -1426,7 +1463,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		c.Check(refreshes, HasLen, 1)
 		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
 		c.Check(refreshes[0].Revision, Equals, snap.R(11))
@@ -2136,7 +2173,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	})
 
 	validateCalled := false
-	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		validateCalled = true
 		return refreshes, nil
 	}
@@ -2158,6 +2195,75 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Channel, Equals, "some-channel")
+}
+
+func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	validateCalled := false
+	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx1 snapstate.DeviceContext) ([]*snap.Info, error) {
+		c.Check(deviceCtx1, Equals, deviceCtx)
+		validateCalled = true
+		return refreshes, nil
+	}
+	// hook it up
+	snapstate.ValidateRefreshes = happyValidateRefreshes
+
+	ts, err := snapstate.UpdateUnderDeviceContext(s.state, s.user.ID, &snapstate.UpdateOptions{Name: "some-snap", Channel: "some-channel"}, deviceCtx)
+	c.Assert(err, IsNil)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	c.Check(validateCalled, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdateUnderDeviceContextToRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+
+	ts, err := snapstate.UpdateUnderDeviceContext(s.state, 0, &snapstate.UpdateOptions{
+		Name:     "some-snap",
+		Channel:  "some-channel",
+		Revision: snap.R(11),
+	}, deviceCtx)
+	c.Assert(err, IsNil)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
@@ -2466,7 +2572,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -2490,7 +2596,35 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"run-hook[remove]",
+		"auto-disconnect",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabledByPurgeFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(11)},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
@@ -2518,7 +2652,7 @@ func (s *snapmgrTestSuite) TestRemoveHookNotExecutedIfNotLastRevison(c *C) {
 		Current: snap.R(12),
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", snap.R(11))
+	ts, err := snapstate.Remove(s.state, "foo", snap.R(11), nil)
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
@@ -2536,12 +2670,12 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 		Current:  snap.R(11),
 	})
 
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("remove", "...").AddAll(ts)
 
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0))
+	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "remove" change in progress`)
 }
 
@@ -3558,7 +3692,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Current:   si.Revision,
 		SnapType:  "app",
 		Channel:   "stable",
-		CohortKey: "potatoes",
+		CohortKey: "embattled",
 	})
 
 	chg := s.state.NewChange("refresh", "refresh a snap")
@@ -3585,7 +3719,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				TrackingChannel: "stable",
 				RefreshedDate:   refreshedDate,
 				Epoch:           snap.E("0"),
-				CohortKey:       "potatoes",
+				CohortKey:       "embattled",
 			}},
 			userID: 1,
 		},
@@ -5570,7 +5704,7 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNo(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		c.Check(refreshes, HasLen, 1)
 		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
 		c.Check(refreshes[0].Revision, Equals, snap.R(11))
@@ -5605,7 +5739,7 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		return nil, validateErr
 	}
 	// hook it up
@@ -5643,7 +5777,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshesFail := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshesFail := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		c.Check(refreshes, HasLen, 1)
 		if len(ignoreValidation) == 0 {
 			return nil, validateErr
@@ -5757,7 +5891,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	s.fakeStore.refreshRevnos = map[string]snap.Revision{
 		"some-snap-id": snap.R(11),
 	}
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		return refreshes, nil
 	}
 	// hook it up
@@ -5840,7 +5974,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshesFail := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+	validateRefreshesFail := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
 		c.Check(refreshes, HasLen, 2)
 		if len(ignoreValidation) == 0 {
 			return nil, validateErr
@@ -7068,7 +7202,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7206,7 +7340,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7349,7 +7483,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap_instance", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7451,7 +7585,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7613,7 +7747,7 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7681,7 +7815,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(2))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7779,7 +7913,7 @@ func (s *snapmgrTestSuite) TestRemoveCurrentActiveRevisionRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2))
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
 
 	c.Check(err, ErrorMatches, `cannot remove active revision 2 of snap "some-snap"`)
 }
@@ -7800,7 +7934,7 @@ func (s *snapmgrTestSuite) TestRemoveCurrentRevisionOfSeveralRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2))
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `cannot remove active revision 2 of snap "some-snap" (revert first?)`)
 }
@@ -7821,7 +7955,7 @@ func (s *snapmgrTestSuite) TestRemoveMissingRevisionRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(1))
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(1), nil)
 
 	c.Check(err, ErrorMatches, `revision 1 of snap "some-snap" is not installed`)
 }
@@ -7842,7 +7976,7 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "gadget", snap.R(0))
+	_, err := snapstate.Remove(s.state, "gadget", snap.R(0), nil)
 
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
@@ -7863,7 +7997,7 @@ func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "gadget", snap.R(7))
+	_, err := snapstate.Remove(s.state, "gadget", snap.R(7), nil)
 
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
@@ -7906,7 +8040,7 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	c.Assert(tr.Get("another-snap", "bar", &res), IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7959,7 +8093,7 @@ func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
 	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", si1.Revision)
+	ts, err := snapstate.Remove(s.state, "some-snap", si1.Revision, nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -10375,6 +10509,58 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 			c.Check(info.InstanceName(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
 			c.Check(info.Type, Equals, snap.TypeOS)
 		}
+	}
+}
+
+func (s *snapmgrQuerySuite) TestHasSnapOfType(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	// an app snap is already setup
+	ok, err := snapstate.HasSnapOfType(st, snap.TypeApp)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+
+	for _, x := range []struct {
+		snapName string
+		snapType snap.Type
+	}{
+		{
+			snapName: "gadget",
+			snapType: snap.TypeGadget,
+		},
+		{
+			snapName: "core",
+			snapType: snap.TypeOS,
+		},
+		{
+			snapName: "kernel",
+			snapType: snap.TypeKernel,
+		},
+		{
+			snapName: "base",
+			snapType: snap.TypeBase,
+		},
+	} {
+		ok, err := snapstate.HasSnapOfType(st, x.snapType)
+		c.Assert(err, IsNil)
+		c.Check(ok, Equals, false, Commentf("%q", x.snapType))
+
+		sideInfo := &snap.SideInfo{
+			RealName: x.snapName,
+			Revision: snap.R(2),
+		}
+		snapstate.Set(st, x.snapName, &snapstate.SnapState{
+			SnapType: string(x.snapType),
+			Active:   true,
+			Sequence: []*snap.SideInfo{sideInfo},
+			Current:  sideInfo.Revision,
+		})
+
+		ok, err = snapstate.HasSnapOfType(st, x.snapType)
+		c.Assert(err, IsNil)
+		c.Check(ok, Equals, true)
 	}
 }
 
@@ -13913,7 +14099,10 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	c.Check(hasConfigureTask(ts), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBase(c *C) {
+func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 

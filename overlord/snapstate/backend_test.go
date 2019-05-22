@@ -172,13 +172,13 @@ type snapSpec struct {
 	Name     string
 	Channel  string
 	Revision snap.Revision
-	cohort   string
+	Cohort   string
 }
 
 func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		switch {
-		case spec.cohort != "":
+		case spec.Cohort != "":
 			spec.Revision = snap.R(666)
 		case spec.Channel == "channel-for-7":
 			spec.Revision = snap.R(7)
@@ -444,7 +444,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Name:     snapName,
 				Channel:  a.Channel,
 				Revision: a.Revision,
-				cohort:   a.CohortKey,
+				Cohort:   a.CohortKey,
 			}
 			info, err := f.snap(spec, user)
 			if err != nil {

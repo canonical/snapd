@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -96,6 +97,11 @@ func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 			return dur, nil
 		}
 		logger.Noticef("snapshots.automatic.retention cannot be parsed: %v", err)
+	}
+	// TODO: automatic snapshots are currently disable by default
+	// on Ubuntu Core devices
+	if !release.OnClassic {
+		return 0, nil
 	}
 	return defaultAutomaticSnapshotExpiration, nil
 }
