@@ -678,14 +678,6 @@ void sc_ensure_shared_snap_mount(void)
 	}
 }
 
-static void sc_make_slave_mount_ns(void)
-{
-	// In our new mount namespace, recursively change all mounts
-	// to slave mode, so we see changes from the parent namespace
-	// but don't propagate our own changes.
-	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
-}
-
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const char *snap_name)
 {
@@ -701,6 +693,9 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		return;
 	}
 
-	sc_make_slave_mount_ns();
+	// In our new mount namespace, recursively change all mounts
+	// to slave mode, so we see changes from the parent namespace
+	// but don't propagate our own changes.
+	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }
