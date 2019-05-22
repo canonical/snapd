@@ -90,26 +90,37 @@ func (s *healthSuite) TearDownTest(c *check.C) {
 	s.BaseTest.TearDownTest(c)
 }
 
+type healthHookTestCondition int
+
+const (
+	noHook = iota
+	badHook
+	goodHook
+	captainHook
+)
+
 func (s *healthSuite) TestHealthNoHook(c *check.C) {
-	s.testHealth(c, false, false)
+	s.testHealth(c, noHook)
 }
 
 func (s *healthSuite) TestHealthFailingHook(c *check.C) {
-	s.testHealth(c, true, true)
+	s.testHealth(c, badHook)
 }
 
 func (s *healthSuite) TestHealth(c *check.C) {
-	s.testHealth(c, true, false)
+	s.testHealth(c, goodHook)
 }
 
-func (s *healthSuite) testHealth(c *check.C, withScript, failScript bool) {
+func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 	var cmd *testutil.MockCmd
-	if failScript {
+	switch cond {
+	case badHook:
 		cmd = testutil.MockCommand(c, "snap", "exit 1")
-	} else {
+	default:
 		cmd = testutil.MockCommand(c, "snap", "exit 0")
 	}
-	if withScript {
+
+	if cond != noHook {
 		hookFn := filepath.Join(s.info.MountDir(), "meta", "hooks", "check-health")
 		c.Assert(os.MkdirAll(filepath.Dir(hookFn), 0755), check.IsNil)
 		// the hook won't actually be called, but needs to exist
@@ -150,19 +161,20 @@ func (s *healthSuite) testHealth(c *check.C, withScript, failScript bool) {
 	err = s.state.Get("health", &healths)
 	s.state.Unlock()
 
-	if failScript {
+	switch cond {
+	case badHook:
 		c.Assert(status, check.Equals, state.ErrorStatus)
-	} else {
+	default:
 		c.Assert(status, check.Equals, state.DoneStatus)
 	}
-	if withScript {
+	if cond != noHook {
 		c.Assert(err, check.IsNil)
 		c.Assert(healths, check.HasLen, 1)
 		c.Assert(healths["test-snap"], check.NotNil)
 		health := healths["test-snap"]
 		c.Check(health.Revision, check.Equals, snap.R(42))
 		c.Check(health.Status, check.Equals, healthstate.UnknownStatus)
-		if failScript {
+		if cond == badHook {
 			c.Check(health.Message, check.Equals, "hook failed")
 			c.Check(health.Code, check.Equals, "snapd-hook-failed")
 		} else {
@@ -180,13 +192,16 @@ func (s *healthSuite) testHealth(c *check.C, withScript, failScript bool) {
 	}
 }
 
-func (*healthSuite) TestStatus(c *check.C) {
+func (*healthSuite) TestStatusHappy(c *check.C) {
 	for i, str := range healthstate.KnownStatuses {
 		status, err := healthstate.StatusLookup(str)
 		c.Check(err, check.IsNil, check.Commentf("%v", str))
 		c.Check(status, check.Equals, healthstate.HealthStatus(i), check.Commentf("%v", str))
 		c.Check(healthstate.HealthStatus(i).String(), check.Equals, str, check.Commentf("%v", str))
 	}
+}
+
+func (*healthSuite) TestStatusUnhappy(c *check.C) {
 	status, err := healthstate.StatusLookup("rabbits")
 	c.Check(status, check.Equals, healthstate.HealthStatus(-1))
 	c.Check(err, check.ErrorMatches, `invalid status "rabbits".*`)
