@@ -1,22 +1,19 @@
-summary: Create ubuntu classic image, install snapd and test hotplug feature
+summary: Create ubuntu core image, install snapd and test hotplug feature
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    create_nested_classic_vm
-
-    copy_remote "${GOHOME}"/snapd_*.deb
-    execute_remote "sudo apt update"
-    execute_remote "sudo apt install -y ./snapd_*.deb"
-    #shellcheck disable=SC2016
-    execute_remote 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-(image|modules)-extra-$(uname -r)"'
+    create_nested_core_vm
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
     copy_remote serial-port-hotplug_1.0_all.snap
-    # add test user to dialout group required for ttyUSB* devices
-    execute_remote "sudo usermod -a -G dialout user1"
 
-    execute_remote "sudo snap install --devmode jq"
+    if is_core_18_nested_system; then
+        execute_remote "sudo snap install --devmode jq-core18"
+        execute_remote "sudo snap alias jq-core18.jq jq"
+    else
+        execute_remote "sudo snap install --devmode jq"
+    fi
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
@@ -39,13 +36,14 @@ execute: |
     . "$TESTSLIB/nested.sh"
     #shellcheck source=tests/lib/hotplug.sh
     . "$TESTSLIB/hotplug.sh"
-    
+
+    echo "Refresh core snap to desired channel"
+    refresh_to_new_core "$NEW_CORE_CHANNEL"
+
     if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial already registered, exiting..."
         exit 1
     fi
-
-    execute_remote "sudo snap install hello-world"
 
     echo "Enabling hotplug"
     execute_remote "sudo snap set core experimental.hotplug=true"
@@ -103,9 +101,6 @@ execute: |
 
     echo "Veryfing serial-port permissions of the snap"
     verify_apparmor_profile "/dev/ttyUSB0"
-    execute_remote "/snap/bin/serial-port-hotplug.consumer write-1" | MATCH "Access to /dev/ttyUSB0 ok"
-    execute_remote "/snap/bin/serial-port-hotplug.consumer write-2" | MATCH "Access to /dev/ttyUSB1 failed"
-    MATCH "write-1 on /dev/ttyUSB0" < /tmp/serialport1
 
     echo "Unplugging the device"
     hotplug_del_dev1
@@ -140,9 +135,6 @@ execute: |
     echo "Veryfing serial-port permissions of the snap, the first device is now expected on ttyUSB1"
     check_slot_device_path qemuusbserial "/dev/ttyUSB1"
     verify_apparmor_profile "/dev/ttyUSB1"
-    execute_remote "/snap/bin/serial-port-hotplug.consumer write-3" | MATCH "Access to /dev/ttyUSB0 failed"
-    execute_remote "/snap/bin/serial-port-hotplug.consumer write-4" | MATCH "Access to /dev/ttyUSB1 ok"
-    MATCH "write-3 on /dev/ttyUSB1" < /tmp/serialport1
 
     echo "Restarting snapd should restore both hotplug slots since devices are still present"
     execute_remote "sudo systemctl stop snapd.service snapd.socket"
@@ -150,8 +142,6 @@ execute: |
     check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
     check_slot_present qemuusbserial-1
-    execute_remote "/snap/bin/serial-port-hotplug.consumer write-5" | MATCH "Access to /dev/ttyUSB1 ok"
-    MATCH "write-5 on /dev/ttyUSB1" < /tmp/serialport1
 
     echo "Unplugging first device while snapd is stopped and then starting snapd remembers the slot internally due to connection"
     execute_remote "sudo systemctl stop snapd.service snapd.socket"

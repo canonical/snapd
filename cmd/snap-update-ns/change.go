@@ -311,8 +311,8 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				// now change mount propagation (shared/rshared, private/rprivate,
 				// slave/rslave, unbindable/runbindable).
 				flagsForMount := uintptr(maskedFlagsPropagation | maskedFlagsRecursive)
-				err = sysMount("", c.Entry.Dir, "", flagsForMount, "")
-				logger.Debugf("mount %q %q %q %d %q (error: %v)", "", c.Entry.Dir, "", flagsForMount, "", err)
+				err = sysMount("none", c.Entry.Dir, "", flagsForMount, "")
+				logger.Debugf("mount %q %q %q %d %q (error: %v)", "none", c.Entry.Dir, "", flagsForMount, "", err)
 			}
 			if err == nil {
 				as.AddChange(c)
@@ -403,7 +403,10 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
+var NeededChanges = neededChangesImpl
+
+// neededChangesImpl is the real implementation of NeededChanges
+func neededChangesImpl(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
 	// Copy both profiles as we will want to mutate them.
 	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)

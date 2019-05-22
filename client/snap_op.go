@@ -39,6 +39,7 @@ type SnapOptions struct {
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
+	Purge            bool   `json:"purge,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }

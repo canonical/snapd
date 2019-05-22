@@ -660,7 +660,21 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
-	return InstallUnderDeviceContext(st, name, channel, revision, userID, flags, nil)
+	return installGeneric(st, name, channel, "", revision, userID, flags)
+}
+
+// InstallCohort is like Install but instead of a revision, it takes a cohort key.
+func InstallCohort(st *state.State, name, channel, cohortKey string, userID int, flags Flags) (*state.TaskSet, error) {
+	return installGeneric(st, name, channel, cohortKey, snap.Revision{}, userID, flags)
+}
+
+// TODO: refactor things so there's a single Install again that takes a struct, maybe a bit more like doInstall but public-er.
+func installGeneric(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+	if cohort != "" && !revision.Unset() {
+		return nil, errors.New("cannot specify revision and cohort")
+	}
+
+	return InstallUnderDeviceContext(st, name, channel, cohort, revision, userID, flags, nil)
 }
 
 // InstallUnderDeviceContext returns a set of tasks for installing snap.
@@ -668,7 +682,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func InstallUnderDeviceContext(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func InstallUnderDeviceContext(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if channel == "" {
 		channel = "stable"
 	}
@@ -692,7 +706,7 @@ func InstallUnderDeviceContext(st *state.State, name, channel string, revision s
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, err := installInfo(st, name, channel, revision, userID, deviceCtx)
+	info, err := installInfo(st, name, channel, cohort, revision, userID, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -720,6 +734,7 @@ func InstallUnderDeviceContext(st *state.State, name, channel string, revision s
 		auxStoreInfo: auxStoreInfo{
 			Media: info.Media,
 		},
+		CohortKey: cohort,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, "")
@@ -1663,9 +1678,15 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	return true
 }
 
+// RemoveFlags are used to pass additional flags to the Remove operation.
+type RemoveFlags struct {
+	// Remove the snap without creating snapshot data
+	Purge bool
+}
+
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSet, error) {
+func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -1772,13 +1793,16 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		prev = disconnect
 	}
 
-	if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
-		ts, err := AutomaticSnapshot(st, name)
-		if err == nil {
-			addNext(ts)
-		} else {
-			if err != ErrNothingToDo {
-				return nil, err
+	// 'purge' flag disables automatic snapshot for given remove op
+	if flags == nil || !flags.Purge {
+		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+			ts, err := AutomaticSnapshot(st, name)
+			if err == nil {
+				addNext(ts)
+			} else {
+				if err != ErrNothingToDo {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -1842,7 +1866,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
 	for _, name := range names {
-		ts, err := Remove(st, name, snap.R(0))
+		ts, err := Remove(st, name, snap.R(0), nil)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
@@ -1951,7 +1975,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(st, newName, oldSnapst.Channel, snap.R(0), userID, nil)
+		newInfo, err := installInfo(st, newName, oldSnapst.Channel, "", snap.R(0), userID, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -1987,7 +2011,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	})
 
 	// then remove the old snap
-	tsRm, err := Remove(st, oldName, snap.R(0))
+	tsRm, err := Remove(st, oldName, snap.R(0), nil)
 	if err != nil {
 		return nil, err
 	}

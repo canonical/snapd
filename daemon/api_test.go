@@ -293,6 +293,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	assertstateRefreshSnapDeclarations = nil
 	snapstateInstall = nil
+	snapstateInstallCohort = nil
 	snapstateInstallMany = nil
 	snapstateInstallPath = nil
 	snapstateRefreshCandidates = nil
@@ -316,6 +317,7 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	snapstateInstall = snapstate.Install
+	snapstateInstallCohort = snapstate.InstallCohort
 	snapstateInstallMany = snapstate.InstallMany
 	snapstateInstallPath = snapstate.InstallPath
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
@@ -2411,6 +2413,24 @@ func (s *apiSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
+func (s *apiSuite) TestPostSnapCohortRandoAction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+	s.vars = map[string]string{"name": "some-snap"}
+	const expectedErr = "cohort-key can only be specified for install, refresh, or switch"
+
+	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "cohort-key": "32"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
 func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 
@@ -2424,6 +2444,32 @@ func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+}
+
+func (s *apiSuite) TestPostSnapsNoWeirdses(c *check.C) {
+	s.daemonWithOverlordMock(c)
+
+	// one could add more actions here ... 🤷
+	for _, action := range []string{"install", "refresh", "remove"} {
+		for weird, v := range map[string]string{
+			"channel":    `"beta"`,
+			"revision":   `"1"`,
+			"devmode":    "true",
+			"jailmode":   "true",
+			"cohort-key": `"what"`,
+		} {
+			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
+			req, err := http.NewRequest("POST", "/v2/snaps", buf)
+			c.Assert(err, check.IsNil)
+			req.Header.Set("Content-Type", "application/json")
+
+			rsp := postSnaps(snapsCmd, req, nil).(*resp)
+
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Status, check.Equals, 400)
+			c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
+		}
+	}
 }
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
@@ -3932,6 +3978,35 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 	c.Check(calledName, check.Equals, "fake")
+}
+
+func (s *apiSuite) TestInstallCohort(c *check.C) {
+	var calledName string
+	var calledCohort string
+
+	snapstateInstallCohort = func(s *state.State, name, channel string, cohort string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledName = name
+		calledCohort = cohort
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:    "install",
+		CohortKey: "To the legion of the lost ones, to the cohort of the damned.",
+		Snaps:     []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	msg, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(calledName, check.Equals, "fake")
+	c.Check(calledCohort, check.Equals, "To the legion of the lost ones, to the cohort of the damned.")
+	c.Check(msg, check.Equals, `Install "fake" snap from "To the le…" cohort`)
 }
 
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
@@ -7284,7 +7359,7 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 		}
 	}()
 
-	ts, err := snapstate.Remove(st, "snap-a", snap.R(0))
+	ts, err := snapstate.Remove(st, "snap-a", snap.R(0), nil)
 	c.Assert(err, check.IsNil)
 	// need a change to make the tasks visible
 	st.NewChange("enable", "...").AddAll(ts)
