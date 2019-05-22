@@ -41,8 +41,6 @@ var (
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	SnapdHelperPath    = snapdHelperPath
-	MaybePrintServices = maybePrintServices
-	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
 	AdviseCommand      = adviseCommand
 	Antialias          = antialias
@@ -79,6 +77,37 @@ var (
 	FixupArg = fixupArg
 
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
+)
+
+func NewInfoWriter(w writeflusher) *infoWriter {
+	return &infoWriter{
+		writeflusher: w,
+		termWidth:    20,
+		esc:          &escapes{dash: "--", tick: "*"},
+		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+	}
+}
+
+func SetVerbose(iw *infoWriter, verbose bool) {
+	iw.verbose = verbose
+}
+
+var (
+	ClientSnapFromPath          = clientSnapFromPath
+	SetupDiskSnap               = (*infoWriter).setupDiskSnap
+	SetupSnap                   = (*infoWriter).setupSnap
+	MaybePrintServices          = (*infoWriter).maybePrintServices
+	MaybePrintCommands          = (*infoWriter).maybePrintCommands
+	MaybePrintType              = (*infoWriter).maybePrintType
+	PrintSummary                = (*infoWriter).printSummary
+	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes             = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
+	MaybePrintContact           = (*infoWriter).maybePrintContact
+	MaybePrintBase              = (*infoWriter).maybePrintBase
+	MaybePrintPath              = (*infoWriter).maybePrintPath
+	MaybePrintSum               = (*infoWriter).maybePrintSum
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
