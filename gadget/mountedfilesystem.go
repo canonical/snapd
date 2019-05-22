@@ -170,13 +170,15 @@ func (m *MountedFilesystemWriter) DeployContent(whereDir string, content *Volume
 	return m.deployOneContent(whereDir, content, remapPreserve(whereDir, preserve))
 }
 
+type mountLookupFunc func(ps *PositionedStructure) (string, error)
+
 type MountedFilesystemUpdater struct {
 	*MountedFilesystemWriter
 	backupDir   string
-	mountLookup locationLookupFunc
+	mountLookup mountLookupFunc
 }
 
-func NewMountedFilesystemUpdater(rootDir, backupDir string, mountLookup locationLookupFunc) *MountedFilesystemUpdater {
+func NewMountedFilesystemUpdater(rootDir, backupDir string, mountLookup mountLookupFunc) *MountedFilesystemUpdater {
 	return &MountedFilesystemUpdater{
 		MountedFilesystemWriter: NewMountedFilesystemWriter(rootDir),
 		backupDir:               backupDir,
