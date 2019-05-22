@@ -6,28 +6,14 @@ details: |
     channel pointed by the NEW_CORE_CHANNEL env var.
 
 systems: [ubuntu-16.04-64]
-
-prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    create_nested_core_vm
     
 restore: |
     rm -f prevBoot nextBoot
     rm -f core_*.{assert,snap} 
 
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-
-    if [ "$NEW_CORE_CHANNEL" = "" ]; then
-        echo "please set the SPREAD_NEW_CORE_CHANNEL environment"
-        exit 1
-    fi
 
     INITIAL_REV="$(get_nested_core_revision_for_channel "${CORE_CHANNEL}")"
     NEW_REV="$(get_nested_core_revision_for_channel "${NEW_CORE_CHANNEL}")"

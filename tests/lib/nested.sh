@@ -4,6 +4,7 @@
 . "$TESTSLIB"/systemd.sh
 
 WORK_DIR=/tmp/work-dir
+NESTED_VM=nested-vm
 SSH_PORT=8022
 MON_PORT=8888
 
@@ -38,10 +39,10 @@ prepare_ssh(){
 }
 
 create_assertions_disk(){
-    dd if=/dev/null of=assertions.disk bs=1M seek=1
-    mkfs.ext4 -F assertions.disk
+    dd if=/dev/null of="$WORK_DIR"/assertions.disk bs=1M seek=1
+    mkfs.ext4 -F "$WORK_DIR"/assertions.disk
     mkdir /mnt/assertions
-    mount -t ext4 -o loop assertions.disk /mnt/assertions
+    mount -t ext4 -o loop "$WORK_DIR"/assertions.disk /mnt/assertions
     cp "$TESTSLIB/assertions/auto-import.assert" /mnt/assertions
     umount /mnt/assertions && rm -rf /mnt/assertions
 }
@@ -127,37 +128,64 @@ refresh_to_new_core(){
     fi
 }
 
+cleanup_nested_env(){
+    rm -rf "$WORK_DIR"
+}
+
 create_nested_core_vm(){
-    local UBUNTU_IMAGE
-    UBUNTU_IMAGE=$(command -v ubuntu-image)
+    mkdir -p "$WORK_DIR/image"
+    if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
+        local UBUNTU_IMAGE
+        UBUNTU_IMAGE=$(command -v ubuntu-image)
 
-    # create ubuntu-core image
-    local EXTRA_SNAPS=""
-    if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
-        EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
+        # create ubuntu-core image
+        local EXTRA_SNAPS=""
+        if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
+            EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
+        fi
+
+        local NESTED_MODEL=""
+        case "$SPREAD_SYSTEM" in
+        ubuntu-16.04-64)
+            NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
+            ;;
+        ubuntu-18.04-64)
+            NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
+            ;;
+        *)
+            echo "unsupported system"
+            exit 1
+            ;;
+        esac
+
+        "$UBUNTU_IMAGE" --image-size 3G "$NESTED_MODEL" \
+            --channel "$CORE_CHANNEL" \
+            --output "$WORK_DIR/image/ubuntu-core.img" "$EXTRA_SNAPS"
+
+        create_assertions_disk
     fi
-    mkdir -p "$WORK_DIR"
+}
 
-    local NESTED_MODEL=""
-    case "$SPREAD_SYSTEM" in
-    ubuntu-16.04-64)
-        NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
-        ;;
-    ubuntu-18.04-64)
-        NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
-        ;;
-    *)
-        echo "unsupported system"
-        exit 1
-        ;;
-    esac
+start_nested_core_vm(){
+    local IMAGE QEMU
+    QEMU=$(get_qemu_for_nested_vm)
+    # As core18 systems use to fail to start the assetion disk when using the
+    # snapshot feature, we copy the original image and use that copy to start
+    # the VM.
+    IMAGE="$WORK_DIR/image/ubuntu-core-new.img"
 
-    "$UBUNTU_IMAGE" --image-size 3G "$NESTED_MODEL" \
-        --channel "$CORE_CHANNEL" \
-        --output "$WORK_DIR/ubuntu-core.img" "$EXTRA_SNAPS"
+    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE"
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic \
+        -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
+        -drive file=$IMAGE,cache=none,format=raw \
+        -drive file=$WORK_DIR/assertions.disk,cache=none,format=raw \
+        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        -machine accel=kvm"
 
-    create_assertions_disk
-    start_nested_core_vm
+    if ! wait_for_ssh; then
+        systemctl restart nested-vm
+    fi
+
     if wait_for_ssh; then
         prepare_ssh
     else
@@ -166,33 +194,7 @@ create_nested_core_vm(){
     fi
 }
 
-start_nested_core_vm(){
-    local QEMU
-    QEMU=$(get_qemu_for_nested_vm)
-    systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
-        -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
-        -drive file=$WORK_DIR/ubuntu-core.img,cache=none,format=raw \
-        -drive file=${PWD}/assertions.disk,cache=none,format=raw \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        -machine accel=kvm"
-    if ! wait_for_ssh; then
-        systemctl restart nested-vm
-    fi
-}
-
-create_nested_classic_vm(){
-    mkdir -p "$WORK_DIR"
-
-    # Get the cloud image
-    local IMAGE_URL
-    IMAGE_URL=$(get_image_url_for_nested_vm)
-    wget -P "$WORK_DIR" "$IMAGE_URL"
-    # Check the image
-    local IMAGE
-    IMAGE=$(ls $WORK_DIR/*.img)
-    test "$(echo "$IMAGE" | wc -l)" = "1"
-
-    # Prepare the cloud-init configuration
+create_seed_image(){
     cat <<EOF > "$WORK_DIR/seed"
 #cloud-config
   ssh_pwauth: True
@@ -205,29 +207,43 @@ create_nested_classic_vm(){
     user1:ubuntu
    expire: False
 EOF
-    cloud-localds -H "$(hostname)" "$WORK_DIR/seed.img" "$WORK_DIR/seed"
+}
 
-    # Start the vm
-    start_nested_classic_vm "$IMAGE"
+create_nested_classic_vm(){
+    mkdir -p "$WORK_DIR/image"
+    IMAGE=$(ls $WORK_DIR/image/*.img || true)
+    if [ -z "$IMAGE" ]; then
+        # Get the cloud image
+        local IMAGE_URL
+        IMAGE_URL=$(get_image_url_for_nested_vm)
+        wget -P "$WORK_DIR/image" "$IMAGE_URL"
+        # Check the image
+        local IMAGE
+        IMAGE=$(ls $WORK_DIR/image/*.img)
+        test "$(echo "$IMAGE" | wc -l)" = "1"
+
+        # Prepare the cloud-init configuration and configure image
+        create_seed_image
+        cloud-localds -H "$(hostname)" "$WORK_DIR/seed.img" "$WORK_DIR/seed"
+    fi
 }
 
 start_nested_classic_vm(){
-    local IMAGE=$1
-    local QEMU
+    local IMAGE QEMU
+    IMAGE=$(ls $WORK_DIR/image/*.img)
     QEMU=$(get_qemu_for_nested_vm)
 
-    systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        -machine accel=kvm"
+        -snapshot -machine accel=kvm"
     wait_for_ssh
 }
 
 destroy_nested_vm(){
-    systemd_stop_and_destroy_unit nested-vm
-    rm -rf "$WORK_DIR"
+    systemd_stop_and_destroy_unit "$NESTED_VM"
 }
 
 execute_remote(){

@@ -4,16 +4,6 @@ kill-timeout: 30m
 
 systems: [ubuntu-16.04-64]
 
-prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    create_nested_core_vm
-
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-
 debug: |
     systemctl stop nested-vm || true
     if [ -f /tmp/work-dir/ubuntu-core.img ]; then
