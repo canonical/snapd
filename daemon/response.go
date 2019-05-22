@@ -246,6 +246,26 @@ func makeErrorResponder(status int) errorResponder {
 	}
 }
 
+// A FileStream ServeHTTP method streams the snap
+type FileStream struct {
+	FileName string
+	Info     snap.DownloadInfo
+	stream   io.ReadCloser
+}
+
+// ServeHTTP from the Response interface
+func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	size := fmt.Sprintf("%d", s.Info.Size)
+	w.Header().Set("Content-Length", size)
+	defer s.stream.Close()
+
+	if _, err := io.Copy(w, s.stream); err != nil {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.FileName, s.Info, err)
+		fmt.Fprintf(w, "%s", err)
+	}
+}
+
 // A FileResponse 's ServeHTTP method serves the file
 type FileResponse string
 
