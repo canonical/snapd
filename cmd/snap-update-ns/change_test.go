@@ -488,7 +488,7 @@ func (s *changeSuite) TestPerformFilesystemMountAndShareChanges(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/target"`, R: testutil.FileInfoDir},
 		{C: `mount "device" "/target" "type" 0 ""`},
-		{C: `mount "" "/target" "" MS_SHARED ""`},
+		{C: `mount "none" "/target" "" MS_SHARED ""`},
 	})
 }
 
@@ -928,7 +928,7 @@ func (s *changeSuite) TestPerformRecursiveDirectorySharedBindMount(c *C) {
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND|MS_REC ""`},
 		{C: `close 5`},
 		{C: `close 4`},
-		{C: `mount "" "/target" "" MS_REC|MS_SHARED ""`},
+		{C: `mount "none" "/target" "" MS_REC|MS_SHARED ""`},
 	})
 }
 
