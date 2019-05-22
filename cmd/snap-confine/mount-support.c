@@ -408,8 +408,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// directory is always /snap. On the host it is a build-time configuration
 	// option stored in SNAP_MOUNT_DIR.
 	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC | MS_SLAVE,
-		    NULL);
+	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
 	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
