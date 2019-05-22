@@ -223,14 +223,14 @@ type writeflusher interface {
 }
 
 type infoWriter struct {
-	// these fields are set every iteration:
+	// fields that are set every iteration
 	theSnap    *client.Snap
 	diskSnap   *client.Snap
 	localSnap  *client.Snap
 	remoteSnap *client.Snap
 	resInfo    *client.ResultInfo
 	path       string
-	// these fields don't change and so can be set once:
+	// fields that don't change and so can be set once
 	writeflusher
 	esc       *escapes
 	termWidth int
