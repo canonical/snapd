@@ -144,20 +144,6 @@ func (s *userSuite) TestPostCreateUser(c *check.C) {
 			1, expectedUsername, s.userInfoExpectedEmail, user.Macaroon))
 }
 
-func (s *userSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
-	st := s.d.overlord.State()
-	st.Lock()
-	devicestatetest.SetDevice(st, nil)
-	st.Unlock()
-
-	email := "foo@example.com"
-
-	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, email)
-	c.Check(username, check.Equals, "")
-	c.Check(opts, check.IsNil)
-	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
-}
-
 func (s *userSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
 	st := s.d.overlord.State()
 
@@ -272,9 +258,16 @@ var unknownUser = map[string]interface{}{
 func (s *userSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
+	st := s.d.overlord.State()
+
+	st.Lock()
+	model, err := s.d.overlord.DeviceManager().Model()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	username, opts, err := getUserDetailsFromAssertion(s.d.overlord, "foo@bar.com")
+	username, opts, err := getUserDetailsFromAssertion(st, model, "foo@bar.com")
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
 		Gecos:    "foo@bar.com,Boring Guy",
@@ -463,6 +456,28 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device already managed`)
+}
+
+func (s *userSuite) TestPostCreateUserFromAssertionAllKnownNoModelError(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := s.d.overlord.State()
+	// have not model yet
+	st.Lock()
+	err := devicestatetest.SetDevice(st, &auth.DeviceState{})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {

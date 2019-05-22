@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -235,10 +234,22 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		}
 	}
 
+	var model *asserts.Model
+	createKnown := createData.Known
+	if createKnown {
+		var err error
+		st.Lock()
+		model, err = c.d.overlord.DeviceManager().Model()
+		st.Unlock()
+		if err != nil {
+			return InternalError("cannot create user: cannot get model assertion: %v", err)
+		}
+	}
+
 	// special case: the user requested the creation of all known
 	// system-users
-	if createData.Email == "" && createData.Known {
-		return createAllKnownSystemUsers(c.d.overlord, &createData)
+	if createData.Email == "" && createKnown {
+		return createAllKnownSystemUsers(st, model, &createData)
 	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
@@ -246,8 +257,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 
 	var username string
 	var opts *osutil.AddUserOptions
-	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(c.d.overlord, createData.Email)
+	if createKnown {
+		username, opts, err = getUserDetailsFromAssertion(st, model, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
 	}
@@ -290,22 +301,14 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	return v.Username, opts, nil
 }
 
-func createAllKnownSystemUsers(o *overlord.Overlord, createData *postUserCreateData) Response {
+func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, createData *postUserCreateData) Response {
 	var createdUsers []userResponseData
-
-	st := o.State()
-	st.Lock()
-	db := assertstate.DB(st)
-	modelAs, err := o.DeviceManager().Model()
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get model assertion")
-	}
-
 	headers := map[string]string{
 		"brand-id": modelAs.BrandID(),
 	}
+
 	st.Lock()
+	db := assertstate.DB(st)
 	assertions, err := db.FindMany(asserts.SystemUserType, headers)
 	st.Unlock()
 	if err != nil && !asserts.IsNotFound(err) {
@@ -316,7 +319,7 @@ func createAllKnownSystemUsers(o *overlord.Overlord, createData *postUserCreateD
 		email := as.(*asserts.SystemUser).Email()
 		// we need to use getUserDetailsFromAssertion as this verifies
 		// the assertion against the current brand/model/time
-		username, opts, err := getUserDetailsFromAssertion(o, email)
+		username, opts, err := getUserDetailsFromAssertion(st, modelAs, email)
 		if err != nil {
 			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 			continue
@@ -345,17 +348,12 @@ func createAllKnownSystemUsers(o *overlord.Overlord, createData *postUserCreateD
 	return SyncResponse(createdUsers, nil)
 }
 
-func getUserDetailsFromAssertion(o *overlord.Overlord, email string) (string, *osutil.AddUserOptions, error) {
+func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
-	st := o.State()
 	st.Lock()
 	db := assertstate.DB(st)
-	modelAs, err := o.DeviceManager().Model()
 	st.Unlock()
-	if err != nil {
-		return "", nil, fmt.Errorf(errorPrefix+"cannot get model assertion: %s", err)
-	}
 
 	brandID := modelAs.BrandID()
 	series := modelAs.Series()
