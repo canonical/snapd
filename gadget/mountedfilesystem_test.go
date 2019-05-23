@@ -66,13 +66,6 @@ func makeExistingDeployedData(c *C, where string, data []gadgetData) {
 	}
 }
 
-func verifyExistingDeployedData(c *C, where string, data []gadgetData) {
-	for _, en := range data {
-		target := filepath.Join(where, en.target)
-		c.Check(target, testutil.FileContains, en.content)
-	}
-}
-
 type contentType int
 
 const (
@@ -671,9 +664,8 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 	c.Assert(err, IsNil)
 
 	backupRoot := filepath.Join(r.backup, "struct-0")
-	err = filepath.Walk(backupRoot, func(name string, _ os.FileInfo, _ error) error {
-		c.Check(name, Equals, backupRoot)
-		return nil
+	verifyDirContents(c, backupRoot, map[string]contentType{
+		// actually empty
 	})
 }
 
@@ -701,6 +693,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 	})
 
 	err := os.Chmod(r.backup, 0555)
+	c.Assert(err, IsNil)
 	defer os.Chmod(r.backup, 0755)
 
 	err = rw.Backup(nil, ps)
@@ -1061,6 +1054,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 	})
 
 	err = rw.Update(nil, ps)
+	c.Assert(err, IsNil)
 
 	verifyDirContents(c, outDir, map[string]contentType{
 		// / -> /
