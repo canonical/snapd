@@ -3619,7 +3619,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh a snap")
-	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{
+		Channel:   "some-channel",
+		CohortKey: "some-cohort",
+	}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -3649,6 +3652,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				InstanceName: "services-snap",
 				SnapID:       "services-snap-id",
 				Channel:      "some-channel",
+				CohortKey:    "some-cohort",
 				Flags:        store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
@@ -3760,8 +3764,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "some-channel",
-		UserID:  s.user.ID,
+		Channel:   "some-channel",
+		CohortKey: "some-cohort",
+		UserID:    s.user.ID,
 
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
@@ -3805,6 +3810,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 		Revision: snap.R(11),
 	})
+	c.Check(snapst.CohortKey, Equals, "some-cohort")
 
 	// we end up with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
@@ -9016,13 +9022,17 @@ func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si},
-		Current:  si.Revision,
-		Channel:  "edge",
+		Sequence:  []*snap.SideInfo{&si},
+		Current:   si.Revision,
+		Channel:   "edge",
+		CohortKey: "potatoes",
 	})
 
 	chg := s.state.NewChange("switch-snap", "switch snap to some-channel")
-	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
+	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{
+		Channel:   "some-channel",
+		CohortKey: "some-cohort",
+	})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -9039,6 +9049,7 @@ func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Channel, Equals, "some-channel")
+	c.Assert(snapst.CohortKey, Equals, "some-cohort")
 
 	// ensure the current info has not changed
 	info, err := snapst.CurrentInfo()

@@ -302,6 +302,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	snapstateTryPath = nil
 	snapstateUpdate = nil
 	snapstateUpdateMany = nil
+	snapstateSwitch = nil
 
 	devicestateRemodel = nil
 }
@@ -326,6 +327,7 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	snapstateTryPath = snapstate.TryPath
 	snapstateUpdate = snapstate.Update
 	snapstateUpdateMany = snapstate.UpdateMany
+	snapstateSwitch = snapstate.Switch
 }
 
 var modelDefaults = map[string]interface{}{
@@ -3706,6 +3708,66 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRefreshCohort(c *check.C) {
+	cohort := ""
+
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		cohort = opts.CohortKey
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:    "refresh",
+		CohortKey: "xyzzy",
+		Snaps:     []string{"some-snap"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(cohort, check.Equals, "xyzzy")
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestSwitchCohort(c *check.C) {
+	cohort := ""
+
+	snapstateSwitch = func(s *state.State, name string, opts *snapstate.RevisionOptions) (*state.TaskSet, error) {
+		cohort = opts.CohortKey
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:    "switch",
+		CohortKey: "some-long-cohort",
+		Snaps:     []string{"some-snap"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(cohort, check.Equals, "some-long-cohort")
+	c.Check(summary, check.Equals, `Switch "some-snap" snap to cohort "some-long…"`)
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {

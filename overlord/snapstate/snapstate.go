@@ -877,7 +877,11 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 			// allow updating from classic to strict
 			updateFlags.Classic = false
 		}
-		return &RevisionOptions{Channel: snapst.Channel}, snapst.Flags, snapst
+		opts := &RevisionOptions{
+			Channel:   snapst.Channel,
+			CohortKey: snapst.CohortKey,
+		}
+		return opts, snapst.Flags, snapst
 
 	}
 
@@ -942,7 +946,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, update := range updates {
-		updateOpts, flags, snapst := params(update)
+		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
 		if err := checkInstallPreconditions(st, update, flags, snapst, deviceCtx); err != nil {
@@ -969,7 +973,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		snapsup := &SnapSetup{
 			Base:         update.Base,
 			Prereq:       defaultContentPlugProviders(st, update),
-			Channel:      updateOpts.Channel,
+			Channel:      revnoOpts.Channel,
+			CohortKey:    revnoOpts.CohortKey,
 			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
@@ -1209,7 +1214,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 
 var errRevisionSwitch = errors.New("cannot switch revision")
 
-// Switch switches a snap to a new channel
+// Switch switches a snap to a new channel and/or cohort
 func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
@@ -1243,6 +1248,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
 		Channel:     opts.Channel,
+		CohortKey:   opts.CohortKey,
 		InstanceKey: snapst.InstanceKey,
 	}
 
@@ -1254,8 +1260,9 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 // RevisionOptions control the selection of a snap revision.
 type RevisionOptions struct {
-	Channel  string
-	Revision snap.Revision
+	Channel   string
+	Revision  snap.Revision
+	CohortKey string
 }
 
 // Update initiates a change updating a snap.
@@ -1302,7 +1309,12 @@ func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOption
 	}
 
 	if opts.Channel == "" {
+		// default to tracking the same channel
 		opts.Channel = snapst.Channel
+	}
+	if opts.CohortKey == "" {
+		// default to being in the same cohort
+		opts.CohortKey = snapst.CohortKey
 	}
 
 	// TODO: make flags be per revision to avoid this logic (that
@@ -1337,7 +1349,7 @@ func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOption
 	}
 
 	// see if we need to update the channel or toggle ignore-validation
-	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != opts.Channel || snapst.IgnoreValidation != flags.IgnoreValidation) {
+	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != opts.Channel || snapst.IgnoreValidation != flags.IgnoreValidation || snapst.CohortKey != opts.CohortKey) {
 		// NOTE: if we are in here, len(updates) == 0
 		//       (so we're free to add tasks because there's no rerefresh)
 
@@ -1349,16 +1361,36 @@ func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOption
 			SideInfo:    snapst.CurrentSideInfo(),
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
+			CohortKey:   opts.CohortKey,
 		}
 
-		if snapst.Channel != opts.Channel {
-			// update the tracked channel
+		if snapst.Channel != opts.Channel || snapst.CohortKey != opts.CohortKey {
+			var summary string
+			switch {
+			case snapst.Channel == opts.Channel:
+				summary = fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"), snapsup.InstanceName(),
+					strutil.ElliptRight(snapst.CohortKey, 10),
+					strutil.ElliptRight(opts.CohortKey, 10),
+				)
+			case snapst.CohortKey == opts.CohortKey:
+				summary = fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"), snapsup.InstanceName(),
+					snapst.Channel, opts.Channel)
+			default:
+				summary = fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"), snapsup.InstanceName(),
+					snapst.Channel, opts.Channel,
+					strutil.ElliptRight(snapst.CohortKey, 10),
+					strutil.ElliptRight(opts.CohortKey, 10),
+				)
+			}
+
+			// update the tracked channel and cohort
 			snapsup.Channel = opts.Channel
+			snapsup.CohortKey = opts.CohortKey
 			// Update the current snap channel as well. This ensures that
 			// the UI displays the right values.
 			snapsup.SideInfo.Channel = opts.Channel
 
-			switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.InstanceName(), snapst.Channel, opts.Channel))
+			switchSnap := st.NewTask("switch-snap-channel", summary)
 			switchSnap.Set("snap-setup", &snapsup)
 
 			switchSnapTs := state.NewTaskSet(switchSnap)
