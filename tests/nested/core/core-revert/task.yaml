@@ -2,6 +2,8 @@ summary: core revert test
 
 kill-timeout: 30m
 
+systems: [ubuntu-16.04-64]
+
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
