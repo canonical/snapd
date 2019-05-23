@@ -189,7 +189,7 @@ start_nested_core_vm(){
     if wait_for_ssh; then
         prepare_ssh
     else
-        echo "ssh not stablished, exiting..."
+        echo "ssh not established, exiting..."
         exit 1
     fi
 }
