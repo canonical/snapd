@@ -138,6 +138,11 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	if vs.Role == "" && vs.Type == MBR {
 		return MBR
 	}
+
+	if vs.Label == SystemBoot || vs.Label == SystemData {
+		return vs.Label
+	}
+
 	return ""
 }
 
