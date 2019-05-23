@@ -51,8 +51,8 @@ const dockerSupportConnectedPlugAppArmorCore = `
 # overlayfs mount correctly
 # the accesses show up as runc trying to read from
 # /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/
-/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**} rwl,
-/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**} rwl,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/} rwl,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/} rwl,
 `
 
 const dockerSupportConnectedPlugAppArmor = `
