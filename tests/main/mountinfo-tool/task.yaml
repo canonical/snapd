@@ -1,0 +1,4 @@
+summary: the mountinfo-tool can be used in tests
+systems: [ubuntu-core-18-64, ubuntu-18.04-64]
+execute: |
+    mountinfo-tool --version | MATCH 1.0
