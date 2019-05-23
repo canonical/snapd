@@ -558,7 +558,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case "system-boot", "":
+	case "system-boot", "system-recovery", "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")
