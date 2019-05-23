@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -668,6 +669,57 @@ base: some-base
 	err = snapstate.CheckSnap(st, "snap-path", "requires-base", nil, nil, snapstate.Flags{}, nil)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot find required base \"some-base\"")
+}
+
+func (s *checkSnapSuite) TestCheckSnapBasesNoneError(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	const yaml = `name: use-base-none
+version: 1
+base: none
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "use-base-none", nil, nil, snapstate.Flags{}, nil)
+	st.Lock()
+	c.Check(err, ErrorMatches, "base type \"none\" not supported with snap type \"app\"")
+}
+
+func (s *checkSnapSuite) TestCheckSnapBasesNoneHappy(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	const yaml = `name: use-base-none
+version: 1
+type: %TYPE%
+base: none
+`
+	for _, snapType := range []string{"gadget", "kernel"} {
+		info, err := snap.InfoFromSnapYaml([]byte(strings.Replace(yaml, "%TYPE%", snapType, -1)))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+
+		st.Unlock()
+		err = snapstate.CheckSnap(st, "snap-path", "use-base-none", nil, nil, snapstate.Flags{}, nil)
+		st.Lock()
+		c.Check(err, IsNil)
+	}
 }
 
 func (s *checkSnapSuite) TestCheckSnapBasesHappy(c *C) {

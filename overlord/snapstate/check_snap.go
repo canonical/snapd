@@ -351,6 +351,12 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, devi
 	if snapInfo.Base == "" {
 		return nil
 	}
+	if snapInfo.Base == "none" {
+		if snapInfo.Type != snap.TypeGadget && snapInfo.Type != snap.TypeKernel {
+			return fmt.Errorf("base type %q not supported with snap type %q", snapInfo.Base, snapInfo.Type)
+		}
+		return nil
+	}
 
 	snapStates, err := All(st)
 	if err != nil {

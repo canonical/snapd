@@ -412,7 +412,7 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 // snaps. If not an error is returned.
 func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
 	// snap needs no base: nothing to do
-	if snap.Base == "" {
+	if snap.Base == "" || snap.Base == "none" {
 		return nil
 	}
 	// core provides everything that core16 needs
