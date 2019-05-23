@@ -800,7 +800,7 @@ func (s *snapmgrTestSuite) TestAliasUpdateChangeConflict(c *C) {
 	// need a change to make the tasks visible
 	s.state.NewChange("alias", "...").AddAll(ts)
 
-	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "alias" change in progress`)
 }
 
@@ -815,7 +815,7 @@ func (s *snapmgrTestSuite) TestUpdateAliasChangeConflict(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("update", "...").AddAll(ts)
@@ -1278,7 +1278,7 @@ func (s *snapmgrTestSuite) TestUpdateDisableAllAliasesChangeConflict(c *C) {
 		},
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("update", "...").AddAll(ts)
@@ -1301,7 +1301,7 @@ func (s *snapmgrTestSuite) TestUpdateRemoveManualAliasChangeConflict(c *C) {
 		},
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("update", "...").AddAll(ts)
@@ -1326,7 +1326,7 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesUpdateChangeConflict(c *C) {
 	// need a change to make the tasks visible
 	s.state.NewChange("alias", "...").AddAll(ts)
 
-	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "alias" change in progress`)
 }
 
@@ -1349,7 +1349,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasUpdateChangeConflict(c *C) {
 	// need a change to make the tasks visible
 	s.state.NewChange("unalias", "...").AddAll(ts)
 
-	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "unalias" change in progress`)
 }
 
@@ -1523,7 +1523,7 @@ func (s *snapmgrTestSuite) TestUpdatePreferChangeConflict(c *C) {
 		},
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("update", "...").AddAll(ts)
@@ -1552,6 +1552,6 @@ func (s *snapmgrTestSuite) TestPreferUpdateChangeConflict(c *C) {
 	// need a change to make the tasks visible
 	s.state.NewChange("prefer", "...").AddAll(ts)
 
-	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "prefer" change in progress`)
 }
