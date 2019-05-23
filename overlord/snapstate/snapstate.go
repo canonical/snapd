@@ -1207,8 +1207,16 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	return newChannel, nil
 }
 
+var errRevisionSwitch = errors.New("cannot switch revision")
+
 // Switch switches a snap to a new channel
-func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
+func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet, error) {
+	if opts == nil {
+		opts = &RevisionOptions{}
+	}
+	if !opts.Revision.Unset() {
+		return nil, errRevisionSwitch
+	}
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -1227,14 +1235,14 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	channel, err = resolveChannel(st, name, channel, deviceCtx)
+	opts.Channel, err = resolveChannel(st, name, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
-		Channel:     channel,
+		Channel:     opts.Channel,
 		InstanceKey: snapst.InstanceKey,
 	}
 
@@ -1244,6 +1252,7 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 	return state.NewTaskSet(switchSnap), nil
 }
 
+// RevisionOptions control the selection of a snap revision
 type RevisionOptions struct {
 	Channel  string
 	Revision snap.Revision
