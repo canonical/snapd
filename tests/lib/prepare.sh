@@ -269,7 +269,10 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
-        not snap list | grep core || exit 1
+        if snap list | grep -q core; then
+            echo "unexpectedly core was already installed"
+            exit 1
+        fi
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
