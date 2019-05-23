@@ -491,7 +491,7 @@ EOF
     # - make sure the group matches
     # - bind mount /root/test-etc/* to /etc/* via custom systemd job
     # We also create /var/lib/extrausers/* and append ubuntu,test there
-    ! test -e /mnt/system-data/root
+    test ! -e /mnt/system-data/root
     mkdir -m 700 /mnt/system-data/root
     test -d /mnt/system-data/root
     mkdir -p /mnt/system-data/root/test-etc
