@@ -917,6 +917,13 @@ type snapInstruction struct {
 	userID int
 }
 
+func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
+	return &snapstate.RevisionOptions{
+		Channel:  inst.Channel,
+		Revision: inst.Revision,
+	}
+}
+
 func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
 	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 }
@@ -1132,7 +1139,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
