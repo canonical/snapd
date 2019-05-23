@@ -1252,7 +1252,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	return state.NewTaskSet(switchSnap), nil
 }
 
-// RevisionOptions control the selection of a snap revision
+// RevisionOptions control the selection of a snap revision.
 type RevisionOptions struct {
 	Channel  string
 	Revision snap.Revision
