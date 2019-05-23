@@ -39,7 +39,7 @@ execute: |
     snap install test-snapd-tools
     test-snapd-tools.echo hello
 
-    ! mount |MATCH /etc/ssl-backup
+    not mount |MATCH /etc/ssl-backup
 
     test-snapd-tools.cmd find /etc/ssl/ -ls | sort > in-snap
     # same thing is visible in and out

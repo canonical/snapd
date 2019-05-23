@@ -37,7 +37,7 @@ execute: |
 
     if is_core_system; then
         # no holding
-        ! echo "$output" | MATCH "^hold:"
+        not echo "$output" | MATCH "^hold:"
     else
         # holding
         echo "$output" | MATCH "^hold:"
@@ -77,4 +77,4 @@ execute: |
     jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH "$(date +%Y)"
 
     echo "No refresh hold at this point"
-    ! snap refresh --time| MATCH "^hold:"
+    not snap refresh --time| MATCH "^hold:"
