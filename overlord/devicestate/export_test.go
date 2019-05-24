@@ -98,7 +98,7 @@ func MockSnapstateInstall(f func(st *state.State, name, channel string, revision
 	}
 }
 
-func MockSnapstateUpdate(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdate(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateUpdate
 	snapstateUpdate = f
 	return func() {
@@ -128,6 +128,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
+	return m.registrationCtx(t)
+}
+
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
@@ -136,6 +140,8 @@ var (
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RemodelTasks = remodelTasks
 )
 
 func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
