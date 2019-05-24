@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -181,6 +182,14 @@ func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) 
 	}
 }
 
+func MockNeededChanges(f func(old, new *osutil.MountProfile) []*Change) (restore func()) {
+	origNeededChanges := NeededChanges
+	NeededChanges = f
+	return func() {
+		NeededChanges = origNeededChanges
+	}
+}
+
 func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
 	old := ioutilReadDir
 	ioutilReadDir = fn
@@ -213,24 +222,24 @@ func (as *Assumptions) UnrestrictedPaths() []string {
 	return as.unrestrictedPaths
 }
 
-func (up *CommonProfileUpdate) FromSnapConfine() bool {
-	return up.fromSnapConfine
+func (ctx *CommonProfileUpdateContext) CurrentProfilePath() string {
+	return ctx.currentProfilePath
 }
 
-func (up *CommonProfileUpdate) SetFromSnapConfine(v bool) {
-	up.fromSnapConfine = v
+func (ctx *CommonProfileUpdateContext) DesiredProfilePath() string {
+	return ctx.desiredProfilePath
 }
 
-func (up *CommonProfileUpdate) CurrentProfilePath() string {
-	return up.currentProfilePath
+func (ctx *CommonProfileUpdateContext) FromSnapConfine() bool {
+	return ctx.fromSnapConfine
 }
 
-func (up *CommonProfileUpdate) DesiredProfilePath() string {
-	return up.desiredProfilePath
+func (ctx *CommonProfileUpdateContext) SetFromSnapConfine(v bool) {
+	ctx.fromSnapConfine = v
 }
 
-func NewCommonProfileUpdate(instanceName string, fromSnapConfine bool, currentProfilePath, desiredProfilePath string) *CommonProfileUpdate {
-	return &CommonProfileUpdate{
+func NewCommonProfileUpdateContext(instanceName string, fromSnapConfine bool, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
+	return &CommonProfileUpdateContext{
 		instanceName:       instanceName,
 		fromSnapConfine:    fromSnapConfine,
 		currentProfilePath: currentProfilePath,

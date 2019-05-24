@@ -164,10 +164,6 @@ func (s *WaylandInterfaceSuite) TestSecCompOnCore(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestUDev(c *C) {
-	// on a core system with wayland slot coming from a regular app snap.
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 6)
@@ -183,15 +179,6 @@ KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
-
-	// on a classic system with wayland slot coming from the core snap.
-	restore = release.MockOnClassic(true)
-	defer restore()
-
-	spec = &udev.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 0)
-	c.Assert(spec.TriggeredSubsystems(), IsNil)
 }
 
 func (s *WaylandInterfaceSuite) TestStaticInfo(c *C) {

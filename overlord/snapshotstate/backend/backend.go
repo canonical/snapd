@@ -21,6 +21,7 @@ package backend
 
 import (
 	"archive/zip"
+	"context"
 	"crypto"
 	"encoding/json"
 	"errors"
@@ -30,8 +31,6 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -58,6 +57,11 @@ var (
 	dirNames    = (*os.File).Readdirnames
 	backendOpen = Open
 )
+
+// Flags encompasses extra flags for snapshots backend Save.
+type Flags struct {
+	Auto bool
+}
 
 // Iter loops over all snapshots in the snapshots directory, applying the given
 // function to each. The snapshot will be closed after the function returns. If
@@ -153,9 +157,14 @@ func Filename(snapshot *client.Snapshot) string {
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *Flags) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
+	}
+
+	var auto bool
+	if flags != nil {
+		auto = flags.Auto
 	}
 
 	snapshot := &client.Snapshot{
@@ -169,6 +178,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,
+		Auto:     auto,
 	}
 
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)

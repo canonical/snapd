@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -105,8 +106,8 @@ func (s remoteSnapName) Complete(match string) []flags.Completion {
 		return nil
 	}
 	snaps, _, err := mkClient().Find(&client.FindOptions{
-		Prefix: true,
 		Query:  match,
+		Prefix: true,
 	})
 	if err != nil {
 		return nil
@@ -296,7 +297,10 @@ func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	parts := strings.SplitN(match, ":", 2)
 
 	// Ask snapd about available interfaces.
-	ifaces, err := mkClient().Connections()
+	opts := client.ConnectionOptions{
+		All: true,
+	}
+	ifaces, err := mkClient().Connections(&opts)
 	if err != nil {
 		return nil
 	}
@@ -435,17 +439,25 @@ func (s serviceName) Complete(match string) []flags.Completion {
 		return nil
 	}
 
-	snaps := map[string]bool{}
+	snaps := map[string]int{}
 	var ret []flags.Completion
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
 		}
-		if !snaps[app.Snap] {
-			snaps[app.Snap] = true
-			ret = append(ret, flags.Completion{Item: app.Snap})
+		name := snap.JoinSnapApp(app.Snap, app.Name)
+		if !strings.HasPrefix(name, match) {
+			continue
 		}
-		ret = append(ret, flags.Completion{Item: app.Snap + "." + app.Name})
+		ret = append(ret, flags.Completion{Item: name})
+		if len(match) <= len(app.Snap) {
+			snaps[app.Snap]++
+		}
+	}
+	for snap, n := range snaps {
+		if n > 1 {
+			ret = append(ret, flags.Completion{Item: snap})
+		}
 	}
 
 	return ret
@@ -475,7 +487,7 @@ func (s aliasOrSnap) Complete(match string) []flags.Completion {
 	return ret
 }
 
-type snapshotID uint64
+type snapshotID string
 
 func (snapshotID) Complete(match string) []flags.Completion {
 	shots, err := mkClient().SnapshotSets(0, nil)
@@ -491,4 +503,12 @@ func (snapshotID) Complete(match string) []flags.Completion {
 	}
 
 	return ret
+}
+
+func (s snapshotID) ToUint() (uint64, error) {
+	setID, err := strconv.ParseUint((string)(s), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf(i18n.G("invalid argument for set id: expected a non-negative integer argument"))
+	}
+	return setID, nil
 }

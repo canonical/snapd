@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,13 +22,13 @@ package main
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
-type CommonProfileUpdate struct {
-	// instanceName is the name of the snap or instance to update.
+type CommonProfileUpdateContext struct {
+	// instanceName is the name of the snap instance to update.
 	instanceName string
 
 	// fromSnapConfine indicates that the update is triggered by snap-confine
@@ -41,23 +41,23 @@ type CommonProfileUpdate struct {
 }
 
 // InstanceName returns the snap instance name being updated.
-func (up *CommonProfileUpdate) InstanceName() string {
-	return up.instanceName
+func (upCtx *CommonProfileUpdateContext) InstanceName() string {
+	return upCtx.instanceName
 }
 
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
-func (up *CommonProfileUpdate) Lock() (func(), error) {
-	instanceName := up.instanceName
+func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
+	instanceName := upCtx.instanceName
 
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
-	lock, err := mount.OpenLock(instanceName)
+	lock, err := snaplock.OpenLock(instanceName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", instanceName, err)
 	}
 
 	logger.Debugf("locking mount namespace of snap %q", instanceName)
-	if up.fromSnapConfine {
+	if upCtx.fromSnapConfine {
 		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
@@ -93,38 +93,32 @@ func (up *CommonProfileUpdate) Lock() (func(), error) {
 	return unlock, nil
 }
 
-// NeededChanges computes the sequence of mount changes needed to transform current profile to desired profile.
-func (up *CommonProfileUpdate) NeededChanges(current, desired *osutil.MountProfile) []*Change {
-	return NeededChanges(current, desired)
-}
-
-// PerformChange performs a given mount namespace change under given filesystem assumptions.
-func (up *CommonProfileUpdate) PerformChange(change *Change, as *Assumptions) ([]*Change, error) {
-	return changePerform(change, as)
+func (upCtx *CommonProfileUpdateContext) Assumptions() *Assumptions {
+	return nil
 }
 
 // LoadDesiredProfile loads the desired mount profile.
-func (up *CommonProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(up.desiredProfilePath)
+func (upCtx *CommonProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(upCtx.desiredProfilePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", up.instanceName, err)
+		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", upCtx.instanceName, err)
 	}
 	return profile, nil
 }
 
 // LoadCurrentProfile loads the current mount profile.
-func (up *CommonProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(up.currentProfilePath)
+func (upCtx *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(upCtx.currentProfilePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", up.instanceName, err)
+		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", upCtx.instanceName, err)
 	}
 	return profile, nil
 }
 
 // SaveCurrentProfile saves the current mount profile.
-func (up *CommonProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
-	if err := profile.Save(up.currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", up.instanceName, err)
+func (upCtx *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	if err := profile.Save(upCtx.currentProfilePath); err != nil {
+		return fmt.Errorf("cannot save current mount profile of snap %q: %s", upCtx.instanceName, err)
 	}
 	return nil
 }

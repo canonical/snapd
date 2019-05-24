@@ -22,9 +22,9 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"time"
 )
 
 type progress struct {
@@ -54,6 +54,12 @@ type Task struct {
 
 	spawnTime time.Time
 	readyTime time.Time
+
+	// TODO: add:
+	// {,Un}DoingRetries - number of retries
+	// Retry{,Un}DoingTimes - time spend to figure out a retry is needed
+	doingTime   time.Duration
+	undoingTime time.Duration
 
 	atTime time.Time
 }
@@ -87,6 +93,9 @@ type marshalledTask struct {
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
 
+	DoingTime   time.Duration `json:"doing-time,omitempty"`
+	UndoingTime time.Duration `json:"undoing-time,omitempty"`
+
 	AtTime *time.Time `json:"at-time,omitempty"`
 }
 
@@ -117,6 +126,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 
 		SpawnTime: t.spawnTime,
 		ReadyTime: readyTime,
+
+		DoingTime:   t.doingTime,
+		UndoingTime: t.undoingTime,
 
 		AtTime: atTime,
 	})
@@ -155,6 +167,8 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	if unmarshalled.AtTime != nil {
 		t.atTime = *unmarshalled.AtTime
 	}
+	t.doingTime = unmarshalled.DoingTime
+	t.undoingTime = unmarshalled.UndoingTime
 	return nil
 }
 
@@ -276,6 +290,26 @@ func (t *Task) AtTime() time.Time {
 	return t.atTime
 }
 
+func (t *Task) accumulateDoingTime(duration time.Duration) {
+	t.state.writing()
+	t.doingTime += duration
+}
+
+func (t *Task) accumulateUndoingTime(duration time.Duration) {
+	t.state.writing()
+	t.undoingTime += duration
+}
+
+func (t *Task) DoingTime() time.Duration {
+	t.state.reading()
+	return t.doingTime
+}
+
+func (t *Task) UndoingTime() time.Duration {
+	t.state.reading()
+	return t.undoingTime
+}
+
 const (
 	// Messages logged in tasks are guaranteed to use the time formatted
 	// per RFC3339 plus the following strings as a prefix, so these may
@@ -393,6 +427,11 @@ func (t *Task) HaltTasks() []*Task {
 	return t.state.tasksIn(t.haltTasks)
 }
 
+// NumHaltTasks returns the number of tasks registered to wait for t.
+func (t *Task) NumHaltTasks() int {
+	return len(t.haltTasks)
+}
+
 // Lanes returns the lanes the task is in.
 func (t *Task) Lanes() []int {
 	t.state.reading()
@@ -426,14 +465,32 @@ func (t *Task) At(when time.Time) {
 	}
 }
 
+// TaskSetEdge designates tasks inside a TaskSet for outside reference.
+//
+// This is useful to give tasks inside TaskSets a special meaning. It
+// is used to mark e.g. the last task used for downloading a snap.
+type TaskSetEdge string
+
 // A TaskSet holds a set of tasks.
 type TaskSet struct {
 	tasks []*Task
+
+	edges map[TaskSetEdge]*Task
 }
 
 // NewTaskSet returns a new TaskSet comprising the given tasks.
 func NewTaskSet(tasks ...*Task) *TaskSet {
-	return &TaskSet{tasks}
+	// we init all members of TaskSet so that `go vet` will not complain
+	return &TaskSet{tasks, nil}
+}
+
+// Edge returns the task marked with the given edge name.
+func (ts TaskSet) Edge(e TaskSetEdge) (*Task, error) {
+	t, ok := ts.edges[e]
+	if !ok {
+		return nil, fmt.Errorf("internal error: missing %q edge in task set", e)
+	}
+	return t, nil
 }
 
 // WaitFor registers a task as a requirement for the tasks in the set
@@ -462,6 +519,15 @@ func (ts *TaskSet) AddTask(task *Task) {
 	ts.tasks = append(ts.tasks, task)
 }
 
+// MarkEdge marks the given task as a specific edge. Any pre-existing
+// edge mark will be overridden.
+func (ts *TaskSet) MarkEdge(task *Task, edge TaskSetEdge) {
+	if ts.edges == nil {
+		ts.edges = make(map[TaskSetEdge]*Task)
+	}
+	ts.edges[edge] = task
+}
+
 // AddAll adds all the tasks in the argument set to the target set ts.
 func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
 	for _, t := range anotherTs.tasks {
@@ -469,7 +535,21 @@ func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
 	}
 }
 
-// JoinLane adds all the tasks in the current taskset to the given lane
+// AddAllWithEdges adds all the tasks in the argument set to the target
+// set ts and also adds all TaskSetEdges. Duplicated TaskSetEdges are
+// an error.
+func (ts *TaskSet) AddAllWithEdges(anotherTs *TaskSet) error {
+	ts.AddAll(anotherTs)
+	for edge, t := range anotherTs.edges {
+		if tex, ok := ts.edges[edge]; ok && t != tex {
+			return fmt.Errorf("cannot add taskset: duplicated edge %q", edge)
+		}
+		ts.MarkEdge(t, edge)
+	}
+	return nil
+}
+
+// JoinLane adds all the tasks in the current taskset to the given lane.
 func (ts *TaskSet) JoinLane(lane int) {
 	for _, t := range ts.tasks {
 		t.JoinLane(lane)

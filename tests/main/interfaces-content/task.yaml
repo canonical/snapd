@@ -1,5 +1,8 @@
 summary: Ensure that the content sharing interface works.
 
+# slow in autopkgtest (>4m)
+backends: [-autopkgtest]
+
 details: |
     The content-sharing interface interface allows a snap to access contents from
     other snap

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -34,9 +35,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -73,6 +76,24 @@ func init() {
 		}), nil)
 }
 
+func clientSnapFromPath(path string) (*client.Snap, error) {
+	snapf, err := snap.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	direct, err := cmd.ClientSnapFromSnapInfo(info)
+	if err != nil {
+		return nil, err
+	}
+
+	return direct, nil
+}
+
 func norm(path string) string {
 	path = filepath.Clean(path)
 	if osutil.IsDirectory(path) {
@@ -80,99 +101,6 @@ func norm(path string) string {
 	}
 
 	return path
-}
-
-func maybePrintPrice(w io.Writer, snap *client.Snap, resInfo *client.ResultInfo) {
-	if resInfo == nil {
-		return
-	}
-	price, currency, err := getPrice(snap.Prices, resInfo.SuggestedCurrency)
-	if err != nil {
-		return
-	}
-	fmt.Fprintf(w, "price:\t%s\n", formatPrice(price, currency))
-}
-
-func maybePrintType(w io.Writer, t string) {
-	// XXX: using literals here until we reshuffle snap & client properly
-	// (and os->core rename happens, etc)
-	switch t {
-	case "", "app", "application":
-		return
-	case "os":
-		t = "core"
-	}
-
-	fmt.Fprintf(w, "type:\t%s\n", t)
-}
-
-func maybePrintID(w io.Writer, snap *client.Snap) {
-	if snap.ID != "" {
-		fmt.Fprintf(w, "snap-id:\t%s\n", snap.ID)
-	}
-}
-
-func maybePrintBase(w io.Writer, base string, verbose bool) {
-	if verbose && base != "" {
-		fmt.Fprintf(w, "base:\t%s\n", base)
-	}
-}
-
-func tryDirect(w io.Writer, path string, verbose bool) bool {
-	path = norm(path)
-
-	snapf, err := snap.Open(path)
-	if err != nil {
-		return false
-	}
-
-	var sha3_384 string
-	if verbose && !osutil.IsDirectory(path) {
-		var err error
-		sha3_384, _, err = asserts.SnapFileSHA3_384(path)
-		if err != nil {
-			return false
-		}
-	}
-
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	if err != nil {
-		return false
-	}
-	fmt.Fprintf(w, "path:\t%q\n", path)
-	fmt.Fprintf(w, "name:\t%s\n", info.InstanceName())
-	fmt.Fprintf(w, "summary:\t%s\n", formatSummary(info.Summary()))
-
-	var notes *Notes
-	if verbose {
-		fmt.Fprintln(w, "notes:\t")
-		fmt.Fprintf(w, "  confinement:\t%s\n", info.Confinement)
-		if info.Broken == "" {
-			fmt.Fprintln(w, "  broken:\tfalse")
-		} else {
-			fmt.Fprintf(w, "  broken:\ttrue (%s)\n", info.Broken)
-		}
-
-	} else {
-		notes = NotesFromInfo(info)
-	}
-	fmt.Fprintf(w, "version:\t%s %s\n", info.Version, notes)
-	maybePrintType(w, string(info.Type))
-	maybePrintBase(w, info.Base, verbose)
-	if sha3_384 != "" {
-		fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
-	}
-
-	return true
-}
-
-func coalesce(snaps ...*client.Snap) *client.Snap {
-	for _, s := range snaps {
-		if s != nil {
-			return s
-		}
-	}
-	return nil
 }
 
 // runesTrimRightSpace returns text, with any trailing whitespace dropped.
@@ -195,9 +123,38 @@ func runesLastIndexSpace(text []rune) int {
 	return -1
 }
 
-// wrapLine wraps a line to fit into width, preserving the line's indent, and
+// wrapLine wraps a line, assumed to be part of a block-style yaml
+// string, to fit into termWidth, preserving the line's indent, and
 // writes it out prepending padding to each line.
-func wrapLine(out io.Writer, text []rune, pad string, width int) error {
+func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
+	// discard any trailing whitespace
+	text = runesTrimRightSpace(text)
+	// establish the indent of the whole block
+	idx := 0
+	for idx < len(text) && unicode.IsSpace(text[idx]) {
+		idx++
+	}
+	indent := pad + string(text[:idx])
+	text = text[idx:]
+	if len(indent) > termWidth/2 {
+		// If indent is too big there's not enough space for the actual
+		// text, in the pathological case the indent can even be bigger
+		// than the terminal which leads to lp:1828425.
+		// Rather than let that happen, give up.
+		indent = pad + "  "
+	}
+	return wrapGeneric(out, text, indent, indent, termWidth)
+}
+
+// wrapFlow wraps the text using yaml's flow style, allowing indent
+// characters for the first line.
+func wrapFlow(out io.Writer, text []rune, indent string, termWidth int) error {
+	return wrapGeneric(out, text, indent, "  ", termWidth)
+}
+
+// wrapGeneric wraps the given text to the given width, prefixing the
+// first line with indent and the remaining lines with indent2
+func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth int) error {
 	// Note: this is _wrong_ for much of unicode (because the width of a rune on
 	//       the terminal is anything between 0 and 2, not always 1 as this code
 	//       assumes) but fixing that is Hard. Long story short, you can get close
@@ -210,16 +167,12 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) error {
 	// This (and possibly printDescr below) should move to strutil once
 	// we're happy with it getting wider (heh heh) use.
 
-	// discard any trailing whitespace
-	text = runesTrimRightSpace(text)
+	indentWidth := utf8.RuneCountInString(indent)
+	delta := indentWidth - utf8.RuneCountInString(indent2)
+	width := termWidth - indentWidth
+
 	// establish the indent of the whole block
 	idx := 0
-	for idx < len(text) && unicode.IsSpace(text[idx]) {
-		idx++
-	}
-	indent := pad + string(text[:idx])
-	text = text[idx:]
-	width -= idx + utf8.RuneCountInString(pad)
 	var err error
 	for len(text) > width && err == nil {
 		// find a good place to chop the text
@@ -234,6 +187,9 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) error {
 			idx++
 		}
 		text = text[idx:]
+		width += delta
+		indent = indent2
+		delta = 0
 	}
 	if err != nil {
 		return err
@@ -249,11 +205,11 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) error {
 // - trim trailing whitespace
 // - word wrap at "max" chars preserving line indent
 // - keep \n intact and break there
-func printDescr(w io.Writer, descr string, max int) error {
+func printDescr(w io.Writer, descr string, termWidth int) error {
 	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		err = wrapLine(w, []rune(line), "  ", max)
+		err = wrapLine(w, []rune(line), "  ", termWidth)
 		if err != nil {
 			break
 		}
@@ -261,37 +217,240 @@ func printDescr(w io.Writer, descr string, max int) error {
 	return err
 }
 
-func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
-	if len(allApps) == 0 {
+type writeflusher interface {
+	io.Writer
+	Flush() error
+}
+
+type infoWriter struct {
+	// fields that are set every iteration
+	theSnap    *client.Snap
+	diskSnap   *client.Snap
+	localSnap  *client.Snap
+	remoteSnap *client.Snap
+	resInfo    *client.ResultInfo
+	path       string
+	// fields that don't change and so can be set once
+	writeflusher
+	esc       *escapes
+	termWidth int
+	fmtTime   func(time.Time) string
+	absTime   bool
+	verbose   bool
+}
+
+func (iw *infoWriter) setupDiskSnap(path string, diskSnap *client.Snap) {
+	iw.localSnap, iw.remoteSnap, iw.resInfo = nil, nil, nil
+	iw.path = path
+	iw.diskSnap = diskSnap
+	iw.theSnap = diskSnap
+}
+
+func (iw *infoWriter) setupSnap(localSnap, remoteSnap *client.Snap, resInfo *client.ResultInfo) {
+	iw.path, iw.diskSnap = "", nil
+	iw.localSnap = localSnap
+	iw.remoteSnap = remoteSnap
+	iw.resInfo = resInfo
+	if localSnap != nil {
+		iw.theSnap = localSnap
+	} else {
+		iw.theSnap = remoteSnap
+	}
+}
+
+func (iw *infoWriter) maybePrintPrice() {
+	if iw.resInfo == nil {
+		return
+	}
+	price, currency, err := getPrice(iw.remoteSnap.Prices, iw.resInfo.SuggestedCurrency)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(iw, "price:\t%s\n", formatPrice(price, currency))
+}
+
+func (iw *infoWriter) maybePrintType() {
+	// XXX: using literals here until we reshuffle snap & client properly
+	// (and os->core rename happens, etc)
+	t := iw.theSnap.Type
+	switch t {
+	case "", "app", "application":
+		return
+	case "os":
+		t = "core"
+	}
+
+	fmt.Fprintf(iw, "type:\t%s\n", t)
+}
+
+func (iw *infoWriter) maybePrintID() {
+	if iw.theSnap.ID != "" {
+		fmt.Fprintf(iw, "snap-id:\t%s\n", iw.theSnap.ID)
+	}
+}
+
+func (iw *infoWriter) maybePrintTrackingChannel() {
+	if iw.localSnap == nil {
+		return
+	}
+	if iw.localSnap.TrackingChannel == "" {
+		return
+	}
+	fmt.Fprintf(iw, "tracking:\t%s\n", iw.localSnap.TrackingChannel)
+}
+
+func (iw *infoWriter) maybePrintInstallDate() {
+	if iw.localSnap == nil {
+		return
+	}
+	if iw.localSnap.InstallDate.IsZero() {
+		return
+	}
+	fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(iw.localSnap.InstallDate))
+}
+
+func (iw *infoWriter) maybePrintChinfo() {
+	if iw.diskSnap != nil {
+		return
+	}
+	chInfos := channelInfos{
+		chantpl:     "%s%s:\t%s %s%*s %*s %s\n",
+		releasedfmt: "2006-01-02",
+		esc:         iw.esc,
+	}
+	if iw.absTime {
+		chInfos.releasedfmt = time.RFC3339
+	}
+	if iw.remoteSnap != nil && iw.remoteSnap.Channels != nil && iw.remoteSnap.Tracks != nil {
+		iw.Flush()
+		chInfos.chantpl = "%s%s:\t%s\t%s\t%*s\t%*s\t%s\n"
+		chInfos.addFromRemote(iw.remoteSnap)
+	}
+	if iw.localSnap != nil {
+		chInfos.addFromLocal(iw.localSnap)
+	}
+	chInfos.dump(iw)
+}
+
+func (iw *infoWriter) maybePrintBase() {
+	if iw.verbose && iw.theSnap.Base != "" {
+		fmt.Fprintf(iw, "base:\t%s\n", iw.theSnap.Base)
+	}
+}
+
+func (iw *infoWriter) maybePrintPath() {
+	if iw.path != "" {
+		fmt.Fprintf(iw, "path:\t%q\n", iw.path)
+	}
+}
+
+func (iw *infoWriter) printName() {
+	fmt.Fprintf(iw, "name:\t%s\n", iw.theSnap.Name)
+}
+
+func (iw *infoWriter) printSummary() {
+	// simplest way of checking to see if it needs quoting is to try
+	raw := strings.TrimSpace(iw.theSnap.Summary)
+	type T struct {
+		S string
+	}
+	if len(raw) == 0 {
+		raw = `""`
+	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
+		raw = strconv.Quote(raw)
+	}
+
+	wrapFlow(iw, []rune(raw), "summary:\t", iw.termWidth)
+}
+
+func (iw *infoWriter) maybePrintPublisher() {
+	if iw.diskSnap != nil {
+		// snaps read from disk won't have a publisher
+		return
+	}
+	fmt.Fprintf(iw, "publisher:\t%s\n", longPublisher(iw.esc, iw.theSnap.Publisher))
+}
+
+func (iw *infoWriter) maybePrintStandaloneVersion() {
+	if iw.diskSnap == nil {
+		// snaps not read from disk will have version information shown elsewhere
+		return
+	}
+	version := iw.diskSnap.Version
+	if version == "" {
+		version = iw.esc.dash
+	}
+	// NotesFromRemote might be better called NotesFromNotInstalled but that's nasty
+	fmt.Fprintf(iw, "version:\t%s %s\n", version, NotesFromRemote(iw.diskSnap, nil))
+}
+
+func (iw *infoWriter) maybePrintBuildDate() {
+	if iw.diskSnap == nil {
+		return
+	}
+	if osutil.IsDirectory(iw.path) {
+		return
+	}
+	buildDate := squashfs.BuildDate(iw.path)
+	if buildDate.IsZero() {
+		return
+	}
+	fmt.Fprintf(iw, "build-date:\t%s\n", iw.fmtTime(buildDate))
+}
+
+func (iw *infoWriter) maybePrintContact() error {
+	contact := strings.TrimPrefix(iw.theSnap.Contact, "mailto:")
+	if contact == "" {
+		return nil
+	}
+	_, err := fmt.Fprintf(iw, "contact:\t%s\n", contact)
+	return err
+}
+
+func (iw *infoWriter) printLicense() {
+	license := iw.theSnap.License
+	if license == "" {
+		license = "unset"
+	}
+	fmt.Fprintf(iw, "license:\t%s\n", license)
+}
+
+func (iw *infoWriter) printDescr() {
+	fmt.Fprintln(iw, "description: |")
+	printDescr(iw, iw.theSnap.Description, iw.termWidth)
+}
+
+func (iw *infoWriter) maybePrintCommands() {
+	if len(iw.theSnap.Apps) == 0 {
 		return
 	}
 
-	commands := make([]string, 0, len(allApps))
-	for _, app := range allApps {
+	commands := make([]string, 0, len(iw.theSnap.Apps))
+	for _, app := range iw.theSnap.Apps {
 		if app.IsService() {
 			continue
 		}
 
-		cmdStr := snap.JoinSnapApp(snapName, app.Name)
+		cmdStr := snap.JoinSnapApp(iw.theSnap.Name, app.Name)
 		commands = append(commands, cmdStr)
 	}
 	if len(commands) == 0 {
 		return
 	}
 
-	fmt.Fprintf(w, "commands:\n")
+	fmt.Fprintf(iw, "commands:\n")
 	for _, cmd := range commands {
-		fmt.Fprintf(w, "  - %s\n", cmd)
+		fmt.Fprintf(iw, "  - %s\n", cmd)
 	}
 }
 
-func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
-	if len(allApps) == 0 {
+func (iw *infoWriter) maybePrintServices() {
+	if len(iw.theSnap.Apps) == 0 {
 		return
 	}
 
-	services := make([]string, 0, len(allApps))
-	for _, app := range allApps {
+	services := make([]string, 0, len(iw.theSnap.Apps))
+	for _, app := range iw.theSnap.Apps {
 		if !app.IsService() {
 			continue
 		}
@@ -307,35 +466,117 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 		} else {
 			enabled = "disabled"
 		}
-		services = append(services, fmt.Sprintf("  %s:\t%s, %s, %s", snap.JoinSnapApp(snapName, app.Name), app.Daemon, enabled, active))
+		services = append(services, fmt.Sprintf("  %s:\t%s, %s, %s", snap.JoinSnapApp(iw.theSnap.Name, app.Name), app.Daemon, enabled, active))
 	}
 	if len(services) == 0 {
 		return
 	}
 
-	fmt.Fprintf(w, "services:\n")
+	fmt.Fprintf(iw, "services:\n")
 	for _, svc := range services {
-		fmt.Fprintln(w, svc)
+		fmt.Fprintln(iw, svc)
 	}
+}
+
+func (iw *infoWriter) maybePrintNotes() {
+	if !iw.verbose {
+		return
+	}
+	fmt.Fprintln(iw, "notes:\t")
+	fmt.Fprintf(iw, "  private:\t%t\n", iw.theSnap.Private)
+	fmt.Fprintf(iw, "  confinement:\t%s\n", iw.theSnap.Confinement)
+	if iw.localSnap == nil {
+		return
+	}
+	jailMode := iw.localSnap.Confinement == client.DevModeConfinement && !iw.localSnap.DevMode
+	fmt.Fprintf(iw, "  devmode:\t%t\n", iw.localSnap.DevMode)
+	fmt.Fprintf(iw, "  jailmode:\t%t\n", jailMode)
+	fmt.Fprintf(iw, "  trymode:\t%t\n", iw.localSnap.TryMode)
+	fmt.Fprintf(iw, "  enabled:\t%t\n", iw.localSnap.Status == client.StatusActive)
+	if iw.localSnap.Broken == "" {
+		fmt.Fprintf(iw, "  broken:\t%t\n", false)
+	} else {
+		fmt.Fprintf(iw, "  broken:\t%t (%s)\n", true, iw.localSnap.Broken)
+	}
+
+	fmt.Fprintf(iw, "  ignore-validation:\t%t\n", iw.localSnap.IgnoreValidation)
+	return
+}
+
+func (iw *infoWriter) maybePrintSum() {
+	if !iw.verbose {
+		return
+	}
+	if iw.diskSnap == nil {
+		// TODO: expose the sha via /v2/snaps and /v2/find
+		return
+	}
+	if osutil.IsDirectory(iw.path) {
+		// no sha3_384 of a directory :-)
+		return
+	}
+	sha3_384, _, _ := asserts.SnapFileSHA3_384(iw.path)
+	if sha3_384 == "" {
+		return
+	}
+	fmt.Fprintf(iw, "sha3-384:\t%s\n", sha3_384)
 }
 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
-// displayChannels displays channels and tracks in the right order
-func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, remote *client.Snap, revLen, sizeLen int) (maxRevLen, maxSizeLen int) {
-	fmt.Fprintln(w, "channels:")
+type channelInfo struct {
+	indent, name, version, released, revision, size, notes string
+}
 
-	releasedfmt := "2006-01-02"
-	if x.AbsTime {
-		releasedfmt = time.RFC3339
+type channelInfos struct {
+	channels              []*channelInfo
+	maxRevLen, maxSizeLen int
+	releasedfmt, chantpl  string
+	needsHeader           bool
+	esc                   *escapes
+}
+
+func (chInfos *channelInfos) add(indent, name, version string, revision snap.Revision, released time.Time, size int64, notes *Notes) {
+	chInfo := &channelInfo{
+		indent:   indent,
+		name:     name,
+		version:  version,
+		revision: fmt.Sprintf("(%s)", revision),
+		size:     strutil.SizeToStr(size),
+		notes:    notes.String(),
+	}
+	if !released.IsZero() {
+		chInfo.released = released.Format(chInfos.releasedfmt)
+	}
+	if len(chInfo.revision) > chInfos.maxRevLen {
+		chInfos.maxRevLen = len(chInfo.revision)
+	}
+	if len(chInfo.size) > chInfos.maxSizeLen {
+		chInfos.maxSizeLen = len(chInfo.size)
+	}
+	chInfos.channels = append(chInfos.channels, chInfo)
+}
+
+func (chInfos *channelInfos) addFromLocal(local *client.Snap) {
+	chInfos.add("", "installed", local.Version, local.Revision, time.Time{}, local.InstalledSize, NotesFromLocal(local))
+}
+
+func (chInfos *channelInfos) addOpenChannel(name, version string, revision snap.Revision, released time.Time, size int64, notes *Notes) {
+	chInfos.add("  ", name, version, revision, released, size, notes)
+}
+
+func (chInfos *channelInfos) addClosedChannel(name string, trackHasOpenChannel bool) {
+	chInfo := &channelInfo{indent: "  ", name: name}
+	if trackHasOpenChannel {
+		chInfo.version = chInfos.esc.uparrow
+	} else {
+		chInfo.version = chInfos.esc.dash
 	}
 
-	type chInfoT struct {
-		name, version, released, revision, size, notes string
-	}
-	var chInfos []*chInfoT
-	maxRevLen, maxSizeLen = revLen, sizeLen
+	chInfos.channels = append(chInfos.channels, chInfo)
+}
 
+func (chInfos *channelInfos) addFromRemote(remote *client.Snap) {
 	// order by tracks
 	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
@@ -345,44 +586,24 @@ func (x *infoCmd) displayChannels(w io.Writer, chantpl string, esc *escapes, rem
 			if tr == "latest" {
 				chName = risk
 			}
-			chInfo := chInfoT{name: chName}
 			if ok {
-				chInfo.version = ch.Version
-				chInfo.revision = fmt.Sprintf("(%s)", ch.Revision)
-				if len(chInfo.revision) > maxRevLen {
-					maxRevLen = len(chInfo.revision)
-				}
-				chInfo.released = ch.ReleasedAt.Format(releasedfmt)
-				chInfo.size = strutil.SizeToStr(ch.Size)
-				if len(chInfo.size) > maxSizeLen {
-					maxSizeLen = len(chInfo.size)
-				}
-				chInfo.notes = NotesFromChannelSnapInfo(ch).String()
+				chInfos.addOpenChannel(chName, ch.Version, ch.Revision, ch.ReleasedAt, ch.Size, NotesFromChannelSnapInfo(ch))
 				trackHasOpenChannel = true
 			} else {
-				if trackHasOpenChannel {
-					chInfo.version = esc.uparrow
-				} else {
-					chInfo.version = esc.dash
-				}
+				chInfos.addClosedChannel(chName, trackHasOpenChannel)
 			}
-			chInfos = append(chInfos, &chInfo)
 		}
 	}
-
-	for _, chInfo := range chInfos {
-		fmt.Fprintf(w, "  "+chantpl, chInfo.name, chInfo.version, chInfo.released, maxRevLen, chInfo.revision, maxSizeLen, chInfo.size, chInfo.notes)
-	}
-
-	return maxRevLen, maxSizeLen
+	chInfos.needsHeader = len(chInfos.channels) > 0
 }
 
-func formatSummary(raw string) string {
-	s, err := yaml.Marshal(raw)
-	if err != nil {
-		return fmt.Sprintf("cannot marshal summary: %s", err)
+func (chInfos *channelInfos) dump(w io.Writer) {
+	if chInfos.needsHeader {
+		fmt.Fprintln(w, "channels:")
 	}
-	return strings.TrimSpace(string(s))
+	for _, c := range chInfos.channels {
+		fmt.Fprintf(w, chInfos.chantpl, c.indent, c.name, c.version, c.released, chInfos.maxRevLen, c.revision, chInfos.maxSizeLen, c.size, c.notes)
+	}
 }
 
 func (x *infoCmd) Execute([]string) error {
@@ -395,10 +616,18 @@ func (x *infoCmd) Execute([]string) error {
 
 	esc := x.getEscapes()
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
+	iw := &infoWriter{
+		writeflusher: w,
+		esc:          esc,
+		termWidth:    termWidth,
+		verbose:      x.Verbose,
+		fmtTime:      x.fmtTime,
+		absTime:      x.AbsTime,
+	}
 
 	noneOK := true
 	for i, snapName := range x.Positional.Snaps {
-		snapName := string(snapName)
+		snapName := norm(string(snapName))
 		if i > 0 {
 			fmt.Fprintln(w, "---")
 		}
@@ -407,17 +636,18 @@ func (x *infoCmd) Execute([]string) error {
 			continue
 		}
 
-		if tryDirect(w, snapName, x.Verbose) {
-			noneOK = false
-			continue
+		if diskSnap, err := clientSnapFromPath(snapName); err == nil {
+			iw.setupDiskSnap(snapName, diskSnap)
+		} else {
+			remoteSnap, resInfo, _ := x.client.FindOne(snapName)
+			localSnap, _, _ := x.client.Snap(snapName)
+			iw.setupSnap(localSnap, remoteSnap, resInfo)
 		}
-		remote, resInfo, _ := x.client.FindOne(snapName)
-		local, _, _ := x.client.Snap(snapName)
+		// note diskSnap == nil, or localSnap == nil and remoteSnap == nil
 
-		both := coalesce(local, remote)
-
-		if both == nil {
+		if iw.theSnap == nil {
 			if len(x.Positional.Snaps) == 1 {
+				w.Flush()
 				return fmt.Errorf("no snap found for %q", snapName)
 			}
 
@@ -426,80 +656,28 @@ func (x *infoCmd) Execute([]string) error {
 		}
 		noneOK = false
 
-		fmt.Fprintf(w, "name:\t%s\n", both.Name)
-		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
-		fmt.Fprintf(w, "publisher:\t%s\n", longPublisher(esc, both.Publisher))
-		if both.Contact != "" {
-			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
-		}
-		license := both.License
-		if license == "" {
-			license = "unset"
-		}
-		fmt.Fprintf(w, "license:\t%s\n", license)
-		maybePrintPrice(w, remote, resInfo)
-		fmt.Fprintln(w, "description: |")
-		printDescr(w, both.Description, termWidth)
-		maybePrintCommands(w, snapName, both.Apps, termWidth)
-		maybePrintServices(w, snapName, both.Apps, termWidth)
-
-		if x.Verbose {
-			fmt.Fprintln(w, "notes:\t")
-			fmt.Fprintf(w, "  private:\t%t\n", both.Private)
-			fmt.Fprintf(w, "  confinement:\t%s\n", both.Confinement)
-		}
-
-		var notes *Notes
-		if local != nil {
-			if x.Verbose {
-				jailMode := local.Confinement == client.DevModeConfinement && !local.DevMode
-				fmt.Fprintf(w, "  devmode:\t%t\n", local.DevMode)
-				fmt.Fprintf(w, "  jailmode:\t%t\n", jailMode)
-				fmt.Fprintf(w, "  trymode:\t%t\n", local.TryMode)
-				fmt.Fprintf(w, "  enabled:\t%t\n", local.Status == client.StatusActive)
-				if local.Broken == "" {
-					fmt.Fprintf(w, "  broken:\t%t\n", false)
-				} else {
-					fmt.Fprintf(w, "  broken:\t%t (%s)\n", true, local.Broken)
-				}
-
-				fmt.Fprintf(w, "  ignore-validation:\t%t\n", local.IgnoreValidation)
-			} else {
-				notes = NotesFromLocal(local)
-			}
-		}
+		iw.maybePrintPath()
+		iw.printName()
+		iw.printSummary()
+		iw.maybePrintPublisher()
+		iw.maybePrintStandaloneVersion()
+		iw.maybePrintBuildDate()
+		iw.maybePrintContact()
+		iw.printLicense()
+		iw.maybePrintPrice()
+		iw.printDescr()
+		iw.maybePrintCommands()
+		iw.maybePrintServices()
+		iw.maybePrintNotes()
 		// stops the notes etc trying to be aligned with channels
-		w.Flush()
-		maybePrintType(w, both.Type)
-		maybePrintBase(w, both.Base, x.Verbose)
-		maybePrintID(w, both)
-		var localRev, localSize string
-		var revLen, sizeLen int
-		if local != nil {
-			if local.TrackingChannel != "" {
-				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
-			}
-			if !local.InstallDate.IsZero() {
-				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
-			}
-			localRev = fmt.Sprintf("(%s)", local.Revision)
-			revLen = len(localRev)
-			localSize = strutil.SizeToStr(local.InstalledSize)
-			sizeLen = len(localSize)
-		}
-
-		chantpl := "%s:\t%s %s%*s %*s %s\n"
-		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			chantpl = "%s:\t%s\t%s\t%*s\t%*s\t%s\n"
-
-			w.Flush()
-			revLen, sizeLen = x.displayChannels(w, chantpl, esc, remote, revLen, sizeLen)
-		}
-		if local != nil {
-			fmt.Fprintf(w, chantpl,
-				"installed", local.Version, "", revLen, localRev, sizeLen, localSize, notes)
-		}
-
+		iw.Flush()
+		iw.maybePrintType()
+		iw.maybePrintBase()
+		iw.maybePrintSum()
+		iw.maybePrintID()
+		iw.maybePrintTrackingChannel()
+		iw.maybePrintInstallDate()
+		iw.maybePrintChinfo()
 	}
 	w.Flush()
 

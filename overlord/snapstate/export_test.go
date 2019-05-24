@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,9 +20,9 @@
 package snapstate
 
 import (
+	"context"
 	"time"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -82,6 +82,7 @@ var (
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
+	ResolveChannel         = resolveChannel
 
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
@@ -111,8 +112,11 @@ var (
 var (
 	NewAutoRefresh                = newAutoRefresh
 	NewRefreshHints               = newRefreshHints
-	NewCatalogRefresh             = newCatalogRefresh
 	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
+
+	NewCatalogRefresh            = newCatalogRefresh
+	CatalogRefreshDelayBase      = catalogRefreshDelayBase
+	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -125,6 +129,10 @@ func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
 
 func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 	cr.nextCatalogRefresh = when
+}
+
+func NextCatalogRefresh(cr *catalogRefresh) time.Time {
+	return cr.nextCatalogRefresh
 }
 
 func MockRefreshRetryDelay(d time.Duration) func() {
@@ -159,45 +167,36 @@ func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
 	}
 }
 
-func SetModelWithBase(baseName string) {
-	setModel(map[string]string{"base": baseName})
-}
+// re-refresh related
+var (
+	RefreshedSnaps  = refreshedSnaps
+	ReRefreshFilter = reRefreshFilter
+)
 
-func SetModelWithKernelTrack(kernelTrack string) {
-	setModel(map[string]string{"kernel": "kernel=" + kernelTrack})
-}
+type UpdateFilter = updateFilter
 
-func SetModelWithGadgetTrack(gadgetTrack string) {
-	setModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
-}
-
-func SetDefaultModel() {
-	setModel(nil)
-}
-
-func setModel(override map[string]string) {
-	model := map[string]interface{}{
-		"type":              "model",
-		"authority-id":      "brand",
-		"series":            "16",
-		"brand-id":          "brand",
-		"model":             "baz-3000",
-		"architecture":      "armhf",
-		"gadget":            "brand-gadget",
-		"kernel":            "kernel",
-		"timestamp":         "2018-01-01T08:00:00+00:00",
-		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-	}
-	for k, v := range override {
-		model[k] = v
-	}
-
-	a, err := asserts.Assemble(model, nil, nil, []byte("AXNpZw=="))
-	if err != nil {
-		panic(err)
-	}
-
-	Model = func(*state.State) (*asserts.Model, error) {
-		return a.(*asserts.Model), nil
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+	old := reRefreshUpdateMany
+	reRefreshUpdateMany = f
+	return func() {
+		reRefreshUpdateMany = old
 	}
 }
+
+func MockReRefreshRetryTimeout(d time.Duration) (restore func()) {
+	old := reRefreshRetryTimeout
+	reRefreshRetryTimeout = d
+	return func() {
+		reRefreshRetryTimeout = old
+	}
+}
+
+// aux store info
+var (
+	AuxStoreInfoFilename = auxStoreInfoFilename
+	RetrieveAuxStoreInfo = retrieveAuxStoreInfo
+	KeepAuxStoreInfo     = keepAuxStoreInfo
+	DiscardAuxStoreInfo  = discardAuxStoreInfo
+)
+
+type AuxStoreInfo = auxStoreInfo

@@ -31,6 +31,7 @@ import (
 var opts struct {
 	FromSnapConfine bool `long:"from-snap-confine"`
 	UserMounts      bool `long:"user-mounts"`
+	UserID          int  `short:"u"`
 	Positionals     struct {
 		SnapName string `positional-arg-name:"SNAP_NAME" required:"yes"`
 	} `positional-args:"true"`
@@ -77,11 +78,11 @@ func run() error {
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
 	}
-	var up MountProfileUpdate
+	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
-		up = NewUserProfileUpdate(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
+		upCtx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
 	} else {
-		up = NewSystemProfileUpdate(opts.Positionals.SnapName, opts.FromSnapConfine)
+		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}
-	return executeMountProfileUpdate(up)
+	return executeMountProfileUpdate(upCtx)
 }

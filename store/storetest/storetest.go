@@ -20,9 +20,8 @@
 package storetest
 
 import (
+	"context"
 	"io"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -84,6 +83,10 @@ func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 
 func (Store) ConnectivityCheck() (map[string]bool, error) {
 	panic("ConnectivityCheck not expected")
+}
+
+func (Store) CreateCohorts(context.Context, []string) (map[string]string, error) {
+	panic("CreateCohort not expected")
 }
 
 func (Store) LoginUser(username, password, otp string) (string, string, error) {

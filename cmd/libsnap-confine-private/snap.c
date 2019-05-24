@@ -99,11 +99,11 @@ static int skip_one_char(const char **p, char c)
 }
 
 void sc_instance_name_validate(const char *instance_name,
-			       struct sc_error **errorp)
+			       sc_error **errorp)
 {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: validate_instance_name and snap.ValidateInstanceName.
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	// Ensure that name is not NULL
 	if (instance_name == NULL) {
@@ -143,11 +143,11 @@ void sc_instance_name_validate(const char *instance_name,
 }
 
 void sc_instance_key_validate(const char *instance_key,
-			      struct sc_error **errorp)
+			      sc_error **errorp)
 {
 	// NOTE: see snap.ValidateInstanceName for reference of a valid instance key
 	// format
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	// Ensure that name is not NULL
 	if (instance_key == NULL) {
@@ -186,11 +186,11 @@ void sc_instance_key_validate(const char *instance_key,
 	sc_error_forward(errorp, err);
 }
 
-void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
+void sc_snap_name_validate(const char *snap_name, sc_error **errorp)
 {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: validate_snap_name and snap.ValidateName.
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	// Ensure that name is not NULL
 	if (snap_name == NULL) {

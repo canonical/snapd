@@ -37,13 +37,13 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
-func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) error {
+func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, tm timings.Measurer) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -77,7 +77,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 		return err
 	}
 	if profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(); err != nil {
+		if err := m.regenerateAllSecurityProfiles(tm); err != nil {
 			return err
 		}
 	}
@@ -152,7 +152,7 @@ var profilesNeedRegeneration = profilesNeedRegenerationImpl
 var writeSystemKey = interfaces.WriteSystemKey
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
-func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
+func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -197,12 +197,14 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 				continue // Test backends have no name, skip them to simplify testing.
 			}
 			// Refresh security of this snap and backend
-			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
-				// Let's log this but carry on without writing the system key.
-				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
-					backend.Name(), snapName, err)
-				shouldWriteSystemKey = false
-			}
+			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+				if err := backend.Setup(snapInfo, opts, m.repo, nesttm); err != nil {
+					// Let's log this but carry on without writing the system key.
+					logger.Noticef("cannot regenerate %s profile for snap %q: %s",
+						backend.Name(), snapName, err)
+					shouldWriteSystemKey = false
+				}
+			})
 		}
 	}
 
@@ -293,34 +295,79 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	connStateChanged := false
 	affected := make(map[string]bool)
-	for id, conn := range conns {
-		if conn.Undesired || conn.HotplugGone {
+	for connId, connState := range conns {
+		// Skip entries that just mark a connection as undesired. Those don't
+		// carry attributes that can go stale. In the same spirit, skip
+		// information about hotplug connections that don't have the associated
+		// hotplug hardware.
+		if connState.Undesired || connState.HotplugGone {
 			continue
 		}
-		connRef, err := interfaces.ParseConnRef(id)
+		connRef, err := interfaces.ParseConnRef(connId)
 		if err != nil {
 			return nil, err
 		}
+		// Apply filtering, this allows us to reload only a subset of
+		// connections (and similarly, refresh the static attributes of only a
+		// subset of connections).
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
 
-		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, conn.StaticPlugAttrs, conn.DynamicPlugAttrs, conn.StaticSlotAttrs, conn.DynamicSlotAttrs, nil); err != nil {
-			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
-				// Some versions of snapd may have left stray connections that
-				// don't have the corresponding plug or slot anymore. Before we
-				// choose how to deal with this data we want to silently ignore
-				// that error not to worry the users.
-				continue
+		// Some versions of snapd may have left stray connections that don't
+		// have the corresponding plug or slot anymore. Before we choose how to
+		// deal with this data we want to silently ignore that error not to
+		// worry the users.
+		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+		if plugInfo == nil || slotInfo == nil {
+			continue
+		}
+
+		var updateStaticAttrs bool
+		staticPlugAttrs := connState.StaticPlugAttrs
+		staticSlotAttrs := connState.StaticSlotAttrs
+
+		// XXX: Refresh the copy of the static connection attributes for "content" interface as long
+		// as its "content" attribute
+		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
+		if plugInfo.Interface == "content" {
+			var plugContent, slotContent string
+			plugInfo.Attr("content", &plugContent)
+			slotInfo.Attr("content", &slotContent)
+
+			if plugContent != "" && plugContent == slotContent {
+				staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+				staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+				updateStaticAttrs = true
+			} else {
+				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
 			}
+		}
+
+		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
+		if _, err := m.repo.Connect(connRef, staticPlugAttrs, connState.DynamicPlugAttrs, staticSlotAttrs, connState.DynamicSlotAttrs, nil); err != nil {
 			logger.Noticef("%s", err)
 		} else {
+			// If the connection succeeded update the connection state and keep
+			// track of the snaps that were affected.
 			affected[connRef.PlugRef.Snap] = true
 			affected[connRef.SlotRef.Snap] = true
+
+			if updateStaticAttrs {
+				connState.StaticPlugAttrs = staticPlugAttrs
+				connState.StaticSlotAttrs = staticSlotAttrs
+				connStateChanged = true
+			}
 		}
 	}
+	if connStateChanged {
+		setConns(m.state, conns)
+	}
+
 	result := make([]string, 0, len(affected))
 	for name := range affected {
 		result = append(result, name)
@@ -328,7 +375,36 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	return result, nil
 }
 
-func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions) error {
+// removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
+// has no connections in the state. State must be locked by the caller.
+func (m *InterfaceManager) removeConnections(snapName string) error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
+			return fmt.Errorf("internal error: cannot remove connections of snap %s from the repository while its connections are present in the state", snapName)
+		}
+	}
+
+	repoConns, err := m.repo.Connections(snapName)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+	for _, conn := range repoConns {
+		if err := m.repo.Disconnect(conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name); err != nil {
+			return fmt.Errorf("internal error: %v", err)
+		}
+	}
+	return nil
+}
+
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 
 	// Setup all affected snaps, start with the most important security
@@ -336,7 +412,10 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 	for _, backend := range m.repo.Backends() {
 		for i, snapInfo := range snaps {
 			st.Unlock()
-			err := backend.Setup(snapInfo, opts[i], m.repo)
+			var err error
+			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+				err = backend.Setup(snapInfo, opts[i], m.repo, nesttm)
+			})
 			st.Lock()
 			if err != nil {
 				task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapInfo.InstanceName(), err)
@@ -348,13 +427,16 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 	return nil
 }
 
-func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
+func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	st := task.State()
 	instanceName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Setup(snapInfo, opts, m.repo)
+		var err error
+		timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+			err = backend.Setup(snapInfo, opts, m.repo, nesttm)
+		})
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
@@ -378,6 +460,32 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName str
 	return nil
 }
 
+func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo, iface interfaces.Interface, slot *snap.SlotInfo) error {
+	if slot.HotplugKey == "" {
+		return fmt.Errorf("internal error: cannot store slot %q, not a hotplug slot", slot.Name)
+	}
+	if iface, ok := iface.(interfaces.SlotSanitizer); ok {
+		if err := iface.BeforePrepareSlot(slot); err != nil {
+			return fmt.Errorf("cannot sanitize hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
+		}
+	}
+
+	if err := repo.AddSlot(slot); err != nil {
+		return fmt.Errorf("cannot add hotplug slot %q for interface %s: %s", slot.Name, slot.Interface, err)
+	}
+
+	stateSlots[slot.Name] = &HotplugSlotInfo{
+		Name:        slot.Name,
+		Interface:   slot.Interface,
+		StaticAttrs: slot.Attrs,
+		HotplugKey:  slot.HotplugKey,
+		HotplugGone: false,
+	}
+	setHotplugSlots(st, stateSlots)
+	logger.Debugf("added hotplug slot %s:%s of interface %s, hotplug key %q", slot.Snap.InstanceName(), slot.Name, slot.Interface, slot.HotplugKey)
+	return nil
+}
+
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
 	ByGadget  bool   `json:"by-gadget,omitempty"`
@@ -394,25 +502,27 @@ type connState struct {
 	// restored in the future if we see the device again. HotplugKey is the
 	// key of the associated device; it's empty for connections of regular
 	// slots.
-	HotplugGone bool   `json:"hotplug-gone,omitempty"`
-	HotplugKey  string `json:"hotplug-key,omitempty"`
+	HotplugGone bool            `json:"hotplug-gone,omitempty"`
+	HotplugKey  snap.HotplugKey `json:"hotplug-key,omitempty"`
 }
 
 type autoConnectChecker struct {
-	st       *state.State
-	cache    map[string]*asserts.SnapDeclaration
-	baseDecl *asserts.BaseDeclaration
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
+	cache     map[string]*asserts.SnapDeclaration
+	baseDecl  *asserts.BaseDeclaration
 }
 
-func newAutoConnectChecker(s *state.State) (*autoConnectChecker, error) {
+func newAutoConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &autoConnectChecker{
-		st:       s,
-		cache:    make(map[string]*asserts.SnapDeclaration),
-		baseDecl: baseDecl,
+		st:        s,
+		deviceCtx: deviceCtx,
+		cache:     make(map[string]*asserts.SnapDeclaration),
+		baseDecl:  baseDecl,
 	}, nil
 }
 
@@ -430,10 +540,7 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 }
 
 func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
-	modelAs, err := devicestate.Model(c.st)
-	if err != nil {
-		return false, err
-	}
+	modelAs := c.deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
@@ -479,26 +586,25 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 }
 
 type connectChecker struct {
-	st       *state.State
-	baseDecl *asserts.BaseDeclaration
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
+	baseDecl  *asserts.BaseDeclaration
 }
 
-func newConnectChecker(s *state.State) (*connectChecker, error) {
+func newConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*connectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &connectChecker{
-		st:       s,
-		baseDecl: baseDecl,
+		st:        s,
+		deviceCtx: deviceCtx,
+		baseDecl:  baseDecl,
 	}, nil
 }
 
 func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
-	modelAs, err := devicestate.Model(c.st)
-	if err != nil {
-		return false, fmt.Errorf("cannot get model assertion: %v", err)
-	}
+	modelAs := c.deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
@@ -844,12 +950,12 @@ func checkSystemSnapIsPresent(st *state.State) bool {
 	return err == nil
 }
 
-func setHotplugAttrs(task *state.Task, ifaceName, hotplugKey string) {
+func setHotplugAttrs(task *state.Task, ifaceName string, hotplugKey snap.HotplugKey) {
 	task.Set("interface", ifaceName)
 	task.Set("hotplug-key", hotplugKey)
 }
 
-func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error) {
+func getHotplugAttrs(task *state.Task) (ifaceName string, hotplugKey snap.HotplugKey, err error) {
 	if err = task.Get("interface", &ifaceName); err != nil {
 		return "", "", fmt.Errorf("internal error: cannot get interface name from hotplug task: %s", err)
 	}
@@ -862,7 +968,7 @@ func getHotplugAttrs(task *state.Task) (ifaceName, hotplugKey string, err error)
 func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
 	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
-		return 0, err
+		return 0, fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
 	}
 	seq++
 	st.Set("hotplug-seq", seq)
@@ -873,7 +979,7 @@ func isHotplugChange(chg *state.Change) bool {
 	return strings.HasPrefix(chg.Kind(), "hotplug-")
 }
 
-func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey string, err error) {
+func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey snap.HotplugKey, err error) {
 	if err = chg.Get("hotplug-key", &hotplugKey); err != nil {
 		return 0, "", fmt.Errorf("internal error: hotplug-key not set on change %q", chg.Kind())
 	}
@@ -883,32 +989,30 @@ func getHotplugChangeAttrs(chg *state.Change) (seq int, hotplugKey string, err e
 	return seq, hotplugKey, nil
 }
 
-func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey string) {
+func setHotplugChangeAttrs(chg *state.Change, seq int, hotplugKey snap.HotplugKey) {
 	chg.Set("hotplug-seq", seq)
 	chg.Set("hotplug-key", hotplugKey)
 }
 
 // addHotplugSeqWaitTask sets mandatory hotplug attributes on the hotplug change, adds "hotplug-seq-wait" task
 // and makes all existing tasks of the change wait for it.
-func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey string) error {
+func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey snap.HotplugKey, hotplugSeq int) {
 	st := hotplugChange.State()
-	seq, err := allocHotplugSeq(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
-	}
-	setHotplugChangeAttrs(hotplugChange, seq, hotplugKey)
+	setHotplugChangeAttrs(hotplugChange, hotplugSeq, hotplugKey)
 	seqControl := st.NewTask("hotplug-seq-wait", fmt.Sprintf("Serialize hotplug change for hotplug key %q", hotplugKey))
 	tss := state.NewTaskSet(hotplugChange.Tasks()...)
 	tss.WaitFor(seqControl)
 	hotplugChange.AddTask(seqControl)
-	return nil
 }
 
 type HotplugSlotInfo struct {
 	Name        string                 `json:"name"`
 	Interface   string                 `json:"interface"`
 	StaticAttrs map[string]interface{} `json:"static-attrs,omitempty"`
-	HotplugKey  string                 `json:"hotplug-key"`
+	HotplugKey  snap.HotplugKey        `json:"hotplug-key"`
+
+	// device was unplugged but has connections, so slot is remembered
+	HotplugGone bool `json:"hotplug-gone"`
 }
 
 func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
@@ -927,7 +1031,16 @@ func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
 }
 
-func findConnsForHotplugKey(conns map[string]*connState, ifaceName, hotplugKey string) []string {
+func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName string, hotplugKey snap.HotplugKey) *HotplugSlotInfo {
+	for _, slot := range stateSlots {
+		if slot.HotplugKey == hotplugKey && slot.Interface == ifaceName {
+			return slot
+		}
+	}
+	return nil
+}
+
+func findConnsForHotplugKey(conns map[string]*connState, ifaceName string, hotplugKey snap.HotplugKey) []string {
 	var connsForDevice []string
 	for id, connSt := range conns {
 		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {

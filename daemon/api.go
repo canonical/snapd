@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,9 +32,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,7 +40,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -58,8 +56,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -83,6 +79,7 @@ var api = []*Command{
 	findCmd,
 	snapsCmd,
 	snapCmd,
+	snapFileCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -101,6 +98,9 @@ var api = []*Command{
 	warningsCmd,
 	debugCmd,
 	snapshotCmd,
+	connectionsCmd,
+	modelCmd,
+	cohortsCmd,
 }
 
 var (
@@ -115,17 +115,6 @@ var (
 		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
-	}
-
-	loginCmd = &Command{
-		Path:     "/v2/login",
-		POST:     loginUser,
-		PolkitOK: "io.snapcraft.snapd.login",
-	}
-
-	logoutCmd = &Command{
-		Path: "/v2/logout",
-		POST: logoutUser,
 	}
 
 	appIconCmd = &Command{
@@ -183,20 +172,6 @@ var (
 		POST:     changeInterfaces,
 	}
 
-	// TODO: allow to post assertions for UserOK? they are verified anyway
-	assertsCmd = &Command{
-		Path:   "/v2/assertions",
-		UserOK: true,
-		GET:    getAssertTypeNames,
-		POST:   doAssert,
-	}
-
-	assertsFindManyCmd = &Command{
-		Path:   "/v2/assertions/{assertType}",
-		UserOK: true,
-		GET:    assertsFindMany,
-	}
-
 	stateChangeCmd = &Command{
 		Path:     "/v2/changes/{id}",
 		UserOK:   true,
@@ -209,16 +184,6 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
-	}
-
-	debugCmd = &Command{
-		Path: "/v2/debug",
-		POST: postDebug,
-	}
-
-	createUserCmd = &Command{
-		Path: "/v2/create-user",
-		POST: postCreateUser,
 	}
 
 	buyCmd = &Command{
@@ -235,11 +200,6 @@ var (
 		Path:   "/v2/snapctl",
 		SnapOK: true,
 		POST:   runSnapctl,
-	}
-
-	usersCmd = &Command{
-		Path: "/v2/users",
-		GET:  getUsers,
 	}
 
 	sectionsCmd = &Command{
@@ -371,147 +331,6 @@ func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string 
 	return result
 }
 
-// userResponseData contains the data releated to user creation/login/query
-type userResponseData struct {
-	ID       int      `json:"id,omitempty"`
-	Username string   `json:"username,omitempty"`
-	Email    string   `json:"email,omitempty"`
-	SSHKeys  []string `json:"ssh-keys,omitempty"`
-
-	Macaroon   string   `json:"macaroon,omitempty"`
-	Discharges []string `json:"discharges,omitempty"`
-}
-
-var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
-
-func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	var loginData struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Otp      string `json:"otp"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&loginData); err != nil {
-		return BadRequest("cannot decode login data from request body: %v", err)
-	}
-
-	if loginData.Email == "" && isEmailish(loginData.Username) {
-		// for backwards compatibility, if no email is provided assume username is the email
-		loginData.Email = loginData.Username
-		loginData.Username = ""
-	}
-
-	if loginData.Email == "" && user != nil && user.Email != "" {
-		loginData.Email = user.Email
-	}
-
-	// the "username" needs to look a lot like an email address
-	if !isEmailish(loginData.Email) {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: "please use a valid email address.",
-				Kind:    errorKindInvalidAuthData,
-				Value:   map[string][]string{"email": {"invalid"}},
-			},
-			Status: 400,
-		}, nil)
-	}
-
-	overlord := c.d.overlord
-	st := overlord.State()
-	theStore := getStore(c)
-	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
-	switch err {
-	case store.ErrAuthenticationNeeds2fa:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Kind:    errorKindTwoFactorRequired,
-				Message: err.Error(),
-			},
-			Status: 401,
-		}, nil)
-	case store.Err2faFailed:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Kind:    errorKindTwoFactorFailed,
-				Message: err.Error(),
-			},
-			Status: 401,
-		}, nil)
-	default:
-		switch err := err.(type) {
-		case store.InvalidAuthDataError:
-			return SyncResponse(&resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: err.Error(),
-					Kind:    errorKindInvalidAuthData,
-					Value:   err,
-				},
-				Status: 400,
-			}, nil)
-		case store.PasswordPolicyError:
-			return SyncResponse(&resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: err.Error(),
-					Kind:    errorKindPasswordPolicy,
-					Value:   err,
-				},
-				Status: 401,
-			}, nil)
-		}
-		return Unauthorized(err.Error())
-	case nil:
-		// continue
-	}
-	st.Lock()
-	if user != nil {
-		// local user logged-in, set its store macaroons
-		user.StoreMacaroon = macaroon
-		user.StoreDischarges = []string{discharge}
-		// user's email address authenticated by the store
-		user.Email = loginData.Email
-		err = auth.UpdateUser(st, user)
-	} else {
-		user, err = auth.NewUser(st, loginData.Username, loginData.Email, macaroon, []string{discharge})
-	}
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot persist authentication details: %v", err)
-	}
-
-	result := userResponseData{
-		ID:         user.ID,
-		Username:   user.Username,
-		Email:      user.Email,
-		Macaroon:   user.Macaroon,
-		Discharges: user.Discharges,
-	}
-	return SyncResponse(result, nil)
-}
-
-func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-
-	if user == nil {
-		return BadRequest("not logged in")
-	}
-	err := auth.RemoveUser(state, user.ID)
-	if err != nil {
-		return InternalError(err.Error())
-	}
-
-	return SyncResponse(nil, nil)
-}
-
 // UserFromRequest extracts user information from request and return the respective user in state, if valid
 // It requires the state to be locked
 func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
@@ -597,7 +416,7 @@ func getStore(c *Command) snapstate.StoreService {
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstate.Store(st)
+	return snapstate.Store(st, nil)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -635,29 +454,20 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	query := r.URL.Query()
 	q := query.Get("q")
+	commonID := query.Get("common-id")
 	section := query.Get("section")
 	name := query.Get("name")
 	scope := query.Get("scope")
 	private := false
 	prefix := false
 
-	if name != "" {
-		if q != "" {
-			return BadRequest("cannot use 'q' and 'name' together")
-		}
-
-		if name[len(name)-1] != '*' {
-			return findOne(c, r, user, name)
-		}
-
-		prefix = true
-		q = name[:len(name)-1]
-	}
-
 	if sel := query.Get("select"); sel != "" {
 		switch sel {
 		case "refresh":
-			if prefix {
+			if commonID != "" {
+				return BadRequest("cannot use 'common-id' with 'select=refresh'")
+			}
+			if name != "" {
 				return BadRequest("cannot use 'name' with 'select=refresh'")
 			}
 			if q != "" {
@@ -669,13 +479,34 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
+	if name != "" {
+		if q != "" {
+			return BadRequest("cannot use 'q' and 'name' together")
+		}
+		if commonID != "" {
+			return BadRequest("cannot use 'common-id' and 'name' together")
+		}
+
+		if name[len(name)-1] != '*' {
+			return findOne(c, r, user, name)
+		}
+
+		prefix = true
+		q = name[:len(name)-1]
+	}
+
+	if commonID != "" && q != "" {
+		return BadRequest("cannot use 'common-id' and 'q' together")
+	}
+
 	theStore := getStore(c)
 	found, err := theStore.Find(&store.Search{
-		Query:   q,
-		Section: section,
-		Private: private,
-		Prefix:  prefix,
-		Scope:   scope,
+		Query:    q,
+		Prefix:   prefix,
+		CommonID: commonID,
+		Section:  section,
+		Private:  private,
+		Scope:    scope,
 	}, user)
 	switch err {
 	case nil:
@@ -704,6 +535,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
 				Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+				Status: 400,
+			}, nil)
+		}
+		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
+			return SyncResponse(&resp{
+				Type:   ResponseTypeError,
+				Result: &errorResult{Message: e.Error(), Kind: errorKindDNSFailure},
 				Status: 400,
 			}, nil)
 		}
@@ -894,11 +732,13 @@ type snapInstruction struct {
 	Amend            bool          `json:"amend"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
+	CohortKey        string        `json:"cohort-key"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
 	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	Unaliased        bool          `json:"unaliased"`
+	Purge            bool          `json:"purge,omitempty"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -908,6 +748,13 @@ type snapInstruction struct {
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
+}
+
+func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
+	return &snapstate.RevisionOptions{
+		Channel:  inst.Channel,
+		Revision: inst.Revision,
+	}
 }
 
 func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
@@ -935,6 +782,7 @@ type snapInstructionResult struct {
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
+	snapstateInstallCohort     = snapstate.InstallCohort
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
@@ -1020,6 +868,14 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 }
 
 func verifySnapInstructions(inst *snapInstruction) error {
+	if inst.CohortKey != "" {
+		if !inst.Revision.Unset() {
+			return fmt.Errorf("cannot specify both cohort-key and revision")
+		}
+		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
+		}
+	}
 	switch inst.Action {
 	case "install":
 		for _, snapName := range inst.Snaps {
@@ -1074,16 +930,26 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
-	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
-
-	tset, err := snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	var tset *state.TaskSet
+	var ckey string
+	if inst.CohortKey == "" {
+		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
+		tset, err = snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	} else {
+		ckey = strutil.ElliptRight(inst.CohortKey, 10)
+		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
+		tset, err = snapstateInstallCohort(st, inst.Snaps[0], inst.Channel, inst.CohortKey, inst.userID, flags)
+	}
 	if err != nil {
 		return "", nil, err
 	}
 
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.Snaps[0])
 	if inst.Channel != "stable" && inst.Channel != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.Snaps[0], inst.Channel)
+		msg += fmt.Sprintf(" from %q channel", inst.Channel)
+	}
+	if inst.CohortKey != "" {
+		msg += fmt.Sprintf(" from %q cohort", ckey)
 	}
 	return msg, []*state.TaskSet{tset}, nil
 }
@@ -1106,7 +972,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
+	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1145,7 +1011,7 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision)
+	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision, &snapstate.RemoveFlags{Purge: inst.Purge})
 	if err != nil {
 		return "", nil, err
 	}
@@ -1205,7 +1071,7 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("switch takes no revision")
 	}
-	ts, err := snapstate.Switch(st, inst.Snaps[0], inst.Channel)
+	ts, err := snapstate.Switch(st, inst.Snaps[0], &snapstate.RevisionOptions{Channel: inst.Channel})
 	if err != nil {
 		return "", nil, err
 	}
@@ -1387,8 +1253,11 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" {
 		return BadRequest("unsupported option provided for multi-snap operation")
+	}
+	if err := verifySnapInstructions(&inst); err != nil {
+		return BadRequest("%v", err)
 	}
 
 	st := c.d.overlord.State()
@@ -1618,21 +1487,29 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	about, err := localSnapInfo(st, name)
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil {
-		if err == errNoSnap {
+		if err == state.ErrNoState {
 			return SnapNotFound(name, err)
 		}
-		return InternalError("%v", err)
+		return InternalError("cannot consult state: %v", err)
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		return NotFound("snap has no current revision")
 	}
 
-	path := filepath.Clean(snapIcon(about.info))
-	if !strings.HasPrefix(path, dirs.SnapMountDir) {
-		// XXX: how could this happen?
-		return BadRequest("requested icon is not in snap path")
+	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
+
+	if icon == "" {
+		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(path)
+	return FileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1789,57 +1666,15 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
-	repo := c.d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-
-	var ifjson interfaceJSON
-	plugConns := map[string][]interfaces.SlotRef{}
-	slotConns := map[string][]interfaces.PlugRef{}
-
-	for _, cref := range ifaces.Connections {
-		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
-		slotRef := interfaces.SlotRef{Snap: cref.SlotRef.Snap, Name: cref.SlotRef.Name}
-		plugID := plugRef.String()
-		slotID := slotRef.String()
-		plugConns[plugID] = append(plugConns[plugID], slotRef)
-		slotConns[slotID] = append(slotConns[slotID], plugRef)
+	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{})
+	if err != nil {
+		return InternalError("collecting connection information failed: %v", err)
 	}
-
-	for _, plug := range ifaces.Plugs {
-		var apps []string
-		for _, app := range plug.Apps {
-			apps = append(apps, app.Name)
-		}
-		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
-		pj := &plugJSON{
-			Snap:        plugRef.Snap,
-			Name:        plugRef.Name,
-			Interface:   plug.Interface,
-			Attrs:       plug.Attrs,
-			Apps:        apps,
-			Label:       plug.Label,
-			Connections: plugConns[plugRef.String()],
-		}
-		ifjson.Plugs = append(ifjson.Plugs, pj)
+	legacyconnsjson := legacyConnectionsJSON{
+		Plugs: connsjson.Plugs,
+		Slots: connsjson.Slots,
 	}
-	for _, slot := range ifaces.Slots {
-		var apps []string
-		for _, app := range slot.Apps {
-			apps = append(apps, app.Name)
-		}
-		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
-		sj := &slotJSON{
-			Snap:        slotRef.Snap,
-			Name:        slotRef.Name,
-			Interface:   slot.Interface,
-			Attrs:       slot.Attrs,
-			Apps:        apps,
-			Label:       slot.Label,
-			Connections: slotConns[slotRef.String()],
-		}
-		ifjson.Slots = append(ifjson.Slots, sj)
-	}
-	return SyncResponse(ifjson, nil)
+	return SyncResponse(legacyconnsjson, nil)
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
@@ -1922,7 +1757,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
-				conn, err := repo.Connection(connRef)
+				var conn *interfaces.Connection
+				conn, err = repo.Connection(connRef)
 				if err != nil {
 					break
 				}
@@ -1944,59 +1780,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
-}
-
-func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
-	return SyncResponse(map[string][]string{
-		"types": asserts.TypeNames(),
-	}, nil)
-}
-
-func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	batch := assertstate.NewBatch()
-	_, err := batch.AddStream(r.Body)
-	if err != nil {
-		return BadRequest("cannot decode request body into assertions: %v", err)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-
-	if err := batch.Commit(state); err != nil {
-		return BadRequest("assert failed: %v", err)
-	}
-	// TODO: what more info do we want to return on success?
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: 200,
-	}
-}
-
-func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
-	assertTypeName := muxVars(r)["assertType"]
-	assertType := asserts.Type(assertTypeName)
-	if assertType == nil {
-		return BadRequest("invalid assert type: %q", assertTypeName)
-	}
-	headers := map[string]string{}
-	q := r.URL.Query()
-	for k := range q {
-		headers[k] = q.Get(k)
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	db := assertstate.DB(state)
-	state.Unlock()
-
-	assertions, err := db.FindMany(assertType, headers)
-	if asserts.IsNotFound(err) {
-		return AssertResponse(nil, true)
-	} else if err != nil {
-		return InternalError("searching assertions failed: %v", err)
-	}
-	return AssertResponse(assertions, true)
 }
 
 type changeInfo struct {
@@ -2190,268 +1973,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	postCreateUserUcrednetGet = ucrednetGet
-	runSnapctlUcrednetGet     = ucrednetGet
-	ctlcmdRun                 = ctlcmd.Run
-	osutilAddUser             = osutil.AddUser
+	runSnapctlUcrednetGet = ucrednetGet
+	ctlcmdRun             = ctlcmd.Run
 )
-
-func makeHttpClient(st *state.State) *http.Client {
-	proxyConf := proxyconf.New(st)
-	return httputil.NewHTTPClient(&httputil.ClientOptions{
-		Timeout:    10 * time.Second,
-		MayLogBody: true,
-		Proxy:      proxyConf.Conf,
-	})
-}
-
-func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
-	v, err := theStore.UserInfo(email)
-	if err != nil {
-		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
-	}
-	if len(v.SSHKeys) == 0 {
-		return "", nil, fmt.Errorf("cannot create user for %q: no ssh keys found", email)
-	}
-
-	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)
-	opts := &osutil.AddUserOptions{
-		SSHKeys: v.SSHKeys,
-		Gecos:   gecos,
-	}
-	return v.Username, opts, nil
-}
-
-func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
-	var createdUsers []userResponseData
-
-	st.Lock()
-	db := assertstate.DB(st)
-	modelAs, err := devicestate.Model(st)
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get model assertion")
-	}
-
-	headers := map[string]string{
-		"brand-id": modelAs.BrandID(),
-	}
-	st.Lock()
-	assertions, err := db.FindMany(asserts.SystemUserType, headers)
-	st.Unlock()
-	if err != nil && !asserts.IsNotFound(err) {
-		return BadRequest("cannot find system-user assertion: %s", err)
-	}
-
-	for _, as := range assertions {
-		email := as.(*asserts.SystemUser).Email()
-		// we need to use getUserDetailsFromAssertion as this verifies
-		// the assertion against the current brand/model/time
-		username, opts, err := getUserDetailsFromAssertion(st, email)
-		if err != nil {
-			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
-			continue
-		}
-		// ignore already existing users
-		if _, err := user.Lookup(username); err == nil {
-			continue
-		}
-
-		// FIXME: duplicated code
-		opts.Sudoer = createData.Sudoer
-		opts.ExtraUsers = !release.OnClassic
-
-		if err := osutilAddUser(username, opts); err != nil {
-			return InternalError("cannot add user %q: %s", username, err)
-		}
-		if err := setupLocalUser(st, username, email); err != nil {
-			return InternalError("%s", err)
-		}
-		createdUsers = append(createdUsers, userResponseData{
-			Username: username,
-			SSHKeys:  opts.SSHKeys,
-		})
-	}
-
-	return SyncResponse(createdUsers, nil)
-}
-
-func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
-	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
-
-	st.Lock()
-	db := assertstate.DB(st)
-	modelAs, err := devicestate.Model(st)
-	st.Unlock()
-	if err != nil {
-		return "", nil, fmt.Errorf(errorPrefix+"cannot get model assertion: %s", err)
-	}
-
-	brandID := modelAs.BrandID()
-	series := modelAs.Series()
-	model := modelAs.Model()
-
-	a, err := db.Find(asserts.SystemUserType, map[string]string{
-		"brand-id": brandID,
-		"email":    email,
-	})
-	if err != nil {
-		return "", nil, fmt.Errorf(errorPrefix+"%v", err)
-	}
-	// the asserts package guarantees that this cast will work
-	su := a.(*asserts.SystemUser)
-
-	// cross check that the assertion is valid for the given series/model
-
-	// check that the signer of the assertion is one of the accepted ones
-	sysUserAuths := modelAs.SystemUserAuthority()
-	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
-	}
-	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
-	}
-	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
-	}
-	if !su.ValidAt(time.Now()) {
-		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
-	}
-
-	gecos := fmt.Sprintf("%s,%s", email, su.Name())
-	opts := &osutil.AddUserOptions{
-		SSHKeys:             su.SSHKeys(),
-		Gecos:               gecos,
-		Password:            su.Password(),
-		ForcePasswordChange: su.ForcePasswordChange(),
-	}
-	return su.Username(), opts, nil
-}
-
-type postUserCreateData struct {
-	Email        string `json:"email"`
-	Sudoer       bool   `json:"sudoer"`
-	Known        bool   `json:"known"`
-	ForceManaged bool   `json:"force-managed"`
-}
-
-var userLookup = user.Lookup
-
-func setupLocalUser(st *state.State, username, email string) error {
-	user, err := userLookup(username)
-	if err != nil {
-		return fmt.Errorf("cannot lookup user %q: %s", username, err)
-	}
-	uid, gid, err := osutil.UidGid(user)
-	if err != nil {
-		return err
-	}
-	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
-	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
-		return err
-	}
-
-	// setup new user, local-only
-	st.Lock()
-	authUser, err := auth.NewUser(st, username, email, "", nil)
-	st.Unlock()
-	if err != nil {
-		return fmt.Errorf("cannot persist authentication details: %v", err)
-	}
-	// store macaroon auth, user's ID, email and username in auth.json in
-	// the new users home dir
-	outStr, err := json.Marshal(struct {
-		ID       int    `json:"id"`
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Macaroon string `json:"macaroon"`
-	}{
-		ID:       authUser.ID,
-		Username: authUser.Username,
-		Email:    authUser.Email,
-		Macaroon: authUser.Macaroon,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot marshal auth data: %s", err)
-	}
-	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
-		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
-	}
-
-	return nil
-}
-
-func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
-	}
-
-	var createData postUserCreateData
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&createData); err != nil {
-		return BadRequest("cannot decode create-user data from request body: %v", err)
-	}
-
-	// verify request
-	st := c.d.overlord.State()
-	st.Lock()
-	users, err := auth.Users(st)
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get user count: %s", err)
-	}
-
-	if !createData.ForceManaged {
-		if len(users) > 0 {
-			return BadRequest("cannot create user: device already managed")
-		}
-		if release.OnClassic {
-			return BadRequest("cannot create user: device is a classic system")
-		}
-	}
-
-	// special case: the user requested the creation of all known
-	// system-users
-	if createData.Email == "" && createData.Known {
-		return createAllKnownSystemUsers(c.d.overlord.State(), &createData)
-	}
-	if createData.Email == "" {
-		return BadRequest("cannot create user: 'email' field is empty")
-	}
-
-	var username string
-	var opts *osutil.AddUserOptions
-	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
-	} else {
-		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
-	}
-	if err != nil {
-		return BadRequest("%s", err)
-	}
-
-	// FIXME: duplicated code
-	opts.Sudoer = createData.Sudoer
-	opts.ExtraUsers = !release.OnClassic
-
-	if err := osutilAddUser(username, opts); err != nil {
-		return BadRequest("cannot create user %s: %s", username, err)
-	}
-
-	if err := setupLocalUser(c.d.overlord.State(), username, createData.Email); err != nil {
-		return InternalError("%s", err)
-	}
-
-	return SyncResponse(&userResponseData{
-		Username: username,
-		SSHKeys:  opts.SSHKeys,
-	}, nil)
-}
 
 func convertBuyError(err error) Response {
 	switch err {
@@ -2497,70 +2021,6 @@ func convertBuyError(err error) Response {
 		}, nil)
 	default:
 		return InternalError("%v", err)
-	}
-}
-
-type debugAction struct {
-	Action  string `json:"action"`
-	Message string `json:"message"`
-}
-
-type ConnectivityStatus struct {
-	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable,omitempty"`
-}
-
-func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
-	var a debugAction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a debug action: %v", err)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	switch a.Action {
-	case "add-warning":
-		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
-	case "unshow-warnings":
-		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
-	case "ensure-state-soon":
-		ensureStateSoon(st)
-		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		bd, err := assertstate.BaseDeclaration(st)
-		if err != nil {
-			return InternalError("cannot get base declaration: %s", err)
-		}
-		return SyncResponse(map[string]interface{}{
-			"base-declaration": string(asserts.Encode(bd)),
-		}, nil)
-	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		s := snapstate.Store(st)
-		st.Unlock()
-		checkResult, err := s.ConnectivityCheck()
-		st.Lock()
-		if err != nil {
-			return InternalError("cannot run connectivity check: %v", err)
-		}
-		status := ConnectivityStatus{Connectivity: true}
-		for host, reachable := range checkResult {
-			if !reachable {
-				status.Connectivity = false
-				status.Unreachable = append(status.Unreachable, host)
-			}
-		}
-		sort.Strings(status.Unreachable)
-
-		return SyncResponse(status, nil)
-	default:
-		return BadRequest("unknown debug action: %v", a.Action)
 	}
 }
 
@@ -2638,34 +2098,6 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(result, nil)
-}
-
-func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
-	if err != nil {
-		return BadRequest("cannot get ucrednet uid: %v", err)
-	}
-	if uid != 0 {
-		return BadRequest("cannot get users as non-root")
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	users, err := auth.Users(st)
-	st.Unlock()
-	if err != nil {
-		return InternalError("cannot get users: %s", err)
-	}
-
-	resp := make([]userResponseData, len(users))
-	for i, u := range users {
-		resp[i] = userResponseData{
-			Username: u.Username,
-			Email:    u.Email,
-			ID:       u.ID,
-		}
-	}
-	return SyncResponse(resp, nil)
 }
 
 // aliasAction is an action performed on aliases

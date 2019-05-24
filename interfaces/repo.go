@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/interfaces/hotplug"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -103,15 +104,14 @@ func (r *Repository) AllInterfaces() []Interface {
 }
 
 // AllHotplugInterfaces returns all interfaces that handle hotplug events.
-func (r *Repository) AllHotplugInterfaces() []Interface {
+func (r *Repository) AllHotplugInterfaces() map[string]Interface {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	ifaces := make([]Interface, 0, len(r.hotplugIfaces))
+	ifaces := make(map[string]Interface)
 	for _, iface := range r.hotplugIfaces {
-		ifaces = append(ifaces, iface)
+		ifaces[iface.Name()] = iface
 	}
-	sort.Sort(byInterfaceName(ifaces))
 	return ifaces
 }
 
@@ -765,7 +765,7 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 }
 
 // ConnectionsForHotplugKey returns all hotplug connections for given interface name and hotplug key.
-func (r *Repository) ConnectionsForHotplugKey(ifaceName, hotplugKey string) ([]*ConnRef, error) {
+func (r *Repository) ConnectionsForHotplugKey(ifaceName string, hotplugKey snap.HotplugKey) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -788,7 +788,7 @@ func (r *Repository) ConnectionsForHotplugKey(ifaceName, hotplugKey string) ([]*
 
 // SlotForHotplugKey returns a hotplug slot for given interface name and hotplug key or nil
 // if there is no slot.
-func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.SlotInfo, error) {
+func (r *Repository) SlotForHotplugKey(ifaceName string, hotplugKey snap.HotplugKey) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -803,6 +803,31 @@ func (r *Repository) SlotForHotplugKey(ifaceName, hotplugKey string) (*snap.Slot
 		}
 	}
 	return nil, nil
+}
+
+// UpdateHotplugSlotAttrs updates static attributes of hotplug slot associated with given hotplugkey, and returns the resulting
+// slot. Slots can only be updated if not connected to any plug.
+func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.HotplugKey, staticAttrs map[string]interface{}) (*snap.SlotInfo, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	snapName, err := r.guessSystemSnapName()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, slotInfo := range r.slots[snapName] {
+		if slotInfo.Interface == ifaceName && slotInfo.HotplugKey == hotplugKey {
+			if len(r.slotPlugs[slotInfo]) > 0 {
+				// slots should be updated when disconnected, and reconnected back after updating.
+				return nil, fmt.Errorf("internal error: cannot update slot %s while connected", slotInfo.Name)
+			}
+			slotInfo.Attrs = utils.CopyAttributes(staticAttrs)
+			return slotInfo, nil
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find hotplug slot for interface %s and hotplug key %q", ifaceName, hotplugKey)
 }
 
 func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {

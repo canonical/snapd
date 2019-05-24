@@ -160,8 +160,8 @@ distro_install_local_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*|debian-*)
             # relying on dpkg as apt(-get) does not support installation from local files in trusty.
-            dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
-            apt-get -f install -y
+            eatmydata dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
+            eatmydata apt-get -f install -y
             ;;
         ubuntu-*)
             flags="-y"
@@ -178,7 +178,7 @@ distro_install_local_package() {
             quiet yum -y localinstall "$@"
             ;;
         opensuse-*)
-            quiet rpm -i "$@"
+            quiet rpm -i --replacepkgs "$@"
             ;;
         arch-*)
             pacman -U --noconfirm "$@"
@@ -233,7 +233,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
         if [[ "$*" =~ "libudev-dev" ]]; then
-            apt-get install -y --only-upgrade systemd
+            eatmydata apt-get install -y --only-upgrade systemd
         fi
         ;;
     esac
@@ -243,7 +243,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         debian-9-*)
         if [[ "$*" =~ "gnome-keyring" ]]; then
-            apt-get remove -y libp11-kit0
+            eatmydata apt-get remove -y libp11-kit0
         fi
         ;;
     esac
@@ -264,7 +264,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             # shellcheck disable=SC2086
-            quiet apt-get install $APT_FLAGS -y "${pkg_names[@]}"
+            quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             ;;
         fedora-*)
             # shellcheck disable=SC2086
@@ -275,8 +275,16 @@ distro_install_package() {
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             ;;
         opensuse-*)
+            # packages may be downgraded in the repositories, which would be
+            # picked up next time we ran `zypper dup` and applied locally;
+            # however we only update the images periodically, in the meantime,
+            # when downgrades affect packages we need or have installed, `zypper
+            # in` may stop with the prompt asking the user about either breaking
+            # the installed packages or allowing downgrades, passing
+            # --allow-downgrade will make the installation proceed
+
             # shellcheck disable=SC2086
-            quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
+            quiet zypper install -y --allow-downgrade --force-resolution $ZYPPER_FLAGS "${pkg_names[@]}"
             ;;
         arch-*)
             # shellcheck disable=SC2086
@@ -306,7 +314,7 @@ distro_purge_package() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get remove -y --purge -y "$@"
+            quiet eatmydata apt-get remove -y --purge -y "$@"
             ;;
         fedora-*)
             quiet dnf -y remove "$@"
@@ -331,7 +339,7 @@ distro_purge_package() {
 distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get update
+            quiet eatmydata apt-get update
             ;;
         fedora-*)
             quiet dnf clean all
@@ -357,7 +365,7 @@ distro_update_package_db() {
 distro_clean_package_cache() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get clean
+            quiet eatmydata apt-get clean
             ;;
         fedora-*)
             dnf clean all
@@ -381,7 +389,7 @@ distro_clean_package_cache() {
 distro_auto_remove_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get -y autoremove
+            quiet eatmydata apt-get -y autoremove
             ;;
         fedora-*)
             quiet dnf -y autoremove
@@ -433,11 +441,27 @@ distro_install_build_snapd(){
         apt install -y --only-upgrade snapd
         mv sources.list.back /etc/apt/sources.list
         apt update
+
+        # In case the PPA does not have an updated snapd the apt install snapd call will not
+        # error and we only test the distro snapd. So we make apt show to double check the
+        # snapd package comes from a ppa
+        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
+
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
+    elif [ -n "$PPA_VALIDATION_NAME" ]; then
+        apt install -y snapd
+        add-apt-repository -y "$PPA_VALIDATION_NAME"
+        apt update
+        apt install -y --only-upgrade snapd
+        add-apt-repository --remove "$PPA_VALIDATION_NAME"
+        apt update
+
+        # Double check that it really comes from the PPA
+        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
     else
         packages=
         case "$SPREAD_SYSTEM" in
@@ -464,6 +488,26 @@ distro_install_build_snapd(){
 
         # shellcheck disable=SC2086
         distro_install_local_package $packages
+
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*)
+                # We need to wait until the man db cache is updated before do daemon-reexec
+                # Otherwise the service fails and the system will be degraded during tests executions
+                for i in $(seq 20); do
+                    if ! systemctl is-active run-*.service; then
+                        break
+                    fi
+                    sleep .5
+                done
+
+                # systemd caches SELinux policy data and subsequently attempts
+                # to create sockets with incorrect context, this installation of
+                # socket activated snaps fails, see:
+                # https://bugzilla.redhat.com/show_bug.cgi?id=1660141
+                # https://github.com/systemd/systemd/issues/9997
+                systemctl daemon-reexec
+                ;;
+        esac
 
         if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
             # Arch policy does not allow calling daemon-reloads in package
@@ -538,11 +582,14 @@ pkg_dependencies_ubuntu_classic(){
         avahi-daemon
         cups
         dbus-x11
+        fontconfig
         gnome-keyring
         jq
         man
         nfs-kernel-server
         printer-driver-cups-pdf
+        python3-dbus
+        python3-gi
         python3-yaml
         upower
         weston
@@ -584,7 +631,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 "
             ;;
-        ubuntu-18.10-64)
+        ubuntu-18.10-64|ubuntu-19.04-64)
             echo "
                 evolution-data-server
                 "
@@ -596,8 +643,10 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                eatmydata
                 evolution-data-server
                 net-tools
+                sbuild
                 "
             ;;
     esac
@@ -630,6 +679,7 @@ pkg_dependencies_fedora(){
         dbus-x11
         evolution-data-server
         expect
+        fontconfig
         git
         golang
         jq
@@ -639,6 +689,8 @@ pkg_dependencies_fedora(){
         net-tools
         nfs-utils
         python3-yaml
+        python3-dbus
+        python3-gobject
         redhat-lsb-core
         rpm-build
         udisks2
@@ -653,6 +705,7 @@ pkg_dependencies_amazon(){
         curl
         dbus-x11
         expect
+        fontconfig
         git
         golang
         grub2-tools
@@ -678,6 +731,7 @@ pkg_dependencies_opensuse(){
         curl
         evolution-data-server
         expect
+        fontconfig
         git
         golang-packaging
         jq
@@ -702,6 +756,7 @@ pkg_dependencies_arch(){
     curl
     evolution-data-server
     expect
+    fontconfig
     git
     go
     go-tools
@@ -714,6 +769,8 @@ pkg_dependencies_arch(){
     openbsd-netcat
     python
     python-docutils
+    python-dbus
+    python-gobject
     python3-yaml
     squashfs-tools
     shellcheck

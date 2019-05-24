@@ -36,54 +36,115 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
-	osReadlink               = os.Readlink
 	kernelFeatures           = release.SecCompActions
 	ubuntuKernelArchitecture = arch.UbuntuKernelArchitecture
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl
+
+	snapSeccompVersionInfo = snapSeccompVersionInfoImpl
+	seccompCompilerLookup  = cmd.InternalToolPath
 )
 
-func seccompToBpfPath() string {
-	// FIXME: use cmd.InternalToolPath here once:
-	//   https://github.com/snapcore/snapd/pull/3512
-	// is merged
-	snapSeccomp := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
+func snapSeccompVersionInfoImpl(c Compiler) (string, error) {
+	return c.VersionInfo()
+}
 
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v, using default snap-seccomp command", err)
-		return snapSeccomp
-	}
-	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
-		return snapSeccomp
-	}
-
-	// if we are re-execed, then snap-seccomp is at the same location
-	// as snapd
-	return filepath.Join(filepath.Dir(exe), "snap-seccomp")
+type Compiler interface {
+	Compile(in, out string) error
+	VersionInfo() (string, error)
 }
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
-type Backend struct{}
+type Backend struct {
+	snapSeccomp Compiler
+	versionInfo string
+}
 
-// Initialize does nothing.
+var globalProfileLE = []byte{
+	0x20, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x04, 0x3e, 0x00, 0x00, 0xc0,
+	0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x35, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x40,
+	0x15, 0x00, 0x00, 0x0d, 0xff, 0xff, 0xff, 0xff, 0x15, 0x00, 0x06, 0x0c, 0x10, 0x00, 0x00, 0x00,
+	0x15, 0x00, 0x00, 0x02, 0xb7, 0x00, 0x00, 0xc0, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x15, 0x00, 0x03, 0x09, 0x1d, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x08, 0x15, 0x00, 0x00, 0xc0,
+	0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x06, 0x36, 0x00, 0x00, 0x00,
+	0x20, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x15, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00,
+	0x15, 0x00, 0x00, 0x01, 0x12, 0x54, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00, 0x05, 0x00,
+	0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x7f,
+}
+
+var globalProfileBE = []byte{
+	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x15, 0x00, 0x08, 0x80, 0x00, 0x00, 0x16,
+	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00, 0x06, 0x00, 0x00, 0x00, 0x36,
+	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x15, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1c,
+	0x00, 0x15, 0x00, 0x01, 0x00, 0x00, 0x54, 0x12, 0x00, 0x06, 0x00, 0x00, 0x00, 0x05, 0x00, 0x01,
+	0x00, 0x06, 0x00, 0x00, 0x7f, 0xff, 0x00, 0x00,
+}
+
+func isBigEndian() bool {
+	switch runtime.GOARCH {
+	case "s390x":
+		return true
+	case "ppc":
+		return true
+		// TODO: perhaps more here?
+	}
+	return false
+}
+
+// Initialize ensures that the global profile is on disk and interrogates
+// libseccomp wrapper to generate a version string that will be used to
+// determine if we need to recompile seccomp policy due to system
+// changes outside of snapd.
 func (b *Backend) Initialize() error {
+	dir := dirs.SnapSeccompDir
+	fname := "global.bin"
+	var globalProfile []byte
+	if isBigEndian() {
+		globalProfile = globalProfileBE
+	} else {
+		globalProfile = globalProfileLE
+	}
+	content := map[string]*osutil.FileState{
+		fname: {Content: globalProfile, Mode: 0644},
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
+	}
+	_, _, err := osutil.EnsureDirState(dir, fname, content)
+	if err != nil {
+		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
+	}
+
+	b.snapSeccomp, err = seccomp_compiler.New(seccompCompilerLookup)
+	if err != nil {
+		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
+	}
+
+	versionInfo, err := snapSeccompVersionInfo(b.snapSeccomp)
+	if err != nil {
+		return fmt.Errorf("cannot obtain snap-seccomp version information: %v", err)
+	}
+	b.versionInfo = versionInfo
 	return nil
 }
 
@@ -92,13 +153,21 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySecComp
 }
 
+func bpfSrcPath(srcName string) string {
+	return filepath.Join(dirs.SnapSeccompDir, srcName)
+}
+
+func bpfBinPath(srcName string) string {
+	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin")
+}
+
 // Setup creates seccomp profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
 // the offending application process.
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
@@ -112,24 +181,44 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 
-	glob := interfaces.SecurityTagGlob(snapName)
+	glob := interfaces.SecurityTagGlob(snapName) + ".src"
 	dir := dirs.SnapSeccompDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+	// There is a delicate interaction between `snap run`, `snap-confine`
+	// and compilation of profiles:
+	// - whenever profiles need to be rebuilt due to system-key change,
+	//   `snap run` detects the system-key mismatch and waits for snapd
+	//   (system key is only updated once all security backends have
+	//   finished their job)
+	// - whenever the binary file does not exist, `snap-confine` will poll
+	//   and wait for SNAP_CONFINE_MAX_PROFILE_WAIT, if the profile does not
+	//   appear in that time, `snap-confine` will fail and die
+	changed, removed, err := osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
+	for _, c := range removed {
+		err := os.Remove(bpfBinPath(c))
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	for _, c := range changed {
+		in := bpfSrcPath(c)
+		out := bpfBinPath(c)
 
-	for baseName := range content {
-		in := filepath.Join(dirs.SnapSeccompDir, baseName)
-		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
+		// remove binary profile first
+		err := os.Remove(out)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
 
-		seccompToBpf := seccompToBpfPath()
-		cmd := exec.Command(seccompToBpf, "compile", in, out)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		// snap-seccomp uses AtomicWriteFile internally, on failure the
+		// output file is unlinked
+		if err := b.snapSeccomp.Compile(in, out); err != nil {
+			return fmt.Errorf("cannot compile %s: %v", in, err)
 		}
 	}
 
@@ -158,21 +247,36 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content, addSocketcall)
+
+		path := securityTag + ".src"
+		content[path] = &osutil.FileState{
+			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
+			Mode:    0644,
+		}
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content, addSocketcall)
+		path := securityTag + ".src"
+		content[path] = &osutil.FileState{
+			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
+			Mode:    0644,
+		}
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, addSocketcall bool) {
+func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo string) []byte {
 	var buffer bytes.Buffer
+
+	if versionInfo != "" {
+		buffer.WriteString("# snap-seccomp version information:\n")
+		fmt.Fprintf(&buffer, "# %s\n", versionInfo)
+	}
+
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@unrestricted\n")
@@ -199,11 +303,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 		buffer.WriteString(socketcallSyscallDeprecated)
 	}
 
-	path := fmt.Sprintf("%s.src", securityTag)
-	content[path] = &osutil.FileState{
-		Content: buffer.Bytes(),
-		Mode:    0644,
-	}
+	return buffer.Bytes()
 }
 
 // NewSpecification returns an empty seccomp specification.
@@ -211,16 +311,22 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxFeatures returns the list of seccomp features supported by the kernel.
+// SandboxFeatures returns the list of seccomp features supported by the kernel
+// and userspace.
 func (b *Backend) SandboxFeatures() []string {
 	features := kernelFeatures()
 	tags := make([]string, 0, len(features)+1)
 	for _, feature := range features {
-		// Prepend "kernel:" to apparmor kernel features to namespace them and
-		// allow us to introduce our own tags later.
+		// Prepend "kernel:" to apparmor kernel features to namespace
+		// them.
 		tags = append(tags, "kernel:"+feature)
 	}
 	tags = append(tags, "bpf-argument-filtering")
+
+	if res, err := seccomp_compiler.VersionInfo(b.versionInfo).HasFeature("bpf-actlog"); err == nil && res {
+		tags = append(tags, "bpf-actlog")
+	}
+
 	return tags
 }
 
@@ -291,4 +397,13 @@ func requiresSocketcallImpl(baseSnap string) bool {
 
 	// If we got here, something went wrong, but if the code above changes
 	// the compiler will complain about the lack of 'return'.
+}
+
+// MockSnapSeccompVersionInfo is for use in tests only.
+func MockSnapSeccompVersionInfo(s func(c Compiler) (string, error)) (restore func()) {
+	old := snapSeccompVersionInfo
+	snapSeccompVersionInfo = s
+	return func() {
+		snapSeccompVersionInfo = old
+	}
 }

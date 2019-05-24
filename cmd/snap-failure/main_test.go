@@ -38,17 +38,11 @@ type failureSuite struct {
 
 	rootdir string
 
-	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 }
 
 func (r *failureSuite) SetUpTest(c *C) {
-	r.stdout = bytes.NewBuffer(nil)
 	r.stderr = bytes.NewBuffer(nil)
-
-	oldStdout := failure.Stdout
-	r.AddCleanup(func() { failure.Stdout = oldStdout })
-	failure.Stdout = r.stdout
 
 	oldStderr := failure.Stderr
 	r.AddCleanup(func() { failure.Stderr = oldStderr })
@@ -57,10 +51,6 @@ func (r *failureSuite) SetUpTest(c *C) {
 	r.rootdir = c.MkDir()
 	dirs.SetRootDir(r.rootdir)
 	r.AddCleanup(func() { dirs.SetRootDir("/") })
-}
-
-func (r *failureSuite) Stdout() string {
-	return r.stdout.String()
 }
 
 func (r *failureSuite) Stderr() string {

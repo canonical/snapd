@@ -41,6 +41,8 @@ const (
 	SnapdSnap
 	// PerUserMountNamespace controls the persistence of per-user mount namespaces.
 	PerUserMountNamespace
+	// RefreshAppAwareness controls refresh being aware of running applications.
+	RefreshAppAwareness
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -62,6 +64,7 @@ var featureNames = map[SnapdFeature]string{
 	Hotplug:               "hotplug",
 	SnapdSnap:             "snapd-snap",
 	PerUserMountNamespace: "per-user-mount-namespace",
+	RefreshAppAwareness:   "refresh-app-awareness",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -72,6 +75,7 @@ var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 // featuresExported contains a set of features that are exported outside of snapd.
 var featuresExported = map[SnapdFeature]bool{
 	PerUserMountNamespace: true,
+	RefreshAppAwareness:   true,
 }
 
 // String returns the name of a snapd feature.

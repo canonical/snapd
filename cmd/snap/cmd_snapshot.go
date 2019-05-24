@@ -21,6 +21,8 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -30,7 +32,7 @@ import (
 )
 
 func fmtSize(size int64) string {
-	return quantity.FormatAmount(uint64(size), -1)
+	return quantity.FormatAmount(uint64(size), -1) + "B"
 }
 
 var (
@@ -106,7 +108,14 @@ type savedCmd struct {
 }
 
 func (x *savedCmd) Execute([]string) error {
-	setID := uint64(x.ID)
+	var setID uint64
+	var err error
+	if x.ID != "" {
+		setID, err = x.ID.ToUint()
+		if err != nil {
+			return err
+		}
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	list, err := x.client.SnapshotSets(setID, snaps)
 	if err != nil {
@@ -133,12 +142,20 @@ func (x *savedCmd) Execute([]string) error {
 		i18n.G("Notes"))
 	for _, sg := range list {
 		for _, sh := range sg.Snapshots {
-			note := "-"
-			if sh.Broken != "" {
-				note = "broken: " + sh.Broken
+			notes := []string{}
+			if sh.Auto {
+				notes = append(notes, "auto")
 			}
-			size := quantity.FormatAmount(uint64(sh.Size), -1) + "B"
-			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", sg.ID, sh.Snap, x.fmtDuration(sh.Time), sh.Version, sh.Revision, size, note)
+			if sh.Broken != "" {
+				notes = append(notes, "broken: "+sh.Broken)
+			}
+			note := "-"
+			if len(notes) > 0 {
+				note = strings.Join(notes, ", ")
+			}
+			size := fmtSize(sh.Size)
+			age := x.fmtDuration(sh.Time)
+			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", sg.ID, sh.Snap, age, sh.Version, sh.Revision, size, note)
 		}
 	}
 	return nil
@@ -170,7 +187,7 @@ func (x *saveCmd) Execute([]string) error {
 	y := &savedCmd{
 		clientMixin:   x.clientMixin,
 		durationMixin: x.durationMixin,
-		ID:            snapshotID(setID),
+		ID:            snapshotID(strconv.FormatUint(setID, 10)),
 	}
 	return y.Execute(nil)
 }
@@ -184,7 +201,10 @@ type forgetCmd struct {
 }
 
 func (x *forgetCmd) Execute([]string) error {
-	setID := uint64(x.Positional.ID)
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	changeID, err := x.client.ForgetSnapshots(setID, snaps)
 	if err != nil {
@@ -200,9 +220,9 @@ func (x *forgetCmd) Execute([]string) error {
 
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.NG("Snapshot #%d of snap %s forgotten.\n", "Snapshot #%d of snaps %s forgotten.\n", len(snaps)), x.Positional.ID, strutil.Quoted(snaps))
+		fmt.Fprintf(Stdout, i18n.NG("Snapshot #%s of snap %s forgotten.\n", "Snapshot #%s of snaps %s forgotten.\n", len(snaps)), x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d forgotten.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%s forgotten.\n"), x.Positional.ID)
 	}
 	return nil
 }
@@ -217,7 +237,10 @@ type checkSnapshotCmd struct {
 }
 
 func (x *checkSnapshotCmd) Execute([]string) error {
-	setID := uint64(x.Positional.ID)
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strutil.CommaSeparatedList(x.Users)
 	changeID, err := x.client.CheckSnapshots(setID, snaps, users)
@@ -235,10 +258,10 @@ func (x *checkSnapshotCmd) Execute([]string) error {
 	// TODO: also mention the home archives that were actually checked
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of snaps %s verified successfully.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%s of snaps %s verified successfully.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d verified successfully.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%s verified successfully.\n"), x.Positional.ID)
 	}
 	return nil
 }
@@ -253,7 +276,10 @@ type restoreCmd struct {
 }
 
 func (x *restoreCmd) Execute([]string) error {
-	setID := uint64(x.Positional.ID)
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strutil.CommaSeparatedList(x.Users)
 	changeID, err := x.client.RestoreSnapshots(setID, snaps, users)
@@ -271,10 +297,10 @@ func (x *restoreCmd) Execute([]string) error {
 	// TODO: also mention the home archives that were actually restored
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%d of snaps %s.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%s of snaps %s.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%d.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Restored snapshot #%s.\n"), x.Positional.ID)
 	}
 	return nil
 }

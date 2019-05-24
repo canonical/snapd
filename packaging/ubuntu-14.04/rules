@@ -20,7 +20,7 @@ export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on trusty
-export PATH:=/usr/lib/go-1.6/bin:${PATH}
+export PATH:=/usr/lib/go-1.10/bin:${PATH}
 
 include /etc/os-release
 
@@ -31,21 +31,16 @@ include /etc/os-release
 # from /lib/systemd/upstart.
 SYSTEMD_UNITS_DESTDIR="lib/systemd/upstart/"
 
-# make sure that trusty's golang-1.6 is picked up correctly.
-export PATH:=/usr/lib/go-1.6/bin:${PATH}
-
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
-# Disable -buildmode=pie mode on i386 as can panics in spectacular
-# ways (LP: #1711052).
-# See also https://forum.snapcraft.io/t/artful-i386-panics/
-# Note while the panic is only on artful, that's because artful
-# detects it; the issue potentially there on older things.
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
-ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),i386)
-BUILDFLAGS+= -buildmode=pie
+# Disable -buildmode=pie mode on all our 32bit platforms
+# (i386 and armhf). For i386 because of LP: #1711052 and for
+# armhf because of LP: #1822738
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
+ BUILDFLAGS+= -buildmode=pie
 endif
 
 GCCGOFLAGS=
@@ -128,14 +123,16 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
-	# Generate static snap-exec - it somehow includes CGO so we must
-	# force a static build here. We need a static snap-exec inside
+	# Generate static snap-exec, snapctl and snap-udpate-ns - it somehow includes CGO so we must
+	# force a static build here. We need a static snap-{exec,update-ns}/snapctl inside
 	# the core snap because not all bases will have a libc
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
+	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )

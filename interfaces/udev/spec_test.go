@@ -138,3 +138,9 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }
+
+func (s *specSuite) TestControlsDeviceCgroup(c *C) {
+	c.Assert(s.spec.ControlsDeviceCgroup(), Equals, false)
+	s.spec.SetControlsDeviceCgroup()
+	c.Assert(s.spec.ControlsDeviceCgroup(), Equals, true)
+}

@@ -69,95 +69,6 @@ func (s *ValidateSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *ValidateSuite) TestValidateName(c *C) {
-	validNames := []string{
-		"aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		"a0", "a-0", "a-0a",
-		"01game", "1-or-2",
-		// a regexp stresser
-		"u-94903713687486543234157734673284536758",
-	}
-	for _, name := range validNames {
-		err := ValidateName(name)
-		c.Assert(err, IsNil)
-	}
-	invalidNames := []string{
-		// name cannot be empty
-		"",
-		// too short (min 2 chars)
-		"a",
-		// names cannot be too long
-		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
-		"1111111111111111111111111111111111111111x",
-		"x1111111111111111111111111111111111111111",
-		"x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x",
-		// a regexp stresser
-		"u-9490371368748654323415773467328453675-",
-		// dashes alone are not a name
-		"-", "--",
-		// double dashes in a name are not allowed
-		"a--a",
-		// name should not end with a dash
-		"a-",
-		// name cannot have any spaces in it
-		"a ", " a", "a a",
-		// a number alone is not a name
-		"0", "123",
-		// identifier must be plain ASCII
-		"日本語", "한글", "ру́сский язы́к",
-	}
-	for _, name := range invalidNames {
-		err := ValidateName(name)
-		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
-	}
-}
-
-func (s *ValidateSuite) TestValidateInstanceName(c *C) {
-	validNames := []string{
-		// plain names are also valid instance names
-		"aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		// snap instance
-		"foo_bar",
-		"foo_0123456789",
-		"01game_0123456789",
-		"foo_1", "foo_1234abcd",
-	}
-	for _, name := range validNames {
-		err := ValidateInstanceName(name)
-		c.Assert(err, IsNil)
-	}
-	invalidNames := []string{
-		// invalid names are also invalid instance names, just a few
-		// samples
-		"",
-		"a",
-		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
-		"a--a",
-		"a-",
-		"a ", " a", "a a",
-		"_",
-		"ру́сский_язы́к",
-	}
-	for _, name := range invalidNames {
-		err := ValidateInstanceName(name)
-		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
-	}
-	invalidInstanceKeys := []string{
-		// the snap names are valid, but instance keys are not
-		"foo_", "foo_1-23", "foo_01234567890", "foo_123_456",
-		"foo__bar",
-	}
-	for _, name := range invalidInstanceKeys {
-		err := ValidateInstanceName(name)
-		c.Assert(err, ErrorMatches, `invalid instance key: ".*"`)
-	}
-
-}
-
 func (s *ValidateSuite) TestValidateVersion(c *C) {
 	validVersions := []string{
 		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
@@ -259,24 +170,6 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 }
 
 // ValidateApp
-
-func (s *ValidateSuite) TestValidateAppName(c *C) {
-	validAppNames := []string{
-		"1", "a", "aa", "aaa", "aaaa", "Aa", "aA", "1a", "a1", "1-a", "a-1",
-		"a-a", "aa-a", "a-aa", "a-b-c", "0a-a", "a-0a",
-	}
-	for _, name := range validAppNames {
-		c.Check(ValidateApp(&AppInfo{Name: name}), IsNil)
-	}
-	invalidAppNames := []string{
-		"", "-", "--", "a--a", "a-", "a ", " a", "a a", "日本語", "한글",
-		"ру́сский язы́к", "ໄຂ່​ອີ​ສ​ເຕີ້", ":a", "a:", "a:a", "_a", "a_", "a_a",
-	}
-	for _, name := range invalidAppNames {
-		err := ValidateApp(&AppInfo{Name: name})
-		c.Assert(err, ErrorMatches, `cannot have ".*" as app name.*`)
-	}
-}
 
 func (s *ValidateSuite) TestValidateAppSockets(c *C) {
 	app := createSampleApp()
@@ -672,33 +565,6 @@ apps:
 	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use only letters, digits, dash, underscore and dot characters`)
 }
 
-func (s *ValidateSuite) TestValidateAlias(c *C) {
-	validAliases := []string{
-		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		"a0", "a-0", "a-0a",
-		"a_a", "aa_a", "a_aa", "a_b_c",
-		"a0", "a_0", "a_0a",
-		"01game", "1-or-2",
-		"0.1game", "1_or_2",
-	}
-	for _, alias := range validAliases {
-		err := ValidateAlias(alias)
-		c.Assert(err, IsNil)
-	}
-	invalidAliases := []string{
-		"",
-		"_foo",
-		"-foo",
-		".foo",
-		"foo$",
-	}
-	for _, alias := range invalidAliases {
-		err := ValidateAlias(alias)
-		c.Assert(err, ErrorMatches, `invalid alias name: ".*"`)
-	}
-}
-
 func (s *ValidateSuite) TestValidatePlugSlotName(c *C) {
 	const yaml1 = `
 name: invalid-plugs
@@ -706,7 +572,8 @@ version: 1
 plugs:
   p--lug: null
 `
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil)
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Plugs, HasLen, 1)
 	err = Validate(info)
@@ -718,7 +585,8 @@ version: 1
 slots:
   s--lot: null
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil)
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Slots, HasLen, 1)
 	err = Validate(info)
@@ -731,7 +599,8 @@ plugs:
   plug:
     interface: i--face
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil)
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml3), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Plugs, HasLen, 1)
 	err = Validate(info)
@@ -744,7 +613,8 @@ slots:
   slot:
     interface: i--face
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil)
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml4), nil, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Slots, HasLen, 1)
 	err = Validate(info)
@@ -819,6 +689,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/var/lib/snapd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var/lib/snapd/hostfs", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/var/lib/snapd/hostfs" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/firmware", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/firmware" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/modules", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lib/modules" in an off-limits area`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
@@ -856,7 +730,8 @@ layout:
 `
 
 	for _, yaml := range []string{yaml1, yaml1rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -881,7 +756,8 @@ layout:
     bind: $SNAP
 `
 	for _, yaml := range []string{yaml2, yaml2rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -906,7 +782,8 @@ layout:
     bind: $SNAP_DATA/foo
 `
 	for _, yaml := range []string{yaml3, yaml3rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -931,7 +808,8 @@ layout:
     symlink: $SNAP_DATA/foo
 `
 	for _, yaml := range []string{yaml4, yaml4rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -956,7 +834,8 @@ layout:
     symlink: $SNAP_DATA/foo
 `
 	for _, yaml := range []string{yaml5, yaml5rev} {
-		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)}, strk)
 		c.Assert(err, IsNil)
 		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
@@ -971,7 +850,8 @@ layout:
   /etc/norf:
     bind-file: $SNAP/etc/norf
 `
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)})
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 1)
 	err = ValidateLayoutAll(info)
@@ -988,7 +868,9 @@ layout:
   /etc/corge:
     bind-file: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)})
+
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -1003,7 +885,8 @@ layout:
   /etc/corge:
     bind: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)})
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -1018,7 +901,8 @@ layout:
   /etc/corge:
     bind: /snap/clashing-source-path-3/42/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)})
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -1033,7 +917,9 @@ layout:
   /etc/corge:
     symlink: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)})
+
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
@@ -1048,46 +934,13 @@ layout:
   /etc/corge:
     symlink: $SNAP/etc/norf
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)})
+
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)}, strk)
 	c.Assert(err, IsNil)
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
-}
-
-func (s *ValidateSuite) TestValidateSocketName(c *C) {
-	validNames := []string{
-		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa", "a-b-c",
-		"a0", "a-0", "a-0a",
-		"01game", "1-or-2",
-	}
-	for _, name := range validNames {
-		err := ValidateSocketName(name)
-		c.Assert(err, IsNil)
-	}
-	invalidNames := []string{
-		// name cannot be empty
-		"",
-		// dashes alone are not a name
-		"-", "--",
-		// double dashes in a name are not allowed
-		"a--a",
-		// name should not end with a dash
-		"a-",
-		// name cannot have any spaces in it
-		"a ", " a", "a a",
-		// a number alone is not a name
-		"0", "123",
-		// identifier must be plain ASCII
-		"日本語", "한글", "ру́сский язы́к",
-		// no null chars in the string are allowed
-		"aa-a\000-b",
-	}
-	for _, name := range invalidNames {
-		err := ValidateSocketName(name)
-		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
-	}
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
@@ -1260,29 +1113,40 @@ apps:
 	}
 }
 
-func (s *ValidateSuite) TestValidateAppWatchdog(c *C) {
+func (s *ValidateSuite) TestValidateAppWatchdogTimeout(c *C) {
+	s.testValidateAppTimeout(c, "watchdog")
+}
+func (s *ValidateSuite) TestValidateAppStartTimeout(c *C) {
+	s.testValidateAppTimeout(c, "start")
+}
+func (s *ValidateSuite) TestValidateAppStopTimeout(c *C) {
+	s.testValidateAppTimeout(c, "stop")
+}
+
+func (s *ValidateSuite) testValidateAppTimeout(c *C, timeout string) {
+	timeout += "-timeout"
 	meta := []byte(`
 name: foo
 version: 1.0
 `)
-	fooAllGood := []byte(`
+	fooAllGood := []byte(fmt.Sprintf(`
 apps:
   foo:
     daemon: simple
-    watchdog-timeout: 12s
-`)
-	fooNotADaemon := []byte(`
+    %s: 12s
+`, timeout))
+	fooNotADaemon := []byte(fmt.Sprintf(`
 apps:
   foo:
-    watchdog-timeout: 12s
-`)
+    %s: 12s
+`, timeout))
 
-	fooNegative := []byte(`
+	fooNegative := []byte(fmt.Sprintf(`
 apps:
   foo:
     daemon: simple
-    watchdog-timeout: -12s
-`)
+    %s: -12s
+`, timeout))
 
 	tcs := []struct {
 		name string
@@ -1294,11 +1158,11 @@ apps:
 	}, {
 		name: "foo not a service",
 		desc: fooNotADaemon,
-		err:  `watchdog-timeout is only applicable to services`,
+		err:  timeout + ` is only applicable to services`,
 	}, {
 		name: "negative timeout",
 		desc: fooNegative,
-		err:  `watchdog-timeout cannot be negative`,
+		err:  timeout + ` cannot be negative`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)

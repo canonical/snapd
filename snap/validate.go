@@ -30,78 +30,25 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timeutil"
 )
-
-// Regular expressions describing correct identifiers.
-var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // The fixed length of valid snap IDs.
 const validSnapIDLength = 32
 
-// almostValidName is part of snap and socket name validation.
-//   the full regexp we could use, "^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$", is
-//   O(2ⁿ) on the length of the string in python. An equivalent regexp that
-//   doesn't have the nested quantifiers that trip up Python's re would be
-//   "^(?:[a-z0-9]|(?<=[a-z0-9])-)*[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*$", but Go's
-//   regexp package doesn't support look-aheads nor look-behinds, so in order to
-//   have a unified implementation in the Go and Python bits of the project
-//   we're doing it this way instead. Check the length (if applicable), check
-//   this regexp, then check the dashes.
-//   This still leaves sc_snap_name_validate (in cmd/snap-confine/snap.c) and
-//   snap_validate (cmd/snap-update-ns/bootstrap.c) with their own handcrafted
-//   validators.
-var almostValidName = regexp.MustCompile("^[a-z0-9-]*[a-z][a-z0-9-]*$")
-
-// validInstanceKey is a regular expression describing valid snap instance key
-var validInstanceKey = regexp.MustCompile("^[a-z0-9]{1,10}$")
-
-// isValidName checks snap and socket socket identifiers.
-func isValidName(name string) bool {
-	if !almostValidName.MatchString(name) {
-		return false
-	}
-	if name[0] == '-' || name[len(name)-1] == '-' || strings.Contains(name, "--") {
-		return false
-	}
-	return true
-}
-
 // ValidateInstanceName checks if a string can be used as a snap instance name.
 func ValidateInstanceName(instanceName string) error {
-	// NOTE: This function should be synchronized with the two other
-	// implementations: sc_instance_name_validate and validate_instance_name .
-	pos := strings.IndexByte(instanceName, '_')
-	if pos == -1 {
-		// just store name
-		return ValidateName(instanceName)
-	}
-
-	storeName := instanceName[:pos]
-	instanceKey := instanceName[pos+1:]
-	if err := ValidateName(storeName); err != nil {
-		return err
-	}
-	if !validInstanceKey.MatchString(instanceKey) {
-		return fmt.Errorf("invalid instance key: %q", instanceKey)
-	}
-	return nil
+	return naming.ValidateInstance(instanceName)
 }
 
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
-	// NOTE: This function should be synchronized with the two other
-	// implementations: sc_snap_name_validate and validate_snap_name .
-	if len(name) < 2 || len(name) > 40 || !isValidName(name) {
-		return fmt.Errorf("invalid snap name: %q", name)
-	}
-	return nil
+	return naming.ValidateSnap(name)
 }
-
-// Regular expression describing correct plug, slot and interface names.
-var validPlugSlotIfaceName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidatePlugName checks if a string can be used as a slot name.
 //
@@ -109,10 +56,7 @@ var validPlugSlotIfaceName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 // This is not enforced by this function but is enforced by snap-level
 // validation.
 func ValidatePlugName(name string) error {
-	if !validPlugSlotIfaceName.MatchString(name) {
-		return fmt.Errorf("invalid plug name: %q", name)
-	}
-	return nil
+	return naming.ValidatePlug(name)
 }
 
 // ValidateSlotName checks if a string can be used as a slot name.
@@ -121,18 +65,12 @@ func ValidatePlugName(name string) error {
 // This is not enforced by this function but is enforced by snap-level
 // validation.
 func ValidateSlotName(name string) error {
-	if !validPlugSlotIfaceName.MatchString(name) {
-		return fmt.Errorf("invalid slot name: %q", name)
-	}
-	return nil
+	return naming.ValidateSlot(name)
 }
 
 // ValidateInterfaceName checks if a string can be used as an interface name.
 func ValidateInterfaceName(name string) error {
-	if !validPlugSlotIfaceName.MatchString(name) {
-		return fmt.Errorf("invalid interface name: %q", name)
-	}
-	return nil
+	return naming.ValidateInterface(name)
 }
 
 // NB keep this in sync with snapcraft and the review tools :-)
@@ -207,9 +145,8 @@ func ValidateLicense(license string) error {
 
 // ValidateHook validates the content of the given HookInfo
 func ValidateHook(hook *HookInfo) error {
-	valid := validHookName.MatchString(hook.Name)
-	if !valid {
-		return fmt.Errorf("invalid hook name: %q", hook.Name)
+	if err := naming.ValidateHook(hook.Name); err != nil {
+		return err
 	}
 
 	// Also validate the command chain
@@ -222,24 +159,15 @@ func ValidateHook(hook *HookInfo) error {
 	return nil
 }
 
-var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
-
 // ValidateAlias checks if a string can be used as an alias name.
 func ValidateAlias(alias string) error {
-	valid := validAlias.MatchString(alias)
-	if !valid {
-		return fmt.Errorf("invalid alias name: %q", alias)
-	}
-	return nil
+	return naming.ValidateAlias(alias)
 }
 
 // validateSocketName checks if a string ca be used as a name for a socket (for
 // socket activation).
 func validateSocketName(name string) error {
-	if !isValidName(name) {
-		return fmt.Errorf("invalid socket name: %q", name)
-	}
-	return nil
+	return naming.ValidateSocket(name)
 }
 
 // validateSocketmode checks that the socket mode is a valid file mode.
@@ -391,7 +319,7 @@ func Validate(info *Info) error {
 
 	// validate aliases
 	for alias, app := range info.LegacyAliases {
-		if !validAlias.MatchString(alias) {
+		if err := naming.ValidateAlias(alias); err != nil {
 			return fmt.Errorf("cannot have %q as alias name for app %q - use only letters, digits, dash, underscore and dot characters", alias, app.Name)
 		}
 	}
@@ -550,20 +478,26 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
-func validateAppWatchdog(app *AppInfo) error {
-	if app.WatchdogTimeout == 0 {
-		// no watchdog
-		return nil
+func validateAppTimeouts(app *AppInfo) error {
+	type T struct {
+		desc    string
+		timeout timeout.Timeout
 	}
-
-	if !app.IsService() {
-		return errors.New("watchdog-timeout is only applicable to services")
+	for _, t := range []T{
+		{"start-timeout", app.StartTimeout},
+		{"stop-timeout", app.StopTimeout},
+		{"watchdog-timeout", app.WatchdogTimeout},
+	} {
+		if t.timeout == 0 {
+			continue
+		}
+		if !app.IsService() {
+			return fmt.Errorf("%s is only applicable to services", t.desc)
+		}
+		if t.timeout < 0 {
+			return fmt.Errorf("%s cannot be negative", t.desc)
+		}
 	}
-
-	if app.WatchdogTimeout < 0 {
-		return errors.New("watchdog-timeout cannot be negative")
-	}
-
 	return nil
 }
 
@@ -614,11 +548,10 @@ func validateAppRestart(app *AppInfo) error {
 // command-chain, which also doesn't allow whitespace.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 var commandChainContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/._#:$-]*$`)
-var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$").MatchString
 
 // ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
-	return validAppName(n)
+	return naming.ValidateApp(n) == nil
 }
 
 // ValidateApp verifies the content in the app info.
@@ -680,7 +613,7 @@ func ValidateApp(app *AppInfo) error {
 		return err
 	}
 
-	if err := validateAppWatchdog(app); err != nil {
+	if err := validateAppTimeouts(app); err != nil {
 		return err
 	}
 
@@ -794,7 +727,7 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
-	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap"} {
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap", "/lib/firmware", "/lib/modules"} {
 		// We use the mountedTree constraint as this has the right semantics.
 		if mountedTree(path).IsOffLimits(mountPoint) {
 			return fmt.Errorf("layout %q in an off-limits area", layout.Path)

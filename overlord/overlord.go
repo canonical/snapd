@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
@@ -45,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -156,10 +156,10 @@ func New() (*Overlord, error) {
 	defer s.Unlock()
 	// setting up the store
 	proxyConf := proxyconf.New(s)
-	authContext := auth.NewAuthContext(s, o.deviceMgr)
+	storeCtx := storecontext.New(s, o.deviceMgr.StoreContextBackend())
 	cfg := store.DefaultConfig()
 	cfg.Proxy = proxyConf.Conf
-	sto := storeNew(cfg, authContext)
+	sto := storeNew(cfg, storeCtx)
 	sto.SetCacheDownloads(defaultCachedDownloads)
 
 	snapstate.ReplaceStore(s, sto)
@@ -248,9 +248,20 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 	now := time.Now()
 	next := now.Add(d)
-	if next.Before(o.ensureNext) || o.ensureNext.Before(now) {
+	if next.Before(o.ensureNext) {
 		o.ensureTimer.Reset(d)
 		o.ensureNext = next
+		return
+	}
+
+	if o.ensureNext.Before(now) {
+		// timer already expired, it will be reset in Loop() and
+		// next Ensure() will be called shortly.
+		if !o.ensureTimer.Stop() {
+			return
+		}
+		o.ensureTimer.Reset(0)
+		o.ensureNext = now
 	}
 }
 

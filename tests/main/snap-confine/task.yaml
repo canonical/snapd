@@ -14,7 +14,6 @@ restore: |
 
     echo "Restore current symlink"
     mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current ||  true
-    rm -f snap-confine.stderr
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
@@ -25,7 +24,7 @@ execute: |
     if test-snapd-tools.echo hello 2>snap-confine.stderr; then
         echo "test-snapd-tools.echo should fail to run, test broken"
     fi
-    MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):' < snap-confine.stderr
+    MATCH 'cannot locate base snap core: No such file or directory' < snap-confine.stderr
     mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
 
     echo "Test nvidia device fix"

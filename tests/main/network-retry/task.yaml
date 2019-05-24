@@ -9,15 +9,16 @@ prepare: |
     else
         mv /etc/resolv.conf /etc/resolv.conf.save
     fi
+    systemctl stop snapd.service
 restore: |
     echo "Unbreak DNS"
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
        resolvConf=$(cat resolvConf.txt)
        mv "${resolvConf}.save" "${resolvConf}"
-       rm resolvConf.txt
     else
        mv /etc/resolv.conf.save /etc/resolv.conf
     fi
+    systemctl stop snapd.service
 
 execute: |
     if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||

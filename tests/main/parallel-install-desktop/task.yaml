@@ -17,8 +17,9 @@ execute: |
         expected="^basic-desktop_$instance 1.0 installed\$"
         install_local_as basic-desktop "basic-desktop_$instance" | MATCH "$expected"
 
-        diff -u <(head -n4 "/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop") - <<-EOF
+        diff -u <(head -n5 "/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop") - <<-EOF
     [Desktop Entry]
+    X-SnapInstanceName=basic-desktop_${instance}
     Name=Echo
     Comment=It echos stuff
     Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo

@@ -64,7 +64,7 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"command": i18n.G("Advise on snaps that provide the given command"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"from-apt": i18n.G("Advise will talk to apt via an apt hook"),
+		"from-apt": i18n.G("Run as an apt hook"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"format": i18n.G("Use the given output format"),
 	}, []argDesc{
@@ -112,7 +112,6 @@ type jsonRPC struct {
 	Method  string `json:"method"`
 	Params  struct {
 		Command         string   `json:"command"`
-		SearchTerms     []string `json:"search-terms"`
 		UnknownPackages []string `json:"unknown-packages"`
 	}
 }

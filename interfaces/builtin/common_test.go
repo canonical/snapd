@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -81,6 +83,15 @@ func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) 
 	evalSymlinks = fn
 	test.AddCleanup(func() {
 		evalSymlinks = orig
+	})
+}
+
+// MockReadDir replaces the io/ioutil.ReadDir function used inside the caps package.
+func MockReadDir(test *testutil.BaseTest, fn func(string) ([]os.FileInfo, error)) {
+	orig := readDir
+	readDir = fn
+	test.AddCleanup(func() {
+		readDir = orig
 	})
 }
 
@@ -185,4 +196,39 @@ slots:
 	c.Assert(spec.SuppressHomeIx(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.SuppressHomeIx(), Equals, true)
+}
+
+func (s *commonIfaceSuite) TestControlsDeviceCgroup(c *C) {
+	plug, _ := MockConnectedPlug(c, `
+name: consumer
+version: 0
+apps:
+  app:
+    plugs: [common]
+`, nil, "common")
+	slot, _ := MockConnectedSlot(c, `
+name: producer
+version: 0
+slots:
+  common:
+`, nil, "common")
+
+	// setting nothing
+	iface := &commonInterface{
+		name:                 "common",
+		controlsDeviceCgroup: false,
+	}
+	spec := &udev.Specification{}
+	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
+
+	iface = &commonInterface{
+		name:                 "common",
+		controlsDeviceCgroup: true,
+	}
+	spec = &udev.Specification{}
+	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)
 }

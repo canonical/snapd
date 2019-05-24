@@ -1,0 +1,73 @@
+summary: Check that "snap connections" works as expected
+
+execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    snap connections > all.out 2>&1
+    initial_connections="$(wc -l < all.out)"
+
+    snap install test-snapd-content-slot
+    expected='content +- +test-snapd-content-slot:shared-content-slot +-'
+    # asking for a snap shows connected and unconnected plugs and slots
+    snap connections test-snapd-content-slot | MATCH -- "$expected"
+
+    snap connections test-snapd-content-slot --all 2>&1 | MATCH 'error: cannot use --all with snap name'
+
+    # test-snapd-content-slot has not other connections yet
+    snap connections > all.out 2>&1
+    test "$(wc -l < all.out)" = "$initial_connections"
+    # but it will show up if we ask for all or disconnected plugs and slots
+    snap connections --all | MATCH -- "$expected"
+
+    snap install test-snapd-content-plug
+    expected='content\[mylib\] +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-'
+    snap connections test-snapd-content-plug | MATCH "$expected"
+    snap connections test-snapd-content-slot | MATCH "$expected"
+
+    # :network is connected by default
+    install_local network-consumer
+    expected='network +network-consumer:network +:network +-'
+    snap connections network-consumer | MATCH "$expected"
+    # disconect it manually
+    snap disconnect network-consumer:network
+    expected='network +network-consumer:network +- +-'
+    snap connections network-consumer 2>&1 | MATCH "$expected"
+
+    # try with an interface which is not connected by default
+    install_local test-snapd-daemon-notify
+    expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-'
+    snap connections test-snapd-daemon-notify | MATCH "$expected"
+
+    snap connect test-snapd-daemon-notify:daemon-notify
+    # once connected, the connection will show up as manual
+    expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +:daemon-notify +manual'
+    snap connections test-snapd-daemon-notify | MATCH "$expected"
+
+    expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-'
+    snap disconnect test-snapd-daemon-notify:daemon-notify
+    snap connections test-snapd-daemon-notify | MATCH "$expected"
+
+    # show connected only
+    snap connections > connected.out
+    MATCH 'content\[mylib\] +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < connected.out
+    MATCH -v 'network-consumer' < connected.out
+    MATCH -v 'test-snapd-daemon-notify' < connected.out
+
+    # show all
+    snap connections --all > all.out
+    MATCH 'content\[mylib\] +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < all.out
+    MATCH 'daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-' < all.out
+    MATCH 'network +network-consumer:network +- +-' < all.out
+
+    # connect back the network plug
+    snap connect network-consumer:network
+
+    # show system conections
+    snap connections system > system.out
+    MATCH 'network +network-consumer:network +:network +manual' < system.out
+    # make sure that an interface that is not connected shows up too
+    MATCH 'opengl +- +:opengl +-' < system.out
+
+    ! snap connections not-found > error.out 2>&1
+    MATCH 'error: snap "not-found" not found' < error.out

@@ -171,6 +171,11 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		newContent.Grow(len(bline) + 1)
 		newContent.Write(bline)
 		newContent.WriteByte('\n')
+
+		// insert snap name
+		if bytes.Equal(bline, []byte("[Desktop Entry]")) {
+			newContent.Write([]byte("X-SnapInstanceName=" + s.InstanceName() + "\n"))
+		}
 	}
 
 	return newContent.Bytes()

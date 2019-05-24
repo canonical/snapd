@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// TODO: snapstate also has this, move to auth, or change a bit the approach now that we have AuthContext in the store?
+// TODO: snapstate also has this, move to auth, or change a bit the approach now that we have DeviceAndAuthContext in the store?
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	if userID == 0 {
 		return nil, nil
@@ -96,7 +96,7 @@ func (f *fetcher) commit() error {
 	return nil
 }
 
-func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) error {
+func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetching func(asserts.Fetcher) error) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
 
 	user, err := userFromUserID(s, userID)
@@ -104,7 +104,7 @@ func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) e
 		return err
 	}
 
-	sto := snapstate.Store(s)
+	sto := snapstate.Store(s, deviceCtx)
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?

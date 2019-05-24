@@ -105,7 +105,7 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 			 snap_name);
 
 	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-	char xdg_runtime_dir_env[PATH_MAX+strlen("XDG_RUNTIME_DIR=")];
+	char xdg_runtime_dir_env[PATH_MAX + strlen("XDG_RUNTIME_DIR=")];
 	if (xdg_runtime_dir != NULL) {
 		sc_must_snprintf(xdg_runtime_dir_env,
 				 sizeof(xdg_runtime_dir_env),
@@ -115,7 +115,7 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 	char *argv[] = {
 		"snap-update-ns",
 		/* This tells snap-update-ns we are calling from snap-confine and locking is in place */
-		/* TODO: enable this in sync with snap-update-ns changes, "--from-snap-confine", */
+		"--from-snap-confine",
 		/* This tells snap-update-ns that we want to process the per-user profile */
 		"--user-mounts", snap_name_copy, NULL
 	};

@@ -29,14 +29,6 @@ func MockTemplate(fakeTemplate []byte) (restore func()) {
 	return func() { defaultTemplate = orig }
 }
 
-func MockOsReadlink(f func(string) (string, error)) (restore func()) {
-	realOsReadlink := osReadlink
-	osReadlink = f
-	return func() {
-		osReadlink = realOsReadlink
-	}
-}
-
 func MockKernelFeatures(f func() []string) (resture func()) {
 	old := kernelFeatures
 	kernelFeatures = f
@@ -77,6 +69,22 @@ func MockReleaseInfoVersionId(s string) (restore func()) {
 	}
 }
 
+func MockSeccompCompilerLookup(f func(string) (string, error)) (restore func()) {
+	old := seccompCompilerLookup
+	seccompCompilerLookup = f
+	return func() {
+		seccompCompilerLookup = old
+	}
+}
+
+func (b *Backend) VersionInfo() string {
+	return b.versionInfo
+}
+
 var (
 	RequiresSocketcall = requiresSocketcall
+
+	GlobalProfileLE = globalProfileLE
+	GlobalProfileBE = globalProfileBE
+	IsBigEndian     = isBigEndian
 )

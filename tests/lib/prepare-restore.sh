@@ -4,9 +4,6 @@ set -x
 # statements we execute stops the build. The code is not (yet) written to
 # handle errors in general.
 set -e
-# Set pipefail option so that "foo | bar" behaves with fewer surprises by
-# failing if foo fails, not just if bar fails.
-set -o pipefail
 
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
@@ -104,6 +101,7 @@ build_rpm() {
     case "$SPREAD_SYSTEM" in
         fedora-*|amazon-*|centos-*)
             extra_tar_args="$extra_tar_args --exclude=vendor/*"
+            archive_name=snapd_$version.no-vendor.tar.xz
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -122,10 +120,12 @@ build_rpm() {
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
     (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* || "$SPREAD_SYSTEM" == centos-* ]]; then
-        # need to build the vendor tree
-        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
-    fi
+    case "$SPREAD_SYSTEM" in
+        fedora-*|amazon-*|centos-*)
+            # need to build the vendor tree
+            (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
+            ;;
+    esac
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -232,6 +232,12 @@ prepare_project() {
         exit 1
     fi
 
+    # no need to modify anything further for autopkgtest
+    # we want to run as pristine as possible
+    if [ "$SPREAD_BACKEND" = autopkgtest ]; then
+        exit 0
+    fi
+
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
     [ "$REUSE_PROJECT" != 1 ] || exit 0
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
@@ -304,6 +310,37 @@ prepare_project() {
         fi
     fi
 
+    # debian-sid packaging is special
+    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+        if [ ! -d packaging/debian-sid ]; then
+            echo "no packaging/debian-sid/ directory "
+            echo "broken test setup"
+            exit 1
+        fi
+
+        # remove etckeeper
+        apt purge -y etckeeper
+
+        # debian has its own packaging
+        rm -f debian
+        # the debian dir must be a real dir, a symlink will make
+        # dpkg-buildpackage choke later.
+        mv packaging/debian-sid debian
+
+        # get the build-deps
+        apt build-dep -y ./
+
+        # and ensure we don't take any of the vendor deps
+        rm -rf vendor/*/
+
+        # and create a fake upstream tarball
+        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git .
+
+        # and build a source package - this will be used during the sbuild test
+        dpkg-buildpackage -S --no-sign
+    fi
+
+    # so is ubuntu-14.04
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
@@ -314,17 +351,34 @@ prepare_project() {
         # 14.04 has its own packaging
         ./generate-packaging-dir
 
-        quiet apt-get install -y software-properties-common
+        quiet eatmydata apt-get install -y software-properties-common
 
-        echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
+	# FIXME: trusty-proposed disabled because there is an inconsistency
+	#        in the trusty-proposed archive:
+	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
+        #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
-        quiet apt-get update
+        quiet eatmydata apt-get update
 
-        quiet apt-get install -y --install-recommends linux-generic-lts-xenial
-        quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+        quiet eatmydata apt-get install -y --install-recommends linux-generic-lts-xenial
+        quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    distro_purge_package snapd || true
+    # WORKAROUND for older postrm scripts that did not do 
+    # "rm -rf /var/cache/snapd"
+    rm -rf /var/cache/snapd/aux
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*)
+            # Ubuntu is the only system where snapd is preinstalled
+            distro_purge_package snapd
+            ;;
+        *)
+            # snapd state directory must not exist when the package is not
+            # installed
+            test ! -d /var/lib/snapd
+            ;;
+    esac
+
     install_pkg_dependencies
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
@@ -332,7 +386,20 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             # in 16.04: apt build-dep -y ./
-            gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
+            if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
+                best_golang="$(python3 ./tests/lib/best_golang.py)"
+                test -n "$best_golang"
+                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
+            else
+                best_golang=golang-1.10
+            fi
+            gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
+            # The go 1.10 backport is not using alternatives or anything else so
+            # we need to get it on path somehow. This is not perfect but simple.
+            if [ -z "$(command -v go)" ]; then
+                # the path filesystem path is: /usr/lib/go-1.10/bin
+                ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+            fi
             ;;
     esac
 
@@ -341,7 +408,13 @@ prepare_project() {
         rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
-    quiet govendor sync
+    # Retry govendor sync to minimize the number of connection errors during the sync
+    for _ in $(seq 10); do
+        if quiet govendor sync; then
+            break
+        fi
+        sleep 1
+    done
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
@@ -411,6 +484,14 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
+    # back test directory to be restored during the restore
+    tar cf "${PWD}.tar" "$PWD"
+
+    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
+    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
+        systemctl restart systemd-journald
+    fi
+
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
@@ -427,13 +508,20 @@ prepare_suite_each() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
-            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
+            ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
 }
 
 restore_suite_each() {
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
+
+    # restore test directory saved during prepare
+    if [ -f "${PWD}.tar" ]; then
+        rm -rf "$PWD"
+        tar -C/ -xf "${PWD}.tar"
+        rm -rf "${PWD}.tar"
+    fi
 }
 
 restore_suite() {

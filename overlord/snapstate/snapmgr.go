@@ -69,6 +69,8 @@ type SnapSetup struct {
 	// slots (#slots == 0).
 	PlugsOnly bool `json:"plugs-only,omitempty"`
 
+	CohortKey string `json:"cohort-key,omitempty"`
+
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
 	//
@@ -83,6 +85,7 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+	auxStoreInfo
 
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
@@ -138,6 +141,12 @@ type SnapState struct {
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
+	CohortKey   string `json:"cohort-key,omitempty"`
+
+	// RefreshInhibitedime records the time when the refresh was first
+	// attempted but inhibited because the snap was busy. This value is
+	// reset on each successful refresh.
+	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -234,9 +243,14 @@ var ErrNoCurrent = errors.New("snap has no current revision")
 
 const (
 	errorOnBroken = 1 << iota
+	withAuxStoreInfo
 )
 
 var snapReadInfo = snap.ReadInfo
+
+// AutomaticSnapshot allows to hook snapshot manager's AutomaticSnapshot.
+var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.TaskSet, err error)
+var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
 
 func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)
@@ -248,7 +262,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
 		_, instanceKey := snap.SplitInstanceName(name)
-		info := &snap.Info{
+		info = &snap.Info{
 			SuggestedName: name,
 			Broken:        bse.Broken(),
 			InstanceKey:   instanceKey,
@@ -257,7 +271,12 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		if si != nil {
 			info.SideInfo = *si
 		}
-		return info, nil
+		err = nil
+	}
+	if err == nil && flags&withAuxStoreInfo != 0 {
+		if err := retrieveAuxStoreInfo(info); err != nil {
+			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, err)
+		}
 	}
 	return info, err
 }
@@ -281,7 +300,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	}
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
-	return readInfo(name, cur, 0)
+	return readInfo(name, cur, withAuxStoreInfo)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -311,8 +330,16 @@ func cachedStore(st *state.State) StoreService {
 // the store implementation has the interface consumed here
 var _ StoreService = (*store.Store)(nil)
 
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
+// Store returns the store service provided by the optional device context or
+// the one used by the snapstate package if the former has no
+// override.
+func Store(st *state.State, deviceCtx DeviceContext) StoreService {
+	if deviceCtx != nil {
+		sto := deviceCtx.Store()
+		if sto != nil {
+			return sto
+		}
+	}
 	if cachedStore := cachedStore(st); cachedStore != nil {
 		return cachedStore
 	}
@@ -357,6 +384,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
+	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -462,7 +490,7 @@ func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 	return m.autoRefresh.RefreshSchedule()
 }
 
-// ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
+// ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	if !release.ReleaseInfo.ForceDevMode() {
@@ -536,6 +564,13 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	if !lastUbuntuCoreTransitionAttempt.IsZero() && lastUbuntuCoreTransitionAttempt.Add(6*time.Hour).After(now) {
 		return nil
 	}
+
+	tss, trErr := TransitionCore(m.state, "ubuntu-core", "core")
+	if _, ok := trErr.(*ChangeConflictError); ok {
+		// likely just too early, retry at next Ensure
+		return nil
+	}
+
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
 	var retryCount int
@@ -545,9 +580,8 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
-	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
-	if err != nil {
-		return err
+	if trErr != nil {
+		return trErr
 	}
 
 	msg := i18n.G("Transition ubuntu-core to core")

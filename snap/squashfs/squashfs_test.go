@@ -412,8 +412,7 @@ squashfs-root/random/data.bin
 }
 
 func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcardsFlag(c *C) {
-	defer squashfs.MockFromCore(func(mountDir, cmd string, args ...string) (*exec.Cmd, error) {
-		c.Check(mountDir, Equals, dirs.SnapMountDir)
+	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
@@ -436,9 +435,8 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 
 func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 	usedFromCore := false
-	defer squashfs.MockFromCore(func(mountDir, cmd string, args ...string) (*exec.Cmd, error) {
+	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		usedFromCore = true
-		c.Check(mountDir, Equals, dirs.SnapMountDir)
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return &exec.Cmd{Path: "/bin/true"}, nil
 	})()
@@ -456,9 +454,8 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 
 func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(c *C) {
 	triedFromCore := false
-	defer squashfs.MockFromCore(func(mountDir, cmd string, args ...string) (*exec.Cmd, error) {
+	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		triedFromCore = true
-		c.Check(mountDir, Equals, dirs.SnapMountDir)
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
@@ -476,9 +473,8 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(
 
 func (s *SquashfsTestSuite) TestBuildFailsIfNoMksquashfs(c *C) {
 	triedFromCore := false
-	defer squashfs.MockFromCore(func(mountDir, cmd string, args ...string) (*exec.Cmd, error) {
+	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		triedFromCore = true
-		c.Check(mountDir, Equals, dirs.SnapMountDir)
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
@@ -495,8 +491,7 @@ func (s *SquashfsTestSuite) TestBuildFailsIfNoMksquashfs(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
-	defer squashfs.MockFromCore(func(mountDir, cmd string, args ...string) (*exec.Cmd, error) {
-		c.Check(mountDir, Equals, dirs.SnapMountDir)
+	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		return nil, errors.New("bzzt")
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "")
@@ -590,6 +585,14 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestBuildDate(c *C) {
+	// This env is used in reproducible builds and will force
+	// squashfs to use a specific date. We need to unset it
+	// for this specific test.
+	if oldEnv := os.Getenv("SOURCE_DATE_EPOCH"); oldEnv != "" {
+		os.Unsetenv("SOURCE_DATE_EPOCH")
+		defer func() { os.Setenv("SOURCE_DATE_EPOCH", oldEnv) }()
+	}
+
 	// make a directory
 	d := c.MkDir()
 	// set its time waaay back

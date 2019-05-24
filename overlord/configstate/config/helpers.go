@@ -86,54 +86,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 			return config, nil
 		}
 	}
-	panic(fmt.Errorf("internal error: unexpected configuration type %T", config))
-}
-
-// Get unmarshals into result the value of the provided snap's configuration key.
-// If the key does not exist, an error of type *NoOptionError is returned.
-// The provided key may be formed as a dotted key path through nested maps.
-// For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
-func GetFromChange(snapName string, subkeys []string, pos int, config map[string]interface{}, result interface{}) error {
-	// special case - get root document
-	if len(subkeys) == 0 {
-		if config == nil {
-			return &NoOptionError{SnapName: snapName, Key: ""}
-		}
-		raw := jsonRaw(config)
-
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
-		}
-		return nil
-	}
-	value, ok := config[subkeys[pos]]
-	if !ok {
-		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
-	}
-
-	if pos+1 == len(subkeys) {
-		raw, ok := value.(*json.RawMessage)
-		if !ok {
-			raw = jsonRaw(value)
-		}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
-			key := strings.Join(subkeys, ".")
-			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
-		}
-		return nil
-	}
-
-	configm, ok := value.(map[string]interface{})
-	if !ok {
-		raw, ok := value.(*json.RawMessage)
-		if !ok {
-			raw = jsonRaw(value)
-		}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
-			return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
-		}
-	}
-	return GetFromChange(snapName, subkeys, pos+1, configm, result)
+	return nil, fmt.Errorf("internal error: unexpected configuration type %T", config)
 }
 
 // GetSnapConfig retrieves the raw configuration of a given snap.

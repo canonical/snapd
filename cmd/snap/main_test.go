@@ -67,6 +67,12 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
+	path := os.Getenv("PATH")
+	s.AddCleanup(func() {
+		os.Setenv("PATH", path)
+	})
+	os.Setenv("PATH", path+":"+dirs.SnapBinariesDir)
+
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
@@ -261,7 +267,7 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 	defer restore()
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'`)
+	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {
@@ -363,6 +369,10 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 		snap.LintDesc("command", "", "description", "")
 	}
 	c.Check(fn, PanicMatches, `option on "command" has no name`)
+	log.Reset()
+
+	snap.LintDesc("snap-advise", "from-apt", "snap-advise will run as a hook", "")
+	c.Check(log.String(), HasLen, 0)
 	log.Reset()
 }
 

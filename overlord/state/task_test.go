@@ -67,6 +67,20 @@ func (cs *taskSuite) TestReadyTime(c *C) {
 	c.Check(t.Before(now.Add(5*time.Second)), Equals, true)
 }
 
+func (cs *taskSuite) TestDoingUndoingTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("download", "summary...")
+
+	task.AccumulateDoingTime(123456)
+	c.Assert(task.DoingTime(), Equals, time.Duration(123456))
+
+	task.AccumulateUndoingTime(654321)
+	c.Assert(task.UndoingTime(), Equals, time.Duration(654321))
+}
+
 func (ts *taskSuite) TestGetSet(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -250,6 +264,22 @@ func (ts *taskSuite) TestTaskMarshalsWaitFor(c *C) {
 	c.Assert(string(d), testutil.Contains, needle)
 }
 
+func (ts *taskSuite) TestTaskMarshalsDoingUndoingTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.AccumulateDoingTime(123456)
+	t.AccumulateUndoingTime(654321)
+
+	d, err := t.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	c.Assert(string(d), testutil.Contains, `"doing-time":123456`)
+	c.Assert(string(d), testutil.Contains, `"undoing-time":654321`)
+}
+
 func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -261,6 +291,8 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
 	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t2})
+	c.Assert(t1.NumHaltTasks(), Equals, 1)
+	c.Assert(t2.NumHaltTasks(), Equals, 0)
 }
 
 func (ts *taskSuite) TestAt(c *C) {
@@ -378,6 +410,8 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 		func() { t1.UnmarshalJSON(nil) },
 		func() { t1.SetProgress("", 1, 1) },
 		func() { t1.JoinLane(1) },
+		func() { t1.AccumulateDoingTime(1) },
+		func() { t1.AccumulateUndoingTime(2) },
 	}
 
 	reads := []func(){
@@ -392,6 +426,8 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 		func() { t1.Progress() },
 		func() { t1.SetProgress("", 0, 1) },
 		func() { t1.Lanes() },
+		func() { t1.DoingTime() },
+		func() { t1.UndoingTime() },
 	}
 
 	for i, f := range reads {
@@ -453,7 +489,7 @@ func (ts *taskSuite) TestTaskSetWaitFor(c *C) {
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
 	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1})
-	c.Assert(t1.HaltTasks(), HasLen, 2)
+	c.Assert(t1.NumHaltTasks(), Equals, 2)
 }
 
 func (ts *taskSuite) TestTaskSetWaitAll(c *C) {
@@ -471,8 +507,8 @@ func (ts *taskSuite) TestTaskSetWaitAll(c *C) {
 
 	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1, t2})
 	c.Assert(t4.WaitTasks(), DeepEquals, []*state.Task{t1, t2})
-	c.Assert(t1.HaltTasks(), HasLen, 2)
-	c.Assert(t2.HaltTasks(), HasLen, 2)
+	c.Assert(t1.NumHaltTasks(), Equals, 2)
+	c.Assert(t2.NumHaltTasks(), Equals, 2)
 }
 
 func (ts *taskSuite) TestTaskSetAddTaskAndAddAll(c *C) {
@@ -509,4 +545,88 @@ func (ts *taskSuite) TestLanes(c *C) {
 	c.Assert(t.Lanes(), DeepEquals, []int{1})
 	t.JoinLane(2)
 	c.Assert(t.Lanes(), DeepEquals, []int{1, 2})
+}
+
+func (cs *taskSuite) TestTaskSetEdge(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// setup an example taskset
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("verify", "2...")
+	t3 := st.NewTask("install", "3...")
+	ts := state.NewTaskSet(t1, t2, t3)
+
+	// edges are just typed strings
+	edge1 := state.TaskSetEdge("on-edge")
+	edge2 := state.TaskSetEdge("eddie")
+
+	// no edge marked yet
+	t, err := ts.Edge(edge1)
+	c.Assert(t, IsNil)
+	c.Assert(err, ErrorMatches, `internal error: missing "on-edge" edge in task set`)
+	t, err = ts.Edge(edge2)
+	c.Assert(t, IsNil)
+	c.Assert(err, ErrorMatches, `internal error: missing "eddie" edge in task set`)
+
+	// one edge
+	ts.MarkEdge(t1, edge1)
+	t, err = ts.Edge(edge1)
+	c.Assert(t, Equals, t1)
+	c.Assert(err, IsNil)
+
+	// two edges
+	ts.MarkEdge(t2, edge2)
+	t, err = ts.Edge(edge1)
+	c.Assert(t, Equals, t1)
+	c.Assert(err, IsNil)
+	t, err = ts.Edge(edge2)
+	c.Assert(t, Equals, t2)
+	c.Assert(err, IsNil)
+
+	// edges can be reassigned
+	ts.MarkEdge(t3, edge1)
+	t, err = ts.Edge(edge1)
+	c.Assert(t, Equals, t3)
+	c.Assert(err, IsNil)
+}
+
+func (cs *taskSuite) TestTaskAddAllWithEdges(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	edge1 := state.TaskSetEdge("install")
+
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("verify", "2...")
+	t3 := st.NewTask("install", "3...")
+	ts := state.NewTaskSet(t1, t2, t3)
+
+	ts.MarkEdge(t1, edge1)
+	t, err := ts.Edge(edge1)
+	c.Assert(t, Equals, t1)
+	c.Assert(err, IsNil)
+
+	ts2 := state.NewTaskSet()
+	err = ts2.AddAllWithEdges(ts)
+	c.Assert(err, IsNil)
+	t, err = ts2.Edge(edge1)
+	c.Assert(t, Equals, t1)
+	c.Assert(err, IsNil)
+
+	// doing it again is no harm
+	err = ts2.AddAllWithEdges(ts)
+	c.Assert(err, IsNil)
+	t, err = ts2.Edge(edge1)
+	c.Assert(t, Equals, t1)
+	c.Assert(err, IsNil)
+
+	// but conflicting edges are an error
+	t4 := st.NewTask("another-kind", "4...")
+	tsWithDuplicatedEdge := state.NewTaskSet(t4)
+	tsWithDuplicatedEdge.MarkEdge(t4, edge1)
+	err = ts2.AddAllWithEdges(tsWithDuplicatedEdge)
+	c.Assert(err, ErrorMatches, `cannot add taskset: duplicated edge "install"`)
 }
