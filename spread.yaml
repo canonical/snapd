@@ -437,8 +437,8 @@ debug-each: |
         esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
-        echo '# snap interfaces'
-        snap interfaces || true
+        echo '# snap connections'
+        snap connections || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
         echo '# free space'
