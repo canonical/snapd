@@ -78,11 +78,11 @@ func run() error {
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
 	}
-	var ctx MountProfileUpdateContext
+	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
-		ctx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
+		upCtx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
 	} else {
-		ctx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
+		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}
-	return executeMountProfileUpdate(ctx)
+	return executeMountProfileUpdate(upCtx)
 }

@@ -1071,7 +1071,7 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("switch takes no revision")
 	}
-	ts, err := snapstate.Switch(st, inst.Snaps[0], inst.Channel)
+	ts, err := snapstate.Switch(st, inst.Snaps[0], &snapstate.RevisionOptions{Channel: inst.Channel})
 	if err != nil {
 		return "", nil, err
 	}
