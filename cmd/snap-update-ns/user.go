@@ -49,19 +49,19 @@ func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid 
 }
 
 // UID returns the user ID of the mount namespace being updated.
-func (ctx *UserProfileUpdateContext) UID() int {
-	return ctx.uid
+func (upCtx *UserProfileUpdateContext) UID() int {
+	return upCtx.uid
 }
 
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
-func (ctx *UserProfileUpdateContext) Lock() (unlock func(), err error) {
+func (upCtx *UserProfileUpdateContext) Lock() (unlock func(), err error) {
 	// TODO: when persistent user mount namespaces are enabled, grab a lock
 	// protecting the snap and freeze snap processes here.
 	return func() {}, nil
 }
 
 // Assumptions returns information about file system mutability rules.
-func (ctx *UserProfileUpdateContext) Assumptions() *Assumptions {
+func (upCtx *UserProfileUpdateContext) Assumptions() *Assumptions {
 	// TODO: configure the secure helper and inform it about directories that
 	// can be created without trespassing.
 	as := &Assumptions{}
@@ -72,29 +72,29 @@ func (ctx *UserProfileUpdateContext) Assumptions() *Assumptions {
 }
 
 // LoadDesiredProfile loads the desired, per-user mount profile, expanding user-specific variables.
-func (ctx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	profile, err := ctx.CommonProfileUpdateContext.LoadDesiredProfile()
+func (upCtx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	profile, err := upCtx.CommonProfileUpdateContext.LoadDesiredProfile()
 	if err != nil {
 		return nil, err
 	}
 	// TODO: when SNAP_USER_DATA, SNAP_USER_COMMON or other variables relating
 	// to the user name and their home directory need to be expanded then
 	// handle them here.
-	expandXdgRuntimeDir(profile, ctx.uid)
+	expandXdgRuntimeDir(profile, upCtx.uid)
 	return profile, nil
 }
 
 // SaveCurrentProfile does nothing at all.
 //
 // Per-user mount profiles are not persisted yet.
-func (ctx *UserProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+func (upCtx *UserProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
 	return nil
 }
 
 // LoadCurrentProfile returns the empty profile.
 //
 // Per-user mount profiles are not persisted yet.
-func (ctx *UserProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+func (upCtx *UserProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
 	return &osutil.MountProfile{}, nil
 }
 

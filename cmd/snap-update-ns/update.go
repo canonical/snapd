@@ -41,27 +41,27 @@ type MountProfileUpdateContext interface {
 	SaveCurrentProfile(*osutil.MountProfile) error
 }
 
-func executeMountProfileUpdate(ctx MountProfileUpdateContext) error {
-	unlock, err := ctx.Lock()
+func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
+	unlock, err := upCtx.Lock()
 	if err != nil {
 		return err
 	}
 	defer unlock()
 
-	desired, err := ctx.LoadDesiredProfile()
+	desired, err := upCtx.LoadDesiredProfile()
 	if err != nil {
 		return err
 	}
 	debugShowProfile(desired, "desired mount profile")
 
-	currentBefore, err := ctx.LoadCurrentProfile()
+	currentBefore, err := upCtx.LoadCurrentProfile()
 	if err != nil {
 		return err
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 
 	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
-	as := ctx.Assumptions()
+	as := upCtx.Assumptions()
 	for _, entry := range currentBefore.Entries {
 		as.AddChange(&Change{Action: Mount, Entry: entry})
 	}
@@ -109,5 +109,5 @@ func executeMountProfileUpdate(ctx MountProfileUpdateContext) error {
 		}
 	}
 	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
-	return ctx.SaveCurrentProfile(&currentAfter)
+	return upCtx.SaveCurrentProfile(&currentAfter)
 }
