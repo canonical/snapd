@@ -273,20 +273,7 @@ if [ -n "$SPREAD" ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    case "$SPREAD" in
-        full)
-            spread "google:"
-            ;;
-        ubuntu-only)
-            spread "google:[u]...:tests/..."
-            ;;
-        no-ubuntu)
-            spread "google:[^u]...:tests/..."
-            ;;
-        *)
-            echo "Spread parameter $SPREAD not supported"
-            exit 1
-    esac
+    spread -repeat 20 google:ubuntu-14.04-64:tests/main/snapd-reexec google:ubuntu-14.04-64:tests/main/snap-confine-from-core
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
