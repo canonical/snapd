@@ -77,14 +77,14 @@ type HandlerGenerator func(*Context) Handler
 
 // HookSetup is a reference to a hook within a specific snap.
 type HookSetup struct {
-	Snap     string        `json:"snap"`
-	Revision snap.Revision `json:"revision"`
-	Hook     string        `json:"hook"`
-	Optional bool          `json:"optional,omitempty"`
-
+	Snap        string        `json:"snap"`
+	Revision    snap.Revision `json:"revision"`
+	Hook        string        `json:"hook"`
 	Timeout     time.Duration `json:"timeout,omitempty"`
-	IgnoreError bool          `json:"ignore-error,omitempty"`
-	TrackError  bool          `json:"track-error,omitempty"`
+	Optional    bool          `json:"optional,omitempty"`     // do not error if script is missing
+	Always      bool          `json:"always,omitempty"`       // run handler even if script is missing
+	IgnoreError bool          `json:"ignore-error,omitempty"` // do not run handler's Error() on error
+	TrackError  bool          `json:"track-error,omitempty"`  // report hook error to oopsie
 }
 
 // Manager returns a new HookManager.
@@ -312,6 +312,9 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 		// keep count of running hooks
 		atomic.AddInt32(&m.runningHooks, 1)
 		defer atomic.AddInt32(&m.runningHooks, -1)
+	} else if !hooksup.Always {
+		// a noop with no 'always' flag: bail
+		return nil
 	}
 
 	context, err := NewContext(task, task.State(), hooksup, nil, "")

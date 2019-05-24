@@ -42,18 +42,18 @@ func (s *userSuite) TestLock(c *C) {
 	defer dirs.SetRootDir("/")
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
 
-	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
 
 	// Locking is a no-op.
-	unlock, err := ctx.Lock()
+	unlock, err := upCtx.Lock()
 	c.Assert(err, IsNil)
 	c.Check(unlock, NotNil)
 	unlock()
 }
 
 func (s *userSuite) TestAssumptions(c *C) {
-	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
-	as := ctx.Assumptions()
+	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	as := upCtx.Assumptions()
 	c.Check(as.UnrestrictedPaths(), IsNil)
 }
 
@@ -63,7 +63,7 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	defer dirs.SetRootDir("/")
 	dirs.XdgRuntimeDirBase = "/run/user"
 
-	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
 
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
 	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
@@ -74,7 +74,7 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	c.Assert(ioutil.WriteFile(path, []byte(input), 0644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
-	profile, err := ctx.LoadDesiredProfile()
+	profile, err := upCtx.LoadDesiredProfile()
 	c.Assert(err, IsNil)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
@@ -88,16 +88,16 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
-	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
 
 	// Write a current user mount profile for snap "foo".
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
-	path := update.CurrentUserProfilePath(ctx.InstanceName(), ctx.UID())
+	path := update.CurrentUserProfilePath(upCtx.InstanceName(), upCtx.UID())
 	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(path, []byte(text), 0644), IsNil)
 
 	// Ask the user profile update helper to read the current profile.
-	profile, err := ctx.LoadCurrentProfile()
+	profile, err := upCtx.LoadCurrentProfile()
 	c.Assert(err, IsNil)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
@@ -113,7 +113,7 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	defer dirs.SetRootDir("/")
 	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
 
-	ctx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
 
 	// Prepare a mount profile to be saved.
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
@@ -126,7 +126,7 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	c.Assert(ioutil.WriteFile(path, []byte("banana"), 0644), IsNil)
 
 	// Ask the user profile update helper to write the current profile.
-	err = ctx.SaveCurrentProfile(profile)
+	err = upCtx.SaveCurrentProfile(profile)
 	c.Assert(err, IsNil)
 
 	// Note that the profile was not modified.

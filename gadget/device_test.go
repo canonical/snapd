@@ -23,11 +23,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type deviceSuite struct {
@@ -169,6 +171,33 @@ func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	c.Check(found, Equals, "")
 }
 
+func (d *deviceSuite) TestDeviceFindNotFoundSymlinkPointsNowhere(c *C) {
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice-not-found")
+	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
+	c.Assert(err, IsNil)
+
+	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label: "foo",
+		},
+	})
+	c.Check(err, ErrorMatches, `device not found`)
+	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
+	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label: "foo",
+		},
+	})
+	c.Check(err, ErrorMatches, `cannot read device link: .*`)
+	c.Check(found, Equals, "")
+}
+
 func (d *deviceSuite) TestDeviceEncodeLabel(c *C) {
 	// Test output obtained with the following program:
 	//
@@ -206,4 +235,207 @@ func (d *deviceSuite) TestDeviceEncodeLabel(c *C) {
 		res := gadget.EncodeLabel(tc.what)
 		c.Check(res, Equals, tc.exp)
 	}
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointErrorsWithBare(c *C) {
+	p, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			// no filesystem
+			Filesystem: "",
+		},
+	})
+	c.Assert(err, ErrorMatches, "no filesystem defined")
+	c.Check(p, Equals, "")
+
+	p, err = gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			// also counts as bare structure
+			Filesystem: "none",
+		},
+	})
+	c.Assert(err, ErrorMatches, "no filesystem defined")
+	c.Check(p, Equals, "")
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointErrorsFromDevice(c *C) {
+	p, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label:      "bar",
+			Filesystem: "ext4",
+		},
+	})
+	c.Assert(err, ErrorMatches, "device not found")
+	c.Check(p, Equals, "")
+
+	p, err = gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "bar",
+			Filesystem: "ext4",
+		},
+	})
+	c.Assert(err, ErrorMatches, "device not found")
+	c.Check(p, Equals, "")
+}
+
+func mockProcSelfFilesystem(c *C, root, content string) {
+	psmi := filepath.Join(root, osutil.ProcSelfMountInfo)
+	err := os.MkdirAll(filepath.Dir(psmi), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(psmi, []byte(content), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointErrorBadMountinfo(c *C) {
+	// taken from core18 system
+
+	fakedevice := filepath.Join(d.dir, "/dev/sda2")
+	err := ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/system-boot"))
+	c.Assert(err, IsNil)
+
+	mockProcSelfFilesystem(c, d.dir, "garbage")
+
+	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "EFI System",
+			Label:      "system-boot",
+			Filesystem: "vfat",
+		},
+	})
+	c.Check(err, ErrorMatches, "cannot read mount info: .*")
+	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointByLabeHappySimple(c *C) {
+	// taken from core18 system
+
+	fakedevice := filepath.Join(d.dir, "/dev/sda2")
+	err := ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/system-boot"))
+	c.Assert(err, IsNil)
+	err = os.Symlink(fakedevice, filepath.Join(d.dir, `/dev/disk/by-partlabel/EFI\x20System`))
+	c.Assert(err, IsNil)
+
+	mountInfo := `
+170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+172 27 8:2 /EFI/ubuntu /boot/grub rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+`
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+
+	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "EFI System",
+			Label:      "system-boot",
+			Filesystem: "vfat",
+		},
+	})
+	c.Check(err, IsNil)
+	c.Check(found, Equals, "/boot/efi")
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointByLabeHappyReversed(c *C) {
+	// taken from core18 system
+
+	fakedevice := filepath.Join(d.dir, "/dev/sda2")
+	err := ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	c.Assert(err, IsNil)
+	// single property match
+	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/system-boot"))
+	c.Assert(err, IsNil)
+
+	// reverse the order of lines
+	mountInfoReversed := `
+172 27 8:2 /EFI/ubuntu /boot/grub rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+`
+
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfoReversed[1:], "${rootDir}", d.dir, -1))
+
+	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "EFI System",
+			Label:      "system-boot",
+			Filesystem: "vfat",
+		},
+	})
+	c.Check(err, IsNil)
+	c.Check(found, Equals, "/boot/efi")
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointPicksFirstMatch(c *C) {
+	// taken from core18 system
+
+	fakedevice := filepath.Join(d.dir, "/dev/sda2")
+	err := ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	c.Assert(err, IsNil)
+	// single property match
+	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/system-boot"))
+	c.Assert(err, IsNil)
+
+	mountInfo := `
+852 134 8:2 / /mnt/foo rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+172 27 8:2 /EFI/ubuntu /boot/grub rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+`
+
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+
+	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "EFI System",
+			Label:      "system-boot",
+			Filesystem: "vfat",
+		},
+	})
+	c.Check(err, IsNil)
+	c.Check(found, Equals, "/mnt/foo")
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointByPartlabel(c *C) {
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
+	err := ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(fakedevice, filepath.Join(d.dir, `/dev/disk/by-partlabel/pinkié\x20pie`))
+	c.Assert(err, IsNil)
+
+	mountInfo := `
+170 27 8:2 / /mount-point rw,relatime shared:58 - ext4 ${rootDir}/dev/fakedevice rw
+`
+
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+
+	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "pinkié pie",
+			Filesystem: "ext4",
+		},
+	})
+	c.Check(err, IsNil)
+	c.Check(found, Equals, "/mount-point")
+}
+
+func (d *deviceSuite) TestDeviceFindMountPointChecksFilesystem(c *C) {
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
+	err := ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(fakedevice, filepath.Join(d.dir, `/dev/disk/by-partlabel/label`))
+	c.Assert(err, IsNil)
+
+	mountInfo := `
+170 27 8:2 / /mount-point rw,relatime shared:58 - vfat ${rootDir}/dev/fakedevice rw
+`
+
+	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+
+	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "label",
+			// different fs than mount entry
+			Filesystem: "ext4",
+		},
+	})
+	c.Check(err, ErrorMatches, "mount point not found")
+	c.Check(found, Equals, "")
 }

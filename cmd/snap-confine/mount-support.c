@@ -310,20 +310,54 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		};
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
-			struct stat buf;
-			if (access(dir, F_OK) == 0) {
-				sc_must_snprintf(src, sizeof src, "%s%s",
-						 config->rootfs_dir, dir);
-				sc_must_snprintf(dst, sizeof dst, "%s%s",
-						 scratch_dir, dir);
-				if (lstat(src, &buf) == 0
-				    && lstat(dst, &buf) == 0) {
-					sc_do_mount(src, dst, NULL, MS_BIND,
-						    NULL);
-					sc_do_mount("none", dst, NULL, MS_SLAVE,
-						    NULL);
-				}
+			if (access(dir, F_OK) != 0) {
+				continue;
 			}
+			struct stat dst_stat;
+			struct stat src_stat;
+			sc_must_snprintf(src, sizeof src, "%s%s",
+					 config->rootfs_dir, dir);
+			sc_must_snprintf(dst, sizeof dst, "%s%s",
+					 scratch_dir, dir);
+			if (lstat(src, &src_stat) != 0) {
+				if (errno == ENOENT) {
+					continue;
+				}
+				die("cannot stat %s from desired rootfs", src);
+			}
+			if (!S_ISREG(src_stat.st_mode)
+			    && !S_ISDIR(src_stat.st_mode)) {
+				debug
+				    ("entry %s from the desired rootfs is not a file or directory, skipping mount",
+				     src);
+				continue;
+			}
+
+			if (lstat(dst, &dst_stat) != 0) {
+				if (errno == ENOENT) {
+					continue;
+				}
+				die("cannot stat %s from host", src);
+			}
+			if (!S_ISREG(dst_stat.st_mode)
+			    && !S_ISDIR(dst_stat.st_mode)) {
+				debug
+				    ("entry %s from the host is not a file or directory, skipping mount",
+				     src);
+				continue;
+			}
+
+			if ((dst_stat.st_mode & S_IFMT) !=
+			    (src_stat.st_mode & S_IFMT)) {
+				debug
+				    ("entries %s and %s are of different types, skipping mount",
+				     dst, src);
+				continue;
+			}
+			// both source and destination exist and are either files or
+			// directories
+			sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+			sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 		}
 	}
 	// The "core" base snap is special as it contains snapd and friends.
@@ -374,8 +408,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// directory is always /snap. On the host it is a build-time configuration
 	// option stored in SNAP_MOUNT_DIR.
 	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC | MS_SLAVE,
-		    NULL);
+	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
 	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
@@ -645,14 +678,6 @@ void sc_ensure_shared_snap_mount(void)
 	}
 }
 
-static void sc_make_slave_mount_ns(void)
-{
-	// In our new mount namespace, recursively change all mounts
-	// to slave mode, so we see changes from the parent namespace
-	// but don't propagate our own changes.
-	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
-}
-
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const char *snap_name)
 {
@@ -668,6 +693,9 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		return;
 	}
 
-	sc_make_slave_mount_ns();
+	// In our new mount namespace, recursively change all mounts
+	// to slave mode, so we see changes from the parent namespace
+	// but don't propagate our own changes.
+	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }
