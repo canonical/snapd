@@ -54,7 +54,7 @@ func (s *mainSuite) SetUpTest(c *C) {
 	s.log = buf
 }
 
-func (s *mainSuite) TestApplySystemFstab(c *C) {
+func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
@@ -79,8 +79,8 @@ func (s *mainSuite) TestApplySystemFstab(c *C) {
 	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ctx := update.NewSystemProfileUpdateContext(snapName, false)
-	err = update.ApplySystemFstab(ctx)
+	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	err = update.ExecuteMountProfileUpdate(upCtx)
 	c.Assert(err, IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
@@ -147,8 +147,8 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	ctx := update.NewSystemProfileUpdateContext(snapName, false)
-	c.Assert(update.ApplySystemFstab(ctx), IsNil)
+	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals,
 		`tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
@@ -225,8 +225,8 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	})
 	defer restore()
 
-	ctx := update.NewSystemProfileUpdateContext(snapName, false)
-	c.Assert(update.ApplySystemFstab(ctx), IsNil)
+	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -268,8 +268,8 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	ctx := update.NewSystemProfileUpdateContext(snapName, false)
-	c.Assert(update.ApplySystemFstab(ctx), ErrorMatches, "testing")
+	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -311,8 +311,8 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	defer restore()
 
 	// The error was not ignored, we bailed out.
-	ctx := update.NewSystemProfileUpdateContext(snapName, false)
-	c.Assert(update.ApplySystemFstab(ctx), ErrorMatches, "testing")
+	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), ErrorMatches, "testing")
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -355,8 +355,8 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	defer restore()
 
 	// The error was ignored, and no mount was recorded in the profile
-	ctx := update.NewSystemProfileUpdateContext(snapName, false)
-	c.Assert(update.ApplySystemFstab(ctx), IsNil)
+	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Check(s.log.String(), Equals, "")
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
@@ -381,8 +381,8 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	err = ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
 	c.Assert(err, IsNil)
 
-	ctx := update.NewUserProfileUpdateContext(snapName, true, 1000)
-	err = update.ApplyUserFstab(ctx)
+	upCtx := update.NewUserProfileUpdateContext(snapName, true, 1000)
+	err = update.ExecuteMountProfileUpdate(upCtx)
 	c.Assert(err, IsNil)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, 1000)
