@@ -676,23 +676,49 @@ func (s *checkSnapSuite) TestCheckSnapBasesNoneError(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const yaml = `name: use-base-none
+	yamlTemplate := `name: use-base-none
 version: 1
 base: none
-`
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
 
+%APPS_OR_HOOKS%
+`
+	yaml := `name: use-base-none
+version: 1
+base: none
+
+apps:
+  useradd:
+	command: bin/true
+`
+	apps := `
+apps:
+  useradd:
+    command: bin/true
+`
+	hooks := `
+hooks:
+  configure:
+`
+
+	var info *snap.Info
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, emptyContainer(c), nil
+		return info, containerWithApp(c, "bin/true"), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "use-base-none", nil, nil, snapstate.Flags{}, nil)
-	st.Lock()
-	c.Check(err, ErrorMatches, "base type \"none\" not supported with snap type \"app\"")
+	for _, appsOrHooks := range []string{apps, hooks} {
+		yaml = strings.Replace(yamlTemplate, "%APPS_OR_HOOKS%", appsOrHooks, -1)
+
+		var err error
+		info, err = snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		st.Unlock()
+		err = snapstate.CheckSnap(st, "snap-path", "use-base-none", nil, nil, snapstate.Flags{}, nil)
+		st.Lock()
+		c.Check(err, ErrorMatches, "base type \"none\" not supported with apps or hooks")
+	}
 }
 
 func (s *checkSnapSuite) TestCheckSnapBasesNoneHappy(c *C) {
@@ -769,6 +795,15 @@ func emptyContainer(c *C) *snapdir.SnapDir {
 	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
 	return snapdir.New(d)
+}
+
+// containerWithApps returns a minimal container with a single app that passes
+// ValidateContainer checks.
+func containerWithApp(c *C, appPath string) *snapdir.SnapDir {
+	container := emptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(container.Path(), filepath.Dir(appPath)), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(container.Path(), appPath), nil, 0555), IsNil)
+	return container
 }
 
 func (s *checkSnapSuite) TestCheckSnapInstanceName(c *C) {

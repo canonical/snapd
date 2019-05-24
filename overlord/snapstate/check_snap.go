@@ -352,8 +352,8 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, devi
 		return nil
 	}
 	if snapInfo.Base == "none" {
-		if snapInfo.Type != snap.TypeGadget && snapInfo.Type != snap.TypeKernel {
-			return fmt.Errorf("base type %q not supported with snap type %q", snapInfo.Base, snapInfo.Type)
+		if len(snapInfo.Hooks) > 0 || len(snapInfo.Apps) > 0 {
+			return fmt.Errorf("base type %q not supported with apps or hooks", snapInfo.Base)
 		}
 		return nil
 	}
