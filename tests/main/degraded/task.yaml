@@ -5,7 +5,7 @@ summary: Check that the system is not in "degraded" state
 backends: [-autopkgtest]
 
 # run this early to ensure no test created failed units yet
-priority: 500
+priority: 1000
 
 debug: |
     # Print the status for the failed units

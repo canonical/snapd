@@ -1,5 +1,7 @@
 summary: Ensures that the mount-observe interface works
 
+priority: 970
+
 details: |
     A snap declaring the mount-observe plug is defined, its command
     just read the /proc/<pid>/mounts file.

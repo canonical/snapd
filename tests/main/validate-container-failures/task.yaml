@@ -1,5 +1,7 @@
 summary: check the container validator logs on error
 
+priority: 950
+
 environment:
     SNAP: test-snapd-validate-container-failures
 

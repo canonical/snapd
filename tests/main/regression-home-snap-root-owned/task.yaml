@@ -1,5 +1,7 @@
 summary: Regression test that ensures that $HOME/snap is not root owned for sudo commands
 
+priority: 990
+
 prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap

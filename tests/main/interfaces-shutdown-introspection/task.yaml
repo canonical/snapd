@@ -4,6 +4,8 @@ summary: Ensures that introspection of login1 of the shutdown interface works.
 #ubuntu-core: unity7 implicit classic slot needed (used to access dbus-send) not available on core
 systems: [-debian-*, -ubuntu-core-*]
 
+priority: 940
+
 details: |
     A snap declaring the shutdown plug is defined, its command just calls
     the Introspect method on org.freedesktop.login1.

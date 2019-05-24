@@ -1,5 +1,7 @@
 summary: Check that `snap set` runs configure hook.
 
+priority: 930
+
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh

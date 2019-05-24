@@ -2,6 +2,8 @@ summary: Check that 'current' symlink is created with 'snap run'
 
 systems: [-ubuntu-core-*]
 
+priority: 960
+
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
