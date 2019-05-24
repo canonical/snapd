@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type JackInterfaceSuite struct {
+type jack1InterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -38,11 +38,11 @@ type JackInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&JackInterfaceSuite{
+var _ = Suite(&jack1InterfaceSuite{
 	iface: builtin.MustInterface("jack1"),
 })
 
-func (s *JackInterfaceSuite) SetUpTest(c *C) {
+func (s *jack1InterfaceSuite) SetUpTest(c *C) {
 	var mockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
@@ -61,33 +61,39 @@ apps:
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
-func (s *JackInterfaceSuite) TestName(c *C) {
+func (s *jack1InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "jack1")
 }
 
-func (s *JackInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *jack1InterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "jack",
+		Name:      "jack1",
 		Interface: "jack1",
 	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"jack1 slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "jack1 slots are reserved for the core snap")
 }
 
-func (s *JackInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *jack1InterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *JackInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /dev/shm/jack-[0-9]*/*/* rw")
+func (s *jack1InterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /dev/shm/jack-[0-9]*/*/* rw")
 }
 
-func (s *JackInterfaceSuite) TestInterfaces(c *C) {
+func (s *jack1InterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *jack1InterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows interacting with a JACK1 server`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "jack1")
 }

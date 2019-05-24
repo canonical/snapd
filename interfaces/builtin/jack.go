@@ -19,7 +19,7 @@
 
 package builtin
 
-const jackSummary = `allows access to the jack1 socket`
+const jackSummary = `allows interacting with a JACK1 server`
 
 const jackBaseDeclarationSlots = `
   jack1:
@@ -29,13 +29,9 @@ const jackBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-/*
- * libjack builds the shared memory endpoint like this :
- * jack-<userid>/<server name>/jack-<server id>
- *
- * see libjack/shm.c in jack's source tree
- */
 const jackConnectedPlugAppArmor = `
+# Per libjack/shm.c, various endpoints for JACK1 ae setup like:
+# jack-<userid>/<server name>/jack*
 owner /dev/shm/jack-[0-9]*/*/* rw,
 `
 
