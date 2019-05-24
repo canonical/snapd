@@ -82,8 +82,8 @@ func (s *jack1InterfaceSuite) TestSanitizePlug(c *C) {
 func (s *jack1InterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /dev/shm/jack-[0-9]*/*/* rw")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /dev/shm/jack-[0-9]*/*/* rw")
 }
 
 func (s *jack1InterfaceSuite) TestInterfaces(c *C) {
