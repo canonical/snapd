@@ -241,13 +241,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// replicate the state of the root filesystem into the scratch directory.
 	sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
 		    NULL);
-	// Make the scratch directory recursively private. Nothing done there will
-	// be shared with any peer group, This effectively detaches us from the
-	// original namespace and coupled with pivot_root below serves as the
-	// foundation of the mount sandbox.
-	//
-	// Following that, make it recursively shared so that changes migrate to
-	// per-user mount namespaces.
+	// Make the scratch directory recursively slave. Nothing done there will be
+	// shared with the initial mount namespace. This effectively detaches us,
+	// in one way, from the original namespace and coupled with pivot_root
+	// below serves as the foundation of the mount sandbox. Following that,
+	// make it recursively shared so that changes performed in the per-snap
+	// mount namespace migrate to per-user mount namespaces.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SHARED, NULL);
 	// Bind mount certain directories from the host filesystem to the scratch

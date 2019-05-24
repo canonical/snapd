@@ -483,8 +483,8 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// flag to them, which in turns translates to MNT_DETACH on
 			// umount2(2) system call.
 			//
-			// The rprivate is there to ensure that changes made to the
-			// original directory do not propagate into this view.
+			// The rprivate is here to ensure that changes made to the
+			// original directory do not propagate into or out of this view.
 			Name: dir, Dir: safeKeepingDir, Options: []string{"rprivate", "rbind"}},
 	})
 
