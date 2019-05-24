@@ -86,6 +86,8 @@ type PositionedContent struct {
 	PositionedOffsetWrite *Size
 	// Size is the maximum size occupied by this image
 	Size Size
+	// Index of the content in structure declaration inside gadget YAML
+	Index int
 }
 
 // PositionVolume attempts to lay out the volume using constraints and returns a
@@ -246,6 +248,7 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, kno
 			Size:                  actualSize,
 			StartOffset:           ps.StartOffset + start,
 			PositionedOffsetWrite: offsetWrite,
+			Index:                 idx,
 		}
 		previousEnd = start + actualSize
 		if previousEnd > ps.Size {
