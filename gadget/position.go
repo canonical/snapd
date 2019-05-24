@@ -283,3 +283,21 @@ func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*Po
 	resolvedOffsetWrite := relativeToOffset + offsetWrite.Offset
 	return &resolvedOffsetWrite, nil
 }
+
+// ShiftStructureTo creates a new positioned structure, shifted to start at a
+// given offset. The start offsets of positioned content within the structure is
+// updated.
+func ShiftStructureTo(ps PositionedStructure, offset Size) PositionedStructure {
+	change := int64(offset - ps.StartOffset)
+
+	newPs := ps
+	newPs.StartOffset = Size(int64(ps.StartOffset) + change)
+
+	newPs.PositionedContent = make([]PositionedContent, len(ps.PositionedContent))
+	for idx, pc := range ps.PositionedContent {
+		newPc := pc
+		newPc.StartOffset = Size(int64(pc.StartOffset) + change)
+		newPs.PositionedContent[idx] = newPc
+	}
+	return newPs
+}
