@@ -118,6 +118,10 @@ def checksection(data, env: Dict[str, str]):
         # quotes so that one value can refer to another value.
         if '"' in value:
             value = value.replace('"', '\"')
+        # converts
+        # FOO: "$(HOST: echo $foo)"     -> FOO="$(echo $foo)"
+        # FOO: "$(HOST: echo \"$foo\")" -> FOO="$(echo \"$foo\")"
+        # FOO: "foo"                    -> FOO="foo"
         script_data.append("{}=\"{}\"".format(key, value))
         script_data.append("export {}".format(key))
     script_data.append(data)
