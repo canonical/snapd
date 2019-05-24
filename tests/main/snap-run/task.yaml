@@ -43,7 +43,7 @@ execute: |
     echo "Test snap run --strace with options works"
     snap run --strace="-V" test-snapd-tools.echo "hello-world" >stdout 2>stderr
     MATCH "strace -- version" < stdout
-    [ -s stderr ]
+    [ ! -s stderr ]
 
     echo "Test snap --strace invalid works"
     if snap run --strace="invalid" test-snapd-tools.echo hello 2>stderr ; then
