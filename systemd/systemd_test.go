@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
@@ -69,6 +70,7 @@ type SystemdTestSuite struct {
 
 	restoreSystemctl  func()
 	restoreJournalctl func()
+	restoreSELinux    func()
 }
 
 var _ = Suite(&SystemdTestSuite{})
@@ -96,11 +98,14 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	s.jfollows = nil
 
 	s.rep = new(testreporter)
+
+	s.restoreSELinux = release.MockSELinuxIsEnabled(func() (bool, error) { return false, nil })
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
 	s.restoreSystemctl()
 	s.restoreJournalctl()
+	s.restoreSELinux()
 }
 
 func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
@@ -192,7 +197,8 @@ Type=potato
 Id=baz.service
 ActiveState=inactive
 UnitFileState=disabled
-
+`[1:]),
+		[]byte(`
 Id=some.timer
 ActiveState=active
 UnitFileState=enabled
@@ -232,7 +238,10 @@ UnitFileState=disabled
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
-	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "some.timer", "other.socket"}})
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
+	})
 }
 
 func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
@@ -558,6 +567,38 @@ WantedBy=multi-user.target
 		{"--root", "", "enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
 	})
+}
+
+func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
+	restore := release.MockSELinuxIsEnabled(func() (bool, error) { return true, nil })
+	defer restore()
+	restore = squashfs.MockUseFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := New("", nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+Before=snapd.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,context=system_u:object_r:snappy_snap_t:s0
+
+[Install]
+WantedBy=multi-user.target
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {

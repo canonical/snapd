@@ -20,11 +20,10 @@
 package snapshotstate
 
 import (
+	"context"
 	"encoding/json"
+	"time"
 
-	"golang.org/x/net/context"
-
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -43,6 +42,11 @@ var (
 	CleanupRestore             = cleanupRestore
 	DoCheck                    = doCheck
 	DoForget                   = doForget
+	SaveExpiration             = saveExpiration
+	ExpiredSnapshotSets        = expiredSnapshotSets
+	RemoveSnapshotState        = removeSnapshotState
+
+	DefaultAutomaticSnapshotExpiration = defaultAutomaticSnapshotExpiration
 )
 
 func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {
@@ -95,14 +99,6 @@ func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error)
 	backendIter = f
 	return func() {
 		backendIter = old
-	}
-}
-
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
-	old := backendSave
-	backendSave = f
-	return func() {
-		backendSave = old
 	}
 }
 
@@ -160,4 +156,9 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 	return func() {
 		configSetSnapConfig = old
 	}
+}
+
+// For testing only
+func (mgr *SnapshotManager) SetLastForgetExpiredSnapshotTime(t time.Time) {
+	mgr.lastForgetExpiredSnapshotTime = t
 }

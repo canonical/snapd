@@ -34,6 +34,19 @@ case "$1" in
                 deb-systemd-invoke start "$unit" || true
             done
         fi
+
+        # In commit 0dce4704a5d (2017-03-28, snapd v2.23.6) we renamed
+        # /etc/apparmor.d/usr.lib.snap-confine to usr.lib.snap-confine.real
+        # to fix LP: #1673247 - however some people (upgrades?) still have
+        # the old usr.lib.snap-confine file. This seems to be loaded instead
+        # of the correct usr.lib.snap-confine.real profile. To fix this we
+        # use the rather blunt approach to remove the file forcefully.
+        if test "$(md5sum /etc/apparmor.d/usr.lib.snapd.snap-confine | cut -f1 -d' ' 2>/dev/null)" = "2a38d40fe662f46fedd0aefbe78f23e9"; then
+            rm -f /etc/apparmor.d/usr.lib.snapd.snap-confine
+        fi
+
+        # Ensure that the void directory has correct permissions.
+        chmod 111 /var/lib/snapd/void
 esac
 
 #DEBHELPER#

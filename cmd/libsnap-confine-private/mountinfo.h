@@ -18,16 +18,9 @@
 #define SNAP_CONFINE_MOUNTINFO_H
 
 /**
- * Structure describing entire /proc/self/sc_mountinfo file
- **/
-struct sc_mountinfo {
-	struct sc_mountinfo_entry *first;
-};
-
-/**
  * Structure describing a single entry in /proc/self/sc_mountinfo
  **/
-struct sc_mountinfo_entry {
+typedef struct sc_mountinfo_entry {
 	/**
 	 * The mount identifier of a given mount entry.
 	 **/
@@ -91,7 +84,14 @@ struct sc_mountinfo_entry {
 	// along with the structure itself and does not need to be freed
 	// separately.
 	char line_buf[0];
-};
+} sc_mountinfo_entry;
+
+/**
+ * Structure describing entire /proc/self/sc_mountinfo file
+ **/
+typedef struct sc_mountinfo {
+	sc_mountinfo_entry *first;
+} sc_mountinfo;
 
 /**
  * Parse a file in according to sc_mountinfo syntax.
@@ -100,7 +100,7 @@ struct sc_mountinfo_entry {
  * implicitly parse /proc/self/sc_mountinfo, that is the mount information
  * associated with the current process.
  **/
-struct sc_mountinfo *sc_parse_mountinfo(const char *fname);
+sc_mountinfo *sc_parse_mountinfo(const char *fname);
 
 /**
  * Free a sc_mountinfo structure.
@@ -108,8 +108,8 @@ struct sc_mountinfo *sc_parse_mountinfo(const char *fname);
  * This function is designed to be used with __attribute__((cleanup)) so it
  * takes a pointer to the freed object (which is also a pointer).
  **/
-void sc_cleanup_mountinfo(struct sc_mountinfo **ptr)
-    __attribute__ ((nonnull(1)));
+void sc_cleanup_mountinfo(sc_mountinfo ** ptr)
+    __attribute__((nonnull(1)));
 
 /**
  * Get the first sc_mountinfo entry.
@@ -118,8 +118,8 @@ void sc_cleanup_mountinfo(struct sc_mountinfo **ptr)
  * returned value is bound to the lifecycle of the whole sc_mountinfo structure
  * and should not be freed explicitly.
  **/
-struct sc_mountinfo_entry *sc_first_mountinfo_entry(struct sc_mountinfo *info)
-    __attribute__ ((nonnull(1)));
+sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo * info)
+    __attribute__((nonnull(1)));
 
 /**
  * Get the next sc_mountinfo entry.
@@ -128,8 +128,7 @@ struct sc_mountinfo_entry *sc_first_mountinfo_entry(struct sc_mountinfo *info)
  * was the last entry. The returned value is bound to the lifecycle of the
  * whole sc_mountinfo structure and should not be freed explicitly.
  **/
-struct sc_mountinfo_entry *sc_next_mountinfo_entry(struct sc_mountinfo_entry
-						   *entry)
-    __attribute__ ((nonnull(1)));
+sc_mountinfo_entry *sc_next_mountinfo_entry(sc_mountinfo_entry * entry)
+    __attribute__((nonnull(1)));
 
 #endif

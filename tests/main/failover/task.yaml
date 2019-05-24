@@ -30,7 +30,6 @@ prepare: |
     mkdir -p "$BUILD_DIR"
 
 restore: |
-    rm -f failing.snap failBoot currentBoot prevBoot
     rm -rf "$BUILD_DIR"
 
     # FIXME: remove the unset when we reset properly snap_try_{core,kernel} on rollback

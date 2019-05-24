@@ -54,7 +54,10 @@ func mountNsGlobForUser(snapName string) string {
 // runSnapDiscardNs runs snap-discard-ns with a given snap name.
 func runSnapDiscardNs(snapName string) error {
 	// Discard is unconditional because it affects .fstab, .user-fstab and .mnt files.
-	toolPath := cmd.InternalToolPath("snap-discard-ns")
+	toolPath, err := cmd.InternalToolPath("snap-discard-ns")
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(toolPath, snapName)
 	logger.Debugf("running snap-discard-ns %q", snapName)
 	output, err := cmd.CombinedOutput()
@@ -69,7 +72,10 @@ func runSnapUpdateNs(snapName string) error {
 	if !osutil.FileExists(mountNsPath(snapName)) {
 		return nil
 	}
-	toolPath := cmd.InternalToolPath("snap-update-ns")
+	toolPath, err := cmd.InternalToolPath("snap-update-ns")
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(toolPath, snapName)
 	logger.Debugf("running snap-update-ns %q", snapName)
 	output, err := cmd.CombinedOutput()
@@ -84,7 +90,10 @@ func runSnapUpdateNsForUser(snapName string, uid int) error {
 	if !osutil.FileExists(mountNsPathForUser(snapName, uid)) {
 		return nil
 	}
-	toolPath := cmd.InternalToolPath("snap-update-ns")
+	toolPath, err := cmd.InternalToolPath("snap-update-ns")
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(toolPath, "--user-mounts", "-u", strconv.Itoa(uid), snapName)
 	logger.Debugf("running snap-update-ns --user-mounts -u %d %q", uid, snapName)
 	output, err := cmd.CombinedOutput()

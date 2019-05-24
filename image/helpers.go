@@ -23,18 +23,20 @@ package image
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/mvo5/goconfigparser"
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -73,7 +75,7 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 			return nil, err
 		}
 	}
-	sto := store.New(cfg, toolingAuthContext{})
+	sto := store.New(cfg, toolingStoreContext{})
 	return &ToolingStore{
 		sto:  sto,
 		user: user,
@@ -155,42 +157,47 @@ func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
 	}, nil
 }
 
-// toolingAuthContext implements trivially auth.AuthContext except
-// implementing UpdateUserAuth properly to be used to refresh a
+// toolingStoreContext implements trivially store.DeviceAndAuthContext
+// except implementing UpdateUserAuth properly to be used to refresh a
 // soft-expired user macaroon.
-type toolingAuthContext struct{}
+type toolingStoreContext struct{}
 
-func (tac toolingAuthContext) CloudInfo() (*auth.CloudInfo, error) {
+func (tac toolingStoreContext) CloudInfo() (*auth.CloudInfo, error) {
 	return nil, nil
 }
 
-func (tac toolingAuthContext) Device() (*auth.DeviceState, error) {
+func (tac toolingStoreContext) Device() (*auth.DeviceState, error) {
 	return &auth.DeviceState{}, nil
 }
 
-func (tac toolingAuthContext) DeviceSessionRequestParams(_ string) (*auth.DeviceSessionRequestParams, error) {
-	return nil, auth.ErrNoSerial
+func (tac toolingStoreContext) DeviceSessionRequestParams(_ string) (*store.DeviceSessionRequestParams, error) {
+	return nil, store.ErrNoSerial
 }
 
-func (tac toolingAuthContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
+func (tac toolingStoreContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
 	return "", defaultURL, nil
 }
 
-func (tac toolingAuthContext) StoreID(fallback string) (string, error) {
+func (tac toolingStoreContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (tac toolingAuthContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+func (tac toolingStoreContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
 	return nil, fmt.Errorf("internal error: no device state in tools")
 }
 
-func (tac toolingAuthContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
+func (tac toolingStoreContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
 	user.StoreDischarges = discharges
 	return user, nil
 }
 
-func NewToolingStoreFromModel(model *asserts.Model) (*ToolingStore, error) {
-	return newToolingStore(model.Architecture(), model.Store())
+func NewToolingStoreFromModel(model *asserts.Model, fallbackArchitecture string) (*ToolingStore, error) {
+	architecture := model.Architecture()
+	// can happen on classic
+	if architecture == "" {
+		architecture = fallbackArchitecture
+	}
+	return newToolingStore(architecture, model.Store())
 }
 
 func NewToolingStore() (*ToolingStore, error) {
@@ -201,37 +208,80 @@ func NewToolingStore() (*ToolingStore, error) {
 
 // DownloadOptions carries options for downloading snaps plus assertions.
 type DownloadOptions struct {
+	Revision  snap.Revision
 	TargetDir string
 	Channel   string
+	CohortKey string
 }
 
-// DownloadSnap downloads the snap with the given name and optionally revision  using the provided store and options. It returns the final full path of the snap inside the opts.TargetDir and a snap.Info for the snap.
-func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts *DownloadOptions) (targetFn string, info *snap.Info, err error) {
-	if opts == nil {
-		opts = &DownloadOptions{}
+var errRevisionAndCohort = errors.New("cannot specify both revision and cohort")
+
+func (opts *DownloadOptions) validate() error {
+	if opts.Revision.Unset() || opts.CohortKey == "" {
+		return nil
+	}
+	return errRevisionAndCohort
+}
+
+// TODO: maybe move this to strutil next to ElliptRight
+func elliptLeft(str string) string {
+	if len(str) < 10 {
+		// shouldn't happen outside of tests
+		return str
+	}
+	return "…" + str[len(str)-8:]
+}
+
+func (opts *DownloadOptions) String() string {
+	spec := make([]string, 0, 4)
+	if !opts.Revision.Unset() {
+		spec = append(spec, fmt.Sprintf("(%s)", opts.Revision))
+	}
+	if opts.Channel != "" {
+		spec = append(spec, fmt.Sprintf("from channel %q", opts.Channel))
+	}
+	if opts.CohortKey != "" {
+		// cohort keys are really long, and the rightmost bit being the
+		// interesting bit, so ellipt the rest
+		spec = append(spec, fmt.Sprintf(`from cohort %q`, elliptLeft(opts.CohortKey)))
+	}
+	if opts.TargetDir != "" {
+		spec = append(spec, fmt.Sprintf("to %q", opts.TargetDir))
+	}
+	return strings.Join(spec, " ")
+}
+
+// DownloadSnap downloads the snap with the given name and optionally revision
+// using the provided store and options. It returns the final full path of the
+// snap inside the opts.TargetDir and a snap.Info for the snap.
+func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targetFn string, info *snap.Info, err error) {
+	if err := opts.validate(); err != nil {
+		return "", nil, err
 	}
 	sto := tsto.sto
 
-	targetDir := opts.TargetDir
-	if targetDir == "" {
+	if opts.TargetDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return "", nil, err
 		}
-		targetDir = pwd
+		opts.TargetDir = pwd
 	}
 
-	logger.Debugf("Going to download snap %q (%s) from channel %q to %q.", name, revision, opts.Channel, opts.TargetDir)
+	if !opts.Revision.Unset() {
+		// XXX: is this really necessary (and, if it is, shoudn't we error out instead)
+		opts.Channel = ""
+	}
+
+	logger.Debugf("Going to download snap %q %s.", name, &opts)
 
 	actions := []*store.SnapAction{{
 		Action:       "download",
 		InstanceName: name,
-		Revision:     revision,
+		Revision:     opts.Revision,
+		CohortKey:    opts.CohortKey,
+		Channel:      opts.Channel,
 	}}
-
-	if revision.Unset() {
-		actions[0].Channel = opts.Channel
-	}
 
 	snaps, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
 	if err != nil {
@@ -241,7 +291,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 	snap := snaps[0]
 
 	baseName := filepath.Base(snap.MountFile())
-	targetFn = filepath.Join(targetDir, baseName)
+	targetFn = filepath.Join(opts.TargetDir, baseName)
 
 	// check if we already have the right file
 	if osutil.FileExists(targetFn) {

@@ -684,3 +684,12 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
 	return err
 }
+
+func (client *Client) DebugGet(aspect string, result interface{}, params map[string]string) error {
+	urlParams := url.Values{"aspect": []string{aspect}}
+	for k, v := range params {
+		urlParams.Set(k, v)
+	}
+	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
+	return err
+}

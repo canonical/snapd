@@ -11,10 +11,6 @@ prepare: |
     snap pack "$TESTSLIB"/snaps/snapctl-hooks
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
-restore: |
-    rm -f basic_1.0_all.snap
-    rm -f snapctl-hooks_1.0_all.snap
-
 execute: |
     echo "Test that snap get fails on a snap without any hooks"
     if output=$(snap get basic foo); then
@@ -89,6 +85,10 @@ execute: |
         echo "Expected 'intnumber' to be '$expected', but it was '$output'"
         exit 1
     fi
+
+    echo "Test nested values"
+    snap set snapctl-hooks command=test-get-nested root.key1="a" root.key2="b"
+    snap set snapctl-hooks command=test-get-nested root.key1="a"
 
     if ! output=$(snap get snapctl-hooks intnumber2); then
         echo "snap get unexpectedly failed"

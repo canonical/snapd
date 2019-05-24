@@ -104,16 +104,7 @@ if [ "$1" = "purge" ]; then
                 rm -f "$mnt"
             done
         fi
-        if [ "$(find /run/snapd/ns/ -name "*.fstab" | wc -l)" -gt 0 ]; then
-            for fstab in /run/snapd/ns/*.fstab; do
-                rm -f "$fstab"
-            done
-        fi
-        if [ "$(find /run/snapd/ns/ -name "*.user-fstab" | wc -l)" -gt 0 ]; then
-            for fstab in /run/snapd/ns/*.user-fstab; do
-                rm -f "$fstab"
-            done
-        fi
+        find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
         umount -l /run/snapd/ns/ || true
     fi
 
@@ -121,7 +112,7 @@ if [ "$1" = "purge" ]; then
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
 
     echo "Removing snapd cache"
-    rm -f /var/cache/snapd/*
+    rm -rf /var/cache/snapd/*
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd

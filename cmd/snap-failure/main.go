@@ -31,7 +31,6 @@ import (
 )
 
 var (
-	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
 
 	opts   struct{}

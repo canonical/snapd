@@ -39,6 +39,7 @@ var (
 	MakeSlotName                 = makeSlotName
 	EnsureUniqueName             = ensureUniqueName
 	SuggestedSlotName            = suggestedSlotName
+	HotplugSlotName              = hotplugSlotName
 	InSameChangeWaitChain        = inSameChangeWaitChain
 	GetHotplugAttrs              = getHotplugAttrs
 	SetHotplugAttrs              = setHotplugAttrs
@@ -53,6 +54,7 @@ var (
 	SetHotplugChangeAttrs        = setHotplugChangeAttrs
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
+	AddHotplugSlot               = addHotplugSlot
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -73,6 +75,12 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	old := contentLinkRetryTimeout
 	contentLinkRetryTimeout = d
 	return func() { contentLinkRetryTimeout = old }
+}
+
+func MockHotplugRetryTimeout(d time.Duration) (restore func()) {
+	old := hotplugRetryTimeout
+	hotplugRetryTimeout = d
+	return func() { hotplugRetryTimeout = old }
 }
 
 func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface) (restore func()) {
@@ -99,7 +107,7 @@ func UpperCaseConnState() map[string]*connState {
 	}
 }
 
-func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget bool) {
+func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget, undesired, hotplugGone bool) {
 	connRef := &interfaces.ConnRef{
 		PlugRef: *conn.Plug.Ref(),
 		SlotRef: *conn.Slot.Ref(),
@@ -113,6 +121,8 @@ func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.C
 		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
 		Auto:             autoConnect,
 		ByGadget:         byGadget,
+		Undesired:        undesired,
+		HotplugGone:      hotplugGone,
 	}
 }
 
@@ -141,4 +151,8 @@ func MockWriteSystemKey(fn func() error) func() {
 	old := writeSystemKey
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }
+}
+
+func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
+	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }

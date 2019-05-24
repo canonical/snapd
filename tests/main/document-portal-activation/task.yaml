@@ -27,7 +27,6 @@ prepare: |
     . "$TESTSLIB"/pkgdb.sh
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    distro_install_package python3-dbus python3-gi
     install_local test-snapd-desktop
     install_local test-snapd-tools
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
@@ -38,11 +37,7 @@ restore: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     [ -f dbus-launch.pid ] && kill "$(cat dbus-launch.pid)"
-    rm -f dbus-launch.pid
-    rm -f stderr.log doc-portal.log report-error.txt
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    distro_purge_package python3-dbus python3-gi
-    distro_auto_remove_packages
     rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
 
 execute: |

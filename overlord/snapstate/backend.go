@@ -20,9 +20,8 @@
 package snapstate
 
 import (
+	"context"
 	"io"
-
-	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timings"
 )
 
 // A StoreService can find, list available updates and download snaps.
@@ -51,18 +51,19 @@ type StoreService interface {
 	Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
 	ConnectivityCheck() (map[string]bool, error)
+	CreateCohorts(context.Context, []string) (map[string]string, error)
 
 	LoginUser(username, password, otp string) (string, string, error)
 	UserInfo(email string) (userinfo *store.User, err error)
 }
 
 type managerBackend interface {
-	// install releated
+	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
-	LinkSnap(info *snap.Info, model *asserts.Model) error
-	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
-	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error
+	LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error
+	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
+	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error

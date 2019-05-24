@@ -34,15 +34,20 @@ bool sc_feature_enabled(sc_feature_flag flag)
 {
 	const char *file_name;
 	switch (flag) {
-	case SC_PER_USER_MOUNT_NAMESPACE:
+	case SC_FEATURE_PER_USER_MOUNT_NAMESPACE:
 		file_name = "per-user-mount-namespace";
+		break;
+	case SC_FEATURE_REFRESH_APP_AWARENESS:
+		file_name = "refresh-app-awareness";
 		break;
 	default:
 		die("unknown feature flag code %d", flag);
 	}
 
 	int dirfd SC_CLEANUP(sc_cleanup_close) = -1;
-	dirfd = open(feature_flag_dir, O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
+	dirfd =
+	    open(feature_flag_dir,
+		 O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
 	if (dirfd < 0 && errno == ENOENT) {
 		return false;
 	}

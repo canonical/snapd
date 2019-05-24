@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -53,10 +54,13 @@ $ snap interfaces -i=<interface> [<snap>]
 
 Filters the complete output so only plugs and/or slots matching the provided
 details are listed.
+
+NOTE this command is deprecated and has been replaced with the 'connections'
+     command.
 `)
 
 func init() {
-	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
+	cmd := addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -67,26 +71,35 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
 	}})
+	cmd.hidden = true
 }
+
+var interfacesDeprecationNotice = i18n.G("'snap interfaces' is deprecated; use 'snap connections'.")
 
 func (x *cmdInterfaces) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	ifaces, err := x.client.Connections()
+	opts := client.ConnectionOptions{
+		All:  true,
+		Snap: x.Positionals.Query.Snap,
+	}
+	ifaces, err := x.client.Connections(&opts)
 	if err != nil {
 		return err
 	}
 	if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
 		return fmt.Errorf(i18n.G("no interfaces found"))
 	}
+
+	defer fmt.Fprintln(Stderr, "\n"+fill(interfacesDeprecationNotice, 0))
+
 	w := tabWriter()
 	defer w.Flush()
 	fmt.Fprintln(w, i18n.G("Slot\tPlug"))
 
 	wantedSnap := x.Positionals.Query.Snap
-
 	for _, slot := range ifaces.Slots {
 		if wantedSnap != "" {
 			var ok bool

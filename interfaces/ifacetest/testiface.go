@@ -112,8 +112,9 @@ type TestHotplugInterface struct {
 	TestInterface
 
 	// Support for interacting with hotplug subsystem.
-	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error)
-	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error
+	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error)
+	HandledByGadgetCallback       func(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool
+	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error)
 }
 
 // String() returns the same value as Name().
@@ -413,16 +414,23 @@ func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *
 
 // Support for interacting with hotplug subsystem.
 
-func (t *TestHotplugInterface) HotplugKey(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+func (t *TestHotplugInterface) HotplugKey(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 	if t.HotplugKeyCallback != nil {
 		return t.HotplugKeyCallback(deviceInfo)
 	}
 	return "", nil
 }
 
-func (t *TestHotplugInterface) HotplugDeviceDetected(deviceInfo *hotplug.HotplugDeviceInfo, spec *hotplug.Specification) error {
+func (t *TestHotplugInterface) HotplugDeviceDetected(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
 	if t.HotplugDeviceDetectedCallback != nil {
-		return t.HotplugDeviceDetectedCallback(deviceInfo, spec)
+		return t.HotplugDeviceDetectedCallback(deviceInfo)
 	}
-	return nil
+	return nil, nil
+}
+
+func (t *TestHotplugInterface) HandledByGadget(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
+	if t.HandledByGadgetCallback != nil {
+		return t.HandledByGadgetCallback(deviceInfo, slot)
+	}
+	return false
 }

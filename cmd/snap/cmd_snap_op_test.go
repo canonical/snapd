@@ -44,12 +44,14 @@ import (
 type snapOpTestServer struct {
 	c *check.C
 
-	checker   func(r *http.Request)
-	n         int
-	total     int
-	channel   string
-	rebooting bool
-	snap      string
+	checker         func(r *http.Request)
+	n               int
+	total           int
+	channel         string
+	trackingChannel string
+	confinement     string
+	rebooting       bool
+	snap            string
 }
 
 var _ = check.Suite(&SnapOpSuite{})
@@ -80,7 +82,7 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 3:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s"}]}\n`, t.snap, t.channel)
+		fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "%s", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"%s", "tracking-channel": "%s", "confinement": "%s"}]}\n`, t.snap, t.channel, t.trackingChannel, t.confinement)
 	default:
 		t.c.Fatalf("expected to get %d requests, now on %d", t.total, t.n+1)
 	}
@@ -205,6 +207,28 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
+	// PATH restored by test tear down
+	os.Setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin")
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "candidate",
+		})
+		s.srv.channel = "candidate"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
+	c.Check(s.Stderr(), testutil.MatchesWrapped, `Warning: \S+/bin was not found in your \$PATH.*`)
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
@@ -231,16 +255,81 @@ func (s *SnapOpSuite) TestInstallFromBranch(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"channel": "3.4/hotfix-1",
+			"channel": "3.4/stable/hotfix-1",
 		})
-		s.srv.channel = "3.4/hotfix-1"
+		s.srv.channel = "3.4/stable/hotfix-1"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "3.4/hotfix-1", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "3.4/stable/hotfix-1", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/hotfix-1\) 1.0 from Bar installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(3.4/stable/hotfix-1\) 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallSameRiskInTrack(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "latest/stable",
+		})
+		s.srv.channel = "stable"
+		s.srv.trackingChannel = "latest/stable"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "latest/stable", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, "foo 1.0 from Bar installed\n")
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallSameRiskInDefaultTrack(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "stable",
+		})
+		s.srv.channel = "18/stable"
+		s.srv.trackingChannel = "18/stable"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--stable", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, "foo (18/stable) 1.0 from Bar installed\n")
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallRiskChannelClosed(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "edge",
+		})
+		s.srv.channel = "stable"
+		s.srv.trackingChannel = "edge"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "edge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `foo 1.0 from Bar installed
+Channel edge for foo is closed; temporarily forwarding to stable.
+`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -274,6 +363,7 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 			"action":  "install",
 			"classic": true,
 		})
+		s.srv.confinement = "classic"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
@@ -282,6 +372,26 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
 	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallStrictWithClassicFlag(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"classic": true,
+		})
+		s.srv.confinement = "strict"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
+	c.Check(s.Stderr(), testutil.MatchesWrapped, `Warning:\s+flag --classic ignored for strictly confined snap foo.*`)
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
@@ -721,6 +831,8 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 		name, _, body := formFile(form, c)
 		c.Check(name, check.Equals, "snap")
 		c.Check(string(body), check.Equals, "snap-data")
+
+		s.srv.confinement = "classic"
 	}
 
 	snapBody := []byte("snap-data")
@@ -1064,6 +1176,23 @@ func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from Bar refreshed`)
+}
+
+func (s *SnapOpSuite) TestRefreshOneWithPinnedTrack(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "refresh",
+			"channel": "stable",
+		})
+		s.srv.channel = "18/stable"
+		s.srv.trackingChannel = "18/stable"
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--stable", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Equals, "foo (18/stable) 1.0 from Bar refreshed\n")
 }
 
 func (s *SnapOpSuite) TestRefreshOneClassic(c *check.C) {
@@ -1423,6 +1552,26 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 
 	s.RedirectClientToTestServer(s.srv.handle)
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
+	s.srv.total = 3
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "remove",
+			"purge":  true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed`)

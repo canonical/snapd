@@ -213,6 +213,12 @@ dbus(receive, send)
     interface=org.freedesktop.hostname1
     member={Set,SetStatic}Hostname
     peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.hostname1
+    member={Set,SetStatic}Hostname,
 
 # Sleep monitor inside NetworkManager needs this
 # do not use peer=(label=unconfined) here since this is DBus activated

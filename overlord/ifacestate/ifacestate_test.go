@@ -37,38 +37,44 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
+type cleaner interface {
+	AddCleanup(func())
+}
+
 type AssertsMock struct {
 	Db           *asserts.Database
 	storeSigning *assertstest.StoreStack
-	brandSigning *assertstest.SigningDB
 	st           *state.State
+
+	cleaner cleaner
 }
 
-func (am *AssertsMock) SetupAsserts(c *C, st *state.State) {
+func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	am.st = st
+	am.cleaner = cleaner
 	am.storeSigning = assertstest.NewStoreStack("canonical", nil)
-	brandPrivKey, _ := assertstest.GenerateKey(752)
-	am.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -81,23 +87,13 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State) {
 
 	st.Lock()
 	assertstate.ReplaceDB(st, am.Db)
-
-	brandAcct := assertstest.NewAccount(am.storeSigning, "my-brand", map[string]interface{}{
-		"account-id": "my-brand",
-	}, "")
-	err = assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-
-	brandPubKey, err := am.brandSigning.PublicKey("")
-	c.Assert(err, IsNil)
-	brandAccKey := assertstest.NewAccountKey(am.storeSigning, brandAcct, nil, brandPubKey, "")
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
 	st.Unlock()
 }
 
-func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
-	headers := map[string]interface{}{
+func (am *AssertsMock) mockModel(c *C, extraHeaders map[string]interface{}) *asserts.Model {
+	model := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
 		"series":       "16",
 		"brand-id":     "my-brand",
 		"model":        "my-model",
@@ -106,20 +102,17 @@ func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
 		"architecture": "amd64",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	for k, v := range extraHeaders {
-		headers[k] = v
-	}
-	model, err := am.brandSigning.Sign(asserts.ModelType, headers, nil, "")
-	c.Assert(err, IsNil)
-	am.st.Lock()
-	defer am.st.Unlock()
-	err = assertstate.Add(am.st, model)
-	c.Assert(err, IsNil)
-	err = auth.SetDevice(am.st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
-	})
-	c.Assert(err, IsNil)
+	return assertstest.FakeAssertion(model, extraHeaders).(*asserts.Model)
+}
+
+func (am *AssertsMock) MockModel(c *C, extraHeaders map[string]interface{}) {
+	model := am.mockModel(c, extraHeaders)
+	am.cleaner.AddCleanup(snapstatetest.MockDeviceModel(model))
+}
+
+func (am *AssertsMock) TrivialDeviceContext(c *C, extraHeaders map[string]interface{}) *snapstatetest.TrivialDeviceContext {
+	model := am.mockModel(c, extraHeaders)
+	return &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 }
 
 func (am *AssertsMock) MockSnapDecl(c *C, name, publisher string, extraHeaders map[string]interface{}) {
@@ -197,7 +190,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
 
-	s.SetupAsserts(c, s.state)
+	s.SetupAsserts(c, s.state, &s.BaseTest)
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -219,6 +212,10 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.log = buf
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
+	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+		return "abcdef 1.2.3 1234abcd -", nil
+	})
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -929,6 +926,8 @@ func (s *interfaceManagerSuite) TestAutoconnectRetryOnConnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectIgnoresSetupProfilesPhase2(c *C) {
+	s.MockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -1020,6 +1019,8 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
+	s.MockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -1456,16 +1457,32 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  static: plug-static-value
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+  static: slot-static-value
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	connState := map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface":    "test",
-			"slot-static":  map[string]interface{}{"attr1": "value1"},
-			"slot-dynamic": map[string]interface{}{"attr2": "value2"},
-			"plug-static":  map[string]interface{}{"attr3": "value3"},
-			"plug-dynamic": map[string]interface{}{"attr4": "value4"},
+			"slot-static":  map[string]interface{}{"static": "slot-static-value"},
+			"slot-dynamic": map[string]interface{}{"dynamic": "slot-dynamic-value"},
+			"plug-static":  map[string]interface{}{"static": "plug-static-value"},
+			"plug-dynamic": map[string]interface{}{"dynamic": "plug-dynamic-value"},
 		},
 	}
 
@@ -1488,7 +1505,7 @@ func (s *interfaceManagerSuite) TestDisconnectUndo(c *C) {
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitAll(ts)
 	change.AddTask(terr)
-	c.Assert(change.Tasks(), HasLen, 4)
+	c.Assert(change.Tasks(), HasLen, 2)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -1569,6 +1586,10 @@ func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
 	repo := mgr.Repository()
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) mockSecBackend(c *C, backend interfaces.SecurityBackend) {
+	s.extraBackends = append(s.extraBackends, backend)
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
@@ -1812,6 +1833,8 @@ hooks:
 // The auto-connect task will not auto-connect a plug that was previously
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C) {
+	s.MockModel(c, nil)
+
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
@@ -2027,6 +2050,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 
 // The auto-connect task will not auto-connect slots if viable alternative slots are present.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlternative(c *C) {
+	s.MockModel(c, nil)
+
 	// Mock the interface that will be used by the test
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// Add an OS snap.
@@ -2067,8 +2092,6 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 
 // The auto-connect task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
-	s.MockModel(c, nil)
-
 	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
 		c.Check(conns, DeepEquals, map[string]interface{}{
@@ -2091,6 +2114,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedWhen
 }
 
 func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]interface{}, []*interfaces.ConnRef)) {
+	s.MockModel(c, nil)
+
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -2350,7 +2375,374 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityKeepsExistingConnectionSt
 	})
 }
 
+func (s *interfaceManagerSuite) TestReloadingConnectionsOnStartupUpdatesStaticAttributes(c *C) {
+	// Put a connection in the state. The connection binds the two snaps we are
+	// adding below. The connection contains a copy of the static attributes
+	// but refers to the "old" values, in contrast to what the snaps define.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":   "content",
+			"plug-static": map[string]interface{}{"content": "foo", "attr": "old-plug-attr"},
+			"slot-static": map[string]interface{}{"content": "foo", "attr": "old-slot-attr"},
+		},
+	})
+	s.state.Unlock()
+
+	// Add consumer and producer snaps, with a plug and slot respectively, each
+	// carrying a single attribute with a "new" value. The "new" value is in
+	// contrast to the old value in the connection state.
+	const consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo 
+  attr: new-plug-attr
+`
+	const producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo 
+  attr: new-slot-attr
+`
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+
+	// Create a connection reference, it's just verbose and used a few times
+	// below so it's put up here.
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+
+	// Add a test security backend and a test interface. We want to use them to
+	// observe the interaction with the security backend and to allow the
+	// interface manager to keep the test plug and slot of the consumer and
+	// producer snaps we introduce below.
+	secBackend := &ifacetest.TestSecurityBackend{
+		BackendName: "test",
+		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+			// Whenever this function is invoked to setup security for a snap
+			// we check the connection attributes that it would act upon.
+			// Because of how connection state is refreshed we never expect to
+			// see the old attribute values.
+			conn, err := repo.Connection(connRef)
+			c.Assert(err, IsNil)
+			c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-plug-attr"})
+			c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-slot-attr"})
+			return nil
+		},
+	}
+	s.mockSecBackend(c, secBackend)
+	//s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "content"})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and re-connects them using the stored connection information.
+	mgr := s.manager(c)
+
+	// Inspect the repository connection data. The data no longer refers to the
+	// old connection attributes because they were updated when the connections
+	// were reloaded from the state.
+	repo := mgr.Repository()
+	conn, err := repo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-plug-attr"})
+	c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "new-slot-attr"})
+
+	// Because of the fact that during testing the system key always
+	// mismatches, the security setup is performed.
+	c.Check(secBackend.SetupCalls, HasLen, 2)
+}
+
+// LP:#1825883; make sure static attributes in conns state are updated from the snap yaml on snap refresh (content interface only)
+func (s *interfaceManagerSuite) testDoSetupProfilesUpdatesStaticAttributes(c *C, snapNameToSetup string) {
+	// Put a connection in the state. The connection binds the two snaps we are
+	// adding below. The connection reflects the snaps as they are now, and
+	// carries no attribute data.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "content",
+		},
+		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
+			"interface":   "unrelated",
+			"plug-static": map[string]interface{}{"attr": "unrelated-stale"},
+			"slot-static": map[string]interface{}{"attr": "unrelated-stale"},
+		},
+	})
+	s.state.Unlock()
+
+	// Add a pair of snap versions for producer and consumer snaps, with a plug
+	// and slot respectively. The second version producer and consumer snaps
+	// where the interfaces carry additional attributes.
+	const consumerV1Yaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo
+ plug2:
+  interface: content
+  content: bar
+`
+	const producerV1Yaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo
+`
+	const consumerV2Yaml = `
+name: consumer
+version: 2
+plugs:
+ plug:
+  interface: content
+  content: foo
+  attr: plug-value
+ plug2:
+  interface: content
+  content: bar-changed
+  attr: plug-value
+`
+	const producerV2Yaml = `
+name: producer
+version: 2
+slots:
+ slot:
+  interface: content
+  content: foo
+  attr: slot-value
+`
+
+	const unrelatedAYaml = `
+name: unrelated-a
+version: 1
+plugs:
+  plug:
+   interface: unrelated
+   attr: unrelated-new
+`
+	const unrelatedBYaml = `
+name: unrelated-b
+version: 1
+slots:
+  slot:
+   interface: unrelated
+   attr: unrelated-new
+`
+
+	// NOTE: s.mockSnap sets the state and calls MockSnapInstance internally,
+	// which puts the snap on disk. This gives us all four YAMLs on disk and
+	// just the first version of both in the state.
+	s.mockSnap(c, producerV1Yaml)
+	s.mockSnap(c, consumerV1Yaml)
+	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+
+	// Mock two unrelated snaps, those will show that the state of unrelated
+	// snaps is not clobbered by the refresh process.
+	s.mockSnap(c, unrelatedAYaml)
+	s.mockSnap(c, unrelatedBYaml)
+
+	// Create a connection reference, it's just verbose and used a few times
+	// below so it's put up here.
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+
+	// Add a test security backend and a test interface. We want to use them to
+	// observe the interaction with the security backend and to allow the
+	// interface manager to keep the test plug and slot of the consumer and
+	// producer snaps we introduce below.
+	secBackend := &ifacetest.TestSecurityBackend{
+		BackendName: "test",
+		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+			// Whenever this function is invoked to setup security for a snap
+			// we check the connection attributes that it would act upon.
+			// Those attributes should always match those of the snap version.
+			conn, err := repo.Connection(connRef)
+			c.Assert(err, IsNil)
+			switch snapInfo.Version {
+			case "1":
+				c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+				c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+			case "2":
+				switch snapNameToSetup {
+				case "consumer":
+					// When the consumer has security setup the consumer's plug attribute is updated.
+					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "plug-value"})
+					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+				case "producer":
+					// When the producer has security setup the producer's slot attribute is updated.
+					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "slot-value"})
+				}
+			}
+			return nil
+		},
+	}
+	s.mockSecBackend(c, secBackend)
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "unrelated"})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Because in tests the system key mismatch always occurs, the backend is
+	// invoked during the startup of the interface manager. The count
+	// represents the number of snaps that are in the system.
+	c.Check(secBackend.SetupCalls, HasLen, 4)
+
+	// Alter the state of producer and consumer snaps to get new revisions.
+	s.state.Lock()
+	for _, snapName := range []string{"producer", "consumer"} {
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}},
+			Current:  snap.R(2),
+			SnapType: string("app"),
+		})
+	}
+	s.state.Unlock()
+
+	// Setup profiles for the given snap, either consumer or producer.
+	s.state.Lock()
+	change := s.state.NewChange("test", "")
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: snapNameToSetup, Revision: snap.R(2)}})
+	change.AddTask(task)
+	s.state.Unlock()
+
+	// Spin the wheels to run the tasks we added.
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// We expect our security backend to be invoked for both snaps. See above
+	// for explanation about why it has four calls already.
+	c.Check(secBackend.SetupCalls, HasLen, 4+2)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupProfilesUpdatesStaticAttributesPlugSnap(c *C) {
+	s.testDoSetupProfilesUpdatesStaticAttributes(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestDoSetupProfilesUpdatesStaticAttributesSlotSnap(c *C) {
+	s.testDoSetupProfilesUpdatesStaticAttributes(c, "producer")
+}
+
+func (s *interfaceManagerSuite) TestUpdateStaticAttributesIgnoresContentMismatch(c *C) {
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "content",
+			"content":   "foo",
+		},
+	})
+	s.state.Unlock()
+
+	// Add a pair of snap versions for producer and consumer snaps, with a plug
+	// and slot respectively. The second version are producer and consumer snaps
+	// where the interfaces carry additional attributes but there is a mismatch
+	// on "content" attribute value.
+	const consumerV1Yaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo
+`
+	const producerV1Yaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo
+`
+	const consumerV2Yaml = `
+name: consumer
+version: 2
+plugs:
+ plug:
+  interface: content
+  content: foo-mismatch
+  attr: plug-value
+`
+	const producerV2Yaml = `
+name: producer
+version: 2
+slots:
+ slot:
+  interface: content
+  content: foo
+  attr: slot-value
+`
+
+	// NOTE: s.mockSnap sets the state and calls MockSnapInstance internally,
+	// which puts the snap on disk. This gives us all four YAMLs on disk and
+	// just the first version of both in the state.
+	s.mockSnap(c, producerV1Yaml)
+	s.mockSnap(c, consumerV1Yaml)
+	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2)})
+
+	secBackend := &ifacetest.TestSecurityBackend{BackendName: "test"}
+	s.mockSecBackend(c, secBackend)
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+
+	// Alter the state of producer and consumer snaps to get new revisions.
+	s.state.Lock()
+	for _, snapName := range []string{"producer", "consumer"} {
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}},
+			Current:  snap.R(2),
+			SnapType: string("app"),
+		})
+	}
+	s.state.Unlock()
+
+	s.state.Lock()
+	change := s.state.NewChange("test", "")
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "consumer", Revision: snap.R(2)}})
+	change.AddTask(task)
+	s.state.Unlock()
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	s.state.Get("conns", &conns)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":   "content",
+			"plug-static": map[string]interface{}{"content": "foo"},
+			"slot-static": map[string]interface{}{"content": "foo"},
+		},
+	})
+}
+
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityIgnoresStrayConnection(c *C) {
+	s.MockModel(c, nil)
+
 	// Add an OS snap
 	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
@@ -2388,6 +2780,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityIgnoresStrayConnection(c 
 
 // The setup-profiles task will add implicit slots necessary for the OS snap.
 func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
+	s.MockModel(c, nil)
+
 	// Initialize the manager.
 	mgr := s.manager(c)
 
@@ -2419,6 +2813,8 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
+	s.MockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	snapInfo := s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -2435,6 +2831,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInvokedOnSlotSide(c *C) {
+	s.MockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	snapInfo := s.mockSnap(c, producerYaml)
@@ -2488,6 +2886,8 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecurityReloadsConnectionsWhenInv
 // using that flag. Old copy of SnapState.Flag's DevMode is saved for the undo
 // handler under `old-devmode`.
 func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
+	s.MockModel(c, nil)
+
 	// Put the OS snap in place.
 	_ = s.manager(c)
 
@@ -2522,6 +2922,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 // snap when it had prior connections and DisconnectSnap() returns it as a part
 // of the affected set.
 func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
+	s.MockModel(c, nil)
+
 	// Put the OS and the sample snaps in place.
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 	oldSnapInfo := s.mockSnap(c, sampleSnapYaml)
@@ -2721,6 +3123,20 @@ func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3023,17 +3439,25 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 
 func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+  attr: plug-attr
+`
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, coreSnapYaml)
 
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug core:slot":  map[string]interface{}{"interface": "test"},
-		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:hotplug-slot": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:slot2":        map[string]interface{}{"interface": "test"},
 	})
 	s.state.Set("hotplug-slots", map[string]interface{}{
-		"slot": map[string]interface{}{
-			"name":        "slot",
+		"hotplug-slot": map[string]interface{}{
+			"name":        "hotplug-slot",
 			"interface":   "test",
 			"hotplug-key": "1234",
 		}})
@@ -3044,7 +3468,7 @@ func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	s.state.Lock()
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(consumerInfo.Plugs["plug"], nil, nil),
-		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "core"}, Name: "slot"}, nil, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "core"}, Name: "hotplug-slot"}, nil, nil),
 	}
 
 	ts, err := ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithByHotplugSet())
@@ -3066,27 +3490,53 @@ func (s *interfaceManagerSuite) TestDisconnectByHotplug(c *C) {
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug core:slot":  map[string]interface{}{"interface": "test", "hotplug-gone": true},
-		"consumer:plug core:slot2": map[string]interface{}{"interface": "test"},
+		"consumer:plug core:hotplug-slot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-gone": true,
+		},
+		"consumer:plug core:slot2": map[string]interface{}{
+			"interface": "test",
+		},
 	})
 }
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo
+  attr: plug-value
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo
+  attr: slot-value
+`
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
-			"interface": "test",
+			"interface": "content",
 			"plug-static": map[string]interface{}{
-				"attr1": "value2",
-				"attr3": "value3",
+				"content":    "foo",
+				"attr":       "stored-plug-value",
+				"other-attr": "irrelevant-value",
 			},
 			"slot-static": map[string]interface{}{
-				"attr2": "value4",
-				"attr4": "value6",
+				"interface":  "content",
+				"content":    "foo",
+				"attr":       "stored-slot-value",
+				"other-attr": "irrelevant-value",
 			},
 		},
 	})
@@ -3104,13 +3554,13 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(conn.Plug.Name(), Equals, "plug")
 	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"attr1": "value2",
-		"attr3": "value3",
+		"content": "foo",
+		"attr":    "plug-value",
 	})
 	c.Assert(conn.Slot.Name(), Equals, "slot")
 	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{
-		"attr2": "value4",
-		"attr4": "value6",
+		"content": "foo",
+		"attr":    "slot-value",
 	})
 }
 
@@ -3185,6 +3635,8 @@ func (s *interfaceManagerSuite) TestManagerReloadsHotlugConnection(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
+	s.MockModel(c, nil)
+
 	mgr := s.manager(c)
 	repo := mgr.Repository()
 
@@ -3245,7 +3697,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeny(c *C) {
-	s.MockModel(c, nil)
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -3263,7 +3715,7 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, "installation denied.*")
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, "installation denied.*")
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDenySkippedIfNoDecl(c *C) {
@@ -3283,11 +3735,11 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {
-	s.MockModel(c, nil)
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -3310,11 +3762,11 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
 		"store": "my-store",
 	})
 
@@ -3343,11 +3795,11 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeNoStore(c *C) {
-	s.MockModel(c, nil)
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
@@ -3374,11 +3826,11 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, `installation not allowed.*`)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, `installation not allowed.*`)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
 		"store": "other-store",
 	})
 
@@ -3407,11 +3859,11 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, `installation not allowed.*`)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, `installation not allowed.*`)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightFriendlyStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -3444,11 +3896,11 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongFriendlyStore(c *C) {
-	s.MockModel(c, map[string]interface{}{
+	deviceCtx := s.TrivialDeviceContext(c, map[string]interface{}{
 		"store": "my-substore",
 	})
 
@@ -3481,7 +3933,7 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, `installation not allowed.*`)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, `installation not allowed.*`)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) {
@@ -3489,7 +3941,7 @@ func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) 
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
 	c.Check(snapInfo.Slots["home"], NotNil)
 }
 
@@ -3868,6 +4320,8 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *C) {
+	s.MockModel(c, nil)
+
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
@@ -3893,6 +4347,8 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *C) {
+	s.MockModel(c, nil)
+
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
@@ -3917,6 +4373,8 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
+	s.MockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
 	producer := s.mockSnap(c, producerYaml)
@@ -3950,6 +4408,8 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
+	s.MockModel(c, nil)
+
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
 	// producer snap has no slot, doConnect should complain
@@ -4052,6 +4512,45 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
 }
 
+func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
+	restore := interfaces.MockSystemKey(`{"core": "123"}`)
+	defer restore()
+
+	s.extraBackends = []interfaces.SecurityBackend{&ifacetest.TestSecurityBackend{BackendName: "fake"}}
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+
+	oldDurationThreshold := timings.DurationThreshold
+	defer func() {
+		timings.DurationThreshold = oldDurationThreshold
+	}()
+	timings.DurationThreshold = 0
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var allTimings []map[string]interface{}
+	c.Assert(s.state.Get("timings", &allTimings), IsNil)
+	c.Check(allTimings, HasLen, 1)
+
+	timings, ok := allTimings[0]["timings"]
+	c.Assert(ok, Equals, true)
+
+	// one backed expected; the other fake backend from test setup doesn't have a name and is ignored by regenerateAllSecurityProfiles
+	c.Assert(timings, HasLen, 1)
+	timingsList, ok := timings.([]interface{})
+	c.Assert(ok, Equals, true)
+	tm := timingsList[0].(map[string]interface{})
+	c.Check(tm["label"], Equals, "setup-security-backend")
+	c.Check(tm["summary"], Matches, `setup security backend "fake" for snap "consumer"`)
+
+	tags, ok := allTimings[0]["tags"]
+	c.Assert(ok, Equals, true)
+	c.Check(tags, DeepEquals, map[string]interface{}{"startup": "ifacemgr"})
+}
+
 func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
 	s.MockModel(c, nil)
 
@@ -4097,6 +4596,8 @@ func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectForDefaultContentProvider(c *C) {
+	s.MockModel(c, nil)
+
 	restore := ifacestate.MockContentLinkRetryTimeout(5 * time.Millisecond)
 	defer restore()
 
@@ -4178,6 +4679,8 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectForDefaultContentProviderWrongOrderWaitChain(c *C) {
+	s.MockModel(c, nil)
+
 	restore := ifacestate.MockContentLinkRetryTimeout(5 * time.Millisecond)
 	defer restore()
 
@@ -4792,6 +5295,9 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 type udevMonitorMock struct {
 	ConnectError, RunError                             error
 	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
+	AddDevice                                          udevmonitor.DeviceAddedFunc
+	RemoveDevice                                       udevmonitor.DeviceRemovedFunc
+	EnumerationDone                                    udevmonitor.EnumerationDoneFunc
 }
 
 func (u *udevMonitorMock) Connect() error {
@@ -4962,7 +5468,8 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(conn.Slot.Attr("number", &number), IsNil)
 	c.Check(number, Equals, int64(1))
 
-	ifacestate.UpdateConnectionInConnState(conns, conn, false, false)
+	var isAuto, byGadget, isUndesired, hotplugGone bool
+	ifacestate.UpdateConnectionInConnState(conns, conn, isAuto, byGadget, isUndesired, hotplugGone)
 	ifacestate.SetConns(st, conns)
 
 	// restore connection from conns state
@@ -4976,6 +5483,325 @@ func (s *interfaceManagerSuite) TestAttributesRestoredFromConns(c *C) {
 	c.Check(restoredSlot.Attr("number", &number), IsNil)
 	c.Check(number, Equals, int64(1))
 	c.Check(restoredSlot.Attr("dynamic-number", &dynnumber), IsNil)
+}
+
+func (s *interfaceManagerSuite) setupHotplugConnectTestData(c *C) *state.Change {
+	s.state.Unlock()
+
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"}), IsNil)
+
+	// mock hotplug slot in the repo and state
+	err := repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+
+	// mock the consumer
+	si := &snap.SideInfo{RealName: "consumer", Revision: snap.R(1)}
+	testSnap := snaptest.MockSnapInstance(c, "", consumerYaml, si)
+	c.Assert(testSnap.Plugs["plug"], NotNil)
+	c.Assert(repo.AddPlug(testSnap.Plugs["plug"]), IsNil)
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "1234")
+	chg.AddTask(t)
+
+	return chg
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	// simulate a device that was known and connected before
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectIgnoresUndesired(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	// simulate a device that was known and connected before
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"undesired":   true,
+		}})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// no connect task created
+	c.Check(chg.Tasks(), HasLen, 1)
+	c.Assert(chg.Err(), IsNil)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"undesired":   true,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectSlotMissing(c *C) {
+	s.MockModel(c, nil)
+
+	repo := s.manager(c).Repository()
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"}), IsNil)
+	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "slot", Interface: "test", HotplugKey: "1"}), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "2")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot find hotplug slot for interface test and hotplug key "2".*`)
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectNothingTodo(c *C) {
+	s.MockModel(c, nil)
+
+	repo := s.manager(c).Repository()
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+
+	iface := &ifacetest.TestInterface{InterfaceName: "test", AutoConnectCallback: func(*snap.PlugInfo, *snap.SlotInfo) bool { return false }}
+	c.Assert(repo.AddInterface(iface), IsNil)
+	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "hotplugslot", Interface: "test", HotplugKey: "1"}), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1",
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "1")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// no connect tasks created
+	c.Check(chg.Tasks(), HasLen, 1)
+	c.Assert(chg.Err(), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectConflictRetry(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	// simulate a device that was known and connected before
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	otherChg := s.state.NewChange("other-chg", "...")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "core"}})
+	otherChg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status().Ready(), Equals, false)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 1)
+
+	hotplugConnectTask := tasks[0]
+	c.Check(hotplugConnectTask.Status(), Equals, state.DoingStatus)
+	c.Check(hotplugConnectTask.Log()[0], Matches, `.*hotplug connect will be retried: conflicting snap core with task "link-snap"`)
+}
+
+func (s *interfaceManagerSuite) TestHotplugAutoconnect(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"auto":        true,
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAutoconnectConflictRetry(c *C) {
+	s.MockModel(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.setupHotplugConnectTestData(c)
+
+	otherChg := s.state.NewChange("other-chg", "...")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "core"}})
+	otherChg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status().Ready(), Equals, false)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 1)
+
+	hotplugConnectTask := tasks[0]
+	c.Check(hotplugConnectTask.Status(), Equals, state.DoingStatus)
+	c.Check(hotplugConnectTask.Log()[0], Matches, `.*hotplug connect will be retried: conflicting snap core with task "link-snap"`)
+}
+
+// mockConsumer mocks a consumer snap and its single plug in the repository
+func mockConsumer(c *C, st *state.State, repo *interfaces.Repository, snapYaml, consumerSnapName, plugName string) {
+	si := &snap.SideInfo{RealName: consumerSnapName, Revision: snap.R(1)}
+	consumer := snaptest.MockSnapInstance(c, "", snapYaml, si)
+	c.Assert(consumer.Plugs[plugName], NotNil)
+	c.Assert(repo.AddPlug(consumer.Plugs[plugName]), IsNil)
+	snapstate.Set(st, consumerSnapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+}
+
+func (s *interfaceManagerSuite) TestHotplugConnectAndAutoconnect(c *C) {
+	s.MockModel(c, nil)
+
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"}), IsNil)
+
+	// mock hotplug slot in the repo and state
+	c.Assert(repo.AddSlot(&snap.SlotInfo{Snap: coreInfo, Name: "hotplugslot", Interface: "test", HotplugKey: "1234"}), IsNil)
+
+	s.state.Lock()
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{"name": "hotplugslot", "interface": "test", "hotplug-key": "1234"},
+	})
+
+	mockConsumer(c, s.state, repo, consumerYaml, "consumer", "plug")
+	mockConsumer(c, s.state, repo, consumer2Yaml, "consumer2", "plug")
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-connect", "")
+	ifacestate.SetHotplugAttrs(t, "test", "1234")
+	chg.AddTask(t)
+
+	// simulate a device that was known and connected before to only one consumer, this connection will be restored
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// two connections now present (restored one for consumer, and new one for consumer2)
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+		},
+		"consumer2:plug core:hotplugslot": map[string]interface{}{
+			"interface":   "test",
+			"hotplug-key": "1234",
+			"auto":        true,
+			"plug-static": map[string]interface{}{"attr1": "value1"},
+		}})
 }
 
 func (s *interfaceManagerSuite) TestHotplugDisconnect(c *C) {
@@ -5245,6 +6071,302 @@ func (s *interfaceManagerSuite) TestHotplugDisconnectWaitsForDisconnectPlug(c *C
 	c.Assert(hotplugChg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *interfaceManagerSuite) testHotplugAddNewSlot(c *C, devData map[string]string, specName, expectedName string) {
+	_ = s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: specName, Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
+	devinfo, _ := hotplug.NewHotplugDeviceInfo(devData)
+	t.Set("device-info", devinfo)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is created in the repository
+	slot := repo.Slot("core", expectedName)
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.HotplugKey, Equals, snap.HotplugKey("1234"))
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, HasLen, 1)
+	c.Check(hotplugSlots[expectedName], DeepEquals, map[string]interface{}{
+		"name":         expectedName,
+		"interface":    "test",
+		"hotplug-key":  "1234",
+		"static-attrs": map[string]interface{}{"foo": "bar"},
+		"hotplug-gone": false,
+	})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromSpec(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"}, "hotplugslot", "hotplugslot")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromDevice(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"}, "", "hdcamera")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddNewSlotWithNameFromInterface(c *C) {
+	s.testHotplugAddNewSlot(c, map[string]string{"DEVPATH": "/a"}, "", "test")
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddGoneSlot(c *C) {
+	_ = s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot-old-name": map[string]interface{}{
+			"name":         "hotplugslot-old-name",
+			"interface":    "test",
+			"static-attrs": map[string]interface{}{"foo": "old"},
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "bar"}}
+	t.Set("proposed-slot", proposedSlot)
+	t.Set("device-info", map[string]string{"DEVPATH": "/a", "NAME": "hdcamera"})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is re-created in the repository, reuses old name and has new attributes
+	slot := repo.Slot("core", "hotplugslot-old-name")
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot-old-name": map[string]interface{}{
+			"name":         "hotplugslot-old-name",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"hotplug-gone": false,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugAddSlotWithChangedAttrs(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"static-attrs": map[string]interface{}{"foo": "old"},
+			"hotplug-key":  "1234",
+		}})
+	c.Assert(repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		Attrs:      map[string]interface{}{"foo": "oldfoo"},
+		HotplugKey: "1234",
+	}), IsNil)
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-add-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	proposedSlot := hotplug.ProposedSlot{Name: "hotplugslot", Label: "", Attrs: map[string]interface{}{"foo": "newfoo"}}
+	t.Set("proposed-slot", proposedSlot)
+	devinfo, _ := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/a"})
+	t.Set("device-info", devinfo)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// hotplugslot is re-created in the repository
+	slot := repo.Slot("core", "hotplugslot")
+	c.Assert(slot, NotNil)
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "newfoo"})
+	c.Check(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Check(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "newfoo"},
+			"hotplug-gone": false,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+
+	// sanity check
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-update-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	t.Set("slot-attrs", map[string]interface{}{"foo": "bar"})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	// hotplugslot is updated in the repository
+	slot := repo.Slot("core", "hotplugslot")
+	c.Assert(slot, NotNil)
+	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"foo": "bar"})
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"static-attrs": map[string]interface{}{"foo": "bar"},
+			"hotplug-gone": false,
+		}})
+}
+
+func (s *interfaceManagerSuite) TestHotplugUpdateSlotWhenConnected(c *C) {
+	coreInfo := s.mockSnap(c, coreSnapYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+	repo := s.manager(c).Repository()
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:       coreInfo,
+		Name:       "hotplugslot",
+		Interface:  "test",
+		HotplugKey: "1234",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddPlug(consumer.Plugs["plug"])
+	c.Assert(err, IsNil)
+
+	// sanity check
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("hotplug-slots", map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug core:hotplugslot": map[string]interface{}{
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
+		}})
+	_, err = repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "hotplugslot"}},
+		nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("hotplug change", "")
+	t := s.state.NewTask("hotplug-update-slot", "")
+	t.Set("hotplug-key", "1234")
+	t.Set("interface", "test")
+	t.Set("slot-attrs", map[string]interface{}{})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*internal error: cannot update slot hotplugslot while connected.*`)
+
+	// hotplugslot is not removed because of existing connection
+	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
+
+	var hotplugSlots map[string]interface{}
+	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
+	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
+		"hotplugslot": map[string]interface{}{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+}
+
 func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	coreInfo := s.mockSnap(c, coreSnapYaml)
 	repo := s.manager(c).Repository()
@@ -5301,9 +6423,10 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"otherslot": map[string]interface{}{
-			"name":        "otherslot",
-			"interface":   "test",
-			"hotplug-key": "5678",
+			"name":         "otherslot",
+			"interface":    "test",
+			"hotplug-key":  "5678",
+			"hotplug-gone": false,
 		}})
 }
 
@@ -5364,13 +6487,17 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 	c.Assert(s.state.Get("hotplug-slots", &hotplugSlots), IsNil)
 	c.Assert(hotplugSlots, DeepEquals, map[string]interface{}{
 		"hotplugslot": map[string]interface{}{
-			"name":        "hotplugslot",
-			"interface":   "test",
-			"hotplug-key": "1234",
+			"name":         "hotplugslot",
+			"interface":    "test",
+			"hotplug-key":  "1234",
+			"hotplug-gone": true,
 		}})
 }
 
 func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
+	restore := ifacestate.MockHotplugRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
 	var order []int
 	_ = s.manager(c)
 	s.o.TaskRunner().AddHandler("witness", func(task *state.Task, tomb *tomb.Tomb) error {
@@ -5408,4 +6535,215 @@ func (s *interfaceManagerSuite) TestHotplugSeqWaitTasks(c *C) {
 	for _, chg := range s.st.Changes() {
 		c.Assert(chg.Status(), Equals, state.DoneStatus)
 	}
+}
+
+func (s *interfaceManagerSuite) testConnectionStates(c *C, auto, byGadget, undesired, hotplugGone bool, expected map[string]ifacestate.ConnectionState) {
+	slotSnap := s.mockSnap(c, producerYaml)
+	plugSnap := s.mockSnap(c, consumerYaml)
+
+	mgr := s.manager(c)
+
+	conns, err := mgr.ConnectionStates()
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 0)
+
+	st := s.state
+	st.Lock()
+	sc, err := ifacestate.GetConns(st)
+	c.Assert(err, IsNil)
+
+	slot := slotSnap.Slots["slot"]
+	c.Assert(slot, NotNil)
+	plug := plugSnap.Plugs["plug"]
+	c.Assert(plug, NotNil)
+	dynamicPlugAttrs := map[string]interface{}{"dynamic-number": 7}
+	dynamicSlotAttrs := map[string]interface{}{"other-number": 9}
+	// create connection in conns state
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(plug, nil, dynamicPlugAttrs),
+		Slot: interfaces.NewConnectedSlot(slot, nil, dynamicSlotAttrs),
+	}
+	ifacestate.UpdateConnectionInConnState(sc, conn, auto, byGadget, undesired, hotplugGone)
+	ifacestate.SetConns(st, sc)
+	st.Unlock()
+
+	conns, err = mgr.ConnectionStates()
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, expected)
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesAutoManual(c *C) {
+	var isAuto, byGadget, isUndesired, hotplugGone bool = true, false, false, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface: "test",
+			Auto:      true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
+		}})
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesGadget(c *C) {
+	var isAuto, byGadget, isUndesired, hotplugGone bool = true, true, false, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface: "test",
+			Auto:      true,
+			ByGadget:  true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
+		}})
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesUndesired(c *C) {
+	var isAuto, byGadget, isUndesired, hotplugGone bool = true, false, true, false
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface: "test",
+			Auto:      true,
+			Undesired: true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
+		}})
+}
+
+func (s *interfaceManagerSuite) TestConnectionStatesHotplugGone(c *C) {
+	var isAuto, byGadget, isUndesired, hotplugGone bool = false, false, false, true
+	s.testConnectionStates(c, isAuto, byGadget, isUndesired, hotplugGone, map[string]ifacestate.ConnectionState{
+		"consumer:plug producer:slot": {
+			Interface:   "test",
+			HotplugGone: true,
+			StaticPlugAttrs: map[string]interface{}{
+				"attr1": "value1",
+			},
+			DynamicPlugAttrs: map[string]interface{}{
+				"dynamic-number": int64(7),
+			},
+			StaticSlotAttrs: map[string]interface{}{
+				"attr2": "value2",
+			},
+			DynamicSlotAttrs: map[string]interface{}{
+				"other-number": int64(9),
+			},
+		}})
+}
+
+const someSnapYaml = `name: some-snap
+version: 1
+plugs:
+  network:
+`
+
+const ubuntucoreSnapYaml = `name: ubuntu-core
+version: 1.0
+type: os
+slots:
+  network:
+
+`
+const coreSnapYaml2 = `name: core
+version: 1.0
+type: os
+slots:
+  network:
+`
+
+func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
+	mgr := s.manager(c)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	repo := mgr.Repository()
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+		Channel:  "beta",
+	})
+
+	si := snap.SideInfo{RealName: "some-snap", Revision: snap.R(-42)}
+	someSnap := snaptest.MockSnap(c, someSnapYaml, &si)
+	ubuntuCore := snaptest.MockSnap(c, ubuntucoreSnapYaml, &snap.SideInfo{
+		RealName: "ubuntu-core",
+		Revision: snap.R(1),
+	})
+	core := snaptest.MockSnap(c, coreSnapYaml2, &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+
+	c.Assert(repo.AddSnap(ubuntuCore), IsNil)
+	c.Assert(repo.AddSnap(core), IsNil)
+	c.Assert(repo.AddSnap(someSnap), IsNil)
+
+	_, err := repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "network"}, SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: "network"}}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	repoConns, err := repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+
+	st.Set("conns", map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+
+	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "ubuntu-core", "core"), IsNil)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true}})
+
+	repoConns, err = repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 0)
+	repoConns, err = repo.Connections("core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+
+	// migrate back (i.e. undo)
+	c.Assert(mgr.TransitionConnectionsCoreMigration(st, "core", "ubuntu-core"), IsNil)
+
+	// check connections
+	conns = nil
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{"some-snap:network ubuntu-core:network": map[string]interface{}{"interface": "network", "auto": true}})
+	repoConns, err = repo.Connections("ubuntu-core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+	repoConns, err = repo.Connections("core")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 0)
 }

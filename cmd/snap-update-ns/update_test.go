@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"fmt"
 
 	. "gopkg.in/check.v1"
 
@@ -45,8 +46,8 @@ func (s *updateSuite) SetUpTest(c *C) {
 }
 
 func (s *updateSuite) TestSmoke(c *C) {
-	up := &testProfileUpdate{}
-	c.Assert(update.ExecuteMountProfileUpdate(up), IsNil)
+	upCtx := &testProfileUpdateContext{}
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 }
 
 func (s *updateSuite) TestUpdateFlow(c *C) {
@@ -55,36 +56,37 @@ func (s *updateSuite) TestUpdateFlow(c *C) {
 	// - the needed changes are computed
 	// - the needed changes are performed (one by one)
 	// - the updated current profile is saved
-	var loadedCurrent, loadedDesired, changesComputed, savedCurrent bool
-	var changesPerformed int
-	up := &testProfileUpdate{
+	var funcsCalled []string
+	var nChanges int
+	upCtx := &testProfileUpdateContext{
 		loadCurrentProfile: func() (*osutil.MountProfile, error) {
-			loadedCurrent = true
+			funcsCalled = append(funcsCalled, "loaded-current")
 			return &osutil.MountProfile{}, nil
 		},
 		loadDesiredProfile: func() (*osutil.MountProfile, error) {
-			loadedDesired = true
+			funcsCalled = append(funcsCalled, "loaded-desired")
 			return &osutil.MountProfile{}, nil
 		},
 		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
-			changesComputed = true
+			funcsCalled = append(funcsCalled, "changes-computed")
 			return []*update.Change{{}, {}}
 		},
 		performChange: func(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-			changesPerformed++
+			nChanges++
+			funcsCalled = append(funcsCalled, fmt.Sprintf("change-%d-performed", nChanges))
 			return nil, nil
 		},
 		saveCurrentProfile: func(*osutil.MountProfile) error {
-			savedCurrent = true
+			funcsCalled = append(funcsCalled, "saved-current")
 			return nil
 		},
 	}
-	c.Assert(update.ExecuteMountProfileUpdate(up), IsNil)
-	c.Check(loadedCurrent, Equals, true)
-	c.Check(loadedDesired, Equals, true)
-	c.Check(changesComputed, Equals, true)
-	c.Check(changesPerformed, Equals, 2)
-	c.Check(savedCurrent, Equals, true)
+	restore := upCtx.MockRelatedFunctions()
+	defer restore()
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
+	c.Assert(funcsCalled, DeepEquals, []string{"loaded-desired", "loaded-current",
+		"changes-computed", "change-1-performed", "change-2-performed", "saved-current"})
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 }
 
 func (s *updateSuite) TestResultingProfile(c *C) {
@@ -93,7 +95,7 @@ func (s *updateSuite) TestResultingProfile(c *C) {
 	// unchanged) as well as newly mounted entries. Unmounted entries simple
 	// cease to be.
 	var saved *osutil.MountProfile
-	up := &testProfileUpdate{
+	upCtx := &testProfileUpdateContext{
 		neededChanges: func(old, new *osutil.MountProfile) []*update.Change {
 			return []*update.Change{
 				{Action: update.Keep, Entry: osutil.MountEntry{Dir: "/keep"}},
@@ -106,7 +108,9 @@ func (s *updateSuite) TestResultingProfile(c *C) {
 			return nil
 		},
 	}
-	c.Assert(update.ExecuteMountProfileUpdate(up), IsNil)
+	restore := upCtx.MockRelatedFunctions()
+	defer restore()
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Check(saved, DeepEquals, &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/keep"},
 		{Dir: "/mount"},
@@ -121,15 +125,17 @@ func (s *updateSuite) TestSynthesizedPastChanges(c *C) {
 	entry, err := osutil.ParseMountEntry(text)
 	c.Assert(err, IsNil)
 	as := &update.Assumptions{}
-	up := &testProfileUpdate{
+	upCtx := &testProfileUpdateContext{
 		loadCurrentProfile: func() (*osutil.MountProfile, error) { return osutil.LoadMountProfileText(text) },
 		loadDesiredProfile: func() (*osutil.MountProfile, error) { return osutil.LoadMountProfileText(text) },
 		assumptions:        func() *update.Assumptions { return as },
 	}
+	restore := upCtx.MockRelatedFunctions()
+	defer restore()
 
 	// Perform the update, this will modify assumptions.
 	c.Check(as.PastChanges(), HasLen, 0)
-	c.Assert(update.ExecuteMountProfileUpdate(up), IsNil)
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Check(as.PastChanges(), HasLen, 1)
 	c.Check(as.PastChanges(), DeepEquals, []*update.Change{{
 		Action: update.Mount,
@@ -142,7 +148,7 @@ func (s *updateSuite) TestSyntheticChanges(c *C) {
 	// to be performed, that were needed internally. Such changes are recorded
 	// and saved into the current profile.
 	var saved *osutil.MountProfile
-	up := &testProfileUpdate{
+	upCtx := &testProfileUpdateContext{
 		loadDesiredProfile: func() (*osutil.MountProfile, error) {
 			return &osutil.MountProfile{Entries: []osutil.MountEntry{
 				{Dir: "/subdir/mount"},
@@ -168,7 +174,9 @@ func (s *updateSuite) TestSyntheticChanges(c *C) {
 			return nil, nil
 		},
 	}
-	c.Assert(update.ExecuteMountProfileUpdate(up), IsNil)
+	restore := upCtx.MockRelatedFunctions()
+	defer restore()
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Check(saved, DeepEquals, &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/subdir", Type: "tmpfs"},
 		{Dir: "/subdir/mount"},
@@ -176,11 +184,11 @@ func (s *updateSuite) TestSyntheticChanges(c *C) {
 }
 
 func (s *updateSuite) TestCannotPerformContentInterfaceChange(c *C) {
-	// When performing a mount change for a content interface fails we simply
+	// When performing a mount change for a content interface fails, we simply
 	// ignore the error carry on. Such changes are not stored in the updated
 	// current profile.
 	var saved *osutil.MountProfile
-	up := &testProfileUpdate{
+	upCtx := &testProfileUpdateContext{
 		saveCurrentProfile: func(profile *osutil.MountProfile) error {
 			saved = profile
 			return nil
@@ -205,7 +213,9 @@ func (s *updateSuite) TestCannotPerformContentInterfaceChange(c *C) {
 			return nil, nil
 		},
 	}
-	c.Assert(update.ExecuteMountProfileUpdate(up), IsNil)
+	restore := upCtx.MockRelatedFunctions()
+	defer restore()
+	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Check(saved, DeepEquals, &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/dir-1"},
 		{Dir: "/dir-3"},
@@ -218,7 +228,7 @@ func (s *updateSuite) TestCannotPerformContentInterfaceChange(c *C) {
 func (s *updateSuite) TestCannotPerformLayoutChange(c *C) {
 	// When performing a mount change for a layout, errors are immediately fatal.
 	var saved *osutil.MountProfile
-	up := &testProfileUpdate{
+	upCtx := &testProfileUpdateContext{
 		saveCurrentProfile: func(profile *osutil.MountProfile) error {
 			saved = profile
 			return nil
@@ -238,7 +248,9 @@ func (s *updateSuite) TestCannotPerformLayoutChange(c *C) {
 			return nil, nil
 		},
 	}
-	err := update.ExecuteMountProfileUpdate(up)
+	restore := upCtx.MockRelatedFunctions()
+	defer restore()
+	err := update.ExecuteMountProfileUpdate(upCtx)
 	c.Check(err, Equals, errTesting)
 	c.Check(saved, IsNil)
 }
@@ -246,7 +258,7 @@ func (s *updateSuite) TestCannotPerformLayoutChange(c *C) {
 func (s *updateSuite) TestCannotPerformOvermountChange(c *C) {
 	// When performing a mount change for an "overname", errors are immediately fatal.
 	var saved *osutil.MountProfile
-	up := &testProfileUpdate{
+	upCtx := &testProfileUpdateContext{
 		saveCurrentProfile: func(profile *osutil.MountProfile) error {
 			saved = profile
 			return nil
@@ -266,63 +278,74 @@ func (s *updateSuite) TestCannotPerformOvermountChange(c *C) {
 			return nil, nil
 		},
 	}
-	err := update.ExecuteMountProfileUpdate(up)
+	restore := upCtx.MockRelatedFunctions()
+	defer restore()
+	err := update.ExecuteMountProfileUpdate(upCtx)
 	c.Check(err, Equals, errTesting)
 	c.Check(saved, IsNil)
 }
 
-// testProfileUpdate implements MountProfileUpdate and is suitable for testing.
-type testProfileUpdate struct {
+// testProfileUpdateContext implements MountProfileUpdateContext and is suitable for testing.
+type testProfileUpdateContext struct {
 	loadCurrentProfile func() (*osutil.MountProfile, error)
 	loadDesiredProfile func() (*osutil.MountProfile, error)
 	saveCurrentProfile func(*osutil.MountProfile) error
-	neededChanges      func(old, new *osutil.MountProfile) []*update.Change
-	performChange      func(*update.Change, *update.Assumptions) ([]*update.Change, error)
 	assumptions        func() *update.Assumptions
+
+	// The remaining functions are defined for consistency but are installed by
+	// calling their mock helpers. They are not a part of the interface.
+	neededChanges func(*osutil.MountProfile, *osutil.MountProfile) []*update.Change
+	performChange func(*update.Change, *update.Assumptions) ([]*update.Change, error)
 }
 
-func (up *testProfileUpdate) Lock() (unlock func(), err error) {
+// MockRelatedFunctions mocks NeededChanges and Change.Perform for the purpose of testing.
+func (upCtx *testProfileUpdateContext) MockRelatedFunctions() (restore func()) {
+	neededChanges := func(*osutil.MountProfile, *osutil.MountProfile) []*update.Change { return nil }
+	if upCtx.neededChanges != nil {
+		neededChanges = upCtx.neededChanges
+	}
+	restore1 := update.MockNeededChanges(neededChanges)
+
+	performChange := func(*update.Change, *update.Assumptions) ([]*update.Change, error) { return nil, nil }
+	if upCtx.performChange != nil {
+		performChange = upCtx.performChange
+	}
+	restore2 := update.MockChangePerform(performChange)
+
+	return func() {
+		restore1()
+		restore2()
+	}
+}
+
+func (upCtx *testProfileUpdateContext) Lock() (unlock func(), err error) {
 	return func() {}, nil
 }
 
-func (up *testProfileUpdate) Assumptions() *update.Assumptions {
-	if up.assumptions != nil {
-		return up.assumptions()
+func (upCtx *testProfileUpdateContext) Assumptions() *update.Assumptions {
+	if upCtx.assumptions != nil {
+		return upCtx.assumptions()
 	}
 	return &update.Assumptions{}
 }
 
-func (up *testProfileUpdate) LoadCurrentProfile() (*osutil.MountProfile, error) {
-	if up.loadCurrentProfile != nil {
-		return up.loadCurrentProfile()
+func (upCtx *testProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	if upCtx.loadCurrentProfile != nil {
+		return upCtx.loadCurrentProfile()
 	}
 	return &osutil.MountProfile{}, nil
 }
 
-func (up *testProfileUpdate) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	if up.loadDesiredProfile != nil {
-		return up.loadDesiredProfile()
+func (upCtx *testProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	if upCtx.loadDesiredProfile != nil {
+		return upCtx.loadDesiredProfile()
 	}
 	return &osutil.MountProfile{}, nil
 }
 
-func (up *testProfileUpdate) NeededChanges(old, new *osutil.MountProfile) []*update.Change {
-	if up.neededChanges != nil {
-		return up.neededChanges(old, new)
-	}
-	return nil
-}
-
-func (up *testProfileUpdate) PerformChange(change *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-	if up.performChange != nil {
-		return up.performChange(change, as)
-	}
-	return nil, nil
-}
-
-func (up *testProfileUpdate) SaveCurrentProfile(profile *osutil.MountProfile) error {
-	if up.saveCurrentProfile != nil {
-		return up.saveCurrentProfile(profile)
+func (upCtx *testProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	if upCtx.saveCurrentProfile != nil {
+		return upCtx.saveCurrentProfile(profile)
 	}
 	return nil
 }

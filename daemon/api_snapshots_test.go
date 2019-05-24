@@ -20,16 +20,17 @@
 package daemon_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
-	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -54,6 +55,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, storetest.Store{})
+	dirs.SetRootDir(c.MkDir())
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {

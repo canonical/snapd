@@ -26,14 +26,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// SystemProfileUpdate contains information about update to system-wide mount namespace.
-type SystemProfileUpdate struct {
-	CommonProfileUpdate
+// SystemProfileUpdateContext contains information about update to system-wide mount namespace.
+type SystemProfileUpdateContext struct {
+	CommonProfileUpdateContext
 }
 
-// NewSystemProfileUpdate returns encapsulated information for performing a per-user mount namespace update.
-func NewSystemProfileUpdate(instanceName string, fromSnapConfine bool) *SystemProfileUpdate {
-	return &SystemProfileUpdate{CommonProfileUpdate: CommonProfileUpdate{
+// NewSystemProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
+func NewSystemProfileUpdateContext(instanceName string, fromSnapConfine bool) *SystemProfileUpdateContext {
+	return &SystemProfileUpdateContext{CommonProfileUpdateContext: CommonProfileUpdateContext{
 		instanceName:       instanceName,
 		fromSnapConfine:    fromSnapConfine,
 		currentProfilePath: currentSystemProfilePath(instanceName),
@@ -46,7 +46,7 @@ func NewSystemProfileUpdate(instanceName string, fromSnapConfine bool) *SystemPr
 // System mount profiles can write to /tmp (this is required for constructing
 // writable mimics) to /var/snap (where $SNAP_DATA is for services), /snap/$SNAP_NAME,
 // and, in case of instances, /snap/$SNAP_INSTANCE_NAME.
-func (up *SystemProfileUpdate) Assumptions() *Assumptions {
+func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// Allow creating directories related to this snap name.
 	//
 	// Note that we allow /var/snap instead of /var/snap/$SNAP_NAME because
@@ -67,7 +67,7 @@ func (up *SystemProfileUpdate) Assumptions() *Assumptions {
 	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
 	// remapping for parallel installs only when the snap has an instance key
 	as := &Assumptions{}
-	instanceName := up.CommonProfileUpdate.instanceName
+	instanceName := upCtx.InstanceName()
 	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)

@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"fmt"
+	"math/rand" // seeded elsewhere
 	"os"
 	"sort"
 	"strings"
@@ -32,9 +33,13 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
 
-var catalogRefreshDelay = 24 * time.Hour
+var (
+	catalogRefreshDelayBase      = 24 * time.Hour
+	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + time.Duration(rand.Int63n(int64(6*time.Hour)))
+)
 
 type catalogRefresh struct {
 	state *state.State
@@ -57,21 +62,26 @@ func (r *catalogRefresh) Ensure() error {
 	}
 
 	now := time.Now()
+	delay := catalogRefreshDelayBase
 	if r.nextCatalogRefresh.IsZero() {
 		// try to use the timestamp on the sections file
-		if st, err := os.Stat(dirs.SnapSectionsFile); err == nil && st.ModTime().Before(now) {
-			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelay)
+		if st, err := os.Stat(dirs.SnapNamesFile); err == nil && st.ModTime().Before(now) {
+			// add the delay with the delta so we spread the load a bit
+			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelayWithDelta)
+		} else {
+			// first time scheduling, add the delta
+			delay = catalogRefreshDelayWithDelta
 		}
 	}
 
-	theStore := Store(r.state)
+	theStore := Store(r.state, nil)
 	needsRefresh := r.nextCatalogRefresh.IsZero() || r.nextCatalogRefresh.Before(now)
 
 	if !needsRefresh {
 		return nil
 	}
 
-	next := now.Add(catalogRefreshDelay)
+	next := now.Add(delay)
 	// catalog refresh does not carry on trying on error
 	r.nextCatalogRefresh = next
 
@@ -92,15 +102,20 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	st.Unlock()
 	defer st.Lock()
 
+	perfTimings := timings.New(map[string]string{"ensure": "refresh-catalogs"})
+
 	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
 	}
 
-	sections, err := theStore.Sections(auth.EnsureContextTODO(), nil)
+	var sections []string
+	var err error
+	timings.Run(perfTimings, "get-sections", "query store for sections", func(tm timings.Measurer) {
+		sections, err = theStore.Sections(auth.EnsureContextTODO(), nil)
+	})
 	if err != nil {
 		return err
 	}
-
 	sort.Strings(sections)
 	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
 		return err
@@ -120,7 +135,10 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	// if all goes well we'll Commit() making this a NOP:
 	defer cmdDB.Rollback()
 
-	if err := theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB); err != nil {
+	timings.Run(perfTimings, "write-catalogs", "query store for catalogs", func(tm timings.Measurer) {
+		err = theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -130,6 +148,10 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	if err2 != nil {
 		return err2
 	}
+
+	st.Lock()
+	perfTimings.Save(st)
+	st.Unlock()
 
 	return err1
 }

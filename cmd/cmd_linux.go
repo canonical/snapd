@@ -114,14 +114,15 @@ func coreSupportsReExec(corePath string) bool {
 	return true
 }
 
+// TODO: move to cmd/cmdutil/
+//
 // InternalToolPath returns the path of an internal snapd tool. The tool
-// *must* be located inside /usr/lib/snapd/.
+// *must* be located inside the same tree as the current binary.
 //
 // The return value is either the path of the tool in the current distribution
-// or in the core snap (or the ubuntu-core snap). This handles spiritual
-// "re-exec" where we run the tool from the core snap if the environment allows
-// us to do so.
-func InternalToolPath(tool string) string {
+// or in the core/snapd snap (or the ubuntu-core snap) if the current binary is
+// ran from that location.
+func InternalToolPath(tool string) (string, error) {
 	distroTool := filepath.Join(dirs.DistroLibExecDir, tool)
 
 	// find the internal path relative to the running snapd, this
@@ -129,23 +130,34 @@ func InternalToolPath(tool string) string {
 	// having a valid "current" symlink).
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
-		logger.Noticef("cannot read /proc/self/exe: %v, using tool outside core", err)
-		return distroTool
+		return "", err
 	}
 
-	// ensure we never use this helper from anything but
-	if !strings.HasSuffix(exe, "/snapd") && !strings.HasSuffix(exe, ".test") {
-		log.Panicf("InternalToolPath can only be used from snapd, got: %s", exe)
+	if !strings.HasPrefix(exe, dirs.DistroLibExecDir) {
+		// either running from mounted location or /usr/bin/snap*
+
+		// find the local prefix to the snap:
+		// /snap/snapd/123/usr/bin/snap       -> /snap/snapd/123
+		// /snap/core/234/usr/lib/snapd/snapd -> /snap/core/234
+		idx := strings.LastIndex(exe, "/usr/")
+		if idx > 0 {
+			// only assume mounted location when path contains
+			// /usr/, but does not start with one
+			prefix := exe[:idx]
+			return filepath.Join(prefix, "/usr/lib/snapd", tool), nil
+		}
+		if idx == -1 {
+			// or perhaps some other random location, make sure the tool
+			// exists there and is an executable
+			maybeTool := filepath.Join(filepath.Dir(exe), tool)
+			if osutil.IsExecutable(maybeTool) {
+				return maybeTool, nil
+			}
+		}
 	}
 
-	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
-		logger.Debugf("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
-		return distroTool
-	}
-
-	// if we are re-execed, then the tool is at the same location
-	// as snapd
-	return filepath.Join(filepath.Dir(exe), tool)
+	// fallback to distro tool
+	return distroTool, nil
 }
 
 // mustUnsetenv will unset the given environment key or panic if it
@@ -211,4 +223,13 @@ func ExecInSnapdOrCoreSnap() {
 
 	logger.Debugf("restarting into %q", full)
 	panic(syscallExec(full, os.Args, os.Environ()))
+}
+
+// MockOsReadlink is for use in tests
+func MockOsReadlink(f func(string) (string, error)) func() {
+	realOsReadlink := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = realOsReadlink
+	}
 }

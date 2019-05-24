@@ -35,6 +35,15 @@ if apt -qq list snapd | grep -q -- -proposed; then
 elif apt -qq list snapd | grep -q -- -updates; then
     export SPREAD_CORE_CHANNEL=stable
 fi
+# ensure we always run from the deb that is currently tested
+export SNAP_REEXEC=0
+mkdir -p /etc/systemd/system/snapd.service.d
+cat <<EOF > /etc/systemd/system/snapd.service.d/no-reexec.conf
+[Service]
+Environment=SNAP_REEXEC=$SNAP_REEXEC
+EOF
+systemctl daemon-reload
+systemctl restart snapd
 
 # Spread will only buid with recent go
 snap install --classic go
@@ -44,7 +53,8 @@ snap install --classic go
 . /etc/os-release
 export GOPATH=/tmp/go
 /snap/bin/go get -u github.com/snapcore/spread/cmd/spread
-/tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)"
+export SPREAD_REUSE_SNAPD=1
+/tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)":tests/smoke/
 
 # store journal info for inspectsion
 journalctl --sync

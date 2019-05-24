@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
 )
@@ -40,14 +40,13 @@ var (
 
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
-	IsReexeced         = isReexeced
-	MaybePrintServices = maybePrintServices
-	MaybePrintCommands = maybePrintCommands
+	SnapdHelperPath    = snapdHelperPath
 	SortByPath         = sortByPath
 	AdviseCommand      = adviseCommand
 	Antialias          = antialias
 	FormatChannel      = fmtChannel
 	PrintDescr         = printDescr
+	WrapFlow           = wrapFlow
 	TrueishJSON        = trueishJSON
 
 	CanUnicode           = canUnicode
@@ -76,6 +75,39 @@ var (
 	LintDesc = lintDesc
 
 	FixupArg = fixupArg
+
+	InterfacesDeprecationNotice = interfacesDeprecationNotice
+)
+
+func NewInfoWriter(w writeflusher) *infoWriter {
+	return &infoWriter{
+		writeflusher: w,
+		termWidth:    20,
+		esc:          &escapes{dash: "--", tick: "*"},
+		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+	}
+}
+
+func SetVerbose(iw *infoWriter, verbose bool) {
+	iw.verbose = verbose
+}
+
+var (
+	ClientSnapFromPath          = clientSnapFromPath
+	SetupDiskSnap               = (*infoWriter).setupDiskSnap
+	SetupSnap                   = (*infoWriter).setupSnap
+	MaybePrintServices          = (*infoWriter).maybePrintServices
+	MaybePrintCommands          = (*infoWriter).maybePrintCommands
+	MaybePrintType              = (*infoWriter).maybePrintType
+	PrintSummary                = (*infoWriter).printSummary
+	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes             = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
+	MaybePrintContact           = (*infoWriter).maybePrintContact
+	MaybePrintBase              = (*infoWriter).maybePrintBase
+	MaybePrintPath              = (*infoWriter).maybePrintPath
+	MaybePrintSum               = (*infoWriter).maybePrintSum
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -110,7 +142,7 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 	}
 }
 
-func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+func MockStoreNew(f func(*store.Config, store.DeviceAndAuthContext) *store.Store) (restore func()) {
 	storeNewOrig := storeNew
 	storeNew = f
 	return func() {
@@ -211,7 +243,10 @@ func Wait(cli *client.Client, id string) (*client.Change, error) {
 }
 
 func ColorMixin(cmode, umode string) colorMixin {
-	return colorMixin{Color: cmode, Unicode: umode}
+	return colorMixin{
+		Color:        cmode,
+		unicodeMixin: unicodeMixin{Unicode: umode},
+	}
 }
 
 func CmdAdviseSnap() *cmdAdviseSnap {
@@ -241,3 +276,21 @@ func MockSELinuxRestoreContext(restorecon func(string, selinux.RestoreMode) erro
 		selinuxRestoreContext = old
 	}
 }
+
+func MockTermSize(newTermSize func() (int, int)) (restore func()) {
+	old := termSize
+	termSize = newTermSize
+	return func() {
+		termSize = old
+	}
+}
+
+func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func()) {
+	old := imagePrepare
+	imagePrepare = newImagePrepare
+	return func() {
+		imagePrepare = old
+	}
+}
+
+type ServiceName = serviceName

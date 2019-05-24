@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,37 +24,44 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type MountProfileUpdate interface {
+// MountProfileUpdateContext provides the context of a mount namespace update.
+// The context provides a way to synchronize the operation with other users of
+// the snap system, to load and save the mount profiles and to provide the file
+// system assumptions with which the mount namespace will be modified.
+type MountProfileUpdateContext interface {
+	// Lock obtains locks appropriate for the update.
 	Lock() (unlock func(), err error)
+	// Assumptions computes filesystem assumptions under which the update shall operate.
 	Assumptions() *Assumptions
+	// LoadDesiredProfile loads the mount profile that should be constructed.
 	LoadDesiredProfile() (*osutil.MountProfile, error)
+	// LoadCurrentProfile loads the mount profile that is currently applied.
 	LoadCurrentProfile() (*osutil.MountProfile, error)
+	// SaveCurrentProfile saves the mount profile that is currently applied.
 	SaveCurrentProfile(*osutil.MountProfile) error
-	NeededChanges(old, new *osutil.MountProfile) []*Change
-	PerformChange(*Change, *Assumptions) ([]*Change, error)
 }
 
-func executeMountProfileUpdate(up MountProfileUpdate) error {
-	unlock, err := up.Lock()
+func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
+	unlock, err := upCtx.Lock()
 	if err != nil {
 		return err
 	}
 	defer unlock()
 
-	desired, err := up.LoadDesiredProfile()
+	desired, err := upCtx.LoadDesiredProfile()
 	if err != nil {
 		return err
 	}
 	debugShowProfile(desired, "desired mount profile")
 
-	currentBefore, err := up.LoadCurrentProfile()
+	currentBefore, err := upCtx.LoadCurrentProfile()
 	if err != nil {
 		return err
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 
 	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
-	as := up.Assumptions()
+	as := upCtx.Assumptions()
 	for _, entry := range currentBefore.Entries {
 		as.AddChange(&Change{Action: Mount, Entry: entry})
 	}
@@ -62,14 +69,14 @@ func executeMountProfileUpdate(up MountProfileUpdate) error {
 	// Compute the needed changes and perform each change if
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
-	changesNeeded := up.NeededChanges(currentBefore, desired)
+	changesNeeded := NeededChanges(currentBefore, desired)
 	debugShowChanges(changesNeeded, "mount changes needed")
 
 	logger.Debugf("performing mount changes:")
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := up.PerformChange(change, as)
+		synthesised, err := change.Perform(as)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -90,6 +97,7 @@ func executeMountProfileUpdate(up MountProfileUpdate) error {
 			}
 			continue
 		}
+
 		changesMade = append(changesMade, change)
 	}
 
@@ -102,5 +110,5 @@ func executeMountProfileUpdate(up MountProfileUpdate) error {
 		}
 	}
 	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
-	return up.SaveCurrentProfile(&currentAfter)
+	return upCtx.SaveCurrentProfile(&currentAfter)
 }
