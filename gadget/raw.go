@@ -100,8 +100,8 @@ func NewRawStructureUpdater(rootDir, backupDir string, deviceLookup locationLook
 	}
 }
 
-func (r *RawStructureUpdater) contentBackupPath(ps *PositionedStructure, pc *PositionedContent, idx int) string {
-	return filepath.Join(r.backupDir, fmt.Sprintf("struct-%v-%v-%v", ps.Index, idx, encodeLabel(pc.String())))
+func (r *RawStructureUpdater) contentBackupPath(ps *PositionedStructure, pc *PositionedContent) string {
+	return filepath.Join(r.backupDir, fmt.Sprintf("struct-%v-%v", ps.Index, pc.Index))
 }
 
 func (r *RawStructureUpdater) findDevice(to *PositionedStructure) (string, error) {
@@ -185,8 +185,8 @@ func (r *RawStructureUpdater) Backup(from *PositionedStructure, to *PositionedSt
 	}
 	defer disk.Close()
 
-	for idx, pc := range to.PositionedContent {
-		if err := r.backupOrCheckpointContent(disk, &pc, r.contentBackupPath(to, &pc, idx)); err != nil {
+	for _, pc := range to.PositionedContent {
+		if err := r.backupOrCheckpointContent(disk, &pc, r.contentBackupPath(to, &pc)); err != nil {
 			return fmt.Errorf("cannot backup image %v: %v", pc, err)
 		}
 	}
@@ -227,8 +227,8 @@ func (r *RawStructureUpdater) Rollback(from *PositionedStructure, to *Positioned
 
 	rw := NewRawStructureWriter(r.rootDir)
 
-	for idx, pc := range to.PositionedContent {
-		if err := r.rollbackDifferent(disk, &pc, rw, r.contentBackupPath(to, &pc, idx)); err != nil {
+	for _, pc := range to.PositionedContent {
+		if err := r.rollbackDifferent(disk, &pc, rw, r.contentBackupPath(to, &pc)); err != nil {
 			return fmt.Errorf("cannot rollback image %v: %v", pc, err)
 		}
 	}
@@ -271,8 +271,8 @@ func (r *RawStructureUpdater) Update(from *PositionedStructure, to *PositionedSt
 
 	rw := NewRawStructureWriter(r.rootDir)
 
-	for idx, pc := range to.PositionedContent {
-		if err := r.updateDifferent(disk, &pc, rw, r.contentBackupPath(to, &pc, idx)); err != nil {
+	for _, pc := range to.PositionedContent {
+		if err := r.updateDifferent(disk, &pc, rw, r.contentBackupPath(to, &pc)); err != nil {
 			return fmt.Errorf("cannot update image %v: %v", pc, err)
 		}
 	}

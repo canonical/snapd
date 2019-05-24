@@ -87,12 +87,14 @@ func (r *rawTestSuite) TestRawWriterHappy(c *C) {
 				},
 				StartOffset: 0,
 				Size:        128,
+				Index:       0,
 			}, {
 				VolumeContent: &gadget.VolumeContent{
 					Image: "bar.img",
 				},
 				StartOffset: 1024,
 				Size:        128,
+				Index:       1,
 			},
 		},
 	})
@@ -245,6 +247,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 				},
 				StartOffset: 1024,
 				Size:        128,
+				Index:       1,
 			},
 		},
 	}
@@ -256,8 +259,8 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	err := ru.Backup(nil, ps)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0)+".same"), Equals, true)
-	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[1], 1)+".same"), Equals, true)
+	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0])+".same"), Equals, true)
+	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[1])+".same"), Equals, true)
 
 	emptyDiskPath := filepath.Join(r.dir, "disk-not-written.img")
 	err = osutil.AtomicWriteFile(emptyDiskPath, nil, 0644, 0)
@@ -315,6 +318,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 				},
 				StartOffset: 1024,
 				Size:        256,
+				Index:       1,
 			},
 		},
 	}
@@ -331,10 +335,10 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 		size   int64
 		exists bool
 	}{
-		{ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0) + ".backup", 128, true},
-		{ru.ContentBackupPath(ps, &ps.PositionedContent[1], 1) + ".backup", 256, true},
-		{ru.ContentBackupPath(ps, &ps.PositionedContent[1], 1) + ".same", 0, false},
-		{ru.ContentBackupPath(ps, &ps.PositionedContent[1], 1) + ".same", 0, false},
+		{ru.ContentBackupPath(ps, &ps.PositionedContent[0]) + ".backup", 128, true},
+		{ru.ContentBackupPath(ps, &ps.PositionedContent[1]) + ".backup", 256, true},
+		{ru.ContentBackupPath(ps, &ps.PositionedContent[1]) + ".same", 0, false},
+		{ru.ContentBackupPath(ps, &ps.PositionedContent[1]) + ".same", 0, false},
 	} {
 		c.Check(osutil.FileExists(e.path), Equals, e.exists)
 		if e.exists {
@@ -381,14 +385,14 @@ func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 
 	err := ru.Backup(nil, ps)
 	c.Assert(err, ErrorMatches, "cannot open device for reading: .*")
-	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0)+".backup"), Equals, false)
+	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0])+".backup"), Equals, false)
 
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 0, nil)
 
 	err = ru.Backup(nil, ps)
 	c.Assert(err, ErrorMatches, "cannot backup image .*: cannot backup original image: EOF")
-	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0)+".backup"), Equals, false)
+	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0])+".backup"), Equals, false)
 
 	// make proper disk image now
 	err = os.Remove(diskPath)
@@ -397,7 +401,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 
 	err = ru.Backup(nil, ps)
 	c.Assert(err, ErrorMatches, "cannot backup image .*: cannot checksum update image: .*")
-	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0)+".backup"), Equals, false)
+	c.Check(osutil.FileExists(ru.ContentBackupPath(ps, &ps.PositionedContent[0])+".backup"), Equals, false)
 }
 
 func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
@@ -426,7 +430,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
 		return diskPath, nil
 	})
 
-	contentBackupBasePath := ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0)
+	contentBackupBasePath := ru.ContentBackupPath(ps, &ps.PositionedContent[0])
 	// mock content backed-up marker
 	makeSizedFile(c, contentBackupBasePath+".backup", 0, nil)
 
@@ -506,15 +510,15 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 	})
 
 	err := ru.Rollback(nil, ps)
-	c.Assert(err, ErrorMatches, "cannot rollback image foo.img.*: cannot open backup image: .*no such file or directory")
+	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img@0x80"\): cannot open backup image: .*no such file or directory`)
 
-	contentBackupPath := ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0) + ".backup"
+	contentBackupPath := ru.ContentBackupPath(ps, &ps.PositionedContent[0]) + ".backup"
 
 	// trigger short read
 	makeSizedFile(c, contentBackupPath, 0, nil)
 
 	err = ru.Rollback(nil, ps)
-	c.Assert(err, ErrorMatches, "cannot rollback image foo.img.*: cannot restore backup: cannot write image: EOF")
+	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img@0x80"\): cannot restore backup: cannot write image: EOF`)
 
 	// pretend device cannot be opened for writing
 	err = os.Chmod(diskPath, 0000)
@@ -551,21 +555,47 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 
 	// backup/analysis not performed
 	err := ru.Update(nil, ps)
-	c.Assert(err, ErrorMatches, "cannot update image foo.img.*: missing backup file")
+	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80"\): missing backup file`)
 
 	// pretend backup was done
-	makeSizedFile(c, ru.ContentBackupPath(ps, &ps.PositionedContent[0], 0)+".backup", 0, nil)
+	makeSizedFile(c, ru.ContentBackupPath(ps, &ps.PositionedContent[0])+".backup", 0, nil)
 
 	err = ru.Update(nil, ps)
-	c.Assert(err, ErrorMatches, "cannot update image foo.img.*: cannot open image file: .*no such file or directory")
+	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80"\).*: cannot open image file: .*no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 0, nil)
 	err = ru.Update(nil, ps)
-	c.Assert(err, ErrorMatches, "cannot update image foo.img.*: cannot write image: EOF")
+	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80"\).*: cannot write image: EOF`)
 
 	// pretend device cannot be opened for writing
 	err = os.Chmod(diskPath, 0000)
 	c.Assert(err, IsNil)
 	err = ru.Update(nil, ps)
 	c.Assert(err, ErrorMatches, "cannot open device for writing: .* permission denied")
+}
+
+func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
+	ru := gadget.NewRawStructureUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+		return "", errors.New("not called")
+	})
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{},
+		StartOffset:     0,
+		PositionedContent: []gadget.PositionedContent{
+			{
+				VolumeContent: &gadget.VolumeContent{},
+			},
+		},
+	}
+	pc := &ps.PositionedContent[0]
+
+	p := ru.ContentBackupPath(ps, pc)
+	c.Assert(p, Equals, r.backup+"/struct-0-0")
+	pc.Index = 5
+	p = ru.ContentBackupPath(ps, pc)
+	c.Assert(p, Equals, r.backup+"/struct-0-5")
+	ps.Index = 9
+	p = ru.ContentBackupPath(ps, pc)
+	c.Assert(p, Equals, r.backup+"/struct-9-5")
 }
