@@ -10726,11 +10726,21 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	kernel := &snap.Info{
 		Type: snap.TypeKernel,
 	}
-	kernel.RealName = "krnl"
+	// this kernel part of the model
+	kernel.RealName = "kernel"
 
 	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
+}
+
+func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
+	kernel := &snap.Info{
+		Type: snap.TypeKernel,
+	}
+	kernel.RealName = "other-non-model-kernel"
+
+	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {

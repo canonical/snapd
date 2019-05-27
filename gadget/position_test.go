@@ -474,11 +474,13 @@ volumes:
 						VolumeContent: &vol.Structure[0].Content[1],
 						StartOffset:   1 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         1,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   2 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         0,
 					},
 				},
 			},
@@ -523,11 +525,13 @@ volumes:
 						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   1 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         0,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[1],
 						StartOffset:   2 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         1,
 					},
 				},
 			},
@@ -1034,10 +1038,12 @@ volumes:
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * gadget.SizeKiB,
 				StartOffset:   1 * gadget.SizeMiB,
+				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
 				Size:          150 * gadget.SizeKiB,
 				StartOffset:   1*gadget.SizeMiB + 300*gadget.SizeKiB,
+				Index:         1,
 			},
 		},
 	})
@@ -1053,10 +1059,12 @@ volumes:
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * gadget.SizeKiB,
 				StartOffset:   0,
+				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
 				Size:          150 * gadget.SizeKiB,
 				StartOffset:   300 * gadget.SizeKiB,
+				Index:         1,
 			},
 		},
 	})
@@ -1072,10 +1080,12 @@ volumes:
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * gadget.SizeKiB,
 				StartOffset:   2 * gadget.SizeMiB,
+				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
 				Size:          150 * gadget.SizeKiB,
 				StartOffset:   2*gadget.SizeMiB + 300*gadget.SizeKiB,
+				Index:         1,
 			},
 		},
 	})
