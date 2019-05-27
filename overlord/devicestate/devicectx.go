@@ -37,23 +37,23 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if task != nil {
 		var modelass string
 		if err := task.Change().Get("new-model", &modelass); err == nil {
-			ass, err := asserts.Decode([]byte(modelass))
+			assert, err := asserts.Decode([]byte(modelass))
 			if err != nil {
 				return nil, err
 			}
-			new, ok := ass.(*asserts.Model)
+			new, ok := assert.(*asserts.Model)
 			if !ok {
-				return nil, fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
+				return nil, fmt.Errorf("internal error: new-model is not a model assertion but: %s", assert.Type().Name)
 			}
 			return &remodelDeviceContext{new}, nil
 		}
 	}
 
-	modelAs, err := findModel(st)
+	modelAssert, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}
-	return modelDeviceContext{model: modelAs}, nil
+	return modelDeviceContext{model: modelAssert}, nil
 }
 
 type modelDeviceContext struct {
