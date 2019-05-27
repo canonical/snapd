@@ -35,9 +35,9 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 
 	// see if we have a remodel in progress
 	if task != nil {
-		var modelass string
-		if err := task.Change().Get("new-model", &modelass); err == nil {
-			assert, err := asserts.Decode([]byte(modelass))
+		var modelassertStr string
+		if err := task.Change().Get("new-model", &modelassertStr); err == nil {
+			assert, err := asserts.Decode([]byte(modelassertStr))
 			if err != nil {
 				return nil, err
 			}
