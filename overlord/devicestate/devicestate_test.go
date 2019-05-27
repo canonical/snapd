@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -2846,19 +2845,6 @@ volumes:
     bootloader: grub
 `
 
-func mockSnapWithData(c *C, yamlText string, si *snap.SideInfo, content map[string]string) *snap.Info {
-	info := snaptest.MockSnap(c, yamlText, si)
-	for where, what := range content {
-		path := filepath.Join(info.MountDir(), where)
-		err := os.MkdirAll(filepath.Dir(path), 0755)
-		c.Assert(err, IsNil)
-
-		err = ioutil.WriteFile(path, []byte(what), 0644)
-		c.Assert(err, IsNil)
-	}
-	return info
-}
-
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	var updateCalled bool
 	var passedRollbackDir string
@@ -2879,11 +2865,11 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	s.state.Lock()
@@ -2941,11 +2927,11 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	s.state.Lock()
@@ -2999,11 +2985,11 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	s.state.Lock()
@@ -3070,11 +3056,11 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirExistsRemovedByUpdate(
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	s.state.Lock()
@@ -3133,11 +3119,11 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	s.state.Lock()
@@ -3192,11 +3178,11 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	s.state.Lock()
@@ -3245,8 +3231,8 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	s.state.Lock()
@@ -3292,12 +3278,12 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	mockSnapWithData(c, snapYaml, siCurrent, map[string]string{
-		"meta/gadget.yaml": gadgetYaml,
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 	// invalid gadget.yaml data
-	mockSnapWithData(c, snapYaml, si, map[string]string{
-		"meta/gadget.yaml": `foobar`,
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", "foobar"},
 	})
 
 	s.state.Lock()
