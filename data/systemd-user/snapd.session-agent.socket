@@ -1,0 +1,8 @@
+[Unit]
+Description=REST API socket for Snapd's user session agent
+
+[Socket]
+ListenStream=%t/snap-session.socket
+
+[Install]
+WantedBy=sockets.target
