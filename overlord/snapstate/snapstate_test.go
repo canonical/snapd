@@ -10497,7 +10497,7 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	kernel := &snap.Info{
 		Type: snap.TypeKernel,
 	}
-	// this kernel part of the model
+	// this kernel is part of the model
 	kernel.RealName = "kernel"
 
 	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
