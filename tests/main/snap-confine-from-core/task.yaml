@@ -17,6 +17,7 @@ restore: |
 
 debug: |
     journalctl | grep "restarting into"
+    journalctl
 
 execute: |
     # shellcheck source=tests/lib/journalctl.sh

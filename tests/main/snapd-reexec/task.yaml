@@ -23,6 +23,7 @@ debug: |
     ls /etc/systemd/system/snapd.service.d
     cat /etc/systemd/system/snapd.service.d/*
     journalctl | grep "restarting into"
+    journalctl
 
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
