@@ -854,6 +854,11 @@ func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (curr
 		return nil, nil, err
 	}
 
+	if currentInfo == nil {
+		// don't bother reading update if there is no current
+		return nil, nil, nil
+	}
+
 	newInfo, err := pendingGadgetInfo(snapsup)
 	if err != nil {
 		return nil, nil, err

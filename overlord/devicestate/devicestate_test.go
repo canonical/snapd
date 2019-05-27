@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -3191,4 +3192,88 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget task on a classic system\).*`)
 	c.Check(t.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *deviceMgrSuite) TestCurrentAndUpdateInfo(c *C) {
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	}
+
+	current, update, err := devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, IsNil)
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	// mock current first, but gadget.yaml is still missing
+	ci := snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, nil)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: .*/meta/gadget.yaml: no such file or directory")
+
+	// drop gadget.yaml for current snap
+	ioutil.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot find installed snap \"foo-gadget\" at revision 34: .*")
+
+	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: .*")
+
+	var updateGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    id: 123
+`
+
+	// drop gadget.yaml for update snap
+	ioutil.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(current, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"pc": {
+				Bootloader: "grub",
+			},
+		},
+	})
+	c.Assert(update, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"pc": {
+				Bootloader: "grub",
+				ID:         "123",
+			},
+		},
+	})
 }

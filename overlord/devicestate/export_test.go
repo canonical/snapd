@@ -142,6 +142,8 @@ var (
 	EnsureOperationalAttempts    = ensureOperationalAttempts
 
 	RemodelTasks = remodelTasks
+
+	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
 
 func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
