@@ -276,11 +276,11 @@ if [ -n "$SPREAD" ]; then
     echo "-------------------------"
     echo "Test stage 1"
     echo "-------------------------"
-    spread google:ubuntu-14.04-64:tests/main/interfaces-shutdown-introspection google:ubuntu-14.04-64:tests/main/snap-set google:ubuntu-14.04-64:tests/main/snap-confine-from-core google:ubuntu-14.04-64:tests/main/snapd-reexec
+    spread google:ubuntu-14.04-64:tests/main/interfaces-shutdown-introspection google:ubuntu-14.04-64:tests/main/snap-confine-from-core
     echo "-------------------------"
     echo "Test stage 2"
     echo "-------------------------"
-    spread -repeat 10 google:ubuntu-14.04-64:tests/main/snapd-reexec google:ubuntu-14.04-64:tests/main/snap-confine-from-core
+    spread google:ubuntu-14.04-64:tests/main/snap-set google:ubuntu-14.04-64:tests/main/snap-confine-from-core
     echo "-------------------------"
     echo "Test stage 3"
     echo "-------------------------"
