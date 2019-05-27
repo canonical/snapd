@@ -1461,9 +1461,9 @@ var ratelimitReader = ratelimit.Reader
 
 var download = downloadImpl
 
-// DownloadImpl ...
-func DownloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
-	return downloadImpl(ctx, name, sha3_384, downloadURL, user, s, w, resume, pbar, dlOpts)
+// DownloadImpl wraps download implemetation of the store
+func DownloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker) error {
+	return downloadImpl(ctx, name, sha3_384, downloadURL, user, s, w, 0, nil, nil)
 }
 
 // download writes an http.Request showing a progress.Meter
