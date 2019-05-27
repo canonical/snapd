@@ -2817,3 +2817,49 @@ func (s *deviceMgrSuite) TestDeviceCtxProvided(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx1, Equals, deviceCtx)
 }
+
+func (s *deviceMgrSuite) TestGadgetUpdateConflictsWhenOtherTasks(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tUpdate := s.state.NewTask("update-gadget", "update gadget")
+	t1 := s.state.NewTask("other-task-1", "other 1")
+	t2 := s.state.NewTask("other-task-2", "other 2")
+
+	// no other running tasks, does not block
+	c.Assert(devicestate.ConflictsGadgetUpdate(tUpdate, nil), Equals, false)
+
+	// list of running tasks actually contains ones that are in the 'running' state
+	t1.SetStatus(state.DoingStatus)
+	t2.SetStatus(state.UndoingStatus)
+	// block on any other running tasks
+	c.Assert(devicestate.ConflictsGadgetUpdate(tUpdate, []*state.Task{t1, t2}), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestGadgetUpdateConflictsOtherTasks(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tUpdate := s.state.NewTask("update-gadget", "update gadget")
+	tUpdate.SetStatus(state.DoingStatus)
+	t1 := s.state.NewTask("other-task-1", "other 1")
+	t2 := s.state.NewTask("other-task-2", "other 2")
+
+	// block on any other running tasks
+	c.Assert(devicestate.ConflictsGadgetUpdate(t1, []*state.Task{tUpdate}), Equals, true)
+	c.Assert(devicestate.ConflictsGadgetUpdate(t2, []*state.Task{tUpdate}), Equals, true)
+
+	t2.SetStatus(state.UndoingStatus)
+	// update-gadget should be the only running task, for the sake of
+	// completeness pretend it's one of many running tasks
+	c.Assert(devicestate.ConflictsGadgetUpdate(t1, []*state.Task{tUpdate, t2}), Equals, true)
+
+	// not blocking without gadget update task
+	c.Assert(devicestate.ConflictsGadgetUpdate(t1, []*state.Task{t2}), Equals, false)
+}

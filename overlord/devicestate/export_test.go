@@ -152,4 +152,6 @@ var (
 	RemodelCtx         = remodelCtx
 	RemodelCtxFromTask = remodelCtxFromTask
 	CleanupRemodelCtx  = cleanupRemodelCtx
+
+	ConflictsGadgetUpdate = conflictsGadgetUpdate
 )
