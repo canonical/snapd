@@ -22,11 +22,9 @@ package daemon
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/snapcore/snapd/store"
-	fakestore "github.com/snapcore/snapd/tests/lib/fakestore/store"
 
 	"gopkg.in/check.v1"
 )
@@ -38,20 +36,16 @@ type snapDownloadSuite struct {
 }
 
 func (s *snapDownloadSuite) SetUpTest(c *check.C) {
-	// s.fakeStore = fakestore.NewStore("", "localhost", false).(*store.Store)
 }
 
 func (s *snapDownloadSuite) TestDownloadSnap(c *check.C) {
-
-	fstore := fakestore.NewStore("", "localhost", false)
-
 	type scenario struct {
 		data   snapDownloadAction
 		status int
 		err    string
 	}
 
-	for i, scen := range []scenario{
+	for _, scen := range []scenario{
 		{
 			data: snapDownloadAction{
 				Action: "download",
@@ -76,7 +70,6 @@ func (s *snapDownloadSuite) TestDownloadSnap(c *check.C) {
 			err:    `download operation supports only one snap`,
 		},
 	} {
-		fmt.Printf("runnung test case number %d\n", i)
 		data, err := json.Marshal(scen.data)
 		c.Check(err, check.IsNil)
 		req, err := http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data))
@@ -87,5 +80,4 @@ func (s *snapDownloadSuite) TestDownloadSnap(c *check.C) {
 			c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
 		}
 	}
-
 }
