@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -251,18 +250,17 @@ func makeErrorResponder(status int) errorResponder {
 type FileStream struct {
 	FileName string
 	Info     snap.DownloadInfo
-	stream   []byte
+	stream   io.Reader
 }
 
 // ServeHTTP from the Response interface
 func (s FileStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	b := bytes.NewBuffer(s.stream)
-
 	w.Header().Set("Content-Type", "application/octet-stream")
 	size := fmt.Sprintf("%d", s.Info.Size)
 	w.Header().Set("Content-Length", size)
 
-	if _, err := b.WriteTo(w); err != nil {
+	if _, err := io.Copy(w, s.stream); err != nil {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.FileName, s.Info, err)
 		fmt.Fprintf(w, "%s", err)
 	}
 }

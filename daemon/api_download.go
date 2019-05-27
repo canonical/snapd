@@ -22,9 +22,9 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
-
-	"github.com/traherom/memstream"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
@@ -39,8 +39,13 @@ var snapDownloadCmd = &Command{
 
 // snapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
-	Action string   `json:"action"`
-	Snaps  []string `json:"snaps,omitempty"`
+	Action string `json:"action"`
+	Snaps []snapDownloadInfo `json:"snaps,omitempty"`
+}
+
+type snapDownloadInfo struct {
+	Name   string `json:"name"`
+	Resume int64  `json:"resume"`
 }
 
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -68,31 +73,49 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 	switch action.Action {
 	case "download":
 		theStore := getStore(c)
-		name := action.Snaps[0]
-		return streamOne(name, theStore.(*store.Store), user)
+		snap := action.Snaps[0]
+		return streamOne(snap, theStore.(*store.Store), user)
 	default:
 		return BadRequest("unknown download operation %q", action.Action)
 	}
 }
 
-func streamOne(name string, theStore *store.Store, user *auth.UserState) Response {
-
-	info, err := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
+func streamOne(snap snapDownloadInfo, theStore *store.Store, user *auth.UserState) Response {
+	info, err := theStore.SnapInfo(store.SnapSpec{Name: snap.Name}, user)
 	if err != nil {
-		return SnapNotFound(name, err)
+		return SnapNotFound(snap.Name, err)
 	}
 
 	downloadInfo := info.DownloadInfo
-	url := downloadInfo.AnonDownloadURL
-	if url == "" {
-		url = downloadInfo.DownloadURL
-	}
-	memStream := memstream.New()
+	memStream := NewMemoryStream()
+	go func() {
+		err := store.DownloadStream(context.TODO(), theStore, snap.Name, snap.Resume, &downloadInfo, user, memStream)
+		if err != nil {
+			memStream.PipeWriter.CloseWithError(err)
+		}
+	}()
 
-	store.DownloadImpl(context.TODO(), name, downloadInfo.Sha3_384, url, user, theStore, memStream)
 	return FileStream{
-		FileName: name,
+		FileName: snap.Name,
 		Info:     downloadInfo,
-		stream:   memStream.Bytes(),
+		stream:   memStream.PipeReader,
 	}
+}
+
+// MemoryStream is a wrapper over io.Pipe with a empty Seek implementation
+type MemoryStream struct {
+	*io.PipeReader
+	*io.PipeWriter
+	FakeSeeker
+}
+
+func NewMemoryStream() *MemoryStream {
+	pr, pw := io.Pipe()
+	return &MemoryStream{pr, pw, FakeSeeker{}}
+}
+
+type FakeSeeker struct{}
+
+func (f *FakeSeeker) Seek(offset int64, whence int) (int64, error) {
+	return 0, fmt.Errorf("Seek is not implemented")
 }

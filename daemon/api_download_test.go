@@ -38,7 +38,7 @@ type snapDownloadSuite struct {
 func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 }
 
-func (s *snapDownloadSuite) TestDownloadSnap(c *check.C) {
+func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 	type scenario struct {
 		data   snapDownloadAction
 		status int
@@ -55,16 +55,30 @@ func (s *snapDownloadSuite) TestDownloadSnap(c *check.C) {
 		},
 		{
 			data: snapDownloadAction{
-				Action: "stream",
-				Snaps:  []string{"foo"},
+				Action: "foo",
+				Snaps: []snapDownloadInfo{
+					{
+						Name:   "foo",
+						Resume: 0,
+					},
+				},
 			},
 			status: 400,
 			err:    `unknown download operation "stream"`,
 		},
 		{
 			data: snapDownloadAction{
-				Action: "stream",
-				Snaps:  []string{"foo", "bar"},
+				Action: "foo",
+				Snaps: []snapDownloadInfo{
+					{
+						Name:   "foo",
+						Resume: 0,
+					},
+					{
+						Name:   "bar",
+						Resume: 0,
+					},
+				},
 			},
 			status: 400,
 			err:    `download operation supports only one snap`,
@@ -76,8 +90,9 @@ func (s *snapDownloadSuite) TestDownloadSnap(c *check.C) {
 		c.Assert(err, check.IsNil)
 		rsp := postSnapDownload(snapDownloadCmd, req, nil).(*resp)
 		c.Assert(rsp.Status, check.Equals, scen.status)
-		if scen.err != "" {
-			c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
+		if scen.err == "" {
+			c.Errorf("error is empty")
 		}
+		c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
 	}
 }

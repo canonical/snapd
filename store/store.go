@@ -1379,21 +1379,8 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Starting download of %q.", partialPath)
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return err
-	}
-
-	url := downloadInfo.AnonDownloadURL
-	if url == "" || authAvail {
-		url = downloadInfo.DownloadURL
-	}
-
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, dlOpts)
-		if err != nil {
-			logger.Debugf("download of %q failed: %#v", url, err)
-		}
+		err = download(ctx, name, downloadInfo, user, s, w, resume, pbar, dlOpts)
 	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
@@ -1420,10 +1407,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if err != nil {
 			return err
 		}
-		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
-		if err != nil {
-			logger.Debugf("download of %q failed: %#v", url, err)
-		}
+		err = download(ctx, name, downloadInfo, user, s, w, 0, pbar, nil)
 	}
 
 	if err != nil {
@@ -1461,15 +1445,25 @@ var ratelimitReader = ratelimit.Reader
 
 var download = downloadImpl
 
-// DownloadImpl wraps download implemetation of the store
-func DownloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker) error {
-	return downloadImpl(ctx, name, sha3_384, downloadURL, user, s, w, 0, nil, nil)
+// DownloadStream ...
+func DownloadStream(ctx context.Context, s *Store, name string, resume int64, downloadInfo *snap.DownloadInfo, user *auth.UserState, rws io.ReadWriteSeeker) error {
+	return downloadImpl(ctx, name, downloadInfo, user, s, rws, resume, nil, nil)
 }
 
 // download writes an http.Request showing a progress.Meter
-func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
+func downloadImpl(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *DownloadOptions) error {
 	if dlOpts == nil {
 		dlOpts = &DownloadOptions{}
+	}
+
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return err
+	}
+
+	downloadURL := downloadInfo.AnonDownloadURL
+	if downloadURL == "" || authAvail {
+		downloadURL = downloadInfo.DownloadURL
 	}
 
 	storeURL, err := url.Parse(downloadURL)
@@ -1571,6 +1565,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+		sha3_384 := downloadInfo.Sha3_384
 		if sha3_384 != "" && sha3_384 != actualSha3 {
 			finalErr = HashError{name, actualSha3, sha3_384}
 		}
@@ -1589,6 +1584,8 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 
 		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
+	} else {
+		logger.Debugf("download of %q failed: %#v", downloadURL, finalErr)
 	}
 	return finalErr
 }
@@ -1606,17 +1603,12 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return err
+	info := &snap.DownloadInfo{
+		DownloadURL:     deltaInfo.DownloadURL,
+		AnonDownloadURL: deltaInfo.AnonDownloadURL,
 	}
 
-	url := deltaInfo.AnonDownloadURL
-	if url == "" || authAvail {
-		url = deltaInfo.DownloadURL
-	}
-
-	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
+	return download(context.TODO(), deltaName, info, user, s, w, 0, pbar, nil)
 }
 
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
