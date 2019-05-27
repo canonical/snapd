@@ -142,6 +142,7 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 		}
 		storeSwitchCtx.store = devMgr.newStore(storeSwitchCtx.deviceBackend())
 		remodCtx = storeSwitchCtx
+	// TODO: support ReregRemodel
 	default:
 		return nil, fmt.Errorf("unsupported remodel: %s", kind)
 	}
@@ -223,6 +224,8 @@ func (rc baseRemodelContext) init(chg *state.Change) {
 	chg.Set("new-model", string(asserts.Encode(rc.newModel)))
 }
 
+// updateRemodelContext: model assertion revision-only update remodel
+// (no change to brand/model or store)
 type updateRemodelContext struct {
 	baseRemodelContext
 }
@@ -247,6 +250,8 @@ func (rc *updateRemodelContext) Finish() error {
 	return nil
 }
 
+// newStoreRemodelContext: remodel needing a new store session
+// (for change of store (or brand/model))
 type newStoreRemodelContext struct {
 	baseRemodelContext
 

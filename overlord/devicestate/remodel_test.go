@@ -259,24 +259,20 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(mod, DeepEquals, newModel)
 
-	err = devBE.SetDevice(&auth.DeviceState{
-		Brand:           "my-brand",
-		Model:           "my-model",
-		Serial:          "serialserialserial",
-		SessionMacaroon: "session",
-	})
-	c.Assert(err, IsNil)
-
-	expectedDevice := &auth.DeviceState{
+	// set device state for the context
+	device1 := &auth.DeviceState{
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
 		SessionMacaroon: "session",
 	}
 
+	err = devBE.SetDevice(device1)
+	c.Assert(err, IsNil)
+
 	device, err = devBE.Device()
 	c.Assert(err, IsNil)
-	c.Check(device, DeepEquals, expectedDevice)
+	c.Check(device, DeepEquals, device1)
 
 	// have a change
 	chg := s.state.NewChange("remodel", "...")
@@ -284,9 +280,10 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 	err = remodCtx.Init(chg)
 	c.Assert(err, IsNil)
 
+	// check device state is preserved across association with a Change
 	device, err = devBE.Device()
 	c.Assert(err, IsNil)
-	c.Check(device, DeepEquals, expectedDevice)
+	c.Check(device, DeepEquals, device1)
 }
 
 func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
@@ -328,28 +325,25 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(mod, DeepEquals, newModel)
 
-	err = devBE.SetDevice(&auth.DeviceState{
-		Brand:           "my-brand",
-		Model:           "my-model",
-		Serial:          "serialserialserial",
-		SessionMacaroon: "session",
-	})
-	c.Assert(err, IsNil)
-
-	expectedDevice := &auth.DeviceState{
+	// set a device state for the context
+	device1 := &auth.DeviceState{
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
 		SessionMacaroon: "session",
 	}
 
-	var device1 *auth.DeviceState
-	c.Assert(chg.Get("device", &device1), IsNil)
-	c.Check(device1, DeepEquals, expectedDevice)
+	err = devBE.SetDevice(device1)
+	c.Assert(err, IsNil)
+
+	// it's stored on change now
+	var device2 *auth.DeviceState
+	c.Assert(chg.Get("device", &device2), IsNil)
+	c.Check(device2, DeepEquals, device1)
 
 	device, err = devBE.Device()
 	c.Assert(err, IsNil)
-	c.Check(device, DeepEquals, expectedDevice)
+	c.Check(device, DeepEquals, device1)
 }
 
 func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
@@ -383,7 +377,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
-		SessionMacaroon: "session",
+		SessionMacaroon: "remodel-session",
 	})
 	c.Assert(err, IsNil)
 
@@ -421,9 +415,20 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 
 	c.Check(s.capturedDevBE, NotNil)
 
+	// new store remodel context device state built ignoring the
+	// previous session
+	device1, err := s.capturedDevBE.Device()
+	c.Assert(err, IsNil)
+	c.Check(device1, DeepEquals, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+
 	sto := remodCtx.Store()
 	c.Check(sto, Equals, s.dummyStore)
 
+	// store is kept and not rebuilt
 	s.dummyStore = nil
 
 	sto1 := remodCtx.Store()
@@ -442,9 +447,10 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 
 	// we have a device state
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		Serial: "serialserialserial",
+		Brand:           "my-brand",
+		Model:           "my-model",
+		Serial:          "serialserialserial",
+		SessionMacaroon: "orig-session",
 	})
 
 	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
@@ -461,7 +467,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
-		SessionMacaroon: "session",
+		SessionMacaroon: "new-session",
 	})
 	c.Assert(err, IsNil)
 
@@ -473,7 +479,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 		Brand:           "my-brand",
 		Model:           "my-model",
 		Serial:          "serialserialserial",
-		SessionMacaroon: "session",
+		SessionMacaroon: "new-session",
 	}
 
 	device, err := s.mgr.StoreContextBackend().Device()
