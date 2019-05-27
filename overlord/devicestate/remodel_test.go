@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -51,6 +52,8 @@ type remodelLogicSuite struct {
 var _ = Suite(&remodelLogicSuite{})
 
 func (s *remodelLogicSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
 	o := overlord.Mock()
 	s.state = o.State()
 
@@ -84,6 +87,10 @@ func (s *remodelLogicSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.mgr, err = devicestate.Manager(s.state, hookMgr, o.TaskRunner(), newStore)
 	c.Assert(err, IsNil)
+}
+
+func (s *remodelLogicSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
 }
 
 var modelDefaults = map[string]interface{}{
