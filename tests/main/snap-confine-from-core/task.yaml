@@ -18,6 +18,8 @@ restore: |
 debug: |
     journalctl | grep "restarting into"
     journalctl
+    systemctl cat snapd.service
+    systemctl cat snapd.socket
 
 execute: |
     # shellcheck source=tests/lib/journalctl.sh
