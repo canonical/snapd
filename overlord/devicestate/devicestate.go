@@ -155,14 +155,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return nil
 	}
 
-	// XXX: remodeling: use deviceCtx
-	model, err := findModel(st)
-	if err == state.ErrNoState {
-		return fmt.Errorf("cannot install %s without model assertion", kind)
-	}
-	if err != nil {
-		return err
-	}
+	model := deviceCtx.Model()
 
 	if snapInfo.SnapID != "" {
 		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
@@ -335,71 +328,13 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
-// Remodel takes a new model assertion and generates a change that
-// takes the device from the old to the new model or an error if the
-// transition is not possible.
-//
-// TODO:
-// - Check estimated disk size delta
-// - Reapply gadget connections as needed
-// - Need new session/serial if changing store or model
-// - Check all relevant snaps exist in new store
-//   (need to check that even unchanged snaps are accessible)
-func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
-	var seeded bool
-	st.Get("seeded", &seeded)
-	if !seeded {
-		return nil, fmt.Errorf("cannot remodel until fully seeded")
-	}
-
-	current, err := findModel(st)
-	if err != nil {
-		return nil, err
-	}
-	if current.Series() != new.Series() {
-		return nil, fmt.Errorf("cannot remodel to different series yet")
-	}
-	// TODO: we need dedicated assertion language to permit for
-	// model transitions before we allow that cross vault
-	// transitions.
-	//
-	// Right now we only allow "remodel" to a different revision of
-	// the same model.
-	if current.BrandID() != new.BrandID() {
-		return nil, fmt.Errorf("cannot remodel to different brands yet")
-	}
-	if current.Model() != new.Model() {
-		return nil, fmt.Errorf("cannot remodel to different models yet")
-	}
-	if current.Store() != new.Store() {
-		return nil, fmt.Errorf("cannot remodel to different stores yet")
-	}
-	// TODO: should we restrict remodel from one arch to another?
-	// There are valid use-cases here though, i.e. amd64 machine that
-	// remodels itself to/from i386 (if the HW can do both 32/64 bit)
-	if current.Architecture() != new.Architecture() {
-		return nil, fmt.Errorf("cannot remodel to different architectures yet")
-	}
-
-	// calculate snap differences between the two models
-	// FIXME: this needs work to switch the base to boot as well
-	if current.Base() != new.Base() {
-		return nil, fmt.Errorf("cannot remodel to different bases yet")
-	}
-	// FIXME: we need to support this soon but right now only a single
-	// snap of type "gadget/kernel" is allowed so this needs work
-	if current.Kernel() != new.Kernel() {
-		return nil, fmt.Errorf("cannot remodel to different kernels yet")
-	}
-	if current.Gadget() != new.Gadget() {
-		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
-	}
+func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSet, error) {
 	userID := 0
 
 	// adjust kernel track
 	var tss []*state.TaskSet
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{NoReRefresh: true})
+		ts, err := snapstateUpdate(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true})
 		if err != nil {
 			return nil, err
 		}
@@ -482,11 +417,94 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	// Set the new model assertion - this *must* be the last thing done
 	// by the change.
 	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
-	setModel.Set("new-model", asserts.Encode(new))
 	for _, tsPrev := range tss {
 		setModel.WaitAll(tsPrev)
 	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
 	return tss, nil
+}
+
+// Remodel takes a new model assertion and generates a change that
+// takes the device from the old to the new model or an error if the
+// transition is not possible.
+//
+// TODO:
+// - Check estimated disk size delta
+// - Reapply gadget connections as needed
+// - Need new session/serial if changing store or model
+// - Check all relevant snaps exist in new store
+//   (need to check that even unchanged snaps are accessible)
+func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !seeded {
+		return nil, fmt.Errorf("cannot remodel until fully seeded")
+	}
+
+	current, err := findModel(st)
+	if err != nil {
+		return nil, err
+	}
+	if current.Series() != new.Series() {
+		return nil, fmt.Errorf("cannot remodel to different series yet")
+	}
+	// TODO: we need dedicated assertion language to permit for
+	// model transitions before we allow that cross vault
+	// transitions.
+	//
+	// Right now we only allow "remodel" to a different revision of
+	// the same model.
+	if current.BrandID() != new.BrandID() {
+		return nil, fmt.Errorf("cannot remodel to different brands yet")
+	}
+	if current.Model() != new.Model() {
+		return nil, fmt.Errorf("cannot remodel to different models yet")
+	}
+	if current.Store() != new.Store() {
+		return nil, fmt.Errorf("cannot remodel to different stores yet")
+	}
+	// TODO: should we restrict remodel from one arch to another?
+	// There are valid use-cases here though, i.e. amd64 machine that
+	// remodels itself to/from i386 (if the HW can do both 32/64 bit)
+	if current.Architecture() != new.Architecture() {
+		return nil, fmt.Errorf("cannot remodel to different architectures yet")
+	}
+
+	// calculate snap differences between the two models
+	// FIXME: this needs work to switch the base to boot as well
+	if current.Base() != new.Base() {
+		return nil, fmt.Errorf("cannot remodel to different bases yet")
+	}
+	// FIXME: we need to support this soon but right now only a single
+	// snap of type "gadget/kernel" is allowed so this needs work
+	if current.Kernel() != new.Kernel() {
+		return nil, fmt.Errorf("cannot remodel to different kernels yet")
+	}
+	if current.Gadget() != new.Gadget() {
+		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
+	}
+
+	tss, err := remodelTasks(st, current, new)
+	if err != nil {
+		return nil, err
+	}
+
+	var msg string
+	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
+		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), current.Revision(), new.Revision())
+	} else {
+		// TODO: add test once we support this kind of remodel
+		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
+	}
+	chg := st.NewChange("remodel", msg)
+	chg.Set("new-model", string(asserts.Encode(new)))
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	return chg, nil
 }

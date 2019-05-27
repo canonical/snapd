@@ -25,9 +25,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 )
 
-// TODO: this should be a general helper
-var AssertAdd = assertAdd
-
 func GetAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) *resp {
 	return getAssertTypeNames(c, r, user).(*resp)
 }

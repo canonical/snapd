@@ -5353,12 +5353,18 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstall(c *C) {
-	s.testSnapActionGet("install", c)
+	s.testSnapActionGet("install", "", c)
+}
+func (s *storeTestSuite) TestSnapActionInstallWithCohort(c *C) {
+	s.testSnapActionGet("install", "what", c)
 }
 func (s *storeTestSuite) TestSnapActionDownload(c *C) {
-	s.testSnapActionGet("download", c)
+	s.testSnapActionGet("download", "", c)
 }
-func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
+func (s *storeTestSuite) TestSnapActionDownloadWithCohort(c *C) {
+	s.testSnapActionGet("download", "here", c)
+}
+func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5390,13 +5396,17 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		expectedAction := map[string]interface{}{
 			"action":       action,
 			"instance-key": action + "-1",
 			"name":         "hello-world",
 			"channel":      "beta",
 			"epoch":        nil,
-		})
+		}
+		if cohort != "" {
+			expectedAction["cohort-key"] = cohort
+		}
+		c.Assert(req.Actions[0], DeepEquals, expectedAction)
 
 		fmt.Fprintf(w, `{
   "results": [{
@@ -5436,6 +5446,7 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 				Action:       action,
 				InstanceName: "hello-world",
 				Channel:      "beta",
+				CohortKey:    cohort,
 			},
 		}, nil, nil)
 	c.Assert(err, IsNil)
@@ -6529,6 +6540,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
+			"cohort-key":       "what",
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
@@ -6585,6 +6597,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			CohortKey:       "what",
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,

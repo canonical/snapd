@@ -480,8 +480,8 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // Internally the snap state is updated to remember when the inhibition first
 // took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
 // that period the refresh will go ahead despite application activity.
-func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
-	if err := SoftNothingRunningRefreshCheck(info); err != nil {
+func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
+	if err := checker(info); err != nil {
 		now := time.Now()
 		if snapst.RefreshInhibitedTime == nil {
 			// Store the instant when the snap was first inhibited.
