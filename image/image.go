@@ -411,12 +411,12 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 // hasBase checks if the given snap has a base in the given localInfos and
 // snaps. If not an error is returned.
 func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
-	// snap needs no base (or it simply needs core which is never listed explicitely): nothing to do
+	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if snap.Base == "" {
 		return nil
 	}
 
-	// snap explicitely listed as not needing a base snap (e.g. a content-only snap)
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
 	if snap.Base == "none" {
 		return nil
 	}
