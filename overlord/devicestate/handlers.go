@@ -808,11 +808,7 @@ func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
 func makeRollbackDir(name string) (string, error) {
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, name)
 
-	if err := os.MkdirAll(dirs.SnapRollbackDir, 0755); err != nil {
-		return "", err
-	}
-
-	if err := os.Mkdir(rollbackDir, 0755); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(rollbackDir, 0755); err != nil {
 		return "", err
 	}
 
