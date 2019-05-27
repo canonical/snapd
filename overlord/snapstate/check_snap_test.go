@@ -682,14 +682,6 @@ base: none
 
 %APPS_OR_HOOKS%
 `
-	yaml := `name: use-base-none
-version: 1
-base: none
-
-apps:
-  useradd:
-	command: bin/true
-`
 	apps := `
 apps:
   useradd:
@@ -708,7 +700,7 @@ hooks:
 	defer restore()
 
 	for _, appsOrHooks := range []string{apps, hooks} {
-		yaml = strings.Replace(yamlTemplate, "%APPS_OR_HOOKS%", appsOrHooks, -1)
+		yaml := strings.Replace(yamlTemplate, "%APPS_OR_HOOKS%", appsOrHooks, -1)
 
 		var err error
 		info, err = snap.InfoFromSnapYaml([]byte(yaml))
