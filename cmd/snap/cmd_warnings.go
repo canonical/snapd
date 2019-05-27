@@ -193,7 +193,13 @@ func lastWarningTimestamp() (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("cannot determine real user: %v", err)
 	}
-	f, err := os.Open(warnFilename(user.HomeDir))
+
+	fileName := warnFilename(user.HomeDir)
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+		return time.Time{}, nil
+	}
+
+	f, err := os.Open(fileName)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("cannot open timestamp file: %v", err)
 
