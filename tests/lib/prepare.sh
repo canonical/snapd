@@ -310,6 +310,11 @@ repack_snapd_snap_with_deb_content() {
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+    # clean snap apparmor.d to ensure the put the right snap-confine apparmor
+    # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
+    # usr.lib.snapd.snap-confine.real everywhere else
+    rm -f "$UNPACK_DIR"/etc/apparmor.d/*
+
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
     snap pack "$UNPACK_DIR" "$TARGET"
