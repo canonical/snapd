@@ -338,7 +338,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSe
 	// adjust kernel track
 	var tss []*state.TaskSet
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{NoReRefresh: true})
+		ts, err := snapstateUpdate(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true})
 		if err != nil {
 			return nil, err
 		}
