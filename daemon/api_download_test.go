@@ -17,13 +17,75 @@
  *
  */
 
-package daemon_test
+package daemon
 
-import "gopkg.in/check.v1"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/snapcore/snapd/store"
+	fakestore "github.com/snapcore/snapd/tests/lib/fakestore/store"
+
+	"gopkg.in/check.v1"
+)
 
 var _ = check.Suite(&snapDownloadSuite{})
 
-type snapDownloadSuite struct{}
+type snapDownloadSuite struct {
+	fakeStore *store.Store
+}
 
 func (s *snapDownloadSuite) SetUpTest(c *check.C) {
+	// s.fakeStore = fakestore.NewStore("", "localhost", false).(*store.Store)
+}
+
+func (s *snapDownloadSuite) TestDownloadSnap(c *check.C) {
+
+	fstore := fakestore.NewStore("", "localhost", false)
+
+	type scenario struct {
+		data   snapDownloadAction
+		status int
+		err    string
+	}
+
+	for i, scen := range []scenario{
+		{
+			data: snapDownloadAction{
+				Action: "download",
+			},
+			status: 400,
+			err:    "download operation requires at least one snap name",
+		},
+		{
+			data: snapDownloadAction{
+				Action: "stream",
+				Snaps:  []string{"foo"},
+			},
+			status: 400,
+			err:    `unknown download operation "stream"`,
+		},
+		{
+			data: snapDownloadAction{
+				Action: "stream",
+				Snaps:  []string{"foo", "bar"},
+			},
+			status: 400,
+			err:    `download operation supports only one snap`,
+		},
+	} {
+		fmt.Printf("runnung test case number %d\n", i)
+		data, err := json.Marshal(scen.data)
+		c.Check(err, check.IsNil)
+		req, err := http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data))
+		c.Assert(err, check.IsNil)
+		rsp := postSnapDownload(snapDownloadCmd, req, nil).(*resp)
+		c.Assert(rsp.Status, check.Equals, scen.status)
+		if scen.err != "" {
+			c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
+		}
+	}
+
 }

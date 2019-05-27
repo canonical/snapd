@@ -99,6 +99,12 @@
 			"tree": true
 		},
 		{
+			"checksumSHA1": "451qzVZIhYyGsK1Z4YueT3XBSso=",
+			"path": "github.com/traherom/memstream",
+			"revision": "b2247a2040b373fc4c81572104a7396a3c803c7f",
+			"revisionTime": "2015-10-17T19:59:31Z"
+		},
+		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
 			"path": "golang.org/x/crypto/cast5",
 			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d"

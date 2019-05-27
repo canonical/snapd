@@ -247,27 +247,24 @@ func makeErrorResponder(status int) errorResponder {
 	}
 }
 
-type FileStream []byte
+// A FileStream ServeHTTP method streams the snap
+type FileStream struct {
+	FileName string
+	Info     snap.DownloadInfo
+	stream   []byte
+}
 
 // ServeHTTP from the Response interface
 func (s FileStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// grab the generated receipt.pdf file and stream it to browser
-	// streamPDFbytes, err := ioutil.ReadFile("./receipt.pdf")
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	os.Exit(1)
-	// }
+	b := bytes.NewBuffer(s.stream)
 
-	b := bytes.NewBuffer(s)
-
-	// stream straight to client(browser)
-	w.Header().Set("Content-type", "application/octet-stream")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	size := fmt.Sprintf("%d", s.Info.Size)
+	w.Header().Set("Content-Length", size)
 
 	if _, err := b.WriteTo(w); err != nil {
 		fmt.Fprintf(w, "%s", err)
 	}
-
-	// w.Write([]byte("PDF Generated"))
 }
 
 // A FileResponse 's ServeHTTP method serves the file
