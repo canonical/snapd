@@ -370,6 +370,10 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 	}
 	c.Check(fn, PanicMatches, `option on "command" has no name`)
 	log.Reset()
+
+	snap.LintDesc("snap-advise", "from-apt", "snap-advise will run as a hook", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
 }
 
 func (s *SnapSuite) TestLintArg(c *C) {
