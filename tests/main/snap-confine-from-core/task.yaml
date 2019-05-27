@@ -15,6 +15,9 @@ restore: |
     echo "Restoring host snap-confine"
     chmod 4755 /usr/lib/snapd/snap-confine
 
+debug: |
+    journalctl | grep "restarting into"
+
 execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
