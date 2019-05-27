@@ -354,8 +354,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 				     dst, src);
 				continue;
 			}
-			// both source and destination exist and are either files or
-			// directories
+			// both source and destination exist where both are either files
+			// or both are directories
 			sc_do_mount(src, dst, NULL, MS_BIND, NULL);
 			sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 		}

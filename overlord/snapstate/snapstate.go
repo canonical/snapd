@@ -1664,11 +1664,16 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		if model.Base() != "" && !coreInUse(st) {
 			return true
 		}
+		return false
 	}
 
-	// You never want to remove a kernel or OS. Do not remove their
-	// last revision left.
-	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
+	// Because of a Remodel() we may have multiple kernels. Allow
+	// removals of kernel(s) that are not model kernels (anymore).
+	if si.Type == snap.TypeKernel {
+		model := deviceCtx.Model()
+		if model.Kernel() != si.InstanceName() {
+			return true
+		}
 		return false
 	}
 
