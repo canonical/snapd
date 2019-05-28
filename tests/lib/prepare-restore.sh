@@ -533,20 +533,23 @@ restore_suite_each() {
         rm -rf "${PWD}.tar"
     fi
 
-    echo "Save snaps profiler log"
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        profiler_logs_dir="$RUNTIME_STATE_PATH/profiler"
-        profiler_logs_file=$(echo "$SPREAD_JOB" | tr '/' '_' | tr ':' '__')
+        echo "Save snaps profiler log"
+        local logs_id, logs_dir, logs_file
+        logs_dir="$RUNTIME_STATE_PATH/logs"
+        logs_id=$(ls *.journal.log 2>/dev/null | wc -l)
+        logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
 
         profiler_snap=test-snapd-profiler
         if is_core18_system; then
             profiler_snap=test-snapd-profiler-core18
         fi
 
-        mkdir -p "$profiler_logs_dir"
+        mkdir -p "$logs_dir"
         if [ -e "/var/snap/${profiler_snap}/common/proc.log" ]; then
-            cp -f "/var/snap/${profiler_snap}/common/proc.log" "${profiler_logs_dir}/${profiler_logs_file}.log"
+            cp -f "/var/snap/${profiler_snap}/common/proc.log" "${logs_dir}/${logs_file}.profiler.log"
         fi
+        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
     fi
 }
 
