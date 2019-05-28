@@ -828,6 +828,7 @@ suites:
         summary: Tests for nested images
         backends: [google-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+        environment:
             NESTED_TYPE: "core"
             # Channel used to create the nested vm
             CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
