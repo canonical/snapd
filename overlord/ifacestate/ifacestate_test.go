@@ -3719,6 +3719,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDenySkippedIfNoDecl(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -3735,7 +3736,7 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {
@@ -3937,11 +3938,12 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 	c.Check(snapInfo.Slots["home"], NotNil)
 }
 
