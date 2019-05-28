@@ -34,6 +34,8 @@ type MountedFilesystemWriter struct {
 	rootDir string
 }
 
+// NewMountedFilesystemWriter returns a writer capable of deploying content from
+// given root directory.
 func NewMountedFilesystemWriter(rootDir string) *MountedFilesystemWriter {
 	return &MountedFilesystemWriter{
 		rootDir: rootDir,
@@ -50,6 +52,9 @@ func remapPreserve(dstDir string, preserve []string) []string {
 	return preserveInDst
 }
 
+// Deploy deploys structure data into provided directory. All existing files are
+// overwritten, unless their paths, relative to target directory, are listed in
+// the preserve list.
 func (m *MountedFilesystemWriter) Deploy(whereDir string, ps *PositionedStructure, preserve []string) error {
 	preserveInDst := remapPreserve(whereDir, preserve)
 	for _, c := range ps.Content {
@@ -146,6 +151,9 @@ func (m *MountedFilesystemWriter) deployOneContent(whereDir string, content *Vol
 	}
 }
 
+// DeployContent deploys entries of a single content entry into the provided
+// directory. All existing files are overwritten, unless their paths, relative
+// to target directory, are listed in the preserve list.
 func (m *MountedFilesystemWriter) DeployContent(whereDir string, content *VolumeContent, preserve []string) error {
 	return m.deployOneContent(whereDir, content, remapPreserve(whereDir, preserve))
 }
