@@ -31,9 +31,6 @@ execute: |
         exit 0
     fi
 
-    echo "Ensure we re-exec by default"
-    /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
-
     # shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
     # shellcheck source=tests/lib/journalctl.sh
