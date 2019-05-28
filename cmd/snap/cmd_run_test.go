@@ -50,6 +50,21 @@ hooks:
  configure:
 `)
 
+var mockYamlBaseNone1 = []byte(`name: snapname1
+version: 1.0
+base: none
+apps:
+ app:
+  command: run-app
+`)
+
+var mockYamlBaseNone2 = []byte(`name: snapname2
+version: 1.0
+base: none
+hooks:
+ configure:
+`)
+
 type RunSuite struct {
 	fakeHome string
 	BaseSnapSuite
@@ -92,6 +107,24 @@ func (s *RunSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters = []string{"run", "--hook=configure", "--", "foo", "bar", "snap-name"}
 	_, err = snaprun.Parser(snaprun.Client()).ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"configure\": bar.*")
+}
+
+func (s *RunSuite) TestRunCmdWithBaseNone(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYamlBaseNone1), &snap.SideInfo{
+		Revision: snap.R("1"),
+	})
+	snaptest.MockSnapCurrent(c, string(mockYamlBaseNone2), &snap.SideInfo{
+		Revision: snap.R("1"),
+	})
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname1.app", "--arg1", "arg2"})
+	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base type \"none\"`)
+
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname2"})
+	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base type \"none\"`)
 }
 
 func (s *RunSuite) TestSnapRunWhenMissingConfine(c *check.C) {
@@ -712,11 +745,11 @@ func (s *RunSuite) TestAntialiasHappy(c *check.C) {
 	app, outArgs = snaprun.Antialias("alias", inArgs)
 	c.Check(app, check.Equals, "an-app")
 	c.Check(outArgs, check.DeepEquals, []string{
-		"99", // COMP_TYPE (no change)
-		"99", // COMP_KEY (no change)
-		"11", // COMP_POINT (+1 because "an-app" is one longer than "alias")
-		"2",  // COMP_CWORD (no change)
-		" ",  // COMP_WORDBREAKS (no change)
+		"99",                    // COMP_TYPE (no change)
+		"99",                    // COMP_KEY (no change)
+		"11",                    // COMP_POINT (+1 because "an-app" is one longer than "alias")
+		"2",                     // COMP_CWORD (no change)
+		" ",                     // COMP_WORDBREAKS (no change)
 		"an-app alias bo-alias", // COMP_LINE (argv[0] changed)
 		"an-app",                // argv (arv[0] changed)
 		"alias",
@@ -737,12 +770,12 @@ func (s *RunSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
 	weird2[5] = "alias "
 
 	for desc, inArgs := range map[string][]string{
-		"nil args":                                               nil,
-		"too-short args":                                         {"alias"},
-		"COMP_POINT not a number":                                mkCompArgs("hello", "alias"),
-		"COMP_POINT is inside argv[0]":                           mkCompArgs("2", "alias", ""),
-		"COMP_POINT is outside argv":                             mkCompArgs("99", "alias", ""),
-		"COMP_WORDS[0] is not argv[0]":                           mkCompArgs("10", "not-alias", ""),
+		"nil args":                     nil,
+		"too-short args":               {"alias"},
+		"COMP_POINT not a number":      mkCompArgs("hello", "alias"),
+		"COMP_POINT is inside argv[0]": mkCompArgs("2", "alias", ""),
+		"COMP_POINT is outside argv":   mkCompArgs("99", "alias", ""),
+		"COMP_WORDS[0] is not argv[0]": mkCompArgs("10", "not-alias", ""),
 		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #1": weird1,
 		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #2": weird2,
 	} {
