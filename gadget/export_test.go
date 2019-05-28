@@ -30,4 +30,7 @@ var (
 	CanUpdateVolume    = canUpdateVolume
 
 	EncodeLabel = encodeLabel
+
+	DeployFile      = deployFile
+	DeployDirectory = deployDirectory
 )
