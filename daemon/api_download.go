@@ -39,8 +39,8 @@ var snapDownloadCmd = &Command{
 
 // snapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
-	Action string `json:"action"`
-	Snaps []snapDownloadInfo `json:"snaps,omitempty"`
+	Action string             `json:"action"`
+	Snaps  []snapDownloadInfo `json:"snaps,omitempty"`
 }
 
 type snapDownloadInfo struct {
@@ -89,6 +89,7 @@ func streamOne(snap snapDownloadInfo, theStore *store.Store, user *auth.UserStat
 	downloadInfo := info.DownloadInfo
 	memStream := NewMemoryStream()
 	go func() {
+		defer memStream.PipeWriter.Close()
 		err := store.DownloadStream(context.TODO(), theStore, snap.Name, snap.Resume, &downloadInfo, user, memStream)
 		if err != nil {
 			memStream.PipeWriter.CloseWithError(err)
