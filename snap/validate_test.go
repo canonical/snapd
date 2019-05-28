@@ -621,6 +621,46 @@ slots:
 	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for slot "slot"`)
 }
 
+func (s *ValidateSuite) TestValidateBaseNone(c *C) {
+	const yaml = `name: requires-base
+version: 1
+base: none
+`
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Assert(err, IsNil)
+	c.Check(info.Base, Equals, "none")
+}
+
+func (s *ValidateSuite) TestValidateBaseNoneError(c *C) {
+	yamlTemplate := `name: use-base-none
+version: 1
+base: none
+
+%APPS_OR_HOOKS%
+`
+	const apps = `
+apps:
+  useradd:
+    command: bin/true
+`
+	const hooks = `
+hooks:
+  configure:
+`
+
+	for _, appsOrHooks := range []string{apps, hooks} {
+		yaml := strings.Replace(yamlTemplate, "%APPS_OR_HOOKS%", appsOrHooks, -1)
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, ErrorMatches, `cannot have apps or hooks with base type "none"`)
+	}
+}
+
 type testConstraint string
 
 func (constraint testConstraint) IsOffLimits(path string) bool {

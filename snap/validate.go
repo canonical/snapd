@@ -341,11 +341,9 @@ func Validate(info *Info) error {
 		return err
 	}
 
-	// validate that bases do not have base fields
-	if info.Type == TypeOS || info.Type == TypeBase {
-		if info.Base != "" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
-		}
+	// Ensure that base field is valid
+	if err := ValidateBase(info); err != nil {
+		return err
 	}
 
 	// ensure that common-id(s) are unique
@@ -354,6 +352,21 @@ func Validate(info *Info) error {
 	}
 
 	return ValidateLayoutAll(info)
+}
+
+// ValidateBase validates the base field.
+func ValidateBase(info *Info) error {
+	// validate that bases do not have base fields
+	if info.Type == TypeOS || info.Type == TypeBase {
+		if info.Base != "" {
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
+		}
+	}
+
+	if info.Base == "none" && (len(info.Hooks) > 0 || len(info.Apps) > 0) {
+		return fmt.Errorf(`cannot have apps or hooks with base type "none"`)
+	}
+	return nil
 }
 
 // ValidateLayoutAll validates the consistency of all the layout elements in a snap.
