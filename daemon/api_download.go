@@ -59,7 +59,7 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	if len(action.Snaps) == 0 {
-		return BadRequest("download operation requires at least one snap name")
+		return BadRequest("download operation requires exactlywgrant one snap name")
 	}
 
 	if len(action.Snaps) != 1 {

@@ -51,7 +51,7 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 				Action: "download",
 			},
 			status: 400,
-			err:    "download operation requires at least one snap name",
+			err:    "download operation requires exactly one snap name",
 		},
 		{
 			data: snapDownloadAction{
