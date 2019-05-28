@@ -14239,28 +14239,28 @@ func (s *snapmgrTestSuite) TestGadgetUpdateBlocksOtherChanges(c *C) {
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
-	_, err = snapstate.Switch(s.state, "some-snap", "some-channel")
+	_, err = snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "gadget update in progress")
 
-	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{})
+	_, err = snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "gadget update in progress")
 
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0))
+	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), &snapstate.RemoveFlags{})
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "gadget update in progress")
 
 	// and when the transition is done, other tasks are possible run
 	chg.SetStatus(state.DoneStatus)
 
-	_, err = snapstate.Switch(s.state, "some-snap", "some-channel")
+	_, err = snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
 	c.Check(err, IsNil)
 
-	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, snapstate.Flags{})
+	_, err = snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
 	c.Check(err, IsNil)
 
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0))
+	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), &snapstate.RemoveFlags{})
 	c.Check(err, IsNil)
 
 	snapstate.Set(s.state, "some-snap", nil)
@@ -14301,7 +14301,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	})
 
 	// and on update
-	ts, err := snapstate.Update(s.state, "some-gadget", "", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-gadget", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
