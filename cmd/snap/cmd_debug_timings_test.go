@@ -68,28 +68,31 @@ var timingsTests = []timingsCmdArgs{{
 		"  ^                  1ms            -  bar        bar summary\n\n",
 }, {
 	args: "debug timings --ensure=foo",
-	stdout: "ID      Status        Doing      Undoing  Summary\n" +
-		"ensure                  8ms            -  baz summary\n" +
-		" ^                      8ms            -    booze summary\n" +
-		"40      Doing         910ms            -  task bar summary\n" +
-		" ^                      1ms            -    foo summary\n" +
-		"  ^                     1ms            -      bar summary\n\n",
+	stdout: "ID   Status        Doing      Undoing  Summary\n" +
+		"foo                    -            -  \n" +
+		" ^                   8ms            -    baz summary\n" +
+		"  ^                  8ms            -      booze summary\n" +
+		"40   Doing         910ms            -  task bar summary\n" +
+		" ^                   1ms            -    foo summary\n" +
+		"  ^                  1ms            -      bar summary\n\n",
 }, {
 	args: "debug timings --ensure=bar --all",
-	stdout: "ID      Status        Doing      Undoing  Summary\n" +
-		"ensure                  8ms            -  bar summary 1\n" +
-		"ensure                  8ms            -  bar summary 2\n" +
-		"40      Doing         910ms            -  task bar summary\n" +
-		" ^                      1ms            -    foo summary\n" +
-		"  ^                     1ms            -      bar summary\n\n",
+	stdout: "ID   Status        Doing      Undoing  Summary\n" +
+		"bar                    -            -  \n" +
+		" ^                   8ms            -    bar summary 1\n" +
+		" ^                   8ms            -    bar summary 2\n" +
+		"40   Doing         910ms            -  task bar summary\n" +
+		" ^                   1ms            -    foo summary\n" +
+		"  ^                  1ms            -      bar summary\n\n",
 }, {
 	args: "debug timings --ensure=bar --all --verbose",
-	stdout: "ID      Status        Doing      Undoing  Label  Summary\n" +
-		"ensure                  8ms            -  abc    bar summary 1\n" +
-		"ensure                  8ms            -  abc    bar summary 2\n" +
-		"40      Doing         910ms            -  bar    task bar summary\n" +
-		" ^                      1ms            -  foo      foo summary\n" +
-		"  ^                     1ms            -  bar        bar summary\n\n",
+	stdout: "ID   Status        Doing      Undoing  Label  Summary\n" +
+		"bar                    -            -         \n" +
+		" ^                   8ms            -  abc      bar summary 1\n" +
+		" ^                   8ms            -  abc      bar summary 2\n" +
+		"40   Doing         910ms            -  bar    task bar summary\n" +
+		" ^                   1ms            -  foo      foo summary\n" +
+		"  ^                  1ms            -  bar        bar summary\n\n",
 }}
 
 func (s *SnapSuite) TestGetDebugTimings(c *C) {
