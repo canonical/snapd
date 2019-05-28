@@ -279,7 +279,7 @@ type registrationContext interface {
 // initialRegistrationContext is a thin wrapper around DeviceManager
 // implementing registrationContext for initial regitration
 type initialRegistrationContext struct {
-	*DeviceManager
+	deviceMgr *DeviceManager
 
 	gadget string
 }
@@ -289,7 +289,7 @@ func (rc *initialRegistrationContext) ForRemodeling() bool {
 }
 
 func (rc *initialRegistrationContext) Device() (*auth.DeviceState, error) {
-	return rc.DeviceManager.device()
+	return rc.deviceMgr.device()
 }
 
 func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
@@ -305,20 +305,20 @@ func (rc *initialRegistrationContext) SerialRequestAncillaryAssertions() []asser
 }
 
 func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial) error {
-	device, err := rc.DeviceManager.device()
+	device, err := rc.deviceMgr.device()
 	if err != nil {
 		return err
 	}
 
 	device.Serial = serial.Serial()
-	if err := rc.DeviceManager.setDevice(device); err != nil {
+	if err := rc.deviceMgr.setDevice(device); err != nil {
 		return err
 	}
-	rc.DeviceManager.markRegistered()
+	rc.deviceMgr.markRegistered()
 
 	// make sure we timely consider anything that was blocked on
 	// registration
-	rc.DeviceManager.state.EnsureBefore(0)
+	rc.deviceMgr.state.EnsureBefore(0)
 
 	return nil
 }
@@ -331,8 +331,8 @@ func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, err
 	}
 
 	return &initialRegistrationContext{
-		DeviceManager: m,
-		gadget:        model.Gadget(),
+		deviceMgr: m,
+		gadget:    model.Gadget(),
 	}, nil
 }
 

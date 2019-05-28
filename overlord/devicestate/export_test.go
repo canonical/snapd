@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -132,6 +133,12 @@ func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, erro
 	return m.registrationCtx(t)
 }
 
+func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
+	return remodCtx.(interface {
+		deviceBackend() storecontext.DeviceBackend
+	}).deviceBackend()
+}
+
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
@@ -142,6 +149,10 @@ var (
 	EnsureOperationalAttempts    = ensureOperationalAttempts
 
 	RemodelTasks = remodelTasks
+
+	RemodelCtx         = remodelCtx
+	RemodelCtxFromTask = remodelCtxFromTask
+	CleanupRemodelCtx  = cleanupRemodelCtx
 
 	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )

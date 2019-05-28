@@ -48,6 +48,9 @@ type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 
+	// newStore can make new stores for remodeling
+	newStore func(storecontext.DeviceBackend) snapstate.StoreService
+
 	bootOkRan            bool
 	bootRevisionsUpdated bool
 
@@ -60,7 +63,7 @@ type DeviceManager struct {
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -69,7 +72,16 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, reg: make(chan struct{})}
+	m := &DeviceManager{
+		state:      s,
+		keypairMgr: keypairMgr,
+		newStore:   newStore,
+		reg:        make(chan struct{}),
+	}
+
+	s.Lock()
+	s.Cache(deviceMgrKey{}, m)
+	s.Unlock()
 
 	if err := m.confirmRegistered(); err != nil {
 		return nil, err
@@ -90,6 +102,16 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("update-gadget", m.doUpdateGadget, nil)
 
 	return m, nil
+}
+
+type deviceMgrKey struct{}
+
+func deviceMgr(st *state.State) *DeviceManager {
+	mgr := st.Cached(deviceMgrKey{})
+	if mgr == nil {
+		panic("internal error: device manager is not yet associated with state")
+	}
+	return mgr.(*DeviceManager)
 }
 
 func (m *DeviceManager) CanStandby() bool {
@@ -538,7 +560,7 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	return findSerial(m.state)
+	return findSerial(m.state, nil)
 }
 
 // implement storecontext.Backend
