@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -671,48 +670,6 @@ base: some-base
 	c.Check(err, ErrorMatches, "cannot find required base \"some-base\"")
 }
 
-func (s *checkSnapSuite) TestCheckSnapBasesNoneError(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	yamlTemplate := `name: use-base-none
-version: 1
-base: none
-
-%APPS_OR_HOOKS%
-`
-	apps := `
-apps:
-  useradd:
-    command: bin/true
-`
-	hooks := `
-hooks:
-  configure:
-`
-
-	var info *snap.Info
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, containerWithApp(c, "bin/true"), nil
-	}
-	restore := snapstate.MockOpenSnapFile(openSnapFile)
-	defer restore()
-
-	for _, appsOrHooks := range []string{apps, hooks} {
-		yaml := strings.Replace(yamlTemplate, "%APPS_OR_HOOKS%", appsOrHooks, -1)
-
-		var err error
-		info, err = snap.InfoFromSnapYaml([]byte(yaml))
-		c.Assert(err, IsNil)
-
-		st.Unlock()
-		err = snapstate.CheckSnap(st, "snap-path", "use-base-none", nil, nil, snapstate.Flags{}, nil)
-		st.Lock()
-		c.Check(err, ErrorMatches, "base type \"none\" not supported with apps or hooks")
-	}
-}
-
 func (s *checkSnapSuite) TestCheckSnapBasesNoneHappy(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -720,24 +677,21 @@ func (s *checkSnapSuite) TestCheckSnapBasesNoneHappy(c *C) {
 
 	const yaml = `name: use-base-none
 version: 1
-type: %TYPE%
 base: none
 `
-	for _, snapType := range []string{"gadget", "kernel"} {
-		info, err := snap.InfoFromSnapYaml([]byte(strings.Replace(yaml, "%TYPE%", snapType, -1)))
-		c.Assert(err, IsNil)
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
 
-		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-			return info, emptyContainer(c), nil
-		}
-		restore := snapstate.MockOpenSnapFile(openSnapFile)
-		defer restore()
-
-		st.Unlock()
-		err = snapstate.CheckSnap(st, "snap-path", "use-base-none", nil, nil, snapstate.Flags{}, nil)
-		st.Lock()
-		c.Check(err, IsNil)
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
 	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "use-base-none", nil, nil, snapstate.Flags{}, nil)
+	st.Lock()
+	c.Check(err, IsNil)
 }
 
 func (s *checkSnapSuite) TestCheckSnapBasesHappy(c *C) {
@@ -787,15 +741,6 @@ func emptyContainer(c *C) *snapdir.SnapDir {
 	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
 	return snapdir.New(d)
-}
-
-// containerWithApps returns a minimal container with a single app that passes
-// ValidateContainer checks.
-func containerWithApp(c *C, appPath string) *snapdir.SnapDir {
-	container := emptyContainer(c)
-	c.Assert(os.Mkdir(filepath.Join(container.Path(), filepath.Dir(appPath)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(container.Path(), appPath), nil, 0555), IsNil)
-	return container
 }
 
 func (s *checkSnapSuite) TestCheckSnapInstanceName(c *C) {
