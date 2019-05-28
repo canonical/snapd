@@ -64,7 +64,7 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 				},
 			},
 			status: 400,
-			err:    `unknown download operation "stream"`,
+			err:    `unknown download operation "foo"`,
 		},
 		{
 			data: snapDownloadAction{
