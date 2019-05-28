@@ -658,7 +658,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// booting easier (this might change in the future)
 		if hasRecovery && typ == snap.TypeKernel {
 			downloadedSnapsInfoForBootConfig[fn] = info
-			if err := os.Rename(fn, filepath.Join(filepath.Dir(fn), "kernel.snap")); err != nil {
+			// FIXME: meh, duplicates things
+			if err := osutil.CopyFile(fn, filepath.Join(filepath.Dir(fn), "kernel.snap"), 0); err != nil {
 				return err
 			}
 		}
