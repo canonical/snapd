@@ -149,7 +149,9 @@ func isNetworkDown(err error) bool {
 	case *net.DNSError:
 		// on 16.04 we will not have SyscallError here, but DNSError, with
 		// no further details other than error message
-		return strings.Contains(lowerErr.Err, "connect: network is unreachable")
+		return strings.Contains(lowerErr.Err, "connect: network is unreachable") ||
+			strings.Contains(lowerErr.Err, "no such host") ||
+			strings.Contains(lowerErr.Err, "server misbehaving")
 	case *os.SyscallError:
 		if errnoErr, ok := lowerErr.Err.(syscall.Errno); ok {
 			// the errno codes from kernel/libc when the network is down
