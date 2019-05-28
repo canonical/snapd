@@ -31,6 +31,7 @@ import (
 )
 
 // InstallCandidateMinimalCheck represents a candidate snap installed with --dangerous flag that should pass minimum checks
+// against snap type (if present). It doesn't check interface attributes.
 type InstallCandidateMinimalCheck struct {
 	Snap            *snap.Info
 	BaseDeclaration *asserts.BaseDeclaration
@@ -39,10 +40,11 @@ type InstallCandidateMinimalCheck struct {
 }
 
 func (ic *InstallCandidateMinimalCheck) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule) error {
-	if checkMinimalSlotInstallationConstraints(ic, slot, rule.DenyInstallation) == nil {
+	if hasConstraints, err := checkMinimalSlotInstallationConstraints(ic, slot, rule.DenyInstallation); hasConstraints && err == nil {
 		return fmt.Errorf("installation denied by %q slot rule of interface %q", slot.Name, slot.Interface)
 	}
-	if checkMinimalSlotInstallationConstraints(ic, slot, rule.AllowInstallation) != nil {
+
+	if hasConstraints, err := checkMinimalSlotInstallationConstraints(ic, slot, rule.AllowInstallation); hasConstraints && err != nil {
 		return fmt.Errorf("installation not allowed by %q slot rule of interface %q", slot.Name, slot.Interface)
 	}
 	return nil
