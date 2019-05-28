@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -82,6 +83,7 @@ type mgrsSuite struct {
 	restoreSystemctl func()
 
 	storeSigning   *assertstest.StoreStack
+	brands         *assertstest.SigningAccounts
 	restoreTrusted func()
 	mockSnapCmd    *testutil.MockCmd
 
@@ -167,6 +169,10 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	})
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", nil)
+	ms.brands = assertstest.NewSigningAccounts(ms.storeSigning)
+	ms.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"validation": "verified",
+	})
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
 	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
@@ -195,7 +201,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
 		Serial: "serialserial",
@@ -393,7 +399,7 @@ apps:
 	c.Assert(tr.Set("foo", "key", "value"), IsNil)
 	tr.Commit()
 
-	ts, err := snapstate.Remove(st, "foo", snap.R(0))
+	ts, err := snapstate.Remove(st, "foo", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -805,7 +811,7 @@ apps:
 	snapPath, digest = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -886,7 +892,7 @@ func (ms *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 
 	// refresh
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -964,7 +970,7 @@ func (ms *mgrsSuite) testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c *C, doB
 
 	// refresh
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -1468,6 +1474,13 @@ version: @VERSION@
 
 // core & kernel
 
+var modelDefaults = map[string]interface{}{
+	"architecture": "amd64",
+	"store":        "my-brand-store-id",
+	"gadget":       "pc",
+	"kernel":       "pc-kernel",
+}
+
 func findKind(chg *state.Change, kind string) *state.Task {
 	for _, t := range chg.Tasks() {
 		if t.Kind() == kind {
@@ -1485,14 +1498,7 @@ func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, nil)
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults)
 
 	const packageOS = `
 name: core
@@ -1506,15 +1512,13 @@ type: os
 	defer st.Unlock()
 
 	// setup model assertion
-	err := assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
-	err = assertstate.Add(st, model)
+	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", "", snapstate.Flags{})
@@ -1564,14 +1568,7 @@ func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, nil)
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults)
 
 	const packageKernel = `
 name: pc-kernel
@@ -1590,15 +1587,13 @@ type: kernel`
 	defer st.Unlock()
 
 	// setup model assertion
-	err := assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
-	err = assertstate.Add(st, model)
+	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{})
@@ -1665,7 +1660,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 func (ms *mgrsSuite) removeSnap(c *C, name string) {
 	st := ms.o.State()
 
-	ts, err := snapstate.Remove(st, name, snap.R(0))
+	ts, err := snapstate.Remove(st, name, snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -2075,7 +2070,7 @@ apps:
 	ms.serveSnap(fooPath, "15")
 
 	// refresh foo
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err = snapstate.Update(st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -2356,8 +2351,9 @@ type storeCtxSetupSuite struct {
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
 
-	brandSigning *assertstest.SigningDB
-	deviceKey    asserts.PrivateKey
+	brands *assertstest.SigningAccounts
+
+	deviceKey asserts.PrivateKey
 
 	model  *asserts.Model
 	serial *asserts.Serial
@@ -2381,21 +2377,17 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
-	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
-
-	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
+	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
+	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
-	}, "")
-	s.storeSigning.Add(brandAcct)
+	})
+	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("my-brand")...)
 
-	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	s.storeSigning.Add(brandAccKey)
-	s.model = makeModelAssertion(c, s.brandSigning, nil)
+	s.model = s.brands.Model("my-brand", "my-model", modelDefaults)
 
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.brandSigning.Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-model",
@@ -2418,11 +2410,8 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	prereqs := []asserts.Assertion{s.storeSigning.StoreAccountKey(""), brandAcct, brandAccKey}
-	for _, a := range prereqs {
-		err = assertstate.Add(st, a)
-		c.Assert(err, IsNil)
-	}
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 }
 
 func (s *storeCtxSetupSuite) TearDownTest(c *C) {
@@ -2443,7 +2432,7 @@ func (s *storeCtxSetupSuite) TestStoreID(c *C) {
 	c.Check(storeID, Equals, "fallback")
 
 	// setup model in system statey
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -2477,7 +2466,7 @@ func (s *storeCtxSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	c.Assert(err, IsNil)
 	err = kpMgr.Put(deviceKey)
 	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
@@ -2630,7 +2619,7 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 
 	_ = ms.installLocalTestSnap(c, snapYamlContent1+"version: 1.0")
 
-	ts, err := snapstate.Remove(st, "snap1", snap.R(0))
+	ts, err := snapstate.Remove(st, "snap1", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -2919,7 +2908,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	ts, err := snapstate.Update(st, updateSnapName, "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Update(st, updateSnapName, nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	// to make TaskSnapSetup work
@@ -2927,7 +2916,7 @@ func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, remove
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0))
+	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("remove-snap", "...")
 	chg2.AddAll(ts2)
@@ -3042,13 +3031,13 @@ hooks:
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0))
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("uninstall", "...")
 	chg2.AddAll(ts2)
@@ -3130,7 +3119,7 @@ func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)
@@ -3146,29 +3135,6 @@ func (ms *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
 	c.Assert(conns, HasLen, 0)
-}
-
-// makeMockModel creates a model assertion using the given brandSigning DB.
-// The fields can be customized with the modelExtra map.
-func makeModelAssertion(c *C, brandSigning *assertstest.SigningDB, modelExtra map[string]interface{}) *asserts.Model {
-	modelV := map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"store":        "my-brand-store-id",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	for k, v := range modelExtra {
-		modelV[k] = v
-	}
-	model, err := brandSigning.Sign(asserts.ModelType, modelV, nil, "")
-	c.Assert(err, IsNil)
-
-	return model.(*asserts.Model)
 }
 
 // TODO: add a custom checker in testutils for this and similar
@@ -3277,41 +3243,27 @@ func (ms *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	})
 
 	// create/set custom model assertion
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	err := assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
 
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, nil)
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults)
 
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "my-brand",
-		Model: "my-model",
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
-	err = assertstate.Add(st, model)
+	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	// create a new model
-	newModel := makeModelAssertion(c, brandSigning, map[string]interface{}{
+	newModel := ms.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
 		"required-snaps": []interface{}{"foo", "bar", "baz"},
 		"revision":       "1",
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
-	chg := st.NewChange("remodel", "...")
-	c.Check(tss, HasLen, 4)
-	chg.AddAll(tss[0])
-	chg.AddAll(tss[1])
-	chg.AddAll(tss[2])
-	chg.AddAll(tss[3])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -3379,29 +3331,25 @@ type: base`
 	defer st.Unlock()
 
 	// create/set custom model assertion
-	model := makeModelAssertion(c, ms.storeSigning.SigningDB, map[string]interface{}{
-		"authority-id": "can0nical",
-		"brand-id":     "can0nical",
-	})
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	// create a new model
-	newModel := makeModelAssertion(c, ms.storeSigning.SigningDB, map[string]interface{}{
-		"authority-id": "can0nical",
-		"brand-id":     "can0nical",
-		"base":         "core18",
-		"revision":     "1",
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"base":     "core18",
+		"revision": "1",
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, ErrorMatches, "cannot remodel to different bases yet")
-	c.Assert(tss, HasLen, 0)
+	c.Assert(chg, IsNil)
 }
 
 func (ms *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
@@ -3440,34 +3388,25 @@ version: 2.0`
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
-	model := makeModelAssertion(c, ms.storeSigning.SigningDB, map[string]interface{}{
-		"authority-id": "can0nical",
-		"brand-id":     "can0nical",
-	})
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
 	// setup model assertion
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
 	// create a new model
-	newModel := makeModelAssertion(c, ms.storeSigning.SigningDB, map[string]interface{}{
-		"authority-id":   "can0nical",
-		"brand-id":       "can0nical",
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
 		"kernel":         "pc-kernel=18",
 		"revision":       "1",
 		"required-snaps": []interface{}{"foo"},
 	})
 
-	tss, err := devicestate.Remodel(st, newModel)
+	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
-	chg := st.NewChange("remodel", "...")
-	c.Check(tss, HasLen, 3)
-	chg.AddAll(tss[0])
-	chg.AddAll(tss[1])
-	chg.AddAll(tss[2])
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -3509,14 +3448,7 @@ version: 2.0`
 }
 
 func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
-	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-	model := makeModelAssertion(c, brandSigning, map[string]interface{}{
+	model := ms.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
 		"gadget": "gadget",
 	})
 
@@ -3531,11 +3463,8 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	err = assertstate.Add(st, brandAcct)
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, brandAccKey)
-	c.Assert(err, IsNil)
-	auth.SetDevice(st, &auth.DeviceState{
+	assertstatetest.AddMany(st, ms.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand: "my-brand",
 		Model: "my-model",
 		KeyID: deviceKey.PublicKey().ID(),
@@ -3549,7 +3478,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "my-model")
 		headers["authority-id"] = brandID
-		return brandSigning.Sign(asserts.SerialType, headers, body, "")
+		return ms.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
@@ -3594,7 +3523,7 @@ func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := auth.Device(st)
+	device, err := devicestatetest.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "my-brand")
 	c.Check(device.Model, Equals, "my-model")

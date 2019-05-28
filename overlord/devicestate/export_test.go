@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -97,7 +98,7 @@ func MockSnapstateInstall(f func(st *state.State, name, channel string, revision
 	}
 }
 
-func MockSnapstateUpdate(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdate(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateUpdate
 	snapstateUpdate = f
 	return func() {
@@ -127,6 +128,16 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
+	return m.registrationCtx(t)
+}
+
+func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
+	return remodCtx.(interface {
+		deviceBackend() storecontext.DeviceBackend
+	}).deviceBackend()
+}
+
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
@@ -135,4 +146,10 @@ var (
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RemodelTasks = remodelTasks
+
+	RemodelCtx         = remodelCtx
+	RemodelCtxFromTask = remodelCtxFromTask
+	CleanupRemodelCtx  = cleanupRemodelCtx
 )

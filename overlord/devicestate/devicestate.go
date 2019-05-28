@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -44,9 +45,9 @@ var (
 	snapstateUpdate  = snapstate.Update
 )
 
-// Model returns the device model assertion.
-func Model(st *state.State) (*asserts.Model, error) {
-	device, err := auth.Device(st)
+// findModel returns the device model assertion.
+func findModel(st *state.State) (*asserts.Model, error) {
+	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +71,14 @@ func Model(st *state.State) (*asserts.Model, error) {
 	return a.(*asserts.Model), nil
 }
 
-// Serial returns the device serial assertion.
-func Serial(st *state.State) (*asserts.Serial, error) {
-	device, err := auth.Device(st)
-	if err != nil {
-		return nil, err
+// findSerial returns the device serial assertion. device is optional and used instead of the global state if provided.
+func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, error) {
+	if device == nil {
+		var err error
+		device, err = internal.Device(st)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if device.Serial == "" {
@@ -114,7 +118,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 
 	// Check model exists, for sanity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
-	_, err := Model(st)
+	_, err := findModel(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -122,7 +126,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	_, err = Serial(st)
+	_, err = findSerial(st, nil)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -133,14 +137,14 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	return true, nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	kind := ""
-	var currentInfo func(*state.State) (*snap.Info, error)
+	var snapType snap.Type
 	var getName func(*asserts.Model) string
 	switch snapInfo.Type {
 	case snap.TypeGadget:
 		kind = "gadget"
-		currentInfo = snapstate.GadgetInfo
+		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
 		if release.OnClassic {
@@ -148,20 +152,14 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		}
 
 		kind = "kernel"
-		currentInfo = snapstate.KernelInfo
+		snapType = snap.TypeKernel
 		getName = (*asserts.Model).Kernel
 	default:
 		// not a relevant check
 		return nil
 	}
 
-	model, err := Model(st)
-	if err == state.ErrNoState {
-		return fmt.Errorf("cannot install %s without model assertion", kind)
-	}
-	if err != nil {
-		return err
-	}
+	model := deviceCtx.Model()
 
 	if snapInfo.SnapID != "" {
 		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
@@ -176,11 +174,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		logger.Noticef("installing unasserted %s %q", kind, snapInfo.InstanceName())
 	}
 
-	currentSnap, err := currentInfo(st)
-	if err != nil && err != state.ErrNoState {
-		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
+	found, err := snapstate.HasSnapOfType(st, snapType)
+	if err != nil {
+		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
 	}
-	if currentSnap != nil {
+	if found {
 		// already installed, snapstate takes care
 		return nil
 	}
@@ -211,14 +209,10 @@ func delayedCrossMgrInit() {
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
-	snapstate.Model = Model
+	snapstate.DeviceCtx = DeviceCtx
 }
 
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func ProxyStore(st *state.State) (*asserts.Store, error) {
-	return proxyStore(st, config.NewTransaction(st))
-}
-
+// proxyStore returns the store assertion for the proxy store if one is set.
 func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error) {
 	var proxyStore string
 	err := tr.GetMaybe("core", "proxy.store", &proxyStore)
@@ -318,9 +312,9 @@ func getAllRequiredSnapsForModel(model *asserts.Model) map[string]bool {
 // extractDownloadInstallEdgesFromTs extracts the first, last download
 // phase and install phase tasks from a TaskSet
 func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
-	edgeTask := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
-	if edgeTask == nil {
-		return nil, nil, nil, nil, fmt.Errorf("internal error: cannot find edge task in task set: %v", ts)
+	edgeTask, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads
@@ -338,71 +332,13 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
-// Remodel takes a new model assertion and generates a change that
-// takes the device from the old to the new model or an error if the
-// transition is not possible.
-//
-// TODO:
-// - Check estimated disk size delta
-// - Reapply gadget connections as needed
-// - Need new session/serial if changing store or model
-// - Check all relevant snaps exist in new store
-//   (need to check that even unchanged snaps are accessible)
-func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
-	var seeded bool
-	st.Get("seeded", &seeded)
-	if !seeded {
-		return nil, fmt.Errorf("cannot remodel until fully seeded")
-	}
-
-	current, err := Model(st)
-	if err != nil {
-		return nil, err
-	}
-	if current.Series() != new.Series() {
-		return nil, fmt.Errorf("cannot remodel to different series yet")
-	}
-	// TODO: we need dedicated assertion language to permit for
-	// model transitions before we allow that cross vault
-	// transitions.
-	//
-	// Right now we only allow "remodel" to a different revision of
-	// the same model.
-	if current.BrandID() != new.BrandID() {
-		return nil, fmt.Errorf("cannot remodel to different brands yet")
-	}
-	if current.Model() != new.Model() {
-		return nil, fmt.Errorf("cannot remodel to different models yet")
-	}
-	if current.Store() != new.Store() {
-		return nil, fmt.Errorf("cannot remodel to different stores yet")
-	}
-	// TODO: should we restrict remodel from one arch to another?
-	// There are valid use-cases here though, i.e. amd64 machine that
-	// remodels itself to/from i386 (if the HW can do both 32/64 bit)
-	if current.Architecture() != new.Architecture() {
-		return nil, fmt.Errorf("cannot remodel to different architectures yet")
-	}
-
-	// calculate snap differences between the two models
-	// FIXME: this needs work to switch the base to boot as well
-	if current.Base() != new.Base() {
-		return nil, fmt.Errorf("cannot remodel to different bases yet")
-	}
-	// FIXME: we need to support this soon but right now only a single
-	// snap of type "gadget/kernel" is allowed so this needs work
-	if current.Kernel() != new.Kernel() {
-		return nil, fmt.Errorf("cannot remodel to different kernels yet")
-	}
-	if current.Gadget() != new.Gadget() {
-		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
-	}
+func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSet, error) {
 	userID := 0
 
 	// adjust kernel track
 	var tss []*state.TaskSet
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{NoReRefresh: true})
+		ts, err := snapstateUpdate(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true})
 		if err != nil {
 			return nil, err
 		}
@@ -485,11 +421,94 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	// Set the new model assertion - this *must* be the last thing done
 	// by the change.
 	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
-	setModel.Set("new-model", asserts.Encode(new))
 	for _, tsPrev := range tss {
 		setModel.WaitAll(tsPrev)
 	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
 	return tss, nil
+}
+
+// Remodel takes a new model assertion and generates a change that
+// takes the device from the old to the new model or an error if the
+// transition is not possible.
+//
+// TODO:
+// - Check estimated disk size delta
+// - Reapply gadget connections as needed
+// - Need new session/serial if changing store or model
+// - Check all relevant snaps exist in new store
+//   (need to check that even unchanged snaps are accessible)
+func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !seeded {
+		return nil, fmt.Errorf("cannot remodel until fully seeded")
+	}
+
+	current, err := findModel(st)
+	if err != nil {
+		return nil, err
+	}
+	if current.Series() != new.Series() {
+		return nil, fmt.Errorf("cannot remodel to different series yet")
+	}
+	// TODO: we need dedicated assertion language to permit for
+	// model transitions before we allow that cross vault
+	// transitions.
+	//
+	// Right now we only allow "remodel" to a different revision of
+	// the same model.
+	if current.BrandID() != new.BrandID() {
+		return nil, fmt.Errorf("cannot remodel to different brands yet")
+	}
+	if current.Model() != new.Model() {
+		return nil, fmt.Errorf("cannot remodel to different models yet")
+	}
+	if current.Store() != new.Store() {
+		return nil, fmt.Errorf("cannot remodel to different stores yet")
+	}
+	// TODO: should we restrict remodel from one arch to another?
+	// There are valid use-cases here though, i.e. amd64 machine that
+	// remodels itself to/from i386 (if the HW can do both 32/64 bit)
+	if current.Architecture() != new.Architecture() {
+		return nil, fmt.Errorf("cannot remodel to different architectures yet")
+	}
+
+	// calculate snap differences between the two models
+	// FIXME: this needs work to switch the base to boot as well
+	if current.Base() != new.Base() {
+		return nil, fmt.Errorf("cannot remodel to different bases yet")
+	}
+	// FIXME: we need to support this soon but right now only a single
+	// snap of type "gadget/kernel" is allowed so this needs work
+	if current.Kernel() != new.Kernel() {
+		return nil, fmt.Errorf("cannot remodel to different kernels yet")
+	}
+	if current.Gadget() != new.Gadget() {
+		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
+	}
+
+	tss, err := remodelTasks(st, current, new)
+	if err != nil {
+		return nil, err
+	}
+
+	var msg string
+	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
+		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), current.Revision(), new.Revision())
+	} else {
+		// TODO: add test once we support this kind of remodel
+		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
+	}
+	chg := st.NewChange("remodel", msg)
+	chg.Set("new-model", string(asserts.Encode(new)))
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	return chg, nil
 }
