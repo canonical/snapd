@@ -2519,19 +2519,3 @@ func (s *Store) CreateCohorts(ctx context.Context, snaps []string) (map[string]s
 
 	return remote.CohortKeys, nil
 }
-
-type userAgentContextKey struct{}
-
-// ClientUserAgentContext carries the client user agent that talks to snapd
-func ClientUserAgentContext(ua string) context.Context {
-	return context.WithValue(context.Background(), userAgentContextKey{}, ua)
-}
-
-// ClientUserAgent returns the user agent of the client that talks to snapd
-func ClientUserAgent(ctx context.Context) string {
-	ua, ok := ctx.Value(userAgentContextKey{}).(string)
-	if ok {
-		return ua
-	}
-	return ""
-}

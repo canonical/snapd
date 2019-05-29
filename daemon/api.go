@@ -667,7 +667,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	theStore := getStore(c)
-	ctx := store.ClientUserAgentContext(r.Header.Get("User-Agent"))
+	ctx := store.WithClientUserAgent(r.Context(), r)
 	found, err := theStore.Find(ctx, &store.Search{
 		Query:    q,
 		Prefix:   prefix,
@@ -734,7 +734,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	spec := store.SnapSpec{
 		Name: name,
 	}
-	ctx := store.ClientUserAgentContext(r.Header.Get("User-Agent"))
+	ctx := store.WithClientUserAgent(r.Context(), r)
 	snapInfo, err := theStore.SnapInfo(ctx, spec, user)
 	switch err {
 	case nil:
