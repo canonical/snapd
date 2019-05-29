@@ -45,7 +45,7 @@ func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
 }
 
-func (Store) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
+func (Store) Find(context.Context, *store.Search, *auth.UserState) ([]*snap.Info, error) {
 	panic("Store.Find not expected")
 }
 
@@ -83,6 +83,10 @@ func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 
 func (Store) ConnectivityCheck() (map[string]bool, error) {
 	panic("ConnectivityCheck not expected")
+}
+
+func (Store) CreateCohorts(context.Context, []string) (map[string]string, error) {
+	panic("CreateCohort not expected")
 }
 
 func (Store) LoginUser(username, password, otp string) (string, string, error) {

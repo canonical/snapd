@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
-
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
@@ -408,7 +405,13 @@ prepare_project() {
         rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
-    quiet govendor sync
+    # Retry govendor sync to minimize the number of connection errors during the sync
+    for _ in $(seq 10); do
+        if quiet govendor sync; then
+            break
+        fi
+        sleep 1
+    done
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 

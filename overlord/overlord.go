@@ -22,6 +22,8 @@ package overlord
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -84,6 +86,8 @@ type Overlord struct {
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
 	shotMgr   *snapshotstate.SnapshotManager
+	// proxyConf mediates the http proxy config
+	proxyConf func(req *http.Request) (*url.URL, error)
 }
 
 var storeNew = store.New
@@ -138,7 +142,7 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(ifaceMgr)
 
-	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner)
+	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner, o.newStore)
 	if err != nil {
 		return nil, err
 	}
@@ -155,12 +159,9 @@ func New() (*Overlord, error) {
 	s.Lock()
 	defer s.Unlock()
 	// setting up the store
-	proxyConf := proxyconf.New(s)
-	storeCtx := storecontext.New(s, o.deviceMgr)
-	cfg := store.DefaultConfig()
-	cfg.Proxy = proxyConf.Conf
-	sto := storeNew(cfg, storeCtx)
-	sto.SetCacheDownloads(defaultCachedDownloads)
+	o.proxyConf = proxyconf.New(s).Conf
+	storeCtx := storecontext.New(s, o.deviceMgr.StoreContextBackend())
+	sto := o.newStoreWithContext(storeCtx)
 
 	snapstate.ReplaceStore(s, sto)
 
@@ -221,6 +222,22 @@ func loadState(backend state.Backend) (*state.State, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snapstate.StoreService {
+	cfg := store.DefaultConfig()
+	cfg.Proxy = o.proxyConf
+	sto := storeNew(cfg, storeCtx)
+	sto.SetCacheDownloads(defaultCachedDownloads)
+	return sto
+}
+
+// newStore can make new stores for use during remodeling.
+// The device backend will tie them to the remodeling device state.
+func (o *Overlord) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
+	scb := o.deviceMgr.StoreContextBackend()
+	stoCtx := storecontext.NewComposed(o.State(), devBE, scb, scb)
+	return o.newStoreWithContext(stoCtx)
 }
 
 func (o *Overlord) ensureTimerSetup() {

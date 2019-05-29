@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -55,12 +56,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "privacy-key")
-	snapstate.SetDefaultModel()
-}
-
-func (s *prereqSuite) TearDownTest(c *C) {
-	s.reset()
-	snapstate.Model = nil
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
