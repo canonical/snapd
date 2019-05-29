@@ -41,10 +41,10 @@ func NewRawStructureWriter(rootDir string) *RawStructureWriter {
 	return &RawStructureWriter{rootDir: rootDir}
 }
 
-// WriteRawStream writes the input stream in that corresponds to provided
+// writeRawStream writes the input stream in that corresponds to provided
 // positioned content. The number of bytes read from input stream must match
 // exactly the declared size of positioned content entry.
-func (r *RawStructureWriter) WriteRawStream(out io.WriteSeeker, pc *PositionedContent, in io.Reader) error {
+func (r *RawStructureWriter) writeRawStream(out io.WriteSeeker, pc *PositionedContent, in io.Reader) error {
 	if _, err := out.Seek(int64(pc.StartOffset), io.SeekStart); err != nil {
 		return fmt.Errorf("cannot seek to content start offset 0x%x: %v", pc.StartOffset, err)
 	}
@@ -64,7 +64,7 @@ func (r *RawStructureWriter) WriteRawImage(out io.WriteSeeker, pc *PositionedCon
 	}
 	defer img.Close()
 
-	return r.WriteRawStream(out, pc, img)
+	return r.writeRawStream(out, pc, img)
 }
 
 // Write will write the whole contents of a bare structure ps into the output stream.
@@ -205,7 +205,7 @@ func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *Position
 		return fmt.Errorf("cannot open backup image: %v", err)
 	}
 
-	if err := rw.WriteRawStream(out, pc, backup); err != nil {
+	if err := rw.writeRawStream(out, pc, backup); err != nil {
 		return fmt.Errorf("cannot restore backup: %v", err)
 	}
 
