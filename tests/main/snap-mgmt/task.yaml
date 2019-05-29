@@ -80,7 +80,7 @@ execute: |
 
     systemctl daemon-reload
     echo "Snap *.service files are removed"
-    ! systemctl list-unit-files --type service | MATCH '^snap.test-snapd-service.*\.service'
+    systemctl list-unit-files --type service | not MATCH '^snap.test-snapd-service.*\.service'
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
