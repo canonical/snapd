@@ -24,10 +24,14 @@ start_new_journalctl_log(){
 
 check_journalctl_ready(){
     marker="test-${RANDOM}${RANDOM}"
-    echo "Running test: $marker" | systemd-cat -t snapd-test
-    if check_journalctl_log "$marker"; then
-        return 0
-    fi
+    for _ in $(seq 10); do
+        echo "Running test: $marker" | systemd-cat -t snapd-test
+        if get_journalctl_log | grep "$marker"; then
+            return 0
+        fi
+        sleep 1
+    done
+
     echo "Test id not found in journalctl, exiting..."
     exit 1
 }
