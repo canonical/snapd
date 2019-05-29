@@ -492,7 +492,7 @@ install_snap_profiler(){
             profiler_snap=test-snapd-profiler-core18
         fi
 
-        rm -f "/var/snap/${profiler_snap}/common/proc.log"
+        rm -f "/var/snap/${profiler_snap}/common/profiler.log"
         snap install "${profiler_snap}"
         snap connect "${profiler_snap}":system-observe
     fi
@@ -546,7 +546,7 @@ restore_suite_each() {
         echo "Save snaps profiler log"
         local logs_id logs_dir logs_file
         logs_dir="$RUNTIME_STATE_PATH/logs"
-        logs_id=$(ls "$logs_dir"/*.journal.log 2>/dev/null | wc -l)
+        logs_id=$(find "$logs_dir" -maxdepth 1 -name *.journal.log | wc -l)
         logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
 
         profiler_snap=test-snapd-profiler
