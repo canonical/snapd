@@ -25,4 +25,4 @@ execute: |
         sleep 6
     done
     echo "No systemctl left"
-    ! pgrep systemctl
+    not pgrep systemctl

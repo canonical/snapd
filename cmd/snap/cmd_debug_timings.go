@@ -123,8 +123,9 @@ func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) 
 
 func (x *cmdChangeTimings) printEnsureTimings(w io.Writer, timings []*timingsData) error {
 	for _, td := range timings {
+		printTiming(w, x.Verbose, 0, x.EnsureTag, "", "-", "-", "", "")
 		for _, t := range td.EnsureTimings {
-			printTiming(w, x.Verbose, t.Level, "ensure", "", formatDuration(t.Duration), "-", t.Label, t.Summary)
+			printTiming(w, x.Verbose, t.Level+1, "", "", formatDuration(t.Duration), "-", t.Label, t.Summary)
 		}
 
 		// change is optional for ensure timings
