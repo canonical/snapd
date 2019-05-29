@@ -343,7 +343,7 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 	defer r()
 
 	chg := st.NewChange("rm foo", "...")
-	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0))
+	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0), nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(rmTasks, check.NotNil)
 	chg.AddAll(rmTasks)

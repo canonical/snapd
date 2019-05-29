@@ -10,8 +10,6 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 # shellcheck source=tests/lib/systems.sh

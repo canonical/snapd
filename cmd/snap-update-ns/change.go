@@ -311,8 +311,8 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				// now change mount propagation (shared/rshared, private/rprivate,
 				// slave/rslave, unbindable/runbindable).
 				flagsForMount := uintptr(maskedFlagsPropagation | maskedFlagsRecursive)
-				err = sysMount("", c.Entry.Dir, "", flagsForMount, "")
-				logger.Debugf("mount %q %q %q %d %q (error: %v)", "", c.Entry.Dir, "", flagsForMount, "", err)
+				err = sysMount("none", c.Entry.Dir, "", flagsForMount, "")
+				logger.Debugf("mount %q %q %q %d %q (error: %v)", "none", c.Entry.Dir, "", flagsForMount, "", err)
 			}
 			if err == nil {
 				as.AddChange(c)

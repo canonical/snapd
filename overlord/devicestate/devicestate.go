@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -70,11 +71,14 @@ func findModel(st *state.State) (*asserts.Model, error) {
 	return a.(*asserts.Model), nil
 }
 
-// findSerial returns the device serial assertion.
-func findSerial(st *state.State) (*asserts.Serial, error) {
-	device, err := internal.Device(st)
-	if err != nil {
-		return nil, err
+// findSerial returns the device serial assertion. device is optional and used instead of the global state if provided.
+func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, error) {
+	if device == nil {
+		var err error
+		device, err = internal.Device(st)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if device.Serial == "" {
@@ -122,7 +126,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	_, err = findSerial(st)
+	_, err = findSerial(st, nil)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -334,7 +338,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSe
 	// adjust kernel track
 	var tss []*state.TaskSet
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{NoReRefresh: true})
+		ts, err := snapstateUpdate(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true})
 		if err != nil {
 			return nil, err
 		}
