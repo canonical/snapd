@@ -56,8 +56,8 @@ func (r *RawStructureWriter) writeRawStream(out io.WriteSeeker, pc *PositionedCo
 	return nil
 }
 
-// WriteRawImage writes a single image described by a positioned content entry.
-func (r *RawStructureWriter) WriteRawImage(out io.WriteSeeker, pc *PositionedContent) error {
+// writeRawImage writes a single image described by a positioned content entry.
+func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *PositionedContent) error {
 	img, err := os.Open(filepath.Join(r.rootDir, pc.Image))
 	if err != nil {
 		return fmt.Errorf("cannot open image file: %v", err)
@@ -73,7 +73,7 @@ func (r *RawStructureWriter) Write(out io.WriteSeeker, ps *PositionedStructure) 
 		return fmt.Errorf("structure %v is not bare", ps)
 	}
 	for _, pc := range ps.PositionedContent {
-		if err := r.WriteRawImage(out, &pc); err != nil {
+		if err := r.writeRawImage(out, &pc); err != nil {
 			return fmt.Errorf("failed to write image %v: %v", pc, err)
 		}
 	}
@@ -248,7 +248,7 @@ func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *Positione
 		return fmt.Errorf("missing backup file")
 	}
 
-	if err := rw.WriteRawImage(disk, pc); err != nil {
+	if err := rw.writeRawImage(disk, pc); err != nil {
 		return err
 	}
 
