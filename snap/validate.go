@@ -358,7 +358,7 @@ func Validate(info *Info) error {
 func ValidateBase(info *Info) error {
 	// validate that bases do not have base fields
 	if info.Type == TypeOS || info.Type == TypeBase {
-		if info.Base != "" {
+		if info.Base != "" && info.Base != "none" {
 			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
 		}
 	}

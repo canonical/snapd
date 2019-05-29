@@ -1284,6 +1284,16 @@ base: bar
 	c.Check(err, ErrorMatches, `cannot have "base" field on "os" snap "foo"`)
 }
 
+func (s *ValidateSuite) TestValidateOsCanHaveBaseNone(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+type: os
+base: none
+`))
+	c.Assert(err, IsNil)
+	c.Assert(Validate(info), IsNil)
+}
+
 func (s *ValidateSuite) TestValidateBaseCannotHaveBase(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
@@ -1294,6 +1304,16 @@ base: bar
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseCanHaveBaseNone(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+type: base
+base: none
+`))
+	c.Assert(err, IsNil)
+	c.Assert(Validate(info), IsNil)
 }
 
 func (s *ValidateSuite) TestValidateCommonIDs(c *C) {
