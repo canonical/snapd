@@ -647,7 +647,7 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 	return ts, err
 }
 
-// Install returns a set of tasks for installing snap.
+// Install returns a set of tasks for installing a snap.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
@@ -669,7 +669,7 @@ func installGeneric(st *state.State, name, channel, cohort string, revision snap
 	return InstallWithDeviceContext(st, name, channel, cohort, revision, userID, flags, nil)
 }
 
-// InstallWithDeviceContext returns a set of tasks for installing snap.
+// InstallWithDeviceContext returns a set of tasks for installing a snap.
 // It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
