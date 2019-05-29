@@ -823,7 +823,8 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
 		return nil, err
 	}
 	if currentInfo != nil {
-		gi, err = snap.ReadGadgetInfo(currentInfo, false)
+		const onClassic = false
+		gi, err = snap.ReadGadgetInfo(currentInfo, onClassic)
 		if err != nil {
 			return nil, err
 		}
@@ -836,7 +837,8 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	update, err := snap.ReadGadgetInfo(info, false)
+	const onClassic = false
+	update, err := snap.ReadGadgetInfo(info, onClassic)
 	if err != nil {
 		return nil, err
 	}
@@ -894,7 +896,7 @@ func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if current == nil {
-		// XXX: no updates during first boot & seeding
+		// no updates during first boot & seeding
 		return nil
 	}
 

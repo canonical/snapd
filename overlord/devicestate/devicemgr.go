@@ -94,11 +94,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
-	// XXX: gadget update is tricky, and currently does not support undo.
-	// The system is rebooted during update, if it boots up to the point
-	// where snapd runs we deem the new assets (be it bootloader or
-	// firmware) functional. However, once gadget snap is reverted, the
-	// on-disk state may not be in sync with the description in gadget.yaml.
+	// There is no undo for successful gadget updates. The system is
+	// rebooted during update, if it boots up to the point where snapd runs
+	// we deem the new assets (be it bootloader or firmware) functional. The
+	// deployed boot assets must be backward compatible with reverted kernel
+	// or gadget snaps. There are no further changes to the boot assets,
+	// unless a new gadget update is deployed.
 	runner.AddHandler("update-gadget", m.doUpdateGadget, nil)
 
 	return m, nil
