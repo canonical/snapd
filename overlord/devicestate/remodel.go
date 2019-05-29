@@ -111,7 +111,7 @@ func cleanupRemodelCtx(chg *state.Change) {
 // access and evolution during a remodel.
 // All remodelContexts are at least a DeviceContext.
 type remodelContext interface {
-	Init(chg *state.Change) error
+	Init(chg *state.Change)
 	Finish() error
 	snapstate.DeviceContext
 
@@ -240,11 +240,10 @@ func (rc *updateRemodelContext) associate(chg *state.Change) {
 	rc.cacheViaChange(chg, rc)
 }
 
-func (rc *updateRemodelContext) Init(chg *state.Change) error {
+func (rc *updateRemodelContext) Init(chg *state.Change) {
 	rc.init(chg)
 
 	rc.associate(chg)
-	return nil
 }
 
 func (rc *updateRemodelContext) Store() snapstate.StoreService {
@@ -288,13 +287,12 @@ func (rc *newStoreRemodelContext) initialDevice(device *auth.DeviceState) {
 	rc.deviceState = &device1
 }
 
-func (rc *newStoreRemodelContext) Init(chg *state.Change) error {
+func (rc *newStoreRemodelContext) Init(chg *state.Change) {
 	rc.init(chg)
 	chg.Set("device", rc.deviceState)
 	rc.deviceState = nil
 
 	rc.associate(chg)
-	return nil
 }
 
 func (rc *newStoreRemodelContext) Store() snapstate.StoreService {

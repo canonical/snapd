@@ -526,10 +526,9 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		// TODO: add test once we support this kind of remodel
 		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
 	}
+
 	chg := st.NewChange("remodel", msg)
-	if err := remodCtx.Init(chg); err != nil {
-		return nil, err
-	}
+	remodCtx.Init(chg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
