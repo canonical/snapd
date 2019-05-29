@@ -101,7 +101,10 @@ BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' 
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
 else
-	# powerpc is not supported unfortunately, do nothing here
+	# "powerpc" is not supported unfortunately, do nothing here
+	# See https://github.com/tianon/debian-runc/compare/70957b315f82170dc2ab7085d39c23835c0fa996...xenial for a more elaborate version of this idea.
+	# Note that snapd never really worked on powerpc (we never had a core
+	# snap there) so we don't need to show anything to the user
 	if [ "$@" = "binary" ]; then \
 		dh_gencontrol; \
 		dh_builddeb; \
