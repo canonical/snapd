@@ -1617,6 +1617,11 @@ func coreInUse(st *state.State) bool {
 // TODO: canRemove should also return the reason why the snap cannot
 //       be removed to the user
 func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) bool {
+	// never remove anything that is used for booting
+	if boot.InUse(si.InstanceName(), si.Revision) {
+		return false
+	}
+
 	// removing single revisions is generally allowed
 	if !removeAll {
 		return true
@@ -1659,8 +1664,8 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	//
 	// Note that removal of the boot base itself is prevented
 	// via the snapst.Required flag that is set on firstboot.
+	model := deviceCtx.Model()
 	if si.Type == snap.TypeOS {
-		model := deviceCtx.Model()
 		if model.Base() != "" && !coreInUse(st) {
 			return true
 		}
@@ -1670,7 +1675,6 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	// Because of a Remodel() we may have multiple kernels. Allow
 	// removals of kernel(s) that are not model kernels (anymore).
 	if si.Type == snap.TypeKernel {
-		model := deviceCtx.Model()
 		if model.Kernel() != si.InstanceName() {
 			return true
 		}
@@ -1678,11 +1682,6 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// TODO: on classic likely let remove core even if active if it's only snap left.
-
-	// never remove anything that is used for booting
-	if boot.InUse(si.InstanceName(), si.Revision) {
-		return false
-	}
 
 	return true
 }
