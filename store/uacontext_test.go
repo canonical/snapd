@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"context"
+	"net/http"
 
 	. "gopkg.in/check.v1"
 
@@ -37,6 +38,10 @@ func (s *clientUserAgentSuite) TestEmptyContext(c *C) {
 }
 
 func (s *clientUserAgentSuite) TestWithClientUserContext(c *C) {
-	cua := store.WithClientUserAgent(context.TODO(), "some-agent")
+	req, err := http.NewRequest("GET", "/", nil)
+	c.Assert(err, IsNil)
+	req.Header.Add("User-Agent", "some-agent")
+
+	cua := store.WithClientUserAgent(req.Context(), req)
 	c.Assert(store.ClientUserAgent(cua), Equals, "some-agent")
 }

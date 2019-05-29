@@ -664,10 +664,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	theStore := getStore(c)
-	// TODO: ultimately we want the common layer that calls the
-	// handlers to create a Background context and this to operate
-	// on that
-	ctx := store.WithClientUserAgent(context.TODO(), r.Header.Get("User-Agent"))
+	ctx := store.WithClientUserAgent(r.Context(), r)
 	found, err := theStore.Find(ctx, &store.Search{
 		Query:    q,
 		Prefix:   prefix,

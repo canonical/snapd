@@ -21,12 +21,14 @@ package store
 
 import (
 	"context"
+	"net/http"
 )
 
 type userAgentContextKey struct{}
 
 // ClientUserAgentContext carries the client user agent that talks to snapd
-func WithClientUserAgent(parent context.Context, ua string) context.Context {
+func WithClientUserAgent(parent context.Context, req *http.Request) context.Context {
+	ua := req.Header.Get("User-Agent")
 	return context.WithValue(parent, userAgentContextKey{}, ua)
 }
 
