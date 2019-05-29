@@ -8,6 +8,7 @@ priority: 1000
 
 restore: |
     rm -rf /tmp/static-unit-tests
+    rm -f script
 
 execute: |
     mkdir -p /tmp/static-unit-tests/src/github.com/snapcore
@@ -19,18 +20,21 @@ execute: |
     rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
 
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && PATH=$PATH GOPATH=/tmp/static-unit-tests ./run-checks --static" test
-    su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-        TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER \
-        TRAVIS_BRANCH=$TRAVIS_BRANCH \
-        TRAVIS_COMMIT=$TRAVIS_COMMIT \
-        TRAVIS_JOB_NUMBER=$TRAVIS_JOB_NUMBER \
-        TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST \
-        TRAVIS_JOB_ID=$TRAVIS_JOB_ID \
-        TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG \
-        TRAVIS_TAG=$TRAVIS_TAG \
-        PATH=$PATH \
-        COVERMODE=$COVERMODE \
-        TRAVIS=true \
-        CI=true \
-        GOPATH=/tmp/static-unit-tests \
-        ./run-checks --unit" test
+    cat <<SCRIPT >script
+    cd /tmp/static-unit-tests/src/github.com/snapcore/snapd
+    export TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+    export TRAVIS_BRANCH=$TRAVIS_BRANCH
+    export TRAVIS_COMMIT=$TRAVIS_COMMIT
+    export TRAVIS_JOB_NUMBER=$TRAVIS_JOB_NUMBER
+    export TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST
+    export TRAVIS_JOB_ID=$TRAVIS_JOB_ID
+    export TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG
+    export TRAVIS_TAG=$TRAVIS_TAG
+    export PATH=$PATH
+    export COVERMODE=$COVERMODE
+    export TRAVIS=true
+    export CI=true
+    GOPATH=/tmp/static-unit-tests ./run-checks --unit
+    SCRIPT
+    chmod +x script
+    unshare -n sh -c "ifconfig lo up && su -l -c $(pwd)/script test"
