@@ -877,6 +877,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 			// allow updating from classic to strict
 			updateFlags.Classic = false
 		}
+		// setting options to what's in state as multi-refresh doesn't let you change these
 		opts := &RevisionOptions{
 			Channel:   snapst.Channel,
 			CohortKey: snapst.CohortKey,
@@ -1214,6 +1215,28 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 
 var errRevisionSwitch = errors.New("cannot switch revision")
 
+func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
+	switchChannel := chanFrom != chanTo && chanTo != ""
+	switchCohort := cohFrom != cohTo && cohTo != ""
+	switch {
+	case switchChannel && !switchCohort:
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"), snap,
+			chanFrom, chanTo)
+	case switchCohort && !switchChannel:
+		return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"), snap,
+			strutil.ElliptRight(cohFrom, 10),
+			strutil.ElliptRight(cohTo, 10),
+		)
+	default:
+		// either they both change or they both don't change (the latter might actually be an error)
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"), snap,
+			chanFrom, chanTo,
+			strutil.ElliptRight(cohFrom, 10),
+			strutil.ElliptRight(cohTo, 10),
+		)
+	}
+}
+
 // Switch switches a snap to a new channel and/or cohort
 func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet, error) {
 	if opts == nil {
@@ -1247,12 +1270,20 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
-		Channel:     opts.Channel,
-		CohortKey:   opts.CohortKey,
 		InstanceKey: snapst.InstanceKey,
+		CohortKey:   snapst.CohortKey,
+		Channel:     snapst.Channel,
 	}
 
-	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.InstanceName(), snapsup.Channel))
+	if opts.Channel != "" {
+		snapsup.Channel = opts.Channel
+	}
+	if opts.CohortKey != "" {
+		snapsup.CohortKey = opts.CohortKey
+	}
+
+	summary := switchSummary(snapsup.InstanceName(), snapst.Channel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
+	switchSnap := st.NewTask("switch-snap", summary)
 	switchSnap.Set("snap-setup", &snapsup)
 
 	return state.NewTaskSet(switchSnap), nil
@@ -1348,8 +1379,11 @@ func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOption
 		return nil, err
 	}
 
-	// see if we need to update the channel or toggle ignore-validation
-	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != opts.Channel || snapst.IgnoreValidation != flags.IgnoreValidation || snapst.CohortKey != opts.CohortKey) {
+	// see if we need to switch the channel or cohort, or toggle ignore-validation
+	switchChannel := snapst.Channel != opts.Channel
+	switchCohortKey := snapst.CohortKey != opts.CohortKey
+	toggleIgnoreValidation := snapst.IgnoreValidation != flags.IgnoreValidation
+	if infoErr == store.ErrNoUpdateAvailable && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
 		// NOTE: if we are in here, len(updates) == 0
 		//       (so we're free to add tasks because there's no rerefresh)
 
@@ -1364,25 +1398,7 @@ func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOption
 			CohortKey:   opts.CohortKey,
 		}
 
-		if snapst.Channel != opts.Channel || snapst.CohortKey != opts.CohortKey {
-			var summary string
-			switch {
-			case snapst.Channel == opts.Channel:
-				summary = fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"), snapsup.InstanceName(),
-					strutil.ElliptRight(snapst.CohortKey, 10),
-					strutil.ElliptRight(opts.CohortKey, 10),
-				)
-			case snapst.CohortKey == opts.CohortKey:
-				summary = fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"), snapsup.InstanceName(),
-					snapst.Channel, opts.Channel)
-			default:
-				summary = fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"), snapsup.InstanceName(),
-					snapst.Channel, opts.Channel,
-					strutil.ElliptRight(snapst.CohortKey, 10),
-					strutil.ElliptRight(opts.CohortKey, 10),
-				)
-			}
-
+		if switchChannel || switchCohortKey {
 			// update the tracked channel and cohort
 			snapsup.Channel = opts.Channel
 			snapsup.CohortKey = opts.CohortKey
@@ -1390,6 +1406,7 @@ func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOption
 			// the UI displays the right values.
 			snapsup.SideInfo.Channel = opts.Channel
 
+			summary := switchSummary(snapsup.InstanceName(), snapst.Channel, opts.Channel, snapst.CohortKey, opts.CohortKey)
 			switchSnap := st.NewTask("switch-snap-channel", summary)
 			switchSnap.Set("snap-setup", &snapsup)
 
@@ -1400,8 +1417,7 @@ func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOption
 			tts = append(tts, switchSnapTs)
 		}
 
-		if snapst.IgnoreValidation != flags.IgnoreValidation {
-			// toggle ignore validation
+		if toggleIgnoreValidation {
 			snapsup.IgnoreValidation = flags.IgnoreValidation
 			toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
 			toggle.Set("snap-setup", &snapsup)

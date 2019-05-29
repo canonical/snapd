@@ -1314,8 +1314,23 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// NOTE this also switches the cohort
+type switchFlags struct {
+	switchCurrentChannel bool
+}
+
+// doSwitchSnapChannel switches the snap's tracking channel and/or cohort. It
+// also switches the current channel if appropriate. For use from 'Update'.
 func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericSwitchSnap(t, switchFlags{switchCurrentChannel: true})
+}
+
+// doSwitchSnap switches the snap's tracking channel and/or cohort, *without*
+// swtiching the current snap channel. For use from 'Switch'.
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericSwitchSnap(t, switchFlags{})
+}
+
+func (m *SnapManager) genericSwitchSnap(t *state.Task, flags switchFlags) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1328,28 +1343,14 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 	// switched the tracked channel
 	snapst.Channel = snapsup.Channel
 	snapst.CohortKey = snapsup.CohortKey
-	// optionally support switching the current snap channel too, e.g.
-	// if a snap is in both stable and candidate with the same revision
-	// we can update it here and it will be displayed correctly in the UI
-	if snapsup.SideInfo.Channel != "" {
-		snapst.CurrentSideInfo().Channel = snapsup.Channel
+	if flags.switchCurrentChannel {
+		// optionally support switching the current snap channel too, e.g.
+		// if a snap is in both stable and candidate with the same revision
+		// we can update it here and it will be displayed correctly in the UI
+		if snapsup.SideInfo.Channel != "" {
+			snapst.CurrentSideInfo().Channel = snapsup.Channel
+		}
 	}
-
-	Set(st, snapsup.InstanceName(), snapst)
-	return nil
-}
-
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
-	snapst.CohortKey = snapsup.CohortKey
 
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil
