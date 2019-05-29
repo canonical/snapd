@@ -201,7 +201,7 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 	outDir := c.MkDir()
 
 	err := rw.Deploy(outDir, ps, nil)
-	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of data:foo: .*unable to open.*: no such file or directory")
+	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:foo: .*unable to open.*: no such file or directory")
 }
 
 func (r *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) {
@@ -228,7 +228,7 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 	c.Assert(err, IsNil)
 
 	err = rw.Deploy(outDir, ps, nil)
-	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of data:foo: cannot create .*: mkdir .* permission denied")
+	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:foo: cannot create .*: mkdir .* permission denied")
 }
 
 func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDirectoryErrors(c *C) {
@@ -260,7 +260,7 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 
 	// can't overwrite a directory with a file
 	err := rw.Deploy(outDir, psOverwritesDirectoryWithFile, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot deploy filesystem content of data:foo-dir: cannot copy .*: unable to create %s/foo-dir: .* is a directory", outDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot deploy filesystem content of source:foo-dir: cannot copy .*: unable to create %s/foo-dir: .* is a directory", outDir))
 
 }
 
@@ -323,7 +323,7 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 	makeSizedFile(c, filepath.Join(outDir, "/foo-dir/foo/bar"), 0, nil)
 
 	err := rw.Deploy(outDir, ps, nil)
-	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of data:/: .* not a directory")
+	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:/: .* not a directory")
 }
 
 func (r *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
