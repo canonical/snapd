@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
-
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
