@@ -657,7 +657,7 @@ hooks:
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 		c.Assert(err, IsNil)
 		err = Validate(info)
-		c.Assert(err, ErrorMatches, `cannot have apps or hooks with base type "none"`)
+		c.Assert(err, ErrorMatches, `cannot have apps or hooks with base "none"`)
 	}
 }
 

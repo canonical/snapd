@@ -121,10 +121,10 @@ func (s *RunSuite) TestRunCmdWithBaseNone(c *check.C) {
 	})
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname1.app", "--arg1", "arg2"})
-	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base type \"none\"`)
+	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base \"none\"`)
 
 	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname2"})
-	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base type \"none\"`)
+	c.Assert(err, check.ErrorMatches, `cannot run hooks / applications with base \"none\"`)
 }
 
 func (s *RunSuite) TestSnapRunWhenMissingConfine(c *check.C) {

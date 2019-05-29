@@ -364,7 +364,7 @@ func ValidateBase(info *Info) error {
 	}
 
 	if info.Base == "none" && (len(info.Hooks) > 0 || len(info.Apps) > 0) {
-		return fmt.Errorf(`cannot have apps or hooks with base type "none"`)
+		return fmt.Errorf(`cannot have apps or hooks with base "none"`)
 	}
 	return nil
 }
