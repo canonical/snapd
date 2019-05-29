@@ -267,7 +267,7 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
-        ! snap list | grep core || exit 1
+        snap list | not grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
