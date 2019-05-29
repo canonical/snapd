@@ -82,7 +82,7 @@ execute: |
     install_local test-snapd-tools
 
     echo "Then the device is not assigned to that snap"
-    ! udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
+    udevadm info "$UDEVADM_PATH" | not MATCH "E: TAGS=.*snap_test-snapd-tools_env"
 
     echo "And the device is not shown in the snap device list"
     # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.

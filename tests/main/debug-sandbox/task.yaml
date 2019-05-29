@@ -19,7 +19,7 @@ execute: |
 
     # The command can be used as script helper
     snap debug sandbox-features --required kmod:mediated-modprobe
-    ! snap debug sandbox-features --required magic:evil-bit
+    not snap debug sandbox-features --required magic:evil-bit
 
     # Multiple requirements may be listed
     snap debug sandbox-features --required kmod:mediated-modprobe --required mount:stale-base-invalidation

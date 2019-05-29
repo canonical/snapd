@@ -267,7 +267,7 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
-        ! snap list | grep core || exit 1
+        snap list | not grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
@@ -489,7 +489,7 @@ EOF
     # - make sure the group matches
     # - bind mount /root/test-etc/* to /etc/* via custom systemd job
     # We also create /var/lib/extrausers/* and append ubuntu,test there
-    ! test -e /mnt/system-data/root
+    test ! -e /mnt/system-data/root
     mkdir -m 700 /mnt/system-data/root
     test -d /mnt/system-data/root
     mkdir -p /mnt/system-data/root/test-etc
