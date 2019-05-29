@@ -45,6 +45,8 @@ var (
 	SaveExpiration             = saveExpiration
 	ExpiredSnapshotSets        = expiredSnapshotSets
 	RemoveSnapshotState        = removeSnapshotState
+
+	DefaultAutomaticSnapshotExpiration = defaultAutomaticSnapshotExpiration
 )
 
 func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {

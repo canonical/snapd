@@ -46,7 +46,7 @@ func NewSystemProfileUpdateContext(instanceName string, fromSnapConfine bool) *S
 // System mount profiles can write to /tmp (this is required for constructing
 // writable mimics) to /var/snap (where $SNAP_DATA is for services), /snap/$SNAP_NAME,
 // and, in case of instances, /snap/$SNAP_INSTANCE_NAME.
-func (ctx *SystemProfileUpdateContext) Assumptions() *Assumptions {
+func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// Allow creating directories related to this snap name.
 	//
 	// Note that we allow /var/snap instead of /var/snap/$SNAP_NAME because
@@ -67,47 +67,12 @@ func (ctx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
 	// remapping for parallel installs only when the snap has an instance key
 	as := &Assumptions{}
-	instanceName := ctx.InstanceName()
+	instanceName := upCtx.InstanceName()
 	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
 	return as
-}
-
-func applySystemFstab(ctx MountProfileUpdateContext) error {
-	unlock, err := ctx.Lock()
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
-	// Read the desired and current mount profiles. Note that missing files
-	// count as empty profiles so that we can gracefully handle a mount
-	// interface connection/disconnection.
-	desired, err := ctx.LoadDesiredProfile()
-	if err != nil {
-		return err
-	}
-	debugShowProfile(desired, "desired mount profile")
-
-	currentBefore, err := ctx.LoadCurrentProfile()
-	if err != nil {
-		return err
-	}
-	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
-	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
-	as := ctx.Assumptions()
-	for _, entry := range currentBefore.Entries {
-		as.AddChange(&Change{Action: Mount, Entry: entry})
-	}
-
-	currentAfter, err := applyProfile(ctx, currentBefore, desired, as)
-	if err != nil {
-		return err
-	}
-
-	return ctx.SaveCurrentProfile(currentAfter)
 }
 
 // desiredSystemProfilePath returns the path of the fstab-like file with the desired, system-wide mount profile for a snap.

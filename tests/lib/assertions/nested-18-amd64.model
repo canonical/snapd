@@ -1,0 +1,22 @@
+type: model
+authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+series: 16
+brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+model: pc
+architecture: amd64
+base: core18
+gadget: pc=18
+kernel: pc-kernel=18
+timestamp: 2019-05-16T18:06:04+00:00
+sign-key-sha3-384: 0u-IKZyVlTxwiBVOv7oT1FNKdfkKJyOSwbEWJPurlvtaGZxX6VrMHSESnIPeaNMC
+
+AcLBcwQAAQoAHRYhBMWWVcwwFvQaEaz9YITG74Zv2rilBQJc3blHAAoJEITG74Zv2rildiMP/1aJ
+hXu/kOqDIwatCOgrdRzoesXI2WL4P8cU62wLSITONn4z8TMp4gx5oKnw7HsYEXbNDU2baZBzrUmj
+nB4RHtpnhbBBOUs/tx/lGBAUUr0o8+aOl/UMydVxBy8b/IxHABABAKx2/0cr0THv/0ZKdRvTVQLi
+PZyKDtHqB6l14OwTWUE5tFQf60BwVXE58OEclAAsrtRvWUVDeL774Tpou2TjXhN1SwEdJPVV1I4i
+2fEh3vUZHyuct68W9HODe77XvfRcY5FiEY7G3rd+Xl6DnodCMpjnkPTjcoVgOobny+WGDxtSNxq6
+U4YceYuUguxXfgmGj6QZBvBRdbqVSIfzPif3fe4QvfYeZ1v3paiuuzSPDY5zjd4qbEIwgI/vGm8M
+vuletW5IJlJHBErNmSxd7LCkK1ViSCkblNcMit0CdqWJvl74PpbM/mWY/iMTBtA5N9PqPCKh4WC+
+QDYkdnaSxRuZo4zI3lhmJhmcOaehouj5bN3tmUX4zb8jW09hZyQhCGCL480cjwrdf+MtqKb1r076
+H8S8LM43hGNhoArmerXt25/RG8jGaLhqvxwyf+nKGQFc6ZxVVRIfqHA80bmfKuhzh/544VKirFuS
+duY/wq6YFprCA4ArSFMHG/3hTKNld5uxGSzCkx2BrddmHkKNVLooLAsYgYvuTjM6Q/Q3F/va

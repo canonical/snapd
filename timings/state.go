@@ -65,19 +65,32 @@ var timeDuration = func(start, end time.Time) time.Duration {
 // flatten flattens nested measurements into a single list within rootTimingJson.NestedTimings
 // and calculates total duration.
 func (t *Timings) flatten() interface{} {
-	if len(t.timings) == 0 {
+	var hasChangeID, hasTaskID bool
+	if t.tags != nil {
+		_, hasChangeID = t.tags["change-id"]
+		_, hasTaskID = t.tags["task-id"]
+	}
+
+	// ensure timings which created a change, have the corresponding
+	// change-id tag, but no task-id
+	isEnsureWithChange := hasChangeID && !hasTaskID
+
+	if len(t.timings) == 0 && !isEnsureWithChange {
 		return nil
 	}
+
 	data := &rootTimingsJSON{
 		Tags: t.tags,
 	}
-	var maxStopTime time.Time
-	flattenRecursive(data, t.timings, 0, &maxStopTime)
-	if len(data.NestedTimings) == 0 {
-		return nil
+	if len(t.timings) > 0 {
+		var maxStopTime time.Time
+		flattenRecursive(data, t.timings, 0, &maxStopTime)
+		if len(data.NestedTimings) == 0 && !hasChangeID {
+			return nil
+		}
+		data.StartTime = t.timings[0].start
+		data.StopTime = maxStopTime
 	}
-	data.StartTime = t.timings[0].start
-	data.StopTime = maxStopTime
 
 	return data
 }

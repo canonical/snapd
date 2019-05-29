@@ -41,13 +41,13 @@ type CommonProfileUpdateContext struct {
 }
 
 // InstanceName returns the snap instance name being updated.
-func (ctx *CommonProfileUpdateContext) InstanceName() string {
-	return ctx.instanceName
+func (upCtx *CommonProfileUpdateContext) InstanceName() string {
+	return upCtx.instanceName
 }
 
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
-func (ctx *CommonProfileUpdateContext) Lock() (func(), error) {
-	instanceName := ctx.instanceName
+func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
+	instanceName := upCtx.instanceName
 
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
@@ -57,7 +57,7 @@ func (ctx *CommonProfileUpdateContext) Lock() (func(), error) {
 	}
 
 	logger.Debugf("locking mount namespace of snap %q", instanceName)
-	if ctx.fromSnapConfine {
+	if upCtx.fromSnapConfine {
 		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
@@ -93,32 +93,32 @@ func (ctx *CommonProfileUpdateContext) Lock() (func(), error) {
 	return unlock, nil
 }
 
-func (ctx *CommonProfileUpdateContext) Assumptions() *Assumptions {
+func (upCtx *CommonProfileUpdateContext) Assumptions() *Assumptions {
 	return nil
 }
 
 // LoadDesiredProfile loads the desired mount profile.
-func (ctx *CommonProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(ctx.desiredProfilePath)
+func (upCtx *CommonProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(upCtx.desiredProfilePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", ctx.instanceName, err)
+		return nil, fmt.Errorf("cannot load desired mount profile of snap %q: %s", upCtx.instanceName, err)
 	}
 	return profile, nil
 }
 
 // LoadCurrentProfile loads the current mount profile.
-func (ctx *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
-	profile, err := osutil.LoadMountProfile(ctx.currentProfilePath)
+func (upCtx *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	profile, err := osutil.LoadMountProfile(upCtx.currentProfilePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", ctx.instanceName, err)
+		return nil, fmt.Errorf("cannot load current mount profile of snap %q: %s", upCtx.instanceName, err)
 	}
 	return profile, nil
 }
 
 // SaveCurrentProfile saves the current mount profile.
-func (ctx *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
-	if err := profile.Save(ctx.currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", ctx.instanceName, err)
+func (upCtx *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	if err := profile.Save(upCtx.currentProfilePath); err != nil {
+		return fmt.Errorf("cannot save current mount profile of snap %q: %s", upCtx.instanceName, err)
 	}
 	return nil
 }
