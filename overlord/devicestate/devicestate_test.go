@@ -2871,7 +2871,8 @@ func (s *deviceMgrSuite) TestRemodelStoreSwitch(c *C) {
 	c.Check(freshStore.ensureDeviceSession, Equals, 1)
 
 	tl := chg.Tasks()
-	// 2 snaps,
+	// 2 snaps * 3 tasks (from the mock install above) +
+	// 1 "set-model" task at the end
 	c.Assert(tl, HasLen, 2*3+1)
 
 	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])

@@ -93,7 +93,6 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	chg := s.state.NewChange("dummy", "...")
 	chg.Set("new-model", string(asserts.Encode(model)))
 	chg.AddTask(t)
-	chg.Set("new-model", string(asserts.Encode(model)))
 
 	s.state.Unlock()
 

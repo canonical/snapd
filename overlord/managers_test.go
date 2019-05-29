@@ -136,6 +136,8 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
@@ -161,6 +163,7 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockConnectRetryTimeout(connectRetryTimeout))
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	s.AddCleanup(func() { os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") })
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
@@ -315,12 +318,6 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 
 	st.Set("refresh-privacy-key", "privacy-key")
-}
-
-func (s *mgrsSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
-	dirs.SetRootDir("")
 }
 
 var settleTimeout = 15 * time.Second
