@@ -544,9 +544,9 @@ restore_suite_each() {
 
     if [ "$PROFILE_SNAPS" = 1 ]; then
         echo "Save snaps profiler log"
-        local logs_id, logs_dir, logs_file
+        local logs_id logs_dir logs_file
         logs_dir="$RUNTIME_STATE_PATH/logs"
-        logs_id=$(ls *.journal.log 2>/dev/null | wc -l)
+        logs_id=$(ls "$logs_dir"/*.journal.log 2>/dev/null | wc -l)
         logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
 
         profiler_snap=test-snapd-profiler
@@ -555,8 +555,8 @@ restore_suite_each() {
         fi
 
         mkdir -p "$logs_dir"
-        if [ -e "/var/snap/${profiler_snap}/common/proc.log" ]; then
-            cp -f "/var/snap/${profiler_snap}/common/proc.log" "${logs_dir}/${logs_file}.profiler.log"
+        if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
+            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
         fi
         get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
     fi
