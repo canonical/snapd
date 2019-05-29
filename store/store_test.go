@@ -3200,7 +3200,7 @@ func (s *storeTestSuite) TestFindClientUserAgent(c *C) {
 		DetailFields: []string{}, // make the error less noisy
 	}
 
-	ctx := store.ClientUserAgentContext(clientUserAgent)
+	ctx := store.WithClientUserAgent(context.TODO(), clientUserAgent)
 	sto := store.New(&cfg, nil)
 	sto.Find(ctx, &store.Search{Query: "hello"}, nil)
 	c.Assert(serverWasHit, Equals, true)
