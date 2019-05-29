@@ -125,7 +125,14 @@ func (sc *storeContext) UpdateDeviceAuth(device *auth.DeviceState, newSessionMac
 		return nil, err
 	}
 
-	// just do it, last update wins
+	// because of remodeling now more than one place (the global store)
+	// can be trying to set sessions, don't update if the original session
+	// doesn't match
+	if cur.SessionMacaroon != device.SessionMacaroon {
+		// nothing to do
+		return cur, nil
+	}
+
 	cur.SessionMacaroon = newSessionMacaroon
 	if err := sc.deviceBackend.SetDevice(cur); err != nil {
 		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
