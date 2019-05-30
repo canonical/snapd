@@ -41,8 +41,8 @@ import (
 )
 
 var (
-	snapstateInstall = snapstate.Install
-	snapstateUpdate  = snapstate.Update
+	snapstateInstallWithDeviceContext = snapstate.InstallWithDeviceContext
+	snapstateUpdateWithDeviceContext  = snapstate.UpdateWithDeviceContext
 )
 
 // findModel returns the device model assertion.
@@ -332,13 +332,13 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
-func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSet, error) {
+func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext) ([]*state.TaskSet, error) {
 	userID := 0
 
 	// adjust kernel track
 	var tss []*state.TaskSet
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdate(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true})
+		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -350,7 +350,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model) ([]*state.TaskSe
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{Required: true})
+			ts, err := snapstateInstallWithDeviceContext(st, snapName, "", "", snap.R(0), userID, snapstate.Flags{Required: true}, deviceCtx)
 			if err != nil {
 				return nil, err
 			}
@@ -456,21 +456,20 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
+
 	// TODO: we need dedicated assertion language to permit for
 	// model transitions before we allow that cross vault
 	// transitions.
 	//
 	// Right now we only allow "remodel" to a different revision of
 	// the same model.
-	if current.BrandID() != new.BrandID() {
-		return nil, fmt.Errorf("cannot remodel to different brands yet")
+
+	remodelKind := ClassifyRemodel(current, new)
+
+	if remodelKind == ReregRemodel {
+		return nil, fmt.Errorf("cannot remodel to different brand/model yet")
 	}
-	if current.Model() != new.Model() {
-		return nil, fmt.Errorf("cannot remodel to different models yet")
-	}
-	if current.Store() != new.Store() {
-		return nil, fmt.Errorf("cannot remodel to different stores yet")
-	}
+
 	// TODO: should we restrict remodel from one arch to another?
 	// There are valid use-cases here though, i.e. amd64 machine that
 	// remodels itself to/from i386 (if the HW can do both 32/64 bit)
@@ -492,10 +491,33 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
 	}
 
-	tss, err := remodelTasks(st, current, new)
+	remodCtx, err := remodelCtx(st, current, new)
 	if err != nil {
 		return nil, err
 	}
+
+	if remodelKind == StoreSwitchRemodel {
+		sto := remodCtx.Store()
+		if sto == nil {
+			return nil, fmt.Errorf("internal error: a store switch remodeling should have built a store")
+		}
+		// ensure a new session accounting for the new brand store
+		st.Unlock()
+		_, err := sto.EnsureDeviceSession()
+		st.Lock()
+		if err != nil {
+			return nil, fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
+		}
+	}
+
+	tss, err := remodelTasks(st, current, new, remodCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: we released the lock a couple of times here:
+	// make sure the current model is essentially the same
+	// make sure no remodeling is in progress
 
 	var msg string
 	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
@@ -504,8 +526,9 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		// TODO: add test once we support this kind of remodel
 		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
 	}
+
 	chg := st.NewChange("remodel", msg)
-	chg.Set("new-model", string(asserts.Encode(new)))
+	remodCtx.Init(chg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
