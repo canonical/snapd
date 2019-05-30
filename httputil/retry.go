@@ -178,7 +178,7 @@ func isDnsUnavailable(err error) bool {
 	// not exposed in net.DNSError and in go-1.10 it is not even
 	// a temporary error so there is no way to distiguish it other
 	// than a fugly string compare on a (potentially) localized string
-	return strings.Contains(dnsErr.Err, "Temporary failure in name resolution")
+	return strings.Contains(dnsErr.Err, "connection refused") || strings.Contains(dnsErr.Err, "Temporary failure in name resolution")
 }
 
 // RetryRequest calls doRequest and read the response body in a retry loop using the given retryStrategy.
