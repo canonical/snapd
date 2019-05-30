@@ -661,12 +661,12 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err := rw.Backup(nil, ps)
+	err := rw.Backup()
 	c.Assert(err, IsNil)
 
 	// files that existed were backed up
@@ -685,7 +685,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	}
 
 	// running backup again does not error out
-	err = rw.Backup(nil, ps)
+	err = rw.Backup()
 	c.Assert(err, IsNil)
 }
 
@@ -733,12 +733,12 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err = rw.Backup(nil, ps)
+	err = rw.Backup()
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, filepath.Join(r.backup, "struct-0"), map[string]contentType{
@@ -782,12 +782,12 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err := rw.Backup(nil, ps)
+	err := rw.Backup()
 	c.Assert(err, IsNil)
 
 	backupRoot := filepath.Join(r.backup, "struct-0")
@@ -814,7 +814,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -823,7 +823,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 	c.Assert(err, IsNil)
 	defer os.Chmod(r.backup, 0755)
 
-	err = rw.Backup(nil, ps)
+	err = rw.Backup()
 	c.Assert(err, ErrorMatches, "cannot create backup directory: .*/struct-0: permission denied")
 }
 
@@ -857,12 +857,12 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err = rw.Backup(nil, ps)
+	err = rw.Backup()
 	c.Assert(err, ErrorMatches, "cannot create a backup structure: cannot open destination file: open .*/out-dir/foo: permission denied")
 }
 
@@ -895,12 +895,12 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err = rw.Backup(nil, ps)
+	err = rw.Backup()
 	c.Assert(err, ErrorMatches, "cannot create a backup structure: cannot checksum update file: open .*/bar: permission denied")
 }
 
@@ -983,15 +983,15 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err := rw.Backup(nil, ps)
+	err := rw.Backup()
 	c.Assert(err, IsNil)
 
-	err = rw.Update(nil, ps)
+	err = rw.Update()
 	c.Assert(err, IsNil)
 
 	// files that existed were preserved
@@ -1023,12 +1023,12 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterUpdateLookupFails(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return "", errors.New("failed")
 	})
 
-	err := rw.Update(nil, ps)
+	err := rw.Update()
 	c.Assert(err, ErrorMatches, "cannot find mount location of structure #0: failed")
 }
 func (r *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
@@ -1068,15 +1068,15 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err := rw.Backup(nil, ps)
+	err := rw.Backup()
 	c.Assert(err, IsNil)
 
-	err = rw.Update(nil, ps)
+	err = rw.Update()
 	c.Assert(err, IsNil)
 
 	verifyDeployedGadgetData(c, outDir, gdDeployed)
@@ -1120,22 +1120,22 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err := rw.Update(nil, ps)
+	err := rw.Update()
 	c.Assert(err, ErrorMatches, "missing backup file for .*/out-dir/foo")
 	// create a mock backup of first file
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/foo.backup"), 0, nil)
 	// try again
-	err = rw.Update(nil, ps)
+	err = rw.Update()
 	c.Assert(err, ErrorMatches, "missing backup file for .*/out-dir/some-dir/foo")
 	// create a mock backup of second entry
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/some-dir/foo.backup"), 0, nil)
 	// try again (preserved files need no backup)
-	err = rw.Update(nil, ps)
+	err = rw.Update()
 	c.Assert(err, IsNil)
 
 	verifyDeployedGadgetData(c, outDir, []gadgetData{
@@ -1175,12 +1175,12 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
-	err = rw.Update(nil, ps)
+	err = rw.Update()
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, outDir, map[string]contentType{
@@ -1226,7 +1226,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -1235,7 +1235,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/foo.same"), 0, nil)
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/some-dir/foo.same"), 0, nil)
 
-	err := rw.Update(nil, ps)
+	err := rw.Update()
 	c.Assert(err, IsNil)
 	// files were not modified
 	verifyDeployedGadgetData(c, outDir, []gadgetData{
@@ -1276,7 +1276,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -1285,7 +1285,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/foo.backup"), 0, []byte("backup"))
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/some-dir/foo.backup"), 0, []byte("backup"))
 
-	err := rw.Rollback(nil, ps)
+	err := rw.Rollback()
 	c.Assert(err, IsNil)
 	// files were restored from backup
 	verifyDeployedGadgetData(c, outDir, []gadgetData{
@@ -1321,7 +1321,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -1329,7 +1329,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 	// pretend a backup pass ran and created a backup
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/foo.same"), 0, nil)
 
-	err := rw.Rollback(nil, ps)
+	err := rw.Rollback()
 	c.Assert(err, IsNil)
 	// files were not modified
 	verifyDeployedGadgetData(c, outDir, []gadgetData{
@@ -1365,7 +1365,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -1373,7 +1373,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 	// preserved files get no backup, but gets a stamp instead
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/foo.preserve"), 0, nil)
 
-	err := rw.Rollback(nil, ps)
+	err := rw.Rollback()
 	c.Assert(err, IsNil)
 	// files were not modified
 	verifyDeployedGadgetData(c, outDir, []gadgetData{
@@ -1414,13 +1414,13 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
 	// none of the marker files exists, files are new, will be removed
-	err := rw.Rollback(nil, ps)
+	err := rw.Rollback()
 	c.Assert(err, IsNil)
 	// everything was removed
 	verifyDirContents(c, outDir, map[string]contentType{
@@ -1460,7 +1460,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -1468,7 +1468,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	// one file backed up, the other is new
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/foo.backup"), 0, []byte("backup"))
 
-	err = rw.Rollback(nil, ps)
+	err = rw.Rollback()
 	c.Assert(err, ErrorMatches, "cannot copy .*: unable to create .*/out-dir/foo: permission denied")
 
 	// remove offending file
@@ -1480,7 +1480,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	// restore permissions later, otherwise test suite cleanup complains
 	defer os.Chmod(filepath.Join(outDir, "some-dir"), 0755)
 
-	err = rw.Rollback(nil, ps)
+	err = rw.Rollback()
 	c.Assert(err, ErrorMatches, "cannot remove deployed update: remove .*/out-dir/some-dir/foo: permission denied")
 }
 
@@ -1509,13 +1509,13 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotDeployed(c *C)
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
 
 	// rollback does not error out if files were not deployed
-	err := rw.Rollback(nil, ps)
+	err := rw.Rollback()
 	c.Assert(err, IsNil)
 }
 
@@ -1566,7 +1566,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -1579,7 +1579,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 	makeSizedFile(c, filepath.Join(r.backup, "struct-0/this.backup"), 0, nil)
 
 	// files without a marker are new, will be removed
-	err := rw.Rollback(nil, ps)
+	err := rw.Rollback()
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, outDir, map[string]contentType{
@@ -1678,7 +1678,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemUpdater(r.dir, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	rw := gadget.NewMountedFilesystemUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
 	})
@@ -1693,7 +1693,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	verifyDirContents(c, outDir, originalState)
 
 	// run the backup phase
-	err = rw.Backup(nil, ps)
+	err = rw.Backup()
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, filepath.Join(r.backup, "struct-0"), map[string]contentType{
@@ -1705,7 +1705,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	})
 
 	// run the update phase
-	err = rw.Update(nil, ps)
+	err = rw.Update()
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, outDir, map[string]contentType{
@@ -1753,7 +1753,7 @@ func (r *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	// everything else was deployed
 	verifyDeployedGadgetData(c, outDir, gdDeployed)
 
-	err = rw.Rollback(nil, ps)
+	err = rw.Rollback()
 	c.Assert(err, IsNil)
 	// back to square one
 	verifyDirContents(c, outDir, originalState)

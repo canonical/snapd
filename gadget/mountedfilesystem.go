@@ -215,16 +215,18 @@ type MountedFilesystemUpdater struct {
 	mountLookup mountLookupFunc
 }
 
-func NewMountedFilesystemUpdater(rootDir, backupDir string, mountLookup mountLookupFunc) *MountedFilesystemUpdater {
+// NewMountedFilesystemUpdater returns an updater for given filesystem
+// structure, with structure content coming from provided root directory
+func NewMountedFilesystemUpdater(rootDir string, ps *PositionedStructure, backupDir string, mountLookup mountLookupFunc) *MountedFilesystemUpdater {
 	return &MountedFilesystemUpdater{
-		MountedFilesystemWriter: NewMountedFilesystemWriter(rootDir),
+		MountedFilesystemWriter: NewMountedFilesystemWriter(rootDir, ps),
 		backupDir:               backupDir,
 		mountLookup:             mountLookup,
 	}
 }
 
-func (r *MountedFilesystemUpdater) structBackupPath(ps *PositionedStructure) string {
-	return filepath.Join(r.backupDir, fmt.Sprintf("struct-%v", ps.Index))
+func fsStructBackupPath(backupDir string, ps *PositionedStructure) string {
+	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.Index))
 }
 
 // entryNames resolves the source, destination and backup locations for given
@@ -251,7 +253,7 @@ func (f *MountedFilesystemUpdater) entryNames(dstRoot, source, target, backupDir
 // entrySource returns the location of given source within the root directory
 // provided during initialization.
 func (f *MountedFilesystemUpdater) entrySource(source string) string {
-	srcName := filepath.Join(f.rootDir, source)
+	srcName := filepath.Join(f.contentDir, source)
 
 	if strings.HasSuffix(source, "/") {
 		// restore trailing / if one was there
@@ -329,19 +331,18 @@ func (f *MountedFilesystemUpdater) updateContent(whereDir string, content *Volum
 	}
 }
 
-// Update applies an update to a mounted filesystem representing given
-// structure. The caller must have executed a Backup() before, to prepare a data
-// set for rollback purpose.
-func (f *MountedFilesystemUpdater) Update(from *PositionedStructure, to *PositionedStructure) error {
-	mount, err := f.mountLookup(to)
+// Update applies an update to a mounted filesystem. The caller must have
+// executed a Backup() before, to prepare a data set for rollback purpose.
+func (f *MountedFilesystemUpdater) Update() error {
+	mount, err := f.mountLookup(f.ps)
 	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", to, err)
+		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
 	}
 
-	preserveInDst := remapPreserve(mount, to.Update.Preserve)
-	backupRoot := f.structBackupPath(to)
+	preserveInDst := remapPreserve(mount, f.ps.Update.Preserve)
+	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	for _, c := range to.Content {
+	for _, c := range f.ps.Content {
 		if err := f.updateContent(mount, &c, preserveInDst, backupRoot); err != nil {
 			return err
 		}
@@ -505,20 +506,20 @@ func (f *MountedFilesystemUpdater) backupOrCheckpoint(whereDir string, content *
 // information should the update be applied. The content of the filesystem is
 // processed, files that would be modified by the update are backed up, while
 // other files may be stamped to improve the later step of update process.
-func (f *MountedFilesystemUpdater) Backup(from *PositionedStructure, to *PositionedStructure) error {
-	mount, err := f.mountLookup(to)
+func (f *MountedFilesystemUpdater) Backup() error {
+	mount, err := f.mountLookup(f.ps)
 	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", to, err)
+		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
 	}
 
-	backupRoot := f.structBackupPath(to)
+	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	if err := os.MkdirAll(backupRoot, 0755); err != nil {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
-	for _, c := range to.Content {
-		if err := f.backupOrCheckpoint(mount, &c, remapPreserve(mount, to.Update.Preserve), backupRoot); err != nil {
+	for _, c := range f.ps.Content {
+		if err := f.backupOrCheckpoint(mount, &c, remapPreserve(mount, f.ps.Update.Preserve), backupRoot); err != nil {
 			return fmt.Errorf("cannot create a backup structure: %v", err)
 		}
 	}
@@ -617,21 +618,21 @@ func (f *MountedFilesystemUpdater) rollbackContent(whereDir string, content *Vol
 	}
 }
 
-// Rollback attempst to revert changes done by the update step, using state
+// Rollback attempts to revert changes done by the update step, using state
 // information collected during backup phase. Files that were modified by the
 // update are stored from their backup copies, newly added directories are
 // removed.
-func (f *MountedFilesystemUpdater) Rollback(from *PositionedStructure, to *PositionedStructure) error {
-	mount, err := f.mountLookup(to)
+func (f *MountedFilesystemUpdater) Rollback() error {
+	mount, err := f.mountLookup(f.ps)
 	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", to, err)
+		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
 	}
 
-	backupRoot := f.structBackupPath(to)
+	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	preserveInDst := remapPreserve(mount, to.Update.Preserve)
+	preserveInDst := remapPreserve(mount, f.ps.Update.Preserve)
 
-	for _, c := range to.Content {
+	for _, c := range f.ps.Content {
 		if err := f.rollbackContent(mount, &c, preserveInDst, backupRoot); err != nil {
 			return err
 		}
