@@ -221,7 +221,7 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Sl
 	return firstErr
 }
 
-func checkSnapTypeSlotInstallationConstraints(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
+func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
 	if err := checkSnapType(slot.Snap, cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
@@ -240,9 +240,9 @@ func checkMinimalSlotInstallationConstraints(ic *InstallCandidateMinimalCheck, s
 			continue
 		}
 		hasSnapTypeCstrs = true
-		err := checkSnapTypeSlotInstallationConstraints(ic, slot, cstrs1)
+		err := checkSnapTypeSlotInstallationConstraints1(ic, slot, cstrs1)
 		if err == nil {
-			return hasSnapTypeCstrs, nil
+			return true, nil
 		}
 		if firstErr == nil {
 			firstErr = err
