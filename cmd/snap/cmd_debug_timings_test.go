@@ -40,6 +40,9 @@ var timingsTests = []timingsCmdArgs{{
 	args:  "debug timings --ensure=foo 9",
 	error: "cannot use 'ensure' and change id together",
 }, {
+	args:  "debug timings --ensure=foo --startup=bar",
+	error: "cannot use 'startup' with 'ensure' or change id",
+}, {
 	args:  "debug timings --last=install --all",
 	error: "cannot use 'all' with change id or 'last'",
 }, {
@@ -93,6 +96,18 @@ var timingsTests = []timingsCmdArgs{{
 		"40   Doing         910ms            -  bar    task bar summary\n" +
 		" ^                   1ms            -  foo      foo summary\n" +
 		"  ^                  1ms            -  bar        bar summary\n\n",
+}, {
+	args: "debug timings --startup=boo",
+	stdout: "ID   Status        Doing      Undoing  Summary\n" +
+		"boo                    -            -  \n" +
+		" ^                   8ms            -    baz summary\n" +
+		"  ^                  8ms            -      booze summary\n\n",
+}, {
+	args: "debug timings --startup=boo --all",
+	stdout: "ID   Status        Doing      Undoing  Summary\n" +
+		"boo                    -            -  \n" +
+		" ^                   8ms            -    baz summary\n" +
+		" ^                   9ms            -    baz summary\n\n",
 }}
 
 func (s *SnapSuite) TestGetDebugTimings(c *C) {
@@ -129,6 +144,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 
 			changeID := q.Get("change-id")
 			ensure := q.Get("ensure")
+			startup := q.Get("startup")
 			all := q.Get("all")
 
 			switch {
@@ -166,6 +182,18 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 										{"label":"foo", "summary": "foo summary", "duration": 1000001},
 										{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
 						]}}}]}`)
+			case startup == "boo" && all == "false":
+				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
+					{"startup-timings": [
+								{"label":"baz", "summary": "baz summary", "duration": 8000001},
+								{"level":1, "label":"booze", "summary": "booze summary", "duration": 8000002}
+					]}]}`)
+			case startup == "boo" && all == "true":
+				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
+					{"startup-timings": [
+						{"label":"baz", "summary": "baz summary", "duration": 8000001},
+						{"label":"baz", "summary": "baz summary", "duration": 9000001}
+					]}]}`)
 			default:
 				c.Errorf("unexpected request: %s, %s, %s", changeID, ensure, all)
 			}

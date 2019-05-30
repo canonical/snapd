@@ -32,9 +32,10 @@ import (
 
 type cmdChangeTimings struct {
 	changeIDMixin
-	EnsureTag string `long:"ensure"`
-	All       bool   `long:"all"`
-	Verbose   bool   `long:"verbose"`
+	EnsureTag  string `long:"ensure"`
+	All        bool   `long:"all"`
+	StartupTag string `long:"startup"`
+	Verbose    bool   `long:"verbose"`
 }
 
 func init() {
@@ -44,8 +45,9 @@ func init() {
 		func() flags.Commander {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
-			"ensure": i18n.G("Show timings for a change related to the given Ensure activity (one of: auto-refresh, become-operational, refresh-catalogs, refresh-hints, seed)"),
-			"all":    i18n.G("Show timings for all executions of the given Ensure activity, not just the latest"),
+			"ensure":  i18n.G("Show timings for a change related to the given Ensure activity (one of: auto-refresh, become-operational, refresh-catalogs, refresh-hints, seed)"),
+			"all":     i18n.G("Show timings for all executions of the given Ensure or startup activity, not just the latest"),
+			"startup": i18n.G("Show timings for the startup of given subsystem (one of: load-state, ifacemgr)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Show more information"),
 		}), changeIDMixinArgDesc)
@@ -136,10 +138,21 @@ func (x *cmdChangeTimings) printEnsureTimings(w io.Writer, timings []*timingsDat
 	return nil
 }
 
+func (x *cmdChangeTimings) printStartupTimings(w io.Writer, timings []*timingsData) error {
+	for _, td := range timings {
+		printTiming(w, x.Verbose, 0, x.StartupTag, "", "-", "-", "", "")
+		for _, t := range td.StartupTimings {
+			printTiming(w, x.Verbose, t.Level+1, "", "", formatDuration(t.Duration), "-", t.Label, t.Summary)
+		}
+	}
+	return nil
+}
+
 type timingsData struct {
-	ChangeID      string   `json:"change-id"`
-	EnsureTimings []Timing `json:"ensure-timings,omitempty"`
-	ChangeTimings map[string]struct {
+	ChangeID       string   `json:"change-id"`
+	EnsureTimings  []Timing `json:"ensure-timings,omitempty"`
+	StartupTimings []Timing `json:"startup-timings,omitempty"`
+	ChangeTimings  map[string]struct {
 		DoingTime      time.Duration `json:"doing-time,omitempty"`
 		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
 		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
@@ -152,6 +165,9 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	if x.StartupTag != "" && (x.Positional.ID != "" || x.EnsureTag != "") {
+		return fmt.Errorf("cannot use 'startup' with 'ensure' or change id")
+	}
 	if x.EnsureTag != "" && x.Positional.ID != "" {
 		return fmt.Errorf("cannot use 'ensure' and change id together")
 	}
@@ -161,7 +177,8 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 
 	var chgid string
 	var err error
-	if x.EnsureTag == "" {
+
+	if x.EnsureTag == "" && x.StartupTag == "" {
 		// GetChangeID takes care of --last=... if change ID was not specified by the user
 		chgid, err = x.GetChangeID()
 		if err != nil {
@@ -177,7 +194,7 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	} else {
 		allEnsures = "false"
 	}
-	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure": x.EnsureTag, "all": allEnsures}); err != nil {
+	if err := x.client.DebugGet("change-timings", &timings, map[string]string{"change-id": chgid, "ensure": x.EnsureTag, "all": allEnsures, "startup": x.StartupTag}); err != nil {
 		return err
 	}
 
@@ -192,8 +209,14 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	// If "ensure" activity was requested, we may get multiple elements (for multiple executions of the ensure)
 	if chgid != "" && len(timings) > 0 {
 		x.printChangeTimings(w, timings[0])
-	} else {
+	}
+
+	if x.EnsureTag != "" {
 		x.printEnsureTimings(w, timings)
+	}
+
+	if x.StartupTag != "" {
+		x.printStartupTimings(w, timings)
 	}
 
 	w.Flush()

@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -193,6 +194,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
+	perfTimings := timings.New(map[string]string{"startup": "load-state"})
+
 	if !osutil.FileExists(dirs.SnapStateFile) {
 		// fail fast, mostly interesting for tests, this dir is setup
 		// by the snapd package
@@ -211,10 +214,16 @@ func loadState(backend state.Backend) (*state.State, error) {
 	}
 	defer r.Close()
 
-	s, err := state.ReadState(backend, r)
+	var s *state.State
+	timings.Run(perfTimings, "read-state", "read snapd state from disk", func(tm timings.Measurer) {
+		s, err = state.ReadState(backend, r)
+	})
 	if err != nil {
 		return nil, err
 	}
+	s.Lock()
+	perfTimings.Save(s)
+	s.Unlock()
 
 	// one-shot migrations
 	err = patch.Apply(s)
