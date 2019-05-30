@@ -94,7 +94,7 @@
 %endif
 
 Name:           snapd
-Version:        2.39
+Version:        2.39.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -869,6 +869,20 @@ fi
 
 
 %changelog
+* Wed May 29 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.39.1
+ - spread: enable Fedora 30
+ - cmd/snap-confine, data/selinux: cherry pick Fedora 30 fixes
+ - tests/unit/spread-shellcheck: temporary workaround for SC2251
+ - packaging: build empty package on powerpc
+ - interfaces: special-case "snapd" in sanitizeSlotReservedForOS*
+   helper
+ - cmd/snap: mangle descriptions that have indent > terminal width
+ - cmd/snap-confine: unshare per-user mount ns once
+ - tests: avoid adding spaces to the base snaps names
+ - systemd: workaround systemctl show quirks on older systemd
+   versions
+
 * Mon May 06 2019 Neal Gompa <ngompa13@gmail.com> - 2.39-1
 - Release 2.39 to Fedora (RH#1699087)
 - Enable basic SELinux integration
