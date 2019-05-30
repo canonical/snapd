@@ -809,7 +809,7 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	authRefreshes := 0
 	for {
-		req, err := s.newRequest(reqOptions, user)
+		req, err := s.newRequest(ctx, reqOptions, user)
 		if err != nil {
 			return nil, err
 		}
@@ -887,7 +887,7 @@ func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
 }
 
 // build a new http.Request with headers for the store
-func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
+func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
 	var body io.Reader
 	if reqOptions.Data != nil {
 		body = bytes.NewBuffer(reqOptions.Data)
@@ -923,6 +923,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
+	if cua := ClientUserAgent(ctx); cua != "" {
+		req.Header.Set("Snap-Client-User-Agent", cua)
+	}
 	if reqOptions.APILevel == apiV1Endps {
 		req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 	}
@@ -1148,7 +1151,7 @@ type Search struct {
 
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
-func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
+func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
 	if search.Private && user == nil {
 		return nil, ErrUnauthenticated
 	}
@@ -1202,7 +1205,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}

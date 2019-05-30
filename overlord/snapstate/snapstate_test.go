@@ -627,7 +627,7 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 
 }
 
-func (s *snapmgrTestSuite) TestInstallUnderDeviceContext(c *C) {
+func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -636,7 +636,7 @@ func (s *snapmgrTestSuite) TestInstallUnderDeviceContext(c *C) {
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
 
-	ts, err := snapstate.InstallUnderDeviceContext(s.state, "some-snap", "some-channel", "", snap.R(0), 0, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.InstallWithDeviceContext(s.state, "some-snap", "some-channel", "", snap.R(0), 0, snapstate.Flags{}, deviceCtx)
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
@@ -2170,7 +2170,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Check(snapsup.Channel, Equals, "some-channel")
 }
 
-func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2199,7 +2199,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = happyValidateRefreshes
 
-	ts, err := snapstate.UpdateUnderDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx)
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -2207,7 +2207,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
 	c.Check(validateCalled, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestUpdateUnderDeviceContextToRevision(c *C) {
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2230,7 +2230,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContextToRevision(c *C) {
 	})
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
-	ts, err := snapstate.UpdateUnderDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx)
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -10867,11 +10867,21 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	kernel := &snap.Info{
 		Type: snap.TypeKernel,
 	}
-	kernel.RealName = "krnl"
+	// this kernel part of the model
+	kernel.RealName = "kernel"
 
 	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
+}
+
+func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
+	kernel := &snap.Info{
+		Type: snap.TypeKernel,
+	}
+	kernel.RealName = "other-non-model-kernel"
+
+	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {

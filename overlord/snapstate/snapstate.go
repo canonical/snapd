@@ -647,7 +647,7 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 	return ts, err
 }
 
-// Install returns a set of tasks for installing snap.
+// Install returns a set of tasks for installing a snap.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
@@ -666,15 +666,15 @@ func installGeneric(st *state.State, name, channel, cohort string, revision snap
 		return nil, errors.New("cannot specify revision and cohort")
 	}
 
-	return InstallUnderDeviceContext(st, name, channel, cohort, revision, userID, flags, nil)
+	return InstallWithDeviceContext(st, name, channel, cohort, revision, userID, flags, nil)
 }
 
-// InstallUnderDeviceContext returns a set of tasks for installing snap.
-// It will query for the snap under the given deviceCtx.
+// InstallWithDeviceContext returns a set of tasks for installing a snap.
+// It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func InstallUnderDeviceContext(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func InstallWithDeviceContext(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if channel == "" {
 		channel = "stable"
 	}
@@ -1301,15 +1301,15 @@ type RevisionOptions struct {
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Update(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return UpdateUnderDeviceContext(st, name, opts, userID, flags, nil)
+	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil)
 }
 
-// UpdateUnderDeviceContext initiates a change updating a snap.
-// It will query for the snap under the given deviceCtx.
+// UpdateWithDeviceContext initiates a change updating a snap.
+// It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func UpdateUnderDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1712,11 +1712,16 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		if model.Base() != "" && !coreInUse(st) {
 			return true
 		}
+		return false
 	}
 
-	// You never want to remove a kernel or OS. Do not remove their
-	// last revision left.
-	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
+	// Because of a Remodel() we may have multiple kernels. Allow
+	// removals of kernel(s) that are not model kernels (anymore).
+	if si.Type == snap.TypeKernel {
+		model := deviceCtx.Model()
+		if model.Kernel() != si.InstanceName() {
+			return true
+		}
 		return false
 	}
 
