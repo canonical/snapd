@@ -30,8 +30,6 @@ var (
 	CanUpdateVolume    = canUpdateVolume
 
 	EncodeLabel = encodeLabel
-)
 
-func (r *RawStructureUpdater) ContentBackupPath(ps *PositionedStructure, pc *PositionedContent) string {
-	return r.contentBackupPath(ps, pc)
-}
+	RawContentBackupPath = rawContentBackupPath
+)

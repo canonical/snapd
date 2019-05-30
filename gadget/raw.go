@@ -33,18 +33,22 @@ import (
 // RawStructureWriter implements support for writing raw (bare) structures.
 type RawStructureWriter struct {
 	rootDir string
+	ps      *PositionedStructure
 }
 
-// NewRawStructureWriter returns a structure writer that will load the structure
-// and content data from provided root directory.
-func NewRawStructureWriter(rootDir string) *RawStructureWriter {
-	return &RawStructureWriter{rootDir: rootDir}
+// NewRawStructureWriter returns a writer for given structure, that will load
+// the structure content data from provided root directory.
+func NewRawStructureWriter(rootDir string, ps *PositionedStructure) *RawStructureWriter {
+	return &RawStructureWriter{
+		rootDir: rootDir,
+		ps:      ps,
+	}
 }
 
 // writeRawStream writes the input stream in that corresponds to provided
 // positioned content. The number of bytes read from input stream must match
 // exactly the declared size of positioned content entry.
-func (r *RawStructureWriter) writeRawStream(out io.WriteSeeker, pc *PositionedContent, in io.Reader) error {
+func writeRawStream(out io.WriteSeeker, pc *PositionedContent, in io.Reader) error {
 	if _, err := out.Seek(int64(pc.StartOffset), io.SeekStart); err != nil {
 		return fmt.Errorf("cannot seek to content start offset 0x%x: %v", pc.StartOffset, err)
 	}
@@ -64,15 +68,15 @@ func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *PositionedCon
 	}
 	defer img.Close()
 
-	return r.writeRawStream(out, pc, img)
+	return writeRawStream(out, pc, img)
 }
 
-// Write will write the whole contents of a bare structure ps into the output stream.
-func (r *RawStructureWriter) Write(out io.WriteSeeker, ps *PositionedStructure) error {
-	if !ps.IsBare() {
-		return fmt.Errorf("structure %v is not bare", ps)
+// Write will write whole contents of a structure into the output stream.
+func (r *RawStructureWriter) Write(out io.WriteSeeker) error {
+	if !r.ps.IsBare() {
+		return fmt.Errorf("structure %v is not bare", r.ps)
 	}
-	for _, pc := range ps.PositionedContent {
+	for _, pc := range r.ps.PositionedContent {
 		if err := r.writeRawImage(out, &pc); err != nil {
 			return fmt.Errorf("failed to write image %v: %v", pc, err)
 		}
@@ -82,26 +86,26 @@ func (r *RawStructureWriter) Write(out io.WriteSeeker, ps *PositionedStructure) 
 
 // RawStructureUpdater implements support for updating raw (bare) structures.
 type RawStructureUpdater struct {
-	rootDir      string
+	*RawStructureWriter
 	backupDir    string
 	deviceLookup locationLookupFunc
 }
 
 type locationLookupFunc func(ps *PositionedStructure) (string, error)
 
-// NewRawStructureUpdater returns an updater for raw (bare) structures. Update
-// data will be loaded from provided root directory. Backups of replaced
+// NewRawStructureUpdater returns an updater for given raw (bare) structure.
+// Update data will be loaded from provided root directory. Backups of replaced
 // structures are temporarily kept in the rollback directory.
-func NewRawStructureUpdater(rootDir, backupDir string, deviceLookup locationLookupFunc) *RawStructureUpdater {
+func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) *RawStructureUpdater {
 	return &RawStructureUpdater{
-		rootDir:      rootDir,
-		backupDir:    backupDir,
-		deviceLookup: deviceLookup,
+		RawStructureWriter: NewRawStructureWriter(rootDir, ps),
+		backupDir:          backupDir,
+		deviceLookup:       deviceLookup,
 	}
 }
 
-func (r *RawStructureUpdater) contentBackupPath(ps *PositionedStructure, pc *PositionedContent) string {
-	return filepath.Join(r.backupDir, fmt.Sprintf("struct-%v-%v", ps.Index, pc.Index))
+func rawContentBackupPath(backupDir string, ps *PositionedStructure, pc *PositionedContent) string {
+	return filepath.Join(backupDir, fmt.Sprintf("struct-%v-%v", ps.Index, pc.Index))
 }
 
 func (r *RawStructureUpdater) findDevice(to *PositionedStructure) (string, error) {
@@ -111,7 +115,8 @@ func (r *RawStructureUpdater) findDevice(to *PositionedStructure) (string, error
 	return r.deviceLookup(to)
 }
 
-func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *PositionedContent, backupPath string) error {
+func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *PositionedContent) error {
+	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
 	backupName := backupPath + ".backup"
 	sameName := backupPath + ".same"
 
@@ -174,10 +179,10 @@ func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 // copied out to a separate file. Only differing regions are backed up. Analysis
 // and backup of each region is checkpointed. Regions that have been backed up
 // or determined to be identical will not be analyzed on subsequent calls.
-func (r *RawStructureUpdater) Backup(from *PositionedStructure, to *PositionedStructure) error {
-	device, err := r.findDevice(to)
+func (r *RawStructureUpdater) Backup() error {
+	device, err := r.findDevice(r.ps)
 	if err != nil {
-		return fmt.Errorf("cannot find device matching structure %v: %v", to, err)
+		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
 	}
 	disk, err := os.OpenFile(device, os.O_RDONLY, 0)
 	if err != nil {
@@ -185,8 +190,8 @@ func (r *RawStructureUpdater) Backup(from *PositionedStructure, to *PositionedSt
 	}
 	defer disk.Close()
 
-	for _, pc := range to.PositionedContent {
-		if err := r.backupOrCheckpointContent(disk, &pc, r.contentBackupPath(to, &pc)); err != nil {
+	for _, pc := range r.ps.PositionedContent {
+		if err := r.backupOrCheckpointContent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot backup image %v: %v", pc, err)
 		}
 	}
@@ -194,7 +199,9 @@ func (r *RawStructureUpdater) Backup(from *PositionedStructure, to *PositionedSt
 	return nil
 }
 
-func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *PositionedContent, rw *RawStructureWriter, backupPath string) error {
+func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *PositionedContent) error {
+	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
+
 	if osutil.FileExists(backupPath + ".same") {
 		// content the same, no update needed
 		return nil
@@ -205,7 +212,7 @@ func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *Position
 		return fmt.Errorf("cannot open backup image: %v", err)
 	}
 
-	if err := rw.writeRawStream(out, pc, backup); err != nil {
+	if err := writeRawStream(out, pc, backup); err != nil {
 		return fmt.Errorf("cannot restore backup: %v", err)
 	}
 
@@ -213,10 +220,10 @@ func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *Position
 }
 
 // Rollback attempts to restore original content from backup copies prepared during Backup().
-func (r *RawStructureUpdater) Rollback(from *PositionedStructure, to *PositionedStructure) error {
-	device, err := r.findDevice(to)
+func (r *RawStructureUpdater) Rollback() error {
+	device, err := r.findDevice(r.ps)
 	if err != nil {
-		return fmt.Errorf("cannot find device matching structure %v: %v", to, err)
+		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
 	}
 
 	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
@@ -225,10 +232,8 @@ func (r *RawStructureUpdater) Rollback(from *PositionedStructure, to *Positioned
 	}
 	defer disk.Close()
 
-	rw := NewRawStructureWriter(r.rootDir)
-
-	for _, pc := range to.PositionedContent {
-		if err := r.rollbackDifferent(disk, &pc, rw, r.contentBackupPath(to, &pc)); err != nil {
+	for _, pc := range r.ps.PositionedContent {
+		if err := r.rollbackDifferent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot rollback image %v: %v", pc, err)
 		}
 	}
@@ -236,7 +241,9 @@ func (r *RawStructureUpdater) Rollback(from *PositionedStructure, to *Positioned
 	return nil
 }
 
-func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *PositionedContent, rw *RawStructureWriter, backupPath string) error {
+func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *PositionedContent) error {
+	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
+
 	if osutil.FileExists(backupPath + ".same") {
 		// content the same, no update needed
 		return nil
@@ -248,19 +255,19 @@ func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *Positione
 		return fmt.Errorf("missing backup file")
 	}
 
-	if err := rw.writeRawImage(disk, pc); err != nil {
+	if err := r.writeRawImage(disk, pc); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// Update attempts to update given structure. The structure must have been
+// Update attempts to update the structure. The structure must have been
 // analyzed and backed up by a prior Backup() call.
-func (r *RawStructureUpdater) Update(from *PositionedStructure, to *PositionedStructure) error {
-	device, err := r.findDevice(to)
+func (r *RawStructureUpdater) Update() error {
+	device, err := r.findDevice(r.ps)
 	if err != nil {
-		return fmt.Errorf("cannot find device matching structure %v: %v", to, err)
+		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
 	}
 
 	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
@@ -269,10 +276,8 @@ func (r *RawStructureUpdater) Update(from *PositionedStructure, to *PositionedSt
 	}
 	defer disk.Close()
 
-	rw := NewRawStructureWriter(r.rootDir)
-
-	for _, pc := range to.PositionedContent {
-		if err := r.updateDifferent(disk, &pc, rw, r.contentBackupPath(to, &pc)); err != nil {
+	for _, pc := range r.ps.PositionedContent {
+		if err := r.updateDifferent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot update image %v: %v", pc, err)
 		}
 	}
