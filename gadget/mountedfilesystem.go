@@ -32,13 +32,15 @@ import (
 
 type MountedFilesystemWriter struct {
 	rootDir string
+	ps      *PositionedStructure
 }
 
-// NewMountedFilesystemWriter returns a writer capable of deploying content from
-// given root directory.
-func NewMountedFilesystemWriter(rootDir string) *MountedFilesystemWriter {
+// NewMountedFilesystemWriter returns a writer capable of deploying provided
+// structure, with content of the structure stored in the given root directory.
+func NewMountedFilesystemWriter(rootDir string, ps *PositionedStructure) *MountedFilesystemWriter {
 	return &MountedFilesystemWriter{
 		rootDir: rootDir,
+		ps:      ps,
 	}
 }
 
@@ -55,9 +57,9 @@ func remapPreserve(dstDir string, preserve []string) []string {
 // Deploy deploys structure data into provided directory. All existing files are
 // overwritten, unless their paths, relative to target directory, are listed in
 // the preserve list.
-func (m *MountedFilesystemWriter) Deploy(whereDir string, ps *PositionedStructure, preserve []string) error {
+func (m *MountedFilesystemWriter) Deploy(whereDir string, preserve []string) error {
 	preserveInDst := remapPreserve(whereDir, preserve)
-	for _, c := range ps.Content {
+	for _, c := range m.ps.Content {
 		if err := m.deployOneContent(whereDir, &c, preserveInDst); err != nil {
 			return fmt.Errorf("cannot deploy filesystem content of %s: %v", c, err)
 		}
@@ -149,11 +151,4 @@ func (m *MountedFilesystemWriter) deployOneContent(whereDir string, content *Vol
 		// deploy a file
 		return deployFile(realSource, realTarget, preserveInDst)
 	}
-}
-
-// DeployContent deploys entries of a single content entry into the provided
-// directory. All existing files are overwritten, unless their paths, relative
-// to target directory, are listed in the preserve list.
-func (m *MountedFilesystemWriter) DeployContent(whereDir string, content *VolumeContent, preserve []string) error {
-	return m.deployOneContent(whereDir, content, remapPreserve(whereDir, preserve))
 }
