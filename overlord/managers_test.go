@@ -3448,6 +3448,10 @@ version: 2.0`
 }
 
 func (ms *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
+	// just to 404 locally eager account-key requests
+	mockStoreServer := ms.mockStore(c)
+	defer mockStoreServer.Close()
+
 	model := ms.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
 		"gadget": "gadget",
 	})
