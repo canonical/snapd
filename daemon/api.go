@@ -1081,7 +1081,7 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	var msg string
 	switch {
 	case inst.CohortKey == "" && inst.Channel != "":
-		msg = fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q"), inst.Snaps[0], inst.Channel)
 	case inst.CohortKey != "" && inst.Channel == "":
 		msg = fmt.Sprintf(i18n.G("Switch %q snap to cohort %q"), inst.Snaps[0], strutil.ElliptRight(inst.CohortKey, 10))
 	default:

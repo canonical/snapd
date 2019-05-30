@@ -3740,34 +3740,46 @@ func (s *apiSuite) TestRefreshCohort(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
-func (s *apiSuite) TestSwitchCohort(c *check.C) {
-	cohort := ""
-
+func (s *apiSuite) TestSwitchInstruction(c *check.C) {
+	var cohort, channel string
 	snapstateSwitch = func(s *state.State, name string, opts *snapstate.RevisionOptions) (*state.TaskSet, error) {
 		cohort = opts.CohortKey
+		channel = opts.Channel
 
-		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		t := s.NewTask("fake-switch", "Doing a fake switch")
 		return state.NewTaskSet(t), nil
-	}
-	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
-		return nil
 	}
 
 	d := s.daemon(c)
-	inst := &snapInstruction{
-		Action:    "switch",
-		CohortKey: "some-long-cohort",
-		Snaps:     []string{"some-snap"},
+	st := d.overlord.State()
+
+	type T struct {
+		channel, cohort, summary string
+	}
+	table := []T{
+		{"", "some-cohort", `Switch "some-snap" snap to cohort "some-coho…"`},
+		{"some-channel", "", `Switch "some-snap" snap to channel "some-channel"`},
+		{"some-channel", "some-cohort", `Switch "some-snap" snap to channel "some-channel" and cohort "some-coho…"`},
 	}
 
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	summary, _, err := inst.dispatch()(inst, st)
-	c.Check(err, check.IsNil)
+	for _, t := range table {
+		cohort, channel = "", ""
+		inst := &snapInstruction{
+			Action:    "switch",
+			CohortKey: t.cohort,
+			Channel:   t.channel,
+			Snaps:     []string{"some-snap"},
+		}
 
-	c.Check(cohort, check.Equals, "some-long-cohort")
-	c.Check(summary, check.Equals, `Switch "some-snap" snap to cohort "some-long…"`)
+		st.Lock()
+		summary, _, err := inst.dispatch()(inst, st)
+		st.Unlock()
+		c.Check(err, check.IsNil)
+
+		c.Check(cohort, check.Equals, t.cohort)
+		c.Check(channel, check.Equals, t.channel)
+		c.Check(summary, check.Equals, t.summary)
+	}
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
