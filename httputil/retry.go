@@ -190,13 +190,14 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 
 		resp, err = doRequest()
 		if err != nil {
+			if isNetworkDown(err) || isDnsUnavailable(err) {
+				err = &PerstistentNetworkError{Err: err}
+				break
+			}
 			if ShouldRetryError(attempt, err) {
 				continue
 			}
 
-			if isNetworkDown(err) || isDnsUnavailable(err) {
-				err = &PerstistentNetworkError{Err: err}
-			}
 			break
 		}
 
