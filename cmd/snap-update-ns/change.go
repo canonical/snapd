@@ -498,7 +498,13 @@ func neededChangesImpl(currentProfile, desiredProfile *osutil.MountProfile) []*C
 		if reuse[current[i].Dir] {
 			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
 		} else {
-			changes = append(changes, &Change{Action: Unmount, Entry: current[i]})
+			var entry osutil.MountEntry = current[i]
+			entry.Options = append([]string(nil), entry.Options...)
+			// Detach directory bind mounts and filesystem mounts.
+			if (entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")) && !entry.XSnapdDetach() {
+				entry.Options = append(entry.Options, osutil.XSnapdDetach())
+			}
+			changes = append(changes, &Change{Action: Unmount, Entry: entry})
 		}
 	}
 
