@@ -191,7 +191,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Entry: osutil.MountEntry{
 					Name: "/snap/mysnap/42/usr/share/mysnap",
 					Dir:  "/usr/share/mysnap", Type: "none",
-					Options: []string{"bind", "ro"},
+					Options: []string{"bind", "ro", "x-snapd.detach"},
 				},
 			})
 		case 1:
@@ -199,7 +199,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Action: update.Unmount,
 				Entry: osutil.MountEntry{
 					Name: "/usr/share/awk", Dir: "/usr/share/awk", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap", "x-snapd.detach"},
 				},
 			})
 		case 2:
@@ -207,7 +207,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Action: update.Unmount,
 				Entry: osutil.MountEntry{
 					Name: "/usr/share/adduser", Dir: "/usr/share/adduser", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap", "x-snapd.detach"},
 				},
 			})
 		case 3:
@@ -215,7 +215,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Action: update.Unmount,
 				Entry: osutil.MountEntry{
 					Name: "tmpfs", Dir: "/usr/share", Type: "tmpfs",
-					Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
+					Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap", "x-snapd.detach"},
 				},
 			})
 		default:
