@@ -21,11 +21,86 @@ package gadget
 import (
 	"errors"
 	"fmt"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 var (
 	ErrNoUpdate = errors.New("no update needed")
+
+	// default positioning constraints that match ubuntu-image
+	defaultConstraints = PositioningConstraints{
+		NonMBRStartOffset: 1 * SizeMiB,
+		SectorSize:        512,
+	}
 )
+
+type UpdateData struct {
+	// Info is the gadget declaration
+	Info *Info
+	// RootDir is the root directory of gadget snap data
+	RootDir string
+}
+
+type Updater interface {
+	// Update applies the update or errors out on failures
+	Update() error
+	// Backup prepares a backup copy of data that will be modified by
+	// Update()
+	Backup() error
+	// Rollback restores data modified by update
+	Rollback() error
+}
+
+// Update applies the gadget update give the gadget information and data from
+// old and new revisions. Error out when update is not possible or illegal, or
+// or a failure occurs at any of the steps. When there is no update, a special
+// error ErrNoUpdate is returned.
+//
+// Updates are opt-in, and are only applied to structures which have a different
+// value of Edition field between old and new gadget declarations.
+//
+// Data that would be modified during the update is first backed up inside the
+// rollback directory. Should the apply step fail, the modified data is
+// recovered.
+func Update(old, new UpdateData, rollbackDirPath string) error {
+	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
+	if err != nil {
+		return err
+	}
+
+	// layout old
+	pOld, err := PositionVolume(old.RootDir, oldVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot position old volume: %v", err)
+	}
+
+	// layout new
+	pNew, err := PositionVolume(new.RootDir, newVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot position new volume: %v", err)
+	}
+
+	if err := canUpdateVolume(pOld, pNew); err != nil {
+		return fmt.Errorf("cannot apply update to volume: %v", err)
+	}
+
+	// now we know which structure is which, find which ones need an update
+	updates := resolveUpdate(pOld, pNew)
+	if len(updates) == 0 {
+		// nothing to update
+		return ErrNoUpdate
+	}
+
+	// can update old layout to new layout
+	for _, update := range updates {
+		if err := canUpdateStructure(update.from, update.to); err != nil {
+			return fmt.Errorf("cannot update structure %v: %v", update.to, err)
+		}
+	}
+
+	return applyUpdates(new, updates, rollbackDirPath)
+}
 
 func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	// support only one volume
@@ -131,4 +206,79 @@ func canUpdateVolume(from *PositionedVolume, to *PositionedVolume) error {
 		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.PositionedStructure), len(to.PositionedStructure))
 	}
 	return nil
+}
+
+type updatePair struct {
+	from *PositionedStructure
+	to   *PositionedStructure
+}
+
+func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates []updatePair) {
+	for j, oldStruct := range oldVol.PositionedStructure {
+		newStruct := newVol.PositionedStructure[j]
+		if newStruct.Update.Edition != oldStruct.Update.Edition {
+			updates = append(updates, updatePair{
+				from: &oldVol.PositionedStructure[j],
+				to:   &newVol.PositionedStructure[j],
+			})
+		}
+	}
+	return updates
+}
+
+type nopUpdater struct{}
+
+func (n *nopUpdater) Update() error {
+	return nil
+}
+
+func (n *nopUpdater) Backup() error {
+	return nil
+}
+
+func (n *nopUpdater) Rollback() error {
+	return nil
+}
+
+var updaterForStructure = func(_ *PositionedStructure, rootDir, rollbackDir string) Updater { return &nopUpdater{} }
+
+func applyUpdates(new UpdateData, updates []updatePair, rollbackDir string) error {
+	updaters := make([]Updater, 0, len(updates))
+
+	for _, one := range updates {
+		updaters = append(updaters, updaterForStructure(one.to, new.RootDir, rollbackDir))
+	}
+
+	for _, one := range updaters {
+		if err := one.Backup(); err != nil {
+			return fmt.Errorf("cannot backup structure: %v", err)
+		}
+	}
+
+	var updateErr error
+	var updateLastAttempted int
+	for i, one := range updaters {
+		updateLastAttempted = i
+		if err := one.Update(); err != nil {
+			updateErr = fmt.Errorf("cannot update structure: %v", err)
+			break
+		}
+	}
+
+	if updateErr == nil {
+		// all good, updates applied successfully
+		return nil
+	}
+
+	logger.Noticef("cannot update gadget: %v", updateErr)
+	// not so good, rollback ones that got applied
+	for i := 0; i <= updateLastAttempted; i++ {
+		one := updaters[i]
+		if err := one.Rollback(); err != nil {
+			// TODO: log errors to oplog
+			logger.Noticef("cannot rollback structure update: %v", err)
+		}
+	}
+
+	return updateErr
 }

@@ -20,9 +20,14 @@
 package gadget_test
 
 import (
+	"errors"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type updateTestSuite struct{}
@@ -572,4 +577,593 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 		}
 
 	}
+}
+
+type mockUpdater struct {
+	updateCb   func() error
+	backupCb   func() error
+	rollbackCb func() error
+}
+
+func callOrNil(f func() error) error {
+	if f != nil {
+		return f()
+	}
+	return nil
+}
+
+func (m *mockUpdater) Backup() error {
+	return callOrNil(m.backupCb)
+}
+
+func (m *mockUpdater) Rollback() error {
+	return callOrNil(m.rollbackCb)
+}
+
+func (m *mockUpdater) Update() error {
+	return callOrNil(m.updateCb)
+}
+
+func updateDataSet(c *C) (oldData gadget.UpdateData, newData gadget.UpdateData, rollbackDir string) {
+	// prepare the stage
+	bareStruct := gadget.VolumeStructure{
+		Name: "first",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+	}
+	fsStruct := gadget.VolumeStructure{
+		Name:       "second",
+		Size:       10 * gadget.SizeMiB,
+		Filesystem: "ext4",
+		Content: []gadget.VolumeContent{
+			{Source: "/second-content", Target: "/"},
+		},
+	}
+	lastStruct := gadget.VolumeStructure{
+		Name:       "third",
+		Size:       5 * gadget.SizeMiB,
+		Filesystem: "vfat",
+		Content: []gadget.VolumeContent{
+			{Source: "/third-content", Target: "/"},
+		},
+	}
+	oldInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStruct, fsStruct, lastStruct},
+			},
+		},
+	}
+	newInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStruct, fsStruct, lastStruct},
+			},
+		},
+	}
+
+	oldRootDir := c.MkDir()
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldRootDir, "/second-content/foo"), 0, nil)
+	makeSizedFile(c, filepath.Join(oldRootDir, "/third-content/bar"), 0, nil)
+	oldData = gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+
+	newRootDir := c.MkDir()
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "/second-content/foo"), gadget.SizeKiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "/third-content/bar"), gadget.SizeKiB, nil)
+	newData = gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+
+	rollbackDir = c.MkDir()
+	return oldData, newData, rollbackDir
+}
+
+func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// update two structs
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
+
+	updaterForStructureCalls := 0
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+
+		switch updaterForStructureCalls {
+		case 0:
+			c.Check(ps.Name, Equals, "first")
+			c.Check(ps.IsBare(), Equals, true)
+			c.Check(ps.Size, Equals, 5*gadget.SizeMiB)
+			// non MBR start offset defaults to 1MiB
+			c.Check(ps.StartOffset, Equals, 1*gadget.SizeMiB)
+			c.Assert(ps.PositionedContent, HasLen, 1)
+			c.Check(ps.PositionedContent[0].Image, Equals, "first.img")
+			c.Check(ps.PositionedContent[0].Size, Equals, 900*gadget.SizeKiB)
+		case 1:
+			c.Check(ps.Name, Equals, "second")
+			c.Check(ps.IsBare(), Equals, false)
+			c.Check(ps.Filesystem, Equals, "ext4")
+			c.Check(ps.Size, Equals, 10*gadget.SizeMiB)
+			// foo's start offset + foo's size
+			c.Check(ps.StartOffset, Equals, (1+5)*gadget.SizeMiB)
+			c.Assert(ps.PositionedContent, HasLen, 0)
+			c.Assert(ps.Content, HasLen, 1)
+			c.Check(ps.Content[0].Source, Equals, "/second-content")
+			c.Check(ps.Content[0].Target, Equals, "/")
+		default:
+			c.Fatalf("unexpected call")
+		}
+		updaterForStructureCalls++
+		return &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected call")
+				return errors.New("not called")
+			},
+		}
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, IsNil)
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		"first":  true,
+		"second": true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"first":  true,
+		"second": true,
+	})
+	c.Assert(updaterForStructureCalls, Equals, 2)
+}
+
+func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// only the first structure is updated
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+
+	updaterForStructureCalls := 0
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+
+		switch updaterForStructureCalls {
+		case 0:
+			// only called for the first structure
+			c.Assert(ps.Name, Equals, "first")
+		default:
+			c.Fatalf("unexpected call")
+		}
+		updaterForStructureCalls++
+		return &mockUpdater{
+			rollbackCb: func() error {
+				c.Fatalf("unexpected call")
+				return errors.New("not called")
+			},
+		}
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, IsNil)
+}
+
+func (u *updateTestSuite) TestUpdateApplyErrorPosition(c *C) {
+	// prepare the stage
+	bareStruct := gadget.VolumeStructure{
+		Name: "foo",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+	}
+	bareStructUpdate := bareStruct
+	bareStructUpdate.Update.Edition = 1
+	oldInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStruct},
+			},
+		},
+	}
+	newInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStructUpdate},
+			},
+		},
+	}
+
+	newRootDir := c.MkDir()
+	newData := gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+
+	oldRootDir := c.MkDir()
+	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+
+	rollbackDir := c.MkDir()
+
+	// cannot position the old volume without bare struct data
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, `cannot position old volume: cannot position structure #0 \("foo"\): content "first.img": .* no such file or directory`)
+
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+
+	// cannot position the new volume
+	err = gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, `cannot position new volume: cannot position structure #0 \("foo"\): content "first.img": .* no such file or directory`)
+
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
+}
+
+func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
+	// prepare the stage
+	bareStruct := gadget.VolumeStructure{
+		Name: "foo",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+	}
+	bareStructUpdate := bareStruct
+	bareStructUpdate.Name = "foo update"
+	bareStructUpdate.Update.Edition = 1
+	oldInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStruct},
+			},
+		},
+	}
+	newInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				// more structures than old
+				Structure: []gadget.VolumeStructure{bareStruct, bareStructUpdate},
+			},
+		},
+	}
+
+	newRootDir := c.MkDir()
+	newData := gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+
+	oldRootDir := c.MkDir()
+	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+
+	rollbackDir := c.MkDir()
+
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
+
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, `cannot apply update to volume: cannot change the number of structures within volume from 1 to 2`)
+}
+
+func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
+	// prepare the stage
+	bareStruct := gadget.VolumeStructure{
+		Name: "foo",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+	}
+	fsStruct := gadget.VolumeStructure{
+		Name:       "foo",
+		Filesystem: "ext4",
+		Size:       5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Source: "/", Target: "/"},
+		},
+		Update: gadget.VolumeUpdate{Edition: 5},
+	}
+	oldInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStruct},
+			},
+		},
+	}
+	newInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				// more structures than old
+				Structure: []gadget.VolumeStructure{fsStruct},
+			},
+		},
+	}
+
+	newRootDir := c.MkDir()
+	newData := gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+
+	oldRootDir := c.MkDir()
+	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+
+	rollbackDir := c.MkDir()
+
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, `cannot update structure #0 \("foo"\): cannot change a bare structure to filesystem one`)
+}
+
+func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
+	// prepare the stage
+	bareStruct := gadget.VolumeStructure{
+		Name: "foo",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+	}
+	oldInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStruct},
+			},
+		},
+	}
+	newInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			// same volume info but using a different name
+			"foo-new": oldInfo.Volumes["foo"],
+		},
+	}
+
+	oldData := gadget.UpdateData{Info: oldInfo, RootDir: c.MkDir()}
+	newData := gadget.UpdateData{Info: newInfo, RootDir: c.MkDir()}
+	rollbackDir := c.MkDir()
+
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+		c.Fatalf("unexpected call")
+		return &mockUpdater{}
+	})
+	defer restore()
+
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, `cannot find entry for volume "foo" in updated gadget info`)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptIn(c *C) {
+	// prepare the stage
+	bareStruct := gadget.VolumeStructure{
+		Name: "foo",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+		Update: gadget.VolumeUpdate{
+			Edition: 5,
+		},
+	}
+	oldInfo := &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     gadget.GPT,
+				Structure:  []gadget.VolumeStructure{bareStruct},
+			},
+		},
+	}
+
+	oldRootDir := c.MkDir()
+	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+
+	newRootDir := c.MkDir()
+	// same volume description
+	newData := gadget.UpdateData{Info: oldInfo, RootDir: newRootDir}
+	// different content, but updates are opt in
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
+
+	rollbackDir := c.MkDir()
+
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+		c.Fatalf("unexpected call")
+		return &mockUpdater{}
+	})
+	defer restore()
+
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
+}
+
+func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// update both structs
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
+
+	updaterForStructureCalls := 0
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+		updater := &mockUpdater{
+			updateCb: func() error {
+				c.Fatalf("unexpected update call")
+				return errors.New("not called")
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected rollback call")
+				return errors.New("not called")
+			},
+		}
+		if updaterForStructureCalls == 1 {
+			c.Assert(ps.Name, Equals, "second")
+			updater.backupCb = func() error {
+				return errors.New("failed")
+			}
+		}
+		updaterForStructureCalls++
+		return updater
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, "cannot backup structure: failed")
+}
+
+func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// update all structs
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
+
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	rollbackCalls := make(map[string]bool)
+	updaterForStructureCalls := 0
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+		updater := &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				rollbackCalls[ps.Name] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name] = true
+				return nil
+			},
+		}
+		if updaterForStructureCalls == 1 {
+			c.Assert(ps.Name, Equals, "second")
+			// fail update of 2nd structure
+			updater.updateCb = func() error {
+				updateCalls[ps.Name] = true
+				return errors.New("failed")
+			}
+		}
+		updaterForStructureCalls++
+		return updater
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, "cannot update structure: failed")
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		// all were backed up
+		"first":  true,
+		"second": true,
+		"third":  true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"first":  true,
+		"second": true,
+		// third was never updated, as second failed
+	})
+	c.Assert(rollbackCalls, DeepEquals, map[string]bool{
+		"first":  true,
+		"second": true,
+		// third does not need as it was not updated
+	})
+}
+
+func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// update all structs
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
+
+	updateCalls := make(map[string]bool)
+	backupCalls := make(map[string]bool)
+	rollbackCalls := make(map[string]bool)
+	updaterForStructureCalls := 0
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+		updater := &mockUpdater{
+			backupCb: func() error {
+				backupCalls[ps.Name] = true
+				return nil
+			},
+			rollbackCb: func() error {
+				rollbackCalls[ps.Name] = true
+				return nil
+			},
+			updateCb: func() error {
+				updateCalls[ps.Name] = true
+				return nil
+			},
+		}
+		switch updaterForStructureCalls {
+		case 1:
+			c.Assert(ps.Name, Equals, "second")
+			// rollback fails on 2nd structure
+			updater.rollbackCb = func() error {
+				rollbackCalls[ps.Name] = true
+				return errors.New("rollback failed with different error")
+			}
+		case 2:
+			c.Assert(ps.Name, Equals, "third")
+			// fail update of 3rd structure
+			updater.updateCb = func() error {
+				updateCalls[ps.Name] = true
+				return errors.New("update error")
+			}
+		}
+		updaterForStructureCalls++
+		return updater
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir)
+	// preserves update error
+	c.Assert(err, ErrorMatches, "cannot update structure: update error")
+	c.Assert(backupCalls, DeepEquals, map[string]bool{
+		// all were backed up
+		"first":  true,
+		"second": true,
+		"third":  true,
+	})
+	c.Assert(updateCalls, DeepEquals, map[string]bool{
+		"first":  true,
+		"second": true,
+		"third":  true,
+	})
+	c.Assert(rollbackCalls, DeepEquals, map[string]bool{
+		"first":  true,
+		"second": true,
+		"third":  true,
+	})
+
+	c.Check(logbuf.String(), testutil.Contains, `cannot update gadget: cannot update structure: update error`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot rollback structure update: rollback failed with different error`)
 }

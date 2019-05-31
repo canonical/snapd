@@ -31,3 +31,11 @@ var (
 
 	EncodeLabel = encodeLabel
 )
+
+func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) Updater) (restore func()) {
+	old := updaterForStructure
+	updaterForStructure = mock
+	return func() {
+		updaterForStructure = old
+	}
+}
