@@ -502,7 +502,8 @@ func neededChangesImpl(currentProfile, desiredProfile *osutil.MountProfile) []*C
 			entry.Options = append([]string(nil), entry.Options...)
 			// If the mount entry can potentially host nested mount points then detach
 			// rather than unmount, since detach will always succeed.
-			if (entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")) && !entry.XSnapdDetach() {
+			shouldDetach := entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")
+			if shouldDetach && !entry.XSnapdDetach() {
 				entry.Options = append(entry.Options, osutil.XSnapdDetach())
 			}
 			changes = append(changes, &Change{Action: Unmount, Entry: entry})
