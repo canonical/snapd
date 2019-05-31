@@ -38,8 +38,8 @@ execute: |
     echo "Non nvidia files are still there"
     test -f /run/udev/tags/snap_test-snapd-tools_echo/c226:0
     echo "But nvidia files are gone"
-    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
-    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
+    not test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
+    not test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
 
     echo "Ensure apparmor profile for snap-confine is parsable"
     for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do

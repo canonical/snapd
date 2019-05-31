@@ -70,12 +70,15 @@ func (t *Timings) flatten() interface{} {
 		_, hasChangeID = t.tags["change-id"]
 		_, hasTaskID = t.tags["task-id"]
 	}
-	// store the root timing object even if it has no nested timings as long as it has a "change-id" tag
-	// but not a "task-id" tag - this signifies an "ensure" timing which we always want to record as
-	// long as it created a change.
-	if len(t.timings) == 0 && (hasTaskID || !hasChangeID) {
+
+	// ensure timings which created a change, have the corresponding
+	// change-id tag, but no task-id
+	isEnsureWithChange := hasChangeID && !hasTaskID
+
+	if len(t.timings) == 0 && !isEnsureWithChange {
 		return nil
 	}
+
 	data := &rootTimingsJSON{
 		Tags: t.tags,
 	}
