@@ -55,7 +55,7 @@ func main() {
 	cmd.ExecInSnapdOrCoreSnap()
 
 	// The Go scheduler by default has a single operating system
-	// thread per processor core, and does it's own goroutine
+	// thread per processor core, and does its own goroutine
 	// scheduling inside of that thread.  For I/O operations that
 	// the Go runtime knows about, it has mechanisms to reschedule
 	// goroutines so the system thread isn't blocked waiting for
@@ -66,7 +66,7 @@ func main() {
 	// problem is much worse on single processor systems because
 	// there is normally only a single system thread.
 	//
-	// We workaround by increasing the armound of procs to a
+	// We workaround by increasing the number of procs to a
 	// minimum of two.
 	if runtime.GOMAXPROCS(-1) == 1 {
 		runtime.GOMAXPROCS(2)
