@@ -500,7 +500,8 @@ func neededChangesImpl(currentProfile, desiredProfile *osutil.MountProfile) []*C
 		} else {
 			var entry osutil.MountEntry = current[i]
 			entry.Options = append([]string(nil), entry.Options...)
-			// Detach directory bind mounts and filesystem mounts.
+			// If the mount entry can potentially host nested mount points then detach
+			// rather than unmount, since detach will always succeed.
 			if (entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")) && !entry.XSnapdDetach() {
 				entry.Options = append(entry.Options, osutil.XSnapdDetach())
 			}
