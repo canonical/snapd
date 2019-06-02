@@ -39,14 +39,14 @@ class Device(int):
 
     def __str__(self):
         # type: () -> str
-        result = '{}:{}'.format(self.major, self.minor)
+        result = "{}:{}".format(self.major, self.minor)
         if PY2:
             return result.encode()
         return result
 
     def __repr__(self):
         # type: () -> str
-        result = 'Device.pack({}, {})'.format(self.major, self.minor)
+        result = "Device.pack({}, {})".format(self.major, self.minor)
         if PY2:
             return result.encode()
         return result
@@ -100,14 +100,14 @@ class MountInfoEntry(object):
         self = cls()
         self.mount_id = int(next(it))
         self.parent_id = int(next(it))
-        dev_maj, dev_min = map(int, next(it).split(':'))
+        dev_maj, dev_min = map(int, next(it).split(":"))
         self.dev = Device((dev_maj << 16) | dev_min)
         self.root_dir = next(it)
         self.mount_point = next(it)
         self.mount_opts = next(it)
         self.opt_fields = []
         for opt_field in it:
-            if opt_field == '-':
+            if opt_field == "-":
                 break
             self.opt_fields.append(opt_field)
         self.fs_type = next(it)
@@ -123,10 +123,11 @@ class MountInfoEntry(object):
 
     def __str__(self):
         # type: () -> str
-        result = ("{0.mount_id} {0.parent_id} {0.dev} {0.root_dir}"
-                  " {0.mount_point} {0.mount_opts} {opt_fields} {0.fs_type}"
-                  " {0.mount_source} {0.sb_opts}").format(
-                    self, opt_fields=' '.join(self.opt_fields + ['-']))
+        result = (
+            "{0.mount_id} {0.parent_id} {0.dev} {0.root_dir}"
+            " {0.mount_point} {0.mount_opts} {opt_fields} {0.fs_type}"
+            " {0.mount_source} {0.sb_opts}"
+        ).format(self, opt_fields=" ".join(self.opt_fields + ["-"]))
         if PY2:
             return result.encode()
         return result
@@ -181,11 +182,11 @@ class AttrPrefixFilter(FilterExpr):
 def parse_filter(expr):
     # type: (Text) -> FilterExpr
     """parse_filter parses one of the known filter expressions."""
-    if '=' in expr:
+    if "=" in expr:
         # Accept both .attr=value and attr=value as exact attribute match.
         if expr.startswith("."):
             expr = expr.lstrip(".")
-        attr, value = expr.split('=', 1)
+        attr, value = expr.split("=", 1)
         try:
             typ = MountInfoEntry.known_attrs[attr]
         except KeyError:
@@ -204,21 +205,24 @@ def parse_attr(expr):
     # type: (Text) -> Text
     """parse_attr parses attribute references (for display)."""
     known = sorted(MountInfoEntry.known_attrs)
-    if expr.lstrip('.') in known:
-        return expr.lstrip('.')
-    raise ValueError("invalid attribute selector {!r}"
-                     " (known: {})".format(expr, known))
+    if expr.lstrip(".") in known:
+        return expr.lstrip(".")
+    raise ValueError(
+        "invalid attribute selector {!r}" " (known: {})".format(expr, known)
+    )
 
 
 def parse_exprs(exprs):
     # type: (List[Text]) -> Tuple[List[FilterExpr], List[Text]]
     """parse_exprs parses filter expressions and attribute references."""
     # Filters are either .attr=value, /path, /path...
-    filters = [parse_filter(expr) for expr in exprs
-               if "=" in expr or not expr.startswith('.')]
+    filters = [
+        parse_filter(expr) for expr in exprs if "=" in expr or not expr.startswith(".")
+    ]
     # Attributes are always .attr
-    attrs = [parse_attr(expr) for expr in exprs
-             if expr.startswith('.') and "=" not in expr]
+    attrs = [
+        parse_attr(expr) for expr in exprs if expr.startswith(".") and "=" not in expr
+    ]
     return filters, attrs
 
 
@@ -256,7 +260,7 @@ def renumber_snap_revision(entry, seen):
             seen[key] = n
             return n
 
-    parts = entry.mount_point.split('/')
+    parts = entry.mount_point.split("/")
     if len(parts) >= 4 and parts[:2] == ["", "snap"]:
         snap_name = parts[2]
         snap_rev = parts[3]
@@ -274,6 +278,7 @@ def renumber_snap_revision(entry, seen):
 def renumber_opt_fields(entry, seen):
     # type: (MountInfoEntry, Dict[int, int]) -> None
     """renumber_opt_fields re-numbers peer group in optional fields."""
+
     def alloc_n(peer_group):
         # type: (int) -> int
         key = peer_group
@@ -286,13 +291,15 @@ def renumber_opt_fields(entry, seen):
 
     def fn(m):
         # type: (Match[Text]) -> Text
-        return '{}'.format(alloc_n(int(m.group(1))))
-    entry.opt_fields = [re.sub('(\\d+)', fn, opt) for opt in entry.opt_fields]
+        return "{}".format(alloc_n(int(m.group(1))))
+
+    entry.opt_fields = [re.sub("(\\d+)", fn, opt) for opt in entry.opt_fields]
 
 
 def renumber_loop_devices(entry, seen):
     # type: (MountInfoEntry, Dict[int, int]) -> None
     """renumber_loop_devices re-numbers loop device numbers."""
+
     def alloc_n(loop_nr):
         # type: (int) -> int
         key = loop_nr
@@ -305,13 +312,15 @@ def renumber_loop_devices(entry, seen):
 
     def fn(m):
         # type: (Match[Text]) -> Text
-        return 'loop{}'.format(alloc_n(int(m.group(1))))
-    entry.mount_source = re.sub('loop(\\d+)', fn, entry.mount_source)
+        return "loop{}".format(alloc_n(int(m.group(1))))
+
+    entry.mount_source = re.sub("loop(\\d+)", fn, entry.mount_source)
 
 
 def renumber_mount_ids(entry, seen):
     # type: (MountInfoEntry, Dict[int, int]) -> None
     """renumber_mount_ids re-numbers mount and parent mount IDs."""
+
     def alloc_n(mount_id):
         # type: (int) -> int
         key = mount_id
@@ -321,6 +330,7 @@ def renumber_mount_ids(entry, seen):
             n = len(seen)
             seen[key] = n
             return n
+
     # NOTE: renumber the parent ahead of the mount to get more
     # expected relationship between them.
     entry.parent_id = alloc_n(entry.parent_id)
@@ -330,6 +340,7 @@ def renumber_mount_ids(entry, seen):
 def renumber_devices(entry, seen):
     # type: (MountInfoEntry, Dict[Device, Device]) -> None
     """renumber_devices re-numbers major:minor device numbers."""
+
     def alloc_n(dev):
         # type: (Device) -> Device
         key = dev
@@ -349,11 +360,11 @@ def renumber_devices(entry, seen):
                 major = len({orig.major for orig in seen})
             # Allocate the next minor number based on the cardinality of the
             # set of minor numbers matching the major number.
-            minor = len({orig.minor for orig in seen
-                        if orig.major == dev.major})
+            minor = len({orig.minor for orig in seen if orig.major == dev.major})
             n = Device.pack(major, minor)
             seen[key] = n
             return n
+
     entry.dev = alloc_n(entry.dev)
 
 
@@ -379,12 +390,14 @@ def rewrite_rename(entries):
     # TODO: allocate devices like everything else above.
     for entry in entries:
         entry.mount_source = re.sub(
-            '/dev/[sv]d([a-z])', '/dev/sd\\1', entry.mount_source)
+            "/dev/[sv]d([a-z])", "/dev/sd\\1", entry.mount_source
+        )
 
 
 def main():
     # type: () -> None
-    parser = ArgumentParser(epilog="""
+    parser = ArgumentParser(
+        epilog="""
 Expressions are ANDed together and have one of the following forms:
 
     .ATTR=VALUE     mount entry attribute ATTR is equal to VALUE
@@ -405,25 +418,37 @@ Known attributes, applicable for both filtering and display.
     parent_id:      identifier of parent mount point
     dev:            major:minor numbers of the mounted device
     root_dir:       subtree of the mounted filesystem exposed at mount_point
-    """, formatter_class=RawTextHelpFormatter)
-    parser.add_argument('-v', '--version', action="version", version="1.0")
+    """,
+        formatter_class=RawTextHelpFormatter,
+    )
+    parser.add_argument("-v", "--version", action="version", version="1.0")
     parser.add_argument(
-        '-f', metavar="MOUNTINFO", dest="file", type=FileType(),
-        default='/proc/self/mountinfo', help="parse specified mountinfo file")
+        "-f",
+        metavar="MOUNTINFO",
+        dest="file",
+        type=FileType(),
+        default="/proc/self/mountinfo",
+        help="parse specified mountinfo file",
+    )
     parser.add_argument(
-        '--one', default=False, action='store_true',
-        help="expect exactly one match")
+        "--one", default=False, action="store_true", help="expect exactly one match"
+    )
     parser.add_argument(
-        'exprs', metavar="EXPRESSION", nargs='*',
-        help="filter or display expression (see below)")
+        "exprs",
+        metavar="EXPRESSION",
+        nargs="*",
+        help="filter or display expression (see below)",
+    )
     group = parser.add_argument_group("Rewriting rules")
     group.add_argument(
-        "--renumber", action="store_true",
+        "--renumber",
+        action="store_true",
         help="Reassign mount IDs, device numbers, snap revisions"
-             " and loopback devices")
+        " and loopback devices",
+    )
     group.add_argument(
-        "--rename", action="store_true",
-        help="Reassign block device names")
+        "--rename", action="store_true", help="Reassign block device names"
+    )
     opts = parser.parse_args()
     try:
         filters, attrs = parse_exprs(opts.exprs)
@@ -436,8 +461,9 @@ Known attributes, applicable for both filtering and display.
     if opts.rename:
         rewrite_rename(entries)
     if opts.one and len(entries) != 1:
-        raise SystemExit("--one requires exactly one match, found {}".format(
-            len(entries)))
+        raise SystemExit(
+            "--one requires exactly one match, found {}".format(len(entries))
+        )
     for e in entries:
         if attrs:
             values = []  # type: List[Any]
@@ -451,5 +477,5 @@ Known attributes, applicable for both filtering and display.
             print(e)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
