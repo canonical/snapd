@@ -64,7 +64,7 @@ func createWritable() error {
 	// FIXME: get values from gadget, system
 	err := disk.CreatePartition(4, 4504*sizeSector, (4504+3160)*sizeSector, "writable")
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot create new writable: %s", err)
 	}
 
 	return nil
