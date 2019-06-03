@@ -724,8 +724,11 @@ func (m *DeviceManager) doFinishInstall(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		t.Logf("System installed, restart.")
+		logger.Noticef("System installed, restart.")
+		st.Lock()
 		st.RequestRestart(state.RestartSystem)
+		st.Unlock()
+
 		return nil
 	})
 

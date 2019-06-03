@@ -26,7 +26,6 @@ import (
 	"os/exec"
 	"path"
 
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -37,17 +36,17 @@ const (
 func Install() error {
 	logger.Noticef("Execute install actions")
 	if err := createWritable(); err != nil {
-		logger.Noticef("fail: %s", err)
+		logger.Noticef("cannot create writable: %s", err)
 		return err
 	}
 
 	if err := copyWritableData(); err != nil {
-		logger.Noticef("fail: %s", err)
+		logger.Noticef("cannot populate writable: %s", err)
 		return err
 	}
 
 	if err := updateBootloader(); err != nil {
-		logger.Noticef("fail: %s", err)
+		logger.Noticef("cannot update bootloader: %s", err)
 		return err
 	}
 
@@ -73,7 +72,7 @@ func createWritable() error {
 func copyWritableData() error {
 	logger.Noticef("Populating new writable")
 	if err := os.Mkdir("/mnt/new_writable", 0755); err != nil {
-		return err
+		return fmt.Errorf("cannot create writable mountpoint: %s", err)
 	}
 
 	if err := mount("writable", "/mnt/new_writable"); err != nil {
@@ -85,27 +84,25 @@ func copyWritableData() error {
 		return err
 	}
 
-	dirs = []string{"boot", "etc", "snap", "var"}
-	if err := mkdirs("/mnt/new_writable", dirs, 0755); err != nil {
+	dirs = []string{"boot", "snap"}
+	if err := mkdirs("/mnt/new_writable/system-data", dirs, 0755); err != nil {
 		return err
 	}
 
-	if err := mkdirs("/mnt/new_writable", []string{"root"}, 0700); err != nil {
-		return err
+	//if err := mkdirs("/mnt/new_writable", []string{"root"}, 0700); err != nil {
+	//	return err
+	//}
+
+	src := "/writable/system-data"
+	dest := "/mnt/new_writable/system-data"
+
+	for _, dir := range []string{"etc", "root", "var"} {
+		if err := copyTree(path.Join(src, dir), dest); err != nil {
+			return err
+		}
 	}
 
-	if err := copyTree("/writable/etc", "/mnt/new_writable/etc"); err != nil {
-		return err
-	}
-
-	if err := copyTree("/writable/root", "/mnt/new_writable/root"); err != nil {
-		return err
-	}
-
-	if err := copyTree("/writable/var", "/mnt/new_writable/var"); err != nil {
-		return err
-	}
-
+	logger.Noticef("Unmount new writable")
 	if err := umount("/mnt/new_writable"); err != nil {
 		return err
 	}
@@ -115,13 +112,34 @@ func copyWritableData() error {
 
 func updateBootloader() error {
 	logger.Noticef("Updating bootloader")
-	b, err := bootloader.Find()
+	// FIXME: do ir in a bootloader-agnostic way, can't use bootloader.Find() as is
+	// because we have to update the recovery bootloader
+	//
+	//b, err := bootloader.Find()
+	//if err != nil {
+	//	return err
+	//}
+	//if err := b.SetBootVars(map[string]string{"snap_mode": ""}); err != nil {
+	//	return err
+	//}
+
+	if err := os.Mkdir("/mnt/sys-recover", 0755); err != nil {
+		return fmt.Errorf("cannot create system recovery mountpoint: %s", err)
+	}
+
+	if err := mount("sys-recover", "/mnt/sys-recover"); err != nil {
+		return err
+	}
+	err := exec.Command("grub-editenv", "/mnt/sys-recover/EFI/ubuntu/grubenv", "unset", "snap_mode").Run()
 	if err != nil {
+		return fmt.Errorf("cannot unset snap mode: %s", err)
+	}
+
+	logger.Noticef("Unmount system recovery")
+	if err := umount("/mnt/sys-recover"); err != nil {
 		return err
 	}
-	if err := b.SetBootVars(map[string]string{"snap_mode": ""}); err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -129,7 +147,7 @@ func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 	for _, dir := range dirlist {
 		logger.Noticef("mkdir %s/%s", base, dir)
 		if err := os.Mkdir(path.Join(base, dir), mode); err != nil {
-			return err
+			return fmt.Errorf("cannot create directory %s/%s: %s", base, dir, err)
 		}
 	}
 	return nil
@@ -137,8 +155,9 @@ func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 
 func copyTree(src, dst string) error {
 	// FIXME
+	logger.Noticef("copy tree from %s to %s", src, dst)
 	if err := exec.Command("cp", "-rap", src, dst).Run(); err != nil {
-		return err
+		return fmt.Errorf("cannot copy tree from %s to %s: %s", src, dst, err)
 	}
 	return nil
 }

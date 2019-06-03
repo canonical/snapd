@@ -124,19 +124,15 @@ func mount(label, mountpoint string) error {
 		return err
 	}
 	if err := exec.Command("mount", dev, mountpoint).Run(); err != nil {
-		return err
+		return fmt.Errorf("cannot mount device %s: %s", dev, err)
 	}
 
 	return nil
 }
 
-func umount(label string) error {
-	dev, err := getDevByLabel(label)
-	if err != nil {
-		return err
-	}
+func umount(dev string) error {
 	if err := exec.Command("umount", dev).Run(); err != nil {
-		return err
+		return fmt.Errorf("cannot unmount device %s: %s", dev, err)
 	}
 
 	return nil
