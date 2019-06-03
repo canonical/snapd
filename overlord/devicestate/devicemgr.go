@@ -80,6 +80,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("finish-install", m.doFinishInstall, nil)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
 
@@ -329,6 +330,9 @@ func (m *DeviceManager) ensureOperational() error {
 	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
 	requestSerial.WaitFor(genKey)
 	tasks = append(tasks, requestSerial)
+
+	finishInstall := m.state.NewTask("finish-install", "Finish installation process")
+	tasks = append(tasks, finishInstall)
 
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))

@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/recovery"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -702,4 +704,30 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 		}
 		keyID = a.SignKeyID()
 	}
+}
+
+func (m *DeviceManager) doFinishInstall(t *state.Task, tomb *tomb.Tomb) error {
+	tomb.Go(func() error {
+		st := t.State()
+		for {
+			fi, err := os.Stat("/var/lib/extrausers/passwd")
+			if err == nil {
+				if fi.Size() > 0 {
+					break
+				}
+			}
+			time.Sleep(5 * time.Second)
+		}
+
+		logger.Noticef("Installing new system")
+		if err := recovery.Install(); err != nil {
+			return err
+		}
+
+		t.Logf("System installed, restart.")
+		st.RequestRestart(state.RestartSystem)
+		return nil
+	})
+
+	return nil
 }
