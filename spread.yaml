@@ -89,11 +89,10 @@ backends:
                 manual: true
             - fedora-30-64:
                 workers: 6
-            - opensuse-42.3-64:
-                workers: 4
-                # golang stack cannot compile anything, needs investigation
-                manual: true
             - opensuse-15.0-64:
+                workers: 6
+                manual: true
+            - opensuse-15.1-64:
                 workers: 6
             - opensuse-tumbleweed-64:
                 workers: 6
