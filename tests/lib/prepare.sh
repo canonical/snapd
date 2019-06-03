@@ -261,19 +261,20 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
-        # Just install core and configure reexec when the backend is not autopkgtest
-        if [ "$SPREAD_BACKEND" != autopkgtest ]; then
+        # When REUSE_SNAPD is set to 1, use snapd and the core snapd as they are installed
+        # Otherwise, install the new core from the defined channel
+        if [ "$REUSE_SNAPD" != 1 ]; then
             snap list | not grep core || exit 1
             # use parameterized core channel (defaults to edge) instead
             # of a fixed one and close to stable in order to detect defects
             # earlier
             snap install --"$CORE_CHANNEL" core
-            snap list | grep core
-
-            systemctl stop snapd.{service,socket}
-            update_core_snap_for_classic_reexec
-            systemctl start snapd.{service,socket}
         fi
+        snap list | grep core
+
+        systemctl stop snapd.{service,socket}
+        update_core_snap_for_classic_reexec
+        systemctl start snapd.{service,socket}
 
         disable_refreshes
 
