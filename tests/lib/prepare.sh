@@ -125,7 +125,7 @@ update_core_snap_for_classic_reexec() {
             if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
                 cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
             else
-                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
             fi
             ;;
     esac
@@ -261,16 +261,19 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
-        snap list | not grep core || exit 1
-        # use parameterized core channel (defaults to edge) instead
-        # of a fixed one and close to stable in order to detect defects
-        # earlier
-        snap install --"$CORE_CHANNEL" core
-        snap list | grep core
+        # Just install core and configure reexec when the backend is not autopkgtest
+        if [ "$SPREAD_BACKEND" != autopkgtest ]; then
+            snap list | not grep core || exit 1
+            # use parameterized core channel (defaults to edge) instead
+            # of a fixed one and close to stable in order to detect defects
+            # earlier
+            snap install --"$CORE_CHANNEL" core
+            snap list | grep core
 
-        systemctl stop snapd.{service,socket}
-        update_core_snap_for_classic_reexec
-        systemctl start snapd.{service,socket}
+            systemctl stop snapd.{service,socket}
+            update_core_snap_for_classic_reexec
+            systemctl start snapd.{service,socket}
+        fi
 
         disable_refreshes
 
