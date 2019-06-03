@@ -32,9 +32,9 @@ import (
 
 type cmdChangeTimings struct {
 	changeIDMixin
-	EnsureTag  string `long:"ensure"`
+	EnsureTag  string `long:"ensure" choice:"auto-refresh" choice:"become-operational" choice:"refresh-catalogs" choice:"refresh-hints" choice:"seed"`
 	All        bool   `long:"all"`
-	StartupTag string `long:"startup"`
+	StartupTag string `long:"startup" choice:"load-state" choice:"ifacemgr"`
 	Verbose    bool   `long:"verbose"`
 }
 
@@ -160,19 +160,30 @@ type timingsData struct {
 	} `json:"change-timings,omitempty"`
 }
 
+func (x *cmdChangeTimings) checkConflictingFlags() error {
+	var i int
+	for _, opt := range []string{string(x.Positional.ID), x.StartupTag, x.EnsureTag} {
+		if opt != "" {
+			i++
+			if i > 1 {
+				return fmt.Errorf("cannot use change id, 'startup' or 'ensure' together")
+			}
+		}
+	}
+
+	if x.All && (x.Positional.ID != "" || x.LastChangeType != "") {
+		return fmt.Errorf("cannot use 'all' with change id or 'last'")
+	}
+	return nil
+}
+
 func (x *cmdChangeTimings) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	if x.StartupTag != "" && (x.Positional.ID != "" || x.EnsureTag != "") {
-		return fmt.Errorf("cannot use 'startup' with 'ensure' or change id")
-	}
-	if x.EnsureTag != "" && x.Positional.ID != "" {
-		return fmt.Errorf("cannot use 'ensure' and change id together")
-	}
-	if x.All && (x.Positional.ID != "" || x.LastChangeType != "") {
-		return fmt.Errorf("cannot use 'all' with change id or 'last'")
+	if err := x.checkConflictingFlags(); err != nil {
+		return err
 	}
 
 	var chgid string
