@@ -84,22 +84,20 @@ func copyWritableData() error {
 		return err
 	}
 
-	dirs = []string{"boot", "snap"}
-	if err := mkdirs("/mnt/new_writable/system-data", dirs, 0755); err != nil {
-		return err
-	}
+	//dirs = []string{"boot", "snap"}
+	//if err := mkdirs("/mnt/new_writable/system-data", dirs, 0755); err != nil {
+	//	return err
+	//}
 
 	//if err := mkdirs("/mnt/new_writable", []string{"root"}, 0700); err != nil {
 	//	return err
 	//}
 
-	src := "/writable/system-data"
-	dest := "/mnt/new_writable/system-data"
+	src := "/writable/system-data/"
+	dest := "/mnt/new_writable/system-data/"
 
-	for _, dir := range []string{"etc", "root", "var"} {
-		if err := copyTree(path.Join(src, dir), dest); err != nil {
-			return err
-		}
+	if err := copyTree(src, dest); err != nil {
+		return err
 	}
 
 	logger.Noticef("Unmount new writable")
@@ -156,7 +154,7 @@ func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 func copyTree(src, dst string) error {
 	// FIXME
 	logger.Noticef("copy tree from %s to %s", src, dst)
-	if err := exec.Command("cp", "-rap", src, dst).Run(); err != nil {
+	if err := exec.Command("rsync", "-azlx", src, dst).Run(); err != nil {
 		return fmt.Errorf("cannot copy tree from %s to %s: %s", src, dst, err)
 	}
 	return nil
