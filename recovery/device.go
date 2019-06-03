@@ -117,23 +117,3 @@ func getVolumeDevice(part string) (string, error) {
 
 	return voldev, nil
 }
-
-func mount(label, mountpoint string) error {
-	dev, err := getDevByLabel(label)
-	if err != nil {
-		return err
-	}
-	if err := exec.Command("mount", dev, mountpoint).Run(); err != nil {
-		return fmt.Errorf("cannot mount device %s: %s", dev, err)
-	}
-
-	return nil
-}
-
-func umount(dev string) error {
-	if err := exec.Command("umount", dev).Run(); err != nil {
-		return fmt.Errorf("cannot unmount device %s: %s", dev, err)
-	}
-
-	return nil
-}

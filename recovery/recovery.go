@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -40,13 +41,41 @@ func Install() error {
 		return err
 	}
 
-	if err := copyWritableData(); err != nil {
+	mntWritable := "/mnt/new-writable"
+	mntSysRecover := "/mnt/sys-recover"
+
+	// Create mountpoints
+	mountpoints := []string{mntWritable, mntSysRecover}
+	if err := mkdirs("/", mountpoints, 0755); err != nil {
+		return err
+	}
+
+	// Mount new writable and recovery
+	if err := mount("writable", mntWritable); err != nil {
+		return err
+	}
+	if err := mount("sys-recover", mntSysRecover); err != nil {
+		return err
+	}
+
+	// Copy selected recovery to the new writable
+	core, kernel, err := prepareWritable(mntWritable, mntSysRecover)
+	if err != nil {
 		logger.Noticef("cannot populate writable: %s", err)
 		return err
 	}
 
-	if err := updateBootloader(); err != nil {
+	if err := umount(mntWritable); err != nil {
+		return err
+	}
+
+	// Update our bootloader
+	if err := updateBootloader(mntSysRecover, core, kernel); err != nil {
 		logger.Noticef("cannot update bootloader: %s", err)
+		return err
+	}
+
+	if err := umount(mntSysRecover); err != nil {
 		return err
 	}
 
@@ -69,93 +98,72 @@ func createWritable() error {
 	return nil
 }
 
-func copyWritableData() error {
+func prepareWritable(mntWritable, mntSysRecover string) (string, string, error) {
 	logger.Noticef("Populating new writable")
-	if err := os.Mkdir("/mnt/new_writable", 0755); err != nil {
-		return fmt.Errorf("cannot create writable mountpoint: %s", err)
+
+	recovery := GetKernelParameter("snap_recovery_system")
+	seedPath := "system-data/var/lib/snapd/seed"
+	snapPath := "system-data/var/lib/snapd/snaps"
+
+	logger.Noticef("recovery: %s", recovery)
+
+	dirs := []string{seedPath, snapPath, "user-data"}
+	if err := mkdirs(mntWritable, dirs, 0755); err != nil {
+		return "", "", err
 	}
 
-	if err := mount("writable", "/mnt/new_writable"); err != nil {
-		return err
-	}
-
-	dirs := []string{"system-data", "user-data"}
-	if err := mkdirs("/mnt/new_writable", dirs, 0755); err != nil {
-		return err
-	}
-
-	//dirs = []string{"boot", "snap"}
-	//if err := mkdirs("/mnt/new_writable/system-data", dirs, 0755); err != nil {
-	//	return err
-	//}
-
-	//if err := mkdirs("/mnt/new_writable", []string{"root"}, 0700); err != nil {
-	//	return err
-	//}
-
-	src := "/writable/system-data/"
-	dest := "/mnt/new_writable/system-data/"
+	src := path.Join(mntSysRecover, "system", recovery)
+	dest := path.Join(mntWritable, seedPath)
 
 	if err := copyTree(src, dest); err != nil {
-		return err
+		return "", "", err
 	}
 
-	logger.Noticef("Unmount new writable")
-	if err := umount("/mnt/new_writable"); err != nil {
-		return err
+	seedDest := path.Join(dest, "snaps")
+	core := path.Base(globFile(seedDest, "core18_*.snap"))
+	kernel := path.Base(globFile(seedDest, "kernel*.snap"))
+
+	logger.Noticef("core: %s", core)
+	logger.Noticef("kernel: %s", kernel)
+
+	err := os.Symlink(path.Join("../seed/snaps", core), path.Join(mntWritable, snapPath, core))
+	if err != nil {
+		return "", "", err
 	}
 
-	return nil
+	err = os.Symlink(path.Join("../seed/snaps", kernel), path.Join(mntWritable, snapPath, kernel))
+	if err != nil {
+		return "", "", err
+	}
+
+	return core, kernel, nil
 }
 
-func updateBootloader() error {
+func updateBootloader(mntSysRecover, core, kernel string) error {
 	logger.Noticef("Updating bootloader")
-	// FIXME: do ir in a bootloader-agnostic way, can't use bootloader.Find() as is
-	// because we have to update the recovery bootloader
-	//
-	//b, err := bootloader.Find()
-	//if err != nil {
-	//	return err
-	//}
-	//if err := b.SetBootVars(map[string]string{"snap_mode": ""}); err != nil {
-	//	return err
-	//}
 
-	if err := os.Mkdir("/mnt/sys-recover", 0755); err != nil {
-		return fmt.Errorf("cannot create system recovery mountpoint: %s", err)
-	}
-
-	if err := mount("sys-recover", "/mnt/sys-recover"); err != nil {
+	b, err := bootloader.Find()
+	if err != nil {
 		return err
 	}
-	err := exec.Command("grub-editenv", "/mnt/sys-recover/EFI/ubuntu/grubenv", "unset", "snap_mode").Run()
+
+	bootVars := map[string]string{
+		"snap_core":   core,
+		"snap_kernel": kernel,
+		"snap_mode":   "",
+	}
+
+	if err := b.SetBootVars(bootVars); err != nil {
+		return fmt.Errorf("cannot set boot vars: %s", err)
+	}
+
+	// FIXME: update recovery boot vars
+	// must do it in a bootloader-agnostic way
+	err = exec.Command("grub-editenv", path.Join(mntSysRecover, "EFI/ubuntu/grubenv"),
+		"unset", "snap_mode").Run()
 	if err != nil {
 		return fmt.Errorf("cannot unset snap mode: %s", err)
 	}
 
-	logger.Noticef("Unmount system recovery")
-	if err := umount("/mnt/sys-recover"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func mkdirs(base string, dirlist []string, mode os.FileMode) error {
-	for _, dir := range dirlist {
-		logger.Noticef("mkdir %s/%s", base, dir)
-		if err := os.Mkdir(path.Join(base, dir), mode); err != nil {
-			return fmt.Errorf("cannot create directory %s/%s: %s", base, dir, err)
-		}
-	}
-	return nil
-}
-
-func copyTree(src, dst string) error {
-	// FIXME
-	logger.Noticef("copy tree from %s to %s", src, dst)
-	if err := exec.Command("rsync", "-azlx", src, dst).Run(); err != nil {
-		return fmt.Errorf("cannot copy tree from %s to %s: %s", src, dst, err)
-	}
 	return nil
 }

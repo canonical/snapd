@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -707,30 +706,17 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 }
 
 func (m *DeviceManager) doFinishInstall(t *state.Task, tomb *tomb.Tomb) error {
-	tomb.Go(func() error {
-		st := t.State()
-		for {
-			fi, err := os.Stat("/var/lib/extrausers/passwd")
-			if err == nil {
-				if fi.Size() > 0 {
-					break
-				}
-			}
-			time.Sleep(5 * time.Second)
-		}
+	st := t.State()
 
-		logger.Noticef("Installing new system")
-		if err := recovery.Install(); err != nil {
-			return err
-		}
+	logger.Noticef("Installing new system")
+	if err := recovery.Install(); err != nil {
+		return err
+	}
 
-		logger.Noticef("System installed, restart.")
-		st.Lock()
-		st.RequestRestart(state.RestartSystem)
-		st.Unlock()
-
-		return nil
-	})
+	logger.Noticef("System installed, restart.")
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
 
 	return nil
 }

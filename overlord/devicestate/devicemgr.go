@@ -21,8 +21,6 @@ package devicestate
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -32,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -40,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/recovery"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -335,8 +333,7 @@ func (m *DeviceManager) ensureOperational() error {
 	tasks = append(tasks, requestSerial)
 
 	// FIXME: spike
-	if getSnapMode() == "install" {
-		logger.Noticef("spike: start install task")
+	if recovery.GetKernelParameter("snap_mode") == "install" {
 		finishInstall := m.state.NewTask("finish-install", "Finish installation process")
 		tasks = append(tasks, finishInstall)
 	}
@@ -589,24 +586,4 @@ func (m *DeviceManager) SignDeviceSessionRequest(serial *asserts.Serial, nonce s
 // ProxyStore returns the store assertion for the proxy store if one is set.
 func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
 	return ProxyStore(m.state)
-}
-
-// FIXME: spike
-// add a proper cmdline parser later (do we have one already?)
-func getSnapMode() string {
-	f, err := os.Open("/proc/cmdline")
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	cmdline, err := ioutil.ReadAll(f)
-	if err != nil {
-		return ""
-	}
-	re := regexp.MustCompile(`\bsnap_mode=([A-Za-z]*)\b`)
-	match := re.FindSubmatch(cmdline)
-	if len(match) < 2 {
-		return ""
-	}
-	return string(match[1])
 }
