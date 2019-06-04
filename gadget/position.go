@@ -94,7 +94,7 @@ type PositionedContent struct {
 
 func (p PositionedContent) String() string {
 	if p.Image != "" {
-		return fmtIndexAndName(p.Index, fmt.Sprintf("%v@%#x:%v", p.Image, p.StartOffset, p.Size))
+		return fmtIndexAndName(p.Index, fmt.Sprintf("%v@%#x{%v}", p.Image, p.StartOffset, p.Size))
 	}
 	return fmtIndexAndName(p.Index, fmt.Sprintf("source:%s", p.Source))
 }
