@@ -2818,7 +2818,7 @@ func (s *deviceMgrSuite) TestDeviceCtxProvided(c *C) {
 	c.Assert(deviceCtx1, Equals, deviceCtx)
 }
 
-func (s *deviceMgrSuite) TestGadgetUpdateConflictsWhenOtherTasks(c *C) {
+func (s *deviceMgrSuite) TestGadgetUpdateBlocksWhenOtherTasks(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -2830,16 +2830,16 @@ func (s *deviceMgrSuite) TestGadgetUpdateConflictsWhenOtherTasks(c *C) {
 	t2 := s.state.NewTask("other-task-2", "other 2")
 
 	// no other running tasks, does not block
-	c.Assert(devicestate.ConflictsGadgetUpdate(tUpdate, nil), Equals, false)
+	c.Assert(devicestate.GadgetUpdateBlocked(tUpdate, nil), Equals, false)
 
 	// list of running tasks actually contains ones that are in the 'running' state
 	t1.SetStatus(state.DoingStatus)
 	t2.SetStatus(state.UndoingStatus)
 	// block on any other running tasks
-	c.Assert(devicestate.ConflictsGadgetUpdate(tUpdate, []*state.Task{t1, t2}), Equals, true)
+	c.Assert(devicestate.GadgetUpdateBlocked(tUpdate, []*state.Task{t1, t2}), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestGadgetUpdateConflictsOtherTasks(c *C) {
+func (s *deviceMgrSuite) TestGadgetUpdateBlocksOtherTasks(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -2852,14 +2852,14 @@ func (s *deviceMgrSuite) TestGadgetUpdateConflictsOtherTasks(c *C) {
 	t2 := s.state.NewTask("other-task-2", "other 2")
 
 	// block on any other running tasks
-	c.Assert(devicestate.ConflictsGadgetUpdate(t1, []*state.Task{tUpdate}), Equals, true)
-	c.Assert(devicestate.ConflictsGadgetUpdate(t2, []*state.Task{tUpdate}), Equals, true)
+	c.Assert(devicestate.GadgetUpdateBlocked(t1, []*state.Task{tUpdate}), Equals, true)
+	c.Assert(devicestate.GadgetUpdateBlocked(t2, []*state.Task{tUpdate}), Equals, true)
 
 	t2.SetStatus(state.UndoingStatus)
 	// update-gadget should be the only running task, for the sake of
 	// completeness pretend it's one of many running tasks
-	c.Assert(devicestate.ConflictsGadgetUpdate(t1, []*state.Task{tUpdate, t2}), Equals, true)
+	c.Assert(devicestate.GadgetUpdateBlocked(t1, []*state.Task{tUpdate, t2}), Equals, true)
 
 	// not blocking without gadget update task
-	c.Assert(devicestate.ConflictsGadgetUpdate(t1, []*state.Task{t2}), Equals, false)
+	c.Assert(devicestate.GadgetUpdateBlocked(t1, []*state.Task{t2}), Equals, false)
 }

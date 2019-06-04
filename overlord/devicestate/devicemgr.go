@@ -95,7 +95,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
 
-	runner.AddBlocked(conflictsGadgetUpdate)
+	runner.AddBlocked(gadgetUpdateBlocked)
 
 	return m, nil
 }
@@ -141,9 +141,9 @@ func (m *DeviceManager) markRegistered() {
 	close(m.reg)
 }
 
-func conflictsGadgetUpdate(cand *state.Task, running []*state.Task) bool {
+func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 	if cand.Kind() == "update-gadget" && len(running) != 0 {
-		// update-gadget can be the only task running
+		// update-gadget must be the only task running
 		return true
 	} else {
 		for _, other := range running {
