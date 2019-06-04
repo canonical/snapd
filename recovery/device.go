@@ -46,23 +46,29 @@ func (d *DiskDevice) FindFromPartLabel(label string) error {
 	return err
 }
 
-func (d *DiskDevice) CreatePartition(num int, start, end uint64, label string) error {
-	logger.Noticef("Create partition %d: %q", num, label)
-	err := exec.Command("sgdisk", "-n", fmt.Sprintf("%d:%d:%d", num, start, end), d.node).Run()
+func (d *DiskDevice) CreatePartition(size uint64, label string) error {
+	logger.Noticef("Create partition %q", label)
+	cmd := exec.Command("sfdisk", "--no-reread", "-a", d.node)
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("cannot create partition: %s", err)
 	}
+	stdin.Write([]byte(fmt.Sprintf(",%d,,,", size/sizeSector)))
+	stdin.Close()
+	cmd.Wait()
 
 	// Re-read partition table
-	err = exec.Command("partx", "-u", d.node).Run()
-	if err != nil {
+	if err := exec.Command("partx", "-u", d.node).Run(); err != nil {
 		return fmt.Errorf("cannot update partition table: %s", err)
 	}
 
-	partdev := d.partDev(num)
+	// FIXME: determine partition name in a civilized way
+	partdev := d.partDev(4)
 	logger.Noticef("Create filesystem on %s", partdev)
-	err = exec.Command("mke2fs", "-t", "ext4", "-L", label, partdev).Run()
-	if err != nil {
+	if err := exec.Command("mke2fs", "-t", "ext4", "-L", label, partdev).Run(); err != nil {
 		return fmt.Errorf("cannot create filesystem on %s: %s", partdev, err)
 	}
 

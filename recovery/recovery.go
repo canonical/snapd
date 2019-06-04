@@ -33,6 +33,8 @@ import (
 
 const (
 	sizeSector = 512
+	sizeKB     = 1 << 10
+	sizeMB     = 1 << 20
 )
 
 func Install() error {
@@ -91,7 +93,7 @@ func createWritable() error {
 	}
 
 	// FIXME: get values from gadget, system
-	err := disk.CreatePartition(4, 4504*sizeSector, (4504+3160)*sizeSector, "writable")
+	err := disk.CreatePartition(600*sizeMB, "writable")
 	if err != nil {
 		return fmt.Errorf("cannot create new writable: %s", err)
 	}
