@@ -917,6 +917,31 @@ func (infoSuite) TestDescr(c *check.C) {
 	}
 }
 
+func (infoSuite) TestMaybePrintCohortKey(c *check.C) {
+	type T struct {
+		snap     *client.Snap
+		verbose  bool
+		expected string
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	for i, t := range []T{
+		{snap: nil, verbose: false, expected: ""},
+		{snap: nil, verbose: true, expected: ""},
+		{snap: &client.Snap{}, verbose: false, expected: ""},
+		{snap: &client.Snap{}, verbose: true, expected: ""},
+		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: false, expected: ""},
+		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: true, expected: "cohort:\tsome…\n"},
+	} {
+		buf.Reset()
+		snap.SetupSnap(iw, t.snap, nil, nil)
+		snap.SetVerbose(iw, t.verbose)
+		snap.MaybePrintCohortKey(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d", i))
+	}
+}
+
 func (infoSuite) TestWrapCornerCase(c *check.C) {
 	// this particular corner case isn't currently reachable from
 	// printDescr nor printSummary, but best to have it covered

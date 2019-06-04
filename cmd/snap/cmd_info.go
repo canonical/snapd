@@ -503,6 +503,20 @@ func (iw *infoWriter) maybePrintNotes() {
 	return
 }
 
+func (iw *infoWriter) maybePrintCohortKey() {
+	if !iw.verbose {
+		return
+	}
+	if iw.localSnap == nil {
+		return
+	}
+	if iw.localSnap.CohortKey == "" {
+		return
+	}
+	// 15 is 1 + the length of "refresh-date: "
+	fmt.Fprintf(iw, "cohort:\t%s\n", strutil.ElliptRight(iw.localSnap.CohortKey, iw.termWidth-15))
+}
+
 func (iw *infoWriter) maybePrintSum() {
 	if !iw.verbose {
 		return
@@ -675,6 +689,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintBase()
 		iw.maybePrintSum()
 		iw.maybePrintID()
+		iw.maybePrintCohortKey()
 		iw.maybePrintTrackingChannel()
 		iw.maybePrintInstallDate()
 		iw.maybePrintChinfo()
