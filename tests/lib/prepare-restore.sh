@@ -543,7 +543,7 @@ restore_suite_each() {
         echo "Save snaps profiler log"
         local logs_id logs_dir logs_file
         logs_dir="$RUNTIME_STATE_PATH/logs"
-        logs_id=$(find "$logs_dir" -maxdepth 1 -name *.journal.log | wc -l)
+        logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
         logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
 
         profiler_snap=test-snapd-profiler
