@@ -60,7 +60,12 @@ files_tmp_file(snappy_tmp_t)
 
 # actual snap
 type snappy_snap_t;
+# XXX: snappy_snap_t should be declared a filesystem, but due to how modules are
+# handled we cannot generate required contexts with genfscon outside of core
+# policy
+# fs_type(snappy_snap_t)
 files_type(snappy_snap_t)
+files_mountpoint(snappy_snap_t)
 
 # CLI tools: snap, snapctl
 type snappy_cli_t;
@@ -615,3 +620,8 @@ allow init_t snappy_var_t:dir manage_dir_perms;
 allow init_t snappy_var_t:sock_file manage_sock_file_perms;
 # the snap is started via `snap run ..`
 allow init_t snappy_cli_t:unix_stream_socket create_stream_socket_perms;
+# init_t will try to remount snap mount directory when starting services that
+# use Private* directives, while init_t is allowed to remount all fs, we cannot
+# declare fs_type(snappy_snap_t) outside of core policy, add explicit permission
+# instead
+allow init_t snappy_snap_t:filesystem remount;
