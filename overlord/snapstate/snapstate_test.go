@@ -37,6 +37,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
@@ -627,7 +629,7 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 
 }
 
-func (s *snapmgrTestSuite) TestInstallUnderDeviceContext(c *C) {
+func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -636,7 +638,7 @@ func (s *snapmgrTestSuite) TestInstallUnderDeviceContext(c *C) {
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
 
-	ts, err := snapstate.InstallUnderDeviceContext(s.state, "some-snap", "some-channel", "", snap.R(0), 0, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.InstallWithDeviceContext(s.state, "some-snap", "some-channel", "", snap.R(0), 0, snapstate.Flags{}, deviceCtx)
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
@@ -2170,7 +2172,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Check(snapsup.Channel, Equals, "some-channel")
 }
 
-func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2199,7 +2201,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = happyValidateRefreshes
 
-	ts, err := snapstate.UpdateUnderDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx)
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -2207,7 +2209,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContext(c *C) {
 	c.Check(validateCalled, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestUpdateUnderDeviceContextToRevision(c *C) {
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2230,7 +2232,7 @@ func (s *snapmgrTestSuite) TestUpdateUnderDeviceContextToRevision(c *C) {
 	})
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
-	ts, err := snapstate.UpdateUnderDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx)
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -10685,6 +10687,8 @@ var _ = Suite(&snapSetupSuite{})
 type canRemoveSuite struct {
 	st        *state.State
 	deviceCtx snapstate.DeviceContext
+
+	bs bootloader.Bootloader
 }
 
 var _ = Suite(&canRemoveSuite{})
@@ -10693,10 +10697,14 @@ func (s *canRemoveSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
+
+	s.bs = boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(s.bs)
 }
 
 func (s *canRemoveSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	bootloader.Force(nil)
 }
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
@@ -10734,6 +10742,40 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
 
+func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
+	kernel := &snap.Info{
+		Type: snap.TypeKernel,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(3),
+		},
+	}
+	kernel.RealName = "kernel"
+
+	s.bs.SetBootVars(map[string]string{
+		"snap_kernel": fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision),
+	})
+
+	removeAll := false
+	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
+}
+
+func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
+	base := &snap.Info{
+		Type: snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(3),
+		},
+	}
+	base.RealName = "core18"
+
+	s.bs.SetBootVars(map[string]string{
+		"snap_core": fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision),
+	})
+
+	removeAll := false
+	c.Check(snapstate.CanRemove(s.st, base, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
+}
+
 func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
 	kernel := &snap.Info{
 		Type: snap.TypeKernel,
@@ -10741,6 +10783,22 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
 	kernel.RealName = "other-non-model-kernel"
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, true)
+}
+
+func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
+	kernel := &snap.Info{
+		Type: snap.TypeKernel,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(2),
+		},
+	}
+	kernel.RealName = "other-non-model-kernel"
+
+	s.bs.SetBootVars(map[string]string{
+		"snap_kernel": fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision),
+	})
+
+	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {

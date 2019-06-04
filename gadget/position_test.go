@@ -64,6 +64,7 @@ func (p *positioningTestSuite) TestVolumeSize(c *C) {
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * gadget.SizeMiB}, StartOffset: 1 * gadget.SizeMiB},
 		},
@@ -103,6 +104,7 @@ volumes:
 		Volume:     vol,
 		Size:       501 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -145,6 +147,7 @@ volumes:
 		Volume:     vol,
 		Size:       1101 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -201,6 +204,7 @@ volumes:
 		Volume:     vol,
 		Size:       1300 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -256,6 +260,7 @@ volumes:
 		Volume:     vol,
 		Size:       1200 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -468,6 +473,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -519,6 +525,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -567,6 +574,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -609,6 +617,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -648,6 +657,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -674,6 +684,7 @@ volumes:
 		Volume:     vol,
 		Size:       2*gadget.SizeMiB + 512*gadget.SizeKiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -701,6 +712,7 @@ volumes:
 		Volume:     vol,
 		Size:       2*gadget.SizeMiB + 446,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -725,6 +737,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 1024,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -802,6 +815,7 @@ volumes:
 		Volume:     vol,
 		Size:       2 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				// MBR
@@ -854,6 +868,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				// mbr
