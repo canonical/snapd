@@ -233,13 +233,13 @@ func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck,
 
 func checkMinimalSlotInstallationConstraints(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, cstrs []*asserts.SlotInstallationConstraints) (bool, error) {
 	var firstErr error
-	var hasSnapTypeCstrs bool
+	var hasSnapTypeConstraints bool
 	// OR of constraints
 	for _, cstrs1 := range cstrs {
 		if cstrs1.OnClassic == nil && len(cstrs1.SlotSnapTypes) == 0 {
 			continue
 		}
-		hasSnapTypeCstrs = true
+		hasSnapTypeConstraints = true
 		err := checkSnapTypeSlotInstallationConstraints1(ic, slot, cstrs1)
 		if err == nil {
 			return true, nil
@@ -248,7 +248,7 @@ func checkMinimalSlotInstallationConstraints(ic *InstallCandidateMinimalCheck, s
 			firstErr = err
 		}
 	}
-	return hasSnapTypeCstrs, firstErr
+	return hasSnapTypeConstraints, firstErr
 }
 
 func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
