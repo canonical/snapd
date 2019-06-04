@@ -1219,21 +1219,38 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 	switchChannel := chanFrom != chanTo && chanTo != ""
 	switchCohort := cohFrom != cohTo && cohTo != ""
 	switch {
+	case switchChannel && !switchCohort && chanFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q"),
+			snap, chanTo)
 	case switchChannel && !switchCohort:
-		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"), snap,
-			chanFrom, chanTo)
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"),
+			snap, chanFrom, chanTo)
+	case switchCohort && !switchChannel && cohFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no cohort to %q"),
+			snap, strutil.ElliptRight(cohTo, 10))
 	case switchCohort && !switchChannel:
-		return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"), snap,
-			strutil.ElliptRight(cohFrom, 10),
-			strutil.ElliptRight(cohTo, 10),
+		return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"),
+			snap, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10))
+	case switchCohort && switchChannel && chanFrom == "" && cohFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from no cohort to %q"),
+			snap, chanTo, strutil.ElliptRight(cohTo, 10),
+		)
+	case switchCohort && switchChannel && cohFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from no cohort to %q"),
+			snap, chanFrom, chanTo, strutil.ElliptRight(cohTo, 10),
+		)
+	case switchCohort && switchChannel && chanFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from cohort %q to %q"),
+			snap, chanTo, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+		)
+	case switchCohort && switchChannel:
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"),
+			snap, chanFrom, chanTo,
+			strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
 		)
 	default:
-		// either they both change or they both don't change (the latter might actually be an error)
-		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"), snap,
-			chanFrom, chanTo,
-			strutil.ElliptRight(cohFrom, 10),
-			strutil.ElliptRight(cohTo, 10),
-		)
+		// this might actually be an error
+		return "No change switch (bug?)"
 	}
 }
 
@@ -1271,8 +1288,9 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
 		InstanceKey: snapst.InstanceKey,
-		CohortKey:   snapst.CohortKey,
-		Channel:     snapst.Channel,
+		// set the from state (i.e. no change), they are overridden from opts as needed below
+		CohortKey: snapst.CohortKey,
+		Channel:   snapst.Channel,
 	}
 
 	if opts.Channel != "" {

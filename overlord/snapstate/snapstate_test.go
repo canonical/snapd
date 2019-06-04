@@ -9021,6 +9021,8 @@ type switchScenario struct {
 var switchScenarios = []switchScenario{
 	// no cohort at all
 	{"stable", "some-channel", "", "", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
+	// no cohort, from empty channel
+	{"", "some-channel", "", "", `Switch snap "some-snap" from no channel to "some-channel"`},
 	// cohort specified is the same as current
 	{"stable", "some-channel", "some-cohort", "some-cohort", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
 	// no cohort change requested
@@ -9031,12 +9033,22 @@ var switchScenarios = []switchScenario{
 	{"stable", "stable", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
 	// no channel change requested
 	{"stable", "", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
+	// no channel change requested, from empty cohort
+	{"stable", "", "", "some-cohort", `Switch snap "some-snap" from no cohort to "some-coho…"`},
 	// all change
 	{"stable", "edge", "some-cohort", "some-other-cohort",
 		`Switch snap "some-snap" from channel "stable" to "edge" and from cohort "some-coho…" to "some-othe…"`},
+	// all change, from empty channel
+	{"", "stable", "some-cohort", "some-other-cohort",
+		`Switch snap "some-snap" from no channel to "stable" and from cohort "some-coho…" to "some-othe…"`},
+	// all change, from empty cohort
+	{"stable", "edge", "", "some-cohort",
+		`Switch snap "some-snap" from channel "stable" to "edge" and from no cohort to "some-coho…"`},
+	// all change, from empty channel and cohort
+	{"", "stable", "", "some-cohort",
+		`Switch snap "some-snap" from no channel to "stable" and from no cohort to "some-coho…"`},
 	// no change (XXX: error?)
-	{"stable", "stable", "some-cohort", "some-cohort",
-		`Switch snap "some-snap" from channel "stable" to "stable" and from cohort "some-coho…" to "some-coho…"`},
+	{"stable", "stable", "some-cohort", "some-cohort", `No change switch (bug?)`},
 }
 
 func (s *snapmgrTestSuite) TestSwitchScenarios(c *C) {

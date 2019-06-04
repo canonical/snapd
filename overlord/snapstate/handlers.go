@@ -1314,23 +1314,23 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-type switchFlags struct {
+type doSwitchFlags struct {
 	switchCurrentChannel bool
 }
 
 // doSwitchSnapChannel switches the snap's tracking channel and/or cohort. It
 // also switches the current channel if appropriate. For use from 'Update'.
 func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
-	return m.genericSwitchSnap(t, switchFlags{switchCurrentChannel: true})
+	return m.genericDoSwitchSnap(t, doSwitchFlags{switchCurrentChannel: true})
 }
 
 // doSwitchSnap switches the snap's tracking channel and/or cohort, *without*
 // switching the current snap channel. For use from 'Switch'.
 func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	return m.genericSwitchSnap(t, switchFlags{})
+	return m.genericDoSwitchSnap(t, doSwitchFlags{})
 }
 
-func (m *SnapManager) genericSwitchSnap(t *state.Task, flags switchFlags) error {
+func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
