@@ -321,6 +321,9 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	ru, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		return emptyDiskPath, nil
 	})
+	c.Assert(err, IsNil)
+	c.Assert(ru, NotNil)
+
 	err = ru.Update()
 	c.Assert(err, IsNil)
 	c.Check(getFileSize(c, emptyDiskPath), Equals, int64(0))
@@ -533,6 +536,9 @@ func (r *rawTestSuite) TestRawUpdaterFindDeviceFailed(c *C) {
 		c.Check(to, DeepEquals, ps)
 		return "", errors.New("failed")
 	})
+	c.Assert(err, IsNil)
+	c.Assert(ru, NotNil)
+
 	err = ru.Backup()
 	c.Assert(err, ErrorMatches, "cannot find device matching structure #0: failed")
 
