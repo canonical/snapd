@@ -514,7 +514,7 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 	})
 
 	err := ru.Rollback()
-	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img@0x80"\): cannot open backup image: .*no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img@0x80:128"\): cannot open backup image: .*no such file or directory`)
 
 	contentBackupPath := gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0]) + ".backup"
 
@@ -522,7 +522,7 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 	makeSizedFile(c, contentBackupPath, 0, nil)
 
 	err = ru.Rollback()
-	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img@0x80"\): cannot restore backup: cannot write image: EOF`)
+	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img@0x80:128"\): cannot restore backup: cannot write image: EOF`)
 
 	// pretend device cannot be opened for writing
 	err = os.Chmod(diskPath, 0000)
@@ -559,17 +559,17 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 
 	// backup/analysis not performed
 	err := ru.Update()
-	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80"\): missing backup file`)
+	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80:128"\): missing backup file`)
 
 	// pretend backup was done
 	makeSizedFile(c, gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0])+".backup", 0, nil)
 
 	err = ru.Update()
-	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80"\).*: cannot open image file: .*no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80:128"\).*: cannot open image file: .*no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 0, nil)
 	err = ru.Update()
-	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80"\).*: cannot write image: EOF`)
+	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img@0x80:128"\).*: cannot write image: EOF`)
 
 	// pretend device cannot be opened for writing
 	err = os.Chmod(diskPath, 0000)
