@@ -292,11 +292,13 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 
 	var tsBase *state.TaskSet
 	var err error
-	timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
-		tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
-	})
-	if err != nil {
-		return err
+	if base != "none" {
+		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
+			tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// on systems without core or snapd need to install snapd to
