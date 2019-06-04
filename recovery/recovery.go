@@ -128,7 +128,7 @@ func prepareWritable(mntWritable, mntSysRecover string) (string, string, error) 
 
 	seedDest := path.Join(dest, "snaps")
 	core := path.Base(globFile(seedDest, "core18_*.snap"))
-	kernel := path.Base(globFile(seedDest, "kernel*.snap"))
+	kernel := path.Base(globFile(seedDest, "pc-kernel_*.snap"))
 
 	logger.Noticef("core: %s", core)
 	logger.Noticef("kernel: %s", kernel)
