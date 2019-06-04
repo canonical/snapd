@@ -190,6 +190,11 @@ func (x *cmdChangeTimings) Execute(args []string) error {
 	var err error
 
 	if x.EnsureTag == "" && x.StartupTag == "" {
+		if x.Positional.ID == "" && x.LastChangeType == "" {
+			// GetChangeID() below checks for empty change ID / --last, check them early here to provide more helpful error message
+			return fmt.Errorf("please provide change ID or type with --last=<type>, or query for --ensure=<name> or --startup=<name>")
+		}
+
 		// GetChangeID takes care of --last=... if change ID was not specified by the user
 		chgid, err = x.GetChangeID()
 		if err != nil {

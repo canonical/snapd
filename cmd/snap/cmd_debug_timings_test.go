@@ -35,7 +35,7 @@ type timingsCmdArgs struct {
 
 var timingsTests = []timingsCmdArgs{{
 	args:  "debug timings",
-	error: "please provide change ID or type with --last=<type>",
+	error: "please provide change ID or type with --last=<type>, or query for --ensure=<name> or --startup=<name>",
 }, {
 	args:  "debug timings --ensure=seed 9",
 	error: "cannot use change id, 'startup' or 'ensure' together",
