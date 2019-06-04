@@ -22,7 +22,8 @@ restore: |
     rm -f stamp enforcing.mode
 
 execute: |
-    # prepare does systemctl daemon-reexec to workaround:
+    # global prepare calls systemctl daemon-reexec to make systemd run with
+    # additional init_t permissions from snapd package, workaround for:
     # https://bugzilla.redhat.com/show_bug.cgi?id=1660141
     # https://github.com/systemd/systemd/issues/9997
 
