@@ -35,16 +35,22 @@ type timingsCmdArgs struct {
 
 var timingsTests = []timingsCmdArgs{{
 	args:  "debug timings",
-	error: "please provide change ID or type with --last=<type>",
+	error: "please provide change ID or type with --last=<type>, or query for --ensure=<name> or --startup=<name>",
 }, {
-	args:  "debug timings --ensure=foo 9",
-	error: "cannot use 'ensure' and change id together",
+	args:  "debug timings --ensure=seed 9",
+	error: "cannot use change id, 'startup' or 'ensure' together",
+}, {
+	args:  "debug timings --ensure=seed --startup=ifacemgr",
+	error: "cannot use change id, 'startup' or 'ensure' together",
 }, {
 	args:  "debug timings --last=install --all",
 	error: "cannot use 'all' with change id or 'last'",
 }, {
 	args:  "debug timings --last=remove",
 	error: `no changes of type "remove" found`,
+}, {
+	args:  "debug timings --startup=load-state 9",
+	error: "cannot use change id, 'startup' or 'ensure' together",
 }, {
 	args:  "debug timings --all 9",
 	error: "cannot use 'all' with change id or 'last'",
@@ -67,29 +73,44 @@ var timingsTests = []timingsCmdArgs{{
 		" ^                   1ms            -  foo      foo summary\n" +
 		"  ^                  1ms            -  bar        bar summary\n\n",
 }, {
-	args: "debug timings --ensure=foo",
-	stdout: "ID      Status        Doing      Undoing  Summary\n" +
-		"ensure                  8ms            -  baz summary\n" +
-		" ^                      8ms            -    booze summary\n" +
-		"40      Doing         910ms            -  task bar summary\n" +
-		" ^                      1ms            -    foo summary\n" +
-		"  ^                     1ms            -      bar summary\n\n",
+	args: "debug timings --ensure=seed",
+	stdout: "ID    Status        Doing      Undoing  Summary\n" +
+		"seed                    -            -  \n" +
+		" ^                    8ms            -    baz summary\n" +
+		"  ^                   8ms            -      booze summary\n" +
+		"40    Doing         910ms            -  task bar summary\n" +
+		" ^                    1ms            -    foo summary\n" +
+		"  ^                   1ms            -      bar summary\n\n",
 }, {
-	args: "debug timings --ensure=bar --all",
-	stdout: "ID      Status        Doing      Undoing  Summary\n" +
-		"ensure                  8ms            -  bar summary 1\n" +
-		"ensure                  8ms            -  bar summary 2\n" +
-		"40      Doing         910ms            -  task bar summary\n" +
-		" ^                      1ms            -    foo summary\n" +
-		"  ^                     1ms            -      bar summary\n\n",
+	args: "debug timings --ensure=seed --all",
+	stdout: "ID    Status        Doing      Undoing  Summary\n" +
+		"seed                    -            -  \n" +
+		" ^                    8ms            -    bar summary 1\n" +
+		" ^                    8ms            -    bar summary 2\n" +
+		"40    Doing         910ms            -  task bar summary\n" +
+		" ^                    1ms            -    foo summary\n" +
+		"  ^                   1ms            -      bar summary\n\n",
 }, {
-	args: "debug timings --ensure=bar --all --verbose",
-	stdout: "ID      Status        Doing      Undoing  Label  Summary\n" +
-		"ensure                  8ms            -  abc    bar summary 1\n" +
-		"ensure                  8ms            -  abc    bar summary 2\n" +
-		"40      Doing         910ms            -  bar    task bar summary\n" +
-		" ^                      1ms            -  foo      foo summary\n" +
-		"  ^                     1ms            -  bar        bar summary\n\n",
+	args: "debug timings --ensure=seed --all --verbose",
+	stdout: "ID    Status        Doing      Undoing  Label  Summary\n" +
+		"seed                    -            -         \n" +
+		" ^                    8ms            -  abc      bar summary 1\n" +
+		" ^                    8ms            -  abc      bar summary 2\n" +
+		"40    Doing         910ms            -  bar    task bar summary\n" +
+		" ^                    1ms            -  foo      foo summary\n" +
+		"  ^                   1ms            -  bar        bar summary\n\n",
+}, {
+	args: "debug timings --startup=ifacemgr",
+	stdout: "ID        Status        Doing      Undoing  Summary\n" +
+		"ifacemgr                    -            -  \n" +
+		" ^                        8ms            -    baz summary\n" +
+		"  ^                       8ms            -      booze summary\n\n",
+}, {
+	args: "debug timings --startup=ifacemgr --all",
+	stdout: "ID        Status        Doing      Undoing  Summary\n" +
+		"ifacemgr                    -            -  \n" +
+		" ^                        8ms            -    baz summary\n" +
+		" ^                        9ms            -    baz summary\n\n",
 }}
 
 func (s *SnapSuite) TestGetDebugTimings(c *C) {
@@ -126,6 +147,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 
 			changeID := q.Get("change-id")
 			ensure := q.Get("ensure")
+			startup := q.Get("startup")
 			all := q.Get("all")
 
 			switch {
@@ -137,7 +159,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 							{"label":"foo", "summary": "foo summary", "duration": 1000001},
 							{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
 				]}}}]}`)
-			case ensure == "foo":
+			case ensure == "seed" && all == "false":
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
 					{"change-id":"1",
 						"ensure-timings": [
@@ -150,7 +172,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 									{"label":"foo", "summary": "foo summary", "duration": 1000001},
 									{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
 					]}}}]}`)
-			case ensure == "bar" && all == "true":
+			case ensure == "seed" && all == "true":
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
 						{"change-id":"1",
 							"ensure-timings": [
@@ -163,6 +185,18 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 										{"label":"foo", "summary": "foo summary", "duration": 1000001},
 										{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
 						]}}}]}`)
+			case startup == "ifacemgr" && all == "false":
+				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
+					{"startup-timings": [
+								{"label":"baz", "summary": "baz summary", "duration": 8000001},
+								{"level":1, "label":"booze", "summary": "booze summary", "duration": 8000002}
+					]}]}`)
+			case startup == "ifacemgr" && all == "true":
+				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
+					{"startup-timings": [
+						{"label":"baz", "summary": "baz summary", "duration": 8000001},
+						{"label":"baz", "summary": "baz summary", "duration": 9000001}
+					]}]}`)
 			default:
 				c.Errorf("unexpected request: %s, %s, %s", changeID, ensure, all)
 			}
