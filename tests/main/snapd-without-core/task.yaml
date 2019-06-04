@@ -38,7 +38,7 @@ execute: |
     snap install test-snapd-tools-core18
     test-snapd-tools-core18.echo hello | MATCH hello
     echo "No core was installed"
-    ! snap list | grep ^"core "
+    snap list | not grep ^"core "
 
     echo "Ensure we re-exec to the snapd snap"
     SNAPD_DEBUG=1 test-snapd-tools-core18.echo 2>&1 | MATCH 'restarting into "/snap/snapd/current'

@@ -161,12 +161,16 @@ func (s *storeCtxSuite) TestUpdateDeviceAuth(c *C) {
 func (s *storeCtxSuite) TestUpdateDeviceAuthOtherUpdate(c *C) {
 	device := &auth.DeviceState{}
 	otherUpdateDevice := *device
-	otherUpdateDevice.SessionMacaroon = "othe-session-macaroon"
+	otherUpdateDevice.SessionMacaroon = "other-session-macaroon"
 	otherUpdateDevice.KeyID = "KEYID"
 
 	b := &testBackend{device: &otherUpdateDevice}
 	storeCtx := storecontext.New(s.state, b)
 
+	// the global store refreshing sessions is now serialized
+	// and is a no-op in this case, but we do need not to overwrite
+	// the result of a remodeling (though unlikely as we will mostly avoid
+	// other store operations during it)
 	sessionMacaroon := "the-device-macaroon"
 	curDevice, err := storeCtx.UpdateDeviceAuth(device, sessionMacaroon)
 	c.Assert(err, IsNil)
@@ -174,7 +178,7 @@ func (s *storeCtxSuite) TestUpdateDeviceAuthOtherUpdate(c *C) {
 	c.Check(b.device, DeepEquals, curDevice)
 	c.Check(curDevice, DeepEquals, &auth.DeviceState{
 		KeyID:           "KEYID",
-		SessionMacaroon: sessionMacaroon,
+		SessionMacaroon: "other-session-macaroon",
 	})
 }
 

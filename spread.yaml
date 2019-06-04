@@ -34,7 +34,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.37.4
+    DELTA_REF: 2.39.1
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
@@ -89,11 +89,10 @@ backends:
                 manual: true
             - fedora-30-64:
                 workers: 6
-            - opensuse-42.3-64:
-                workers: 4
-                # golang stack cannot compile anything, needs investigation
-                manual: true
             - opensuse-15.0-64:
+                workers: 6
+                manual: true
+            - opensuse-15.1-64:
                 workers: 6
             - opensuse-tumbleweed-64:
                 workers: 6
@@ -437,8 +436,8 @@ debug-each: |
         esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
-        echo '# snap interfaces'
-        snap interfaces || true
+        echo '# snap connections --all'
+        snap connections --all || true
         echo '# tasks executed on system'
         cat "$RUNTIME_STATE_PATH/runs" || true
         echo '# free space'
@@ -570,9 +569,17 @@ prepare: |
         rmdir "$DELTA_PREFIX"
     fi
 
-    # Take the MATCH and REBOOT functions from spread and allow our shell scripts to use them.
+    # Take the MATCH and REBOOT functions from spread and allow our shell
+    # scripts to use them as shell commands. The replacements are real
+    # executables in tests/lib/bin (which is on PATH) but they source
+    # spread-funcs.sh written here, base on the definitions provided by SPREAD.
+    # This ensures that 1) spread functions define the code 2) both MATCH and
+    # REBOOT are executables and not functions, and can be called from any
+    # context.
     type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
+    unset MATCH
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
+    unset REBOOT
 
     if [ -e /etc/profile.d/go.sh ]; then
         # Up until recently openSUSE golang packaging injected environment

@@ -45,6 +45,8 @@ type PositionedVolume struct {
 	SectorSize Size
 	// PositionedStructure are sorted in order of 'appearance' in the volume
 	PositionedStructure []PositionedStructure
+	// RootDir is the root directory for volume data
+	RootDir string
 }
 
 // PositionedStructure describes a VolumeStructure that has been positioned
@@ -86,6 +88,8 @@ type PositionedContent struct {
 	PositionedOffsetWrite *Size
 	// Size is the maximum size occupied by this image
 	Size Size
+	// Index of the content in structure declaration inside gadget YAML
+	Index int
 }
 
 // PositionVolume attempts to lay out the volume using constraints and returns a
@@ -183,6 +187,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 		Size:                volumeSize,
 		SectorSize:          constraints.SectorSize,
 		PositionedStructure: structures,
+		RootDir:             gadgetRootDir,
 	}
 	return vol, nil
 }
@@ -242,9 +247,11 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, kno
 		}
 
 		content[idx] = PositionedContent{
-			VolumeContent:         &ps.Content[idx],
-			Size:                  actualSize,
-			StartOffset:           ps.StartOffset + start,
+			VolumeContent: &ps.Content[idx],
+			Size:          actualSize,
+			StartOffset:   ps.StartOffset + start,
+			Index:         idx,
+			// break for gofmt < 1.11
 			PositionedOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + actualSize

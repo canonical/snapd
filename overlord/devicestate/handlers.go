@@ -74,23 +74,13 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := t.Change()
-	var modelass string
-	if err := chg.Get("new-model", &modelass); err != nil {
-		return err
-	}
-
-	ass, err := asserts.Decode([]byte(modelass))
+	remodCtx, err := remodelCtxFromTask(t)
 	if err != nil {
 		return err
 	}
+	new := remodCtx.Model()
 
-	new, ok := ass.(*asserts.Model)
-	if !ok {
-		return fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
-	}
-
-	err = assertstate.Add(st, ass)
+	err = assertstate.Add(st, new)
 	if err != nil && !isSameAssertsRevision(err) {
 		return err
 	}
@@ -122,9 +112,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 		//       bootable base snap.
 	}
 
-	// TODO: set device,model from the new model assertion
-	// return setDeviceFromModelAssertion(st, device, model)
-	return nil
+	return remodCtx.Finish()
 }
 
 func useStaging() bool {
@@ -274,7 +262,7 @@ type registrationContext interface {
 // initialRegistrationContext is a thin wrapper around DeviceManager
 // implementing registrationContext for initial regitration
 type initialRegistrationContext struct {
-	*DeviceManager
+	deviceMgr *DeviceManager
 
 	gadget string
 }
@@ -284,7 +272,7 @@ func (rc *initialRegistrationContext) ForRemodeling() bool {
 }
 
 func (rc *initialRegistrationContext) Device() (*auth.DeviceState, error) {
-	return rc.DeviceManager.device()
+	return rc.deviceMgr.device()
 }
 
 func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
@@ -300,20 +288,20 @@ func (rc *initialRegistrationContext) SerialRequestAncillaryAssertions() []asser
 }
 
 func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial) error {
-	device, err := rc.DeviceManager.device()
+	device, err := rc.deviceMgr.device()
 	if err != nil {
 		return err
 	}
 
 	device.Serial = serial.Serial()
-	if err := rc.DeviceManager.setDevice(device); err != nil {
+	if err := rc.deviceMgr.setDevice(device); err != nil {
 		return err
 	}
-	rc.DeviceManager.markRegistered()
+	rc.deviceMgr.markRegistered()
 
 	// make sure we timely consider anything that was blocked on
 	// registration
-	rc.DeviceManager.state.EnsureBefore(0)
+	rc.deviceMgr.state.EnsureBefore(0)
 
 	return nil
 }
@@ -326,8 +314,8 @@ func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, err
 	}
 
 	return &initialRegistrationContext{
-		DeviceManager: m,
-		gadget:        model.Gadget(),
+		deviceMgr: m,
+		gadget:    model.Gadget(),
 	}, nil
 }
 
