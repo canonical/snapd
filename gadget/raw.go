@@ -38,11 +38,15 @@ type RawStructureWriter struct {
 
 // NewRawStructureWriter returns a writer for given structure, that will load
 // the structure content data from provided root directory.
-func NewRawStructureWriter(rootDir string, ps *PositionedStructure) *RawStructureWriter {
-	return &RawStructureWriter{
+func NewRawStructureWriter(rootDir string, ps *PositionedStructure) (*RawStructureWriter, error) {
+	if !ps.IsBare() {
+		return nil, fmt.Errorf("structure %v is not bare", ps)
+	}
+	rw := &RawStructureWriter{
 		rootDir: rootDir,
 		ps:      ps,
 	}
+	return rw, nil
 }
 
 // writeRawStream writes the input stream in that corresponds to provided
@@ -62,6 +66,9 @@ func writeRawStream(out io.WriteSeeker, pc *PositionedContent, in io.Reader) err
 
 // writeRawImage writes a single image described by a positioned content entry.
 func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *PositionedContent) error {
+	if pc.Image == "" {
+		return fmt.Errorf("no image defined")
+	}
 	img, err := os.Open(filepath.Join(r.rootDir, pc.Image))
 	if err != nil {
 		return fmt.Errorf("cannot open image file: %v", err)
@@ -73,9 +80,6 @@ func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *PositionedCon
 
 // Write will write whole contents of a structure into the output stream.
 func (r *RawStructureWriter) Write(out io.WriteSeeker) error {
-	if !r.ps.IsBare() {
-		return fmt.Errorf("structure %v is not bare", r.ps)
-	}
 	for _, pc := range r.ps.PositionedContent {
 		if err := r.writeRawImage(out, &pc); err != nil {
 			return fmt.Errorf("failed to write image %v: %v", pc, err)
@@ -96,12 +100,17 @@ type locationLookupFunc func(ps *PositionedStructure) (string, error)
 // NewRawStructureUpdater returns an updater for given raw (bare) structure.
 // Update data will be loaded from provided root directory. Backups of replaced
 // structures are temporarily kept in the rollback directory.
-func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) *RawStructureUpdater {
-	return &RawStructureUpdater{
-		RawStructureWriter: NewRawStructureWriter(rootDir, ps),
+func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) (*RawStructureUpdater, error) {
+	rw, err := NewRawStructureWriter(rootDir, ps)
+	if err != nil {
+		return nil, err
+	}
+	ru := &RawStructureUpdater{
+		RawStructureWriter: rw,
 		backupDir:          backupDir,
 		deviceLookup:       deviceLookup,
 	}
+	return ru, nil
 }
 
 func rawContentBackupPath(backupDir string, ps *PositionedStructure, pc *PositionedContent) string {
