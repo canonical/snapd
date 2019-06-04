@@ -65,8 +65,8 @@ func umount(dev string) error {
 
 func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 	for _, dir := range dirlist {
-		logger.Noticef("mkdir %s/%s", base, dir)
-		p := path.Clean(path.Join(base, dir))
+		p := path.Join(base, dir)
+		logger.Noticef("mkdir %s", p)
 		if err := os.MkdirAll(p, mode); err != nil {
 			return fmt.Errorf("cannot create directory %s/%s: %s", base, dir, err)
 		}
