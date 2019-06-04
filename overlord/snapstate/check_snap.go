@@ -351,6 +351,9 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, devi
 	if snapInfo.Base == "" {
 		return nil
 	}
+	if snapInfo.Base == "none" {
+		return nil
+	}
 
 	snapStates, err := All(st)
 	if err != nil {

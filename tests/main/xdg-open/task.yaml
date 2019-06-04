@@ -82,7 +82,7 @@ execute: |
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
-    ! test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
+    not test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
     test ! -e /tmp/xdg-open-output
-    ! test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
+    not test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output

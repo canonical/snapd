@@ -35,8 +35,9 @@ import (
 
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
-	SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
+	EnsureDeviceSession() (*auth.DeviceState, error)
 
+	SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 
 	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)

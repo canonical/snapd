@@ -577,7 +577,7 @@ restore_project_each() {
     fi
 
     # Something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
+    not grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {

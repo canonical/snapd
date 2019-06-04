@@ -171,11 +171,11 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	var encNewModel string
 	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
@@ -209,11 +209,11 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	var encNewModel string
 	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
@@ -284,8 +284,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 	// have a change
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	// check device state is preserved across association with a Change
 	device, err = devBE.Device()
@@ -315,8 +314,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
@@ -375,8 +373,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendIsolation(c *C) {
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
@@ -465,8 +462,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinish(c *C) {
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
@@ -517,8 +513,7 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDevice
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
@@ -604,8 +599,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendSerial(c *C) {
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	serial0, err = devBE.Serial()
 	c.Assert(err, IsNil)
@@ -674,8 +668,7 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 
 	chg := s.state.NewChange("remodel", "...")
 
-	err = remodCtx.Init(chg)
-	c.Assert(err, IsNil)
+	remodCtx.Init(chg)
 
 	t := s.state.NewTask("remodel-task-1", "...")
 	chg.AddTask(t)

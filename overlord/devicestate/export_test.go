@@ -90,19 +90,19 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstall(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateInstall
-	snapstateInstall = f
+func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallWithDeviceContext
+	snapstateInstallWithDeviceContext = f
 	return func() {
-		snapstateInstall = old
+		snapstateInstallWithDeviceContext = old
 	}
 }
 
-func MockSnapstateUpdate(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateUpdate
-	snapstateUpdate = f
+func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdateWithDeviceContext
+	snapstateUpdateWithDeviceContext = f
 	return func() {
-		snapstateUpdate = old
+		snapstateUpdateWithDeviceContext = old
 	}
 }
 
