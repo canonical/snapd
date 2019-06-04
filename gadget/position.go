@@ -45,6 +45,8 @@ type PositionedVolume struct {
 	SectorSize Size
 	// PositionedStructure are sorted in order of 'appearance' in the volume
 	PositionedStructure []PositionedStructure
+	// RootDir is the root directory for volume data
+	RootDir string
 }
 
 // PositionedStructure describes a VolumeStructure that has been positioned
@@ -185,6 +187,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 		Size:                volumeSize,
 		SectorSize:          constraints.SectorSize,
 		PositionedStructure: structures,
+		RootDir:             gadgetRootDir,
 	}
 	return vol, nil
 }

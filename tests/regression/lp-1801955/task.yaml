@@ -7,7 +7,7 @@ prepare: |
     chown -vR 9999:9999 /home/potato
 
 restore: |
-    rm -rv /home/potato
+    rm -rfv /home/potato
 
 execute: |
     snap save test-snapd-tools
