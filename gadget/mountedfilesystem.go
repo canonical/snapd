@@ -37,11 +37,15 @@ type MountedFilesystemWriter struct {
 
 // NewMountedFilesystemWriter returns a writer capable of deploying provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(rootDir string, ps *PositionedStructure) *MountedFilesystemWriter {
-	return &MountedFilesystemWriter{
+func NewMountedFilesystemWriter(rootDir string, ps *PositionedStructure) (*MountedFilesystemWriter, error) {
+	if ps.IsBare() {
+		return nil, fmt.Errorf("structure %v has no filesystem", ps)
+	}
+	fw := &MountedFilesystemWriter{
 		rootDir: rootDir,
 		ps:      ps,
 	}
+	return fw, nil
 }
 
 func remapPreserve(dstDir string, preserve []string) []string {

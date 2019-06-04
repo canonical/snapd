@@ -144,7 +144,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
@@ -173,7 +174,9 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 
 	outDir := c.MkDir()
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
 	err = rw.Deploy(outDir, nil)
 	c.Assert(err, IsNil)
@@ -185,7 +188,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 func (r *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
@@ -198,9 +202,11 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 
 	outDir := c.MkDir()
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
-	err := rw.Deploy(outDir, nil)
+	err = rw.Deploy(outDir, nil)
 	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:foo: .*unable to open.*: no such file or directory")
 }
 
@@ -209,7 +215,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
@@ -225,7 +232,9 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 	err := os.Chmod(outDir, 0000)
 	c.Assert(err, IsNil)
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
 	err = rw.Deploy(outDir, nil)
 	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:foo: cannot create .*: mkdir .* permission denied")
@@ -239,7 +248,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 
 	psOverwritesDirectoryWithFile := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
@@ -256,10 +266,12 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 
 	outDir := c.MkDir()
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, psOverwritesDirectoryWithFile)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, psOverwritesDirectoryWithFile)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
 	// can't overwrite a directory with a file
-	err := rw.Deploy(outDir, nil)
+	err = rw.Deploy(outDir, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot deploy filesystem content of source:foo-dir: cannot copy .*: unable to create %s/foo-dir: .* is a directory", outDir))
 
 }
@@ -271,7 +283,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 	})
 	psOverwritesFile := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
 					Source: "bar",
@@ -287,9 +300,11 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 
 	outDir := c.MkDir()
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, psOverwritesFile)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, psOverwritesFile)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
-	err := rw.Deploy(outDir, nil)
+	err = rw.Deploy(outDir, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(filepath.Join(outDir, "foo")), Equals, false)
@@ -305,7 +320,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
@@ -320,9 +336,11 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 
 	makeSizedFile(c, filepath.Join(outDir, "/foo-dir/foo/bar"), 0, nil)
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
-	err := rw.Deploy(outDir, nil)
+	err = rw.Deploy(outDir, nil)
 	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:/: .* not a directory")
 }
 
@@ -366,7 +384,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
 					Source: "foo",
@@ -398,9 +417,11 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 		},
 	}
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
-	err := rw.Deploy(outDir, append(preserve, preserveButNotPresent...))
+	err = rw.Deploy(outDir, append(preserve, preserveButNotPresent...))
 	c.Assert(err, IsNil)
 
 	// files that existed were preserved
@@ -421,7 +442,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size:       2048,
+			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
 					// contents of nested directory under new target directory
@@ -434,10 +456,32 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 
 	outDir := c.MkDir()
 
-	rw := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
 
-	err := rw.Deploy(outDir, nil)
+	err = rw.Deploy(outDir, nil)
 	c.Assert(err, IsNil)
 
 	verifyDeployedGadgetData(c, outDir, gd)
+}
+
+func (r *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size: 2048,
+			// no filesystem
+			Content: []gadget.VolumeContent{
+				{
+					// single file in target directory
+					Source: "foo",
+					Target: "/foo-dir/",
+				},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, ErrorMatches, "structure #0 has no filesystem")
+	c.Assert(rw, IsNil)
 }
