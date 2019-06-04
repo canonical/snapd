@@ -673,7 +673,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 	updaterForStructureCalls := 0
 	updateCalls := make(map[string]bool)
 	backupCalls := make(map[string]bool)
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
 		c.Assert(psRootDir, Equals, newData.RootDir)
 		c.Assert(psRollbackDir, Equals, rollbackDir)
 
@@ -702,7 +702,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Fatalf("unexpected call")
 		}
 		updaterForStructureCalls++
-		return &mockUpdater{
+		mu := &mockUpdater{
 			backupCb: func() error {
 				backupCalls[ps.Name] = true
 				return nil
@@ -716,6 +716,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 				return errors.New("not called")
 			},
 		}
+		return mu, nil
 	})
 	defer restore()
 
@@ -739,7 +740,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
 		c.Assert(psRootDir, Equals, newData.RootDir)
 		c.Assert(psRollbackDir, Equals, rollbackDir)
 
@@ -751,12 +752,13 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 			c.Fatalf("unexpected call")
 		}
 		updaterForStructureCalls++
-		return &mockUpdater{
+		mu := &mockUpdater{
 			rollbackCb: func() error {
 				c.Fatalf("unexpected call")
 				return errors.New("not called")
 			},
 		}
+		return mu, nil
 	})
 	defer restore()
 
@@ -944,9 +946,9 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 	newData := gadget.UpdateData{Info: newInfo, RootDir: c.MkDir()}
 	rollbackDir := c.MkDir()
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
 		c.Fatalf("unexpected call")
-		return &mockUpdater{}
+		return &mockUpdater{}, nil
 	})
 	defer restore()
 
@@ -988,9 +990,9 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptIn(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
 		c.Fatalf("unexpected call")
-		return &mockUpdater{}
+		return &mockUpdater{}, nil
 	})
 	defer restore()
 
@@ -1006,7 +1008,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			updateCb: func() error {
 				c.Fatalf("unexpected update call")
@@ -1024,7 +1026,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 			}
 		}
 		updaterForStructureCalls++
-		return updater
+		return updater, nil
 	})
 	defer restore()
 
@@ -1044,7 +1046,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 	backupCalls := make(map[string]bool)
 	rollbackCalls := make(map[string]bool)
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
 				backupCalls[ps.Name] = true
@@ -1068,7 +1070,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 			}
 		}
 		updaterForStructureCalls++
-		return updater
+		return updater, nil
 	})
 	defer restore()
 
@@ -1107,7 +1109,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	backupCalls := make(map[string]bool)
 	rollbackCalls := make(map[string]bool)
 	updaterForStructureCalls := 0
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) gadget.Updater {
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
 				backupCalls[ps.Name] = true
@@ -1139,7 +1141,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 			}
 		}
 		updaterForStructureCalls++
-		return updater
+		return updater, nil
 	})
 	defer restore()
 
@@ -1166,4 +1168,21 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot update gadget: cannot update structure: update error`)
 	c.Check(logbuf.String(), testutil.Contains, `cannot rollback structure update: rollback failed with different error`)
+}
+
+func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// update all structs
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
+
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
+		return nil, errors.New("bad updater for structure")
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, ErrorMatches, `cannot prepare updater: bad updater for structure`)
 }

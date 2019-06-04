@@ -240,13 +240,17 @@ func (n *nopUpdater) Rollback() error {
 	return nil
 }
 
-var updaterForStructure = func(_ *PositionedStructure, rootDir, rollbackDir string) Updater { return &nopUpdater{} }
+var updaterForStructure = func(_ *PositionedStructure, rootDir, rollbackDir string) (Updater, error) { return &nopUpdater{}, nil }
 
 func applyUpdates(new UpdateData, updates []updatePair, rollbackDir string) error {
 	updaters := make([]Updater, 0, len(updates))
 
 	for _, one := range updates {
-		updaters = append(updaters, updaterForStructure(one.to, new.RootDir, rollbackDir))
+		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir)
+		if err != nil {
+			return fmt.Errorf("cannot prepare updater: %v", err)
+		}
+		updaters = append(updaters, up)
 	}
 
 	for _, one := range updaters {
