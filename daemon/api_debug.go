@@ -93,9 +93,10 @@ type changeTimings struct {
 }
 
 type debugTimings struct {
-	ChangeID      string                    `json:"change-id"`
-	EnsureTimings []*timings.TimingJSON     `json:"ensure-timings,omitempty"`
-	ChangeTimings map[string]*changeTimings `json:"change-timings,omitempty"`
+	ChangeID       string                    `json:"change-id"`
+	EnsureTimings  []*timings.TimingJSON     `json:"ensure-timings,omitempty"`
+	StartupTimings []*timings.TimingJSON     `json:"startup-timings,omitempty"`
+	ChangeTimings  map[string]*changeTimings `json:"change-timings,omitempty"`
 }
 
 func collectChangeTimings(st *state.State, changeID string) (map[string]*changeTimings, error) {
@@ -174,11 +175,46 @@ func collectEnsureTimings(st *state.State, ensureTag string, allEnsures bool) ([
 	return responseData, nil
 }
 
-func getChangeTimings(st *state.State, changeID, ensureTag string, allEnsures bool) Response {
+func collectStartupTimings(st *state.State, startupTag string, allStarts bool) ([]*debugTimings, error) {
+	starts, err := timings.Get(st, -1, func(tags map[string]string) bool {
+		return tags["startup"] == startupTag
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot get timings of startup %s: %v", startupTag, err)
+	}
+	if len(starts) == 0 {
+		return nil, fmt.Errorf("cannot find startup: %v", startupTag)
+	}
+
+	// If allStarts is true, then report all activities of given startup, otherwise just the latest
+	first := len(starts) - 1
+	if allStarts {
+		first = 0
+	}
+	var responseData []*debugTimings
+	for _, startTm := range starts[first:] {
+		debugTm := &debugTimings{
+			StartupTimings: startTm.NestedTimings,
+		}
+		responseData = append(responseData, debugTm)
+	}
+
+	return responseData, nil
+}
+
+func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, all bool) Response {
 	// If ensure tag was passed by the client, find its related changes;
 	// we can have many ensure executions and their changes in the responseData array.
 	if ensureTag != "" {
-		responseData, err := collectEnsureTimings(st, ensureTag, allEnsures)
+		responseData, err := collectEnsureTimings(st, ensureTag, all)
+		if err != nil {
+			return BadRequest(err.Error())
+		}
+		return SyncResponse(responseData, nil)
+	}
+
+	if startupTag != "" {
+		responseData, err := collectStartupTimings(st, startupTag, all)
 		if err != nil {
 			return BadRequest(err.Error())
 		}
@@ -221,9 +257,10 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	case "change-timings":
 		chgID := query.Get("change-id")
-		ensureID := query.Get("ensure")
+		ensureTag := query.Get("ensure")
+		startupTag := query.Get("startup")
 		all := query.Get("all")
-		return getChangeTimings(st, chgID, ensureID, all == "true")
+		return getChangeTimings(st, chgID, ensureTag, startupTag, all == "true")
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}
