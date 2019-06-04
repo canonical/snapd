@@ -22,6 +22,7 @@ package recovery
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -115,8 +116,14 @@ func prepareWritable(mntWritable, mntSysRecover string) (string, string, error) 
 	src := path.Join(mntSysRecover, "system", recovery)
 	dest := path.Join(mntWritable, seedPath)
 
-	if err := copyTree(src, dest); err != nil {
+	seedFiles, err := ioutil.ReadDir(src)
+	if err != nil {
 		return "", "", err
+	}
+	for _, f := range seedFiles {
+		if err := copyTree(path.Join(src, f.Name()), dest); err != nil {
+			return "", "", err
+		}
 	}
 
 	seedDest := path.Join(dest, "snaps")
@@ -126,7 +133,7 @@ func prepareWritable(mntWritable, mntSysRecover string) (string, string, error) 
 	logger.Noticef("core: %s", core)
 	logger.Noticef("kernel: %s", kernel)
 
-	err := os.Symlink(path.Join("../seed/snaps", core), path.Join(mntWritable, snapPath, core))
+	err = os.Symlink(path.Join("../seed/snaps", core), path.Join(mntWritable, snapPath, core))
 	if err != nil {
 		return "", "", err
 	}

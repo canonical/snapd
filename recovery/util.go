@@ -76,7 +76,7 @@ func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 func copyTree(src, dst string) error {
 	// FIXME
 	logger.Noticef("copy tree from %s to %s", src, dst)
-	if err := exec.Command("rsync", "-azlx", src+"/", dst+"/").Run(); err != nil {
+	if err := exec.Command("cp", "-rap", src, dst).Run(); err != nil {
 		return fmt.Errorf("cannot copy tree from %s to %s: %s", src, dst, err)
 	}
 	return nil
