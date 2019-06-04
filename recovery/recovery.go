@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -166,10 +166,13 @@ func updateBootloader(mntSysRecover, core, kernel string) error {
 
 	// FIXME: update recovery boot vars
 	// must do it in a bootloader-agnostic way
-	err = exec.Command("grub-editenv", path.Join(mntSysRecover, "EFI/ubuntu/grubenv"),
-		"unset", "snap_mode").Run()
-	if err != nil {
-		return fmt.Errorf("cannot unset snap mode: %s", err)
+	env := grubenv.NewEnv(path.Join(mntSysRecover, "EFI/ubuntu/grubenv"))
+	if err := env.Load(); err != nil {
+		return fmt.Errorf("cannot load recovery boot vars: %s", err)
+	}
+	env.Set("snap_mode", "")
+	if err := env.Save(); err != nil {
+		return fmt.Errorf("cannot save recovery boot vars: %s", err)
 	}
 
 	return nil
