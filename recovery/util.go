@@ -66,7 +66,8 @@ func umount(dev string) error {
 func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 	for _, dir := range dirlist {
 		logger.Noticef("mkdir %s/%s", base, dir)
-		if err := os.MkdirAll(path.Join(base, dir), mode); err != nil {
+		p := path.Clean(path.Join(base, dir))
+		if err := os.MkdirAll(p, mode); err != nil {
 			return fmt.Errorf("cannot create directory %s/%s: %s", base, dir, err)
 		}
 	}
@@ -75,7 +76,7 @@ func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 
 func copyTree(src, dst string) error {
 	// FIXME
-	logger.Noticef("copy tree from %s to %s", src, dst)
+	logger.Noticef("copying %s", src)
 	if err := exec.Command("cp", "-rap", src, dst).Run(); err != nil {
 		return fmt.Errorf("cannot copy tree from %s to %s: %s", src, dst, err)
 	}
