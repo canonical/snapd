@@ -865,7 +865,7 @@ func nopGadgetOp(current, update *gadget.Info, rollbackRootDir string) error {
 	return nil
 }
 
-func (m *DeviceManager) doUpdateGadget(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
 		return fmt.Errorf("cannot run update gadget task on a classic system")
 	}

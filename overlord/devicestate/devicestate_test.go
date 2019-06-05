@@ -2989,7 +2989,7 @@ func setupGadgetUpdate(c *C, st *state.State) (chg *state.Change, tsk *state.Tas
 		Active:   true,
 	})
 
-	tsk = st.NewTask("update-gadget", "update gadget")
+	tsk = st.NewTask("update-gadget-assets", "update gadget")
 	tsk.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     snap.TypeGadget,
@@ -3131,7 +3131,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 
 	s.state.Lock()
 
-	t := s.state.NewTask("update-gadget", "update gadget")
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     snap.TypeGadget,
@@ -3188,7 +3188,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 		Active:   true,
 	})
 
-	t := s.state.NewTask("update-gadget", "update gadget")
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     snap.TypeGadget,
@@ -3224,7 +3224,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 
 	s.state.Lock()
 
-	t := s.state.NewTask("update-gadget", "update gadget")
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
 

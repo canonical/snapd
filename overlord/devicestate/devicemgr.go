@@ -100,7 +100,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// deployed boot assets must be backward compatible with reverted kernel
 	// or gadget snaps. There are no further changes to the boot assets,
 	// unless a new gadget update is deployed.
-	runner.AddHandler("update-gadget", m.doUpdateGadget, nil)
+	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
 
 	return m, nil
 }
