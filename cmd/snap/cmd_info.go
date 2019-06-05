@@ -510,11 +510,15 @@ func (iw *infoWriter) maybePrintCohortKey() {
 	if iw.localSnap == nil {
 		return
 	}
-	if iw.localSnap.CohortKey == "" {
+	coh := iw.localSnap.CohortKey
+	if coh == "" {
 		return
 	}
-	// 15 is 1 + the length of "refresh-date: "
-	fmt.Fprintf(iw, "cohort:\t%s\n", strutil.ElliptRight(iw.localSnap.CohortKey, iw.termWidth-15))
+	if isStdoutTTY {
+		// 15 is 1 + the length of "refresh-date: "
+		coh = strutil.ElliptRight(iw.localSnap.CohortKey, iw.termWidth-15)
+	}
+	fmt.Fprintf(iw, "cohort:\t%s\n", coh)
 }
 
 func (iw *infoWriter) maybePrintSum() {

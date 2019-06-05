@@ -924,21 +924,35 @@ func (infoSuite) TestMaybePrintCohortKey(c *check.C) {
 		expected string
 	}
 
-	var buf flushBuffer
-	iw := snap.NewInfoWriter(&buf)
-	for i, t := range []T{
+	tests := []T{
 		{snap: nil, verbose: false, expected: ""},
 		{snap: nil, verbose: true, expected: ""},
 		{snap: &client.Snap{}, verbose: false, expected: ""},
 		{snap: &client.Snap{}, verbose: true, expected: ""},
 		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: false, expected: ""},
 		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: true, expected: "cohort:\tsome…\n"},
-	} {
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	defer snap.MockIsStdoutTTY(true)()
+
+	for i, t := range tests {
 		buf.Reset()
 		snap.SetupSnap(iw, t.snap, nil, nil)
 		snap.SetVerbose(iw, t.verbose)
 		snap.MaybePrintCohortKey(iw)
-		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d", i))
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("tty:true/%d", i))
+	}
+	// now the same but without a tty -> the last test should no longer ellipt
+	tests[len(tests)-1].expected = "cohort:\tsome-cohort-key\n"
+	snap.MockIsStdoutTTY(false)
+	for i, t := range tests {
+		buf.Reset()
+		snap.SetupSnap(iw, t.snap, nil, nil)
+		snap.SetVerbose(iw, t.verbose)
+		snap.MaybePrintCohortKey(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("tty:false/%d", i))
 	}
 }
 
