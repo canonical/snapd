@@ -123,12 +123,6 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 			continue
 		}
 
-		if task.Kind() == "update-gadget" {
-			// make sure no other changes are running when a change
-			// that updates the gadget snap is in progress
-			return &ChangeConflictError{Message: "gadget update in progress"}
-		}
-
 		snaps, err := affectedSnaps(task)
 		if err != nil {
 			return err

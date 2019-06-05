@@ -14422,64 +14422,6 @@ epoch: 1*
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
 }
 
-func (s *snapmgrTestSuite) TestGadgetUpdateBlocksOtherChanges(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// if we have a ubuntu-core -> core transition
-	chg := s.state.NewChange("install-snap", "...")
-	chg.SetStatus(state.DoStatus)
-
-	tgadget := s.state.NewTask("update-gadget", "update gadget")
-	chg.AddTask(tgadget)
-
-	// other tasks block until gadget update completes
-	_, err := snapstate.Install(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, "gadget update in progress")
-
-	_, err = snapstate.Install(s.state, "some-gadget", "", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, "gadget update in progress")
-
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
-		Current:  snap.R(1),
-		SnapType: "app",
-	})
-	_, err = snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, "gadget update in progress")
-
-	_, err = snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, "gadget update in progress")
-
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), &snapstate.RemoveFlags{})
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, "gadget update in progress")
-
-	// and when the transition is done, other tasks are possible run
-	chg.SetStatus(state.DoneStatus)
-
-	_, err = snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
-	c.Check(err, IsNil)
-
-	_, err = snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
-	c.Check(err, IsNil)
-
-	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), &snapstate.RemoveFlags{})
-	c.Check(err, IsNil)
-
-	snapstate.Set(s.state, "some-snap", nil)
-
-	_, err = snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Check(err, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
