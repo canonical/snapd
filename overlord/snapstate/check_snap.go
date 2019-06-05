@@ -206,7 +206,7 @@ func validateContainer(c snap.Container, s *snap.Info, logf func(format string, 
 }
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
+func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.SideInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, c, err := openSnapFile(snapFilePath, si)
@@ -232,7 +232,7 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 	// allow registered checks to run first as they may produce more
 	// precise errors
 	for _, check := range checkSnapCallbacks {
-		err := check(st, s, curInfo, flags)
+		err := check(st, s, curInfo, flags, deviceCtx)
 		if err != nil {
 			return err
 		}
@@ -246,7 +246,7 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 }
 
 // CheckSnapCallback defines callbacks for checking a snap for installation or refresh.
-type CheckSnapCallback func(st *state.State, snap, curSnap *snap.Info, flags Flags) error
+type CheckSnapCallback func(st *state.State, snap, curSnap *snap.Info, flags Flags, deviceCtx DeviceContext) error
 
 var checkSnapCallbacks []CheckSnapCallback
 
@@ -263,7 +263,7 @@ func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
 	}
 }
 
-func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	if snapInfo.Type != snap.TypeOS {
 		// not a relevant check
 		return nil
@@ -299,7 +299,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 	return nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	kind := ""
 	var currentInfo func(*state.State) (*snap.Info, error)
 	switch snapInfo.Type {
@@ -343,12 +343,15 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 	return nil
 }
 
-func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	// check if this is relevant
 	if snapInfo.Type != snap.TypeApp && snapInfo.Type != snap.TypeGadget {
 		return nil
 	}
 	if snapInfo.Base == "" {
+		return nil
+	}
+	if snapInfo.Base == "none" {
 		return nil
 	}
 
@@ -373,7 +376,7 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) erro
 	return fmt.Errorf("cannot find required base %q", snapInfo.Base)
 }
 
-func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags) error {
+func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags, deviceCtx DeviceContext) error {
 	if curInfo == nil {
 		return nil
 	}
@@ -404,7 +407,7 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 		return err
 	}
 
-	return checkEpochs(nil, info, cur, Flags{})
+	return checkEpochs(nil, info, cur, Flags{}, nil)
 }
 
 func init() {

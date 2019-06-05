@@ -34,6 +34,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -148,6 +150,7 @@ const (
 	// v2
 	snapActionPath  = "/v2/snaps/refresh"
 	infoPathPattern = "/v2/snaps/info/.*"
+	cohortsPath     = "/v2/cohorts"
 )
 
 // Build details path for a snap name.
@@ -236,7 +239,11 @@ AXNpZw=`
 type testDauthContext struct {
 	c      *C
 	device *auth.DeviceState
-	user   *auth.UserState
+
+	deviceMu         sync.Mutex
+	deviceGetWitness func()
+
+	user *auth.UserState
 
 	proxyStoreID  string
 	proxyStoreURL *url.URL
@@ -247,14 +254,21 @@ type testDauthContext struct {
 }
 
 func (dac *testDauthContext) Device() (*auth.DeviceState, error) {
+	dac.deviceMu.Lock()
+	defer dac.deviceMu.Unlock()
 	freshDevice := auth.DeviceState{}
 	if dac.device != nil {
 		freshDevice = *dac.device
+	}
+	if dac.deviceGetWitness != nil {
+		dac.deviceGetWitness()
 	}
 	return &freshDevice, nil
 }
 
 func (dac *testDauthContext) UpdateDeviceAuth(d *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+	dac.deviceMu.Lock()
+	defer dac.deviceMu.Unlock()
 	dac.c.Assert(d, DeepEquals, dac.device)
 	updated := *dac.device
 	updated.SessionMacaroon = newSessionMacaroon
@@ -1236,6 +1250,128 @@ func (s *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 	c.Assert(err, Equals, store.ErrInvalidCredentials)
 	c.Check(response, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
+func (s *storeTestSuite) TestEnsureDeviceSession(c *C) {
+	deviceSessionRequested := 0
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+			authorization := r.Header.Get("X-Device-Authorization")
+			c.Assert(authorization, Equals, "")
+			deviceSessionRequested++
+			io.WriteString(w, `{"macaroon": "fresh-session-macaroon"}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	// make sure device session is not set
+	s.device.SessionMacaroon = ""
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, dauthCtx)
+
+	device, err := sto.EnsureDeviceSession()
+	c.Assert(err, IsNil)
+
+	c.Check(device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	c.Check(deviceSessionRequested, Equals, 1)
+}
+
+func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
+	var deviceSessionRequested int32
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+			authorization := r.Header.Get("X-Device-Authorization")
+			c.Assert(authorization, Equals, "")
+			atomic.AddInt32(&deviceSessionRequested, 1)
+			io.WriteString(w, `{"macaroon": "fresh-session-macaroon"}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	wgGetDevice := new(sync.WaitGroup)
+
+	// make sure device session is not set
+	s.device.SessionMacaroon = ""
+	dauthCtx := &testDauthContext{
+		c:                c,
+		device:           s.device,
+		deviceGetWitness: wgGetDevice.Done,
+	}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, dauthCtx)
+
+	wg := new(sync.WaitGroup)
+
+	sto.SessionLock()
+
+	// try to acquire 10 times a device session in parallel;
+	// block these flows until all goroutines have acquired the original
+	// device state which is without a session, then let them run
+	for i := 0; i < 10; i++ {
+		wgGetDevice.Add(1)
+		wg.Add(1)
+		go func(n int) {
+			_, err := sto.EnsureDeviceSession()
+			c.Assert(err, IsNil)
+			wg.Done()
+		}(i)
+	}
+
+	wgGetDevice.Wait()
+	dauthCtx.deviceGetWitness = nil
+	// all flows have got the original device state
+	// let them run
+	sto.SessionUnlock()
+	// wait for the 10 flows to be done
+	wg.Wait()
+
+	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
+	// we acquired a session from the store only once
+	c.Check(int(deviceSessionRequested), Equals, 1)
 }
 
 func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
@@ -2462,7 +2598,7 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 		{Section: "db"},
 		{Query: "hello", Section: "db"},
 	} {
-		sto.Find(&query, nil)
+		sto.Find(context.TODO(), &query, nil)
 	}
 }
 
@@ -2695,7 +2831,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
@@ -2780,22 +2916,22 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.Find(&store.Search{Query: "foo", Private: true}, s.user)
+	_, err := sto.Find(context.TODO(), &store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
 
-	_, err = sto.Find(&store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
+	_, err = sto.Find(context.TODO(), &store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
 	c.Check(err, IsNil)
 
-	_, err = sto.Find(&store.Search{Query: "foo", Private: true}, nil)
+	_, err = sto.Find(context.TODO(), &store.Search{Query: "foo", Private: true}, nil)
 	c.Check(err, Equals, store.ErrUnauthenticated)
 
-	_, err = sto.Find(&store.Search{Query: "name:foo", Private: true}, s.user)
+	_, err = sto.Find(context.TODO(), &store.Search{Query: "name:foo", Private: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
 func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
-	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
+	_, err := sto.Find(context.TODO(), &store.Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
@@ -2815,7 +2951,7 @@ func (s *storeTestSuite) TestFindFails(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -2836,7 +2972,7 @@ func (s *storeTestSuite) TestFindBadContentType(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -2859,7 +2995,7 @@ func (s *storeTestSuite) TestFindBadBody(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `invalid character '<' looking for beginning of value`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -2881,7 +3017,7 @@ func (s *storeTestSuite) TestFind500(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	_, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 500 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Assert(n, Equals, 5)
 }
@@ -2909,7 +3045,7 @@ func (s *storeTestSuite) TestFind500once(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Assert(n, Equals, 2)
@@ -2952,7 +3088,7 @@ func (s *storeTestSuite) TestFindAuthFailed(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "foo"}, s.user)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "foo"}, s.user)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.
@@ -3000,7 +3136,7 @@ func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	infos, err := sto.Find(&store.Search{Query: "foo"}, nil)
+	infos, err := sto.Find(context.TODO(), &store.Search{Query: "foo"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
@@ -3039,10 +3175,38 @@ func (s *storeTestSuite) TestFindByCommonID(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	infos, err := sto.Find(&store.Search{CommonID: "org.hello"}, nil)
+	infos, err := sto.Find(context.TODO(), &store.Search{CommonID: "org.hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
+}
+
+func (s *storeTestSuite) TestFindClientUserAgent(c *C) {
+	clientUserAgent := "some-client/1.0"
+
+	serverWasHit := false
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-Client-User-Agent"), Equals, clientUserAgent)
+		serverWasHit = true
+
+		http.Error(w, http.StatusText(418), 418) // I'm a teapot
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+		DetailFields: []string{}, // make the error less noisy
+	}
+
+	req, err := http.NewRequest("GET", "/", nil)
+	c.Assert(err, IsNil)
+	req.Header.Add("User-Agent", clientUserAgent)
+	ctx := store.WithClientUserAgent(context.TODO(), req)
+	sto := store.New(&cfg, nil)
+	sto.Find(ctx, &store.Search{Query: "hello"}, nil)
+	c.Assert(serverWasHit, Equals, true)
 }
 
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
@@ -4111,6 +4275,8 @@ func init() {
 	helloRefreshedDate = t
 }
 
+const helloCohortKey = "this is a very short cohort key, as cohort keys go, because those are *long*"
+
 func (s *storeTestSuite) TestSnapAction(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -4158,6 +4324,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			"action":       "refresh",
 			"instance-key": helloWorldSnapID,
 			"snap-id":      helloWorldSnapID,
+			"cohort-key":   helloCohortKey,
 		})
 
 		io.WriteString(w, `{
@@ -4205,6 +4372,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 			Action:       "refresh",
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
+			CohortKey:    helloCohortKey,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -5213,12 +5381,18 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstall(c *C) {
-	s.testSnapActionGet("install", c)
+	s.testSnapActionGet("install", "", c)
+}
+func (s *storeTestSuite) TestSnapActionInstallWithCohort(c *C) {
+	s.testSnapActionGet("install", "what", c)
 }
 func (s *storeTestSuite) TestSnapActionDownload(c *C) {
-	s.testSnapActionGet("download", c)
+	s.testSnapActionGet("download", "", c)
 }
-func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
+func (s *storeTestSuite) TestSnapActionDownloadWithCohort(c *C) {
+	s.testSnapActionGet("download", "here", c)
+}
+func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5250,13 +5424,17 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		expectedAction := map[string]interface{}{
 			"action":       action,
 			"instance-key": action + "-1",
 			"name":         "hello-world",
 			"channel":      "beta",
 			"epoch":        nil,
-		})
+		}
+		if cohort != "" {
+			expectedAction["cohort-key"] = cohort
+		}
+		c.Assert(req.Actions[0], DeepEquals, expectedAction)
 
 		fmt.Fprintf(w, `{
   "results": [{
@@ -5296,6 +5474,7 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 				Action:       action,
 				InstanceName: "hello-world",
 				Channel:      "beta",
+				CohortKey:    cohort,
 			},
 		}, nil, nil)
 	c.Assert(err, IsNil)
@@ -6389,6 +6568,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
+			"cohort-key":       "what",
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
@@ -6445,6 +6625,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			CohortKey:       "what",
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,
@@ -7010,4 +7191,44 @@ func (s *storeTestSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "foo-2")
 	c.Assert(results[0].SnapID, Equals, "foo-2-id")
+}
+
+func (s *storeTestSuite) TestCreateCohort(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", cohortsPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		dec := json.NewDecoder(r.Body)
+		var req struct {
+			Snaps []string
+		}
+		err := dec.Decode(&req)
+		c.Assert(err, IsNil)
+		c.Check(dec.More(), Equals, false)
+
+		c.Check(req.Snaps, DeepEquals, []string{"foo", "bar"})
+
+		io.WriteString(w, `{
+    "cohort-keys": {
+        "potato": "U3VwZXIgc2VjcmV0IHN0dWZmIGVuY3J5cHRlZCBoZXJlLg=="
+    }
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	cohorts, err := sto.CreateCohorts(context.TODO(), []string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Assert(cohorts, DeepEquals, map[string]string{
+		"potato": "U3VwZXIgc2VjcmV0IHN0dWZmIGVuY3J5cHRlZCBoZXJlLg==",
+	})
 }

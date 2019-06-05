@@ -348,7 +348,7 @@ func acquireSnap(tsto *ToolingStore, name string, dlOpts *DownloadOptions, local
 		}
 		return dst, info, nil
 	}
-	return tsto.DownloadSnap(name, snap.R(0), dlOpts)
+	return tsto.DownloadSnap(name, *dlOpts)
 }
 
 type addingFetcher struct {
@@ -411,10 +411,16 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 // hasBase checks if the given snap has a base in the given localInfos and
 // snaps. If not an error is returned.
 func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
-	// snap needs no base: nothing to do
+	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if snap.Base == "" {
 		return nil
 	}
+
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
+	if snap.Base == "none" {
+		return nil
+	}
+
 	// core provides everything that core16 needs
 	if snap.Base == "core16" && local.hasName(snaps, "core") {
 		return nil

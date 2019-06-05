@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 func MockKeyLength(n int) (restore func()) {
@@ -88,19 +90,19 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstall(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateInstall
-	snapstateInstall = f
+func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallWithDeviceContext
+	snapstateInstallWithDeviceContext = f
 	return func() {
-		snapstateInstall = old
+		snapstateInstallWithDeviceContext = old
 	}
 }
 
-func MockSnapstateUpdate(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateUpdate
-	snapstateUpdate = f
+func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdateWithDeviceContext
+	snapstateUpdateWithDeviceContext = f
 	return func() {
-		snapstateUpdate = old
+		snapstateUpdateWithDeviceContext = old
 	}
 }
 
@@ -110,7 +112,7 @@ func EnsureSeedYaml(m *DeviceManager) error {
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
-func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (restore func()) {
+func MockPopulateStateFromSeed(f func(*state.State, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := populateStateFromSeed
 	populateStateFromSeed = f
 	return func() {
@@ -126,6 +128,16 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
+	return m.registrationCtx(t)
+}
+
+func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
+	return remodCtx.(interface {
+		deviceBackend() storecontext.DeviceBackend
+	}).deviceBackend()
+}
+
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
@@ -134,4 +146,10 @@ var (
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RemodelTasks = remodelTasks
+
+	RemodelCtx         = remodelCtx
+	RemodelCtxFromTask = remodelCtxFromTask
+	CleanupRemodelCtx  = cleanupRemodelCtx
 )
