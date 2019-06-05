@@ -3055,85 +3055,13 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
-func (s *deviceMgrSuite) TestUpdateGadgetOnCoreDoUndo(c *C) {
-	var updateCalled bool
-	var updateRollbackDir string
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		updateRollbackDir = path
-		updateCalled = true
-		return nil
-	})
-	defer restore()
-
-	chg, t := setupGadgetUpdate(c, s.state)
-
-	s.state.Lock()
-
-	terr := s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(t)
-	chg.AddTask(terr)
-
-	s.state.Unlock()
-
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Assert(chg.IsReady(), Equals, true)
-	c.Assert(chg.Err(), NotNil)
-	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(terr.Status(), Equals, state.ErrorStatus)
-	c.Check(updateCalled, Equals, true)
-	c.Check(updateRollbackDir, Equals, filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34"))
-	// only one request for task do
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
-}
-
-func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirExistsRemovedByUpdate(c *C) {
-	var updateCalled bool
-	var passedRollbackDir string
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		updateCalled = true
-		passedRollbackDir = path
-		c.Assert(osutil.IsDirectory(path), Equals, true)
-
-		err := os.RemoveAll(path)
-		c.Assert(err, IsNil)
-
-		return nil
-	})
-	defer restore()
-
-	chg, t := setupGadgetUpdate(c, s.state)
-
-	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
-	err := os.MkdirAll(rollbackDir, 0755)
-	c.Assert(err, IsNil)
-
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Assert(chg.IsReady(), Equals, true)
-	c.Check(chg.Err(), IsNil)
-	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(updateCalled, Equals, true)
-	c.Check(rollbackDir, Equals, passedRollbackDir)
-	// removed in the update, no error from from task handler
-	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
-}
-
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (permissions are not honored)")
+	}
+
 	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		c.Fatal("should not have been called")
-		return nil
+		return errors.New("unexpected call")
 	})
 	defer restore()
 
@@ -3182,10 +3110,12 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		c.Fatal("unexpected call")
-		return nil
+		return errors.New("unexpected call")
 	})
 	defer restore()
+
+	// simulate first-boot/seeding, there is no existing snap state information
+
 	si := &snap.SideInfo{
 		RealName: "foo-gadget",
 		Revision: snap.R(34),
@@ -3224,8 +3154,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		c.Fatal("unexpected call")
-		return nil
+		return errors.New("unexpected call")
 	})
 	defer restore()
 	siCurrent := &snap.SideInfo{
@@ -3285,8 +3214,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	defer restore()
 
 	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
-		c.Fatal("unexpected call")
-		return errors.New("gadget exploded")
+		return errors.New("unexpected call")
 	})
 	defer restore()
 
