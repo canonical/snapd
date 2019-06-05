@@ -366,6 +366,18 @@ func ValidateBase(info *Info) error {
 	if info.Base == "none" && (len(info.Hooks) > 0 || len(info.Apps) > 0) {
 		return fmt.Errorf(`cannot have apps or hooks with base "none"`)
 	}
+
+	if info.Base != "" {
+		baseSnapName, instanceKey := SplitInstanceName(info.Base)
+		if err := ValidateName(baseSnapName); err != nil {
+			return fmt.Errorf("invalid base: %s", err)
+		}
+		if instanceKey != "" {
+			if err := ValidateInstanceName(info.Base); err != nil {
+				return fmt.Errorf("invalid base: %s", err)
+			}
+		}
+	}
 	return nil
 }
 
