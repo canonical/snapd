@@ -104,6 +104,7 @@ var api = []*Command{
 	connectionsCmd,
 	modelCmd,
 	cohortsCmd,
+	recoverCmd,
 }
 
 var (
@@ -247,6 +248,12 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getWarnings,
 		POST:     ackWarnings,
+	}
+
+	recoverCmd = &Command{
+		Path:     "/v2/recover",
+		POST:     postRecover,
+		RootOnly: true,
 	}
 
 	buildID = "unknown"
@@ -2796,4 +2803,39 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	return SyncResponse(ws, nil)
+}
+
+type postRecoverData struct {
+	Version string `json:"version"`
+	Install bool   `json:"install"`
+	Recover bool   `json:"recover"`
+}
+
+func postRecover(c *Command, r *http.Request, user *auth.UserState) Response {
+	var recoverData postRecoverData
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&recoverData); err != nil {
+		return BadRequest("cannot decode recover data from request body: %v", err)
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tasks := []*state.Task{}
+
+	if recoverData.Install {
+		finishInstall := st.NewTask("finish-install", "Finish installation process")
+		finishInstall.Set("recovery-version", recoverData.Version)
+		tasks = append(tasks, finishInstall)
+	} else if recoverData.Recover {
+	}
+
+	chg := st.NewChange("recover-mode", "recovery mode")
+	chg.AddAll(state.NewTaskSet(tasks...))
+
+	st.EnsureBefore(10 * time.Second)
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

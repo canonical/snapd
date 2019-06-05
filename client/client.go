@@ -693,3 +693,28 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
 	return err
 }
+
+// RecoverOptions holds options for recovery.
+type RecoverOptions struct {
+	Version string `json:"version,omitempty"`
+	Install bool   `json:"install,omitempty"`
+	Recover bool   `json:"recover,omitempty"`
+}
+
+// Recover recovers the system.
+func (client *Client) Recover(options *RecoverOptions) error {
+	if options.Version == "" {
+		return fmt.Errorf("cannot run recover without providing a recovery version")
+	}
+
+	data, err := json.Marshal(options)
+	if err != nil {
+		return err
+	}
+
+	if _, err := client.doAsync("POST", "/v2/recover", nil, nil, bytes.NewReader(data)); err != nil {
+		return fmt.Errorf("while requesting recovery: %v", err)
+	}
+
+	return nil
+}

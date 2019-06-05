@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
-	"github.com/snapcore/snapd/recovery"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -331,12 +330,6 @@ func (m *DeviceManager) ensureOperational() error {
 	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
 	requestSerial.WaitFor(genKey)
 	tasks = append(tasks, requestSerial)
-
-	// FIXME: spike shortcut: this should be started from the API
-	if recovery.GetKernelParameter("snap_mode") == "install" {
-		finishInstall := m.state.NewTask("finish-install", "Finish installation process")
-		tasks = append(tasks, finishInstall)
-	}
 
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
