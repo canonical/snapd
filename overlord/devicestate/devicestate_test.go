@@ -3008,7 +3008,11 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
 		updateCalled = true
 		passedRollbackDir = path
-		c.Assert(osutil.IsDirectory(path), Equals, true)
+		st, err := os.Stat(path)
+		c.Assert(err, IsNil)
+		m := st.Mode()
+		c.Assert(m.IsDir(), Equals, true)
+		c.Check(m.Perm(), Equals, os.FileMode(0750))
 		return nil
 	})
 	defer restore()
