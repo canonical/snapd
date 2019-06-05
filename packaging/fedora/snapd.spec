@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.39.1
+Version:        2.39.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -863,6 +863,14 @@ fi
 
 
 %changelog
+* Wed Jun 05 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.39.2
+ - debian: rework how we run autopkgtests
+ - interfaces/docker-support: add overlayfs accesses for ubuntu core
+ - data/selinux: permit init_t to remount snappy_snap_t
+ - strutil/shlex: fix ineffassign
+ - packaging: fix build-depends on powerpc
+
 * Wed May 29 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.39.1
  - spread: enable Fedora 30
