@@ -332,7 +332,7 @@ func (m *DeviceManager) ensureOperational() error {
 	requestSerial.WaitFor(genKey)
 	tasks = append(tasks, requestSerial)
 
-	// FIXME: spike
+	// FIXME: spike shortcut: this should be started from the API
 	if recovery.GetKernelParameter("snap_mode") == "install" {
 		finishInstall := m.state.NewTask("finish-install", "Finish installation process")
 		tasks = append(tasks, finishInstall)

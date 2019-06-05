@@ -37,8 +37,8 @@ const (
 	sizeMB     = 1 << 20
 )
 
-func Install() error {
-	logger.Noticef("Execute install actions")
+func Install(version string) error {
+	logger.Noticef("Install recovery %s", version)
 	if err := createWritable(); err != nil {
 		logger.Noticef("cannot create writable: %s", err)
 		return err
@@ -62,7 +62,7 @@ func Install() error {
 	}
 
 	// Copy selected recovery to the new writable
-	core, kernel, err := prepareWritable(mntWritable, mntSysRecover)
+	core, kernel, err := prepareWritable(mntWritable, mntSysRecover, version)
 	if err != nil {
 		logger.Noticef("cannot populate writable: %s", err)
 		return err
@@ -101,21 +101,19 @@ func createWritable() error {
 	return nil
 }
 
-func prepareWritable(mntWritable, mntSysRecover string) (string, string, error) {
+func prepareWritable(mntWritable, mntSysRecover, version string) (string, string, error) {
 	logger.Noticef("Populating new writable")
 
-	recovery := GetKernelParameter("snap_recovery_system")
+	//recovery := GetKernelParameter("snap_recovery_system")
 	seedPath := "system-data/var/lib/snapd/seed"
 	snapPath := "system-data/var/lib/snapd/snaps"
-
-	logger.Noticef("recovery: %s", recovery)
 
 	dirs := []string{seedPath, snapPath, "user-data"}
 	if err := mkdirs(mntWritable, dirs, 0755); err != nil {
 		return "", "", err
 	}
 
-	src := path.Join(mntSysRecover, "system", recovery)
+	src := path.Join(mntSysRecover, "system", version)
 	dest := path.Join(mntWritable, seedPath)
 
 	seedFiles, err := ioutil.ReadDir(src)

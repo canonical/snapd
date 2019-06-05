@@ -24,9 +24,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -708,8 +710,28 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 func (m *DeviceManager) doFinishInstall(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 
+	// spike shortcut: wait until recovery version is available
+	for {
+		_, err := os.Stat("/tmp/recovery-version")
+		if err == nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+	f, err := os.Open("/tmp/recovery-version")
+	if err != nil {
+		logger.Noticef("cannot open recovery version: %s", err)
+		return err
+	}
+	defer f.Close()
+	version, err := ioutil.ReadAll(f)
+	if err != nil {
+		logger.Noticef("cannot read recovery version: %s", err)
+		return err
+	}
+
 	logger.Noticef("Installing new system")
-	if err := recovery.Install(); err != nil {
+	if err := recovery.Install(string(version)); err != nil {
 		return err
 	}
 
