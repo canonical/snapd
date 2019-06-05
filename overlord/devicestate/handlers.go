@@ -79,23 +79,13 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := t.Change()
-	var modelass string
-	if err := chg.Get("new-model", &modelass); err != nil {
-		return err
-	}
-
-	ass, err := asserts.Decode([]byte(modelass))
+	remodCtx, err := remodelCtxFromTask(t)
 	if err != nil {
 		return err
 	}
+	new := remodCtx.Model()
 
-	new, ok := ass.(*asserts.Model)
-	if !ok {
-		return fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
-	}
-
-	err = assertstate.Add(st, ass)
+	err = assertstate.Add(st, new)
 	if err != nil && !isSameAssertsRevision(err) {
 		return err
 	}
@@ -127,9 +117,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 		//       bootable base snap.
 	}
 
-	// TODO: set device,model from the new model assertion
-	// return setDeviceFromModelAssertion(st, device, model)
-	return nil
+	return remodCtx.Finish()
 }
 
 func useStaging() bool {

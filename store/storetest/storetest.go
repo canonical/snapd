@@ -41,11 +41,15 @@ type Store struct{}
 // ensure we conform
 var _ snapstate.StoreService = Store{}
 
+func (Store) EnsureDeviceSession() (*auth.DeviceState, error) {
+	panic("Store.EnsureDeviceSession not expected")
+}
+
 func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
 }
 
-func (Store) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
+func (Store) Find(context.Context, *store.Search, *auth.UserState) ([]*snap.Info, error) {
 	panic("Store.Find not expected")
 }
 
