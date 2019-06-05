@@ -151,8 +151,9 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
 		// the desired channel
-		Channel: opts.Channel,
-		Flags:   storeFlags,
+		Channel:   opts.Channel,
+		CohortKey: opts.CohortKey,
+		Flags:     storeFlags,
 	}
 
 	if curInfo.SnapID == "" { // amend
