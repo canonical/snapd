@@ -393,7 +393,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget")
+		expected = append(expected, "update-gadget-assets")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -446,7 +446,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget")
+		expected = append(expected, "update-gadget-assets")
 	}
 	expected = append(expected,
 		"copy-snap-data",
