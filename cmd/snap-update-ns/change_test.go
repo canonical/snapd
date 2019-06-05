@@ -643,6 +643,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
 		// Perform clean up after the unmount operation.
@@ -806,6 +807,7 @@ func (s *changeSuite) TestPerformFilesystemDetch(c *C) {
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `mount "none" "/target" "" MS_REC|MS_PRIVATE ""`},
 		{C: `unmount "/target" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
 		// Perform clean up after the unmount operation.
@@ -1153,6 +1155,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
 		// Perform clean up after the unmount operation.
@@ -1301,6 +1304,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
 		// Perform clean up after the unmount operation.
@@ -1694,6 +1698,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
 		// Perform clean up after the unmount operation.
@@ -2087,6 +2092,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 
 		{C: `lstat "/rofs"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
+		{C: `mount "none" "/tmp/.snap/rofs" "" MS_REC|MS_PRIVATE ""`},
 		{C: `unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
 		// Perform clean up after the unmount operation.
@@ -2346,6 +2352,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		{C: `close 7`},
 
 		// We're done restoring now.
+		{C: `mount "none" "/tmp/.snap/etc" "" MS_REC|MS_PRIVATE ""`},
 		{C: `unmount "/tmp/.snap/etc" UMOUNT_NOFOLLOW|MNT_DETACH`},
 
 		// Perform clean up after the unmount operation.
@@ -2423,5 +2430,82 @@ func (s *changeSuite) TestPerformedChangesAreTracked(c *C) {
 		// past changes stack in order.
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
+	})
+}
+
+func (s *changeSuite) TestComplexPropagatingChanges(c *C) {
+	// This problem is more subtle. It is a variant of the regression test
+	// implemented in tests/regression/lp-1831010. Here, we have four directories:
+	//
+	// - $SNAP/a
+	// - $SNAP/b
+	// - $SNAP/b/c
+	// - $SNAP/d
+	//
+	// The mount profile contains but two entries:
+	//
+	// 1) recursive-bind $SNAP/b/c -> $SNAP/a
+	// 2) recursive-bind $SNAP/d -> $SNAP/b
+	//
+	// NB: The notation "foo -> bar" can be read as "foo is a view of bar",
+	// and can be implemented by mount "--rbind bar foo".
+	//
+	// Both mount operations are performed under a substrate that is MS_SHARED.
+	// Therefore, due to the rules that decide upon propagation of bind mounts
+	// the propagation of the new mount entries is also shared. This is
+	// documented in https://lwn.net/Articles/159092/ (section 5b).
+	//
+	// Interactive experimentation shows that the following three mount points exist
+	// after this operation, as illustrated by findmnt:
+	//
+	// └─/snap/test-snapd-layout/x1          /dev/loop1     squashfs    ro,nodev,relatime
+	//   ├─/snap/test-snapd-layout/x1/b/c    /dev/loop1[/a] squashfs    ro,nodev,relatime
+	//   └─/snap/test-snapd-layout/x1/d      /dev/loop1[/b] squashfs    ro,nodev,relatime
+	//     └─/snap/test-snapd-layout/x1/d/c  /dev/loop1[/a] squashfs    ro,nodev,relatime
+	//
+	// Note that after the first mount operation only one mount point is created, namely
+	// $SNAP/b/c -> $SNAP/a. The second recursive bind mount not only creates
+	// $SNAP/d -> $SNAP/b, but also replicates $SNAP/b/c -> $SNAP/a as
+	// $SNAP/d/c -> $SNAP/a.
+	//
+	// The test will simulate a refresh of the snap from revision x1 to revision
+	// x2. When this happens the mount profile associated with x1 must be undone
+	// and the mount profile associated with x2 must be constructed. Because
+	// ordering matters, let's first consider the order of construction of x1
+	// itself. Starting from nothing, apply x1 as follows:
+	x1 := &osutil.MountProfile{
+		Entries: []osutil.MountEntry{
+			{Name: "/snap/app/x1/a", Dir: "/snap/app/x1/b/c", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+			{Name: "/snap/app/x1/b", Dir: "/snap/app/x1/d", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+		},
+	}
+	changes := update.NeededChanges(&osutil.MountProfile{}, x1)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/app/x1/a", Dir: "/snap/app/x1/b/c", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/app/x1/b", Dir: "/snap/app/x1/d", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
+	})
+	// We can see that x1 is constructed in alphabetical order, first recursively
+	// bind mount at $SNAP/a the directory $SNAP/b/c, second recursively bind
+	// mount at $SNAP/b the directory $SNAP/d.
+	x2 := &osutil.MountProfile{
+		Entries: []osutil.MountEntry{
+			{Name: "/snap/app/x2/a", Dir: "/snap/app/x2/b/c", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+			{Name: "/snap/app/x2/b", Dir: "/snap/app/x2/d", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+		},
+	}
+	// When we are asked to refresh to revision x2, using the same layout, we
+	// simply undo x1 and then create x2, which apart from the difference in
+	// revision name, is exactly the same. The undo code, however, does not take
+	// the replicated mount point under consideration and therefore attempts to
+	// detach "x1/d", which normally fails with EBUSY. To counter this, the
+	// unmount operation first switches the mount point to recursive private
+	// propagation, before actually unmounting it. This ensures that propagation
+	// doesn't self-conflict, simply because there isn't any left.
+	changes = update.NeededChanges(x1, x2)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/snap/app/x1/b", Dir: "/snap/app/x1/d", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"}}},
+		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/snap/app/x1/a", Dir: "/snap/app/x1/b/c", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"}}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/app/x2/a", Dir: "/snap/app/x2/b/c", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/app/x2/b", Dir: "/snap/app/x2/d", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
 	})
 }
