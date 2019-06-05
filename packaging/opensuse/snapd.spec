@@ -340,6 +340,9 @@ fi
 %dir %{_datadir}/dbus-1/services
 %dir %{_datadir}/polkit-1
 %dir %{_datadir}/polkit-1/actions
+%dir %{_prefix}/lib/systemd
+%dir %{_prefix}/lib/systemd/user
+%dir %{_prefix}/lib/systemd/user/sockets.target.wants
 %dir %{_environmentdir}
 %dir %{_libexecdir}/snapd
 %dir %{_localstatedir}/cache/snapd
@@ -385,6 +388,9 @@ fi
 %{_datadir}/bash-completion/completions/snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
+%{_prefix}/lib/systemd/user/snapd.session-agent.service
+%{_prefix}/lib/systemd/user/snapd.session-agent.socket
+%{_prefix}/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
