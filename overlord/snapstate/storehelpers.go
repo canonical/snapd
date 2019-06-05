@@ -32,12 +32,6 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type updateInfoOpts struct {
-	channel          string
-	ignoreValidation bool
-	amend            bool
-}
-
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
 	_, err := auth.User(st, userID)
@@ -129,11 +123,7 @@ func installInfo(st *state.State, name, channel, cohort string, revision snap.Re
 	return singleActionResult(name, action.Action, res, err)
 }
 
-func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
-	if opts == nil {
-		opts = &updateInfoOpts{}
-	}
-
+func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*snap.Info, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -144,16 +134,16 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		return nil, err
 	}
 
-	curInfo, user, err := preUpdateInfo(st, snapst, opts.amend, userID)
+	curInfo, user, err := preUpdateInfo(st, snapst, flags.Amend, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	var flags store.SnapActionFlags
-	if opts.ignoreValidation {
-		flags = store.SnapActionIgnoreValidation
+	var storeFlags store.SnapActionFlags
+	if flags.IgnoreValidation {
+		storeFlags = store.SnapActionIgnoreValidation
 	} else {
-		flags = store.SnapActionEnforceValidation
+		storeFlags = store.SnapActionEnforceValidation
 	}
 
 	action := &store.SnapAction{
@@ -161,8 +151,9 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
 		// the desired channel
-		Channel: opts.channel,
-		Flags:   flags,
+		Channel:   opts.Channel,
+		CohortKey: opts.CohortKey,
+		Flags:     storeFlags,
 	}
 
 	if curInfo.SnapID == "" { // amend

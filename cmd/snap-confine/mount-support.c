@@ -354,8 +354,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 				     dst, src);
 				continue;
 			}
-			// both source and destination exist and are either files or
-			// directories
+			// both source and destination exist where both are either files
+			// or both are directories
 			sc_do_mount(src, dst, NULL, MS_BIND, NULL);
 			sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 		}
@@ -408,8 +408,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// directory is always /snap. On the host it is a build-time configuration
 	// option stored in SNAP_MOUNT_DIR.
 	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC | MS_SLAVE,
-		    NULL);
+	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
 	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
@@ -679,14 +678,6 @@ void sc_ensure_shared_snap_mount(void)
 	}
 }
 
-static void sc_make_slave_mount_ns(void)
-{
-	// In our new mount namespace, recursively change all mounts
-	// to slave mode, so we see changes from the parent namespace
-	// but don't propagate our own changes.
-	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
-}
-
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const char *snap_name)
 {
@@ -702,6 +693,9 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		return;
 	}
 
-	sc_make_slave_mount_ns();
+	// In our new mount namespace, recursively change all mounts
+	// to slave mode, so we see changes from the parent namespace
+	// but don't propagate our own changes.
+	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }

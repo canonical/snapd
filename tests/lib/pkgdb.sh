@@ -441,6 +441,7 @@ distro_install_build_snapd(){
         apt install -y --only-upgrade snapd
         mv sources.list.back /etc/apt/sources.list
         apt update
+
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then

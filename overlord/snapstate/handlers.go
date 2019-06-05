@@ -292,11 +292,13 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 
 	var tsBase *state.TaskSet
 	var err error
-	timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
-		tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
-	})
-	if err != nil {
-		return err
+	if base != "none" {
+		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
+			tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// on systems without core or snapd need to install snapd to
@@ -1314,7 +1316,23 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+type doSwitchFlags struct {
+	switchCurrentChannel bool
+}
+
+// doSwitchSnapChannel switches the snap's tracking channel and/or cohort. It
+// also switches the current channel if appropriate. For use from 'Update'.
 func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericDoSwitchSnap(t, doSwitchFlags{switchCurrentChannel: true})
+}
+
+// doSwitchSnap switches the snap's tracking channel and/or cohort, *without*
+// switching the current snap channel. For use from 'Switch'.
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericDoSwitchSnap(t, doSwitchFlags{})
+}
+
+func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1326,27 +1344,15 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 
 	// switched the tracked channel
 	snapst.Channel = snapsup.Channel
-	// optionally support switching the current snap channel too, e.g.
-	// if a snap is in both stable and candidate with the same revision
-	// we can update it here and it will be displayed correctly in the UI
-	if snapsup.SideInfo.Channel != "" {
-		snapst.CurrentSideInfo().Channel = snapsup.Channel
+	snapst.CohortKey = snapsup.CohortKey
+	if flags.switchCurrentChannel {
+		// optionally support switching the current snap channel too, e.g.
+		// if a snap is in both stable and candidate with the same revision
+		// we can update it here and it will be displayed correctly in the UI
+		if snapsup.SideInfo.Channel != "" {
+			snapst.CurrentSideInfo().Channel = snapsup.Channel
+		}
 	}
-
-	Set(st, snapsup.InstanceName(), snapst)
-	return nil
-}
-
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
 
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil

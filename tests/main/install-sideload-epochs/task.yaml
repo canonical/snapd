@@ -13,15 +13,15 @@ prepare: |
 execute: |
     rx="cannot refresh \"[^ \"]*\" to local snap with epoch [^ ]*, because it can't read the current epoch"
     snap try "$TESTSLIB"/snaps/test-snapd-epoch-1
-    ! snap try "$TESTSLIB"/snaps/test-snapd-epoch-2 2> try.err
+    not snap try "$TESTSLIB"/snaps/test-snapd-epoch-2 2> try.err
     tr -s "\n " "  "  < try.err      | MATCH "$rx"
 
-    ! snap install --dangerous test-snapd-epoch_2_all.snap 2>install.err
+    not snap install --dangerous test-snapd-epoch_2_all.snap 2>install.err
     tr -s "\n " "  "  < install.err  | MATCH "$rx"
 
     snap remove test-snapd-epoch
     snap install --dangerous test-snapd-epoch_2_all.snap
-    ! snap install --dangerous test-snapd-epoch_1_all.snap 2>install1.err
+    not snap install --dangerous test-snapd-epoch_1_all.snap 2>install1.err
     tr -s "\n " "  "  < install1.err  | MATCH "$rx"
 
     snap remove test-snapd-epoch

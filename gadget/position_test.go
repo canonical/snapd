@@ -64,6 +64,7 @@ func (p *positioningTestSuite) TestVolumeSize(c *C) {
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * gadget.SizeMiB}, StartOffset: 1 * gadget.SizeMiB},
 		},
@@ -103,6 +104,7 @@ volumes:
 		Volume:     vol,
 		Size:       501 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -145,6 +147,7 @@ volumes:
 		Volume:     vol,
 		Size:       1101 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -201,6 +204,7 @@ volumes:
 		Volume:     vol,
 		Size:       1300 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -256,6 +260,7 @@ volumes:
 		Volume:     vol,
 		Size:       1200 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -465,6 +470,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -474,11 +480,13 @@ volumes:
 						VolumeContent: &vol.Structure[0].Content[1],
 						StartOffset:   1 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         1,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   2 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         0,
 					},
 				},
 			},
@@ -514,6 +522,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -523,11 +532,13 @@ volumes:
 						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   1 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         0,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[1],
 						StartOffset:   2 * gadget.SizeMiB,
 						Size:          gadget.SizeMiB,
+						Index:         1,
 					},
 				},
 			},
@@ -560,6 +571,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -602,6 +614,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -641,6 +654,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -667,6 +681,7 @@ volumes:
 		Volume:     vol,
 		Size:       2*gadget.SizeMiB + 512*gadget.SizeKiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -694,6 +709,7 @@ volumes:
 		Volume:     vol,
 		Size:       2*gadget.SizeMiB + 446,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -718,6 +734,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 1024,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -795,6 +812,7 @@ volumes:
 		Volume:     vol,
 		Size:       2 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				// MBR
@@ -847,6 +865,7 @@ volumes:
 		Volume:     vol,
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
+		RootDir:    p.dir,
 		PositionedStructure: []gadget.PositionedStructure{
 			{
 				// mbr
@@ -993,4 +1012,96 @@ volumes:
 	c.Assert(err, IsNil)
 	// foo.img offset-write is at 3GB
 	c.Check(v.Size, Equals, 3*gadget.SizeGiB+gadget.SizeLBA48Pointer)
+}
+
+func (p *positioningTestSuite) TestPositionedStructureShift(c *C) {
+	var gadgetYamlContent = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        content:
+          - image: foo.img
+          - image: bar.img
+            # 300KB
+            offset: 307200
+
+`
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*gadget.SizeKiB, []byte(""))
+
+	vol := mustParseVolume(c, gadgetYamlContent, "pc")
+
+	v, err := gadget.PositionVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+	c.Assert(v.PositionedStructure, HasLen, 1)
+	c.Assert(v.PositionedStructure[0].PositionedContent, HasLen, 2)
+
+	ps := v.PositionedStructure[0]
+
+	c.Assert(ps, DeepEquals, gadget.PositionedStructure{
+		// foo
+		VolumeStructure: &vol.Structure[0],
+		StartOffset:     1 * gadget.SizeMiB,
+		Index:           0,
+		PositionedContent: []gadget.PositionedContent{
+			{
+				VolumeContent: &vol.Structure[0].Content[0],
+				Size:          200 * gadget.SizeKiB,
+				StartOffset:   1 * gadget.SizeMiB,
+				Index:         0,
+			}, {
+				VolumeContent: &vol.Structure[0].Content[1],
+				Size:          150 * gadget.SizeKiB,
+				StartOffset:   1*gadget.SizeMiB + 300*gadget.SizeKiB,
+				Index:         1,
+			},
+		},
+	})
+
+	shiftedTo0 := gadget.ShiftStructureTo(ps, 0)
+	c.Assert(shiftedTo0, DeepEquals, gadget.PositionedStructure{
+		// foo
+		VolumeStructure: &vol.Structure[0],
+		StartOffset:     0,
+		Index:           0,
+		PositionedContent: []gadget.PositionedContent{
+			{
+				VolumeContent: &vol.Structure[0].Content[0],
+				Size:          200 * gadget.SizeKiB,
+				StartOffset:   0,
+				Index:         0,
+			}, {
+				VolumeContent: &vol.Structure[0].Content[1],
+				Size:          150 * gadget.SizeKiB,
+				StartOffset:   300 * gadget.SizeKiB,
+				Index:         1,
+			},
+		},
+	})
+
+	shiftedTo2M := gadget.ShiftStructureTo(ps, 2*gadget.SizeMiB)
+	c.Assert(shiftedTo2M, DeepEquals, gadget.PositionedStructure{
+		// foo
+		VolumeStructure: &vol.Structure[0],
+		StartOffset:     2 * gadget.SizeMiB,
+		Index:           0,
+		PositionedContent: []gadget.PositionedContent{
+			{
+				VolumeContent: &vol.Structure[0].Content[0],
+				Size:          200 * gadget.SizeKiB,
+				StartOffset:   2 * gadget.SizeMiB,
+				Index:         0,
+			}, {
+				VolumeContent: &vol.Structure[0].Content[1],
+				Size:          150 * gadget.SizeKiB,
+				StartOffset:   2*gadget.SizeMiB + 300*gadget.SizeKiB,
+				Index:         1,
+			},
+		},
+	})
 }
