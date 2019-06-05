@@ -2937,7 +2937,7 @@ func (s *deviceMgrSuite) TestGadgetUpdateBlocksWhenOtherTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tUpdate := s.state.NewTask("update-gadget", "update gadget")
+	tUpdate := s.state.NewTask("update-gadget-assets", "update gadget")
 	t1 := s.state.NewTask("other-task-1", "other 1")
 	t2 := s.state.NewTask("other-task-2", "other 2")
 
@@ -2958,7 +2958,7 @@ func (s *deviceMgrSuite) TestGadgetUpdateBlocksOtherTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tUpdate := s.state.NewTask("update-gadget", "update gadget")
+	tUpdate := s.state.NewTask("update-gadget-assets", "update gadget")
 	tUpdate.SetStatus(state.DoingStatus)
 	t1 := s.state.NewTask("other-task-1", "other 1")
 	t2 := s.state.NewTask("other-task-2", "other 2")

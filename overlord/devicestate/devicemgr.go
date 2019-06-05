@@ -142,14 +142,14 @@ func (m *DeviceManager) markRegistered() {
 }
 
 func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
-	if cand.Kind() == "update-gadget" && len(running) != 0 {
-		// update-gadget must be the only task running
+	if cand.Kind() == "update-gadget-assets" && len(running) != 0 {
+		// update-gadget-assets must be the only task running
 		return true
 	} else {
 		for _, other := range running {
-			if other.Kind() == "update-gadget" {
+			if other.Kind() == "update-gadget-assets" {
 				// no other task can be started when
-				// update-gadget is running
+				// update-gadget-assets is running
 				return true
 			}
 		}
