@@ -177,3 +177,30 @@ func updateBootloader(mntSysRecover, core, kernel string) error {
 
 	return nil
 }
+
+func enableSysrq() error {
+	f, err := os.Open("/proc/sys/kernel/sysrq")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	f.Write([]byte("1\n"))
+	return nil
+}
+
+func Restart() error {
+	if err := enableSysrq(); err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile("/proc/sysrq-trigger", os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	f.Write([]byte("b\n"))
+
+	// look away
+	select {}
+	return nil
+}

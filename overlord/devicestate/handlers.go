@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -722,8 +721,12 @@ func (m *DeviceManager) doFinishInstall(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	logger.Noticef("System installed, restart.")
+	time.Sleep(3 * time.Second)
 
-	exec.Command("reboot").Run()
+	// We're on tmpfs, just pull the plug
+	if err := recovery.Restart(); err != nil {
+		logger.Noticef("[sad trombone] cannot reboot: %s", err)
+	}
 
 	//st.Lock()
 	//st.RequestRestart(state.RestartSystem)
