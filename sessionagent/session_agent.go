@@ -125,6 +125,10 @@ func (s *SessionAgent) Stop() error {
 	return s.tomb.Wait()
 }
 
+func (s *SessionAgent) Dying() <-chan struct{} {
+	return s.tomb.Dying()
+}
+
 func NewSessionAgent() (*SessionAgent, error) {
 	agent := &SessionAgent{}
 	if err := agent.Init(); err != nil {
