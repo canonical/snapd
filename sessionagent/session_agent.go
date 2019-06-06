@@ -43,6 +43,42 @@ type SessionAgent struct {
 	router   *mux.Router
 }
 
+// A ResponseFunc handles one of the individual verbs for a method
+type ResponseFunc func(*Command, *http.Request) daemon.Response
+
+// A Command routes a request to an individual per-verb ResponseFunc
+type Command struct {
+	Path string
+
+	GET    ResponseFunc
+	PUT    ResponseFunc
+	POST   ResponseFunc
+	DELETE ResponseFunc
+
+	s *SessionAgent
+}
+
+func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var rspf ResponseFunc
+	var rsp = daemon.MethodNotAllowed("method %q not allowed", r.Method)
+
+	switch r.Method {
+	case "GET":
+		rspf = c.GET
+	case "PUT":
+		rspf = c.PUT
+	case "POST":
+		rspf = c.POST
+	case "DELETE":
+		rspf = c.DELETE
+	}
+
+	if rspf != nil {
+		rsp = rspf(c, r)
+	}
+	rsp.ServeHTTP(w, r)
+}
+
 func (s *SessionAgent) Init() error {
 	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
@@ -52,18 +88,18 @@ func (s *SessionAgent) Init() error {
 	if s.listener, err = netutil.GetListener(agentSocket, listenerMap); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
 	}
-	s.router = mux.NewRouter()
-	s.router.NotFoundHandler = daemon.NotFound("not found")
+	s.addRoutes()
 	s.serve = &http.Server{Handler: s.router}
 	return nil
 }
 
-func (s *SessionAgent) AddRoute(path string, rspf func(s *SessionAgent, r *http.Request) daemon.Response) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rsp := rspf(s, r)
-		rsp.ServeHTTP(w, r)
-	})
-	s.router.Handle(path, handler).Name(path)
+func (s *SessionAgent) addRoutes() {
+	s.router = mux.NewRouter()
+	for _, c := range restApi {
+		c.s = s
+		s.router.Handle(c.Path, c).Name(c.Path)
+	}
+	s.router.NotFoundHandler = daemon.NotFound("not found")
 }
 
 func (s *SessionAgent) Start() {
@@ -95,6 +131,5 @@ func NewSessionAgent() (*SessionAgent, error) {
 	if err := agent.Init(); err != nil {
 		return nil, err
 	}
-	agent.AddRoute("/v1/agent-info", agentInfo)
 	return agent, nil
 }

@@ -25,9 +25,26 @@ import (
 	"github.com/snapcore/snapd/daemon"
 )
 
-func agentInfo(s *SessionAgent, r *http.Request) daemon.Response {
+var restApi = []*Command{
+	rootCmd,
+	agentInfoCmd,
+}
+
+var (
+	rootCmd = &Command{
+		Path: "/",
+		GET:  nil,
+	}
+
+	agentInfoCmd = &Command{
+		Path: "/v1/agent-info",
+		GET:  agentInfo,
+	}
+)
+
+func agentInfo(c *Command, r *http.Request) daemon.Response {
 	m := map[string]interface{}{
-		"version": s.Version,
+		"version": c.s.Version,
 	}
 	return daemon.SyncResponse(m, nil)
 }
