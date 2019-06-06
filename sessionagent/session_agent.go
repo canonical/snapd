@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/netutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type SessionAgent struct {
@@ -112,6 +113,7 @@ func (s *SessionAgent) Start() {
 		}
 		return nil
 	})
+	systemd.SdNotify("READY=1")
 }
 
 var (
@@ -119,6 +121,7 @@ var (
 )
 
 func (s *SessionAgent) Stop() error {
+	systemd.SdNotify("STOPPING=1")
 	ctx, cancel := context.WithTimeout(s.tomb.Context(nil), shutdownTimeout)
 	defer cancel()
 	s.tomb.Kill(s.serve.Shutdown(ctx))
