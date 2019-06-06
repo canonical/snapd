@@ -21,8 +21,6 @@ package sessionagent
 
 import (
 	"net/http"
-
-	"github.com/snapcore/snapd/daemon"
 )
 
 var restApi = []*Command{
@@ -42,9 +40,9 @@ var (
 	}
 )
 
-func agentInfo(c *Command, r *http.Request) daemon.Response {
+func agentInfo(c *Command, r *http.Request) Response {
 	m := map[string]interface{}{
 		"version": c.s.Version,
 	}
-	return daemon.SyncResponse(m, nil)
+	return SyncResponse(m)
 }

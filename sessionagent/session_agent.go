@@ -30,7 +30,6 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/netutil"
 )
@@ -44,7 +43,7 @@ type SessionAgent struct {
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
-type ResponseFunc func(*Command, *http.Request) daemon.Response
+type ResponseFunc func(*Command, *http.Request) Response
 
 // A Command routes a request to an individual per-verb ResponseFunc
 type Command struct {
@@ -60,7 +59,7 @@ type Command struct {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rspf ResponseFunc
-	var rsp = daemon.MethodNotAllowed("method %q not allowed", r.Method)
+	var rsp = MethodNotAllowed("method %q not allowed", r.Method)
 
 	switch r.Method {
 	case "GET":
@@ -99,7 +98,7 @@ func (s *SessionAgent) addRoutes() {
 		c.s = s
 		s.router.Handle(c.Path, c).Name(c.Path)
 	}
-	s.router.NotFoundHandler = daemon.NotFound("not found")
+	s.router.NotFoundHandler = NotFound("not found")
 }
 
 func (s *SessionAgent) Start() {
