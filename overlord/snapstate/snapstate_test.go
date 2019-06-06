@@ -3621,7 +3621,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh a snap")
-	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{
+		Channel:   "some-channel",
+		CohortKey: "some-cohort",
+	}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -3651,6 +3654,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				InstanceName: "services-snap",
 				SnapID:       "services-snap-id",
 				Channel:      "some-channel",
+				CohortKey:    "some-cohort",
 				Flags:        store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
@@ -3762,8 +3766,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "some-channel",
-		UserID:  s.user.ID,
+		Channel:   "some-channel",
+		CohortKey: "some-cohort",
+		UserID:    s.user.ID,
 
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
@@ -3807,6 +3812,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 		Revision: snap.R(11),
 	})
+	c.Check(snapst.CohortKey, Equals, "some-cohort")
 
 	// we end up with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
@@ -9006,11 +9012,59 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
+type switchScenario struct {
+	chanFrom string
+	chanTo   string
+	cohFrom  string
+	cohTo    string
+	summary  string
+}
+
+var switchScenarios = []switchScenario{
+	// no cohort at all
+	{"stable", "some-channel", "", "", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
+	// no cohort, from empty channel
+	{"", "some-channel", "", "", `Switch snap "some-snap" from no channel to "some-channel"`},
+	// cohort specified is the same as current
+	{"stable", "some-channel", "some-cohort", "some-cohort", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
+	// no cohort change requested
+	{"stable", "some-channel", "some-cohort", "", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
+	// no channel at all (local installed snap? XXX: might actually need an error for sanity)
+	{"", "", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
+	// channel specified is the same as current
+	{"stable", "stable", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
+	// no channel change requested
+	{"stable", "", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
+	// no channel change requested, from empty cohort
+	{"stable", "", "", "some-cohort", `Switch snap "some-snap" from no cohort to "some-coho…"`},
+	// all change
+	{"stable", "edge", "some-cohort", "some-other-cohort",
+		`Switch snap "some-snap" from channel "stable" to "edge" and from cohort "some-coho…" to "some-othe…"`},
+	// all change, from empty channel
+	{"", "stable", "some-cohort", "some-other-cohort",
+		`Switch snap "some-snap" from no channel to "stable" and from cohort "some-coho…" to "some-othe…"`},
+	// all change, from empty cohort
+	{"stable", "edge", "", "some-cohort",
+		`Switch snap "some-snap" from channel "stable" to "edge" and from no cohort to "some-coho…"`},
+	// all change, from empty channel and cohort
+	{"", "stable", "", "some-cohort",
+		`Switch snap "some-snap" from no channel to "stable" and from no cohort to "some-coho…"`},
+	// no change (XXX: error?)
+	{"stable", "stable", "some-cohort", "some-cohort", `No change switch (bug?)`},
+}
+
+func (s *snapmgrTestSuite) TestSwitchScenarios(c *C) {
+	for i, t := range switchScenarios {
+		s.testSwitchScenario(c, i, t)
+	}
+}
+
+func (s *snapmgrTestSuite) testSwitchScenario(c *C, i int, t switchScenario) {
+	comment := Commentf("%d (%+v)", i, t)
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
-		Channel:  "edge",
+		Channel:  t.chanFrom,
 		SnapID:   "foo",
 	}
 
@@ -9018,34 +9072,133 @@ func (s *snapmgrTestSuite) TestSwitchRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si},
-		Current:  si.Revision,
-		Channel:  "edge",
+		Sequence:  []*snap.SideInfo{&si},
+		Current:   si.Revision,
+		Channel:   t.chanFrom,
+		CohortKey: t.cohFrom,
 	})
 
-	chg := s.state.NewChange("switch-snap", "switch snap to some-channel")
-	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
-	c.Assert(err, IsNil)
+	summary := snapstate.SwitchSummary("some-snap", t.chanFrom, t.chanTo, t.cohFrom, t.cohTo)
+	c.Check(summary, Equals, t.summary, comment)
+	chg := s.state.NewChange("switch-snap", summary)
+	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{
+		Channel:   t.chanTo,
+		CohortKey: t.cohTo,
+	})
+	c.Assert(err, IsNil, comment)
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
 
 	// switch is not really really doing anything backend related
-	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Assert(s.fakeBackend.ops, HasLen, 0, comment)
 
-	// ensure the desired channel has changed
+	expectedChanTo := t.chanTo
+	if t.chanTo == "" {
+		expectedChanTo = t.chanFrom
+	}
+	expectedCohTo := t.cohTo
+	if t.cohTo == "" {
+		expectedCohTo = t.cohFrom
+	}
+
+	// ensure the desired channel/cohort has changed
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
-	c.Assert(err, IsNil)
-	c.Assert(snapst.Channel, Equals, "some-channel")
+	c.Assert(err, IsNil, comment)
+	c.Assert(snapst.Channel, Equals, expectedChanTo, comment)
+	c.Assert(snapst.CohortKey, Equals, expectedCohTo, comment)
 
 	// ensure the current info has not changed
 	info, err := snapst.CurrentInfo()
-	c.Assert(err, IsNil)
-	c.Assert(info.Channel, Equals, "edge")
+	c.Assert(err, IsNil, comment)
+	c.Assert(info.Channel, Equals, t.chanFrom, comment)
+}
+
+func (s *snapmgrTestSuite) TestUpdateScenarios(c *C) {
+	// TODO: also use channel-for-7 or equiv to check updates that are switches
+	for i, t := range switchScenarios {
+		s.testUpdateScenario(c, i, t)
+	}
+}
+
+func (s *snapmgrTestSuite) testUpdateScenario(c *C, i int, t switchScenario) {
+	// reset
+	s.fakeBackend.ops = nil
+
+	comment := Commentf("%d (%+v)", i, t)
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		Channel:  t.chanFrom,
+		SnapID:   "some-snap-id",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence:  []*snap.SideInfo{&si},
+		Active:    true,
+		Current:   si.Revision,
+		Channel:   t.chanFrom,
+		CohortKey: t.cohFrom,
+	})
+
+	chg := s.state.NewChange("update-snap", t.summary)
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{
+		Channel:   t.chanTo,
+		CohortKey: t.cohTo,
+	}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil, comment)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// switch is not really really doing anything backend related
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, []string{
+		"storesvc-snap-action",
+		"storesvc-snap-action:action",
+		"storesvc-download",
+		"validate-snap:Doing",
+		"current",
+		"open-snap-file",
+		"setup-snap",
+		"remove-snap-aliases",
+		"unlink-snap",
+		"copy-data",
+		"setup-profiles:Doing",
+		"candidate",
+		"link-snap",
+		"auto-connect:Doing",
+		"update-aliases",
+		"cleanup-trash",
+	}, comment)
+
+	expectedChanTo := t.chanTo
+	if t.chanTo == "" {
+		expectedChanTo = t.chanFrom
+	}
+	expectedCohTo := t.cohTo
+	if t.cohTo == "" {
+		expectedCohTo = t.cohFrom
+	}
+
+	// ensure the desired channel/cohort has changed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil, comment)
+	c.Assert(snapst.Channel, Equals, expectedChanTo, comment)
+	c.Assert(snapst.CohortKey, Equals, expectedCohTo, comment)
+
+	// ensure the current info *has* changed
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil, comment)
+	c.Assert(info.Channel, Equals, expectedChanTo, comment)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstallSwitchRunThrough(c *C) {

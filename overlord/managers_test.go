@@ -3584,6 +3584,10 @@ func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
 }
 
 func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
+	// just to 404 locally eager account-key requests
+	mockStoreServer := s.mockStore(c)
+	defer mockStoreServer.Close()
+
 	model := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
 		"gadget": "gadget",
 	})
