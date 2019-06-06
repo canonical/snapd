@@ -198,7 +198,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
-	case "some-gadget":
+	case "some-gadget", "brand-gadget":
 		typ = snap.TypeGadget
 	case "some-snapd":
 		typ = snap.TypeSnapd
@@ -308,9 +308,6 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeKernel
 	case "brand-gadget-id":
 		name = "brand-gadget"
-		typ = snap.TypeGadget
-	case "some-gadget-id":
-		name = "some-gadget"
 		typ = snap.TypeGadget
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))

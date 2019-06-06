@@ -14430,7 +14430,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	defer s.state.Unlock()
 
 	// task added on install
-	ts, err := snapstate.Install(s.state, "some-gadget", "", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(s.state, "brand-gadget", "", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -14444,17 +14444,17 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, "some-gadget", &snapstate.SnapState{
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-gadget", SnapID: "some-gadget-id", Revision: snap.R(1)},
+			{RealName: "brand-gadget", SnapID: "brand-gadget-id", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
 
 	// and on update
-	ts, err := snapstate.Update(s.state, "some-gadget", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "brand-gadget", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
