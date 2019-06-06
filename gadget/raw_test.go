@@ -253,11 +253,11 @@ func (r *rawTestSuite) TestRawWriterInternalErrors(c *C) {
 	}
 
 	rw, err := gadget.NewRawStructureWriter("", ps)
-	c.Assert(err, ErrorMatches, "internal error: content root directory not provided")
+	c.Assert(err, ErrorMatches, "internal error: root directory cannot be unset")
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureWriter(r.dir, nil)
-	c.Assert(err, ErrorMatches, "internal error: missing structure")
+	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure is nil`)
 	c.Assert(rw, IsNil)
 }
 
@@ -542,7 +542,7 @@ func (r *rawTestSuite) TestRawUpdaterFindDeviceFailed(c *C) {
 	}
 
 	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, nil)
-	c.Assert(err, ErrorMatches, "internal error: missing device lookup helper")
+	c.Assert(err, ErrorMatches, "internal error: device lookup helper must be provided")
 	c.Assert(ru, IsNil)
 
 	ru, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
@@ -690,18 +690,18 @@ func (r *rawTestSuite) TestRawUpdaterInternalErrors(c *C) {
 		return "", errors.New("unexpected call")
 	}
 	rw, err := gadget.NewRawStructureUpdater("", ps, r.backup, f)
-	c.Assert(err, ErrorMatches, "internal error: content root directory not provided")
+	c.Assert(err, ErrorMatches, "internal error: root directory cannot be unset")
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureUpdater(r.dir, nil, r.backup, f)
-	c.Assert(err, ErrorMatches, "internal error: missing structure")
+	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure is nil`)
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureUpdater(r.dir, ps, "", f)
-	c.Assert(err, ErrorMatches, "internal error: backup directory not provided")
+	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, nil)
-	c.Assert(err, ErrorMatches, "internal error: missing device lookup helper")
+	c.Assert(err, ErrorMatches, "internal error: device lookup helper must be provided")
 	c.Assert(rw, IsNil)
 }

@@ -40,13 +40,13 @@ type RawStructureWriter struct {
 // the structure content data from the provided root directory.
 func NewRawStructureWriter(rootDir string, ps *PositionedStructure) (*RawStructureWriter, error) {
 	if ps == nil {
-		return nil, fmt.Errorf("internal error: missing structure")
+		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
 	}
 	if !ps.IsBare() {
 		return nil, fmt.Errorf("internal error: structure %s is not bare", ps)
 	}
 	if rootDir == "" {
-		return nil, fmt.Errorf("internal error: content root directory not provided")
+		return nil, fmt.Errorf("internal error: root directory cannot be unset")
 	}
 	rw := &RawStructureWriter{
 		rootDir: rootDir,
@@ -72,9 +72,6 @@ func writeRawStream(out io.WriteSeeker, pc *PositionedContent, in io.Reader) err
 
 // writeRawImage writes a single image described by a positioned content entry.
 func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *PositionedContent) error {
-	if pc == nil {
-		return fmt.Errorf("internal error: content not provided")
-	}
 	if pc.Image == "" {
 		return fmt.Errorf("internal error: no image defined")
 	}
@@ -111,10 +108,10 @@ type locationLookupFunc func(ps *PositionedStructure) (string, error)
 // structures are temporarily kept in the rollback directory.
 func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) (*RawStructureUpdater, error) {
 	if deviceLookup == nil {
-		return nil, fmt.Errorf("internal error: missing device lookup helper")
+		return nil, fmt.Errorf("internal error: device lookup helper must be provided")
 	}
 	if backupDir == "" {
-		return nil, fmt.Errorf("internal error: backup directory not provided")
+		return nil, fmt.Errorf("internal error: backup directory cannot be unset")
 	}
 
 	rw, err := NewRawStructureWriter(rootDir, ps)
