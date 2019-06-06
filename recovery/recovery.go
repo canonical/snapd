@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -37,6 +38,33 @@ const (
 	sizeMB     = 1 << 20
 )
 
+func Recover(version string) error {
+	logger.Noticef("Run recovery %s", version)
+
+	mntRecovery := "/mnt/recovery"
+
+	if err := mountFilesystem("writable", mntRecovery); err != nil {
+		return err
+	}
+
+	// shortcut: we can do something better than just bind-mount everything
+
+	extrausers := "/var/lib/extrausers"
+	recoveryExtrausers := path.Join(mntRecovery, "system-data", extrausers)
+	err := exec.Command("mount", "-o", "bind", recoveryExtrausers, extrausers).Run()
+	if err != nil {
+		return fmt.Errorf("cannot mount extrausers: %s", err)
+	}
+
+	recoveryHome := path.Join(mntRecovery, "user-data")
+	err = exec.Command("mount", "-o", "bind", recoveryHome, "/home").Run()
+	if err != nil {
+		return fmt.Errorf("cannot mount home: %s", err)
+	}
+
+	return nil
+}
+
 func Install(version string) error {
 	logger.Noticef("Install recovery %s", version)
 	if err := createWritable(); err != nil {
@@ -47,17 +75,11 @@ func Install(version string) error {
 	mntWritable := "/mnt/new-writable"
 	mntSysRecover := "/mnt/sys-recover"
 
-	// Create mountpoints
-	mountpoints := []string{mntWritable, mntSysRecover}
-	if err := mkdirs("/", mountpoints, 0755); err != nil {
+	if err := mountFilesystem("writable", mntWritable); err != nil {
 		return err
 	}
 
-	// Mount new writable and recovery
-	if err := mount("writable", mntWritable); err != nil {
-		return err
-	}
-	if err := mount("sys-recover", mntSysRecover); err != nil {
+	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
 		return err
 	}
 
@@ -96,6 +118,20 @@ func createWritable() error {
 	err := disk.CreatePartition(1000*sizeMB, "writable")
 	if err != nil {
 		return fmt.Errorf("cannot create new writable: %s", err)
+	}
+
+	return nil
+}
+
+func mountFilesystem(label string, mountpoint string) error {
+	// Create mountpoint
+	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+		return err
+	}
+
+	// Mount filesystem
+	if err := mount(label, mountpoint); err != nil {
+		return err
 	}
 
 	return nil

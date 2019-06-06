@@ -80,7 +80,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
-	runner.AddHandler("finish-install", m.doFinishInstall, nil)
+	runner.AddHandler("snap-mode-install", m.doInstallMode, nil)
+	runner.AddHandler("snap-mode-recover", m.doRecoverMode, nil)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
 

@@ -705,7 +705,7 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 	}
 }
 
-func (m *DeviceManager) doFinishInstall(t *state.Task, tomb *tomb.Tomb) error {
+func (m *DeviceManager) doInstallMode(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -731,6 +731,24 @@ func (m *DeviceManager) doFinishInstall(t *state.Task, tomb *tomb.Tomb) error {
 	//st.Lock()
 	//st.RequestRestart(state.RestartSystem)
 	//st.Unlock()
+
+	return nil
+}
+
+func (m *DeviceManager) doRecoverMode(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var version string
+	if err := t.Get("recovery-version", &version); err != nil {
+		return err
+	}
+
+	logger.Noticef("Running in recover mode")
+	if err := recovery.Recover(version); err != nil {
+		return err
+	}
 
 	return nil
 }
