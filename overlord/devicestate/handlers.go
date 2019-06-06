@@ -979,6 +979,8 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
 	}
 
+	// TODO: consider having the option to do this early via recovery in
+	// core20, have fallback code as well there
 	st.RequestRestart(state.RestartSystem)
 
 	return nil
