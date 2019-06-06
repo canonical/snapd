@@ -784,7 +784,6 @@ type snapInstructionResult struct {
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
-	snapstateInstallCohort     = snapstate.InstallCohort
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
@@ -933,16 +932,14 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
-	var tset *state.TaskSet
 	var ckey string
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
-		tset, err = snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	} else {
 		ckey = strutil.ElliptRight(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
-		tset, err = snapstateInstallCohort(st, inst.Snaps[0], inst.Channel, inst.CohortKey, inst.userID, flags)
 	}
+	tset, err := snapstateInstall(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
