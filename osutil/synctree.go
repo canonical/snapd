@@ -51,6 +51,27 @@ func removeEmptyDirs(baseDir, relPath string) error {
 	return nil
 }
 
+// EnsureTreeState ensures that a directory tree content matches expectations.
+//
+// EnsureTreeState walks subdirectories of the base directory, and
+// uses EnsureDirStateGlobs to synchronise content with the
+// corresponding entry in the content map.  Any non-existent
+// subdirectories in the content map will be created.
+//
+// After synchronising all subdirectories, any subdirectories where
+// files were removed that are now empty will itself be removed, plus
+// its parent directories up to but not including the base directory.
+//
+// No checks are performed to see whether subdirectories match the
+// passed globs, so it is the caller's responsibility to not create
+// directories that may match any globs passed in.
+//
+// For example, if the glob "snap.$SNAP_NAME.*" is used then the
+// caller should avoid trying to populate any directories matching
+// "snap.*".
+//
+// A list of changed and removed files is returned, as relative paths
+// to the base directory.
 func EnsureTreeState(baseDir string, globs []string, content map[string]map[string]*FileState) (changed, removed []string, err error) {
 	// Find all existing subdirectories under the base dir.  Don't
 	// perform any modifications here because, as it may confuse
