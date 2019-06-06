@@ -493,7 +493,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	// TODO: should we run a remodel only while no other change is
-	// running?  do we add a task upfron that waits for that to be
+	// running?  do we add a task upfront that waits for that to be
 	// true? Do we do this only for the more complicated cases
 	// (anything more than adding required-snaps really)?
 
