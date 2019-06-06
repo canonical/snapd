@@ -926,12 +926,8 @@ func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (curr
 }
 
 var (
-	gadgetUpdate = nopGadgetOp
+	gadgetUpdate = gadget.Update
 )
-
-func nopGadgetOp(current, update gadget.GadgetData, rollbackRootDir string) error {
-	return nil
-}
 
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
