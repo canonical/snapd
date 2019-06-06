@@ -36,8 +36,8 @@ type RawStructureWriter struct {
 	ps      *PositionedStructure
 }
 
-// NewRawStructureWriter returns a writer for given structure, that will load
-// the structure content data from provided root directory.
+// NewRawStructureWriter returns a writer for the given structure, that will load
+// the structure content data from the provided root directory.
 func NewRawStructureWriter(rootDir string, ps *PositionedStructure) (*RawStructureWriter, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: missing structure")
@@ -103,8 +103,8 @@ type RawStructureUpdater struct {
 
 type locationLookupFunc func(ps *PositionedStructure) (string, error)
 
-// NewRawStructureUpdater returns an updater for given raw (bare) structure.
-// Update data will be loaded from provided root directory. Backups of replaced
+// NewRawStructureUpdater returns an updater for the given raw (bare) structure.
+// Update data will be loaded from the provided root directory. Backups of replaced
 // structures are temporarily kept in the rollback directory.
 func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) (*RawStructureUpdater, error) {
 	if deviceLookup == nil {
@@ -234,7 +234,7 @@ func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *Position
 	return nil
 }
 
-// Rollback attempts to restore original content from backup copies prepared during Backup().
+// Rollback attempts to restore original content from the backup copies prepared during Backup().
 func (r *RawStructureUpdater) Rollback() error {
 	device, err := r.deviceLookup(r.ps)
 	if err != nil {
