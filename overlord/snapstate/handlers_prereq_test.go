@@ -519,3 +519,29 @@ func (s *prereqSuite) TestDoPrereqCore18NoCorePullsInSnapd(c *C) {
 func (s *prereqSuite) TestDoPrereqOtherBaseNoCorePullsInSnapd(c *C) {
 	s.testDoPrereqNoCorePullsInSnaps(c, "some-base")
 }
+
+func (s *prereqSuite) TestDoPrereqBaseIsNotBase(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Base:    "some-epoch-snap",
+		Prereq:  []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(expected snap "some-epoch-snap" to be of 'base' type\)`)
+}
