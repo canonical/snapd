@@ -3055,6 +3055,8 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.Log(), HasLen, 1)
+	c.Check(t.Log()[0], Matches, ".* INFO No gadget assets update needed")
 	c.Check(called, Equals, true)
 	c.Check(s.restartRequests, HasLen, 0)
 }
@@ -3238,7 +3240,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Assert(chg.IsReady(), Equals, true)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget task on a classic system\).*`)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget assets task on a classic system\).*`)
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 

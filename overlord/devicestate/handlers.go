@@ -867,7 +867,7 @@ func nopGadgetOp(current, update *gadget.Info, rollbackRootDir string) error {
 
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
-		return fmt.Errorf("cannot run update gadget task on a classic system")
+		return fmt.Errorf("cannot run update gadget assets task on a classic system")
 	}
 
 	st := t.State()
@@ -899,6 +899,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
 			// no update needed
+			t.Logf("No gadget assets update needed")
 			return nil
 		}
 		return err
