@@ -65,6 +65,9 @@ type Flags struct {
 	// re-refresh tasks. This allows refresh to work offline, as
 	// long as refresh assets are cached.
 	NoReRefresh bool `json:"no-rerefresh,omitempty"`
+
+	// TODO document
+	RequireBaseType bool `json:"require-base-type"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)

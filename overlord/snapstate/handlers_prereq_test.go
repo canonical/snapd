@@ -517,5 +517,5 @@ func (s *prereqSuite) TestDoPrereqCore18NoCorePullsInSnapd(c *C) {
 }
 
 func (s *prereqSuite) TestDoPrereqOtherBaseNoCorePullsInSnapd(c *C) {
-	s.testDoPrereqNoCorePullsInSnaps(c, "other-base")
+	s.testDoPrereqNoCorePullsInSnaps(c, "some-base")
 }

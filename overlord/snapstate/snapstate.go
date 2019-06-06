@@ -703,6 +703,10 @@ func InstallWithDeviceContext(st *state.State, name, channel, cohort string, rev
 		return nil, err
 	}
 
+	if flags.RequireBaseType && info.Type != snap.TypeBase && info.Type != snap.TypeOS {
+		return nil, fmt.Errorf("expected snap %q to be of 'base' type", name)
+	}
+
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
