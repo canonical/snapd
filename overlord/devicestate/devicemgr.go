@@ -102,6 +102,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// unless a new gadget update is deployed.
 	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
 
+	runner.AddBlocked(gadgetUpdateBlocked)
+
 	return m, nil
 }
 
@@ -144,6 +146,23 @@ func (m *DeviceManager) markRegistered() {
 	}
 	m.registered = true
 	close(m.reg)
+}
+
+func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
+	if cand.Kind() == "update-gadget-assets" && len(running) != 0 {
+		// update-gadget-assets must be the only task running
+		return true
+	} else {
+		for _, other := range running {
+			if other.Kind() == "update-gadget-assets" {
+				// no other task can be started when
+				// update-gadget-assets is running
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 type prepareDeviceHandler struct{}
