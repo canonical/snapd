@@ -94,9 +94,9 @@ type PositionedContent struct {
 
 func (p PositionedContent) String() string {
 	if p.Image != "" {
-		return fmtIndexAndName(p.Index, fmt.Sprintf("%v@%#x{%v}", p.Image, p.StartOffset, p.Size))
+		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
 	}
-	return fmtIndexAndName(p.Index, fmt.Sprintf("source:%s", p.Source))
+	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
 }
 
 // PositionVolume attempts to lay out the volume using constraints and returns a
