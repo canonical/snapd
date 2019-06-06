@@ -253,7 +253,7 @@ func (r *rawTestSuite) TestRawWriterInternalErrors(c *C) {
 	}
 
 	rw, err := gadget.NewRawStructureWriter("", ps)
-	c.Assert(err, ErrorMatches, "internal error: root directory cannot be unset")
+	c.Assert(err, ErrorMatches, "internal error: gadget content directory cannot be unset")
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureWriter(r.dir, nil)
@@ -690,7 +690,7 @@ func (r *rawTestSuite) TestRawUpdaterInternalErrors(c *C) {
 		return "", errors.New("unexpected call")
 	}
 	rw, err := gadget.NewRawStructureUpdater("", ps, r.backup, f)
-	c.Assert(err, ErrorMatches, "internal error: root directory cannot be unset")
+	c.Assert(err, ErrorMatches, "internal error: gadget content directory cannot be unset")
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureUpdater(r.dir, nil, r.backup, f)

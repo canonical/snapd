@@ -32,25 +32,25 @@ import (
 
 // RawStructureWriter implements support for writing raw (bare) structures.
 type RawStructureWriter struct {
-	rootDir string
-	ps      *PositionedStructure
+	contentDir string
+	ps         *PositionedStructure
 }
 
 // NewRawStructureWriter returns a writer for the given structure, that will load
-// the structure content data from the provided root directory.
-func NewRawStructureWriter(rootDir string, ps *PositionedStructure) (*RawStructureWriter, error) {
+// the structure content data from the provided gadget content directory.
+func NewRawStructureWriter(contentDir string, ps *PositionedStructure) (*RawStructureWriter, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
 	}
 	if !ps.IsBare() {
 		return nil, fmt.Errorf("internal error: structure %s is not bare", ps)
 	}
-	if rootDir == "" {
-		return nil, fmt.Errorf("internal error: root directory cannot be unset")
+	if contentDir == "" {
+		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
 	}
 	rw := &RawStructureWriter{
-		rootDir: rootDir,
-		ps:      ps,
+		contentDir: contentDir,
+		ps:         ps,
 	}
 	return rw, nil
 }
@@ -75,7 +75,7 @@ func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *PositionedCon
 	if pc.Image == "" {
 		return fmt.Errorf("internal error: no image defined")
 	}
-	img, err := os.Open(filepath.Join(r.rootDir, pc.Image))
+	img, err := os.Open(filepath.Join(r.contentDir, pc.Image))
 	if err != nil {
 		return fmt.Errorf("cannot open image file: %v", err)
 	}
@@ -104,9 +104,10 @@ type RawStructureUpdater struct {
 type locationLookupFunc func(ps *PositionedStructure) (string, error)
 
 // NewRawStructureUpdater returns an updater for the given raw (bare) structure.
-// Update data will be loaded from the provided root directory. Backups of replaced
-// structures are temporarily kept in the rollback directory.
-func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) (*RawStructureUpdater, error) {
+// Update data will be loaded from the provided gadget content directory.
+// Backups of replaced structures are temporarily kept in the rollback
+// directory.
+func NewRawStructureUpdater(contentDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) (*RawStructureUpdater, error) {
 	if deviceLookup == nil {
 		return nil, fmt.Errorf("internal error: device lookup helper must be provided")
 	}
@@ -114,7 +115,7 @@ func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir s
 		return nil, fmt.Errorf("internal error: backup directory cannot be unset")
 	}
 
-	rw, err := NewRawStructureWriter(rootDir, ps)
+	rw, err := NewRawStructureWriter(contentDir, ps)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +168,7 @@ func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 	}
 
 	// digest of the update
-	updateDigest, _, err := osutil.FileDigest(filepath.Join(r.rootDir, pc.Image), crypto.SHA1)
+	updateDigest, _, err := osutil.FileDigest(filepath.Join(r.contentDir, pc.Image), crypto.SHA1)
 	if err != nil {
 		defer backup.Cancel()
 		return fmt.Errorf("cannot checksum update image: %v", err)
