@@ -72,6 +72,9 @@ func writeRawStream(out io.WriteSeeker, pc *PositionedContent, in io.Reader) err
 
 // writeRawImage writes a single image described by a positioned content entry.
 func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *PositionedContent) error {
+	if pc == nil {
+		return fmt.Errorf("internal error: content not provided")
+	}
 	if pc.Image == "" {
 		return fmt.Errorf("internal error: no image defined")
 	}
