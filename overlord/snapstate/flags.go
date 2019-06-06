@@ -66,7 +66,7 @@ type Flags struct {
 	// long as refresh assets are cached.
 	NoReRefresh bool `json:"no-rerefresh,omitempty"`
 
-	// TODO document
+	// RequireBaseType is set to mark that a snap needs to be of type: base, otherwise installation fails.
 	RequireBaseType bool `json:"require-base-type"`
 }
 
