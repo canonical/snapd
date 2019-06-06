@@ -39,8 +39,14 @@ type RawStructureWriter struct {
 // NewRawStructureWriter returns a writer for given structure, that will load
 // the structure content data from provided root directory.
 func NewRawStructureWriter(rootDir string, ps *PositionedStructure) (*RawStructureWriter, error) {
+	if ps == nil {
+		return nil, fmt.Errorf("internal error: missing structure")
+	}
 	if !ps.IsBare() {
-		return nil, fmt.Errorf("structure %v is not bare", ps)
+		return nil, fmt.Errorf("internal error: structure %s is not bare", ps)
+	}
+	if rootDir == "" {
+		return nil, fmt.Errorf("internal error: content root directory not provided")
 	}
 	rw := &RawStructureWriter{
 		rootDir: rootDir,
@@ -101,6 +107,13 @@ type locationLookupFunc func(ps *PositionedStructure) (string, error)
 // Update data will be loaded from provided root directory. Backups of replaced
 // structures are temporarily kept in the rollback directory.
 func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) (*RawStructureUpdater, error) {
+	if deviceLookup == nil {
+		return nil, fmt.Errorf("internal error: missing device lookup helper")
+	}
+	if backupDir == "" {
+		return nil, fmt.Errorf("internal error: backup directory not provided")
+	}
+
 	rw, err := NewRawStructureWriter(rootDir, ps)
 	if err != nil {
 		return nil, err
@@ -115,13 +128,6 @@ func NewRawStructureUpdater(rootDir string, ps *PositionedStructure, backupDir s
 
 func rawContentBackupPath(backupDir string, ps *PositionedStructure, pc *PositionedContent) string {
 	return filepath.Join(backupDir, fmt.Sprintf("struct-%v-%v", ps.Index, pc.Index))
-}
-
-func (r *RawStructureUpdater) findDevice(to *PositionedStructure) (string, error) {
-	if r.deviceLookup == nil {
-		return "", fmt.Errorf("device lookup not implemented")
-	}
-	return r.deviceLookup(to)
 }
 
 func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *PositionedContent) error {
@@ -189,7 +195,7 @@ func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 // and backup of each region is checkpointed. Regions that have been backed up
 // or determined to be identical will not be analyzed on subsequent calls.
 func (r *RawStructureUpdater) Backup() error {
-	device, err := r.findDevice(r.ps)
+	device, err := r.deviceLookup(r.ps)
 	if err != nil {
 		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
 	}
@@ -230,7 +236,7 @@ func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *Position
 
 // Rollback attempts to restore original content from backup copies prepared during Backup().
 func (r *RawStructureUpdater) Rollback() error {
-	device, err := r.findDevice(r.ps)
+	device, err := r.deviceLookup(r.ps)
 	if err != nil {
 		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
 	}
@@ -274,7 +280,7 @@ func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *Positione
 // Update attempts to update the structure. The structure must have been
 // analyzed and backed up by a prior Backup() call.
 func (r *RawStructureUpdater) Update() error {
-	device, err := r.findDevice(r.ps)
+	device, err := r.deviceLookup(r.ps)
 	if err != nil {
 		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
 	}

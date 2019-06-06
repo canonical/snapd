@@ -241,7 +241,23 @@ func (r *rawTestSuite) TestRawWriterFailWithNonBare(c *C) {
 	}
 
 	rw, err := gadget.NewRawStructureWriter(r.dir, ps)
-	c.Assert(err, ErrorMatches, "structure #0 is not bare")
+	c.Assert(err, ErrorMatches, "internal error: structure #0 is not bare")
+	c.Assert(rw, IsNil)
+}
+
+func (r *rawTestSuite) TestRawWriterInternalErrors(c *C) {
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size: 2048,
+		},
+	}
+
+	rw, err := gadget.NewRawStructureWriter("", ps)
+	c.Assert(err, ErrorMatches, "internal error: content root directory not provided")
+	c.Assert(rw, IsNil)
+
+	rw, err = gadget.NewRawStructureWriter(r.dir, nil)
+	c.Assert(err, ErrorMatches, "internal error: missing structure")
 	c.Assert(rw, IsNil)
 }
 
@@ -264,7 +280,7 @@ func (r *rawTestSuite) TestRawUpdaterFailWithNonBare(c *C) {
 		c.Fatalf("unexpected call")
 		return "", nil
 	})
-	c.Assert(err, ErrorMatches, "structure #0 is not bare")
+	c.Assert(err, ErrorMatches, "internal error: structure #0 is not bare")
 	c.Assert(ru, IsNil)
 }
 
@@ -526,11 +542,8 @@ func (r *rawTestSuite) TestRawUpdaterFindDeviceFailed(c *C) {
 	}
 
 	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, nil)
-	c.Assert(err, IsNil)
-	c.Assert(ru, NotNil)
-
-	err = ru.Backup()
-	c.Assert(err, ErrorMatches, "cannot find device matching structure #0: device lookup not implemented")
+	c.Assert(err, ErrorMatches, "internal error: missing device lookup helper")
+	c.Assert(ru, IsNil)
 
 	ru, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -664,4 +677,31 @@ func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
 	ps.Index = 9
 	p = gadget.RawContentBackupPath(r.backup, ps, pc)
 	c.Assert(p, Equals, r.backup+"/struct-9-5")
+}
+
+func (r *rawTestSuite) TestRawUpdaterInternalErrors(c *C) {
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size: 2048,
+		},
+	}
+
+	f := func(to *gadget.PositionedStructure) (string, error) {
+		return "", errors.New("unexpected call")
+	}
+	rw, err := gadget.NewRawStructureUpdater("", ps, r.backup, f)
+	c.Assert(err, ErrorMatches, "internal error: content root directory not provided")
+	c.Assert(rw, IsNil)
+
+	rw, err = gadget.NewRawStructureUpdater(r.dir, nil, r.backup, f)
+	c.Assert(err, ErrorMatches, "internal error: missing structure")
+	c.Assert(rw, IsNil)
+
+	rw, err = gadget.NewRawStructureUpdater(r.dir, ps, "", f)
+	c.Assert(err, ErrorMatches, "internal error: backup directory not provided")
+	c.Assert(rw, IsNil)
+
+	rw, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, nil)
+	c.Assert(err, ErrorMatches, "internal error: missing device lookup helper")
+	c.Assert(rw, IsNil)
 }
