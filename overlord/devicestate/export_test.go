@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -152,4 +153,14 @@ var (
 	RemodelCtx         = remodelCtx
 	RemodelCtxFromTask = remodelCtxFromTask
 	CleanupRemodelCtx  = cleanupRemodelCtx
+
+	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
+
+func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+	old := gadgetUpdate
+	gadgetUpdate = mock
+	return func() {
+		gadgetUpdate = old
+	}
+}
