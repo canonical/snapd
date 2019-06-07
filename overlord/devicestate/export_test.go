@@ -153,6 +153,7 @@ var (
 	RemodelCtxFromTask = remodelCtxFromTask
 	CleanupRemodelCtx  = cleanupRemodelCtx
 
+	GadgetUpdateBlocked    = gadgetUpdateBlocked
 	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
 

@@ -669,6 +669,7 @@ UnitFileState=enabled
 	// modify state
 	snapst.Channel = "beta"
 	snapst.IgnoreValidation = true
+	snapst.CohortKey = "some-long-cohort-key"
 	st.Lock()
 	snapstate.Set(st, "foo", &snapst)
 	st.Unlock()
@@ -784,6 +785,7 @@ UnitFileState=enabled
 			License:     "GPL-3.0",
 			CommonIDs:   []string{"org.foo.cmd"},
 			Screenshots: []snap.ScreenshotInfo{},
+			CohortKey:   "some-long-cohort-key",
 		},
 		Meta: meta,
 	}

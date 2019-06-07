@@ -357,6 +357,7 @@ const (
 	maybeCore
 	runCoreConfigure
 	doesReRefresh
+	updatesGadget
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -390,6 +391,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"remove-aliases",
 			"unlink-current-snap",
 		)
+	}
+	if opts&updatesGadget != 0 {
+		expected = append(expected, "update-gadget-assets")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -440,6 +444,9 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 			"remove-aliases",
 			"unlink-current-snap",
 		)
+	}
+	if opts&updatesGadget != 0 {
+		expected = append(expected, "update-gadget-assets")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -14447,4 +14454,44 @@ epoch: 1*
 	si := snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
 	_, _, err = snapstate.InstallPath(s.state, &si, mockSnap, "some-snap_123_456", "", snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// task added on install
+	ts, err := snapstate.Install(s.state, "brand-gadget", "", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	verifyInstallTasks(c, updatesGadget, 0, ts, s.state)
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-gadget", SnapID: "brand-gadget-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+
+	// and on update
+	ts, err := snapstate.Update(s.state, "brand-gadget", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
+
 }
