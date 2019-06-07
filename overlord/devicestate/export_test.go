@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -91,7 +90,7 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallWithDeviceContext
 	snapstateInstallWithDeviceContext = f
 	return func() {
@@ -154,6 +153,7 @@ var (
 	RemodelCtxFromTask = remodelCtxFromTask
 	CleanupRemodelCtx  = cleanupRemodelCtx
 
+	GadgetUpdateBlocked    = gadgetUpdateBlocked
 	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
 

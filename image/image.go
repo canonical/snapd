@@ -569,7 +569,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// warn about missing default providers
 		for _, dp := range neededDefaultProviders(info) {
 			if !local.hasName(snaps, dp) {
-				fmt.Fprintf(Stderr, "WARNING: the default content provider %q requested by snap %q is not getting installed.", dp, info.InstanceName())
+				// TODO: have a way to ignore this issue on a snap by snap basis?
+				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
 			}
 		}
 
