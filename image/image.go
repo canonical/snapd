@@ -411,10 +411,16 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 // hasBase checks if the given snap has a base in the given localInfos and
 // snaps. If not an error is returned.
 func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
-	// snap needs no base: nothing to do
+	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if snap.Base == "" {
 		return nil
 	}
+
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
+	if snap.Base == "none" {
+		return nil
+	}
+
 	// core provides everything that core16 needs
 	if snap.Base == "core16" && local.hasName(snaps, "core") {
 		return nil
@@ -563,7 +569,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// warn about missing default providers
 		for _, dp := range neededDefaultProviders(info) {
 			if !local.hasName(snaps, dp) {
-				fmt.Fprintf(Stderr, "WARNING: the default content provider %q requested by snap %q is not getting installed.", dp, info.InstanceName())
+				// TODO: have a way to ignore this issue on a snap by snap basis?
+				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
 			}
 		}
 

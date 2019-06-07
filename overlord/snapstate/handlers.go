@@ -253,7 +253,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channe
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, channel, snap.R(0), userID, Flags{})
+	ts, err := Install(st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{})
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
@@ -292,11 +292,13 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 
 	var tsBase *state.TaskSet
 	var err error
-	timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
-		tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
-	})
-	if err != nil {
-		return err
+	if base != "none" {
+		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
+			tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// on systems without core or snapd need to install snapd to
@@ -462,7 +464,8 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceContext) (*snap.Info, error) {
 	st.Lock()
 	defer st.Unlock()
-	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.CohortKey, snapsup.Revision(), snapsup.UserID, deviceCtx)
+	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
+	return installInfo(st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -1314,7 +1317,23 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+type doSwitchFlags struct {
+	switchCurrentChannel bool
+}
+
+// doSwitchSnapChannel switches the snap's tracking channel and/or cohort. It
+// also switches the current channel if appropriate. For use from 'Update'.
 func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericDoSwitchSnap(t, doSwitchFlags{switchCurrentChannel: true})
+}
+
+// doSwitchSnap switches the snap's tracking channel and/or cohort, *without*
+// switching the current snap channel. For use from 'Switch'.
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericDoSwitchSnap(t, doSwitchFlags{})
+}
+
+func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1326,27 +1345,15 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 
 	// switched the tracked channel
 	snapst.Channel = snapsup.Channel
-	// optionally support switching the current snap channel too, e.g.
-	// if a snap is in both stable and candidate with the same revision
-	// we can update it here and it will be displayed correctly in the UI
-	if snapsup.SideInfo.Channel != "" {
-		snapst.CurrentSideInfo().Channel = snapsup.Channel
+	snapst.CohortKey = snapsup.CohortKey
+	if flags.switchCurrentChannel {
+		// optionally support switching the current snap channel too, e.g.
+		// if a snap is in both stable and candidate with the same revision
+		// we can update it here and it will be displayed correctly in the UI
+		if snapsup.SideInfo.Channel != "" {
+			snapst.CurrentSideInfo().Channel = snapsup.Channel
+		}
 	}
-
-	Set(st, snapsup.InstanceName(), snapst)
-	return nil
-}
-
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
 
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil
