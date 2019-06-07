@@ -350,7 +350,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapst
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstallWithDeviceContext(st, snapName, "", "", snap.R(0), userID, snapstate.Flags{Required: true}, deviceCtx)
+			ts, err := snapstateInstallWithDeviceContext(st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx)
 			if err != nil {
 				return nil, err
 			}
