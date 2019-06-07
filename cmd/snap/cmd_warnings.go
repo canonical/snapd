@@ -138,7 +138,7 @@ func (cmd *cmdOkay) Execute(args []string) error {
 
 	last, err := lastWarningTimestamp()
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return err
 	}
 
 	return cmd.client.Okay(last)

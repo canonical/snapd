@@ -206,6 +206,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
+	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+		// XXX: gadget update currently for core systems only
+		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from gadget %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(gadgetUpdate)
+		prev = gadgetUpdate
+	}
+
 	// copy-data (needs stopped services by unlink)
 	if !snapsup.Flags.Revert {
 		copyData := st.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapsup.InstanceName()))
@@ -651,22 +658,8 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func Install(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
-	return installGeneric(st, name, channel, "", revision, userID, flags)
-}
-
-// InstallCohort is like Install but instead of a revision, it takes a cohort key.
-func InstallCohort(st *state.State, name, channel, cohortKey string, userID int, flags Flags) (*state.TaskSet, error) {
-	return installGeneric(st, name, channel, cohortKey, snap.Revision{}, userID, flags)
-}
-
-// TODO: refactor things so there's a single Install again that takes a struct, maybe a bit more like doInstall but public-er.
-func installGeneric(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
-	if cohort != "" && !revision.Unset() {
-		return nil, errors.New("cannot specify revision and cohort")
-	}
-
-	return InstallWithDeviceContext(st, name, channel, cohort, revision, userID, flags, nil)
+func Install(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
+	return InstallWithDeviceContext(st, name, opts, userID, flags, nil)
 }
 
 // InstallWithDeviceContext returns a set of tasks for installing a snap.
@@ -674,9 +667,16 @@ func installGeneric(st *state.State, name, channel, cohort string, revision snap
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func InstallWithDeviceContext(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
-	if channel == "" {
-		channel = "stable"
+func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+	if opts == nil {
+		opts = &RevisionOptions{}
+	}
+	if opts.CohortKey != "" && !opts.Revision.Unset() {
+		return nil, errors.New("cannot specify revision and cohort")
+	}
+
+	if opts.Channel == "" {
+		opts.Channel = "stable"
 	}
 
 	var snapst SnapState
@@ -698,7 +698,7 @@ func InstallWithDeviceContext(st *state.State, name, channel, cohort string, rev
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, err := installInfo(st, name, channel, cohort, revision, userID, deviceCtx)
+	info, err := installInfo(st, name, opts, userID, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +713,7 @@ func InstallWithDeviceContext(st *state.State, name, channel, cohort string, rev
 	}
 
 	snapsup := &SnapSetup{
-		Channel:      channel,
+		Channel:      opts.Channel,
 		Base:         info.Base,
 		Prereq:       defaultContentPlugProviders(st, info),
 		UserID:       userID,
@@ -726,7 +726,7 @@ func InstallWithDeviceContext(st *state.State, name, channel, cohort string, rev
 		auxStoreInfo: auxStoreInfo{
 			Media: info.Media,
 		},
-		CohortKey: cohort,
+		CohortKey: opts.CohortKey,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, "")
@@ -877,7 +877,12 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 			// allow updating from classic to strict
 			updateFlags.Classic = false
 		}
-		return &RevisionOptions{Channel: snapst.Channel}, snapst.Flags, snapst
+		// setting options to what's in state as multi-refresh doesn't let you change these
+		opts := &RevisionOptions{
+			Channel:   snapst.Channel,
+			CohortKey: snapst.CohortKey,
+		}
+		return opts, snapst.Flags, snapst
 
 	}
 
@@ -942,7 +947,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, update := range updates {
-		updateOpts, flags, snapst := params(update)
+		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
 		if err := checkInstallPreconditions(st, update, flags, snapst, deviceCtx); err != nil {
@@ -969,7 +974,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		snapsup := &SnapSetup{
 			Base:         update.Base,
 			Prereq:       defaultContentPlugProviders(st, update),
-			Channel:      updateOpts.Channel,
+			Channel:      revnoOpts.Channel,
+			CohortKey:    revnoOpts.CohortKey,
 			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
@@ -1209,7 +1215,46 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 
 var errRevisionSwitch = errors.New("cannot switch revision")
 
-// Switch switches a snap to a new channel
+func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
+	switchChannel := chanFrom != chanTo && chanTo != ""
+	switchCohort := cohFrom != cohTo && cohTo != ""
+	switch {
+	case switchChannel && !switchCohort && chanFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q"),
+			snap, chanTo)
+	case switchChannel && !switchCohort:
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"),
+			snap, chanFrom, chanTo)
+	case switchCohort && !switchChannel && cohFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no cohort to %q"),
+			snap, strutil.ElliptRight(cohTo, 10))
+	case switchCohort && !switchChannel:
+		return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"),
+			snap, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10))
+	case switchCohort && switchChannel && chanFrom == "" && cohFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from no cohort to %q"),
+			snap, chanTo, strutil.ElliptRight(cohTo, 10),
+		)
+	case switchCohort && switchChannel && cohFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from no cohort to %q"),
+			snap, chanFrom, chanTo, strutil.ElliptRight(cohTo, 10),
+		)
+	case switchCohort && switchChannel && chanFrom == "":
+		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from cohort %q to %q"),
+			snap, chanTo, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+		)
+	case switchCohort && switchChannel:
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"),
+			snap, chanFrom, chanTo,
+			strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+		)
+	default:
+		// this might actually be an error
+		return "No change switch (bug?)"
+	}
+}
+
+// Switch switches a snap to a new channel and/or cohort
 func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
@@ -1242,11 +1287,21 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
-		Channel:     opts.Channel,
 		InstanceKey: snapst.InstanceKey,
+		// set the from state (i.e. no change), they are overridden from opts as needed below
+		CohortKey: snapst.CohortKey,
+		Channel:   snapst.Channel,
 	}
 
-	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.InstanceName(), snapsup.Channel))
+	if opts.Channel != "" {
+		snapsup.Channel = opts.Channel
+	}
+	if opts.CohortKey != "" {
+		snapsup.CohortKey = opts.CohortKey
+	}
+
+	summary := switchSummary(snapsup.InstanceName(), snapst.Channel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
+	switchSnap := st.NewTask("switch-snap", summary)
 	switchSnap.Set("snap-setup", &snapsup)
 
 	return state.NewTaskSet(switchSnap), nil
@@ -1254,8 +1309,9 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 // RevisionOptions control the selection of a snap revision.
 type RevisionOptions struct {
-	Channel  string
-	Revision snap.Revision
+	Channel   string
+	Revision  snap.Revision
+	CohortKey string
 }
 
 // Update initiates a change updating a snap.
@@ -1302,7 +1358,12 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 
 	if opts.Channel == "" {
+		// default to tracking the same channel
 		opts.Channel = snapst.Channel
+	}
+	if opts.CohortKey == "" {
+		// default to being in the same cohort
+		opts.CohortKey = snapst.CohortKey
 	}
 
 	// TODO: make flags be per revision to avoid this logic (that
@@ -1336,8 +1397,11 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, err
 	}
 
-	// see if we need to update the channel or toggle ignore-validation
-	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != opts.Channel || snapst.IgnoreValidation != flags.IgnoreValidation) {
+	// see if we need to switch the channel or cohort, or toggle ignore-validation
+	switchChannel := snapst.Channel != opts.Channel
+	switchCohortKey := snapst.CohortKey != opts.CohortKey
+	toggleIgnoreValidation := snapst.IgnoreValidation != flags.IgnoreValidation
+	if infoErr == store.ErrNoUpdateAvailable && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
 		// NOTE: if we are in here, len(updates) == 0
 		//       (so we're free to add tasks because there's no rerefresh)
 
@@ -1349,16 +1413,19 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			SideInfo:    snapst.CurrentSideInfo(),
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
+			CohortKey:   opts.CohortKey,
 		}
 
-		if snapst.Channel != opts.Channel {
-			// update the tracked channel
+		if switchChannel || switchCohortKey {
+			// update the tracked channel and cohort
 			snapsup.Channel = opts.Channel
+			snapsup.CohortKey = opts.CohortKey
 			// Update the current snap channel as well. This ensures that
 			// the UI displays the right values.
 			snapsup.SideInfo.Channel = opts.Channel
 
-			switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.InstanceName(), snapst.Channel, opts.Channel))
+			summary := switchSummary(snapsup.InstanceName(), snapst.Channel, opts.Channel, snapst.CohortKey, opts.CohortKey)
+			switchSnap := st.NewTask("switch-snap-channel", summary)
 			switchSnap.Set("snap-setup", &snapsup)
 
 			switchSnapTs := state.NewTaskSet(switchSnap)
@@ -1368,8 +1435,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			tts = append(tts, switchSnapTs)
 		}
 
-		if snapst.IgnoreValidation != flags.IgnoreValidation {
-			// toggle ignore validation
+		if toggleIgnoreValidation {
 			snapsup.IgnoreValidation = flags.IgnoreValidation
 			toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
 			toggle.Set("snap-setup", &snapsup)
@@ -1983,7 +2049,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(st, newName, oldSnapst.Channel, "", snap.R(0), userID, nil)
+		newInfo, err := installInfo(st, newName, &RevisionOptions{Channel: oldSnapst.Channel}, userID, nil)
 		if err != nil {
 			return nil, err
 		}

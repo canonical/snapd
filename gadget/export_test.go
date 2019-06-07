@@ -33,4 +33,6 @@ var (
 
 	DeployFile      = deployFile
 	DeployDirectory = deployDirectory
+
+	RawContentBackupPath = rawContentBackupPath
 )
