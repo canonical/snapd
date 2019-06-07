@@ -768,10 +768,5 @@ func (m *DeviceManager) doRecoverRebootMode(t *state.Task, tomb *tomb.Tomb) erro
 		return err
 	}
 
-	// We're on tmpfs, just pull the plug
-	if err := recovery.Restart(); err != nil {
-		logger.Noticef("[sad trombone] cannot reboot: %s", err)
-	}
-
-	return fmt.Errorf("something failed")
+	return nil
 }

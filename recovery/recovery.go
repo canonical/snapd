@@ -41,6 +41,31 @@ const (
 func Recover(version string) error {
 	logger.Noticef("Run recovery %s", version)
 
+	mntSysRecover := "/mnt/sys-recover"
+
+	// reset env variables if we come from a recover reboot
+	if GetKernelParameter("snap_mode") == "recover_reboot" {
+
+		// update recovery mode
+		logger.Noticef("after recover reboot: update bootloader env")
+
+		env := grubenv.NewEnv(path.Join(mntSysRecover, "EFI/ubuntu/grubenv"))
+		if err := env.Load(); err != nil {
+			return fmt.Errorf("cannot load recovery boot vars: %s", err)
+		}
+
+		// set mode to normal run
+		env.Set("snap_mode", "")
+
+		if err := env.Save(); err != nil {
+			return fmt.Errorf("cannot save recovery boot vars: %s", err)
+		}
+	}
+
+	if err := umount(mntSysRecover); err != nil {
+		return fmt.Errorf("cannot unmount recovery: %s", err)
+	}
+
 	mntRecovery := "/mnt/recovery"
 
 	if err := mountFilesystem("writable", mntRecovery); err != nil {
@@ -62,20 +87,26 @@ func Recover(version string) error {
 		return fmt.Errorf("cannot mount home: %s", err)
 	}
 
+	logger.Noticef("done")
+
 	return nil
 }
 
 func RecoverReboot(version string) error {
-	logger.Noticef("Reboot to recovery %s", version)
+	logger.Noticef("Recover: must reboot to use %s", version)
 
 	// different version, we need to reboot
 
 	mntSysRecover := "/mnt/sys-recover"
-	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
-		return err
-	}
+
+	// -- already mounted
+	//if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+	//	return err
+	//}
 
 	// update recovery mode
+	logger.Noticef("update bootloader env")
+
 	env := grubenv.NewEnv(path.Join(mntSysRecover, "EFI/ubuntu/grubenv"))
 	if err := env.Load(); err != nil {
 		return fmt.Errorf("cannot load recovery boot vars: %s", err)
@@ -95,7 +126,12 @@ func RecoverReboot(version string) error {
 		return fmt.Errorf("cannot unmount recovery: %s", err)
 	}
 
-	return nil
+	// We're on tmpfs, just pull the plug
+	if err := Restart(); err != nil {
+		logger.Noticef("[sad trombone] cannot reboot: %s", err)
+	}
+
+	return fmt.Errorf("something failed")
 }
 
 func Install(version string) error {
@@ -173,7 +209,6 @@ func mountFilesystem(label string, mountpoint string) error {
 func prepareWritable(mntWritable, mntSysRecover, version string) (string, string, error) {
 	logger.Noticef("Populating new writable")
 
-	//recovery := GetKernelParameter("snap_recovery_system")
 	seedPath := "system-data/var/lib/snapd/seed"
 	snapPath := "system-data/var/lib/snapd/snaps"
 

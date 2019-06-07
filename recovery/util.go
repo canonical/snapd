@@ -50,6 +50,7 @@ func mount(label, mountpoint string) error {
 	if err := exec.Command("mount", dev, mountpoint).Run(); err != nil {
 		return fmt.Errorf("cannot mount device %s: %s", dev, err)
 	}
+	logger.Noticef("%s mounted", dev)
 
 	return nil
 }
