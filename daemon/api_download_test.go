@@ -65,16 +65,18 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
+var content = "SNAP"
+
 func (s *snapDownloadSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Name == "bar" {
 		return &snap.Info{
 			DownloadInfo: snap.DownloadInfo{
-				Size:            12,
+				Size:            int64(len(content)),
 				AnonDownloadURL: "http://localhost/bar",
 			},
 		}, nil
 	}
-	if spec.Name == "foo" {
+	if spec.Name == "download-error-trigger-snap" {
 		return &snap.Info{
 			DownloadInfo: snap.DownloadInfo{
 				Size:            100,
@@ -87,10 +89,9 @@ func (s *snapDownloadSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) 
 
 func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
 	if name == "bar" {
-		return ioutil.NopCloser(bytes.NewReader([]byte("SNAP"))), nil
-	} else {
-		return nil, fmt.Errorf("unexpected error")
+		return ioutil.NopCloser(bytes.NewReader([]byte(content))), nil
 	}
+	return nil, fmt.Errorf("unexpected error")
 }
 
 func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
@@ -158,7 +159,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			err:      "snap not found",
 		},
 		{
-			dataJSON: `{"action": "download", "snaps": ["foo"]}`,
+			dataJSON: `{"action": "download", "snaps": ["download-error-trigger-snap"]}`,
 			status:   500,
 			err:      "unexpected error",
 		},
@@ -177,15 +178,18 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			result := rsp.(*daemon.Resp).Result
 			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err)
 		} else {
-			c.Assert(rsp.(daemon.FileStream).FileName, check.Equals, "bar")
-			c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(12))
+			c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, "bar")
+			c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(len(content)))
 
 			w := httptest.NewRecorder()
 			rsp.(daemon.FileStream).ServeHTTP(w, nil)
 
+			expectedLength := fmt.Sprintf("%d", len(content))
+
 			c.Assert(w.Code, check.Equals, s.status)
-			c.Assert(w.Header().Get("Content-Length"), check.Equals, "12")
+			c.Assert(w.Header().Get("Content-Length"), check.Equals, expectedLength)
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
+			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, "bar")
 			c.Assert(w.Body.String(), check.Equals, "SNAP")
 		}
 	}

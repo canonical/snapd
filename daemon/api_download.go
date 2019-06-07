@@ -30,7 +30,6 @@ import (
 
 var snapDownloadCmd = &Command{
 	Path:     "/v2/download",
-	UserOK:   true,
 	PolkitOK: "io.snapcraft.snapd.manage",
 	POST:     postSnapDownload,
 }
@@ -65,7 +64,6 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	switch action.Action {
 	case "download":
-		// theStore := getStore(c)
 		snapName := action.Snaps[0]
 		return streamOne(c, user, snapName)
 	default:
@@ -86,7 +84,7 @@ func streamOne(c *Command, user *auth.UserState, snapName string) Response {
 	}
 
 	return FileStream{
-		FileName: snapName,
+		SnapName: snapName,
 		Info:     downloadInfo,
 		stream:   r,
 	}

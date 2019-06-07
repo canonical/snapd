@@ -248,21 +248,30 @@ func makeErrorResponder(status int) errorResponder {
 
 // A FileStream ServeHTTP method streams the snap
 type FileStream struct {
-	FileName string
+	SnapName string
 	Info     snap.DownloadInfo
 	stream   io.ReadCloser
 }
 
 // ServeHTTP from the Response interface
 func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/octet-stream")
+	hdr := w.Header()
+	hdr.Set("Content-Type", "application/octet-stream")
+	hdr.Set("Content-Disposition", s.SnapName)
+
 	size := fmt.Sprintf("%d", s.Info.Size)
-	w.Header().Set("Content-Length", size)
+	hdr.Set("Content-Length", size)
+
 	defer s.stream.Close()
 
-	if _, err := io.Copy(w, s.stream); err != nil {
-		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.FileName, s.Info, err)
-		fmt.Fprintf(w, "%s", err)
+	bytesCopied, err := io.Copy(w, s.stream)
+	if err != nil {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.SnapName, s.Info, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	if bytesCopied != s.Info.Size {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expeced=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
+		http.Error(w, io.EOF.Error(), http.StatusBadGateway)
 	}
 }
 
