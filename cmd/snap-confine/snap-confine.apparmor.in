@@ -231,10 +231,8 @@
     pivot_root,
     # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
-    umount /var/lib/snapd/hostfs/sys/,
-    umount /var/lib/snapd/hostfs/dev/,
-    umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
+    umount /var/lib/snapd/hostfs/**,
 
     # set up user mount namespace
     mount options=(rslave) -> /,

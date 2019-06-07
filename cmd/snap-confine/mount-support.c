@@ -492,19 +492,30 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// performed in this mount namespace will not propagate to the peer group.
 	// This is another essential part of the confinement system.
 	sc_do_mount("none", SC_HOSTFS_DIR, NULL, MS_REC | MS_SLAVE, NULL);
-	// Detach the redundant hostfs version of sysfs since it shows up in the
-	// mount table and software inspecting the mount table may become confused
-	// (eg, docker and LP:# 162601).
-	sc_must_snprintf(src, sizeof src, "%s/sys", SC_HOSTFS_DIR);
-	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
-	// Detach the redundant hostfs version of /dev since it shows up in the
-	// mount table and software inspecting the mount table may become confused.
-	sc_must_snprintf(src, sizeof src, "%s/dev", SC_HOSTFS_DIR);
-	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
-	// Detach the redundant hostfs version of /proc since it shows up in the
-	// mount table and software inspecting the mount table may become confused.
-	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
-	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
+	// Detach all the filesystems visible via hostfs. This mainly gets rid of
+	// separate views into /proc, /dev and /sys but also into /snap, which can
+	// be extremely verbose.
+	{
+		sc_mountinfo *mi;
+		sc_mountinfo_entry *mie;
+		bool removed_any = true;
+
+		/* Don't try to sort or predict propagation or handle nesting,
+		   just be naive in a loop */
+		while (removed_any) {
+			removed_any = false;
+			mi = sc_parse_mountinfo(NULL);
+			for (mie=sc_first_mountinfo_entry(mi); mie!=NULL; mie=sc_next_mountinfo_entry(mie)) {
+				char *mount_dir = mie->mount_dir;
+				if (sc_startswith(mount_dir, SC_HOSTFS_DIR) && !sc_streq(mount_dir, SC_HOSTFS_DIR)) {
+					sc_do_umount(mount_dir, UMOUNT_NOFOLLOW | MNT_DETACH);
+					removed_any = true;
+					break;
+				}
+			}
+			sc_cleanup_mountinfo(&mi);
+		}
+	}
 }
 
 /**
