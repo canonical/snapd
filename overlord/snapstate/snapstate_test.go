@@ -14464,7 +14464,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	defer s.state.Unlock()
 
 	// task added on install
-	ts, err := snapstate.Install(s.state, "brand-gadget", "", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(s.state, "brand-gadget", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
