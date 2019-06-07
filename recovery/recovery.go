@@ -65,6 +65,39 @@ func Recover(version string) error {
 	return nil
 }
 
+func RecoverReboot(version string) error {
+	logger.Noticef("Reboot to recovery %s", version)
+
+	// different version, we need to reboot
+
+	mntSysRecover := "/mnt/sys-recover"
+	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+		return err
+	}
+
+	// update recovery mode
+	env := grubenv.NewEnv(path.Join(mntSysRecover, "EFI/ubuntu/grubenv"))
+	if err := env.Load(); err != nil {
+		return fmt.Errorf("cannot load recovery boot vars: %s", err)
+	}
+
+	// set version in grubenv
+	env.Set("snap_recovery_system", version)
+
+	// set mode to recover_reboot (no chooser)
+	env.Set("snap_mode", "recover_reboot")
+
+	if err := env.Save(); err != nil {
+		return fmt.Errorf("cannot save recovery boot vars: %s", err)
+	}
+
+	if err := umount(mntSysRecover); err != nil {
+		return fmt.Errorf("cannot unmount recovery: %s", err)
+	}
+
+	return nil
+}
+
 func Install(version string) error {
 	logger.Noticef("Install recovery %s", version)
 	if err := createWritable(); err != nil {

@@ -82,6 +82,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("snap-mode-install", m.doInstallMode, nil)
 	runner.AddHandler("snap-mode-recover", m.doRecoverMode, nil)
+	runner.AddHandler("snap-mode-recover-reboot", m.doRecoverRebootMode, nil)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
 

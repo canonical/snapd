@@ -2808,6 +2808,7 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 type postRecoverData struct {
 	Version string `json:"version"`
 	Install bool   `json:"install"`
+	Reboot  bool   `json:"reboot"`
 }
 
 func postRecover(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2826,6 +2827,10 @@ func postRecover(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if recoverData.Install {
 		modeTask := st.NewTask("snap-mode-install", "Run system in install mode")
+		modeTask.Set("recovery-version", recoverData.Version)
+		tasks = append(tasks, modeTask)
+	} else if recoverData.Reboot {
+		modeTask := st.NewTask("snap-mode-recover-reboot", "Run system in recover_reboot mode")
 		modeTask.Set("recovery-version", recoverData.Version)
 		tasks = append(tasks, modeTask)
 	} else {

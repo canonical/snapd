@@ -732,7 +732,7 @@ func (m *DeviceManager) doInstallMode(t *state.Task, tomb *tomb.Tomb) error {
 	//st.RequestRestart(state.RestartSystem)
 	//st.Unlock()
 
-	return nil
+	return fmt.Errorf("something failed")
 }
 
 func (m *DeviceManager) doRecoverMode(t *state.Task, tomb *tomb.Tomb) error {
@@ -751,4 +751,27 @@ func (m *DeviceManager) doRecoverMode(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	return nil
+}
+
+func (m *DeviceManager) doRecoverRebootMode(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var version string
+	if err := t.Get("recovery-version", &version); err != nil {
+		return err
+	}
+
+	logger.Noticef("Running in recover_reboot mode")
+	if err := recovery.RecoverReboot(version); err != nil {
+		return err
+	}
+
+	// We're on tmpfs, just pull the plug
+	if err := recovery.Restart(); err != nil {
+		logger.Noticef("[sad trombone] cannot reboot: %s", err)
+	}
+
+	return fmt.Errorf("something failed")
 }

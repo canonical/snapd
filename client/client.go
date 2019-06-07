@@ -698,6 +698,7 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 type RecoverOptions struct {
 	Version string `json:"version,omitempty"`
 	Install bool   `json:"install,omitempty"`
+	Reboot  bool   `json:"reboot,omitempty"`
 }
 
 // Recover recovers the system.
