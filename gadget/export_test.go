@@ -31,8 +31,8 @@ var (
 
 	EncodeLabel = encodeLabel
 
-	DeployFile      = deployFile
-	DeployDirectory = deployDirectory
+	WriteFile      = writeFile
+	WriteDirectory = writeDirectory
 
 	RawContentBackupPath = rawContentBackupPath
 )

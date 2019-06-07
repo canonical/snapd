@@ -59,39 +59,39 @@ func verifyDeployedGadgetData(c *C, where string, data []gadgetData) {
 	}
 }
 
-func (r *mountedfilesystemTestSuite) TestDeployFile(c *C) {
+func (r *mountedfilesystemTestSuite) TestWriteFile(c *C) {
 	makeSizedFile(c, filepath.Join(r.dir, "foo"), 0, []byte("foo foo foo"))
 
 	outDir := c.MkDir()
 
 	// foo -> /foo
-	err := gadget.DeployFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "foo"), nil)
+	err := gadget.WriteFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "foo"), nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, []byte("foo foo foo"))
 
 	// foo -> bar/foo
-	err = gadget.DeployFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "bar/foo"), nil)
+	err = gadget.WriteFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "bar/foo"), nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(outDir, "bar/foo"), testutil.FileEquals, []byte("foo foo foo"))
 
 	// deploy overwrites
 	makeSizedFile(c, filepath.Join(outDir, "overwrite"), 0, []byte("disappear"))
-	err = gadget.DeployFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "overwrite"), nil)
+	err = gadget.WriteFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "overwrite"), nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(outDir, "overwrite"), testutil.FileEquals, []byte("foo foo foo"))
 
 	// unless told to preserve
 	keepName := filepath.Join(outDir, "keep")
 	makeSizedFile(c, keepName, 0, []byte("can't touch this"))
-	err = gadget.DeployFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "keep"), []string{keepName})
+	err = gadget.WriteFile(filepath.Join(r.dir, "foo"), filepath.Join(outDir, "keep"), []string{keepName})
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(outDir, "keep"), testutil.FileEquals, []byte("can't touch this"))
 
-	err = gadget.DeployFile(filepath.Join(r.dir, "not-found"), filepath.Join(outDir, "foo"), nil)
+	err = gadget.WriteFile(filepath.Join(r.dir, "not-found"), filepath.Join(outDir, "foo"), nil)
 	c.Assert(err, ErrorMatches, "cannot copy .*: unable to open .*/not-found: .* no such file or directory")
 }
 
-func (r *mountedfilesystemTestSuite) TestDeployDirectoryContents(c *C) {
+func (r *mountedfilesystemTestSuite) TestWriteDirectoryContents(c *C) {
 	gd := []gadgetData{
 		{"boot-assets/splash", "splash", "splash"},
 		{"boot-assets/some-dir/data", "some-dir/data", "data"},
@@ -103,13 +103,13 @@ func (r *mountedfilesystemTestSuite) TestDeployDirectoryContents(c *C) {
 
 	outDir := c.MkDir()
 	// boot-assets/ -> / (contents of boot assets under /)
-	err := gadget.DeployDirectory(filepath.Join(r.dir, "boot-assets")+"/", outDir+"/", nil)
+	err := gadget.WriteDirectory(filepath.Join(r.dir, "boot-assets")+"/", outDir+"/", nil)
 	c.Assert(err, IsNil)
 
 	verifyDeployedGadgetData(c, outDir, gd)
 }
 
-func (r *mountedfilesystemTestSuite) TestDeployDirectoryWhole(c *C) {
+func (r *mountedfilesystemTestSuite) TestWriteDirectoryWhole(c *C) {
 	gd := []gadgetData{
 		{"boot-assets/splash", "boot-assets/splash", "splash"},
 		{"boot-assets/some-dir/data", "boot-assets/some-dir/data", "data"},
@@ -121,7 +121,7 @@ func (r *mountedfilesystemTestSuite) TestDeployDirectoryWhole(c *C) {
 
 	outDir := c.MkDir()
 	// boot-assets -> / (boot-assets and children under /)
-	err := gadget.DeployDirectory(filepath.Join(r.dir, "boot-assets"), outDir+"/", nil)
+	err := gadget.WriteDirectory(filepath.Join(r.dir, "boot-assets"), outDir+"/", nil)
 	c.Assert(err, IsNil)
 
 	verifyDeployedGadgetData(c, outDir, gd)
@@ -178,11 +178,41 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = rw.Deploy(outDir, nil)
+	err = rw.Write(outDir, nil)
 	c.Assert(err, IsNil)
 
 	verifyDeployedGadgetData(c, outDir, gd)
 	c.Assert(osutil.IsDirectory(filepath.Join(outDir, "empty-dir")), Equals, true)
+}
+
+func (r *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
+	gd := []gadgetData{
+		{name: "foo", content: "nested"},
+	}
+	makeGadgetData(c, r.dir, gd)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{
+					// contents of nested directory under new target directory
+					Source: "foo/",
+					Target: "/nested-copy/",
+				},
+			},
+		},
+	}
+
+	outDir := c.MkDir()
+
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Write(outDir, nil)
+	c.Assert(err, ErrorMatches, `cannot write filesystem content of source:foo/: cannot specify trailing / for a source which is not a directory`)
 }
 
 func (r *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
@@ -206,8 +236,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = rw.Deploy(outDir, nil)
-	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:foo: .*unable to open.*: no such file or directory")
+	err = rw.Write(outDir, nil)
+	c.Assert(err, ErrorMatches, "cannot write filesystem content of source:foo: .*unable to open.*: no such file or directory")
 }
 
 func (r *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) {
@@ -236,8 +266,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = rw.Deploy(outDir, nil)
-	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:foo: cannot create .*: mkdir .* permission denied")
+	err = rw.Write(outDir, nil)
+	c.Assert(err, ErrorMatches, "cannot write filesystem content of source:foo: cannot create .*: mkdir .* permission denied")
 }
 
 func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDirectoryErrors(c *C) {
@@ -271,8 +301,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 	c.Assert(rw, NotNil)
 
 	// can't overwrite a directory with a file
-	err = rw.Deploy(outDir, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot deploy filesystem content of source:foo-dir: cannot copy .*: unable to create %s/foo-dir: .* is a directory", outDir))
+	err = rw.Write(outDir, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write filesystem content of source:foo-dir: cannot copy .*: unable to create %s/foo-dir: .* is a directory", outDir))
 
 }
 
@@ -304,7 +334,7 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = rw.Deploy(outDir, nil)
+	err = rw.Write(outDir, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(filepath.Join(outDir, "foo")), Equals, false)
@@ -340,8 +370,8 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = rw.Deploy(outDir, nil)
-	c.Assert(err, ErrorMatches, "cannot deploy filesystem content of source:/: .* not a directory")
+	err = rw.Write(outDir, nil)
+	c.Assert(err, ErrorMatches, "cannot write filesystem content of source:/: .* not a directory")
 }
 
 func (r *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
@@ -421,7 +451,7 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = rw.Deploy(outDir, append(preserve, preserveButNotPresent...))
+	err = rw.Write(outDir, append(preserve, preserveButNotPresent...))
 	c.Assert(err, IsNil)
 
 	// files that existed were preserved
@@ -460,7 +490,7 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = rw.Deploy(outDir, nil)
+	err = rw.Write(outDir, nil)
 	c.Assert(err, IsNil)
 
 	verifyDeployedGadgetData(c, outDir, gd)

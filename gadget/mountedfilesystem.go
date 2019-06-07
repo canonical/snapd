@@ -48,7 +48,7 @@ func NewMountedFilesystemWriter(rootDir string, ps *PositionedStructure) (*Mount
 	return fw, nil
 }
 
-func remapPreserve(dstDir string, preserve []string) []string {
+func prefixPreserve(dstDir string, preserve []string) []string {
 	preserveInDst := make([]string, len(preserve))
 	for i, p := range preserve {
 		preserveInDst[i] = filepath.Join(dstDir, p)
@@ -58,47 +58,53 @@ func remapPreserve(dstDir string, preserve []string) []string {
 	return preserveInDst
 }
 
-// Deploy deploys structure data into provided directory. All existing files are
+// Write writes structure data into provided directory. All existing files are
 // overwritten, unless their paths, relative to target directory, are listed in
 // the preserve list.
-func (m *MountedFilesystemWriter) Deploy(whereDir string, preserve []string) error {
-	preserveInDst := remapPreserve(whereDir, preserve)
+func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) error {
+	preserveInDst := prefixPreserve(whereDir, preserve)
 	for _, c := range m.ps.Content {
-		if err := m.deployOneContent(whereDir, &c, preserveInDst); err != nil {
-			return fmt.Errorf("cannot deploy filesystem content of %s: %v", c, err)
+		if err := m.writeOneContent(whereDir, &c, preserveInDst); err != nil {
+			return fmt.Errorf("cannot write filesystem content of %s: %v", c, err)
 		}
 	}
 	return nil
 }
 
-// deployDirectory deploys the source directory, or its contents under target
+// writeDirectory copies the source directory, or its contents under target
 // location dst. Follows rsync like semantics, that is:
 //   /foo/ -> /bar - deploys contents of foo under /bar
 //   /foo  -> /bar - deploys foo and its subtree under /bar
-func deployDirectory(src, dst string, preserveInDst []string) error {
-	fis, err := ioutil.ReadDir(src)
-	if err != nil {
-		return fmt.Errorf("cannot list directory entries: %v", err)
+func writeDirectory(src, dst string, preserveInDst []string) error {
+	if strings.HasSuffix(src, "/") {
+		if !osutil.IsDirectory(src) {
+			return fmt.Errorf("cannot specify trailing / for a source which is not a directory")
+		}
 	}
 
 	if !strings.HasSuffix(src, "/") {
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
-	for _, fi := range fis {
-		fpSrc := filepath.Join(src, fi.Name())
-		fpDst := filepath.Join(dst, fi.Name())
+	fis, err := ioutil.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("cannot list directory entries: %v", err)
+	}
 
-		deploy := deployFile
+	for _, fi := range fis {
+		pSrc := filepath.Join(src, fi.Name())
+		pDst := filepath.Join(dst, fi.Name())
+
+		deploy := writeFile
 		if fi.IsDir() {
-			if err := os.MkdirAll(fpDst, 0755); err != nil {
-				return fmt.Errorf("cannot deploy directory prefix: %v", err)
+			if err := os.MkdirAll(pDst, 0755); err != nil {
+				return fmt.Errorf("cannot create directory prefix: %v", err)
 			}
 
-			deploy = deployDirectory
-			fpSrc += "/"
+			deploy = writeDirectory
+			pSrc += "/"
 		}
-		if err := deploy(fpSrc, fpDst, preserveInDst); err != nil {
+		if err := deploy(pSrc, pDst, preserveInDst); err != nil {
 			return err
 		}
 	}
@@ -106,12 +112,12 @@ func deployDirectory(src, dst string, preserveInDst []string) error {
 	return nil
 }
 
-// deployDirectory deploys the source file at given location or under given directory.
+// writeFile copies the source file at given location or under given directory.
 // Follows rsync like semantics, that is:
 //   /foo -> /bar/ - deploys foo as /bar/foo
 //   /foo  -> /bar - deploys foo as /bar
 // The destination location is overwritten.
-func deployFile(src, dst string, preserveInDst []string) error {
+func writeFile(src, dst string, preserveInDst []string) error {
 	if strings.HasSuffix(dst, "/") {
 		// deploy to directory
 		dst = filepath.Join(dst, filepath.Base(src))
@@ -136,7 +142,7 @@ func deployFile(src, dst string, preserveInDst []string) error {
 	return nil
 }
 
-func (m *MountedFilesystemWriter) deployOneContent(whereDir string, content *VolumeContent, preserveInDst []string) error {
+func (m *MountedFilesystemWriter) writeOneContent(whereDir string, content *VolumeContent, preserveInDst []string) error {
 	realSource := filepath.Join(m.rootDir, content.Source)
 	realTarget := filepath.Join(whereDir, content.Target)
 
@@ -150,9 +156,9 @@ func (m *MountedFilesystemWriter) deployOneContent(whereDir string, content *Vol
 
 	if osutil.IsDirectory(realSource) || strings.HasSuffix(content.Source, "/") {
 		// deploy a directory
-		return deployDirectory(realSource, realTarget, preserveInDst)
+		return writeDirectory(realSource, realTarget, preserveInDst)
 	} else {
 		// deploy a file
-		return deployFile(realSource, realTarget, preserveInDst)
+		return writeFile(realSource, realTarget, preserveInDst)
 	}
 }
