@@ -462,7 +462,7 @@ distro_install_build_snapd(){
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 # shellcheck disable=SC2125
-                packages="${GOHOME}"/snapd_*.deb
+                packages="$GOHOME/snapd_*.deb $GOHOME/snap-confine-debug_*.deb"
                 ;;
             fedora-*|amazon-*|centos-*)
                 # shellcheck disable=SC2125

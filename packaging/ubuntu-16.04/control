@@ -111,6 +111,14 @@ Depends: snapd (= ${binary:Version}), ${misc:Depends}
 Description: Transitional package for snapd
  This is a transitional dummy package. It can safely be removed.
 
+Package: snap-confine-debug
+Architecture: any
+Depends: snapd (= ${binary:Version}), ${misc:Depends}
+Description: snap-confine built with additional debugging.
+ This package is only useful for the internal snapd test
+ suite. It provides a binary that nothing otherwise uses
+ explicitly.
+
 Package: ubuntu-core-launcher
 Architecture: any
 Depends: snapd (= ${binary:Version}), ${misc:Depends}

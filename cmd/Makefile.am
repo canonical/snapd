@@ -299,7 +299,7 @@ endif  # SELINUX
 
 # an extra build that has additional debugging enabled at compile time
 
-noinst_PROGRAMS += snap-confine/snap-confine-debug
+libexec_PROGRAMS += snap-confine/snap-confine-debug
 snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
 snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
 snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)

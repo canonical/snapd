@@ -105,6 +105,7 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
+    cp -a "$LIBEXECDIR"/snapd/snap-confine-debug squashfs-root/usr/lib/snapd/snap-confine
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
             # RPM can rewrite shebang to #!/usr/bin/sh
@@ -173,9 +174,10 @@ update_core_snap_for_classic_reexec() {
     }
 
     # Make sure we're running with the correct copied bits
-    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-confine" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd" "$LIBEXECDIR/snapd/snap-update-ns"; do
+    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd" "$LIBEXECDIR/snapd/snap-update-ns"; do
         check_file "$p" "$core/usr/lib/snapd/$(basename "$p")"
     done
+    check_file "$LIBEXECDIR/snapd/snap-confine-debug" "$core/usr/lib/snapd/snap-confine"
     for p in /usr/bin/snapctl /usr/bin/snap; do
         check_file "$p" "$core$p"
     done
@@ -310,6 +312,8 @@ repack_snapd_snap_with_deb_content() {
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+    dpkg-deb -x "$SPREAD_PATH"/../snap-confine-debug_*.deb "$UNPACK_DIR"
+    mv "$UNPACK_DIR"/usr/lib/snapd/snap-confine-debug "$UNPACK_DIR"/usr/lib/snapd/snap-confine
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
@@ -363,6 +367,8 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new snapd snap
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        dpkg-deb -x "$SPREAD_PATH"/../snap-confine-debug_*.deb "$UNPACK_DIR"
+        mv "$UNPACK_DIR"/usr/lib/snapd/snap-confine-debug "$UNPACK_DIR"/usr/lib/snapd/snap-confine
         # Debian packages don't carry permissions correctly and we use
         # post-inst hooks to fix that on classic systems. Here, as a special
         # case, fix the void directory we just unpacked.
