@@ -41,11 +41,13 @@ const (
 func Recover(version string) error {
 	logger.Noticef("Run recovery %s", version)
 
-	mntSysRecover := "/mnt/sys-recover"
-
 	// reset env variables if we come from a recover reboot
 	if GetKernelParameter("snap_mode") == "recover_reboot" {
 
+		mntSysRecover := "/mnt/sys-recover"
+		if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+			return err
+		}
 		// update recovery mode
 		logger.Noticef("after recover reboot: update bootloader env")
 
@@ -60,10 +62,10 @@ func Recover(version string) error {
 		if err := env.Save(); err != nil {
 			return fmt.Errorf("cannot save recovery boot vars: %s", err)
 		}
-	}
 
-	if err := umount(mntSysRecover); err != nil {
-		return fmt.Errorf("cannot unmount recovery: %s", err)
+		if err := umount(mntSysRecover); err != nil {
+			return fmt.Errorf("cannot unmount recovery: %s", err)
+		}
 	}
 
 	mntRecovery := "/mnt/recovery"
@@ -98,11 +100,9 @@ func RecoverReboot(version string) error {
 	// different version, we need to reboot
 
 	mntSysRecover := "/mnt/sys-recover"
-
-	// -- already mounted
-	//if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
-	//	return err
-	//}
+	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+		return err
+	}
 
 	// update recovery mode
 	logger.Noticef("update bootloader env")

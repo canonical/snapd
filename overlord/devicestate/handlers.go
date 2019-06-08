@@ -763,7 +763,7 @@ func (m *DeviceManager) doRecoverRebootMode(t *state.Task, tomb *tomb.Tomb) erro
 		return err
 	}
 
-	logger.Noticef("Running in recover_reboot mode")
+	logger.Noticef("Running in recover + reboot mode")
 	if err := recovery.RecoverReboot(version); err != nil {
 		return err
 	}
