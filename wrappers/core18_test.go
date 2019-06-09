@@ -39,6 +39,8 @@ import (
 func makeMockSnapdSnap(c *C) *snap.Info {
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
+	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnap(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapdDir := filepath.Join(info.MountDir(), "lib", "systemd", "system")
@@ -52,6 +54,16 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 	snapdAutoimport := filepath.Join(snapdDir, "snapd.autoimport.service")
 	err = ioutil.WriteFile(snapdAutoimport, []byte("[Unit]\nExecStart=/usr/bin/snap auto-import"), 0644)
+	c.Assert(err, IsNil)
+
+	userUnitDir := filepath.Join(info.MountDir(), "usr", "lib", "systemd", "user")
+	err = os.MkdirAll(userUnitDir, 0755)
+	c.Assert(err, IsNil)
+	agentSrv := filepath.Join(userUnitDir, "snapd.session-agent.service")
+	err = ioutil.WriteFile(agentSrv, []byte("[Unit]\nExecStart=/usr/bin/snap session-agent"), 0644)
+	c.Assert(err, IsNil)
+	agentSock := filepath.Join(userUnitDir, "snapd.session-agent.socket")
+	err = ioutil.WriteFile(agentSock, []byte("[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"), 0644)
 	c.Assert(err, IsNil)
 
 	return info
@@ -117,6 +129,18 @@ Options=bind
 WantedBy=snapd.service
 `, dirs.GlobalRootDir))
 
+	// check that snapd.session-agent.service is created
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"))
+	c.Assert(err, IsNil)
+	// and paths get re-written
+	c.Check(string(content), Equals, fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/bin/snap session-agent", dirs.SnapMountDir))
+
+	// check that snapd.session-agent.socket is created
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"))
+	c.Assert(err, IsNil)
+	// and paths get re-written
+	c.Check(string(content), Equals, "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket")
+
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
@@ -135,6 +159,8 @@ WantedBy=snapd.service
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.socket"},
 	})
 }
 
@@ -152,6 +178,8 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, false)
 
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
