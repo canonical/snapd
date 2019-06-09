@@ -202,13 +202,36 @@ type reporter interface {
 }
 
 // New returns a Systemd that uses the given rootDir
-func New(rootDir string, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, reporter: rep}
+func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
+
+// InstanceMode determines which instance of systemd to talk to
+type InstanceMode int
+
+const (
+	SystemMode InstanceMode = iota
+	UserMode
+	GlobalUserMode
+)
 
 type systemd struct {
 	rootDir  string
 	reporter reporter
+	mode     InstanceMode
+}
+
+func (s *systemd) systemctl(args ...string) ([]byte, error) {
+	switch s.mode {
+	case SystemMode:
+	case UserMode:
+		args = append([]string{"--user"}, args...)
+	case GlobalUserMode:
+		args = append([]string{"--user", "--global"}, args...)
+	default:
+		panic("unknown InstanceMode")
+	}
+	return systemctlCmd(args...)
 }
 
 // DaemonReload reloads systemd's configuration.
@@ -222,43 +245,43 @@ func (s *systemd) DaemonReload() error {
 func (s *systemd) daemonReloadNoLock() error {
 	daemonReloadLock.Taken("cannot use daemon-reload without lock")
 
-	_, err := systemctlCmd("daemon-reload")
+	_, err := s.systemctl("daemon-reload")
 	return err
 }
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "enable", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "enable", serviceName)
 	return err
 }
 
 // Unmask the given service
 func (s *systemd) Unmask(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "unmask", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "unmask", serviceName)
 	return err
 }
 
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "disable", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
 // Mask the given service
 func (s *systemd) Mask(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "mask", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "mask", serviceName)
 	return err
 }
 
 // Start the given service or services
-func (*systemd) Start(serviceNames ...string) error {
-	_, err := systemctlCmd(append([]string{"start"}, serviceNames...)...)
+func (s *systemd) Start(serviceNames ...string) error {
+	_, err := s.systemctl(append([]string{"start"}, serviceNames...)...)
 	return err
 }
 
 // StartNoBlock starts the given service or services non-blocking
-func (*systemd) StartNoBlock(serviceNames ...string) error {
-	_, err := systemctlCmd(append([]string{"start", "--no-block"}, serviceNames...)...)
+func (s *systemd) StartNoBlock(serviceNames ...string) error {
+	_, err := s.systemctl(append([]string{"start", "--no-block"}, serviceNames...)...)
 	return err
 }
 
@@ -287,13 +310,13 @@ var unitProperties = map[string][]string{
 	".mount": extendedProperties,
 }
 
-func getUnitStatus(properties []string, unitNames []string) ([]*UnitStatus, error) {
+func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*UnitStatus, error) {
 	cmd := make([]string, len(unitNames)+2)
 	cmd[0] = "show"
 	// ask for all properties, regardless of unit type
 	cmd[1] = "--property=" + strings.Join(properties, ",")
 	copy(cmd[2:], unitNames)
-	bs, err := systemctlCmd(cmd...)
+	bs, err := s.systemctl(cmd...)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +418,7 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 		if len(set.units) == 0 {
 			continue
 		}
-		sts, err := getUnitStatus(set.properties, set.units)
+		sts, err := s.getUnitStatus(set.properties, set.units)
 		if err != nil {
 			return nil, err
 		}
@@ -419,7 +442,7 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 
 // IsEnabled checkes whether the given service is enabled
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	_, err := systemctlCmd("--root", s.rootDir, "is-enabled", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
 	if err == nil {
 		return true, nil
 	}
@@ -434,7 +457,7 @@ func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 
 // IsActive checkes whether the given service is Active
 func (s *systemd) IsActive(serviceName string) (bool, error) {
-	_, err := systemctlCmd("--root", s.rootDir, "is-active", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "is-active", serviceName)
 	if err == nil {
 		return true, nil
 	}
@@ -448,7 +471,7 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
-	if _, err := systemctlCmd("stop", serviceName); err != nil {
+	if _, err := s.systemctl("stop", serviceName); err != nil {
 		return err
 	}
 
@@ -466,7 +489,7 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := systemctlCmd("show", "--property=ActiveState", serviceName)
+			bs, err := s.systemctl("show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
@@ -491,7 +514,7 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	if who == "" {
 		who = "all"
 	}
-	_, err := systemctlCmd("kill", serviceName, "-s", signal, "--kill-who="+who)
+	_, err := s.systemctl("kill", serviceName, "-s", signal, "--kill-who="+who)
 	return err
 }
 
