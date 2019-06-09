@@ -1,8 +1,6 @@
 summary: Check that root can activate the session agent via socket activation
 
 systems:
-    # There is no user session on Ubuntu Core
-    - -ubuntu-core-*
     # Ubuntu 14.04 does not have a complete systemd implementation
     - -ubuntu-14.04-*
     # Systemd on CentOS 7/Amazon Linux 2 does not have the user@uid unit
@@ -18,6 +16,11 @@ prepare: |
     chmod u=rwX,go= "$USER_RUNTIME_DIR"
     chown test:test "$USER_RUNTIME_DIR"
     systemctl start "user@${TEST_UID}.service"
+    # ensure curl is available (needed for e.g. core18)
+    if ! command -v curl; then
+        snap install --devmode --edge test-snapd-curl
+        snap alias test-snapd-curl.curl curl
+    fi
 
 restore: |
     systemctl stop "user@${TEST_UID}.service"
