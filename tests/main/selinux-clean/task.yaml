@@ -54,3 +54,12 @@ execute: |
     [ -S /var/snap/socket-activation/common/socket ]
     snap remove socket-activation
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    # snaps with bases are special in the way that $(libexecdir)/snapd form host
+    # is bind mounted into the mount namespace of a snap, thus the SELinux
+    # contexts from the host appear inside, and the policy needs to allow
+    # proper transitions with these labels
+    install_local test-snapd-snapctl-core18
+    snap restart test-snapd-snapctl-core18
+    snap remove test-snapd-snapctl-core18
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
