@@ -127,6 +127,21 @@ func (r *mountedfilesystemTestSuite) TestWriteDirectoryWhole(c *C) {
 	verifyDeployedGadgetData(c, outDir, gd)
 }
 
+func (r *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
+	gd := []gadgetData{
+		{name: "foo", content: "nested"},
+	}
+	makeGadgetData(c, r.dir, gd)
+
+	outDir := c.MkDir()
+
+	err := gadget.WriteDirectory(filepath.Join(r.dir, "foo")+"/", outDir, nil)
+	c.Assert(err, ErrorMatches, `cannot specify trailing / for a source which is not a directory`)
+
+	err = gadget.WriteDirectory(filepath.Join(r.dir, "foo"), outDir, nil)
+	c.Assert(err, ErrorMatches, `source is not a directory`)
+}
+
 func (r *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 	gd := []gadgetData{
 		{"foo", "foo-dir/foo", "foo foo foo"},

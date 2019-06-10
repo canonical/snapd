@@ -76,13 +76,18 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 //   /foo/ -> /bar - deploys contents of foo under /bar
 //   /foo  -> /bar - deploys foo and its subtree under /bar
 func writeDirectory(src, dst string, preserveInDst []string) error {
-	if strings.HasSuffix(src, "/") {
-		if !osutil.IsDirectory(src) {
+	hasDirSourceSlash := strings.HasSuffix(src, "/")
+
+	if !osutil.IsDirectory(src) {
+		if hasDirSourceSlash {
+			// make the error sufficiently descriptive
 			return fmt.Errorf("cannot specify trailing / for a source which is not a directory")
 		}
+		return fmt.Errorf("source is not a directory")
 	}
 
-	if !strings.HasSuffix(src, "/") {
+	if !hasDirSourceSlash {
+		// /foo -> /bar (deploy foo and subtree)
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
