@@ -689,12 +689,30 @@ func (m *SnapManager) ensureSnapdSnapType() error {
 	// XXX: should we simply look "snapd" up by name and check its SnapID instead of
 	// iterating over all snaps?
 	for instanceName, snapst := range snaps {
+		tp, _ := snapst.Type()
 		for _, si := range snapst.Sequence {
-			tp, _ := snapst.Type()
 			if snap.SnapIDSnapd(si.SnapID) && tp != snap.TypeSnapd {
 				snapst.SetType(snap.TypeSnapd)
 				Set(m.state, instanceName, snapst)
 				return nil
+			}
+		}
+	}
+
+	tasks := m.state.Tasks()
+	for _, task := range tasks {
+		if task.Status().Ready() {
+			continue
+		}
+		var snapsup *SnapSetup
+		err := task.Get("snap-setup", &snapsup)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+		if err == nil && snapsup != nil && snapsup.SideInfo != nil {
+			if snap.SnapIDSnapd(snapsup.SideInfo.SnapID) && snapsup.Type != snap.TypeSnapd {
+				snapsup.Type = snap.TypeSnapd
+				task.Set("snap-setup", snapsup)
 			}
 		}
 	}

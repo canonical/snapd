@@ -9604,6 +9604,47 @@ name: snap
 	c.Check(tp, Equals, snap.TypeApp)
 }
 
+func (s *snapmgrTestSuite) TestEnsureUpdatesSnapdSnapTypeTasks(c *C) {
+	st := s.state
+
+	restore := snap.MockSnapdSnapID("snapd-id")
+	defer restore()
+
+	si := &snap.SideInfo{RealName: "snapd", Revision: snap.R(10), SnapID: "snapd-id"}
+	sup := snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     "app",
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	task1 := st.NewTask("kind", "...")
+	task1.Set("snap-setup", &sup)
+	task2 := st.NewTask("kind", "...") // irrelevant task, no snap-setup
+	chg1 := st.NewChange("", "")
+	chg1.AddTask(task1)
+	chg1.AddTask(task2)
+
+	task3 := st.NewTask("kind", "...")
+	task3.Set("snap-setup", &sup) // irrelevant task, status is Done
+	chg2 := st.NewChange("", "")
+	chg2.AddTask(task3)
+	chg2.SetStatus(state.DoneStatus)
+
+	st.Unlock()
+	s.snapmgr.Ensure()
+	st.Lock()
+
+	c.Assert(task1.Get("snap-setup", &sup), IsNil)
+	c.Check(sup.Type, Equals, snap.TypeSnapd)
+
+	c.Assert(task2.Get("snap-setup", &sup), Equals, state.ErrNoState)
+
+	c.Assert(task3.Get("snap-setup", &sup), IsNil)
+	c.Check(sup.Type, Equals, snap.TypeSnapd)
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	// special policy only on classic
 	r := release.MockOnClassic(true)
