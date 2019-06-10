@@ -39,7 +39,7 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
 	c.Assert(err, IsNil)
-	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\nubuntu  12.34\n")
+	c.Assert(s.Stdout(), Equals, "snap     4.56\nsnapd    7.89\nseries   56\nubuntu   12.34\nspecial  snapcraft summit\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -54,7 +54,7 @@ func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
 	c.Assert(err, IsNil)
-	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\n")
+	c.Assert(s.Stdout(), Equals, "snap     4.56\nsnapd    7.89\nseries   56\nspecial  snapcraft summit\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -69,6 +69,6 @@ func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
 	c.Assert(err, IsNil)
-	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\narch    -\n")
+	c.Assert(s.Stdout(), Equals, "snap     4.56\nsnapd    7.89\nseries   56\narch     -\nspecial  snapcraft summit\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
