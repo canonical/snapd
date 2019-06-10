@@ -1034,7 +1034,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	// record type
-	snapst.SetType(newInfo.Type)
+	if snap.SnapIDSnapd(string(snapsup.Type)) {
+		tp, _ := snapst.Type()
+		if tp != snap.TypeSnapd {
+			snapst.SetType(snap.TypeSnapd)
+		}
+	} else {
+		snapst.SetType(newInfo.Type)
+	}
 
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	model, _ := ModelFromTask(t)

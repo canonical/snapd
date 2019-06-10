@@ -55,6 +55,7 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
+	snapdSnapTypeMigrationOnce      bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -668,6 +669,38 @@ func (m *SnapManager) localInstallCleanup() error {
 	return osutil.UnlinkManyAt(d, filenames)
 }
 
+// ensureSnapdSnapType ensures any snapd snaps in the snapstate have TypeSnapd. This is for
+// backward compatibility with old snapd snap releases. This needs to be done only once on startup
+// since similiar migration is done on the fly when installing snapd snaps as well.
+func (m *SnapManager) ensureSnapdSnapType() error {
+	// run only once as this is relatively expensive with lots of snaps
+	if m.snapdSnapTypeMigrationOnce {
+		return nil
+	}
+	m.snapdSnapTypeMigrationOnce = true
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	snaps, err := All(m.state)
+	if err != nil {
+		return err
+	}
+	// XXX: should we simply look "snapd" up by name and check its SnapID instead of
+	// iterating over all snaps?
+	for instanceName, snapst := range snaps {
+		for _, si := range snapst.Sequence {
+			tp, _ := snapst.Type()
+			if snap.SnapIDSnapd(si.SnapID) && tp != snap.TypeSnapd {
+				snapst.SetType(snap.TypeSnapd)
+				Set(m.state, instanceName, snapst)
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
@@ -682,6 +715,7 @@ func (m *SnapManager) Ensure() error {
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
+		m.ensureSnapdSnapType(),
 	}
 
 	//FIXME: use firstErr helper

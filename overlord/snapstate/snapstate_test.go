@@ -358,6 +358,7 @@ const (
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	noConfigure
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -417,9 +418,11 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
-	expected = append(expected,
-		"run-hook[configure]",
-	)
+	if opts&noConfigure == 0 {
+		expected = append(expected,
+			"run-hook[configure]",
+		)
+	}
 
 	c.Assert(kinds, DeepEquals, expected)
 }
@@ -619,6 +622,23 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestInstallSetsSnapdSnapType(c *C) {
+	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
 }
 
 func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
@@ -9533,6 +9553,55 @@ func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 	s.state.Lock()
 
 	// no failure report was generated
+}
+
+func (s *snapmgrTestSuite) TestEnsureUpdatesSnapdSnapTypeOnce(c *C) {
+	st := s.state
+
+	restore := snap.MockSnapdSnapID("snapd-id")
+	defer restore()
+
+	sideInfo := &snap.SideInfo{RealName: "snapd", Revision: snap.R(10), SnapID: "snapd-id"}
+	snaptest.MockSnap(c, `
+name: snap
+`, sideInfo)
+
+	initialSnapState := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+		SnapType: "app",
+	}
+
+	st.Lock()
+	snapstate.Set(s.state, "snapd", initialSnapState)
+	st.Unlock()
+
+	s.snapmgr.Ensure()
+
+	st.Lock()
+	defer st.Unlock()
+
+	var snapSt snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snapd", &snapSt), IsNil)
+	tp, err := snapSt.Type()
+	c.Assert(err, IsNil)
+
+	// first run of Ensure updated snapd snap type
+	c.Check(tp, Equals, snap.TypeSnapd)
+
+	// reset snapd snap back to 'app' to test that ensureSnapdSnapType runs only once.
+	snapstate.Set(s.state, "snapd", initialSnapState)
+
+	st.Unlock()
+	s.snapmgr.Ensure()
+	st.Lock()
+
+	// snapd is not updated
+	c.Assert(snapstate.Get(s.state, "snapd", &snapSt), IsNil)
+	tp, err = snapSt.Type()
+	c.Assert(err, IsNil)
+	c.Check(tp, Equals, snap.TypeApp)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
