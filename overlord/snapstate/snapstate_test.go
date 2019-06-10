@@ -637,7 +637,8 @@ func (s *snapmgrTestSuite) TestInstallSetsSnapdSnapType(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(s.state, "snapd", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
