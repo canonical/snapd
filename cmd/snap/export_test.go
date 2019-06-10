@@ -108,6 +108,7 @@ var (
 	MaybePrintBase              = (*infoWriter).maybePrintBase
 	MaybePrintPath              = (*infoWriter).maybePrintPath
 	MaybePrintSum               = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

@@ -92,6 +92,13 @@ type PositionedContent struct {
 	Index int
 }
 
+func (p PositionedContent) String() string {
+	if p.Image != "" {
+		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
+	}
+	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
+}
+
 // PositionVolume attempts to lay out the volume using constraints and returns a
 // fully positioned description of the resulting volume
 func PositionVolume(gadgetRootDir string, volume *Volume, constraints PositioningConstraints) (*PositionedVolume, error) {

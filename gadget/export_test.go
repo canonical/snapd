@@ -30,4 +30,6 @@ var (
 	CanUpdateVolume    = canUpdateVolume
 
 	EncodeLabel = encodeLabel
+
+	RawContentBackupPath = rawContentBackupPath
 )
