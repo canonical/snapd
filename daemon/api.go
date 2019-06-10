@@ -753,8 +753,9 @@ type snapInstruction struct {
 
 func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
 	return &snapstate.RevisionOptions{
-		Channel:  inst.Channel,
-		Revision: inst.Revision,
+		Channel:   inst.Channel,
+		Revision:  inst.Revision,
+		CohortKey: inst.CohortKey,
 	}
 }
 
@@ -783,7 +784,6 @@ type snapInstructionResult struct {
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
-	snapstateInstallCohort     = snapstate.InstallCohort
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
@@ -792,6 +792,7 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+	snapstateSwitch            = snapstate.Switch
 
 	snapshotList    = snapshotstate.List
 	snapshotCheck   = snapshotstate.Check
@@ -931,16 +932,14 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
-	var tset *state.TaskSet
 	var ckey string
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
-		tset, err = snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	} else {
 		ckey = strutil.ElliptRight(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
-		tset, err = snapstateInstallCohort(st, inst.Snaps[0], inst.Channel, inst.CohortKey, inst.userID, flags)
 	}
+	tset, err := snapstateInstall(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1072,12 +1071,20 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("switch takes no revision")
 	}
-	ts, err := snapstate.Switch(st, inst.Snaps[0], &snapstate.RevisionOptions{Channel: inst.Channel})
+	ts, err := snapstateSwitch(st, inst.Snaps[0], inst.revnoOpts())
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
+	var msg string
+	switch {
+	case inst.CohortKey == "" && inst.Channel != "":
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q"), inst.Snaps[0], inst.Channel)
+	case inst.CohortKey != "" && inst.Channel == "":
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to cohort %q"), inst.Snaps[0], strutil.ElliptRight(inst.CohortKey, 10))
+	default:
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q and cohort %q"), inst.Snaps[0], inst.Channel, strutil.ElliptRight(inst.CohortKey, 10))
+	}
 	return msg, []*state.TaskSet{ts}, nil
 }
 

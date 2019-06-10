@@ -291,6 +291,12 @@ plugs:
   target: $SNAP/data-dir/themes
 `
 
+const snapBaseNone = `
+name: snap-base-none
+version: 1.0
+base: none
+`
+
 func (s *imageSuite) TestMissingModelAssertions(c *C) {
 	_, err := image.DecodeModelAssertion(&image.Options{})
 	c.Assert(err, ErrorMatches, "cannot read model assertion: open : no such file or directory")
@@ -610,6 +616,10 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	s.downloadedSnaps["snap-req-content-provider"] = snaptest.MakeTestSnapWithFiles(c, snapReqContentProvider, nil)
 	s.storeSnapInfo["snap-req-content-provider"] = infoFromSnapYaml(c, snapReqContentProvider, snap.R(5))
 	s.addSystemSnapAssertions(c, "snap-req-content-provider", "other")
+
+	s.downloadedSnaps["snap-base-none"] = snaptest.MakeTestSnapWithFiles(c, snapBaseNone, nil)
+	s.storeSnapInfo["snap-base-none"] = infoFromSnapYaml(c, snapBaseNone, snap.R(1))
+	s.addSystemSnapAssertions(c, "snap-base-none", "other")
 }
 
 func (s *imageSuite) TestSetupSeed(c *C) {
@@ -1736,6 +1746,33 @@ func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
 }
 
+func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"snap-base-none"},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	gadgetUnpackDir := c.MkDir()
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"core":           "canonical",
+		"pc":             "canonical",
+		"pc-kernel":      "canonical",
+		"snap-base-none": "canonical",
+	})
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+	c.Assert(image.SetupSeed(s.tsto, model, opts, local), IsNil)
+}
+
 func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
@@ -1892,9 +1929,7 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 	err = image.SetupSeed(s.tsto, model, opts, local)
-	c.Assert(err, IsNil)
-
-	c.Check(s.stderr.String(), Equals, `WARNING: the default content provider "gtk-common-themes" requested by snap "snap-req-content-provider" is not getting installed.`)
+	c.Check(err, ErrorMatches, `cannot use snap "snap-req-content-provider" without its default content provider "gtk-common-themes" being added explicitly`)
 }
 
 func (s *imageSuite) TestMissingLocalSnaps(c *C) {

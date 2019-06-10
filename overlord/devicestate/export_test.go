@@ -23,10 +23,10 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -90,7 +90,7 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallWithDeviceContext
 	snapstateInstallWithDeviceContext = f
 	return func() {
@@ -152,4 +152,15 @@ var (
 	RemodelCtx         = remodelCtx
 	RemodelCtxFromTask = remodelCtxFromTask
 	CleanupRemodelCtx  = cleanupRemodelCtx
+
+	GadgetUpdateBlocked    = gadgetUpdateBlocked
+	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
+
+func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+	old := gadgetUpdate
+	gadgetUpdate = mock
+	return func() {
+		gadgetUpdate = old
+	}
+}

@@ -1,3 +1,14 @@
+snapd (2.39.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1827495
+    - debian: rework how we run autopkgtests
+    - interfaces/docker-support: add overlayfs accesses for ubuntu core
+    - data/selinux: permit init_t to remount snappy_snap_t
+    - strutil/shlex: fix ineffassign
+    - packaging: fix build-depends on powerpc
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 05 Jun 2019 08:41:21 +0200
+
 snapd (2.39.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1827495

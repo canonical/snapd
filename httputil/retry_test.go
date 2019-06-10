@@ -21,6 +21,7 @@ package httputil_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -404,14 +405,17 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 }
 
 func (s *retrySuite) TestRetryDoesNotFailForPermanentDNSErrors(c *C) {
-	url := "http://nonexistingserver909123.com/"
-
-	cli := httputil.NewHTTPClient(nil)
-
 	n := 0
 	doRequest := func() (*http.Response, error) {
 		n++
-		return cli.Get(url)
+
+		// this is the error reported when executing the request with a working network & DNS, when
+		// a host is unknown.
+		return nil, &net.OpError{
+			Op:  "dial",
+			Net: "tcp",
+			Err: fmt.Errorf("no such host"),
+		}
 	}
 
 	readResponseBody := func(resp *http.Response) error {
