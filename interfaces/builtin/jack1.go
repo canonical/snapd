@@ -19,9 +19,9 @@
 
 package builtin
 
-const jackSummary = `allows interacting with a JACK1 server`
+const jack1Summary = `allows interacting with a JACK1 server`
 
-const jackBaseDeclarationSlots = `
+const jack1BaseDeclarationSlots = `
   jack1:
     allow-installation:
       slot-snap-type:
@@ -29,8 +29,8 @@ const jackBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const jackConnectedPlugAppArmor = `
-# Per libjack/shm.c, various endpoints for JACK1 ae setup like:
+const jack1ConnectedPlugAppArmor = `
+# Per libjack/shm.c, various endpoints for JACK1 are setup like:
 # jack-<userid>/<server name>/jack*
 owner /dev/shm/jack-[0-9]*/*/* rw,
 `
@@ -38,10 +38,10 @@ owner /dev/shm/jack-[0-9]*/*/* rw,
 func init() {
 	registerIface(&commonInterface{
 		name:                  "jack1",
-		summary:               jackSummary,
+		summary:               jack1Summary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  jackBaseDeclarationSlots,
-		connectedPlugAppArmor: jackConnectedPlugAppArmor,
+		baseDeclarationSlots:  jack1BaseDeclarationSlots,
+		connectedPlugAppArmor: jack1ConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }

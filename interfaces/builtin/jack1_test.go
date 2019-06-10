@@ -52,7 +52,7 @@ apps:
 `
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "jack",
+		Name:      "jack1",
 		Interface: "jack1",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
