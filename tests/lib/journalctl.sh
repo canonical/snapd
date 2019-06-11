@@ -36,6 +36,7 @@ check_journalctl_log(){
     expression=$1
     shift
     for _ in $(seq 10); do
+        journalctl --flush --sync
         log=$(get_journalctl_log "$@")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
