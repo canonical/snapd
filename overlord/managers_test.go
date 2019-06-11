@@ -3686,6 +3686,23 @@ func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// the new required-snap "foo" is installed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	// and marked required
+	c.Check(snapst.Required, Equals, true)
+
+	// a new store was made
+	c.Check(newDAC, Equals, true)
+
+	// we have a session with the new store
+	device, err := devicestatetest.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, "store-switch-serial")
+	c.Check(device.SessionMacaroon, Equals, "switched-store-session")
 }
 
 func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
