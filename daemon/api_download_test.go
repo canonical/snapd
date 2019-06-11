@@ -189,7 +189,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Code, check.Equals, s.status)
 			c.Assert(w.Header().Get("Content-Length"), check.Equals, expectedLength)
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
-			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, "bar")
+			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, "attachment; filename=bar")
 			c.Assert(w.Body.String(), check.Equals, "SNAP")
 		}
 	}

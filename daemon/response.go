@@ -257,7 +257,8 @@ type FileStream struct {
 func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", "application/octet-stream")
-	hdr.Set("Content-Disposition", s.SnapName)
+	snapname := fmt.Sprintf("attachment; filename=%s", s.SnapName)
+	hdr.Set("Content-Disposition", snapname)
 
 	size := fmt.Sprintf("%d", s.Info.Size)
 	hdr.Set("Content-Length", size)
