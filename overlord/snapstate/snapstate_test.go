@@ -12773,6 +12773,18 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestConflictManyRemodeling(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoingStatus)
+
+	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+}
+
 func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
