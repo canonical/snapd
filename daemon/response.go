@@ -263,15 +263,14 @@ func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	hdr.Set("Content-Length", size)
 
 	defer s.stream.Close()
-
 	bytesCopied, err := io.Copy(w, s.stream)
 	if err != nil {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.SnapName, s.Info, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
 	}
 	if bytesCopied != s.Info.Size {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expeced=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
-		http.Error(w, io.EOF.Error(), http.StatusBadGateway)
+		http.Error(w, io.EOF.Error(), 502)
 	}
 }
 
