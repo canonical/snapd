@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
-
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
@@ -101,6 +98,7 @@ build_rpm() {
     case "$SPREAD_SYSTEM" in
         fedora-*|amazon-*|centos-*)
             extra_tar_args="$extra_tar_args --exclude=vendor/*"
+            archive_name=snapd_$version.no-vendor.tar.xz
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -119,10 +117,12 @@ build_rpm() {
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
     (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* || "$SPREAD_SYSTEM" == centos-* ]]; then
-        # need to build the vendor tree
-        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
-    fi
+    case "$SPREAD_SYSTEM" in
+        fedora-*|amazon-*|centos-*)
+            # need to build the vendor tree
+            (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
+            ;;
+    esac
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
@@ -227,6 +227,12 @@ prepare_project() {
     if systemd-detect-virt -c; then
         echo "Tests cannot run inside a container"
         exit 1
+    fi
+
+    # no need to modify anything further for autopkgtest
+    # we want to run as pristine as possible
+    if [ "$SPREAD_BACKEND" = autopkgtest ]; then
+        exit 0
     fi
 
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
@@ -342,17 +348,17 @@ prepare_project() {
         # 14.04 has its own packaging
         ./generate-packaging-dir
 
-        quiet apt-get install -y software-properties-common
+        quiet eatmydata apt-get install -y software-properties-common
 
 	# FIXME: trusty-proposed disabled because there is an inconsistency
 	#        in the trusty-proposed archive:
 	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
         #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
-        quiet apt-get update
+        quiet eatmydata apt-get update
 
-        quiet apt-get install -y --install-recommends linux-generic-lts-xenial
-        quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+        quiet eatmydata apt-get install -y --install-recommends linux-generic-lts-xenial
+        quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
     # WORKAROUND for older postrm scripts that did not do 
@@ -384,7 +390,7 @@ prepare_project() {
             else
                 best_golang=golang-1.10
             fi
-            gdebi --quiet --apt-line ./debian/control | quiet xargs -r apt-get install -y
+            gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
             # The go 1.10 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
@@ -399,7 +405,13 @@ prepare_project() {
         rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
-    quiet govendor sync
+    # Retry govendor sync to minimize the number of connection errors during the sync
+    for _ in $(seq 10); do
+        if quiet govendor sync; then
+            break
+        fi
+        sleep 1
+    done
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
@@ -493,7 +505,7 @@ prepare_suite_each() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
-            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
+            ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
 }
@@ -565,7 +577,7 @@ restore_project_each() {
     fi
 
     # Something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
+    not grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {

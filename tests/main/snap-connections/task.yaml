@@ -5,7 +5,7 @@ execute: |
     . "$TESTSLIB/snaps.sh"
 
     snap connections > all.out 2>&1
-    test "$(wc -l < all.out)" = "0"
+    initial_connections="$(wc -l < all.out)"
 
     snap install test-snapd-content-slot
     expected='content +- +test-snapd-content-slot:shared-content-slot +-'
@@ -14,9 +14,9 @@ execute: |
 
     snap connections test-snapd-content-slot --all 2>&1 | MATCH 'error: cannot use --all with snap name'
 
-    # test-snapd-content-slot is the only snap installed and it has no connections yet
+    # test-snapd-content-slot has not other connections yet
     snap connections > all.out 2>&1
-    test "$(wc -l < all.out)" = "0"
+    test "$(wc -l < all.out)" = "$initial_connections"
     # but it will show up if we ask for all or disconnected plugs and slots
     snap connections --all | MATCH -- "$expected"
 
@@ -69,5 +69,5 @@ execute: |
     # make sure that an interface that is not connected shows up too
     MATCH 'opengl +- +:opengl +-' < system.out
 
-    ! snap connections not-found > error.out 2>&1
+    not snap connections not-found > error.out 2>&1
     MATCH 'error: snap "not-found" not found' < error.out

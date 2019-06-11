@@ -458,6 +458,16 @@ func (cs *clientSuite) TestClientCreateUser(c *C) {
 	})
 }
 
+func (cs *clientSuite) TestUserAgent(c *C) {
+	cli := client.New(&client.Config{UserAgent: "some-agent/9.87"})
+	cli.SetDoer(cs)
+
+	var v string
+	_ = cli.Do("GET", "/", nil, nil, &v)
+	c.Assert(cs.req, NotNil)
+	c.Check(cs.req.Header.Get("User-Agent"), Equals, "some-agent/9.87")
+}
+
 var createUsersTests = []struct {
 	options   []*client.CreateUserOptions
 	bodies    []string
@@ -564,11 +574,11 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
 
 	var result []string
-	err := cs.cli.DebugGet("do-something", &result)
+	err := cs.cli.DebugGet("do-something", &result, map[string]string{"foo": "bar"})
 	c.Check(err, IsNil)
 	c.Check(result, DeepEquals, []string{"res1", "res2"})
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}})
+	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}, "foo": []string{"bar"}})
 }

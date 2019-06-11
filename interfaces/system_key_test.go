@@ -64,7 +64,7 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.buildID = id
 
-	s.seccompCompilerVersion = "123 2.3.3 abcdef123"
+	s.seccompCompilerVersion = "123 2.3.3 abcdef123 -"
 	testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), fmt.Sprintf(`
 if [ "$1" = "version-info" ]; then echo "%s"; exit 0; fi
 exit 1
@@ -210,28 +210,4 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	// when we encounter different versions we get the right error
 	_, err = interfaces.SystemKeyMismatch()
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
-}
-
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathNormal(c *C) {
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
-}
-
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathReexec(c *C) {
-	s.AddCleanup(interfaces.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
-	}))
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/core/111/usr/lib/snapd/snapd"))
-}
-
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathSnapdSnap(c *C) {
-	s.AddCleanup(interfaces.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "snapd/22/usr/bin/snap"), nil
-	}))
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/snapd/22/usr/lib/snapd/snapd"))
 }

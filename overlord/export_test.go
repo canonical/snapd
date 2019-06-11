@@ -22,9 +22,10 @@ package overlord
 import (
 	"time"
 
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -60,8 +61,13 @@ func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
 }
 
+// NewStore exposes newStore.
+func (o *Overlord) NewStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
+	return o.newStore(devBE)
+}
+
 // MockStoreNew mocks store.New as called by overlord.New.
-func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+func MockStoreNew(new func(*store.Config, store.DeviceAndAuthContext) *store.Store) (restore func()) {
 	storeNew = new
 	return func() {
 		storeNew = store.New

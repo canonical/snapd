@@ -96,6 +96,8 @@ type Command struct {
 	UserOK bool
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
+	// this path is only accessible to root
+	RootOnly bool
 
 	// can polkit grant access? set to polkit action ID if so
 	PolkitOK string
@@ -116,17 +118,23 @@ var polkitCheckAuthorization = polkit.CheckAuthorization
 
 // canAccess checks the following properties:
 //
-// - if a user is logged in (via `snap login`) everything is allowed
 // - if the user is `root` everything is allowed
-// - POST/PUT/DELETE all require `snap login` or `root`
+// - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
+// - POST/PUT/DELETE all require `root`, or just `snap login` if not RootOnly
 //
 // Otherwise for GET requests the following parameters are honored:
 // - GuestOK: anyone can access GET
 // - UserOK: any uid on the local system can access GET
+// - RootOnly: only root can access this
 // - SnapOK: a snap can access this via `snapctl`
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
-	if user != nil {
-		// Authenticated users do anything for now.
+	if c.RootOnly && (c.UserOK || c.GuestOK || c.SnapOK) {
+		// programming error
+		logger.Panicf("Command can't have RootOnly together with any *OK flag")
+	}
+
+	if user != nil && !c.RootOnly {
+		// Authenticated users do anything not requiring explicit root.
 		return accessOK
 	}
 
@@ -149,7 +157,8 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessUnauthorized
 	}
 
-	if r.Method == "GET" {
+	// the !RootOnly check is redundant, but belt-and-suspenders
+	if r.Method == "GET" && !c.RootOnly {
 		// Guest and user access restricted to GET requests
 		if c.GuestOK {
 			return accessOK
@@ -168,6 +177,10 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	if uid == 0 {
 		// Superuser does anything.
 		return accessOK
+	}
+
+	if c.RootOnly {
+		return accessUnauthorized
 	}
 
 	if c.PolkitOK != "" {

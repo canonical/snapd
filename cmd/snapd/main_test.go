@@ -63,7 +63,7 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 	restore = seccomp.MockSnapSeccompVersionInfo(func(s seccomp.Compiler) (string, error) {
-		return "abcdef 1.2.3 1234abcd", nil
+		return "abcdef 1.2.3 1234abcd -", nil
 	})
 	defer restore()
 

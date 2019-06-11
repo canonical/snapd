@@ -70,6 +70,9 @@ type Config struct {
 	// DisableKeepAlive indicates whether the connections should not be kept
 	// alive for later reuse
 	DisableKeepAlive bool
+
+	// User-Agent to sent to the snapd daemon
+	UserAgent string
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -84,6 +87,8 @@ type Client struct {
 
 	warningCount     int
 	warningTimestamp time.Time
+
+	userAgent string
 }
 
 // New returns a new instance of Client
@@ -103,6 +108,7 @@ func New(config *Config) *Client {
 			doer:        &http.Client{Transport: transport},
 			disableAuth: config.DisableAuth,
 			interactive: config.Interactive,
+			userAgent:   config.UserAgent,
 		}
 	}
 
@@ -115,6 +121,7 @@ func New(config *Config) *Client {
 		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
+		userAgent:   config.UserAgent,
 	}
 }
 
@@ -193,6 +200,9 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return nil, RequestError{err}
+	}
+	if client.userAgent != "" {
+		req.Header.Set("User-Agent", client.userAgent)
 	}
 
 	for key, value := range headers {
@@ -685,7 +695,11 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	return err
 }
 
-func (client *Client) DebugGet(aspect string, result interface{}) error {
-	_, err := client.doSync("GET", "/v2/debug", url.Values{"aspect": []string{aspect}}, nil, nil, &result)
+func (client *Client) DebugGet(aspect string, result interface{}, params map[string]string) error {
+	urlParams := url.Values{"aspect": []string{aspect}}
+	for k, v := range params {
+		urlParams.Set(k, v)
+	}
+	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
 	return err
 }

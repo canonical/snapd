@@ -22,6 +22,8 @@ package overlord
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -34,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
@@ -45,7 +46,9 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -84,6 +87,8 @@ type Overlord struct {
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
 	shotMgr   *snapshotstate.SnapshotManager
+	// proxyConf mediates the http proxy config
+	proxyConf func(req *http.Request) (*url.URL, error)
 }
 
 var storeNew = store.New
@@ -138,7 +143,7 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(ifaceMgr)
 
-	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner)
+	deviceMgr, err := devicestate.Manager(s, hookMgr, o.runner, o.newStore)
 	if err != nil {
 		return nil, err
 	}
@@ -155,12 +160,9 @@ func New() (*Overlord, error) {
 	s.Lock()
 	defer s.Unlock()
 	// setting up the store
-	proxyConf := proxyconf.New(s)
-	authContext := auth.NewAuthContext(s, o.deviceMgr)
-	cfg := store.DefaultConfig()
-	cfg.Proxy = proxyConf.Conf
-	sto := storeNew(cfg, authContext)
-	sto.SetCacheDownloads(defaultCachedDownloads)
+	o.proxyConf = proxyconf.New(s).Conf
+	storeCtx := storecontext.New(s, o.deviceMgr.StoreContextBackend())
+	sto := o.newStoreWithContext(storeCtx)
 
 	snapstate.ReplaceStore(s, sto)
 
@@ -192,6 +194,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
+	perfTimings := timings.New(map[string]string{"startup": "load-state"})
+
 	if !osutil.FileExists(dirs.SnapStateFile) {
 		// fail fast, mostly interesting for tests, this dir is setup
 		// by the snapd package
@@ -210,10 +214,16 @@ func loadState(backend state.Backend) (*state.State, error) {
 	}
 	defer r.Close()
 
-	s, err := state.ReadState(backend, r)
+	var s *state.State
+	timings.Run(perfTimings, "read-state", "read snapd state from disk", func(tm timings.Measurer) {
+		s, err = state.ReadState(backend, r)
+	})
 	if err != nil {
 		return nil, err
 	}
+	s.Lock()
+	perfTimings.Save(s)
+	s.Unlock()
 
 	// one-shot migrations
 	err = patch.Apply(s)
@@ -221,6 +231,22 @@ func loadState(backend state.Backend) (*state.State, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snapstate.StoreService {
+	cfg := store.DefaultConfig()
+	cfg.Proxy = o.proxyConf
+	sto := storeNew(cfg, storeCtx)
+	sto.SetCacheDownloads(defaultCachedDownloads)
+	return sto
+}
+
+// newStore can make new stores for use during remodeling.
+// The device backend will tie them to the remodeling device state.
+func (o *Overlord) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
+	scb := o.deviceMgr.StoreContextBackend()
+	stoCtx := storecontext.NewComposed(o.State(), devBE, scb, scb)
+	return o.newStoreWithContext(stoCtx)
 }
 
 func (o *Overlord) ensureTimerSetup() {

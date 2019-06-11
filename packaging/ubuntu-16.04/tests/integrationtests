@@ -35,16 +35,49 @@ if apt -qq list snapd | grep -q -- -proposed; then
 elif apt -qq list snapd | grep -q -- -updates; then
     export SPREAD_CORE_CHANNEL=stable
 fi
+# ensure we always run from the deb that is currently tested
+export SNAP_REEXEC=0
+mkdir -p /etc/systemd/system/snapd.service.d
+cat <<EOF > /etc/systemd/system/snapd.service.d/no-reexec.conf
+[Service]
+Environment=SNAP_REEXEC=$SNAP_REEXEC
+EOF
+systemctl daemon-reload
+systemctl restart snapd
 
 # Spread will only buid with recent go
 snap install --classic go
 
 # and now run spread against localhost
-# shellcheck disable=SC1091
-. /etc/os-release
 export GOPATH=/tmp/go
 /snap/bin/go get -u github.com/snapcore/spread/cmd/spread
-/tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)":tests/smoke/
+
+# the tests need this:
+groupadd --gid 12345 test
+adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
+
+# we build our own minimal spread.yaml
+cat > spread.yaml <<'EOF'
+project: snapd
+path: /home/gopath/src/github.com/snapcore/snapd
+environment:
+    PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
+    TESTSLIB: $PROJECT_PATH/tests/lib
+    SNAPPY_TESTING: 1
+    PATH: $PATH:$PROJECT_PATH/tests/lib/bin
+backends:
+    autopkgtest:
+        type: adhoc
+        allocate: ADDRESS localhost:22
+        systems:
+        - adt-local:
+            username: ubuntu
+            password: ubuntu
+suites:
+        tests/smoke/:
+            summary: Essenial system level tests for snapd
+EOF
+/tmp/go/bin/spread -v autopkgtest:adt-local:tests/smoke/
 
 # store journal info for inspectsion
 journalctl --sync

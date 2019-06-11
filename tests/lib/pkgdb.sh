@@ -160,8 +160,8 @@ distro_install_local_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*|debian-*)
             # relying on dpkg as apt(-get) does not support installation from local files in trusty.
-            dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
-            apt-get -f install -y
+            eatmydata dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
+            eatmydata apt-get -f install -y
             ;;
         ubuntu-*)
             flags="-y"
@@ -233,7 +233,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
         if [[ "$*" =~ "libudev-dev" ]]; then
-            apt-get install -y --only-upgrade systemd
+            eatmydata apt-get install -y --only-upgrade systemd
         fi
         ;;
     esac
@@ -243,7 +243,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         debian-9-*)
         if [[ "$*" =~ "gnome-keyring" ]]; then
-            apt-get remove -y libp11-kit0
+            eatmydata apt-get remove -y libp11-kit0
         fi
         ;;
     esac
@@ -264,7 +264,7 @@ distro_install_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             # shellcheck disable=SC2086
-            quiet apt-get install $APT_FLAGS -y "${pkg_names[@]}"
+            quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             ;;
         fedora-*)
             # shellcheck disable=SC2086
@@ -314,7 +314,7 @@ distro_purge_package() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get remove -y --purge -y "$@"
+            quiet eatmydata apt-get remove -y --purge -y "$@"
             ;;
         fedora-*)
             quiet dnf -y remove "$@"
@@ -339,7 +339,7 @@ distro_purge_package() {
 distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get update
+            quiet eatmydata apt-get update
             ;;
         fedora-*)
             quiet dnf clean all
@@ -365,7 +365,7 @@ distro_update_package_db() {
 distro_clean_package_cache() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get clean
+            quiet eatmydata apt-get clean
             ;;
         fedora-*)
             dnf clean all
@@ -389,7 +389,7 @@ distro_clean_package_cache() {
 distro_auto_remove_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get -y autoremove
+            quiet eatmydata apt-get -y autoremove
             ;;
         fedora-*)
             quiet dnf -y autoremove
@@ -441,11 +441,22 @@ distro_install_build_snapd(){
         apt install -y --only-upgrade snapd
         mv sources.list.back /etc/apt/sources.list
         apt update
+
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
+    elif [ -n "$PPA_VALIDATION_NAME" ]; then
+        apt install -y snapd
+        add-apt-repository -y "$PPA_VALIDATION_NAME"
+        apt update
+        apt install -y --only-upgrade snapd
+        add-apt-repository --remove "$PPA_VALIDATION_NAME"
+        apt update
+
+        # Double check that it really comes from the PPA
+        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
     else
         packages=
         case "$SPREAD_SYSTEM" in
@@ -475,6 +486,15 @@ distro_install_build_snapd(){
 
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*)
+                # We need to wait until the man db cache is updated before do daemon-reexec
+                # Otherwise the service fails and the system will be degraded during tests executions
+                for i in $(seq 20); do
+                    if ! systemctl is-active run-*.service; then
+                        break
+                    fi
+                    sleep .5
+                done
+
                 # systemd caches SELinux policy data and subsequently attempts
                 # to create sockets with incorrect context, this installation of
                 # socket activated snaps fails, see:
@@ -606,7 +626,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 "
             ;;
-        ubuntu-18.10-64)
+        ubuntu-18.10-64|ubuntu-19.04-64)
             echo "
                 evolution-data-server
                 "

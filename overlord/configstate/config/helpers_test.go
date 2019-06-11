@@ -201,3 +201,13 @@ func (s *configHelpersSuite) TestGetFeatureFlag(c *C) {
 	_, err = config.GetFeatureFlag(tr, features.Layouts)
 	c.Assert(err, ErrorMatches, `layouts can only be set to 'true' or 'false', got "banana"`)
 }
+
+func (s *configHelpersSuite) TestPatchInvalidConfig(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	invalid := []string{}
+	value := json.RawMessage([]byte("[]"))
+	_, err := config.PatchConfig("snap1", []string{"foo"}, 0, invalid, &value)
+	c.Assert(err, ErrorMatches, `internal error: unexpected configuration type \[\]string`)
+}
