@@ -210,6 +210,7 @@ func delayedCrossMgrInit() {
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
 	snapstate.DeviceCtx = DeviceCtx
+	snapstate.Remodeling = Remodeling
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -350,7 +351,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapst
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstallWithDeviceContext(st, snapName, "", "", snap.R(0), userID, snapstate.Flags{Required: true}, deviceCtx)
+			ts, err := snapstateInstallWithDeviceContext(st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx)
 			if err != nil {
 				return nil, err
 			}
@@ -491,6 +492,11 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
 	}
 
+	// TODO: should we run a remodel only while no other change is
+	// running?  do we add a task upfront that waits for that to be
+	// true? Do we do this only for the more complicated cases
+	// (anything more than adding required-snaps really)?
+
 	remodCtx, err := remodelCtx(st, current, new)
 	if err != nil {
 		return nil, err
@@ -534,4 +540,14 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	return chg, nil
+}
+
+// Remodeling returns true whether there's a remodeling in progress
+func Remodeling(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if !chg.IsReady() && chg.Kind() == "remodel" {
+			return true
+		}
+	}
+	return false
 }

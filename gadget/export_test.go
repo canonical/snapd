@@ -30,6 +30,8 @@ var (
 	CanUpdateVolume    = canUpdateVolume
 
 	EncodeLabel = encodeLabel
+
+	RawContentBackupPath = rawContentBackupPath
 )
 
 func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {

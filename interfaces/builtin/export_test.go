@@ -35,6 +35,8 @@ var (
 	SanitizeSlotReservedForOS         = sanitizeSlotReservedForOS
 	SanitizeSlotReservedForOSOrGadget = sanitizeSlotReservedForOSOrGadget
 	SanitizeSlotReservedForOSOrApp    = sanitizeSlotReservedForOSOrApp
+	ImplicitSystemPermanentSlot       = implicitSystemPermanentSlot
+	ImplicitSystemConnectedSlot       = implicitSystemConnectedSlot
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
