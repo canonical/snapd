@@ -19,24 +19,7 @@
 #define SNAP_MOUNT_SUPPORT_H
 
 #include "../libsnap-confine-private/apparmor-support.h"
-
-/**
- * Return a file descriptor referencing the snap-update-ns utility
- *
- * By calling this prior to changing the mount namespace, it is
- * possible to execute the utility even if a different version is now
- * mounted at the expected location.
- **/
-int sc_open_snap_update_ns(void);
-
-/**
- * Return a file descriptor referencing the snap-discard-ns utility
- *
- * By calling this prior to changing the mount namespace, it is
- * possible to execute the utility even if a different version is now
- * mounted at the expected location.
- **/
-int sc_open_snap_discard_ns(void);
+#include "snap-confine-invocation.h"
 
 /**
  * Assuming a new mountspace, populate it accordingly.
@@ -46,13 +29,9 @@ int sc_open_snap_discard_ns(void);
  * - creates private /tmp
  * - creates private /dev/pts
  * - processes mount profiles
- *
- * The function will also try to preserve the current working directory but if
- * this is impossible it will chdir to SC_VOID_DIR.
  **/
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const char *base_snap_name, const char *snap_name,
-			  bool is_normal_mode);
+			  const sc_invocation * inv);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option.

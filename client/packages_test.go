@@ -45,7 +45,7 @@ func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "select": []string{"refresh"},
+		"select": []string{"refresh"},
 	})
 }
 
@@ -57,7 +57,7 @@ func (cs *clientSuite) TestClientFindRefreshSetsQueryWithSec(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "section": []string{"mysection"}, "select": []string{"refresh"},
+		"section": []string{"mysection"}, "select": []string{"refresh"},
 	})
 }
 
@@ -68,7 +68,7 @@ func (cs *clientSuite) TestClientFindWithSectionSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "section": []string{"mysection"},
+		"section": []string{"mysection"},
 	})
 }
 
@@ -89,7 +89,7 @@ func (cs *clientSuite) TestClientFindWithScopeSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "scope": []string{"mouthwash"},
+		"scope": []string{"mouthwash"},
 	})
 }
 
@@ -185,6 +185,12 @@ func (cs *clientSuite) TestClientFindPrefix(c *check.C) {
 	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo%2A") // 2A is `*`
 }
 
+func (cs *clientSuite) TestClientFindCommonID(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{CommonID: "org.kde.ktuberling.desktop"})
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "common-id=org.kde.ktuberling.desktop")
+}
+
 func (cs *clientSuite) TestClientFindOne(c *check.C) {
 	_, _, _ = cs.cli.FindOne("foo")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
@@ -198,6 +204,7 @@ const (
 func (cs *clientSuite) TestClientSnap(c *check.C) {
 	// example data obtained via
 	// printf "GET /v2/find?name=test-snapd-tools HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket|grep '{'|python3 -m json.tool
+	// XXX: update / sync with what daemon is actually putting out
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
@@ -236,6 +243,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"type": "screenshot", "url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"type": "screenshot", "url":"http://example.com/shot2.png"}
                         ],
+                        "cohort-key": "some-long-cohort-key",
                         "common-ids": ["org.funky.snap"]
 		}
 	}`
@@ -279,6 +287,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{Type: "screenshot", URL: "http://example.com/shot2.png"},
 		},
 		CommonIDs: []string{"org.funky.snap"},
+		CohortKey: "some-long-cohort-key",
 	})
 }
 

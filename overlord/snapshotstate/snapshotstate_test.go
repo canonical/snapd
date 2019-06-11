@@ -38,10 +38,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -336,8 +339,11 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 		SnapType: "app",
 	})
 
+	r := snapstatetest.UseFallbackDeviceModel()
+	defer r()
+
 	chg := st.NewChange("rm foo", "...")
-	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0))
+	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0), nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(rmTasks, check.NotNil)
 	chg.AddAll(rmTasks)
@@ -1013,7 +1019,7 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1090,7 +1096,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1340,4 +1346,134 @@ func (snapshotSuite) TestForget(c *check.C) {
 		"filename": shotfile.Name(),
 		"current":  "unset",
 	})
+}
+
+func (snapshotSuite) TestSaveExpiration(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	var expirations map[uint64]interface{}
+	tm, err := time.Parse(time.RFC3339, "2019-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 12, tm), check.IsNil)
+
+	tm, err = time.Parse(time.RFC3339, "2019-02-12T12:50:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 13, tm), check.IsNil)
+
+	c.Assert(st.Get("snapshots", &expirations), check.IsNil)
+	c.Check(expirations, check.DeepEquals, map[uint64]interface{}{
+		12: map[string]interface{}{"expiry-time": "2019-03-11T11:24:00Z"},
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:50:00Z"},
+	})
+}
+
+func (snapshotSuite) TestRemoveSnapshotState(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("snapshots", map[uint64]interface{}{
+		12: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+		14: map[string]interface{}{"expiry-time": "2019-03-12T13:11:00Z"},
+	})
+
+	snapshotstate.RemoveSnapshotState(st, 12, 14)
+
+	var snapshots map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
+	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
+		13: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+	})
+}
+
+func (snapshotSuite) TestExpiredSnapshotSets(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tm, err := time.Parse(time.RFC3339, "2019-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 12, tm), check.IsNil)
+
+	tm, err = time.Parse(time.RFC3339, "2019-02-12T12:50:00Z")
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshotstate.SaveExpiration(st, 13, tm), check.IsNil)
+
+	tm, err = time.Parse(time.RFC3339, "2020-03-11T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	expired, err := snapshotstate.ExpiredSnapshotSets(st, tm)
+	c.Assert(err, check.IsNil)
+	c.Check(expired, check.DeepEquals, map[uint64]bool{12: true, 13: true})
+
+	tm, err = time.Parse(time.RFC3339, "2019-03-01T11:24:00Z")
+	c.Assert(err, check.IsNil)
+	expired, err = snapshotstate.ExpiredSnapshotSets(st, tm)
+	c.Assert(err, check.IsNil)
+	c.Check(expired, check.DeepEquals, map[uint64]bool{13: true})
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDisabled(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tr := config.NewTransaction(st)
+	tr.Set("core", "snapshots.automatic.retention", "no")
+	tr.Commit()
+
+	_, err := snapshotstate.AutomaticSnapshot(st, "foo")
+	c.Assert(err, check.Equals, snapstate.ErrNothingToDo)
+}
+
+func (snapshotSuite) TestAutomaticSnapshot(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tr := config.NewTransaction(st)
+	tr.Set("core", "snapshots.automatic.retention", "24h")
+	tr.Commit()
+
+	ts, err := snapshotstate.AutomaticSnapshot(st, "foo")
+	c.Assert(err, check.IsNil)
+
+	tasks := ts.Tasks()
+	c.Assert(tasks, check.HasLen, 1)
+	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
+	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "foo" in automatic snapshot set #1`)
+	var snapshot map[string]interface{}
+	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
+	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+		"set-id":  1.,
+		"snap":    "foo",
+		"current": "unset",
+		"auto":    true,
+	})
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDefaultClassic(c *check.C) {
+	release.MockOnClassic(true)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(du, check.Equals, snapshotstate.DefaultAutomaticSnapshotExpiration)
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
+	release.MockOnClassic(false)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(du, check.Equals, time.Duration(0))
 }

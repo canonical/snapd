@@ -246,6 +246,35 @@ func makeErrorResponder(status int) errorResponder {
 	}
 }
 
+// A FileStream ServeHTTP method streams the snap
+type FileStream struct {
+	SnapName string
+	Info     snap.DownloadInfo
+	stream   io.ReadCloser
+}
+
+// ServeHTTP from the Response interface
+func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	hdr := w.Header()
+	hdr.Set("Content-Type", "application/octet-stream")
+	snapname := fmt.Sprintf("attachment; filename=%s", s.SnapName)
+	hdr.Set("Content-Disposition", snapname)
+
+	size := fmt.Sprintf("%d", s.Info.Size)
+	hdr.Set("Content-Length", size)
+
+	defer s.stream.Close()
+	bytesCopied, err := io.Copy(w, s.stream)
+	if err != nil {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.SnapName, s.Info, err)
+		http.Error(w, err.Error(), 500)
+	}
+	if bytesCopied != s.Info.Size {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
+		http.Error(w, io.EOF.Error(), 502)
+	}
+}
+
 // A FileResponse 's ServeHTTP method serves the file
 type FileResponse string
 
@@ -329,20 +358,6 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 		bundle = true
 	}
 	return &assertResponse{assertions: asserts, bundle: bundle}
-}
-
-// InterfacesUnchanged is an error responder used when an operation
-// that would normally change interfaces finds it has nothing to do
-func InterfacesUnchanged(format string, v ...interface{}) Response {
-	res := &errorResult{
-		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindInterfacesUnchanged,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 400,
-	}
 }
 
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -493,6 +508,20 @@ func AuthCancelled(format string, v ...interface{}) Response {
 		Type:   ResponseTypeError,
 		Result: res,
 		Status: 403,
+	}
+}
+
+// InterfacesUnchanged is an error responder used when an operation
+// that would normally change interfaces finds it has nothing to do
+func InterfacesUnchanged(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindInterfacesUnchanged,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 400,
 	}
 }
 

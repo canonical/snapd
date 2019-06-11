@@ -17,8 +17,6 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
-# make sure that correct go version is found on trusty
-export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 include /etc/os-release
 

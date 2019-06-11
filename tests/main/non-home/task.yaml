@@ -1,0 +1,31 @@
+summary: Ensure running on none /home dirs gives a useful error
+
+# limit to ubuntu for easier user creation
+systems: [ubuntu-1*, ubuntu-2*]
+
+environment:
+    TUSER: jim
+    THOME/var: /var/home/jim
+    THOME/home2: /home2/jim
+
+prepare: |
+    echo "create a non home user"
+    adduser --home "$THOME" "$TUSER"
+
+restore: |
+    deluser --remove-home "$TUSER"
+
+execute: |
+    echo "Install a snap"
+    snap install test-snapd-tools
+
+    echo "Run as the test user (normal home dir)"
+    su -c "snap run test-snapd-tools.echo foo" test | MATCH foo
+
+    echo "Run as the non-home user (home dir outside of /home) - this will fail"
+    not su -c "snap run test-snapd-tools.echo foo" "$TUSER" 2>stderr.log
+
+    echo "Ensure we get a useful error message"
+    MATCH "Sorry, home directories outside of /home" < stderr.log
+    # ensure no (useless) "Read-only file system..." error is shown to the user
+    MATCH -v "Read-only file system" < stderr.log

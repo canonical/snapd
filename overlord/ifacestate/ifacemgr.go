@@ -29,9 +29,14 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
-type deviceData struct{ ifaceName, hotplugKey string }
+type deviceData struct {
+	ifaceName  string
+	hotplugKey snap.HotplugKey
+}
 
 // InterfaceManager is responsible for the maintenance of interfaces in
 // the system state.  It maintains interface connections, and also observes
@@ -44,7 +49,7 @@ type InterfaceManager struct {
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
 	// indexed by interface name and device key. Reset to nil when enumeration is done.
-	enumeratedDeviceKeys map[string]map[string]bool
+	enumeratedDeviceKeys map[string]map[snap.HotplugKey]bool
 	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
@@ -54,6 +59,8 @@ type InterfaceManager struct {
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	delayedCrossMgrInit()
+
+	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
 
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
@@ -65,11 +72,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		state: s,
 		repo:  interfaces.NewRepository(),
 		// note: enumeratedDeviceKeys is reset to nil when enumeration is done
-		enumeratedDeviceKeys: make(map[string]map[string]bool),
+		enumeratedDeviceKeys: make(map[string]map[snap.HotplugKey]bool),
 		hotplugDevicePaths:   make(map[string][]deviceData),
 	}
 
-	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
+	if err := m.initialize(extraInterfaces, extraBackends, perfTimings); err != nil {
 		return nil, err
 	}
 
@@ -117,6 +124,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 		return false
 	})
+
+	s.Lock()
+	perfTimings.Save(s)
+	s.Unlock()
 
 	return m, nil
 }
@@ -182,6 +193,7 @@ type ConnectionState struct {
 	DynamicPlugAttrs map[string]interface{}
 	StaticSlotAttrs  map[string]interface{}
 	DynamicSlotAttrs map[string]interface{}
+	HotplugGone      bool
 }
 
 // ConnectionStates return the state of connections tracked by the manager
@@ -204,6 +216,7 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 			DynamicPlugAttrs: cstate.DynamicPlugAttrs,
 			StaticSlotAttrs:  cstate.StaticSlotAttrs,
 			DynamicSlotAttrs: cstate.DynamicSlotAttrs,
+			HotplugGone:      cstate.HotplugGone,
 		}
 	}
 	return connStateByRef, nil
@@ -250,7 +263,7 @@ func MockSecurityBackends(be []interfaces.SecurityBackend) func() {
 
 // MockObservedDevicePath adds the given device to the map of observed devices.
 // This function is used for tests only.
-func (m *InterfaceManager) MockObservedDevicePath(devPath, ifaceName, hotplugKey string) func() {
+func (m *InterfaceManager) MockObservedDevicePath(devPath, ifaceName string, hotplugKey snap.HotplugKey) func() {
 	old := m.hotplugDevicePaths
 	m.hotplugDevicePaths[devPath] = append(m.hotplugDevicePaths[devPath], deviceData{hotplugKey: hotplugKey, ifaceName: ifaceName})
 	return func() { m.hotplugDevicePaths = old }

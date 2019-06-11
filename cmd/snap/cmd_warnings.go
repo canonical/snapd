@@ -38,6 +38,7 @@ import (
 type cmdWarnings struct {
 	clientMixin
 	timeMixin
+	unicodeMixin
 	All     bool `long:"all"`
 	Verbose bool `long:"verbose"`
 }
@@ -64,7 +65,7 @@ sufficient time has passed.
 `)
 
 func init() {
-	addCommand("warnings", shortWarningsHelp, longWarningsHelp, func() flags.Commander { return &cmdWarnings{} }, timeDescs.also(map[string]string{
+	addCommand("warnings", shortWarningsHelp, longWarningsHelp, func() flags.Commander { return &cmdWarnings{} }, timeDescs.also(unicodeDescs).also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"all": i18n.G("Show all warnings"),
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -96,35 +97,36 @@ func (cmd *cmdWarnings) Execute(args []string) error {
 		return err
 	}
 
+	termWidth, _ := termSize()
+	if termWidth > 100 {
+		// any wider than this and it gets hard to read
+		termWidth = 100
+	}
+
+	esc := cmd.getEscapes()
 	w := tabWriter()
-	if cmd.Verbose {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			i18n.G("First occurrence"),
-			i18n.G("Last occurrence"),
-			i18n.G("Expires after"),
-			i18n.G("Acknowledged"),
-			i18n.G("Repeats after"),
-			i18n.G("Warning"))
-		for _, warning := range warnings {
-			lastShown := "-"
+	for i, warning := range warnings {
+		if i > 0 {
+			fmt.Fprintln(w, "---")
+		}
+		if cmd.Verbose {
+			fmt.Fprintf(w, "first-occurrence:\t%s\n", cmd.fmtTime(warning.FirstAdded))
+		}
+		fmt.Fprintf(w, "last-occurrence:\t%s\n", cmd.fmtTime(warning.LastAdded))
+		if cmd.Verbose {
+			lastShown := esc.dash
 			if !warning.LastShown.IsZero() {
 				lastShown = cmd.fmtTime(warning.LastShown)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				cmd.fmtTime(warning.FirstAdded),
-				cmd.fmtTime(warning.LastAdded),
-				quantity.FormatDuration(warning.ExpireAfter.Seconds()),
-				lastShown,
-				quantity.FormatDuration(warning.RepeatAfter.Seconds()),
-				warning.Message)
+			fmt.Fprintf(w, "acknowledged:\t%s\n", lastShown)
+			// TODO: cmd.fmtDuration() using timeutil.HumanDuration
+			fmt.Fprintf(w, "repeats-after:\t%s\n", quantity.FormatDuration(warning.RepeatAfter.Seconds()))
+			fmt.Fprintf(w, "expires-after:\t%s\n", quantity.FormatDuration(warning.ExpireAfter.Seconds()))
 		}
-	} else {
-		fmt.Fprintf(w, "%s\t%s\n", i18n.G("Last occurrence"), i18n.G("Warning"))
-		for _, warning := range warnings {
-			fmt.Fprintf(w, "%s\t%s\n", cmd.fmtTime(warning.LastAdded), warning.Message)
-		}
+		fmt.Fprintln(w, "warning: |")
+		printDescr(w, warning.Message, termWidth)
+		w.Flush()
 	}
-	w.Flush()
 
 	return nil
 }
@@ -136,7 +138,7 @@ func (cmd *cmdOkay) Execute(args []string) error {
 
 	last, err := lastWarningTimestamp()
 	if err != nil {
-		return fmt.Errorf("no client-side warning timestamp found: %v", err)
+		return err
 	}
 
 	return cmd.client.Okay(last)
@@ -191,8 +193,12 @@ func lastWarningTimestamp() (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("cannot determine real user: %v", err)
 	}
+
 	f, err := os.Open(warnFilename(user.HomeDir))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return time.Time{}, fmt.Errorf("you must have looked at the warnings before acknowledging them. Try 'snap warnings'.")
+		}
 		return time.Time{}, fmt.Errorf("cannot open timestamp file: %v", err)
 
 	}

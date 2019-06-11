@@ -77,6 +77,12 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	return func() { contentLinkRetryTimeout = old }
 }
 
+func MockHotplugRetryTimeout(d time.Duration) (restore func()) {
+	old := hotplugRetryTimeout
+	hotplugRetryTimeout = d
+	return func() { hotplugRetryTimeout = old }
+}
+
 func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface) (restore func()) {
 	old := createUDevMonitor
 	createUDevMonitor = new
@@ -101,7 +107,7 @@ func UpperCaseConnState() map[string]*connState {
 	}
 }
 
-func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget, undesired bool) {
+func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.Connection, autoConnect, byGadget, undesired, hotplugGone bool) {
 	connRef := &interfaces.ConnRef{
 		PlugRef: *conn.Plug.Ref(),
 		SlotRef: *conn.Slot.Ref(),
@@ -116,6 +122,7 @@ func UpdateConnectionInConnState(conns map[string]*connState, conn *interfaces.C
 		Auto:             autoConnect,
 		ByGadget:         byGadget,
 		Undesired:        undesired,
+		HotplugGone:      hotplugGone,
 	}
 }
 

@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -107,7 +108,20 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(refreshPrivacyKey, HasLen, 16)
 
 	// store is setup
-	sto := snapstate.Store(s)
+	sto := snapstate.Store(s, nil)
+	c.Check(sto, FitsTypeOf, &store.Store{})
+	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
+}
+
+func (ovs *overlordSuite) TestNewStore(c *C) {
+	// this is a shallow test, the deep testing happens in the
+	// remodeling tests in managers_test.go
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	devBE := o.DeviceManager().StoreContextBackend()
+
+	sto := o.NewStore(devBE)
 	c.Check(sto, FitsTypeOf, &store.Store{})
 	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
 }
@@ -133,6 +147,9 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(fakeState, &expected)
 	c.Assert(err, IsNil)
+
+	data, _ := got["data"].(map[string]interface{})
+	c.Assert(data, NotNil)
 
 	c.Check(got, DeepEquals, expected)
 }
@@ -228,7 +245,7 @@ func markSeeded(o *overlord.Overlord) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "serialserial",

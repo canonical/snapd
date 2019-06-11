@@ -1,0 +1,43 @@
+summary: Ensure that the core snap is usable as an alias for core16
+
+# XXX: the cleanup of core18 in our tests is not always reliable and
+#      it leaves /snap/core16/current files around. Get to the bottom
+#      of this and enable this test again.
+systems: [-ubuntu-core-18-*]
+
+execute: |
+    echo "Ensure core is installed"
+    if ! snap list core; then
+        snap install core
+    fi
+
+    echo "Ensure there is no core16 installed"
+    snap remove core16
+
+    echo "Double check that no earlier test left garbage around"
+    if [ -e /snap/core16/current ] || [ -L /snap/core16/current ]; then
+        echo "internal error: a core16 snap is installed, earlier test cleanup did not work"
+        exit 1
+    fi
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-sh-core16
+
+    echo "and core16 was not pulled in"
+    not snap list core16
+
+    echo "and the snap works fine"
+    test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
+    SNAP_CONFINE_DEBUG=1 test-snapd-sh-core16.sh -c "true" 2>&1 | MATCH "falling back to core instead of unavailable core16 snap"
+
+    # The missing base snap fallback check is performed on each
+    # startup, even if the mount namespace is reused.  Therefore we
+    # don't have to discard the mount namespace constructed by the
+    # calls above.
+    echo "when core16 is pulled in"
+    snap install --edge core16
+    echo "things still work"
+    test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
+    echo "and no fallback is used"
+    SNAP_CONFINE_DEBUG=1 test-snapd-sh-core16.sh -c "true" 2>&1 | grep -qv "falling back to core instead of unavailable core16 snap"

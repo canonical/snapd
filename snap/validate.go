@@ -341,11 +341,9 @@ func Validate(info *Info) error {
 		return err
 	}
 
-	// validate that bases do not have base fields
-	if info.Type == TypeOS || info.Type == TypeBase {
-		if info.Base != "" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
-		}
+	// Ensure that base field is valid
+	if err := ValidateBase(info); err != nil {
+		return err
 	}
 
 	// ensure that common-id(s) are unique
@@ -354,6 +352,21 @@ func Validate(info *Info) error {
 	}
 
 	return ValidateLayoutAll(info)
+}
+
+// ValidateBase validates the base field.
+func ValidateBase(info *Info) error {
+	// validate that bases do not have base fields
+	if info.Type == TypeOS || info.Type == TypeBase {
+		if info.Base != "" && info.Base != "none" {
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
+		}
+	}
+
+	if info.Base == "none" && (len(info.Hooks) > 0 || len(info.Apps) > 0) {
+		return fmt.Errorf(`cannot have apps or hooks with base "none"`)
+	}
+	return nil
 }
 
 // ValidateLayoutAll validates the consistency of all the layout elements in a snap.
@@ -727,7 +740,7 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
-	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap"} {
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap", "/lib/firmware", "/lib/modules"} {
 		// We use the mountedTree constraint as this has the right semantics.
 		if mountedTree(path).IsOffLimits(mountPoint) {
 			return fmt.Errorf("layout %q in an off-limits area", layout.Path)

@@ -61,10 +61,16 @@ new_format = \
 	 libsnap-confine-private/cgroup-support.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
+	 snap-confine/snap-confine-invocation.c \
+	 snap-confine/snap-confine-invocation.h \
+	 snap-confine/selinux-support.c \
+	 snap-confine/selinux-support.h \
 	 snap-discard-ns/snap-discard-ns.c
+
+# NOTE: clang-format is using project-wide .clang-format file.
 .PHONY: fmt
 fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
-	clang-format -style='{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 120}' -i $^
+	clang-format -i $^
 
 fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
 	HOME=$(srcdir) indent $^
@@ -74,12 +80,13 @@ fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 .PHONY: hack
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
 	sudo install -D -m 6755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
-	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
+	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
-	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
+	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine.apparmor; fi
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
 	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
+	if [ "$$(command -v restorecon)" != "" ]; then sudo restorecon -R -v $(DESTDIR)$(libexecdir)/; fi
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
@@ -224,8 +231,14 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/mount-support.h \
 	snap-confine/ns-support.c \
 	snap-confine/ns-support.h \
+	snap-confine/seccomp-support-ext.c \
+	snap-confine/seccomp-support-ext.h \
+	snap-confine/seccomp-support.c \
+	snap-confine/seccomp-support.h \
 	snap-confine/snap-confine-args.c \
 	snap-confine/snap-confine-args.h \
+	snap-confine/snap-confine-invocation.c \
+	snap-confine/snap-confine-invocation.h \
 	snap-confine/snap-confine.c \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
@@ -263,20 +276,6 @@ snap-confine/snap-confine$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_snap_con
 snap_confine_snap_confine_CFLAGS += $(SUID_CFLAGS)
 snap_confine_snap_confine_LDFLAGS += $(SUID_LDFLAGS)
 
-if SECCOMP
-snap_confine_snap_confine_SOURCES += \
-	snap-confine/seccomp-support-ext.c \
-	snap-confine/seccomp-support-ext.h \
-	snap-confine/seccomp-support.c \
-	snap-confine/seccomp-support.h
-snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
-if STATIC_LIBSECCOMP
-snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libseccomp)
-else
-snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
-endif  # STATIC_LIBSECCOMP
-endif  # SECCOMP
-
 if APPARMOR
 snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
@@ -285,6 +284,18 @@ else
 snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
+
+if SELINUX
+snap_confine_snap_confine_SOURCES += \
+	snap-confine/selinux-support.c \
+	snap-confine/selinux-support.h
+snap_confine_snap_confine_CFLAGS += $(SELINUX_CFLAGS)
+if STATIC_LIBSELINUX
+snap_confine_snap_confine_STATIC += $(shell $(PKG_CONFIG) --static --libs libselinux)
+else
+snap_confine_snap_confine_extra_libs += $(SELINUX_LIBS)
+endif  # STATIC_LIBSELINUX
+endif  # SELINUX
 
 # an extra build that has additional debugging enabled at compile time
 
@@ -314,6 +325,8 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/snap-confine-args-test.c \
+	snap-confine/snap-confine-invocation.c \
+	snap-confine/snap-confine-invocation.h \
 	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
@@ -348,9 +361,9 @@ if APPARMOR
 endif
 	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 
-# NOTE: The 'void' directory *has to* be chmod 000
+# NOTE: The 'void' directory *has to* be chmod 111
 install-data-local::
-	install -d -m 000 $(DESTDIR)/var/lib/snapd/void
+	install -d -m 111 $(DESTDIR)/var/lib/snapd/void
 
 install-exec-hook::
 if CAPS_OVER_SETUID
@@ -375,6 +388,17 @@ snap-mgmt/$(am__dirstamp):
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
 
+if SELINUX
+##
+## snap-mgmt-selinux
+##
+
+libexec_SCRIPTS += snap-mgmt/snap-mgmt-selinux
+CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt-selinux
+
+snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgmt/$(am__dirstamp)
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+endif
 
 ##
 ## ubuntu-core-launcher

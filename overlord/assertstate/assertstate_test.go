@@ -40,15 +40,19 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestAssertManager(t *testing.T) { TestingT(t) }
 
 type assertMgrSuite struct {
+	testutil.BaseTest
+
 	o     *overlord.Overlord
 	state *state.State
 	se    *overlord.StateEngine
@@ -57,11 +61,9 @@ type assertMgrSuite struct {
 	storeSigning *assertstest.StoreStack
 	dev1Acct     *asserts.Account
 	dev1Signing  *assertstest.SigningDB
-	brandAcct    *asserts.Account
-	brandAcctKey *asserts.AccountKey
-	brandSigning *assertstest.SigningDB
 
-	restore func()
+	fakeStore        snapstate.StoreService
+	trivialDeviceCtx snapstate.DeviceContext
 }
 
 var _ = Suite(&assertMgrSuite{})
@@ -85,13 +87,16 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return ref.Resolve(sto.db.Find)
 }
 
+var (
+	dev1PrivKey, _ = assertstest.GenerateKey(752)
+)
+
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
-	dev1PrivKey, _ := assertstest.GenerateKey(752)
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	err := s.storeSigning.Add(s.dev1Acct)
 	c.Assert(err, IsNil)
@@ -103,19 +108,6 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
 
-	// brand
-	brandPrivKey, _ := assertstest.GenerateKey(752)
-	s.brandAcct = assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	brandAcctKey := assertstest.NewAccountKey(s.storeSigning, s.brandAcct, nil, brandPrivKey.PublicKey(), "")
-	err = s.storeSigning.Add(s.brandAcct)
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(brandAcctKey)
-	c.Assert(err, IsNil)
-	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
-
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
@@ -126,17 +118,13 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.o.TaskRunner())
 
-	s.state.Lock()
-	snapstate.ReplaceStore(s.state, &fakeStore{
+	s.fakeStore = &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
-	})
-	s.state.Unlock()
-}
-
-func (s *assertMgrSuite) TearDownTest(c *C) {
-	s.restore()
-	snapstate.Model = nil
+	}
+	s.trivialDeviceCtx = &snapstatetest.TrivialDeviceContext{
+		CtxStore: s.fakeStore,
+	}
 }
 
 func (s *assertMgrSuite) TestDB(c *C) {
@@ -387,7 +375,7 @@ func (s *assertMgrSuite) TestDoFetch(c *C) {
 		PrimaryKey: []string{makeDigest(10)},
 	}
 
-	err := assertstate.DoFetch(s.state, 0, func(f asserts.Fetcher) error {
+	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, func(f asserts.Fetcher) error {
 		return f.Fetch(ref)
 	})
 	c.Assert(err, IsNil)
@@ -411,7 +399,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		return f.Fetch(ref)
 	}
 
-	err := assertstate.DoFetch(s.state, 0, fetching)
+	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
 	c.Assert(err, IsNil)
 
 	ref = &asserts.Ref{
@@ -419,7 +407,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		PrimaryKey: []string{makeDigest(11)},
 	}
 
-	err = assertstate.DoFetch(s.state, 0, fetching)
+	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
 	c.Assert(err, IsNil)
 
 	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
@@ -433,29 +421,30 @@ func (s *assertMgrSuite) settle(c *C) {
 }
 
 func (s *assertMgrSuite) setModel(model *asserts.Model) {
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return model, nil
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: model,
+		CtxStore:    s.fakeStore,
 	}
+	s.AddCleanup(snapstatetest.MockDeviceContext(deviceCtx))
 	s.state.Set("seeded", true)
 }
 
 func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 	// setup a model and store assertion
-	a, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
 		"authority-id": "my-brand",
+		"series":       "16",
 		"brand-id":     "my-brand",
 		"model":        "my-model",
 		"architecture": "amd64",
 		"store":        "my-brand-store",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
+	})
 	s.setModel(a.(*asserts.Model))
 
-	a, err = s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+	a, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"authority-id": s.storeSigning.AuthorityID,
 		"operator-id":  s.storeSigning.AuthorityID,
 		"store":        "my-brand-store",
@@ -745,9 +734,8 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return nil, state.ErrNoState
-	}
+	r := snapstatetest.MockDeviceModel(nil)
+	defer r()
 
 	err := assertstate.RefreshSnapDeclarations(s.state, 0)
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
@@ -963,7 +951,7 @@ func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	validated, err := assertstate.ValidateRefreshes(s.state, nil, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, nil, nil, 0, s.trivialDeviceCtx)
 	c.Assert(err, IsNil)
 	c.Check(validated, HasLen, 0)
 }
@@ -990,7 +978,7 @@ func (s *assertMgrSuite) TestValidateRefreshesNoControl(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
@@ -1019,7 +1007,7 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx)
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
 }
@@ -1050,7 +1038,7 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidation(
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, nil, 0, s.trivialDeviceCtx)
 	c.Assert(err, ErrorMatches, `cannot refresh "foo_instance" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
 }
@@ -1079,7 +1067,7 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidationButIgnore(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, map[string]bool{"foo": true}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, map[string]bool{"foo": true}, 0, s.trivialDeviceCtx)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
@@ -1114,7 +1102,7 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 	}
 
 	// validation is ignore for foo_instance but not for foo
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx)
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, DeepEquals, []*snap.Info{fooInstanceRefresh})
 }
@@ -1144,7 +1132,7 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooInstanceRefresh})
 }
@@ -1178,7 +1166,7 @@ func (s *assertMgrSuite) TestParallelInstanceValidateRefreshesMissingValidationB
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, map[string]bool{"foo_instance": true}, 0, s.trivialDeviceCtx)
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, DeepEquals, []*snap.Info{fooInstanceRefresh})
 }
@@ -1251,7 +1239,7 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 		InstanceKey: "instance",
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh, fooInstanceRefresh}, nil, 0, s.trivialDeviceCtx)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh, fooInstanceRefresh})
 }
@@ -1320,7 +1308,7 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0, s.trivialDeviceCtx)
 	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
 }

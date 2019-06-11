@@ -225,9 +225,6 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
-	toplevelPlugs []*PlugInfo
-	toplevelSlots []*SlotInfo
-
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -661,7 +658,7 @@ type SlotInfo struct {
 	// using properties of a hotplugged device so that the same
 	// slot may be made available if the device is reinserted.
 	// It's empty for regular slots.
-	HotplugKey string
+	HotplugKey HotplugKey
 }
 
 // SocketInfo provides information on application sockets.
@@ -919,8 +916,8 @@ func envFromMap(envMap *strutil.OrderedMap) []string {
 	return env
 }
 
-func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
-	info, err := InfoFromSnapYaml(meta)
+func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {
+	info, err := infoFromSnapYaml(meta, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -992,7 +989,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
@@ -1005,7 +1003,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)
@@ -1053,7 +1051,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -1068,7 +1067,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	err = Validate(info)
 	if err != nil {

@@ -27,9 +27,9 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -50,13 +50,13 @@ func (s *kernelOSSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	partition.ForceBootloader(s.bootloader)
+	bootloader.Force(s.bootloader)
 }
 
 func (s *kernelOSSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
-	partition.ForceBootloader(nil)
+	bootloader.Force(nil)
 }
 
 const packageKernel = `
@@ -114,7 +114,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	// pretend to be a grub system
 	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
-	partition.ForceBootloader(mockGrub)
+	bootloader.Force(mockGrub)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -138,6 +138,46 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	// kernel is *not* here
 	kernimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
+}
+
+func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
+	// pretend to be a grub system
+	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
+	bootloader.Force(mockGrub)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/force-kernel-extraction", ""},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = boot.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is extracted
+	kernimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, true)
+	// initrd
+	initrdimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	c.Assert(osutil.FileExists(initrdimg), Equals, true)
+
+	// ensure that removal of assets also works
+	err = boot.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
 }
 
 func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {

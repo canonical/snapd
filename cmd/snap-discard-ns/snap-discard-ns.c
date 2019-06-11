@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
         snap_instance_name = argv[1];
     }
 
-    struct sc_error* err = NULL;
+    sc_error* err = NULL;
     sc_instance_name_validate(snap_instance_name, &err);
     sc_die_on_error(err);
 
