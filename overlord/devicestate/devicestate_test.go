@@ -3196,7 +3196,7 @@ func setupGadgetUpdate(c *C, st *state.State) (chg *state.Change, tsk *state.Tas
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	var updateCalled bool
 	var passedRollbackDir string
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.UpdateData, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		updateCalled = true
 		passedRollbackDir = path
 		st, err := os.Stat(path)
@@ -3230,7 +3230,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	var called bool
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.UpdateData, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		called = true
 		return gadget.ErrNoUpdate
 	})
@@ -3257,7 +3257,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
 		c.Skip("this test cannot run as root (permissions are not honored)")
 	}
 
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.UpdateData, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3283,7 +3283,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.UpdateData, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("gadget exploded")
 	})
 	defer restore()
@@ -3306,7 +3306,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.UpdateData, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3350,7 +3350,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.UpdateData, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3410,7 +3410,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.UpdateData, path string) error {
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3511,7 +3511,7 @@ volumes:
 
 	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(current, DeepEquals, &gadget.UpdateData{
+	c.Assert(current, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]gadget.Volume{
 				"pc": {
@@ -3521,7 +3521,7 @@ volumes:
 		},
 		RootDir: ci.MountDir(),
 	})
-	c.Assert(update, DeepEquals, &gadget.UpdateData{
+	c.Assert(update, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]gadget.Volume{
 				"pc": {
