@@ -36,7 +36,6 @@ var debugPprofCmd = &Command{
 
 func getPprof(c *Command, r *http.Request, user *auth.UserState) Response {
 	router := mux.NewRouter()
-	router.HandleFunc("/v2/debug/pprof/", pprof.Index)
 	router.HandleFunc("/v2/debug/pprof/cmdline", pprof.Cmdline)
 	router.HandleFunc("/v2/debug/pprof/profile", pprof.Profile)
 	router.HandleFunc("/v2/debug/pprof/symbol", pprof.Symbol)
