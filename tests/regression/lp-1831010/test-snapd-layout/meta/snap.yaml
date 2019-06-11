@@ -1,10 +1,10 @@
 name: test-snapd-layout
 version: 1
 layout:
-  $SNAP/bar/mount:
-    bind: $SNAP/foo
-  $SNAP/baz:
-    bind: $SNAP/bar
+  $SNAP/b/c:
+    bind: $SNAP/a
+  $SNAP/d:
+    bind: $SNAP/b
 apps:
   sh:
     command: bin/sh
