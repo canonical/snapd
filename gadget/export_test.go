@@ -28,4 +28,8 @@ var (
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
+
+	EncodeLabel = encodeLabel
+
+	RawContentBackupPath = rawContentBackupPath
 )

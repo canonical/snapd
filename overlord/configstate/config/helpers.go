@@ -86,7 +86,7 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 			return config, nil
 		}
 	}
-	panic(fmt.Errorf("internal error: unexpected configuration type %T", config))
+	return nil, fmt.Errorf("internal error: unexpected configuration type %T", config)
 }
 
 // GetSnapConfig retrieves the raw configuration of a given snap.

@@ -172,13 +172,18 @@ type snapSpec struct {
 	Name     string
 	Channel  string
 	Revision snap.Revision
+	Cohort   string
 }
 
 func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Revision.Unset() {
-		spec.Revision = snap.R(11)
-		if spec.Channel == "channel-for-7" {
-			spec.Revision.N = 7
+		switch {
+		case spec.Cohort != "":
+			spec.Revision = snap.R(666)
+		case spec.Channel == "channel-for-7":
+			spec.Revision = snap.R(7)
+		default:
+			spec.Revision = snap.R(11)
 		}
 	}
 
@@ -193,7 +198,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
-	case "some-gadget":
+	case "some-gadget", "brand-gadget":
 		typ = snap.TypeGadget
 	case "some-snapd":
 		typ = snap.TypeSnapd
@@ -439,6 +444,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Name:     snapName,
 				Channel:  a.Channel,
 				Revision: a.Revision,
+				Cohort:   a.CohortKey,
 			}
 			info, err := f.snap(spec, user)
 			if err != nil {

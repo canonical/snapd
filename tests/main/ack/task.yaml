@@ -13,7 +13,7 @@ execute: |
     ALICE_ID=BGLTY1rcRKQQMbt9B407lDH38lbCW3wg
 
     echo "Ack when missing prerequisite fails"
-    ! snap ack alice.account-key
+    not snap ack alice.account-key
 
     echo "Ack account and account-key for alice"
     snap ack alice.account

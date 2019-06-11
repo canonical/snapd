@@ -2598,7 +2598,7 @@ func (s *storeTestSuite) TestFindQueries(c *C) {
 		{Section: "db"},
 		{Query: "hello", Section: "db"},
 	} {
-		sto.Find(&query, nil)
+		sto.Find(context.TODO(), &query, nil)
 	}
 }
 
@@ -2831,7 +2831,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
@@ -2916,22 +2916,22 @@ func (s *storeTestSuite) TestFindPrivate(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.Find(&store.Search{Query: "foo", Private: true}, s.user)
+	_, err := sto.Find(context.TODO(), &store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
 
-	_, err = sto.Find(&store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
+	_, err = sto.Find(context.TODO(), &store.Search{Query: "foo", Prefix: true, Private: true}, s.user)
 	c.Check(err, IsNil)
 
-	_, err = sto.Find(&store.Search{Query: "foo", Private: true}, nil)
+	_, err = sto.Find(context.TODO(), &store.Search{Query: "foo", Private: true}, nil)
 	c.Check(err, Equals, store.ErrUnauthenticated)
 
-	_, err = sto.Find(&store.Search{Query: "name:foo", Private: true}, s.user)
+	_, err = sto.Find(context.TODO(), &store.Search{Query: "name:foo", Private: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
 func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
-	_, err := sto.Find(&store.Search{Query: "foo:bar"}, nil)
+	_, err := sto.Find(context.TODO(), &store.Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
@@ -2951,7 +2951,7 @@ func (s *storeTestSuite) TestFindFails(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -2972,7 +2972,7 @@ func (s *storeTestSuite) TestFindBadContentType(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -2995,7 +2995,7 @@ func (s *storeTestSuite) TestFindBadBody(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `invalid character '<' looking for beginning of value`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -3017,7 +3017,7 @@ func (s *storeTestSuite) TestFind500(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	_, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 500 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Assert(n, Equals, 5)
 }
@@ -3045,7 +3045,7 @@ func (s *storeTestSuite) TestFind500once(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "hello"}, nil)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Assert(n, Equals, 2)
@@ -3088,7 +3088,7 @@ func (s *storeTestSuite) TestFindAuthFailed(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	snaps, err := sto.Find(&store.Search{Query: "foo"}, s.user)
+	snaps, err := sto.Find(context.TODO(), &store.Search{Query: "foo"}, s.user)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.
@@ -3136,7 +3136,7 @@ func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	infos, err := sto.Find(&store.Search{Query: "foo"}, nil)
+	infos, err := sto.Find(context.TODO(), &store.Search{Query: "foo"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
@@ -3175,10 +3175,38 @@ func (s *storeTestSuite) TestFindByCommonID(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	infos, err := sto.Find(&store.Search{CommonID: "org.hello"}, nil)
+	infos, err := sto.Find(context.TODO(), &store.Search{CommonID: "org.hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
 	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
+}
+
+func (s *storeTestSuite) TestFindClientUserAgent(c *C) {
+	clientUserAgent := "some-client/1.0"
+
+	serverWasHit := false
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-Client-User-Agent"), Equals, clientUserAgent)
+		serverWasHit = true
+
+		http.Error(w, http.StatusText(418), 418) // I'm a teapot
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+		DetailFields: []string{}, // make the error less noisy
+	}
+
+	req, err := http.NewRequest("GET", "/", nil)
+	c.Assert(err, IsNil)
+	req.Header.Add("User-Agent", clientUserAgent)
+	ctx := store.WithClientUserAgent(context.TODO(), req)
+	sto := store.New(&cfg, nil)
+	sto.Find(ctx, &store.Search{Query: "hello"}, nil)
+	c.Assert(serverWasHit, Equals, true)
 }
 
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
@@ -5353,12 +5381,18 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstall(c *C) {
-	s.testSnapActionGet("install", c)
+	s.testSnapActionGet("install", "", c)
+}
+func (s *storeTestSuite) TestSnapActionInstallWithCohort(c *C) {
+	s.testSnapActionGet("install", "what", c)
 }
 func (s *storeTestSuite) TestSnapActionDownload(c *C) {
-	s.testSnapActionGet("download", c)
+	s.testSnapActionGet("download", "", c)
 }
-func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
+func (s *storeTestSuite) TestSnapActionDownloadWithCohort(c *C) {
+	s.testSnapActionGet("download", "here", c)
+}
+func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5390,13 +5424,17 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
-		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+		expectedAction := map[string]interface{}{
 			"action":       action,
 			"instance-key": action + "-1",
 			"name":         "hello-world",
 			"channel":      "beta",
 			"epoch":        nil,
-		})
+		}
+		if cohort != "" {
+			expectedAction["cohort-key"] = cohort
+		}
+		c.Assert(req.Actions[0], DeepEquals, expectedAction)
 
 		fmt.Fprintf(w, `{
   "results": [{
@@ -5436,6 +5474,7 @@ func (s *storeTestSuite) testSnapActionGet(action string, c *C) {
 				Action:       action,
 				InstanceName: "hello-world",
 				Channel:      "beta",
+				CohortKey:    cohort,
 			},
 		}, nil, nil)
 	c.Assert(err, IsNil)
@@ -6529,6 +6568,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
+			"cohort-key":       "what",
 		})
 		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
@@ -6585,6 +6625,7 @@ func (s *storeTestSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
+			CohortKey:       "what",
 		}, {
 			InstanceName:    "hello-world_foo",
 			SnapID:          helloWorldSnapID,

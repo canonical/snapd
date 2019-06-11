@@ -39,42 +39,91 @@ prepare_ssh(){
 
 create_assertions_disk(){
     dd if=/dev/null of=assertions.disk bs=1M seek=1
-    mkfs.ext4 -F assertions.disk
-    mkdir /mnt/assertions
-    mount -t ext4 -o loop assertions.disk /mnt/assertions
-    cp "$TESTSLIB/assertions/auto-import.assert" /mnt/assertions
-    umount /mnt/assertions && rm -rf /mnt/assertions
+    tmpdir="$(mktemp -d)"
+    cp "$TESTSLIB/assertions/auto-import.assert" "$tmpdir"
+    mkfs.ext4 -F -d "$tmpdir" assertions.disk
+    rm -rf "$tmpdir"
 }
 
 get_qemu_for_nested_vm(){
-    case "$NESTED_ARCH" in
-    amd64)
-        command -v qemu-system-x86_64
-        ;;
-    i386)
-        command -v qemu-system-i386
-        ;;
-    *)
-        echo "unsupported architecture"
-        exit 1
-        ;;
-    esac
+    command -v qemu-system-x86_64
 }
 
 get_image_url_for_nested_vm(){
-    case "$NESTED_SYSTEM" in
-    xenial|trusty)
-        echo "https://cloud-images.ubuntu.com/${NESTED_SYSTEM}/current/${NESTED_SYSTEM}-server-cloudimg-${NESTED_ARCH}-disk1.img"
+    case "$SPREAD_SYSTEM" in
+    ubuntu-16.04-64)
+        echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
         ;;
-    bionic)
-        echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-${NESTED_ARCH}.img"
+    ubuntu-18.04-64)
+        echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
         ;;
     *)
         echo "unsupported system"
         exit 1
         ;;
     esac
+}
 
+is_core_nested_system(){
+    if [ -z "$NESTED_TYPE" ]; then
+        echo "Variable NESTED_TYPE not defined. Exiting..."
+        exit 1
+    fi
+
+    if [ "$NESTED_TYPE" = core ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_classic_nested_system(){
+    if [ -z "$NESTED_TYPE" ]; then
+        echo "Variable NESTED_TYPE not defined. Exiting..."
+        exit 1
+    fi
+
+    if [ "$NESTED_TYPE" = classic ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_core_18_nested_system(){
+    if [ "$SPREAD_SYSTEM" = ubuntu-18.04-64 ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_core_16_nested_system(){
+    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+        return 0
+    fi
+    return 1
+}
+
+refresh_to_new_core(){
+    local NEW_CHANNEL=$1
+    if [ "$NEW_CHANNEL" = "" ]; then
+        echo "Channel to refresh is not defined."
+        exit 1
+    else
+        echo "Refreshing the core/snapd snap"
+        if is_classic_nested_system; then
+            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            execute_remote "snap info core" | grep -E "^tracking: +${NEW_CHANNEL}"
+        fi
+
+        if is_core_18_nested_system; then
+            execute_remote "snap refresh snapd --${NEW_CHANNEL}"
+            execute_remote "snap info snapd" | grep -E "^tracking: +${NEW_CHANNEL}"
+        else
+            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            wait_for_no_ssh
+            wait_for_ssh
+            execute_remote "snap info core" | grep -E "^tracking: +${NEW_CHANNEL}"
+        fi
+    fi
 }
 
 create_nested_core_vm(){
@@ -88,7 +137,21 @@ create_nested_core_vm(){
     fi
     mkdir -p "$WORK_DIR"
 
-    "$UBUNTU_IMAGE" --image-size 3G "$TESTSLIB/assertions/nested-${NESTED_ARCH}.model" \
+    local NESTED_MODEL=""
+    case "$SPREAD_SYSTEM" in
+    ubuntu-16.04-64)
+        NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
+        ;;
+    ubuntu-18.04-64)
+        NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
+        ;;
+    *)
+        echo "unsupported system"
+        exit 1
+        ;;
+    esac
+
+    "$UBUNTU_IMAGE" --image-size 3G "$NESTED_MODEL" \
         --channel "$CORE_CHANNEL" \
         --output "$WORK_DIR/ubuntu-core.img" "$EXTRA_SNAPS"
 
@@ -107,8 +170,8 @@ start_nested_core_vm(){
     QEMU=$(get_qemu_for_nested_vm)
     systemd_create_and_start_unit nested-vm "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
-        -drive file=$WORK_DIR/ubuntu-core.img,if=virtio,cache=none,format=raw \
-        -drive file=${PWD}/assertions.disk,if=virtio,cache=none,format=raw \
+        -drive file=$WORK_DIR/ubuntu-core.img,cache=none,format=raw \
+        -drive file=${PWD}/assertions.disk,cache=none,format=raw \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
         -machine accel=kvm"
     if ! wait_for_ssh; then
@@ -171,7 +234,7 @@ execute_remote(){
 }
 
 copy_remote(){
-    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$*" user1@localhost:~
+    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
 }
 
 add_tty_chardev(){

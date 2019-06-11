@@ -49,12 +49,35 @@ systemctl restart snapd
 snap install --classic go
 
 # and now run spread against localhost
-# shellcheck disable=SC1091
-. /etc/os-release
 export GOPATH=/tmp/go
 /snap/bin/go get -u github.com/snapcore/spread/cmd/spread
-export SPREAD_REUSE_SNAPD=1
-/tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)":tests/smoke/
+
+# the tests need this:
+groupadd --gid 12345 test
+adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
+
+# we build our own minimal spread.yaml
+cat > spread.yaml <<'EOF'
+project: snapd
+path: /home/gopath/src/github.com/snapcore/snapd
+environment:
+    PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
+    TESTSLIB: $PROJECT_PATH/tests/lib
+    SNAPPY_TESTING: 1
+    PATH: $PATH:$PROJECT_PATH/tests/lib/bin
+backends:
+    autopkgtest:
+        type: adhoc
+        allocate: ADDRESS localhost:22
+        systems:
+        - adt-local:
+            username: ubuntu
+            password: ubuntu
+suites:
+        tests/smoke/:
+            summary: Essenial system level tests for snapd
+EOF
+/tmp/go/bin/spread -v autopkgtest:adt-local:tests/smoke/
 
 # store journal info for inspectsion
 journalctl --sync

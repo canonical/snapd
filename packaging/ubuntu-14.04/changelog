@@ -1,3 +1,31 @@
+snapd (2.39.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1827495
+    - debian: rework how we run autopkgtests
+    - interfaces/docker-support: add overlayfs accesses for ubuntu core
+    - data/selinux: permit init_t to remount snappy_snap_t
+    - strutil/shlex: fix ineffassign
+    - packaging: fix build-depends on powerpc
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 05 Jun 2019 08:41:21 +0200
+
+snapd (2.39.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1827495
+    - spread: enable Fedora 30
+    - cmd/snap-confine, data/selinux: cherry pick Fedora 30 fixes
+    - tests/unit/spread-shellcheck: temporary workaround for SC2251
+    - packaging: build empty package on powerpc
+    - interfaces: special-case "snapd" in sanitizeSlotReservedForOS*
+      helper
+    - cmd/snap: mangle descriptions that have indent > terminal width
+    - cmd/snap-confine: unshare per-user mount ns once
+    - tests: avoid adding spaces to the base snaps names
+    - systemd: workaround systemctl show quirks on older systemd
+      versions
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 29 May 2019 12:08:43 +0200
+
 snapd (2.39~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1827495
