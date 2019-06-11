@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -12,8 +13,15 @@ class InvalidPRTitle(Exception):
 
 
 def check_pr_title(pr_number: int):
-    with urllib.request.urlopen('https://api.github.com/repos/snapcore/snapd/pulls/{}'.format(pr_number)) as f:
-        data=json.loads(f.read())
+    req = urllib.request.Request('https://api.github.com/repos/snapcore/snapd/pulls/{}'.format(pr_number))
+    api_key=os.environ.get("GITHUB_API_KEY")
+    if api_key:
+        # TODO: replace with a snapcore RO api key?
+        credentials = ('%s:%s' % ("mvo5", api_key))
+        encoded_credentials = base64.b64encode(credentials.encode('ascii'))
+        req.add_header('Authorization', 'Basic %s' % encoded_credentials.decode("ascii"))
+    with urllib.request.urlopen(req) as f:
+        data=json.loads(f.read().decode("utf-8"))
     title = data["title"]
     # TODO: be a bit smarter here - but this will catch ~95% of the bad ones
     if not ":" in title:
