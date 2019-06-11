@@ -83,7 +83,7 @@ func streamOne(c *Command, user *auth.UserState, snapName string) Response {
 		return InternalError(err.Error())
 	}
 
-	return FileStream{
+	return fileStream{
 		SnapName: snapName,
 		Info:     downloadInfo,
 		stream:   r,
