@@ -41,59 +41,72 @@ func TestBoot(t *testing.T) { TestingT(t) }
 
 type kernelOSSuite struct {
 	testutil.BaseTest
-	mocLoader *boottest.MockBootloader
-	loader    bootloader.Bootloader
+	loader *boottest.MockBootloader
 }
 
 var _ = Suite(&kernelOSSuite{})
 
 func (s *kernelOSSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(restore)
+	restore = release.MockOnClassic(false)
+	s.AddCleanup(restore)
+
+	s.loader = boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.Force(s.loader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
-func (s *kernelOSSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-	dirs.SetRootDir("")
+func (s *kernelOSSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
+	// reset forced loader
 	bootloader.Force(nil)
-}
+	// ensure tests don't access mock s.loader
+	s.loader = nil
 
-func (s *kernelOSSuite) forceMockBootloader(c *C) {
-	s.mocLoader = boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(s.mocLoader)
-}
-
-func (s *kernelOSSuite) forceGrubBootloader(c *C) {
+	// make mock grub bootenv dir
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir)
 	c.Assert(err, IsNil)
-	s.loader, err = bootloader.Find()
+
+	loader, err := bootloader.Find()
 	c.Assert(err, IsNil)
-	c.Check(s.loader, NotNil)
-	s.loader.SetBootVars(map[string]string{
+	c.Check(loader, NotNil)
+	loader.SetBootVars(map[string]string{
 		"snap_kernel": "kernel_41.snap",
 		"snap_core":   "core_21.snap",
 	})
-	bootloader.Force(s.loader)
+	bootloader.Force(loader)
 	fn := filepath.Join(dirs.GlobalRootDir, "/boot/grub/grub.cfg")
 	c.Assert(osutil.FileExists(fn), Equals, true)
+	return loader
 }
 
-func (s *kernelOSSuite) forceUbootBootloader(c *C) {
+func (s *kernelOSSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
+	// reset forced loader
+	bootloader.Force(nil)
+	// ensure tests don't access mock s.loader
+	s.loader = nil
+
+	// make mock uboot bootenv dir
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir)
 	c.Assert(err, IsNil)
-	s.loader, err = bootloader.Find()
+
+	loader, err := bootloader.Find()
 	c.Assert(err, IsNil)
-	c.Check(s.loader, NotNil)
-	bootloader.Force(s.loader)
+	c.Check(loader, NotNil)
+	bootloader.Force(loader)
 	fn := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/uboot.env")
 	c.Assert(osutil.FileExists(fn), Equals, true)
+	return loader
 }
 
 const packageKernel = `
@@ -103,11 +116,9 @@ type: kernel
 vendor: Someone
 `
 
-func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
-	s.forceUbootBootloader(c)
-	l, err := bootloader.Find()
-	c.Assert(err, IsNil)
-	c.Assert(l, NotNil)
+func (s *kernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
+	loader := s.forceUbootBootloader(c)
+	c.Assert(loader, NotNil)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -133,10 +144,8 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := l.Dir()
-
+	bootdir := loader.Dir()
 	kernelAssetsDir := filepath.Join(bootdir, "ubuntu-kernel_42.snap")
-
 	for _, def := range files {
 		if def[0] == "meta/kernel.yaml" {
 			break
@@ -149,12 +158,11 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	// remove
 	err = boot.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
-
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
 
 func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
-	s.forceGrubBootloader(c)
+	loader := s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -176,12 +184,12 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(s.loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 }
 
 func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
-	s.forceGrubBootloader(c)
+	loader := s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -204,10 +212,10 @@ func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is extracted
-	kernimg := filepath.Join(s.loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, true)
 	// initrd
-	initrdimg := filepath.Join(s.loader.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	initrdimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
 	// ensure that removal of assets also works
@@ -219,7 +227,6 @@ func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
 }
 
 func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
-	s.forceGrubBootloader(c)
 	info := &snap.Info{}
 	info.Type = snap.TypeApp
 
@@ -229,7 +236,6 @@ func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
 
 // SetNextBoot should do nothing on classic LP: #1580403
 func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
-	s.forceMockBootloader(c)
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -238,14 +244,10 @@ func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
 	err := boot.SetNextBoot(snapInfo)
 	c.Assert(err, ErrorMatches, "cannot set next boot on classic systems")
 
-	c.Assert(s.mocLoader.BootVars, HasLen, 0)
+	c.Assert(s.loader.BootVars, HasLen, 0)
 }
 
 func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
-	s.forceGrubBootloader(c)
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	info := &snap.Info{}
 	info.Type = snap.TypeOS
 	info.RealName = "core"
@@ -265,10 +267,6 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 }
 
 func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
-	s.forceGrubBootloader(c)
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	info := &snap.Info{}
 	info.Type = snap.TypeBase
 	info.RealName = "core18"
@@ -288,10 +286,6 @@ func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
 }
 
 func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
-	s.forceGrubBootloader(c)
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	info := &snap.Info{}
 	info.Type = snap.TypeKernel
 	info.RealName = "krnl"
@@ -320,10 +314,6 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 }
 
 func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
-	s.forceGrubBootloader(c)
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	info := &snap.Info{}
 	info.Type = snap.TypeKernel
 	info.RealName = "krnl"
@@ -343,10 +333,6 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 }
 
 func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
-	s.forceGrubBootloader(c)
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	info := &snap.Info{}
 	info.Type = snap.TypeKernel
 	info.RealName = "krnl"
@@ -371,7 +357,6 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 }
 
 func (s *kernelOSSuite) TestInUse(c *C) {
-	s.forceMockBootloader(c)
 	for _, t := range []struct {
 		bootVarKey   string
 		bootVarValue string
@@ -392,7 +377,7 @@ func (s *kernelOSSuite) TestInUse(c *C) {
 		{"snap_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
 		{"snap_try_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
 	} {
-		s.mocLoader.BootVars[t.bootVarKey] = t.bootVarValue
+		s.loader.BootVars[t.bootVarKey] = t.bootVarValue
 		c.Assert(boot.InUse(t.snapName, t.snapRev), Equals, t.inUse, Commentf("unexpected result: %s %s %v", t.snapName, t.snapRev, t.inUse))
 	}
 }
