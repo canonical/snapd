@@ -451,7 +451,7 @@ func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) strin
 
 func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 	expectedContent := []byte("I was downloaded")
-	restore := store.MockStream(func(ctx context.Context, url *url.URL, cdnHeader string, s *store.Store, user *auth.UserState) (*http.Response, error) {
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, s *store.Store, user *auth.UserState) (*http.Response, error) {
 		c.Check(url.String(), Equals, "http://anon-url")
 		r := &http.Response{
 			Body: ioutil.NopCloser(bytes.NewReader(expectedContent)),
