@@ -269,7 +269,7 @@ func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	if bytesCopied != s.Info.Size {
-		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expeced=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
 		http.Error(w, io.EOF.Error(), 502)
 	}
 }
