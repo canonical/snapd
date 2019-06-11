@@ -36,7 +36,6 @@ check_journalctl_log(){
     expression=$1
     shift
     for _ in $(seq 10); do
-        journalctl --flush --sync
         log=$(get_journalctl_log "$@")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
@@ -52,6 +51,8 @@ get_journalctl_log(){
     if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
         cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
     fi
+    journalctl --flush || true
+    journalctl --sync || true
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
