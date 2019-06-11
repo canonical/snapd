@@ -604,7 +604,7 @@ func (m *mockUpdater) Update() error {
 	return callOrNil(m.updateCb)
 }
 
-func updateDataSet(c *C) (oldData gadget.UpdateData, newData gadget.UpdateData, rollbackDir string) {
+func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, rollbackDir string) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "first",
@@ -652,13 +652,13 @@ func updateDataSet(c *C) (oldData gadget.UpdateData, newData gadget.UpdateData, 
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(oldRootDir, "/second-content/foo"), 0, nil)
 	makeSizedFile(c, filepath.Join(oldRootDir, "/third-content/bar"), 0, nil)
-	oldData = gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+	oldData = gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 
 	newRootDir := c.MkDir()
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "/second-content/foo"), gadget.SizeKiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "/third-content/bar"), gadget.SizeKiB, nil)
-	newData = gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+	newData = gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
 
 	rollbackDir = c.MkDir()
 	return oldData, newData, rollbackDir
@@ -798,10 +798,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorPosition(c *C) {
 	}
 
 	newRootDir := c.MkDir()
-	newData := gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
 
 	oldRootDir := c.MkDir()
-	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 
 	rollbackDir := c.MkDir()
 
@@ -851,10 +851,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	}
 
 	newRootDir := c.MkDir()
-	newData := gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
 
 	oldRootDir := c.MkDir()
-	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 
 	rollbackDir := c.MkDir()
 
@@ -904,10 +904,10 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	}
 
 	newRootDir := c.MkDir()
-	newData := gadget.UpdateData{Info: newInfo, RootDir: newRootDir}
+	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
 
 	oldRootDir := c.MkDir()
-	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 
 	rollbackDir := c.MkDir()
 
@@ -942,8 +942,8 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 		},
 	}
 
-	oldData := gadget.UpdateData{Info: oldInfo, RootDir: c.MkDir()}
-	newData := gadget.UpdateData{Info: newInfo, RootDir: c.MkDir()}
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: c.MkDir()}
+	newData := gadget.GadgetData{Info: newInfo, RootDir: c.MkDir()}
 	rollbackDir := c.MkDir()
 
 	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
@@ -979,12 +979,12 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptIn(c *C) {
 	}
 
 	oldRootDir := c.MkDir()
-	oldData := gadget.UpdateData{Info: oldInfo, RootDir: oldRootDir}
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
 
 	newRootDir := c.MkDir()
 	// same volume description
-	newData := gadget.UpdateData{Info: oldInfo, RootDir: newRootDir}
+	newData := gadget.GadgetData{Info: oldInfo, RootDir: newRootDir}
 	// different content, but updates are opt in
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
 

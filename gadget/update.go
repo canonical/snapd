@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	ErrNoUpdate = errors.New("no update needed")
+	ErrNoUpdate = errors.New("nothing to update")
 
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = PositioningConstraints{
@@ -35,35 +35,26 @@ var (
 	}
 )
 
-type UpdateData struct {
-	// Info is the gadget declaration
+// GadgetData holds references to a gadget revision metadata and its data directory.
+type GadgetData struct {
+	// Info is the gadget metadata
 	Info *Info
 	// RootDir is the root directory of gadget snap data
 	RootDir string
 }
 
-type Updater interface {
-	// Update applies the update or errors out on failures
-	Update() error
-	// Backup prepares a backup copy of data that will be modified by
-	// Update()
-	Backup() error
-	// Rollback restores data modified by update
-	Rollback() error
-}
-
-// Update applies the gadget update give the gadget information and data from
-// old and new revisions. Error out when update is not possible or illegal, or
+// Update applies the gadget update given the gadget information and data from
+// old and new revisions. It errors out when update is not possible or illegal,
 // or a failure occurs at any of the steps. When there is no update, a special
 // error ErrNoUpdate is returned.
 //
 // Updates are opt-in, and are only applied to structures which have a different
-// value of Edition field between old and new gadget declarations.
+// value of Edition field between old and new gadget definition.
 //
 // Data that would be modified during the update is first backed up inside the
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
-func Update(old, new UpdateData, rollbackDirPath string) error {
+func Update(old, new GadgetData, rollbackDirPath string) error {
 	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
 	if err != nil {
 		return err
@@ -226,6 +217,16 @@ func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates 
 	return updates
 }
 
+type Updater interface {
+	// Update applies the update or errors out on failures
+	Update() error
+	// Backup prepares a backup copy of data that will be modified by
+	// Update()
+	Backup() error
+	// Rollback restores data modified by update
+	Rollback() error
+}
+
 type nopUpdater struct{}
 
 func (n *nopUpdater) Update() error {
@@ -240,9 +241,10 @@ func (n *nopUpdater) Rollback() error {
 	return nil
 }
 
+// TODO: replace placeholder implementation with real one
 var updaterForStructure = func(_ *PositionedStructure, rootDir, rollbackDir string) (Updater, error) { return &nopUpdater{}, nil }
 
-func applyUpdates(new UpdateData, updates []updatePair, rollbackDir string) error {
+func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) error {
 	updaters := make([]Updater, 0, len(updates))
 
 	for _, one := range updates {
