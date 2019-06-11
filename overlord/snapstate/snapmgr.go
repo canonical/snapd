@@ -671,7 +671,7 @@ func (m *SnapManager) localInstallCleanup() error {
 
 // ensureSnapdSnapType ensures any snapd snaps in the snapstate have TypeSnapd. This is for
 // backward compatibility with old snapd snap releases. This needs to be done only once on startup
-// since similiar migration is done on the fly when installing snapd snaps as well.
+// since similar migration is done on the fly when installing snapd snaps as well.
 func (m *SnapManager) ensureSnapdSnapType() error {
 	// run only once as this is relatively expensive with lots of snaps
 	if m.snapdSnapTypeMigrationOnce {
