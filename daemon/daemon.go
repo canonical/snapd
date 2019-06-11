@@ -417,7 +417,7 @@ func (d *Daemon) addRoutes() {
 		if c.PathPrefix == "" {
 			d.router.Handle(c.Path, c).Name(c.Path)
 		} else {
-			d.router.PathPrefix(c.PathPrefix).Handler(c)
+			d.router.PathPrefix(c.PathPrefix).Handler(c).Name(c.PathPrefix)
 		}
 	}
 
