@@ -17,7 +17,7 @@
  *
  */
 
-package bootloader
+package bootloader_test
 
 import (
 	"os"
@@ -25,36 +25,38 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/dirs"
 )
 
-func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
-	u := &uboot{}
+type ubootTestSuite struct{}
 
-	// ensure that we have a valid uboot.env too
-	env, err := ubootenv.Create(u.envFile(), 4096)
-	c.Assert(err, IsNil)
-	err = env.Save()
-	c.Assert(err, IsNil)
+var _ = Suite(&ubootTestSuite{})
+
+func (s *ubootTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *PartitionTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
-	u := newUboot()
+func (s *ubootTestSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *ubootTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
+	u := bootloader.NewUboot()
 	c.Assert(u, IsNil)
 }
 
-func (s *PartitionTestSuite) TestNewUboot(c *C) {
-	s.makeFakeUbootEnv(c)
-
-	u := newUboot()
+func (s *ubootTestSuite) TestNewUboot(c *C) {
+	bootloader.MockUbootFiles(c)
+	u := bootloader.NewUboot()
 	c.Assert(u, NotNil)
-	c.Assert(u, FitsTypeOf, &uboot{})
+	c.Assert(u.Name(), Equals, "uboot")
 }
 
-func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
-	s.makeFakeUbootEnv(c)
-
-	u := newUboot()
+func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
+	bootloader.MockUbootFiles(c)
+	u := bootloader.NewUboot()
 	c.Assert(u, NotNil)
 	err := u.SetBootVars(map[string]string{
 		"snap_mode": "",
@@ -70,18 +72,20 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 	})
 }
 
-func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
-	s.makeFakeUbootEnv(c)
+func (s *ubootTestSuite) TestGetBootloaderWithUboot(c *C) {
+	bootloader.MockUbootFiles(c)
 
-	bootloader, err := Find()
+	bootloader, err := bootloader.Find()
 	c.Assert(err, IsNil)
-	c.Assert(bootloader, FitsTypeOf, &uboot{})
+	c.Assert(bootloader.Name(), Equals, "uboot")
 }
 
-func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
-	s.makeFakeUbootEnv(c)
+func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
+	bootloader.MockUbootFiles(c)
+	u := bootloader.NewUboot()
+	c.Assert(u, NotNil)
 
-	envFile := (&uboot{}).envFile()
+	envFile := u.ConfigFile()
 	env, err := ubootenv.Create(envFile, 4096)
 	c.Assert(err, IsNil)
 	env.Set("snap_ab", "b")
@@ -92,9 +96,6 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	st, err := os.Stat(envFile)
 	c.Assert(err, IsNil)
 	time.Sleep(100 * time.Millisecond)
-
-	u := newUboot()
-	c.Assert(u, NotNil)
 
 	// note that we set to the same var as above
 	err = u.SetBootVars(map[string]string{"snap_ab": "b"})
@@ -109,10 +110,10 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }
 
-func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
-	s.makeFakeUbootEnv(c)
+func (s *ubootTestSuite) TestUbootSetBootVarFwEnv(c *C) {
+	bootloader.MockUbootFiles(c)
+	u := bootloader.NewUboot()
 
-	u := newUboot()
 	err := u.SetBootVars(map[string]string{"key": "value"})
 	c.Assert(err, IsNil)
 
@@ -121,10 +122,10 @@ func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 	c.Assert(content, DeepEquals, map[string]string{"key": "value"})
 }
 
-func (s *PartitionTestSuite) TestUbootGetBootVarFwEnv(c *C) {
-	s.makeFakeUbootEnv(c)
+func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
+	bootloader.MockUbootFiles(c)
+	u := bootloader.NewUboot()
 
-	u := newUboot()
 	err := u.SetBootVars(map[string]string{"key2": "value2"})
 	c.Assert(err, IsNil)
 

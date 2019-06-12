@@ -17,20 +17,33 @@
  *
  */
 
-package bootloader
+package bootloader_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
+
+type grubTestSuite struct{}
+
+var _ = Suite(&grubTestSuite{})
+
+func (s *grubTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	bootloader.MockGrubFiles(c)
+}
+
+func (s *grubTestSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
 func grubEditenvCmd() string {
@@ -71,51 +84,48 @@ func grubEditenvGet(c *C, key string) string {
 	return v
 }
 
-func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
-	g := &grub{}
-	err := ioutil.WriteFile(g.ConfigFile(), nil, 0644)
-	c.Assert(err, IsNil)
+func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
 	grubEditenvSet(c, "k", "v")
 }
 
-func (s *PartitionTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
+func (s *grubTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
 	dirs.GlobalRootDir = "/something/not/there"
 
-	g := newGrub()
+	g := bootloader.NewGrub()
 	c.Assert(g, IsNil)
 }
 
-func (s *PartitionTestSuite) TestNewGrub(c *C) {
+func (s *grubTestSuite) TestNewGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := newGrub()
+	g := bootloader.NewGrub()
 	c.Assert(g, NotNil)
-	c.Assert(g, FitsTypeOf, &grub{})
+	c.Assert(g.Name(), Equals, "grub")
 }
 
-func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
+func (s *grubTestSuite) TestGetBootloaderWithGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	bootloader, err := Find()
+	bootloader, err := bootloader.Find()
 	c.Assert(err, IsNil)
-	c.Assert(bootloader, FitsTypeOf, &grub{})
+	c.Assert(bootloader.Name(), Equals, "grub")
 }
 
-func (s *PartitionTestSuite) TestGetBootVer(c *C) {
+func (s *grubTestSuite) TestGetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
-	grubEditenvSet(c, bootmodeVar, "regular")
+	grubEditenvSet(c, "snap_mode", "regular")
 
-	g := newGrub()
-	v, err := g.GetBootVars(bootmodeVar)
+	g := bootloader.NewGrub()
+	v, err := g.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
-	c.Check(v[bootmodeVar], Equals, "regular")
+	c.Check(v["snap_mode"], Equals, "regular")
 }
 
-func (s *PartitionTestSuite) TestSetBootVer(c *C) {
+func (s *grubTestSuite) TestSetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := newGrub()
+	g := bootloader.NewGrub()
 	err := g.SetBootVars(map[string]string{
 		"k1": "v1",
 		"k2": "v2",
