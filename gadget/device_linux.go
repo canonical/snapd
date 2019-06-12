@@ -104,7 +104,7 @@ func encodeLabel(in string) string {
 		switch {
 		case utf8.RuneLen(r) > 1:
 			buf.WriteRune(r)
-		case strings.IndexRune(allowed, r) == -1:
+		case !strings.ContainsRune(allowed, r):
 			fmt.Fprintf(buf, `\x%x`, r)
 		default:
 			buf.WriteRune(r)
