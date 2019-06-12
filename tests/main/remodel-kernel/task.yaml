@@ -58,6 +58,8 @@ restore: |
         echo "Leftover $NEW_KERNEL data dir found, test does not "
         echo "properly cleanup"
         echo "see https://github.com/snapcore/snapd/pull/6620"
+        echo
+        find /var/snap
         exit 1
     fi
 
@@ -102,7 +104,7 @@ execute: |
         snap changes | MATCH "Refresh model assertion from revision 0 to 2"
 
         echo "and we cannot remove the kernel snap"
-        ! snap remove "$NEW_KERNEL"
+        not snap remove "$NEW_KERNEL"
 
         # TODO: test when keeping the old kernel
         echo "but we can remove the old kernel"
