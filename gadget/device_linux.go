@@ -35,9 +35,10 @@ var ErrDeviceNotFound = errors.New("device not found")
 var ErrMountNotFound = errors.New("mount point not found")
 var ErrNoFilesystemDefined = errors.New("no filesystem defined")
 
-// FindDeviceForStructure attempts to find an existing device matching given
-// volume structure, by inspecting its name and, optionally, the filesystem
-// label. Assumes that the host's udev has set up device symlinks correctly.
+// FindDeviceForStructure attempts to find an existing block device matching
+// given volume structure, by inspecting its name and, optionally, the
+// filesystem label. Assumes that the host's udev has set up device symlinks
+// correctly.
 func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	var candidates []string
 
@@ -91,6 +92,56 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	}
 
 	return found, nil
+}
+
+// FindDeviceForStructure attempts to find an existing block device partition
+// containing given non-filesystem volume structure, by inspecting the
+// structure's name.
+//
+// Should there be no match, attempts to find the block device corresponding to
+// the volume enclosing the structure under the following conditions:
+// - the structure has no filesystem
+// - and the structure is of type: bare (no partition table entry)
+// - or the structure has no name, but a partition table entry (hence no label
+//   by which we could find it)
+//
+// The fallback mechanism uses the fact that Core devices always have a
+// filesystem labeled 'writable'.
+//
+// Returns the device name and an offset at which the stricture content starts
+// within the device or an error.
+func FindDeviceForStructureWithFallback(ps *PositionedStructure) (dev string, offs Size, err error) {
+	if !ps.IsBare() {
+		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
+	}
+
+	dev, err = FindDeviceForStructure(ps)
+	if err == nil {
+		// found exact device representing this structure, thus the
+		// structure starts at 0 offset within the device
+		return dev, 0, nil
+	}
+
+	if err != ErrDeviceNotFound {
+		// error out on other errors
+		return "", 0, err
+	} else {
+		if ps.Type != "bare" && ps.Name != "" {
+			// structures with partition table entry and a name must have
+			// been located already
+			return "", 0, err
+		}
+	}
+
+	// we're left with structures that have no partition table entry, or
+	// have a partition but no name that could be used to find them
+
+	dev, err = findParentDeviceWithWritableFallback()
+	if err != nil {
+		return "", 0, err
+	}
+	// start offset is calculated as an absolute position within the volume
+	return dev, ps.StartOffset, nil
 }
 
 // encodeLabel encodes a name for use a partition or filesystem label symlink by
@@ -148,4 +199,46 @@ func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
 	}
 
 	return mountPoint, nil
+}
+
+const writableFsLabel = "writable"
+
+func findParentDeviceWithWritableFallback() (string, error) {
+	byWritableLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", writableFsLabel)
+	target, err := filepath.EvalSymlinks(byWritableLabel)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", ErrDeviceNotFound
+		}
+		return "", fmt.Errorf("cannot resolve device symlink for filesystem label %q: %v", writableFsLabel, err)
+	}
+
+	// /dev/sda3 -> sda3
+	devname := filepath.Base(target)
+
+	// do not bother with investigating major/minor devices (inconsistent
+	// across block device types) or mangling strings, but look at sys
+	// hierarchy for block devices instead:
+	// /sys/block/sda               - main SCSI device
+	// /sys/block/sda/sda1          - partition 1
+	// /sys/block/sda/sda<n>        - partition n
+	// /sys/block/nvme0n1           - main NVME device
+	// /sys/block/nvme0n1/nvme0n1p1 - partition 1
+	matches, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "/sys/block/*/", devname))
+	if err != nil {
+		return "", fmt.Errorf("cannot glob /sys/block/ entries: %v", err)
+	}
+	if len(matches) != 1 {
+		return "", fmt.Errorf("unexpected number of matches (%v) for /sys/block/*/%s", len(matches), devname)
+	}
+
+	// at this point we have /sys/block/sda/sda3
+	// /sys/block/sda/sda3 -> /dev/sda
+	mainDev := filepath.Join(dirs.GlobalRootDir, "/dev/", filepath.Base(filepath.Dir(matches[0])))
+
+	if !osutil.FileExists(mainDev) {
+		return "", fmt.Errorf("device %v does not exist", mainDev)
+	}
+	return mainDev, nil
 }

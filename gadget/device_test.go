@@ -54,6 +54,20 @@ func (d *deviceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+func (d *deviceSuite) setUpWritableFallback(c *C) {
+	// setup everything for 'writable'
+	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0p1"), []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../fakedevice0p1", filepath.Join(d.dir, "/dev/disk/by-label/writable"))
+	c.Assert(err, IsNil)
+	// make parent device
+	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0"), []byte(""), 0644)
+	c.Assert(err, IsNil)
+	// and fake /sys/block structure
+	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
+	c.Assert(err, IsNil)
+}
+
 func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 	names := []struct {
 		escaped   string
@@ -207,6 +221,133 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 	})
 	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-label/foo is not a symlink`)
 	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+		},
+		StartOffset: 123,
+	})
+	c.Check(err, ErrorMatches, `device not found`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
+	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0p1"), []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../fakedevice0p1", filepath.Join(d.dir, "/dev/disk/by-label/writable"))
+	c.Assert(err, IsNil)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+		},
+		StartOffset: 123,
+	}
+
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
+	c.Check(err, ErrorMatches, `unexpected number of matches \(0\) for /sys/block/\*/fakedevice0p1`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+
+	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
+	c.Assert(err, IsNil)
+
+	found, offs, err = gadget.FindDeviceForStructureWithFallback(ps)
+	c.Check(err, ErrorMatches, `device .*/dev/fakedevice0 does not exist`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
+	d.setUpWritableFallback(c)
+
+	psJustBare := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+		},
+		StartOffset: 123,
+	}
+	psBareWithName := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+			Name: "foo",
+		},
+		StartOffset: 123,
+	}
+	psNoName := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{},
+		StartOffset:     123,
+	}
+
+	for _, ps := range []*gadget.PositionedStructure{psJustBare, psBareWithName, psNoName} {
+		found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
+		c.Check(err, IsNil)
+		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice0"))
+		c.Check(offs, Equals, gadget.Size(123))
+	}
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
+	d.setUpWritableFallback(c)
+
+	// should not hit the fallback path
+	psNamed := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "foo",
+		},
+		StartOffset: 123,
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(psNamed)
+	c.Check(err, Equals, gadget.ErrDeviceNotFound)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
+	d.setUpWritableFallback(c)
+
+	psFs := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label:      "foo",
+			Filesystem: "ext4",
+		},
+		StartOffset: 123,
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
+	c.Check(err, ErrorMatches, "internal error: cannot use with filesystem structures")
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackPassThrough(c *C) {
+	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "foo",
+		},
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
+	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-partlabel/foo is not a symlink`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+
+	// create a proper symlink
+	err = os.Remove(filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"))
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"))
+	c.Assert(err, IsNil)
+
+	// this should be happy again
+	found, offs, err = gadget.FindDeviceForStructureWithFallback(ps)
+	c.Assert(err, IsNil)
+	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
+	c.Check(offs, Equals, gadget.Size(0))
 }
 
 func (d *deviceSuite) TestDeviceEncodeLabel(c *C) {
