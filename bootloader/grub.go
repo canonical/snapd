@@ -92,5 +92,5 @@ func (g *grub) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 }
 
 func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
-	return RemoveKernelAssetsFromBootDir(g.Dir(), s)
+	return removeKernelAssetsFromBootDir(g.Dir(), s)
 }

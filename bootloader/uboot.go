@@ -99,5 +99,5 @@ func (u *uboot) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 }
 
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {
-	return RemoveKernelAssetsFromBootDir(u.Dir(), s)
+	return removeKernelAssetsFromBootDir(u.Dir(), s)
 }
