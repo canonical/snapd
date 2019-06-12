@@ -21,7 +21,6 @@ package backend_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,16 +143,10 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
 }
 
-func (s *setupSuite) TestSetupDoUndoKernelUboot(c *C) {
-	// setup uboot config, so we can get uboot bootloader
-	mockGadgetDir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
-	c.Assert(err, IsNil)
-	loader, _ := bootloader.Find()
-	c.Assert(loader, NotNil)
+func (s *setupSuite) TestSetupDoUndoKernel(c *C) {
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
+
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -178,17 +171,15 @@ type: kernel
 	snapType, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
-	l, _ := filepath.Glob(filepath.Join(loader.Dir(), "*"))
-	c.Assert(l, HasLen, 2) // kernel + uboot.conf
-
+	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
+	c.Assert(loader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// undo deletes the kernel assets again
 	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
-
-	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
-	c.Assert(l, HasLen, 1) // uboot.conf
+	c.Assert(loader.RemoveKernelAssetsCalls, HasLen, 1)
+	c.Assert(loader.RemoveKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 }
 
 func (s *setupSuite) TestSetupDoIdempotent(c *C) {
@@ -197,14 +188,7 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	// setup uboot config, so we can get uboot bootloader
-	mockGadgetDir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
-	c.Assert(err, IsNil)
-	loader, _ := bootloader.Find()
-	c.Assert(loader, NotNil)
+	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -227,13 +211,16 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
+	c.Assert(loader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 
 	// retry run
 	_, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
-
+	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 2)
+	c.Assert(loader.ExtractKernelAssetsCalls[1].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// sanity checks
@@ -242,9 +229,6 @@ type: kernel
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
-
-	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
-	c.Assert(l, HasLen, 2) // kernel snap + uboot.env
 }
 
 func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
