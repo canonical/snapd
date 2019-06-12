@@ -17,8 +17,11 @@ def check_pr_title(pr_number: int):
     req = urllib.request.Request('https://api.github.com/repos/snapcore/snapd/pulls/{}'.format(pr_number))
     api_key=os.environ.get("GITHUB_API_KEY")
     api_user=os.environ.get("GITHUB_API_USER")
+    if not api_key:
+        print("no api_key provided")
+    if not api_user:
+        print("no api_user provided")
     if api_user and api_key:
-        print("using auth: {}...:{}...".format(api_user[:1], api_key[:2]))
         # TODO: replace with a snapcore RO api key?
         credentials = ('%s:%s' % (api_user, api_key))
         encoded_credentials = base64.b64encode(credentials.encode('ascii'))
