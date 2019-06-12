@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,25 +19,7 @@
 
 package daemon
 
-import (
-	"net/http"
-
-	"github.com/snapcore/snapd/overlord"
+var (
+	SnapDownloadCmd  = snapDownloadCmd
+	PostSnapDownload = postSnapDownload
 )
-
-type Resp = resp
-type ErrorResult = errorResult
-
-func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{overlord: o}
-	d.addRoutes()
-	return d
-}
-
-func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
-	old := muxVars
-	muxVars = vars
-	return func() {
-		muxVars = old
-	}
-}
