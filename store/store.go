@@ -1622,16 +1622,16 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 		return nil, err
 	}
 
-	resp, err := stream(ctx, storeURL, cdnHeader, s, user)
+	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, s, user)
 	if err != nil {
 		return nil, err
 	}
 	return resp.Body, nil
 }
 
-var stream = doDowloadReq
+var doDownloadReq = doDowloadReqImpl
 
-func doDowloadReq(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
+func doDowloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
 	reqOptions := downloadReqOpts(storeURL, cdnHeader, nil)
 	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 }
