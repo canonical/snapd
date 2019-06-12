@@ -198,7 +198,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
-	case "some-gadget":
+	case "some-gadget", "brand-gadget":
 		typ = snap.TypeGadget
 	case "some-snapd":
 		typ = snap.TypeSnapd

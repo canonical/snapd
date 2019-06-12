@@ -27,6 +27,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +36,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -43,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -777,4 +782,136 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 		}
 		keyID = a.SignKeyID()
 	}
+}
+
+func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	return &snapst, nil
+}
+
+func makeRollbackDir(name string) (string, error) {
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, name)
+
+	if err := os.MkdirAll(rollbackDir, 0750); err != nil {
+		return "", err
+	}
+
+	return rollbackDir, nil
+}
+
+func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
+	var gi *gadget.Info
+
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil && err != snapstate.ErrNoCurrent {
+		return nil, err
+	}
+	if currentInfo != nil {
+		const onClassic = false
+		gi, err = snap.ReadGadgetInfo(currentInfo, onClassic)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return gi, nil
+}
+
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.Info, error) {
+	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+	if err != nil {
+		return nil, err
+	}
+	const onClassic = false
+	update, err := snap.ReadGadgetInfo(info, onClassic)
+	if err != nil {
+		return nil, err
+	}
+	return update, nil
+}
+
+func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.Info, update *gadget.Info, err error) {
+	snapst, err := snapState(st, snapsup.InstanceName())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	currentInfo, err := currentGadgetInfo(snapst)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if currentInfo == nil {
+		// don't bother reading update if there is no current
+		return nil, nil, nil
+	}
+
+	newInfo, err := pendingGadgetInfo(snapsup)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return currentInfo, newInfo, nil
+}
+
+var (
+	gadgetUpdate = nopGadgetOp
+)
+
+func nopGadgetOp(current, update *gadget.Info, rollbackRootDir string) error {
+	return nil
+}
+
+func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
+	if release.OnClassic {
+		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
+	if err != nil {
+		return err
+	}
+	if current == nil {
+		// no updates during first boot & seeding
+		return nil
+	}
+
+	snapRollbackDir, err := makeRollbackDir(fmt.Sprintf("%v_%v", snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	if err != nil {
+		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
+	}
+
+	st.Unlock()
+	err = gadgetUpdate(current, update, snapRollbackDir)
+	st.Lock()
+	if err != nil {
+		if err == gadget.ErrNoUpdate {
+			// no update needed
+			t.Logf("No gadget assets update needed")
+			return nil
+		}
+		return err
+	}
+
+	t.SetStatus(state.DoneStatus)
+
+	if err := os.RemoveAll(snapRollbackDir); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
+	}
+
+	st.RequestRestart(state.RestartSystem)
+
+	return nil
 }
