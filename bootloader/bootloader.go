@@ -200,6 +200,7 @@ func extractKernelAssetsToBootDir(bootDir string, s *snap.Info, snapf snap.Conta
 	return dir.Sync()
 }
 
+// FIXME: unexport
 func RemoveKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	// remove the kernel blob
 	blobName := filepath.Base(s.MountFile())

@@ -300,10 +300,18 @@ func (s *ubootKernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 		c.Check(fullFn, testutil.FileEquals, def[1])
 	}
 
+	// it's idempotent
+	err = boot.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
 	// remove
 	err = boot.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+
+	// it's idempotent
+	err = boot.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
 }
 
 // grubKernelOSSuite tests the GRUB specific code in the bootloader handling
@@ -361,6 +369,10 @@ func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) 
 	// kernel is *not* here
 	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
+
+	// it's idempotent
+	err = boot.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
 }
 
 func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
@@ -393,10 +405,18 @@ func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	initrdimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
+	// it's idempotent
+	err = boot.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
 	// ensure that removal of assets also works
 	err = boot.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
+
+	// it's idempotent
+	err = boot.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
 }
