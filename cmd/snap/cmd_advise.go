@@ -235,7 +235,7 @@ func dumpDbHook() error {
 	var b []Snap
 
 	var sortedCmds []string
-	for cmd, _ := range commands {
+	for cmd := range commands {
 		sortedCmds = append(sortedCmds, cmd)
 	}
 	sort.Strings(sortedCmds)
