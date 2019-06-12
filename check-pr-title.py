@@ -4,6 +4,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import sys
 import urllib.request
 
@@ -23,8 +24,12 @@ def check_pr_title(pr_number: int):
     with urllib.request.urlopen(req) as f:
         data=json.loads(f.read().decode("utf-8"))
     title = data["title"]
-    # TODO: be a bit smarter here - but this will catch ~95% of the bad ones
-    if not ":" in title:
+    # cover most common cases:
+    # package: foo
+    # package, otherpackage/subpackage: this is a title
+    # tests/regression/lp-12341234: foo
+    # [RFC] foo: bar
+    if not re.match(r'[a-zA-Z0-9_\-/,. \[\]]+: .*', title):
         raise InvalidPRTitle(title)
 
 
