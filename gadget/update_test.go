@@ -736,8 +736,15 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 
 func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 	oldData, newData, rollbackDir := updateDataSet(c)
-	// only the first structure is updated
+	// first structure is updated
+	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 0
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	// second one is not, lower edition
+	oldData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
+	// third one is not, same edition
+	oldData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 
 	updaterForStructureCalls := 0
 	restore := gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {

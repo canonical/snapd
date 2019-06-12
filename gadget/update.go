@@ -207,7 +207,11 @@ type updatePair struct {
 func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates []updatePair) {
 	for j, oldStruct := range oldVol.PositionedStructure {
 		newStruct := newVol.PositionedStructure[j]
-		if newStruct.Update.Edition != oldStruct.Update.Edition {
+		// update only when new edition is higher than the old one; boot
+		// assets are assumed to be backwards compatible, once deployed
+		// are not rolled back or replaced unless a higher edition is
+		// available
+		if newStruct.Update.Edition > oldStruct.Update.Edition {
 			updates = append(updates, updatePair{
 				from: &oldVol.PositionedStructure[j],
 				to:   &newVol.PositionedStructure[j],
