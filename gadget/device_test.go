@@ -81,6 +81,17 @@ func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 	}
 }
 
+func (d *deviceSuite) TestDeviceFindRelativeSymlink(c *C) {
+	err := os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative"))
+	c.Assert(err, IsNil)
+
+	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{Name: "relative"},
+	})
+	c.Check(err, IsNil)
+	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
+}
+
 func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 	names := []struct {
 		escaped   string
@@ -194,7 +205,7 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 			Label: "foo",
 		},
 	})
-	c.Check(err, ErrorMatches, `cannot read device link: .*`)
+	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-label/foo is not a symlink`)
 	c.Check(found, Equals, "")
 }
 

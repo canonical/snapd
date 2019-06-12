@@ -54,11 +54,23 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	var found string
 	var match string
 	for _, candidate := range candidates {
-		if !osutil.FileExists(candidate) {
-			continue
-		}
-		target, err := os.Readlink(candidate)
+		st, err := os.Lstat(candidate)
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return "", fmt.Errorf("cannot stat device: %v", err)
+		}
+		if (st.Mode() & os.ModeSymlink) == 0 {
+			// /dev/disk/by-label/* and /dev/disk/by-partlabel/* are
+			// expected to be symlink
+			return "", fmt.Errorf("candidate %v is not a symlink", candidate)
+		}
+		target, err := filepath.EvalSymlinks(candidate)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return "", fmt.Errorf("cannot read device link: %v", err)
 		}
 		if !osutil.FileExists(target) {
