@@ -449,6 +449,31 @@ func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) strin
 	return buf.String()
 }
 
+func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
+	expectedContent := []byte("I was downloaded")
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, s *store.Store, user *auth.UserState) (*http.Response, error) {
+		c.Check(url.String(), Equals, "http://anon-url")
+		r := &http.Response{
+			Body: ioutil.NopCloser(bytes.NewReader(expectedContent)),
+		}
+		return r, nil
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "http://anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContent))
+
+	stream, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, nil)
+	c.Assert(err, IsNil)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent))
+}
+
 func (s *storeTestSuite) TestDownloadOK(c *C) {
 	expectedContent := []byte("I was downloaded")
 
@@ -4210,6 +4235,9 @@ func (co *cacheObserver) Get(cacheKey, targetPath string) error {
 		return fmt.Errorf("cannot find %s in cache", cacheKey)
 	}
 	return nil
+}
+func (co *cacheObserver) GetPath(cacheKey string) string {
+	return ""
 }
 func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	co.puts = append(co.puts, fmt.Sprintf("%s:%s", cacheKey, sourcePath))
