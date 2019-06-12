@@ -68,23 +68,24 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 var content = "SNAP"
 
 func (s *snapDownloadSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	if spec.Name == "bar" {
+	switch spec.Name {
+	case "bar":
 		return &snap.Info{
 			DownloadInfo: snap.DownloadInfo{
 				Size:            int64(len(content)),
 				AnonDownloadURL: "http://localhost/bar",
 			},
 		}, nil
-	}
-	if spec.Name == "download-error-trigger-snap" {
+	case "download-error-trigger-snap":
 		return &snap.Info{
 			DownloadInfo: snap.DownloadInfo{
 				Size:            100,
 				AnonDownloadURL: "http://localhost/foo",
 			},
 		}, nil
+	default:
+		return nil, store.ErrSnapNotFound
 	}
-	return nil, store.ErrSnapNotFound
 }
 
 func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
