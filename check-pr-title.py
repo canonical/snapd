@@ -17,13 +17,18 @@ def check_pr_title(pr_number: int):
     req = urllib.request.Request('https://api.github.com/repos/snapcore/snapd/pulls/{}'.format(pr_number))
     api_key=os.environ.get("GITHUB_API_KEY")
     api_user=os.environ.get("GITHUB_API_USER")
-    if api_key:
+    if api_user and api_key:
         # TODO: replace with a snapcore RO api key?
         credentials = ('%s:%s' % (api_user, api_key))
         encoded_credentials = base64.b64encode(credentials.encode('ascii'))
         req.add_header('Authorization', 'Basic %s' % encoded_credentials.decode("ascii"))
-    with urllib.request.urlopen(req) as f:
-        data=json.loads(f.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req) as f:
+            data=json.loads(f.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        print(e.info())
+        print(e.read())
+        raise
     title = data["title"]
     # cover most common cases:
     # package: foo
