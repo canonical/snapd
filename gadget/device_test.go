@@ -323,6 +323,29 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
 	c.Check(offs, Equals, gadget.Size(0))
 }
 
+func (d *deviceSuite) TestDeviceFindFallbackBadEvalSymlinks(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot be run by root")
+	}
+	d.setUpWritableFallback(c)
+
+	err := os.Chmod(filepath.Join(d.dir, "/dev/disk/by-label"), 0000)
+	c.Assert(err, IsNil)
+	defer os.Chmod(filepath.Join(d.dir, "/dev/disk/by-label"), 0755)
+
+	psFs := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "foo",
+			Type: "bare",
+		},
+		StartOffset: 123,
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
+	c.Check(err, ErrorMatches, "cannot resolve device symlink for filesystem label \"writable\": .* permission denied")
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
 func (d *deviceSuite) TestDeviceFindFallbackPassThrough(c *C) {
 	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"), nil, 0644)
 	c.Assert(err, IsNil)

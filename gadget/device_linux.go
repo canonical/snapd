@@ -205,8 +205,8 @@ const writableFsLabel = "writable"
 
 func findParentDeviceWithWritableFallback() (string, error) {
 	byWritableLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", writableFsLabel)
-	target, err := filepath.EvalSymlinks(byWritableLabel)
 
+	target, err := filepath.EvalSymlinks(byWritableLabel)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", ErrDeviceNotFound
