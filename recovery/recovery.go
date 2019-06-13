@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -143,6 +144,7 @@ func Install(version string) error {
 
 	mntWritable := "/mnt/new-writable"
 	mntSysRecover := "/mnt/sys-recover"
+	mntSystemBoot := "/mnt/system-boot"
 
 	if err := mountFilesystem("writable", mntWritable); err != nil {
 		return err
@@ -152,8 +154,12 @@ func Install(version string) error {
 		return err
 	}
 
-	// Copy selected recovery to the new writable
-	core, kernel, err := prepareWritable(mntWritable, mntSysRecover, version)
+	if err := mountFilesystem("system-boot", mntSystemBoot); err != nil {
+		return err
+	}
+
+	// Copy selected recovery to the new writable and system-boot
+	core, kernel, err := updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version)
 	if err != nil {
 		logger.Noticef("cannot populate writable: %s", err)
 		return err
@@ -166,6 +172,10 @@ func Install(version string) error {
 	// Update our bootloader
 	if err := updateBootloader(mntSysRecover, core, kernel); err != nil {
 		logger.Noticef("cannot update bootloader: %s", err)
+		return err
+	}
+
+	if err := umount(mntSystemBoot); err != nil {
 		return err
 	}
 
@@ -206,48 +216,85 @@ func mountFilesystem(label string, mountpoint string) error {
 	return nil
 }
 
-func prepareWritable(mntWritable, mntSysRecover, version string) (string, string, error) {
+func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (core string, kernel string, err error) {
 	logger.Noticef("Populating new writable")
 
 	seedPath := "system-data/var/lib/snapd/seed"
 	snapPath := "system-data/var/lib/snapd/snaps"
 
-	dirs := []string{seedPath, snapPath, "user-data"}
-	if err := mkdirs(mntWritable, dirs, 0755); err != nil {
-		return "", "", err
-	}
-
 	src := path.Join(mntSysRecover, "system", version)
 	dest := path.Join(mntWritable, seedPath)
 
+	// remove all previous content of seed and snaps (if any)
+	// this allow us to call this function to update our recovery version
+	if err = os.RemoveAll(dest); err != nil {
+		return
+	}
+	if err = os.RemoveAll(path.Join(mntWritable, snapPath)); err != nil {
+		return
+	}
+
+	dirs := []string{seedPath, snapPath, "user-data"}
+	if err = mkdirs(mntWritable, dirs, 0755); err != nil {
+		return
+	}
+
 	seedFiles, err := ioutil.ReadDir(src)
 	if err != nil {
-		return "", "", err
+		return
 	}
 	for _, f := range seedFiles {
-		if err := copyTree(path.Join(src, f.Name()), dest); err != nil {
-			return "", "", err
+		if err = copyTree(path.Join(src, f.Name()), dest); err != nil {
+			return
 		}
 	}
 
 	seedDest := path.Join(dest, "snaps")
-	core := path.Base(globFile(seedDest, "core18_*.snap"))
-	kernel := path.Base(globFile(seedDest, "pc-kernel_*.snap"))
+
+	core = path.Base(globFile(seedDest, "core18_*.snap"))
+	kernel = path.Base(globFile(seedDest, "pc-kernel_*.snap"))
 
 	logger.Noticef("core: %s", core)
 	logger.Noticef("kernel: %s", kernel)
 
-	err = os.Symlink(path.Join("../seed/snaps", core), path.Join(mntWritable, snapPath, core))
+	coreSnapPath := path.Join(mntWritable, snapPath, core)
+	err = os.Symlink(path.Join("../seed/snaps", core), coreSnapPath)
 	if err != nil {
-		return "", "", err
+		return
 	}
 
-	err = os.Symlink(path.Join("../seed/snaps", kernel), path.Join(mntWritable, snapPath, kernel))
+	kernelSnapPath := path.Join(mntWritable, snapPath, kernel)
+	err = os.Symlink(path.Join("../seed/snaps", kernel), kernelSnapPath)
 	if err != nil {
-		return "", "", err
+		return
 	}
 
-	return core, kernel, nil
+	err = extractKernel(kernelSnapPath, mntSystemBoot)
+
+	return
+}
+
+func extractKernel(kernelPath, mntSystemBoot string) error {
+	mntKernelSnap := "/mnt/kernel-snap"
+	if err := os.MkdirAll(mntKernelSnap, 0755); err != nil {
+		return fmt.Errorf("cannot create kernel mountpoint: %s", err)
+	}
+	logger.Noticef("mounting %s", kernelPath)
+	err := exec.Command("mount", "-t", "squashfs", kernelPath, mntKernelSnap).Run()
+	if err != nil {
+		return fmt.Errorf("cannot mount kernel snap: %s", err)
+	}
+	for _, img := range []string{"kernel.img", "initrd.img"} {
+		logger.Noticef("copying %s to %s", img, mntSystemBoot)
+		err := osutil.CopyFile(path.Join(mntKernelSnap, img), path.Join(mntSystemBoot, img), osutil.CopyFlagOverwrite)
+		if err != nil {
+			return fmt.Errorf("cannot copy %s: %s", img, err)
+		}
+	}
+	if err := umount(mntKernelSnap); err != nil {
+		return err
+	}
+	return nil
 }
 
 func updateBootloader(mntSysRecover, core, kernel string) error {
