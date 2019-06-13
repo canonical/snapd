@@ -1518,7 +1518,7 @@ func iconGet(st *state.State, name string) Response {
 		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(icon)
+	return fileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
