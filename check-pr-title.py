@@ -8,32 +8,40 @@ import re
 import sys
 import urllib.request
 
+from html.parser import HTMLParser
+
 class InvalidPRTitle(Exception):
     def __init__(self, invalid_title):
         self.invalid_title = invalid_title
 
 
+class GithubTitleParser(HTMLParser):
+    def __init__(self):
+        HTMLParser.__init__(self)
+        self._cur_tag = ""
+        self.title = ""
+    def handle_starttag(self, tag, attributes):
+        self._cur_tag = tag
+    def handle_endtag(self, tag):
+        self._cur_tag = ""
+    def handle_data(self, data):
+        if self._cur_tag == "title":
+            self.title = data
+
+
 def check_pr_title(pr_number: int):
-    req = urllib.request.Request('https://api.github.com/repos/snapcore/snapd/pulls/{}'.format(pr_number))
-    api_key=os.environ.get("GITHUB_API_KEY")
-    api_user=os.environ.get("GITHUB_API_USER")
-    if not api_key:
-        print("no api_key provided")
-    if not api_user:
-        print("no api_user provided")
-    if api_user and api_key:
-        # TODO: replace with a snapcore RO api key?
-        credentials = ('%s:%s' % (api_user, api_key))
-        encoded_credentials = base64.b64encode(credentials.encode('ascii'))
-        req.add_header('Authorization', 'Basic %s' % encoded_credentials.decode("ascii"))
-    try:
-        with urllib.request.urlopen(req) as f:
-            data=json.loads(f.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        print(e.info())
-        print(e.read())
-        raise
-    title = data["title"]
+    # ideally we would use the github API - however we can't because:
+    # a) its rate limiting and travis IPs hit the API a lot so we regularly
+    #    get errors
+    # b) using a API token is tricky because travis will not allow the secure
+    #    vars for forks
+    # so instead we just scrape the html title which is unlikely to change
+    # radically
+    parser = GithubTitleParser()
+    with urllib.request.urlopen('https://github.com/snapcore/snapd/pull/{}'.format(pr_number)) as f:
+        parser.feed(f.read().decode("utf-8"))
+    # simple split to get the title part only
+    title = parser.title.split(" Pull Request ")[0]
     # cover most common cases:
     # package: foo
     # package, otherpackage/subpackage: this is a title
