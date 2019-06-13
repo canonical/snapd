@@ -149,7 +149,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	var sublevelResetTime time.Time
 	lastRefresh, err := getCoreRefreshTime()
 	if err != nil {
-		return fmt.Errorf("cannot determine core refresh time: %s", err)
+		logger.Noticef("WARNING: cannot determine core refresh time: %s", err)
 	}
 
 	err = s.Get("patch-sublevel-reset", &sublevelResetTime)

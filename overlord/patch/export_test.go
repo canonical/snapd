@@ -71,3 +71,7 @@ func Patch6SnapSetup(task *state.Task) (patch6SnapSetup, error) {
 	err := task.Get("snap-setup", &snapsup)
 	return snapsup, err
 }
+
+var (
+	MaybeResetSublevelForLevel60 = maybeResetSublevelForLevel60
+)

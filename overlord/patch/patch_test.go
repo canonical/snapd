@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -455,4 +456,32 @@ func generatePatchFunc(testValue int, sequence *[]int) patch.PatchFunc {
 		*sequence = append(*sequence, testValue)
 		return nil
 	}
+}
+
+func (s *patchSuite) TestRegressionCoreCurrentSymlinkMissing(c *C) {
+	// simulate missing "core" symlink
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	st := state.New(nil)
+	patch.Init(st)
+
+	st.Lock()
+	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore1, siCore2},
+		Current:  siCore1.Revision,
+	})
+	st.Unlock()
+
+	subLevel := 1
+	err := patch.MaybeResetSublevelForLevel60(st, &subLevel)
+	c.Assert(err, IsNil)
+	c.Assert(log.String(), Matches, `(?m).*WARNING: cannot determine core refresh time: lstat /.*/snap/core/current: no such file or directory`)
 }
