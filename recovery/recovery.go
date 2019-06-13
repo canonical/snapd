@@ -96,14 +96,14 @@ func Recover(version string) error {
 }
 
 func RecoverReboot(version string) error {
+	// different version, we need to reboot
 	logger.Noticef("Recover: must reboot to use %s", version)
 
-	// different version, we need to reboot
-
 	mntSysRecover := "/mnt/sys-recover"
-	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
-		return err
-	}
+	// -- already mounted
+	//if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+	//	return err
+	//}
 
 	// update recovery mode
 	logger.Noticef("update bootloader env")
