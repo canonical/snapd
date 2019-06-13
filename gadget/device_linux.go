@@ -35,6 +35,8 @@ var ErrDeviceNotFound = errors.New("device not found")
 var ErrMountNotFound = errors.New("mount point not found")
 var ErrNoFilesystemDefined = errors.New("no filesystem defined")
 
+var evalSymlinks = filepath.EvalSymlinks
+
 // FindDeviceForStructure attempts to find an existing block device matching
 // given volume structure, by inspecting its name and, optionally, the
 // filesystem label. Assumes that the host's udev has set up device symlinks
@@ -67,7 +69,7 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 			// expected to be symlink
 			return "", fmt.Errorf("candidate %v is not a symlink", candidate)
 		}
-		target, err := filepath.EvalSymlinks(candidate)
+		target, err := evalSymlinks(candidate)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -206,7 +208,7 @@ const writableFsLabel = "writable"
 func findParentDeviceWithWritableFallback() (string, error) {
 	byWritableLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", writableFsLabel)
 
-	target, err := filepath.EvalSymlinks(byWritableLabel)
+	target, err := evalSymlinks(byWritableLabel)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", ErrDeviceNotFound

@@ -20,6 +20,7 @@
 package gadget_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -324,10 +325,15 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackBadEvalSymlinks(c *C) {
-	if os.Geteuid() == 0 {
-		c.Skip("cannot be run by root")
-	}
 	d.setUpWritableFallback(c)
+
+	restore := gadget.MockEvalSymlinks(func(p string) (string, error) {
+		if strings.HasSuffix(p, "/dev/disk/by-label/writable") {
+			return "", errors.New("failed")
+		}
+		return filepath.EvalSymlinks(p)
+	})
+	defer restore()
 
 	err := os.Chmod(filepath.Join(d.dir, "/dev/disk/by-label"), 0000)
 	c.Assert(err, IsNil)
@@ -341,7 +347,7 @@ func (d *deviceSuite) TestDeviceFindFallbackBadEvalSymlinks(c *C) {
 		StartOffset: 123,
 	}
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
-	c.Check(err, ErrorMatches, "cannot resolve device symlink for filesystem label \"writable\": .* permission denied")
+	c.Check(err, ErrorMatches, "cannot resolve device symlink for filesystem label \"writable\": failed")
 	c.Check(found, Equals, "")
 	c.Check(offs, Equals, gadget.Size(0))
 }
