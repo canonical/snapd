@@ -40,8 +40,12 @@ def check_pr_title(pr_number: int):
     parser = GithubTitleParser()
     with urllib.request.urlopen('https://github.com/snapcore/snapd/pull/{}'.format(pr_number)) as f:
         parser.feed(f.read().decode("utf-8"))
-    # simple split to get the title part only
-    title = parser.title.split(" Pull Request ")[0]
+    # the title has the format:
+    #  "Added api endpoint for downloading snaps by glower · Pull Request #6958 · snapcore/snapd · GitHub"
+    # so we rsplit() once to get the title (rsplit to not get confused by
+    # possible "by" words in the real title)
+    title = parser.title.rsplit(" by ", maxsplit=1)[0]
+    print(title)
     # cover most common cases:
     # package: foo
     # package, otherpackage/subpackage: this is a title
