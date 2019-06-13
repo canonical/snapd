@@ -147,7 +147,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
-    if [ -n "$TRAVIS_PULL_REQUEST" ] && [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
         echo Checking pull request summary
         ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
     fi
