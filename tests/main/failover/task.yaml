@@ -95,8 +95,11 @@ execute: |
             exit 1
         fi
 
-        # install new target snap
-        snap install --dangerous failing.snap
+        # Retry installing new target snap until it is intalled correctly. The installation
+        # could fail with: cannot finish core installation, there was a rollback across reboot
+        while ! snap install --dangerous failing.snap; do
+            sleep 1
+        done
 
         # use journalctl wrapper to grep only the logs collected while the test is running
         while ! check_journalctl_log "Waiting for system reboot"; do
