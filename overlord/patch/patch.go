@@ -149,6 +149,16 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	var sublevelResetTime time.Time
 	lastRefresh, err := getCoreRefreshTime()
 	if err != nil {
+		// Edge case (an error) where the current symlink for core
+		// is missing. In such case we don't error out as this
+		// aborts snapd startup, but instead carry on to give
+		// snapd chance to recover (e.g. refresh core). Note,
+		// because lastRefresh time cannot be determined here,
+		// we reset sublevel back to 0 and also set
+		// patch-sublevel-reset timestamp, which means we will
+		// run sublevel patches twice (now, in current
+		// iteration of patches and then after next core
+		// refresh).
 		logger.Noticef("WARNING: cannot determine core refresh time: %s", err)
 	}
 
