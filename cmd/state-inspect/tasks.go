@@ -116,7 +116,7 @@ func (c *tasksCommand) showTasks(st *state.State, changeID string) error {
 	tasks := chg.Tasks()
 	sort.Sort(byLaneAndWaitTaskChain(tasks))
 
-	fmt.Fprintf(c.columnOutput, "Lanes\tID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
+	fmt.Fprintf(c.columnOutput, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\n")
 	for _, t := range tasks {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
 			continue
