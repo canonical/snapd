@@ -484,4 +484,15 @@ func (s *patchSuite) TestRegressionCoreCurrentSymlinkMissing(c *C) {
 	err := patch.MaybeResetSublevelForLevel60(st, &subLevel)
 	c.Assert(err, IsNil)
 	c.Assert(log.String(), Matches, `(?m).*WARNING: cannot determine core refresh time: lstat /.*/snap/core/current: no such file or directory`)
+	c.Assert(subLevel, Equals, 0)
+
+	st.Lock()
+	defer st.Unlock()
+	var stateSublevel int
+	var stateSublevelReset time.Time
+	c.Assert(st.Get("patch-sublevel", &stateSublevel), IsNil)
+	c.Assert(st.Get("patch-sublevel-reset", &stateSublevelReset), IsNil)
+	c.Check(stateSublevel, Equals, 0)
+	// sublevelReset time is not updated
+	c.Check(stateSublevelReset.IsZero(), Equals, true)
 }
