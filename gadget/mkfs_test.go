@@ -29,7 +29,7 @@ import (
 )
 
 type mkfsSuite struct {
-	cleanup []func()
+	testutil.BaseTest
 }
 
 var _ = Suite(&mkfsSuite{})
@@ -39,22 +39,16 @@ func (m *mkfsSuite) SetUpTest(c *C) {
 	// the host system, set up some overrides so that we avoid calling the
 	// host tools
 	cmdFakeroot := testutil.MockCommand(c, "fakeroot", "echo 'override in test' ; exit 1")
-	m.cleanup = append(m.cleanup, func() { cmdFakeroot.Restore() })
+	m.AddCleanup(cmdFakeroot.Restore)
 
 	cmdMkfsExt4 := testutil.MockCommand(c, "mkfs.ext4", "echo 'override in test' ; exit 1")
-	m.cleanup = append(m.cleanup, func() { cmdMkfsExt4.Restore() })
+	m.AddCleanup(cmdMkfsExt4.Restore)
 
 	cmdMkfsVfat := testutil.MockCommand(c, "mkfs.vfat", "echo 'override in test'; exit 1")
-	m.cleanup = append(m.cleanup, func() { cmdMkfsVfat.Restore() })
+	m.AddCleanup(cmdMkfsVfat.Restore)
 
 	cmdMcopy := testutil.MockCommand(c, "mcopy", "echo 'override in test'; exit 1")
-	m.cleanup = append(m.cleanup, func() { cmdMcopy.Restore() })
-}
-
-func (m *mkfsSuite) TearDownTest(c *C) {
-	for _, r := range m.cleanup {
-		r()
-	}
+	m.AddCleanup(cmdMcopy.Restore)
 }
 
 func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {

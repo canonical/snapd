@@ -33,7 +33,6 @@ import (
 // directory.
 func MkfsExt4(img, label, contentsRootDir string) error {
 	// taken from ubuntu-image
-	// TODO: support e2fsprogs 1.42 without -d in Ubuntu 16.04
 	mkfsArgs := []string{
 		"mkfs.ext4",
 		// default usage type
@@ -45,12 +44,14 @@ func MkfsExt4(img, label, contentsRootDir string) error {
 		"-O", "uninit_bg",
 		// mkfs.ext4 can populate the filesystem with contents of given
 		// root directory
+		// TODO: support e2fsprogs 1.42 without -d in Ubuntu 16.04
 		"-d", contentsRootDir,
 	}
 	if label != "" {
 		mkfsArgs = append(mkfsArgs, "-L", label)
 	}
 	mkfsArgs = append(mkfsArgs, img)
+	// run through fakeroot so that files are owned by root
 	cmd := exec.Command("fakeroot", mkfsArgs...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
