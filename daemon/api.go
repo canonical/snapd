@@ -736,6 +736,7 @@ type snapInstruction struct {
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
 	CohortKey        string        `json:"cohort-key"`
+	LeaveCohort      bool          `json:"leave-cohort"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
 	Classic          bool          `json:"classic"`
@@ -755,9 +756,10 @@ type snapInstruction struct {
 
 func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
 	return &snapstate.RevisionOptions{
-		Channel:   inst.Channel,
-		Revision:  inst.Revision,
-		CohortKey: inst.CohortKey,
+		Channel:     inst.Channel,
+		Revision:    inst.Revision,
+		CohortKey:   inst.CohortKey,
+		LeaveCohort: inst.LeaveCohort,
 	}
 }
 
@@ -873,11 +875,19 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 
 func verifySnapInstructions(inst *snapInstruction) error {
 	if inst.CohortKey != "" {
+		if inst.LeaveCohort {
+			return fmt.Errorf("cannot specify both cohort-key and leave-cohort")
+		}
 		if !inst.Revision.Unset() {
 			return fmt.Errorf("cannot specify both cohort-key and revision")
 		}
 		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
 			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
+		}
+	}
+	if inst.LeaveCohort {
+		if inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("leave-cohort can only be specified for refresh or switch")
 		}
 	}
 	switch inst.Action {
@@ -1080,6 +1090,10 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 
 	var msg string
 	switch {
+	case inst.LeaveCohort && inst.Channel != "":
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q and away from cohort"), inst.Snaps[0], inst.Channel)
+	case inst.LeaveCohort:
+		msg = fmt.Sprintf(i18n.G("Switch %q snap away from cohort"), inst.Snaps[0])
 	case inst.CohortKey == "" && inst.Channel != "":
 		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q"), inst.Snaps[0], inst.Channel)
 	case inst.CohortKey != "" && inst.Channel == "":
@@ -1263,7 +1277,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" {
+	// TODO: inst.Amend, etc?
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if err := verifySnapInstructions(&inst); err != nil {
