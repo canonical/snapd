@@ -64,5 +64,5 @@ func getSnapFile(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot download file for try-mode snap %q", name)
 	}
 
-	return FileResponse(info.MountFile())
+	return fileResponse(info.MountFile())
 }

@@ -80,6 +80,7 @@ var api = []*Command{
 	snapsCmd,
 	snapCmd,
 	snapFileCmd,
+	snapDownloadCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -567,7 +568,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	spec := store.SnapSpec{
 		Name: name,
 	}
-	snapInfo, err := theStore.SnapInfo(spec, user)
+	ctx := store.WithClientUserAgent(r.Context(), r)
+	snapInfo, err := theStore.SnapInfo(ctx, spec, user)
 	switch err {
 	case nil:
 		// pass
@@ -1517,7 +1519,7 @@ func iconGet(st *state.State, name string) Response {
 		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(icon)
+	return fileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {

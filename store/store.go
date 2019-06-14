@@ -1092,7 +1092,7 @@ type SnapSpec struct {
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
-func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	query := url.Values{}
 	query.Set("fields", strings.Join(s.infoFields, ","))
 	query.Set("architecture", s.architecture)
@@ -1105,7 +1105,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1589,6 +1589,51 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		logger.Debugf("Download succeeded in %.03fs (%.0f%cB/s).", dt.Seconds(), r, p)
 	}
 	return finalErr
+}
+
+// DownloadStream will copy the snap from the request to the io.Reader
+func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
+		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
+		if err != nil {
+			return nil, err
+		}
+		return file, nil
+	}
+
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return nil, err
+	}
+
+	downloadURL := downloadInfo.AnonDownloadURL
+	if downloadURL == "" || authAvail {
+		downloadURL = downloadInfo.DownloadURL
+	}
+
+	storeURL, err := url.Parse(downloadURL)
+	if err != nil {
+		return nil, err
+	}
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, s, user)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+var doDownloadReq = doDowloadReqImpl
+
+func doDowloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
+	reqOptions := downloadReqOpts(storeURL, cdnHeader, nil)
+	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.

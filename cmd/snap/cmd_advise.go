@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 
 	"github.com/jessevdk/go-flags"
@@ -233,7 +234,14 @@ func dumpDbHook() error {
 	commands_processed := make([]string, 0)
 	var b []Snap
 
-	for key, value := range commands {
+	var sortedCmds []string
+	for cmd := range commands {
+		sortedCmds = append(sortedCmds, cmd)
+	}
+	sort.Strings(sortedCmds)
+
+	for _, key := range sortedCmds {
+		value := commands[key]
 		err := json.Unmarshal([]byte(value), &b)
 		if err != nil {
 			return err

@@ -2904,6 +2904,26 @@ func (s *deviceMgrSuite) TestRemodelStoreSwitch(c *C) {
 	c.Check(remodCtx.Store(), Equals, testStore)
 }
 
+func (s *deviceMgrSuite) TestRemodeling(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no changes
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+
+	// other change
+	s.state.NewChange("other", "...")
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+
+	// remodel change
+	chg := s.state.NewChange("remodel", "...")
+	c.Check(devicestate.Remodeling(s.state), Equals, true)
+
+	// done
+	chg.SetStatus(state.DoneStatus)
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+}
+
 func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3232,9 +3252,18 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
+	// we cannot use "s.o.Settle()" here because this change has an
+	// error which means that the settle will never converge
+	for i := 0; i < 50; i++ {
 		s.se.Ensure()
 		s.se.Wait()
+
+		s.state.Lock()
+		ready := chg.IsReady()
+		s.state.Unlock()
+		if ready {
+			break
+		}
 	}
 
 	s.state.Lock()
