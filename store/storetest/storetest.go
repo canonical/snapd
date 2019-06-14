@@ -45,7 +45,7 @@ func (Store) EnsureDeviceSession() (*auth.DeviceState, error) {
 	panic("Store.EnsureDeviceSession not expected")
 }
 
-func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
+func (Store) SnapInfo(context.Context, store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
 }
 

@@ -568,7 +568,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	spec := store.SnapSpec{
 		Name: name,
 	}
-	snapInfo, err := theStore.SnapInfo(spec, user)
+	ctx := store.WithClientUserAgent(r.Context(), r)
+	snapInfo, err := theStore.SnapInfo(ctx, spec, user)
 	switch err {
 	case nil:
 		// pass
