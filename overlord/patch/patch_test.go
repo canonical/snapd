@@ -470,6 +470,8 @@ func (s *patchSuite) TestRegressionCoreCurrentSymlinkMissing(c *C) {
 	patch.Init(st)
 
 	st.Lock()
+	// init patch-sublevel-reset to ensure its really reset
+	st.Set("patch-sublevel-reset", time.Now())
 	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
 	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
 	snapstate.Set(st, "core", &snapstate.SnapState{
@@ -493,6 +495,6 @@ func (s *patchSuite) TestRegressionCoreCurrentSymlinkMissing(c *C) {
 	c.Assert(st.Get("patch-sublevel", &stateSublevel), IsNil)
 	c.Assert(st.Get("patch-sublevel-reset", &stateSublevelReset), IsNil)
 	c.Check(stateSublevel, Equals, 0)
-	// sublevelReset time is not updated
+	// sublevelReset time is reset
 	c.Check(stateSublevelReset.IsZero(), Equals, true)
 }
