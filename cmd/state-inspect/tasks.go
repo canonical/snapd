@@ -88,9 +88,15 @@ func (c *tasksCommand) writeDotOutput(st *state.State, changeID string) error {
 	fmt.Fprintf(os.Stdout, "digraph D{\n")
 	tasks := chg.Tasks()
 	for _, t := range tasks {
+		if c.NoHoldState && t.Status() == state.HoldStatus {
+			continue
+		}
 		fmt.Fprintf(os.Stdout, "  %s [label=%q];\n", t.ID(), t.Kind())
 		for _, wt := range t.WaitTasks() {
-			fmt.Fprintf(os.Stdout, "  %s -> %s;\n", wt.ID(), t.ID())
+			if c.NoHoldState && wt.Status() == state.HoldStatus {
+				continue
+			}
+			fmt.Fprintf(os.Stdout, "  %s -> %s;\n", t.ID(), wt.ID())
 		}
 	}
 	fmt.Fprintf(os.Stdout, "}\n")
