@@ -225,6 +225,11 @@ func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (
 	src := path.Join(mntSysRecover, "system", version)
 	dest := path.Join(mntWritable, seedPath)
 
+	// needed as mount-point (and for snapd.core-fixup.services)
+	if err = os.MkdirAll(path.Join(mntWritable, "system-data/boot"), 0755); err != nil {
+		return
+	}
+
 	// remove all previous content of seed and snaps (if any)
 	// this allow us to call this function to update our recovery version
 	if err = os.RemoveAll(dest); err != nil {
