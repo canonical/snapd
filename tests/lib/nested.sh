@@ -39,11 +39,9 @@ prepare_ssh(){
 }
 
 create_assertions_disk(){
-    dd if=/dev/null of="$WORK_DIR"/assertions.disk bs=1M seek=1
-    tmpdir="$(mktemp -d)"
-    cp "$TESTSLIB/assertions/auto-import.assert" "$tmpdir"
-    mkfs.ext4 -F -d "$tmpdir" assertions.disk
-    rm -rf "$tmpdir"
+    dd if=/dev/null of="$WORK_DIR/assertions.disk" bs=1M seek=1
+    mkfs.ext4 -F "$WORK_DIR/assertions.disk"
+    debugfs -w -R "write $TESTSLIB/assertions/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"
 }
 
 get_qemu_for_nested_vm(){
