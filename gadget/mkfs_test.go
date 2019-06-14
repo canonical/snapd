@@ -35,6 +35,8 @@ type mkfsSuite struct {
 var _ = Suite(&mkfsSuite{})
 
 func (m *mkfsSuite) SetUpTest(c *C) {
+	m.BaseTest.SetUpTest(c)
+
 	// fakeroot, mkfs.ext4, mkfs.vfat and mcopy are commonly installed in
 	// the host system, set up some overrides so that we avoid calling the
 	// host tools
