@@ -116,7 +116,7 @@ func (c *tasksCommand) showTasks(st *state.State, changeID string) error {
 	tasks := chg.Tasks()
 	sort.Sort(byLaneAndWaitTaskChain(tasks))
 
-	fmt.Fprintf(c.out, "Lanes\tID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
+	fmt.Fprintf(c.columnOutput, "Lanes\tID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
 	for _, t := range tasks {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
 			continue
@@ -125,19 +125,18 @@ func (c *tasksCommand) showTasks(st *state.State, changeID string) error {
 		for _, lane := range t.Lanes() {
 			lanes = append(lanes, fmt.Sprintf("%d", lane))
 		}
-		fmt.Fprintf(c.out, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", strings.Join(lanes, ","), t.ID(), t.Status().String(), formatTime(t.SpawnTime()), formatTime(t.ReadyTime()), t.Kind(), t.Summary())
+		fmt.Fprintf(c.columnOutput, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", strings.Join(lanes, ","), t.ID(), t.Status().String(), formatTime(t.SpawnTime()), formatTime(t.ReadyTime()), t.Kind(), t.Summary())
 	}
 
-	c.out.Flush()
+	c.columnOutput.Flush()
 
 	for _, t := range tasks {
 		logs := t.Log()
 		if len(logs) > 0 {
-
-			fmt.Fprintf(os.Stdout, "---\n")
-			fmt.Fprintf(os.Stdout, "%s %s\n", t.ID(), t.Summary())
+			fmt.Fprintf(c.stdOut, "---\n")
+			fmt.Fprintf(c.stdOut, "%s %s\n", t.ID(), t.Summary())
 			for _, log := range logs {
-				fmt.Fprintf(os.Stdout, "  %s\n", log)
+				fmt.Fprintf(c.stdOut, "  %s\n", log)
 			}
 		}
 	}

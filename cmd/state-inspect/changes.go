@@ -46,11 +46,11 @@ func (c *changesCommand) showChanges(st *state.State) error {
 	changes := st.Changes()
 	sort.Sort(byChangeID(changes))
 
-	fmt.Fprintf(c.out, "ID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
+	fmt.Fprintf(c.columnOutput, "ID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
 	for _, chg := range changes {
-		fmt.Fprintf(c.out, "%s\t%s\t%s\t%s\t%s\t%s\n", chg.ID(), chg.Status().String(), formatTime(chg.SpawnTime()), formatTime(chg.ReadyTime()), chg.Kind(), chg.Summary())
+		fmt.Fprintf(c.columnOutput, "%s\t%s\t%s\t%s\t%s\t%s\n", chg.ID(), chg.Status().String(), formatTime(chg.SpawnTime()), formatTime(chg.ReadyTime()), chg.Kind(), chg.Summary())
 	}
-	c.out.Flush()
+	c.columnOutput.Flush()
 
 	return nil
 }

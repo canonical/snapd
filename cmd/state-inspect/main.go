@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -37,8 +38,9 @@ type command interface {
 }
 
 type baseCommand struct {
-	out *tabwriter.Writer
-	st  *state.State
+	columnOutput *tabwriter.Writer
+	stdOut       io.Writer
+	st           *state.State
 
 	Positional struct {
 		StateFilePath string `positional-args:"yes" positional-arg-name:":state-file"`
@@ -46,7 +48,8 @@ type baseCommand struct {
 }
 
 func (c *baseCommand) setStdout(w *tabwriter.Writer) {
-	c.out = w
+	c.columnOutput = w
+	c.stdOut = os.Stdout
 }
 
 type commandInfo struct {
