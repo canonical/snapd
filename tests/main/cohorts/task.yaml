@@ -2,6 +2,7 @@ summary: Check that cohorts work
 
 prepare: |
     snap install yq
+    snap connect yq:home
 
 execute: |
     echo "Test we can create chorts:"
