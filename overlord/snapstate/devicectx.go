@@ -43,6 +43,11 @@ var (
 	DeviceCtx func(st *state.State, task *state.Task, providedDeviceCtx DeviceContext) (DeviceContext, error)
 )
 
+// Hook setup by devicestate to know whether a remodeling is in progress.
+var (
+	Remodeling func(st *state.State) bool
+)
+
 // ModelFromTask returns a model assertion through the device context for the task.
 func ModelFromTask(task *state.Task) (*asserts.Model, error) {
 	deviceCtx, err := DeviceCtx(task.State(), task, nil)
@@ -56,12 +61,25 @@ func ModelFromTask(task *state.Task) (*asserts.Model, error) {
 // available and the device is seeded, at that point the device store
 // is known and seeding done. Otherwise it returns a
 // ChangeConflictError about being too early unless a pre-provided
-// DeviceContext is passed in.
+// DeviceContext is passed in. It will again return a conflict error
+// during remodeling unless the providedDeviceCtx is for it.
 func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
+	}
+	if Remodeling(st) {
+		// a remodeling is in progress and this is not called
+		// as part of it. The 2nd check should not be needed
+		// in practice.
+		if providedDeviceCtx == nil || !providedDeviceCtx.ForRemodeling() {
+			return nil, &ChangeConflictError{
+				Message: "remodeling in progress, no other " +
+					"changes allowed until this is done",
+				ChangeKind: "remodel",
+			}
+		}
 	}
 	devCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
 	if err != nil && err != state.ErrNoState {

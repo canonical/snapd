@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -92,11 +93,13 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 		switch r.URL.Path {
 		case "/v2/snapshots":
 			if r.Method == "GET" {
+				// simulate a 1-month old snapshot
+				snapshotTime := time.Now().AddDate(0, -1, 0).Format(time.RFC3339)
 				if r.URL.Query().Get("set") == "3" {
-					fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":3,"snapshots":[{"set":3,"time":"2019-03-18T16:15:20.48905909Z","snap":"htop","revision":"1168","snap-id":"Z","auto":true,"epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`)
+					fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":3,"snapshots":[{"set":3,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","auto":true,"epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
 					return
 				}
-				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":"2019-03-18T16:15:20.48905909Z","snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`)
+				fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
 			} else {
 				fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
 			}

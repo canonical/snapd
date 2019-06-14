@@ -109,7 +109,7 @@ else
 		rm -rf debian/snapd; \
 	fi; \
 	if [ "$@" = "binary" ] || [ "$@" = "binary-arch" ]; then \
-		mkdir -p debian/snapd/usr/share/doc/snapd/; \
+		install -m755 -d debian/snapd/usr/share/doc/snapd/; \
 		cp debian/README.powerpc debian/snapd/usr/share/doc/snapd/; \
 		dh_installdeb; \
 		dh_gencontrol; \
@@ -265,7 +265,10 @@ override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 
 snap.8:
-	$(CURDIR)/_build/bin/snap help --man > $@
+	# fix reproducible builds as reported by:
+	#   https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/snapd.html
+	# once golang-go-flags is fixed we can remove the "sed" expression
+	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang

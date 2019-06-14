@@ -113,6 +113,14 @@ func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string
 	}
 }
 
+func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error)) (restore func()) {
+	orig := doDownloadReq
+	doDownloadReq = f
+	return func() {
+		doDownloadReq = orig
+	}
+}
+
 func MockApplyDelta(f func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
 	origApplyDelta := applyDelta
 	applyDelta = f

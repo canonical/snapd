@@ -147,7 +147,7 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
 	_, instanceKey := snap.SplitInstanceName(spec.Name)
@@ -198,7 +198,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
-	case "some-gadget":
+	case "some-gadget", "brand-gadget":
 		typ = snap.TypeGadget
 	case "some-snapd":
 		typ = snap.TypeSnapd
