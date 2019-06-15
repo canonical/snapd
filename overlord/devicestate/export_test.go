@@ -128,6 +128,8 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+type RegistrationContext = registrationContext
+
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
 	return m.registrationCtx(t)
 }
