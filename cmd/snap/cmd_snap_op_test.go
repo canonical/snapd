@@ -1950,7 +1950,7 @@ func (s *SnapOpSuite) TestSwitchHappyChannelAndCohort(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--cohort=what", "--edge", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "edge" channel in the "what" cohort`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "edge" channel and the "what" cohort`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -1989,7 +1989,7 @@ func (s *SnapOpSuite) TestSwitchAlsoUnhappy(c *check.C) {
 
 func (s *SnapOpSuite) TestSwitchMoreUnhappy(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "foo", "--cohort=what", "--leave-cohort"})
-	c.Assert(err, check.ErrorMatches, `cannot request both --cohort and --leave-cohort`)
+	c.Assert(err, check.ErrorMatches, `cannot specify both --cohort and --leave-cohort`)
 }
 
 func (s *SnapOpSuite) TestSnapOpNetworkTimeoutError(c *check.C) {
