@@ -85,6 +85,10 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 	// The CDN sometimes resets the connection (LP:#1617765), also
 	// retry in this case
 	if opErr, ok := err.(*net.OpError); ok {
+		// "no such host" is a permanent error and should not be retried.
+		if opErr.Op == "dial" && strings.Contains(opErr.Error(), "no such host") {
+			return false
+		}
 		// peeling the onion
 		if syscallErr, ok := opErr.Err.(*os.SyscallError); ok {
 			if syscallErr.Err == syscall.ECONNRESET {

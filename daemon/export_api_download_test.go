@@ -20,10 +20,10 @@
 package daemon
 
 var (
-	SnapFileCmd = snapFileCmd
-	GetSnapFile = getSnapFile
+	SnapDownloadCmd  = snapDownloadCmd
+	PostSnapDownload = postSnapDownload
 )
 
 type (
-	FileResponse = fileResponse
+	FileStream = fileStream
 )

@@ -1220,42 +1220,63 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 var errRevisionSwitch = errors.New("cannot switch revision")
 
 func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
-	switchChannel := chanFrom != chanTo && chanTo != ""
-	switchCohort := cohFrom != cohTo && cohTo != ""
-	switch {
-	case switchChannel && !switchCohort && chanFrom == "":
-		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q"),
-			snap, chanTo)
-	case switchChannel && !switchCohort:
-		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"),
-			snap, chanFrom, chanTo)
-	case switchCohort && !switchChannel && cohFrom == "":
-		return fmt.Sprintf(i18n.G("Switch snap %q from no cohort to %q"),
-			snap, strutil.ElliptRight(cohTo, 10))
-	case switchCohort && !switchChannel:
-		return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"),
-			snap, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10))
-	case switchCohort && switchChannel && chanFrom == "" && cohFrom == "":
-		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from no cohort to %q"),
-			snap, chanTo, strutil.ElliptRight(cohTo, 10),
-		)
-	case switchCohort && switchChannel && cohFrom == "":
-		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from no cohort to %q"),
-			snap, chanFrom, chanTo, strutil.ElliptRight(cohTo, 10),
-		)
-	case switchCohort && switchChannel && chanFrom == "":
-		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from cohort %q to %q"),
-			snap, chanTo, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
-		)
-	case switchCohort && switchChannel:
+	if cohFrom != cohTo {
+		if cohTo == "" {
+			// leave cohort
+			if chanFrom == chanTo {
+				return fmt.Sprintf(i18n.G("Switch snap %q away from cohort %q"),
+					snap, strutil.ElliptRight(cohFrom, 10))
+			}
+			if chanFrom == "" {
+				return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and away from cohort %q"),
+					snap, chanTo, strutil.ElliptRight(cohFrom, 10),
+				)
+			}
+			return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and away from cohort %q"),
+				snap, chanFrom, chanTo, strutil.ElliptRight(cohFrom, 10),
+			)
+		}
+		if cohFrom == "" {
+			// moving into a cohort
+			if chanFrom == chanTo {
+				return fmt.Sprintf(i18n.G("Switch snap %q from no cohort to %q"),
+					snap, strutil.ElliptRight(cohTo, 10))
+			}
+			if chanFrom == "" {
+				return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from no cohort to %q"),
+					snap, chanTo, strutil.ElliptRight(cohTo, 10),
+				)
+			}
+			// chanTo == "" is not interesting
+			return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from no cohort to %q"),
+				snap, chanFrom, chanTo, strutil.ElliptRight(cohTo, 10),
+			)
+		}
+		if chanFrom == chanTo {
+			return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"),
+				snap, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10))
+		}
+		if chanFrom == "" {
+			return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from cohort %q to %q"),
+				snap, chanTo, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+			)
+		}
 		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"),
 			snap, chanFrom, chanTo,
 			strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
 		)
-	default:
-		// this might actually be an error
-		return "No change switch (bug?)"
 	}
+
+	if chanFrom == "" {
+		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q"),
+			snap, chanTo)
+	}
+	if chanFrom != chanTo {
+		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"),
+			snap, chanFrom, chanTo)
+	}
+	// this might actually be an error
+	return "No change switch (bug?)"
 }
 
 // Switch switches a snap to a new channel and/or cohort
@@ -1303,6 +1324,9 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	if opts.CohortKey != "" {
 		snapsup.CohortKey = opts.CohortKey
 	}
+	if opts.LeaveCohort {
+		snapsup.CohortKey = ""
+	}
 
 	summary := switchSummary(snapsup.InstanceName(), snapst.Channel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 	switchSnap := st.NewTask("switch-snap", summary)
@@ -1313,9 +1337,10 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 // RevisionOptions control the selection of a snap revision.
 type RevisionOptions struct {
-	Channel   string
-	Revision  snap.Revision
-	CohortKey string
+	Channel     string
+	Revision    snap.Revision
+	CohortKey   string
+	LeaveCohort bool
 }
 
 // Update initiates a change updating a snap.
@@ -1368,6 +1393,9 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if opts.CohortKey == "" {
 		// default to being in the same cohort
 		opts.CohortKey = snapst.CohortKey
+	}
+	if opts.LeaveCohort {
+		opts.CohortKey = ""
 	}
 
 	// TODO: make flags be per revision to avoid this logic (that
