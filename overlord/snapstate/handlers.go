@@ -225,7 +225,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, requireBaseType bool, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
+func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, requireTypeBase bool, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// The core snap provides everything we need for core16.
 	coreInstalled, err := isInstalled(st, "core")
 	if err != nil {
@@ -253,7 +253,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string,
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireBaseType: requireBaseType})
+	ts, err := Install(st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
@@ -296,8 +296,8 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	var err error
 	if base != "none" {
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
-			requireBaseType := true
-			tsBase, err = m.installOneBaseOrRequired(st, base, requireBaseType, defaultBaseSnapsChannel(), onInFlightErr, userID)
+			requireTypeBase := true
+			tsBase, err = m.installOneBaseOrRequired(st, base, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
 			return err

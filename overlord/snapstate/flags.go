@@ -66,8 +66,8 @@ type Flags struct {
 	// long as refresh assets are cached.
 	NoReRefresh bool `json:"no-rerefresh,omitempty"`
 
-	// RequireBaseType is set to mark that a snap needs to be of type: base, otherwise installation fails.
-	RequireBaseType bool `json:"require-base-type"`
+	// RequireTypeBase is set to mark that a snap needs to be of type: base, otherwise installation fails.
+	RequireTypeBase bool `json:"require-base-type,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
@@ -79,5 +79,6 @@ func (f Flags) DevModeAllowed() bool {
 func (f Flags) ForSnapSetup() Flags {
 	f.SkipConfigure = false
 	f.NoReRefresh = false
+	f.RequireTypeBase = false
 	return f
 }
