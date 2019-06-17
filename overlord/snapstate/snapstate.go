@@ -704,7 +704,7 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	}
 
 	if flags.RequireBaseType && info.Type != snap.TypeBase && info.Type != snap.TypeOS {
-		return nil, fmt.Errorf("expected snap %q to be of 'base' type", name)
+		return nil, fmt.Errorf("expected snap %q to be of type 'base'", name)
 	}
 
 	if flags.Classic && !info.NeedsClassic() {

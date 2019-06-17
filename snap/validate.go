@@ -370,10 +370,10 @@ func ValidateBase(info *Info) error {
 	if info.Base != "" {
 		baseSnapName, instanceKey := SplitInstanceName(info.Base)
 		if instanceKey != "" {
-			return fmt.Errorf("invalid base %q: snap instance not allowed", info.Base)
+			return fmt.Errorf("base cannot specify a snap instance name: %q", info.Base)
 		}
 		if err := ValidateName(baseSnapName); err != nil {
-			return fmt.Errorf("invalid base: %s", err)
+			return fmt.Errorf("invalid base name: %s", err)
 		}
 	}
 	return nil
