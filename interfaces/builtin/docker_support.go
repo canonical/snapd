@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -594,6 +595,16 @@ var (
 	parserFeatures = release.AppArmorParserFeatures
 )
 
+func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var controlsDeviceCgroup bool
+	_ = plug.Attr("controls-device-cgroup", &controlsDeviceCgroup)
+	if controlsDeviceCgroup {
+		spec.SetControlsDeviceCgroup()
+	}
+
+	return nil
+}
+
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var privileged bool
 	_ = plug.Attr("privileged-containers", &privileged)
@@ -627,6 +638,11 @@ func (iface *dockerSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) erro
 	if v, ok := plug.Attrs["privileged-containers"]; ok {
 		if _, ok = v.(bool); !ok {
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")
+		}
+	}
+	if v, ok := plug.Attrs["controls-device-cgroup"]; ok {
+		if _, ok = v.(bool); !ok {
+			return fmt.Errorf("docker-support plug requires bool with 'controls-device-cgroup'")
 		}
 	}
 	return nil
