@@ -9057,7 +9057,7 @@ var switchScenarios = map[string]switchScenario{
 		chanTo:   "some-channel",
 		cohFrom:  "",
 		cohTo:    "",
-		summary:  `Switch snap "some-snap" from no channel to "some-channel"`,
+		summary:  `Switch snap "some-snap" to channel "some-channel"`,
 	},
 	"no cohort change requested": {
 		chanFrom: "stable",
@@ -9085,7 +9085,7 @@ var switchScenarios = map[string]switchScenario{
 		chanTo:   "stable",
 		cohFrom:  "some-cohort",
 		cohTo:    "",
-		summary:  `Switch snap "some-snap" from no channel to "stable" and away from cohort "some-coho…"`,
+		summary:  `Switch snap "some-snap" to channel "stable" and away from cohort "some-coho…"`,
 	},
 	"no channel at all": {
 		chanFrom: "",
@@ -9120,7 +9120,7 @@ var switchScenarios = map[string]switchScenario{
 		chanTo:   "stable",
 		cohFrom:  "some-cohort",
 		cohTo:    "some-other-cohort",
-		summary:  `Switch snap "some-snap" from no channel to "stable" and from cohort "some-coho…" to "some-othe…"`,
+		summary:  `Switch snap "some-snap" to channel "stable" and from cohort "some-coho…" to "some-othe…"`,
 	},
 	"all change, from empty cohort": {
 		chanFrom: "stable",
@@ -9134,14 +9134,14 @@ var switchScenarios = map[string]switchScenario{
 		chanTo:   "stable",
 		cohFrom:  "",
 		cohTo:    "some-cohort",
-		summary:  `Switch snap "some-snap" from no channel to "stable" and from no cohort to "some-coho…"`,
+		summary:  `Switch snap "some-snap" to channel "stable" and from no cohort to "some-coho…"`,
 	},
-	"no change (XXX: error?)": {
+	"no change": {
 		chanFrom: "stable",
 		chanTo:   "stable",
 		cohFrom:  "some-cohort",
 		cohTo:    "some-cohort",
-		summary:  `No change switch (bug?)`,
+		summary:  `No change switch (no-op)`,
 	},
 }
 
