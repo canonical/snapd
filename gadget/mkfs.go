@@ -37,8 +37,9 @@ func MkfsExt4(img, label, contentsRootDir string) error {
 		"mkfs.ext4",
 		// default usage type
 		"-T", "default",
-		// disable metadata checksum
-		// XXX: why?
+		// disable metadata checksum, which were unsupported in Ubuntu
+		// 16.04 and Ubuntu Core 16 systems and would lead to a boot
+		// failure if enabled
 		"-O", "-metadata_csum",
 		// allow uninitialized block groups
 		"-O", "uninit_bg",
