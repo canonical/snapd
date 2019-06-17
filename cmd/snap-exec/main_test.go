@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -65,6 +66,7 @@ apps:
    BASE_PATH: /some/path
    LD_LIBRARY_PATH: ${BASE_PATH}/lib
    MY_PATH: $PATH
+  completer: you/complete/me
  app2:
   command: run-app2
   stop-command: stop-app2
@@ -73,6 +75,8 @@ apps:
  nostop:
   command: nostop
 `)
+
+var mockClassicYaml = append([]byte("confinement: classic\n"), mockYaml...)
 
 var mockHookYaml = []byte(`name: snapname
 version: 1.0
@@ -464,4 +468,64 @@ func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
 		c.Check(snapExec.ExpandEnvCmdArgs(t.args, t.env), DeepEquals, t.expected)
 
 	}
+}
+
+func (s *snapExecSuite) TestSnapExecCompleteConfined(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	execArgv0 := ""
+	execArgs := []string{}
+	restore := snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		return nil
+	})
+	defer restore()
+
+	// setup env
+	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
+	defer os.Unsetenv("SNAP_DATA")
+
+	// launch and verify its run the right way
+	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, "/bin/bash")
+	c.Check(execArgs, DeepEquals, []string{execArgv0,
+		dirs.CompletionHelperInCore,
+		filepath.Join(dirs.SnapMountDir, "snapname/42/you/complete/me"),
+		"foo"})
+}
+
+func (s *snapExecSuite) TestSnapExecCompleteClassic(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockClassicYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	execArgv0 := ""
+	execArgs := []string{}
+	restore = snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		return nil
+	})
+	defer restore()
+
+	// setup env
+	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
+	defer os.Unsetenv("SNAP_DATA")
+
+	// launch and verify its run the right way
+	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, "/bin/bash")
+	c.Check(execArgs, DeepEquals, []string{execArgv0,
+		filepath.Join(dirs.SnapMountDir, "core/current", dirs.CompletionHelperInCore),
+		filepath.Join(dirs.SnapMountDir, "snapname/42/you/complete/me"),
+		"foo"})
 }

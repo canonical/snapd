@@ -201,8 +201,12 @@ func execApp(snapApp, revision, command string, args []string) error {
 		cmdArgs = nil
 	case "complete":
 		fullCmd[0] = defaultShell
+		completionHelper := dirs.CompletionHelperInCore
+		if info.NeedsClassic() {
+			completionHelper = filepath.Join(dirs.SnapMountDir, "core/current", dirs.CompletionHelperInCore)
+		}
 		cmdArgs = []string{
-			dirs.CompletionHelper,
+			completionHelper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
 		}
 	case "gdb":
