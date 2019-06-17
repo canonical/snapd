@@ -276,8 +276,8 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		var err error
 		var ts *state.TaskSet
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
-			noBaseTypeCheck := false
-			ts, err = m.installOneBaseOrRequired(st, prereqName, noBaseTypeCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID)
+			noTypeBaseCheck := false
+			ts, err = m.installOneBaseOrRequired(st, prereqName, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
 			return err
@@ -317,8 +317,8 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	}
 	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
-			noBaseTypeCheck := false
-			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", noBaseTypeCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID)
+			noTypeBaseCheck := false
+			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
 			return err

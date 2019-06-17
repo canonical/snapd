@@ -543,5 +543,5 @@ func (s *prereqSuite) TestDoPrereqBaseIsNotBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(expected snap "some-epoch-snap" to be of type 'base'\)`)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(declared snap base "some-epoch-snap" has unexpected type "app", instead of 'base'\)`)
 }
