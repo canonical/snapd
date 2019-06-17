@@ -20,7 +20,6 @@
 package gadget_test
 
 import (
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -55,7 +54,7 @@ func (d *deviceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (d *deviceSuite) setUpWritableFallback(c *C) {
+func (d *deviceSuite) setUpWritableFallback(c *C, mountInfo string) {
 	// setup everything for 'writable'
 	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0p1"), []byte(""), 0644)
 	c.Assert(err, IsNil)
@@ -67,6 +66,8 @@ func (d *deviceSuite) setUpWritableFallback(c *C) {
 	// and fake /sys/block structure
 	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
 	c.Assert(err, IsNil)
+
+	mockProcSelfFilesystem(c, d.dir, mountInfo)
 }
 
 func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
@@ -224,7 +225,16 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 	c.Check(found, Equals, "")
 }
 
+const writableMountInfo = `
+26 27 8:3 / /writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered
+`
+
 func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
+	badMountInfo := `
+26 27 8:3 / /not-writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered
+`
+	mockProcSelfFilesystem(c, d.dir, badMountInfo[1:])
+
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(&gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Type: "bare",
@@ -237,10 +247,7 @@ func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
-	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0p1"), []byte(""), 0644)
-	c.Assert(err, IsNil)
-	err = os.Symlink("../../fakedevice0p1", filepath.Join(d.dir, "/dev/disk/by-label/writable"))
-	c.Assert(err, IsNil)
+	mockProcSelfFilesystem(c, d.dir, writableMountInfo[1:])
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -264,7 +271,7 @@ func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
-	d.setUpWritableFallback(c)
+	d.setUpWritableFallback(c, writableMountInfo[1:])
 
 	psJustBare := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -293,7 +300,7 @@ func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
-	d.setUpWritableFallback(c)
+	d.setUpWritableFallback(c, writableMountInfo[1:])
 
 	// should not hit the fallback path
 	psNamed := &gadget.PositionedStructure{
@@ -309,7 +316,7 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
-	d.setUpWritableFallback(c)
+	d.setUpWritableFallback(c, writableMountInfo[1:])
 
 	psFs := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -324,21 +331,8 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
 	c.Check(offs, Equals, gadget.Size(0))
 }
 
-func (d *deviceSuite) TestDeviceFindFallbackBadEvalSymlinks(c *C) {
-	d.setUpWritableFallback(c)
-
-	restore := gadget.MockEvalSymlinks(func(p string) (string, error) {
-		if strings.HasSuffix(p, "/dev/disk/by-label/writable") {
-			return "", errors.New("failed")
-		}
-		return filepath.EvalSymlinks(p)
-	})
-	defer restore()
-
-	err := os.Chmod(filepath.Join(d.dir, "/dev/disk/by-label"), 0000)
-	c.Assert(err, IsNil)
-	defer os.Chmod(filepath.Join(d.dir, "/dev/disk/by-label"), 0755)
-
+func (d *deviceSuite) TestDeviceFindFallbackBadMountInfo(c *C) {
+	d.setUpWritableFallback(c, "garbage")
 	psFs := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name: "foo",
@@ -347,7 +341,7 @@ func (d *deviceSuite) TestDeviceFindFallbackBadEvalSymlinks(c *C) {
 		StartOffset: 123,
 	}
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
-	c.Check(err, ErrorMatches, "cannot resolve device symlink for filesystem label \"writable\": failed")
+	c.Check(err, ErrorMatches, "cannot read mount info: .*")
 	c.Check(found, Equals, "")
 	c.Check(offs, Equals, gadget.Size(0))
 }

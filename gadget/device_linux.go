@@ -96,8 +96,8 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	return found, nil
 }
 
-// FindDeviceForStructure attempts to find an existing block device partition
-// containing given non-filesystem volume structure, by inspecting the
+// FindDeviceForStructureWithFallback attempts to find an existing block device
+// partition containing given non-filesystem volume structure, by inspecting the
 // structure's name.
 //
 // Should there be no match, attempts to find the block device corresponding to
@@ -107,8 +107,9 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 // - or the structure has no name, but a partition table entry (hence no label
 //   by which we could find it)
 //
-// The fallback mechanism uses the fact that Core devices always have a
-// filesystem labeled 'writable'.
+// The fallback mechanism uses the fact that Core devices always have a mount at
+// /writable. The system is booted from the parent of the device mounted at
+// /writable.
 //
 // Returns the device name and an offset at which the stricture content starts
 // within the device or an error.
@@ -203,21 +204,40 @@ func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
 	return mountPoint, nil
 }
 
-const writableFsLabel = "writable"
+func isWritableMount(entry *osutil.MountInfoEntry) bool {
+	const slashWritableMountPoint = "/writable"
+	const slashWritableFsType = "ext4"
+
+	// example mountinfo entry:
+	// 26 27 8:3 / /writable rw,relatime shared:7 - ext4 /dev/sda3 rw,data=ordered
+	return entry.Root == "/" && entry.MountDir == slashWritableMountPoint && entry.FsType == slashWritableFsType
+}
+
+func findDeviceForWritable() (device string, err error) {
+	mountInfo, err := osutil.LoadMountInfo(filepath.Join(dirs.GlobalRootDir, osutil.ProcSelfMountInfo))
+	if err != nil {
+		return "", fmt.Errorf("cannot read mount info: %v", err)
+	}
+	for _, entry := range mountInfo {
+		if isWritableMount(entry) {
+			device = entry.MountSource
+			break
+		}
+	}
+	if device == "" {
+		return "", ErrDeviceNotFound
+	}
+	return device, nil
+}
 
 func findParentDeviceWithWritableFallback() (string, error) {
-	byWritableLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", writableFsLabel)
-
-	target, err := evalSymlinks(byWritableLabel)
+	deviceWritable, err := findDeviceForWritable()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "", ErrDeviceNotFound
-		}
-		return "", fmt.Errorf("cannot resolve device symlink for filesystem label %q: %v", writableFsLabel, err)
+		return "", err
 	}
 
 	// /dev/sda3 -> sda3
-	devname := filepath.Base(target)
+	devname := filepath.Base(deviceWritable)
 
 	// do not bother with investigating major/minor devices (inconsistent
 	// across block device types) or mangling strings, but look at sys
