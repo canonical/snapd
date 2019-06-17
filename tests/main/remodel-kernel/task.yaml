@@ -72,6 +72,20 @@ execute: |
     #shellcheck source=tests/lib/boot.sh
     . "$TESTSLIB"/boot.sh
 
+    wait_change_done() {
+        chg_summary="$1"
+        for _ in $(seq 10); do
+            if snap changes | grep -qE "[0-9]+\ +Done\ +.* $chg_summary"; then
+                break
+            fi
+            # some debug output
+            snap changes
+            # wait a bit
+            sleep 5
+        done
+        snap changes | MATCH "$chg_summary"
+    }
+
     # initial boot with the current model 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # sanity check
@@ -100,8 +114,8 @@ execute: |
         grub-editenv list | MATCH "snap_kernel=$NEW_KERNEL"
 
         echo "and we got the new model assertion"
+        wait_change_done "Refresh model assertion from revision 0 to 2"
         snap debug model|MATCH "revision: 2"
-        snap changes | MATCH "Refresh model assertion from revision 0 to 2"
 
         echo "and we cannot remove the kernel snap"
         not snap remove "$NEW_KERNEL"
@@ -120,8 +134,8 @@ execute: |
         wait_core_post_boot
         grub-editenv list | MATCH "snap_kernel=$OLD_KERNEL"
 
+        wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"
-        snap changes | MATCH "Refresh model assertion from revision 2 to 3"
         echo "cleanup"
         snap remove "$NEW_KERNEL"
 
