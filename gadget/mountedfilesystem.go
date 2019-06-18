@@ -31,19 +31,25 @@ import (
 )
 
 type MountedFilesystemWriter struct {
-	rootDir string
-	ps      *PositionedStructure
+	contentDir string
+	ps         *PositionedStructure
 }
 
 // NewMountedFilesystemWriter returns a writer capable of deploying provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(rootDir string, ps *PositionedStructure) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(contentDir string, ps *PositionedStructure) (*MountedFilesystemWriter, error) {
+	if ps == nil {
+		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
+	}
 	if ps.IsBare() {
 		return nil, fmt.Errorf("structure %v has no filesystem", ps)
 	}
+	if contentDir == "" {
+		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
+	}
 	fw := &MountedFilesystemWriter{
-		rootDir: rootDir,
-		ps:      ps,
+		contentDir: contentDir,
+		ps:         ps,
 	}
 	return fw, nil
 }
@@ -62,9 +68,12 @@ func prefixPreserve(dstDir string, preserve []string) []string {
 // overwritten, unless their paths, relative to target directory, are listed in
 // the preserve list.
 func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) error {
+	if whereDir == "" {
+		return fmt.Errorf("internal error: destination directory cannot be unset")
+	}
 	preserveInDst := prefixPreserve(whereDir, preserve)
 	for _, c := range m.ps.Content {
-		if err := m.writeOneContent(whereDir, &c, preserveInDst); err != nil {
+		if err := m.writeVolumeContent(whereDir, &c, preserveInDst); err != nil {
 			return fmt.Errorf("cannot write filesystem content of %s: %v", c, err)
 		}
 	}
@@ -100,16 +109,16 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 		pSrc := filepath.Join(src, fi.Name())
 		pDst := filepath.Join(dst, fi.Name())
 
-		deploy := writeFile
+		write := writeFile
 		if fi.IsDir() {
 			if err := os.MkdirAll(pDst, 0755); err != nil {
 				return fmt.Errorf("cannot create directory prefix: %v", err)
 			}
 
-			deploy = writeDirectory
+			write = writeDirectory
 			pSrc += "/"
 		}
-		if err := deploy(pSrc, pDst, preserveInDst); err != nil {
+		if err := write(pSrc, pDst, preserveInDst); err != nil {
 			return err
 		}
 	}
@@ -147,8 +156,14 @@ func writeFile(src, dst string, preserveInDst []string) error {
 	return nil
 }
 
-func (m *MountedFilesystemWriter) writeOneContent(whereDir string, content *VolumeContent, preserveInDst []string) error {
-	realSource := filepath.Join(m.rootDir, content.Source)
+func (m *MountedFilesystemWriter) writeVolumeContent(whereDir string, content *VolumeContent, preserveInDst []string) error {
+	if content.Source == "" {
+		return fmt.Errorf("internal error: source cannot be unset")
+	}
+	if content.Target == "" {
+		return fmt.Errorf("internal error: target cannot be unset")
+	}
+	realSource := filepath.Join(m.contentDir, content.Source)
 	realTarget := filepath.Join(whereDir, content.Target)
 
 	// filepath trims the trailing /, restore if needed

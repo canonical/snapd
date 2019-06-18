@@ -530,3 +530,41 @@ func (r *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
 	c.Assert(err, ErrorMatches, "structure #0 has no filesystem")
 	c.Assert(rw, IsNil)
 }
+
+func (r *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
+	rw, err := gadget.NewMountedFilesystemWriter(r.dir, nil)
+	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure.*`)
+	c.Assert(rw, IsNil)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			// no filesystem
+			Content: []gadget.VolumeContent{
+				{
+					Source: "",
+					Target: "",
+				},
+			},
+		},
+	}
+
+	rw, err = gadget.NewMountedFilesystemWriter("", ps)
+	c.Assert(err, ErrorMatches, `internal error: gadget content directory cannot be unset`)
+	c.Assert(rw, IsNil)
+
+	rw, err = gadget.NewMountedFilesystemWriter(r.dir, ps)
+	c.Assert(err, IsNil)
+
+	err = rw.Write("", nil)
+	c.Assert(err, ErrorMatches, "internal error: destination directory cannot be unset")
+
+	d := c.MkDir()
+	err = rw.Write(d, nil)
+	c.Assert(err, ErrorMatches, "cannot write filesystem content .* source cannot be unset")
+
+	ps.Content[0].Source = "/"
+	err = rw.Write(d, nil)
+	c.Assert(err, ErrorMatches, "cannot write filesystem content .* target cannot be unset")
+}
