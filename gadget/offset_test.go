@@ -54,7 +54,8 @@ func (m *offsetSuite) TestOffsetWriterOnlyStructure(c *C) {
 	}
 
 	const sectorSize = 512
-	ow := gadget.NewOffsetWriter(ps, sectorSize)
+	ow, err := gadget.NewOffsetWriter(ps, sectorSize)
+	c.Assert(err, IsNil)
 
 	mw := &mockWriteSeeker{
 		seek: func(offs int64, whence int) (int64, error) {
@@ -69,7 +70,7 @@ func (m *offsetSuite) TestOffsetWriterOnlyStructure(c *C) {
 			return len(what), nil
 		},
 	}
-	err := ow.Write(mw)
+	err = ow.Write(mw)
 	c.Assert(err, IsNil)
 }
 
@@ -96,7 +97,8 @@ func (m *offsetSuite) TestOffsetWriterOnlyRawContent(c *C) {
 	}
 
 	const sectorSize = 512
-	ow := gadget.NewOffsetWriter(ps, sectorSize)
+	ow, err := gadget.NewOffsetWriter(ps, sectorSize)
+	c.Assert(err, IsNil)
 
 	mw := &mockWriteSeeker{
 		seek: func(offs int64, whence int) (int64, error) {
@@ -111,7 +113,7 @@ func (m *offsetSuite) TestOffsetWriterOnlyRawContent(c *C) {
 			return 0, nil
 		},
 	}
-	err := ow.Write(mw)
+	err = ow.Write(mw)
 	c.Assert(err, IsNil)
 }
 
@@ -128,7 +130,8 @@ func (m *offsetSuite) TestOffsetWriterOnlyFsStructure(c *C) {
 	}
 
 	const sectorSize = 512
-	ow := gadget.NewOffsetWriter(ps, sectorSize)
+	ow, err := gadget.NewOffsetWriter(ps, sectorSize)
+	c.Assert(err, IsNil)
 
 	mw := &mockWriteSeeker{
 		seek: func(offs int64, whence int) (int64, error) {
@@ -143,7 +146,7 @@ func (m *offsetSuite) TestOffsetWriterOnlyFsStructure(c *C) {
 			return 0, nil
 		},
 	}
-	err := ow.Write(mw)
+	err = ow.Write(mw)
 	c.Assert(err, IsNil)
 }
 
@@ -160,7 +163,8 @@ func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
 	}
 
 	const sectorSize = 512
-	ow := gadget.NewOffsetWriter(ps, sectorSize)
+	ow, err := gadget.NewOffsetWriter(ps, sectorSize)
+	c.Assert(err, IsNil)
 
 	mwBadSeeker := &mockWriteSeeker{
 		seek: func(offs int64, whence int) (int64, error) {
@@ -170,7 +174,7 @@ func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
 			return 0, errors.New("unexpected call")
 		},
 	}
-	err := ow.Write(mwBadSeeker)
+	err = ow.Write(mwBadSeeker)
 	c.Assert(err, ErrorMatches, "cannot seek to offset 92: bad seeker")
 
 	mwBadWriter := &mockWriteSeeker{
@@ -204,7 +208,30 @@ func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
 		},
 	}
 
-	ow = gadget.NewOffsetWriter(psOnlyContent, sectorSize)
+	ow, err = gadget.NewOffsetWriter(psOnlyContent, sectorSize)
+	c.Assert(err, IsNil)
+
 	err = ow.Write(mwBadWriter)
 	c.Assert(err, ErrorMatches, "cannot write LBA value 0x4 at offset 4096: bad writer")
+}
+
+func (m *offsetSuite) TestOffsetWriterErrorSimpleValidation(c *C) {
+	ow, err := gadget.NewOffsetWriter(nil, 512)
+	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure is nil`)
+	c.Assert(ow, IsNil)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       1 * gadget.SizeMiB,
+			Filesystem: "ext4",
+			// same as in pc gadget
+			OffsetWrite: &gadget.RelativeOffset{Offset: 92},
+		},
+		StartOffset:           gadget.Size(348 * gadget.SizeKiB),
+		PositionedOffsetWrite: asSizePtr(92),
+	}
+
+	ow, err = gadget.NewOffsetWriter(ps, 0)
+	c.Assert(err, ErrorMatches, `internal error: sector size cannot be 0`)
+	c.Assert(ow, IsNil)
 }

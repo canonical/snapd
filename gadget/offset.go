@@ -36,7 +36,7 @@ func asLBA(value, sectorSize Size) uint32 {
 	return uint32(value / sectorSize)
 }
 
-func deployOffsetWrite(out io.WriteSeeker, offset Size, value uint32) error {
+func offsetWrite(out io.WriteSeeker, offset Size, value uint32) error {
 	if _, err := out.Seek(int64(offset), io.SeekStart); err != nil {
 		return fmt.Errorf("cannot seek to offset %v: %v", offset, err)
 	}
@@ -47,11 +47,18 @@ func deployOffsetWrite(out io.WriteSeeker, offset Size, value uint32) error {
 }
 
 // NewOffsetWriter returns a writer for given structure.
-func NewOffsetWriter(ps *PositionedStructure, sectorSize Size) *OffsetWriter {
-	return &OffsetWriter{
+func NewOffsetWriter(ps *PositionedStructure, sectorSize Size) (*OffsetWriter, error) {
+	if ps == nil {
+		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
+	}
+	if sectorSize == 0 {
+		return nil, fmt.Errorf("internal error: sector size cannot be 0")
+	}
+	ow := &OffsetWriter{
 		ps:         ps,
 		sectorSize: sectorSize,
 	}
+	return ow, nil
 }
 
 // Write writes the start offset of the structure and the raw content of the
@@ -61,7 +68,7 @@ func (w *OffsetWriter) Write(out io.WriteSeeker) error {
 	// positioning guarantees that start offset is aligned to sector size
 
 	if w.ps.PositionedOffsetWrite != nil {
-		if err := deployOffsetWrite(out, *w.ps.PositionedOffsetWrite, asLBA(w.ps.StartOffset, w.sectorSize)); err != nil {
+		if err := offsetWrite(out, *w.ps.PositionedOffsetWrite, asLBA(w.ps.StartOffset, w.sectorSize)); err != nil {
 			return err
 		}
 	}
@@ -75,7 +82,7 @@ func (w *OffsetWriter) Write(out io.WriteSeeker) error {
 		if pc.PositionedOffsetWrite == nil {
 			continue
 		}
-		if err := deployOffsetWrite(out, *pc.PositionedOffsetWrite, asLBA(pc.StartOffset, w.sectorSize)); err != nil {
+		if err := offsetWrite(out, *pc.PositionedOffsetWrite, asLBA(pc.StartOffset, w.sectorSize)); err != nil {
 			return err
 		}
 	}
