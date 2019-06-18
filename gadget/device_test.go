@@ -225,15 +225,12 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 	c.Check(found, Equals, "")
 }
 
-const writableMountInfo = `
-26 27 8:3 / /writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered
-`
+var writableMountInfo = `26 27 8:3 / /writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
 
 func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
-	badMountInfo := `
-26 27 8:3 / /not-writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered
-`
-	mockProcSelfFilesystem(c, d.dir, badMountInfo[1:])
+	badMountInfo := `26 27 8:3 / /not-writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+
+	mockProcSelfFilesystem(c, d.dir, badMountInfo)
 
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(&gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -247,7 +244,7 @@ func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
-	mockProcSelfFilesystem(c, d.dir, writableMountInfo[1:])
+	mockProcSelfFilesystem(c, d.dir, writableMountInfo)
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -271,7 +268,7 @@ func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
-	d.setUpWritableFallback(c, writableMountInfo[1:])
+	d.setUpWritableFallback(c, writableMountInfo)
 
 	psJustBare := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -300,7 +297,7 @@ func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
-	d.setUpWritableFallback(c, writableMountInfo[1:])
+	d.setUpWritableFallback(c, writableMountInfo)
 
 	// should not hit the fallback path
 	psNamed := &gadget.PositionedStructure{
@@ -316,7 +313,7 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
-	d.setUpWritableFallback(c, writableMountInfo[1:])
+	d.setUpWritableFallback(c, writableMountInfo)
 
 	psFs := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{

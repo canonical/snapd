@@ -124,16 +124,14 @@ func FindDeviceForStructureWithFallback(ps *PositionedStructure) (dev string, of
 		// structure starts at 0 offset within the device
 		return dev, 0, nil
 	}
-
 	if err != ErrDeviceNotFound {
 		// error out on other errors
 		return "", 0, err
-	} else {
-		if ps.Type != "bare" && ps.Name != "" {
-			// structures with partition table entry and a name must have
-			// been located already
-			return "", 0, err
-		}
+	}
+	if err == ErrDeviceNotFound && ps.Type != "bare" && ps.Name != "" {
+		// structures with partition table entry and a name must have
+		// been located already
+		return "", 0, err
 	}
 
 	// we're left with structures that have no partition table entry, or
@@ -205,12 +203,9 @@ func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
 }
 
 func isWritableMount(entry *osutil.MountInfoEntry) bool {
-	const slashWritableMountPoint = "/writable"
-	const slashWritableFsType = "ext4"
-
 	// example mountinfo entry:
 	// 26 27 8:3 / /writable rw,relatime shared:7 - ext4 /dev/sda3 rw,data=ordered
-	return entry.Root == "/" && entry.MountDir == slashWritableMountPoint && entry.FsType == slashWritableFsType
+	return entry.Root == "/" && entry.MountDir == "/writable" && entry.FsType == "ext4"
 }
 
 func findDeviceForWritable() (device string, err error) {
