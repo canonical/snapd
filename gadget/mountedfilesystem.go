@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// MountedFilesystemWriter assints in writing contents of a structure to a
+// mounted filesystem.
 type MountedFilesystemWriter struct {
 	contentDir string
 	ps         *PositionedStructure
