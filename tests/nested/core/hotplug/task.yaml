@@ -3,7 +3,6 @@ summary: Create ubuntu core image, install snapd and test hotplug feature
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    create_nested_core_vm
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
     copy_remote serial-port-hotplug_1.0_all.snap
@@ -16,9 +15,6 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
     rm -f /tmp/serialport{0,1}
 
 debug: |
