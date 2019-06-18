@@ -62,11 +62,11 @@ apps:
   command: run-app cmd-arg1 $SNAP_DATA
   stop-command: stop-app
   post-stop-command: post-stop-app
+  completer: you/complete/me
   environment:
    BASE_PATH: /some/path
    LD_LIBRARY_PATH: ${BASE_PATH}/lib
    MY_PATH: $PATH
-  completer: you/complete/me
  app2:
   command: run-app2
   stop-command: stop-app2
