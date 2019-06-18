@@ -1228,7 +1228,7 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 					snap, strutil.ElliptRight(cohFrom, 10))
 			}
 			if chanFrom == "" {
-				return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and away from cohort %q"),
+				return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and away from cohort %q"),
 					snap, chanTo, strutil.ElliptRight(cohFrom, 10),
 				)
 			}
@@ -1243,7 +1243,7 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 					snap, strutil.ElliptRight(cohTo, 10))
 			}
 			if chanFrom == "" {
-				return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from no cohort to %q"),
+				return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and from no cohort to %q"),
 					snap, chanTo, strutil.ElliptRight(cohTo, 10),
 				)
 			}
@@ -1257,7 +1257,7 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 				snap, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10))
 		}
 		if chanFrom == "" {
-			return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q and from cohort %q to %q"),
+			return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and from cohort %q to %q"),
 				snap, chanTo, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
 			)
 		}
@@ -1268,15 +1268,15 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 	}
 
 	if chanFrom == "" {
-		return fmt.Sprintf(i18n.G("Switch snap %q from no channel to %q"),
+		return fmt.Sprintf(i18n.G("Switch snap %q to channel %q"),
 			snap, chanTo)
 	}
 	if chanFrom != chanTo {
 		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q"),
 			snap, chanFrom, chanTo)
 	}
-	// this might actually be an error
-	return "No change switch (bug?)"
+	// a no-change switch is accepted for idempotency
+	return "No change switch (no-op)"
 }
 
 // Switch switches a snap to a new channel and/or cohort
