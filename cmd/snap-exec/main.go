@@ -36,6 +36,7 @@ import (
 
 // for the tests
 var syscallExec = syscall.Exec
+var osReadlink = os.Readlink
 
 // commandline args
 var opts struct {
@@ -150,6 +151,14 @@ func expandEnvCmdArgs(args []string, env map[string]string) []string {
 	return cmdArgs
 }
 
+func completionHelper() (string, error) {
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(exe), "etelpmoc.sh"), nil
+}
+
 func execApp(snapApp, revision, command string, args []string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
@@ -201,12 +210,12 @@ func execApp(snapApp, revision, command string, args []string) error {
 		cmdArgs = nil
 	case "complete":
 		fullCmd[0] = defaultShell
-		completionHelper := dirs.CompletionHelperInCore
-		if info.NeedsClassic() {
-			completionHelper = filepath.Join(dirs.SnapMountDir, "core/current", dirs.CompletionHelperInCore)
+		helper, err := completionHelper()
+		if err != nil {
+			return fmt.Errorf("cannot find completion helper: %v", err)
 		}
 		cmdArgs = []string{
-			completionHelper,
+			helper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
 		}
 	case "gdb":
