@@ -83,7 +83,8 @@ type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
 
 // A Command routes a request to an individual per-verb ResponseFUnc
 type Command struct {
-	Path string
+	Path       string
+	PathPrefix string
 	//
 	GET    ResponseFunc
 	PUT    ResponseFunc
@@ -413,7 +414,11 @@ func (d *Daemon) addRoutes() {
 
 	for _, c := range api {
 		c.d = d
-		d.router.Handle(c.Path, c).Name(c.Path)
+		if c.PathPrefix == "" {
+			d.router.Handle(c.Path, c).Name(c.Path)
+		} else {
+			d.router.PathPrefix(c.PathPrefix).Handler(c).Name(c.PathPrefix)
+		}
 	}
 
 	// also maybe add a /favicon.ico handler...
