@@ -33,7 +33,9 @@ jobs:
       script:
         - /tmp/snp download hello
         - /tmp/snp version
-        - /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp
+        # TODO: homebrew appears to be broken, brew install of squashfs fails
+        # and goes unnoticed by travis
+        - if command -v mksquashfs; then /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp ; fi
     - stage: quick
       name: CLA check
       dist: xenial
