@@ -34,6 +34,7 @@ const networkSetupObserveConnectedPlugAppArmor = `
 
 /etc/netplan/{,**} r,
 /etc/network/{,**} r,
+/etc/systemd/network/{,**} r,
 `
 
 func init() {
