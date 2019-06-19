@@ -427,7 +427,7 @@ func (d *Daemon) addRoutes() {
 }
 
 var (
-	shutdownTimeout = 5 * time.Second
+	shutdownTimeout = 25 * time.Second
 )
 
 // shutdownServer supplements a http.Server with graceful shutdown.
@@ -667,7 +667,15 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	err := d.tomb.Wait()
 	if err != nil {
-		return err
+		// do not stop the shutdown even if the tomb errors
+		// because we already scheduled a slow shutdown and
+		// exiting here will just restart snapd (via systemd)
+		// which will lead to confusing results.
+		if restartSystem {
+			logger.Noticef("WARNING: cannot stop daemon: %v", err)
+		} else {
+			return err
+		}
 	}
 
 	if restartSystem {
