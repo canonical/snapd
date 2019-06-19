@@ -22,11 +22,8 @@ package patch
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"time"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -96,9 +93,8 @@ func (snapst *patchSnapState) lastIndex(revision snap.Revision) int {
 	return -1
 }
 
-// maybeResetSublevelForLevel60 checks if the previously installed core revision was a patch 6 sublevel 0
-// i.e. unaware of sublevels and the need for resetting sublevel state and if so, resets sublevel to 0
-// to re-apply sublevel patches.
+// maybeResetSublevelForLevel60 checks if we're coming from a different version
+// of snapd and if so, reset sublevel back to 0 to re-apply sublevel patches.
 func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	s.Lock()
 	defer s.Unlock()
@@ -112,66 +108,26 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 		return err
 	}
 
-	raw, ok := snaps["core"]
+	_, ok := snaps["core"]
 	if !ok {
 		// no core snap - nothing to do.
 		return nil
 	}
 
-	var snapst patchSnapState
-	if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
-		return fmt.Errorf("cannot unmarshal snap state: %v", err)
-	}
+	var lastVersion string
 
-	seqlen := len(snapst.Sequence)
-	if seqlen < 2 {
-		return nil
-	}
-	current := snapst.lastIndex(snapst.Current)
-	if current < 0 {
-		return fmt.Errorf("internal error: couldn't find current core revision in the snap sequence")
-	}
-
-	// check if core revision is for patch level 6.0.
-	// the revision number here is the highest rev number from candidate channels of all architectures;
-	// we check previous and next revision in the snap sequence to support refresh and revert cases.
-	var lvl60rev bool
-	if current > 0 && snapst.Sequence[current-1].Revision.N <= 5332 {
-		lvl60rev = true
-	}
-	if current < seqlen-1 && snapst.Sequence[current+1].Revision.N <= 5332 {
-		lvl60rev = true
-	}
-	if !lvl60rev {
-		return nil
-	}
-
-	var sublevelResetTime time.Time
-	lastRefresh, err := getCoreRefreshTime()
-	if err != nil {
-		return fmt.Errorf("cannot determine core refresh time: %s", err)
-	}
-
-	err = s.Get("patch-sublevel-reset", &sublevelResetTime)
+	err = s.Get("patch-sublevel-last-version", &lastVersion)
 	if err != nil && err != state.ErrNoState {
-		return fmt.Errorf("cannot read patch-sublevel-reset: %s", err)
+		return err
 	}
-	if !sublevelResetTime.Equal(lastRefresh) || err == state.ErrNoState {
+	if err == state.ErrNoState || lastVersion != cmd.Version {
 		*sublevel = 0
 		s.Set("patch-sublevel", *sublevel)
-		s.Set("patch-sublevel-reset", lastRefresh)
+		// unset old reset key in case of revert into old version
+		s.Set("patch-sublevel-reset", nil)
 	}
 
 	return nil
-}
-
-func getCoreRefreshTime() (time.Time, error) {
-	path := filepath.Join(dirs.SnapMountDir, "core", "current")
-	info, err := os.Lstat(path)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return info.ModTime(), nil
 }
 
 // Apply applies any necessary patches to update the provided state to
@@ -233,6 +189,11 @@ func Apply(s *state.State) error {
 			return err
 		}
 	}
+
+	s.Lock()
+	// store last snapd version last in case system is restarted before patches are applied
+	s.Set("patch-sublevel-last-version", cmd.Version)
+	s.Unlock()
 
 	return nil
 }
