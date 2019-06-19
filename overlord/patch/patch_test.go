@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/overlord/patch"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 
@@ -344,13 +343,6 @@ func (s *patchSuite) testMaybeResetPatchLevel6(c *C, snapdVersion, lastVersion s
 	st.Set("patch-level", 6)
 	st.Set("patch-sublevel", 2)
 
-	siCore := &snap.SideInfo{RealName: "core", Revision: snap.R(5500)}
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		SnapType: "os",
-		Active:   true,
-		Sequence: []*snap.SideInfo{siCore},
-		Current:  siCore.Revision,
-	})
 	st.Unlock()
 
 	c.Assert(patch.Apply(st), IsNil)

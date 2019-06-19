@@ -20,7 +20,6 @@
 package patch
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/snapcore/snapd/cmd"
@@ -99,24 +98,8 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	s.Lock()
 	defer s.Unlock()
 
-	var snaps map[string]*json.RawMessage
-	err := s.Get("snaps", &snaps)
-	if err == state.ErrNoState {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	_, ok := snaps["core"]
-	if !ok {
-		// no core snap - nothing to do.
-		return nil
-	}
-
 	var lastVersion string
-
-	err = s.Get("patch-sublevel-last-version", &lastVersion)
+	err := s.Get("patch-sublevel-last-version", &lastVersion)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
