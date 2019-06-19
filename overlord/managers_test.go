@@ -3298,12 +3298,16 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
 
+	c.Check(devicestate.Remodeling(st), Equals, true)
+
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	c.Check(devicestate.Remodeling(st), Equals, false)
 
 	// the new required-snap "foo" is installed
 	var snapst snapstate.SnapState
