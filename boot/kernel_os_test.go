@@ -182,7 +182,7 @@ func (s *kernelOSSuite) TestExtractKernelForceWorks(c *C) {
 
 func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
 	info := &snap.Info{}
-	info.Type = snap.TypeApp
+	info.SnapType = snap.TypeApp
 
 	err := boot.ExtractKernelAssets(info, nil)
 	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
@@ -206,7 +206,7 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 	defer restore()
 
 	info := &snap.Info{}
-	info.Type = snap.TypeOS
+	info.SnapType = snap.TypeOS
 	info.RealName = "core"
 	info.Revision = snap.R(100)
 
@@ -226,7 +226,7 @@ func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
 	defer restore()
 
 	info := &snap.Info{}
-	info.Type = snap.TypeBase
+	info.SnapType = snap.TypeBase
 	info.RealName = "core18"
 	info.Revision = snap.R(1818)
 
@@ -246,7 +246,7 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	defer restore()
 
 	info := &snap.Info{}
-	info.Type = snap.TypeKernel
+	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
@@ -272,7 +272,7 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	defer restore()
 
 	info := &snap.Info{}
-	info.Type = snap.TypeKernel
+	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
 	info.Revision = snap.R(40)
 
@@ -291,7 +291,7 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 	defer restore()
 
 	info := &snap.Info{}
-	info.Type = snap.TypeKernel
+	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
 	info.Revision = snap.R(40)
 

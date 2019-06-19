@@ -203,7 +203,7 @@ type Info struct {
 	SuggestedName string
 	InstanceKey   string
 	Version       string
-	Type          Type
+	SnapType      Type
 	Architectures []string
 	Assumes       []string
 
@@ -355,6 +355,10 @@ func (s *Info) Description() string {
 		return s.EditedDescription
 	}
 	return s.OriginalDescription
+}
+
+func (s *Info) GetType() Type {
+	return s.SnapType
 }
 
 // MountDir returns the base directory of the snap where it gets mounted.
@@ -1156,7 +1160,7 @@ type ByType []*Info
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	return r[i].Type.SortsBefore(r[j].Type)
+	return r[i].GetType().SortsBefore(r[j].GetType())
 }
 
 func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {

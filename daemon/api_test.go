@@ -873,7 +873,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 			Private:           true,
 		},
 		InstanceKey: "instance",
-		Type:        "app",
+		SnapType:    "app",
 		Base:        "the-base",
 		Version:     "v1.0",
 		License:     "MIT",
@@ -1857,8 +1857,8 @@ func (s *apiSuite) TestFindOneUserAgentContextCreated(c *check.C) {
 	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
-		Type:    snap.TypeApp,
-		Version: "v2",
+		SnapType: snap.TypeApp,
+		Version:  "v2",
 		SideInfo: snap.SideInfo{
 			RealName: "banana",
 		},
@@ -2089,8 +2089,8 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 	s.suggestedCurrency = "GBP"
 
 	s.rsnaps = []*snap.Info{{
-		Type:    snap.TypeApp,
-		Version: "v2",
+		SnapType: snap.TypeApp,
+		Version:  "v2",
 		Prices: map[string]float64{
 			"GBP": 1.23,
 			"EUR": 2.34,
@@ -2130,8 +2130,8 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
-		Type:    snap.TypeApp,
-		Version: "v2",
+		SnapType: snap.TypeApp,
+		Version:  "v2",
 		Media: []snap.MediaInfo{
 			{
 				Type:   "screenshot",

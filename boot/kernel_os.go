@@ -52,8 +52,8 @@ func RemoveKernelAssets(s snap.PlaceInfo) error {
 // kernel snap, if required, to a versioned bootloader directory so
 // that the bootloader can use it.
 func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
-	if s.Type != snap.TypeKernel {
-		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
+	if s.GetType() != snap.TypeKernel {
+		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.GetType())
 	}
 
 	loader, err := bootloader.Find()
@@ -106,8 +106,8 @@ func SetNextBoot(s *snap.Info) error {
 		return fmt.Errorf("cannot set next boot on classic systems")
 	}
 
-	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
-		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.Type)
+	if s.GetType() != snap.TypeOS && s.GetType() != snap.TypeKernel && s.GetType() != snap.TypeBase {
+		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.GetType())
 	}
 
 	bootloader, err := bootloader.Find()
@@ -116,7 +116,7 @@ func SetNextBoot(s *snap.Info) error {
 	}
 
 	var nextBoot, goodBoot string
-	switch s.Type {
+	switch s.GetType() {
 	case snap.TypeOS, snap.TypeBase:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
@@ -156,7 +156,7 @@ func SetNextBoot(s *snap.Info) error {
 // ChangeRequiresReboot returns whether a reboot is required to switch
 // to the given OS, base or kernel snap.
 func ChangeRequiresReboot(s *snap.Info) bool {
-	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS && s.Type != snap.TypeBase {
+	if s.GetType() != snap.TypeKernel && s.GetType() != snap.TypeOS && s.GetType() != snap.TypeBase {
 		return false
 	}
 
@@ -167,7 +167,7 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 	}
 
 	var nextBoot, goodBoot string
-	switch s.Type {
+	switch s.GetType() {
 	case snap.TypeKernel:
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"

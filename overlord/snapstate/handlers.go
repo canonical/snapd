@@ -1035,7 +1035,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	// record type
-	snapst.SetType(newInfo.Type)
+	snapst.SetType(newInfo.GetType())
 
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	model, _ := ModelFromTask(t)
@@ -1105,7 +1105,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
-	if newInfo.Type != snap.TypeOS {
+	if newInfo.GetType() != snap.TypeOS {
 		var hasAutoConnect, hasSetupProfiles bool
 		for _, other := range t.Change().Tasks() {
 			// Check if this is auto-connect task for same snap and we it's part of the change with setup-profiles task
@@ -1146,7 +1146,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 	if release.OnClassic {
 		// ignore error here as we have no way to return to caller
 		snapdSnapInstalled, _ := isInstalled(st, "snapd")
-		if (info.Type == snap.TypeOS && !snapdSnapInstalled) ||
+		if (info.GetType() == snap.TypeOS && !snapdSnapInstalled) ||
 			info.InstanceName() == "snapd" {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
@@ -1310,7 +1310,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// snap. We need to undo that restart here. Instead of in
 	// doUnlinkCurrentSnap() like we usually do when going from
 	// core snap -> next core snap
-	if release.OnClassic && newInfo.Type == snap.TypeOS && oldCurrent.Unset() {
+	if release.OnClassic && newInfo.GetType() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
 		st.RequestRestart(state.RestartDaemon)
 	}
