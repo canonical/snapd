@@ -460,10 +460,6 @@ Known attributes, applicable for both filtering and display.
         rewrite_renumber(entries)
     if opts.rename:
         rewrite_rename(entries)
-    if opts.one and len(entries) != 1:
-        raise SystemExit(
-            "--one requires exactly one match, found {}".format(len(entries))
-        )
     for e in entries:
         if attrs:
             values = []  # type: List[Any]
@@ -475,7 +471,10 @@ Known attributes, applicable for both filtering and display.
             print(*values)
         else:
             print(e)
-
+    if opts.one and len(entries) != 1:
+        raise SystemExit(
+            "--one requires exactly one match, found {}".format(len(entries))
+        )
 
 if __name__ == "__main__":
     main()

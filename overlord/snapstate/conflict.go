@@ -107,6 +107,12 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		if chg.Kind() == "transition-to-snapd-snap" {
 			return &ChangeConflictError{Message: "transition to snapd snap in progress, no other changes allowed until this is done", ChangeKind: "transition-to-snapd-snap"}
 		}
+		if chg.Kind() == "remodel" {
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{Message: "remodeling in progress, no other changes allowed until this is done", ChangeKind: "remodel"}
+		}
 	}
 
 	for _, task := range st.Tasks() {

@@ -616,7 +616,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	}
 	m.state.Set("snapd-transition-retry", retryCount+1)
 
-	ts, err := Install(m.state, "snapd", coreChannel, snap.R(0), userID, Flags{})
+	ts, err := Install(m.state, "snapd", &RevisionOptions{Channel: coreChannel}, userID, Flags{})
 	if err != nil {
 		return err
 	}

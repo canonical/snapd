@@ -278,6 +278,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 
 	result.TrackingChannel = snapst.Channel
 	result.IgnoreValidation = snapst.IgnoreValidation
+	result.CohortKey = snapst.CohortKey
 	result.DevMode = snapst.DevMode
 	result.TryMode = snapst.TryMode
 	result.JailMode = snapst.JailMode

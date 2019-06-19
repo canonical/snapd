@@ -1929,9 +1929,7 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
 	err = image.SetupSeed(s.tsto, model, opts, local)
-	c.Assert(err, IsNil)
-
-	c.Check(s.stderr.String(), Equals, `WARNING: the default content provider "gtk-common-themes" requested by snap "snap-req-content-provider" is not getting installed.`)
+	c.Check(err, ErrorMatches, `cannot use snap "snap-req-content-provider" without its default content provider "gtk-common-themes" being added explicitly`)
 }
 
 func (s *imageSuite) TestMissingLocalSnaps(c *C) {

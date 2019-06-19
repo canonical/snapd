@@ -51,6 +51,8 @@ get_journalctl_log(){
     if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
         cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
     fi
+    journalctl --flush || true
+    journalctl --sync || true
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
