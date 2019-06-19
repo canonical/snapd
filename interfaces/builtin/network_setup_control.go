@@ -34,6 +34,7 @@ const networkSetupControlConnectedPlugAppArmor = `
 
 /etc/netplan/{,**} rw,
 /etc/network/{,**} rw,
+/etc/systemd/network/{,**} rw,
 `
 
 func init() {
