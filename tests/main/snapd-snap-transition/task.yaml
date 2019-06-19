@@ -6,7 +6,7 @@ systems: [-ubuntu-core-18-*, -ubuntu-core-16-*]
 
 execute: |
     echo "Ensure no snapd snap is installed"
-    ! snap list snapd
+    not snap list snapd
 
     echo "Enable the snapd snap"
     snap set core experimental.snapd-snap=true
