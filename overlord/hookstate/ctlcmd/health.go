@@ -66,7 +66,7 @@ type healthPositional struct {
 type healthCommand struct {
 	baseCommand
 	healthPositional `positional-args:"yes"`
-	Code             string `long:"code" value-name:"<code>" description:"optional tool-friendly value representing the problem that makes the snap unhealthy.  Not a number, but a word with 3-30 bytes matching [a-z](?:-?[a-z0-9]){2,}"`
+	Code             string `long:"code" value-name:"<code>" description:"optional tool-friendly value representing the problem that makes the snap unhealthy.  Not a number, but a word with 3-30 bytes matching [a-z](-?[a-z0-9])+"`
 }
 
 var (
