@@ -21,6 +21,7 @@ package overlord_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -822,11 +824,18 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 }
 
 type testRestartBehavior struct {
-	restartRequested state.RestartType
+	restartRequested           state.RestartType
+	expectedRebootDidNotHappen string
+	rebootVerifiedErr          error
 }
 
 func (rb *testRestartBehavior) HandleRestart(t state.RestartType) {
 	rb.restartRequested = t
+}
+
+func (rb *testRestartBehavior) RebootVerified(_ *state.State, expectedRebootDidNotHappen bool) error {
+	rb.expectedRebootDidNotHappen = fmt.Sprintf("%v", expectedRebootDidNotHappen)
+	return rb.rebootVerifiedErr
 }
 
 func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
@@ -838,6 +847,65 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(rb.restartRequested, Equals, state.RestartDaemon)
+}
+
+func (ovs *overlordSuite) TestVerifyRebootNoPendingReboot(c *C) {
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	rb := &testRestartBehavior{}
+
+	_, err = overlord.New(rb)
+	c.Assert(err, IsNil)
+
+	c.Check(rb.expectedRebootDidNotHappen, Equals, "false")
+}
+
+func (ovs *overlordSuite) TestVerifyRebootOK(c *C) {
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, "boot-id-prev"))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	rb := &testRestartBehavior{}
+
+	_, err = overlord.New(rb)
+	c.Assert(err, IsNil)
+
+	c.Check(rb.expectedRebootDidNotHappen, Equals, "false")
+}
+
+func (ovs *overlordSuite) TestVerifyRebootDidNotHappen(c *C) {
+	curBootID, err := osutil.BootID()
+	c.Assert(err, IsNil)
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID))
+	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	rb := &testRestartBehavior{}
+
+	_, err = overlord.New(rb)
+	c.Assert(err, IsNil)
+
+	c.Check(rb.expectedRebootDidNotHappen, Equals, "true")
+}
+
+func (ovs *overlordSuite) TestVerifyRebootDidNotHappenError(c *C) {
+	curBootID, err := osutil.BootID()
+	c.Assert(err, IsNil)
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID))
+	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	e := errors.New("boom")
+	rb := &testRestartBehavior{rebootVerifiedErr: e}
+
+	_, err = overlord.New(rb)
+	c.Assert(err, Equals, e)
+
+	c.Check(rb.expectedRebootDidNotHappen, Equals, "true")
 }
 
 func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {

@@ -301,8 +301,13 @@ func (s *State) VerifyReboot(curBootID string) error {
 		return ErrExpectedReboot
 	}
 	// we rebooted alright
-	s.Set("system-restart-from-boot-id", nil)
+	s.ClearReboot()
 	return nil
+}
+
+// ClearReboot clears state information about tracking requested reboots.
+func (s *State) ClearReboot() {
+	s.Set("system-restart-from-boot-id", nil)
 }
 
 func MockRestarting(s *State, restarting RestartType) RestartType {

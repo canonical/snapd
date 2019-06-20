@@ -96,6 +96,10 @@ type Overlord struct {
 // via the state.
 type RestartBehavior interface {
 	HandleRestart(t state.RestartType)
+	// RebootVerified is called early with information whether a reboot
+	// was requested but snapd restarted without it happening.
+	// It is always called with the state lock held.
+	RebootVerified(st *state.State, expectedRebootDidNotHappen bool) error
 }
 
 var storeNew = store.New
@@ -114,7 +118,7 @@ func New(restartBehavior RestartBehavior) (*Overlord, error) {
 		ensureBefore:   o.ensureBefore,
 		requestRestart: o.requestRestart,
 	}
-	s, err := loadState(backend)
+	s, err := loadState(backend, restartBehavior)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +206,7 @@ func (o *Overlord) addManager(mgr StateManager) {
 	o.stateEng.AddManager(mgr)
 }
 
-func loadState(backend state.Backend) (*state.State, error) {
+func loadState(backend state.Backend, restartBehavior RestartBehavior) (*state.State, error) {
 	curBootID, err := osutil.BootID()
 	if err != nil {
 		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
@@ -242,15 +246,9 @@ func loadState(backend state.Backend) (*state.State, error) {
 	perfTimings.Save(s)
 	s.Unlock()
 
-	s.Lock()
-	err = s.VerifyReboot(curBootID)
-	s.Unlock()
-	if err != nil && err != state.ErrExpectedReboot {
+	err = verifyReboot(s, curBootID, restartBehavior)
+	if err != nil {
 		return nil, err
-	}
-	// TODO: let the caller decide how to act
-	if err == state.ErrExpectedReboot {
-		logger.Noticef("expected system restart but it did not happen")
 	}
 
 	// one-shot migrations
@@ -259,6 +257,23 @@ func loadState(backend state.Backend) (*state.State, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func verifyReboot(s *state.State, curBootID string, restartBehavior RestartBehavior) error {
+	s.Lock()
+	defer s.Unlock()
+	err := s.VerifyReboot(curBootID)
+	if err != nil && err != state.ErrExpectedReboot {
+		return err
+	}
+	expectedRebootDidNotHappen := err == state.ErrExpectedReboot
+	if restartBehavior != nil {
+		return restartBehavior.RebootVerified(s, err == state.ErrExpectedReboot)
+	}
+	if expectedRebootDidNotHappen {
+		logger.Noticef("expected system restart but it did not happen")
+	}
+	return nil
 }
 
 func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snapstate.StoreService {
@@ -552,6 +567,10 @@ func (rb mockRestartBehavior) HandleRestart(t state.RestartType) {
 		return
 	}
 	rb(t)
+}
+
+func (rb mockRestartBehavior) RebootVerified(*state.State, bool) error {
+	panic("internal error: overlord.Mock should not invoke RebootVerified")
 }
 
 type mockBackend struct {
