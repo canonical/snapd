@@ -1,0 +1,8 @@
+#!/bin/sh
+
+h=$(snapctl get force-health)
+if [ "$h" ]; then
+   snapctl set-health $h
+fi
+snapctl set force-health=""
+

@@ -179,10 +179,10 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 			c.Check(health.Code, check.Equals, "snapd-hook-failed")
 		} else {
 			c.Check(health.Message, check.Equals, "hook did not call set-health")
-			c.Check(health.Code, check.Equals, "")
+			c.Check(health.Code, check.Equals, "snapd-hook-no-health-set")
 		}
-		c.Check(health.Timestamp.After(t0) && health.Timestamp.Before(tf), check.Equals, true,
-			check.Commentf("%s ⩼ %s ⩼ %s", t0.Format(time.StampNano), health.Timestamp.Format(time.StampNano), tf.Format(time.StampNano)))
+		com := check.Commentf("%s ⩼ %s ⩼ %s", t0.Format(time.StampNano), health.Timestamp.Format(time.StampNano), tf.Format(time.StampNano))
+		c.Check(health.Timestamp.After(t0) && health.Timestamp.Before(tf), check.Equals, true, com)
 		c.Check(cmd.Calls(), check.DeepEquals, [][]string{{"snap", "run", "--hook", "check-health", "-r", "42", "test-snap"}})
 	} else {
 		// no script -> no health

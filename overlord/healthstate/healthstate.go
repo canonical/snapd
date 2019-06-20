@@ -108,8 +108,13 @@ type healthHandler struct {
 	context *hookstate.Context
 }
 
-// Before is called just before the hook runs -- nothing to do
-func (*healthHandler) Before() error {
+// Before is called just before the hook runs -- nothing to do beyond setting a marker
+func (h *healthHandler) Before() error {
+	// we use the 'health' entry as a marker to not add OnDone to
+	// the snapctl set-health execution
+	h.context.Lock()
+	h.context.Set("health", struct{}{})
+	h.context.Unlock()
 	return nil
 }
 
@@ -120,14 +125,18 @@ func (h *healthHandler) Done() error {
 	err := h.context.Get("health", &health)
 	h.context.Unlock()
 
-	if err != nil {
-		if err != state.ErrNoState {
-			return err
-		}
+	if err != nil && err != state.ErrNoState {
+		// note it can't actually be state.ErrNoState because Before sets it
+		// (but if it were, health.Timestamp would still be zero)
+		return err
+	}
+	if health.Timestamp.IsZero() {
+		// health was actually the marker (or err == state.ErrNoState)
 		health = HealthState{
 			Revision:  h.context.SnapRevision(),
 			Timestamp: time.Now(),
 			Status:    UnknownStatus,
+			Code:      "snapd-hook-no-health-set",
 			Message:   "hook did not call set-health",
 		}
 	}
@@ -150,6 +159,12 @@ func (h *healthHandler) appendHealth(health *HealthState) error {
 	st.Lock()
 	defer st.Unlock()
 
+	return appendHealth(h.context, health)
+}
+
+func appendHealth(ctx *hookstate.Context, health *HealthState) error {
+	st := ctx.State()
+
 	var hs map[string]*HealthState
 	if err := st.Get("health", &hs); err != nil {
 		if err != state.ErrNoState {
@@ -157,8 +172,21 @@ func (h *healthHandler) appendHealth(health *HealthState) error {
 		}
 		hs = map[string]*HealthState{}
 	}
-	hs[h.context.InstanceName()] = health
+	hs[ctx.InstanceName()] = health
 	st.Set("health", hs)
 
 	return nil
+}
+
+func SetHealth(ctx *hookstate.Context) error {
+	var health HealthState
+	err := ctx.Get("health", &health)
+
+	if err != nil {
+		if err == state.ErrNoState {
+			return nil
+		}
+		return err
+	}
+	return appendHealth(ctx, &health)
 }

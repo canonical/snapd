@@ -85,16 +85,16 @@ func (s *healthSuite) TestBadArgs(c *check.C) {
 			`when status is not "okay", message is required`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=xx"},
-			`code should have between 3 and 30 bytes, got 2`,
+			`code should have between 3 and 30 characters, got 2`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=abcdefghijklmnopqrstuvwxyz12345"},
-			`code should have between 3 and 30 bytes, got 31`,
+			`code should have between 3 and 30 characters, got 31`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=☠☢☣💣💢🐍✴👿‼"},
-			`code should have between 3 and 30 bytes, got 31`,
+			`code should have between 3 and 30 characters, got 31`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=123"},
-			`invalid code "123"`,
+			`invalid code "123".*`,
 		}, {
 			[]string{"set-health", "blocked", "what"},
 			`message must be at least 7 characters long \(got 4\)`,

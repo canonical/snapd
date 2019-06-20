@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/healthstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var (
@@ -70,7 +71,7 @@ type healthCommand struct {
 }
 
 var (
-	validCode = regexp.MustCompile(`^[a-z](?:-?[a-z0-9]){2,}$`).MatchString
+	validCode = regexp.MustCompile(`^[a-z](?:-?[a-z0-9])+$`).MatchString
 )
 
 func (c *healthCommand) Execute([]string) error {
@@ -88,10 +89,10 @@ func (c *healthCommand) Execute([]string) error {
 
 	if len(c.Code) > 0 {
 		if len(c.Code) < 3 || len(c.Code) > 30 {
-			return fmt.Errorf("code should have between 3 and 30 bytes, got %d", len(c.Code))
+			return fmt.Errorf("code should have between 3 and 30 characters, got %d", len(c.Code))
 		}
 		if !validCode(c.Code) {
-			return fmt.Errorf("invalid code %q", c.Code)
+			return fmt.Errorf("invalid code %q (code must start with lowercase ASCII letters, and contain only ASCII letters and numbers, optionally separated by single dashes)", c.Code) // technically not dashes but hyphen-minuses
 		}
 	}
 
@@ -117,6 +118,17 @@ func (c *healthCommand) Execute([]string) error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
+	var v struct{}
+
+	// if 'health' is there we've either already added an OnDone (and the
+	// following Set("health"), or we're in the set-health hook itself
+	// (which sets it to a dummy entry for this purpose).
+	if err := ctx.Get("health", &v); err == state.ErrNoState {
+		ctx.OnDone(func() error {
+			return healthstate.SetHealth(ctx)
+		})
+	}
+
 	health := &healthstate.HealthState{
 		Revision:  ctx.SnapRevision(), // will be "unset" for unasserted installs, and trys
 		Timestamp: time.Now(),
@@ -126,5 +138,6 @@ func (c *healthCommand) Execute([]string) error {
 	}
 
 	ctx.Set("health", health)
+
 	return nil
 }
