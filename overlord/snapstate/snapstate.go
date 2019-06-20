@@ -703,8 +703,8 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 		return nil, err
 	}
 
-	if flags.RequireTypeBase && info.Type != snap.TypeBase && info.Type != snap.TypeOS {
-		return nil, fmt.Errorf("declared snap base %q has unexpected type %q, instead of 'base'", name, info.Type)
+	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
+		return nil, fmt.Errorf("declared snap base %q has unexpected type %q, instead of 'base'", name, info.GetType())
 	}
 
 	if flags.Classic && !info.NeedsClassic() {
