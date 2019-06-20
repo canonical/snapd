@@ -141,7 +141,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 	kind := ""
 	var snapType snap.Type
 	var getName func(*asserts.Model) string
-	switch snapInfo.Type {
+	switch snapInfo.GetType() {
 	case snap.TypeGadget:
 		kind = "gadget"
 		snapType = snap.TypeGadget
