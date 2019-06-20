@@ -54,7 +54,7 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
 	c.Assert(err, check.IsNil)
-	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner())
+	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()

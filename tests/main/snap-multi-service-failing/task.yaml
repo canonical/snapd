@@ -5,7 +5,7 @@ execute: |
   #shellcheck source=tests/lib/snaps.sh
   . "$TESTSLIB"/snaps.sh
   echo "when a snap install fails"
-  ! install_local test-snapd-multi-service
+  not install_local test-snapd-multi-service
 
   echo "we don't leave a service running"
-  ! systemctl is-active snap.test-snapd-multi-service.ok.service
+  not systemctl is-active snap.test-snapd-multi-service.ok.service

@@ -51,7 +51,7 @@ apps:
   plugs: [mount-observe]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "mount-observe",
 		Interface: "mount-observe",
 	}

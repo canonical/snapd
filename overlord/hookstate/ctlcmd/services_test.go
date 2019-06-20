@@ -447,7 +447,7 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
-	ts, err := snapstate.Install(s.st, "one", "", snap.R(1), 0, snapstate.Flags{})
+	ts, err := snapstate.Install(s.st, "one", &snapstate.RevisionOptions{Revision: snap.R(1)}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, installTaskKinds)
 	chg.AddAll(ts)

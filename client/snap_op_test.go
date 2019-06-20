@@ -400,3 +400,26 @@ func (cs *clientSuite) TestClientOpTryModeDangerous(c *check.C) {
 	_, err := cs.cli.Try(snapdir, &client.SnapOptions{Dangerous: true})
 	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
 }
+
+func (cs *clientSuite) TestSnapOptionsSerialises(c *check.C) {
+	tests := map[string]client.SnapOptions{
+		"{}":                         {},
+		`{"channel":"edge"}`:         {Channel: "edge"},
+		`{"revision":"42"}`:          {Revision: "42"},
+		`{"cohort-key":"what"}`:      {CohortKey: "what"},
+		`{"leave-cohort":true}`:      {LeaveCohort: true},
+		`{"devmode":true}`:           {DevMode: true},
+		`{"jailmode":true}`:          {JailMode: true},
+		`{"classic":true}`:           {Classic: true},
+		`{"dangerous":true}`:         {Dangerous: true},
+		`{"ignore-validation":true}`: {IgnoreValidation: true},
+		`{"unaliased":true}`:         {Unaliased: true},
+		`{"purge":true}`:             {Purge: true},
+		`{"amend":true}`:             {Amend: true},
+	}
+	for expected, opts := range tests {
+		buf, err := json.Marshal(&opts)
+		c.Assert(err, check.IsNil, check.Commentf("%s", expected))
+		c.Check(string(buf), check.Equals, expected)
+	}
+}
