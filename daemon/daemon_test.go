@@ -736,6 +736,8 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	d.Start()
 	defer d.Stop(nil)
 
+	st := d.overlord.State()
+
 	snapdDone := make(chan struct{})
 	go func() {
 		select {
@@ -775,7 +777,9 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 		return nil
 	}
 
-	d.overlord.State().RequestRestart(state.RestartSystem)
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
 
 	defer func() {
 		d.mu.Lock()
@@ -867,7 +871,11 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	s.markSeeded(d)
 
 	d.Start()
-	d.overlord.State().RequestRestart(state.RestartSystem)
+	st := d.overlord.State()
+
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
 
 	ch := make(chan os.Signal, 2)
 	ch <- syscall.SIGTERM
@@ -897,7 +905,11 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	s.markSeeded(d)
 
 	d.Start()
-	d.overlord.State().RequestRestart(state.RestartSystem)
+	st := d.overlord.State()
+
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)
 	// stop (this will timeout but thats not relevant for this test)

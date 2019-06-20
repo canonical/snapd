@@ -195,6 +195,11 @@ func (o *Overlord) addManager(mgr StateManager) {
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
+	curBootID, err := osutil.BootID()
+	if err != nil {
+		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
+	}
+
 	perfTimings := timings.New(map[string]string{"startup": "load-state"})
 
 	if !osutil.FileExists(dirs.SnapStateFile) {
@@ -205,6 +210,9 @@ func loadState(backend state.Backend) (*state.State, error) {
 			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
+		s.Lock()
+		s.VerifyReboot(curBootID)
+		s.Unlock()
 		patch.Init(s)
 		return s, nil
 	}
@@ -225,6 +233,17 @@ func loadState(backend state.Backend) (*state.State, error) {
 	s.Lock()
 	perfTimings.Save(s)
 	s.Unlock()
+
+	s.Lock()
+	err = s.VerifyReboot(curBootID)
+	s.Unlock()
+	if err != nil && err != state.ErrExpectedReboot {
+		return nil, err
+	}
+	// TODO: let the caller decide how to act
+	if err == state.ErrExpectedReboot {
+		logger.Noticef("expected system restart but it did not happen")
+	}
 
 	// one-shot migrations
 	err = patch.Apply(s)
