@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -73,8 +74,8 @@ type Overlord struct {
 	ensureLock  sync.Mutex
 	ensureTimer *time.Timer
 	ensureNext  time.Time
+	ensureRun   int32
 	pruneTicker *time.Ticker
-	numEnsure   uint64
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
@@ -314,7 +315,7 @@ func (o *Overlord) Loop() {
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
-			o.numEnsure++
+			o.ensureDidRun()
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -329,8 +330,14 @@ func (o *Overlord) Loop() {
 	})
 }
 
+func (o *Overlord) ensureDidRun() {
+	atomic.StoreInt32(&o.ensureRun, 1)
+
+}
+
 func (o *Overlord) CanStandby() bool {
-	return o.numEnsure > 0
+	run := atomic.LoadInt32(&o.ensureRun)
+	return run != 0
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.
