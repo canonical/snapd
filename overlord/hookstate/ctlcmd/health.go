@@ -32,8 +32,8 @@ import (
 var (
 	shortHealthHelp = i18n.G("Report on snap's health")
 	longHealthHelp  = i18n.G(`
-The set-health command can signal to the system and the user that something is
-not well with the snap.
+The set-health command is called from a snap to inform the system of the snap's
+overall health.
 
 Note the health is of the snap, not of the apps it contains; it’s up to the
 snap developer to determine how the health of the individual apps add up to
@@ -44,14 +44,13 @@ status can be one of
 - okay: the snap is healthy. This status takes no message and no code.
 
 - waiting: some resource (e.g. a device, network, or service) the snap needs
-  isn’t ready yet; the user just needs to wait.  The message (and optionally
-  the code) must explain what it’s waiting for.
+  isn’t ready yet; the user just needs to wait.  The message must explain what
+  it’s waiting for.
 
-- blocked: the user needs to do something for the snap to do something; the
-  message (and optionally the code) must say what it is needs doing.
+- blocked: something needs doing to unblock the snap; the message must be
+  sufficient to point the user in the right direction.
 
-- error: something is broken; the message (and optionally the code) must
-  explain what.
+- error: something is broken; the message must explain what.
 `)
 )
 
