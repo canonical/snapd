@@ -77,7 +77,7 @@ type Overlord struct {
 	ensureRun   int32
 	pruneTicker *time.Ticker
 	// restarts
-	restartHandler func(t state.RestartType)
+	restartBehavior RestartBehavior
 	// managers
 	inited    bool
 	runner    *state.TaskRunner
@@ -92,13 +92,21 @@ type Overlord struct {
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
 
+// RestartBehavior controls how to hanndle and carry forward restart requests
+// via the state.
+type RestartBehavior interface {
+	HandleRestart(t state.RestartType)
+}
+
 var storeNew = store.New
 
 // New creates a new Overlord with all its state managers.
-func New() (*Overlord, error) {
+// It can be provided with an optional RestartBehavior.
+func New(restartBehavior RestartBehavior) (*Overlord, error) {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   true,
+		loopTomb:        new(tomb.Tomb),
+		inited:          true,
+		restartBehavior: restartBehavior,
 	}
 
 	backend := &overlordStateBackend{
@@ -312,16 +320,11 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 }
 
 func (o *Overlord) requestRestart(t state.RestartType) {
-	if o.restartHandler == nil {
-		logger.Noticef("restart requested but no handler set")
+	if o.restartBehavior == nil {
+		logger.Noticef("restart requested but no behavior set")
 	} else {
-		o.restartHandler(t)
+		o.restartBehavior.HandleRestart(t)
 	}
-}
-
-// SetRestartHandler sets a handler to fulfill restart requests asynchronously.
-func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
-	o.restartHandler = handleRestart
 }
 
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
@@ -513,9 +516,18 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
+	return MockWithRestartHandler(nil)
+}
+
+// MockWithRestartHandler creates an Overlord without any managers and
+// with a backend not using disk. It will use the given handler on
+// restart requests. Managers can be added with AddManager. For
+// testing.
+func MockWithRestartHandler(handleRestart func(state.RestartType)) *Overlord {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   false,
+		loopTomb:        new(tomb.Tomb),
+		inited:          false,
+		restartBehavior: mockRestartBehavior(handleRestart),
 	}
 	s := state.New(mockBackend{o: o})
 	o.stateEng = NewStateEngine(s)
@@ -531,6 +543,15 @@ func (o *Overlord) AddManager(mgr StateManager) {
 		panic("internal error: cannot add managers to a fully initialized Overlord")
 	}
 	o.addManager(mgr)
+}
+
+type mockRestartBehavior func(state.RestartType)
+
+func (rb mockRestartBehavior) HandleRestart(t state.RestartType) {
+	if rb == nil {
+		return
+	}
+	rb(t)
 }
 
 type mockBackend struct {

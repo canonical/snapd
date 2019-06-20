@@ -529,34 +529,6 @@ func (d *Daemon) initStandbyHandling() {
 
 // Start the Daemon
 func (d *Daemon) Start() {
-	// die when asked to restart (systemd should get us back up!)
-	d.overlord.SetRestartHandler(func(t state.RestartType) {
-		switch t {
-		case state.RestartDaemon:
-			d.tomb.Kill(nil)
-		case state.RestartSystem:
-			// try to schedule a fallback slow reboot already here
-			// in case we get stuck shutting down
-			if err := reboot(rebootWaitTimeout); err != nil {
-				logger.Noticef("%s", err)
-			}
-
-			d.mu.Lock()
-			defer d.mu.Unlock()
-			// remember we need to restart the system
-			d.restartSystem = true
-			d.tomb.Kill(nil)
-		case state.RestartSocket:
-			d.mu.Lock()
-			defer d.mu.Unlock()
-			d.restartSocket = true
-			d.tomb.Kill(nil)
-		default:
-			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
-			d.tomb.Kill(nil)
-		}
-	})
-
 	if d.snapListener != nil {
 		d.snapServe = newShutdownServer(d.snapListener, logit(d.router))
 	}
@@ -588,6 +560,35 @@ func (d *Daemon) Start() {
 
 	// notify systemd that we are ready
 	systemdSdNotify("READY=1")
+}
+
+// HandleRestart implements overlord.RestartBehavior.
+func (d *Daemon) HandleRestart(t state.RestartType) {
+	// die when asked to restart (systemd should get us back up!) etc
+	switch t {
+	case state.RestartDaemon:
+		d.tomb.Kill(nil)
+	case state.RestartSystem:
+		// try to schedule a fallback slow reboot already here
+		// in case we get stuck shutting down
+		if err := reboot(rebootWaitTimeout); err != nil {
+			logger.Noticef("%s", err)
+		}
+
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		// remember we need to restart the system
+		d.restartSystem = true
+		d.tomb.Kill(nil)
+	case state.RestartSocket:
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		d.restartSocket = true
+		d.tomb.Kill(nil)
+	default:
+		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
+		d.tomb.Kill(nil)
+	}
 }
 
 var shutdownMsg = i18n.G("reboot scheduled to update the system")
@@ -721,9 +722,11 @@ func (d *Daemon) Dying() <-chan struct{} {
 
 // New Daemon
 func New() (*Daemon, error) {
-	ovld, err := overlord.New()
+	d := &Daemon{}
+	ovld, err := overlord.New(d)
 	if err != nil {
 		return nil, err
 	}
-	return &Daemon{overlord: ovld}, nil
+	d.overlord = ovld
+	return d, nil
 }

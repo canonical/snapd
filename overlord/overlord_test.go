@@ -75,7 +75,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 		configstateInitCalled = true
 	})
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
 
@@ -116,7 +116,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 func (ovs *overlordSuite) TestNewStore(c *C) {
 	// this is a shallow test, the deep testing happens in the
 	// remodeling tests in managers_test.go
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
 	devBE := o.DeviceManager().StoreContextBackend()
@@ -131,7 +131,7 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
 	state := o.State()
@@ -159,7 +159,7 @@ func (ovs *overlordSuite) TestNewWithStateSnapmgrUpdate(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
 	state := o.State()
@@ -177,7 +177,7 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	_, err = overlord.New()
+	_, err = overlord.New(nil)
 	c.Assert(err, ErrorMatches, "cannot read state: EOF")
 }
 
@@ -196,7 +196,7 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
 	state := o.State()
@@ -254,7 +254,7 @@ func markSeeded(o *overlord.Overlord) {
 }
 
 func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
 	markSeeded(o)
@@ -268,7 +268,7 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 }
 
 func (ovs *overlordSuite) TestUnknownTasks(c *C) {
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 
@@ -574,7 +574,7 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	oldUmask := syscall.Umask(0)
 	defer syscall.Umask(oldUmask)
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
 	s := o.State()
@@ -815,25 +815,29 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 }
 
 func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
 	o.State().RequestRestart(state.RestartDaemon)
 }
 
+type testRestartBehavior struct {
+	restartRequested state.RestartType
+}
+
+func (rb *testRestartBehavior) HandleRestart(t state.RestartType) {
+	rb.restartRequested = t
+}
+
 func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
-	o, err := overlord.New()
+	rb := &testRestartBehavior{}
+
+	o, err := overlord.New(rb)
 	c.Assert(err, IsNil)
-
-	restartRequested := false
-
-	o.SetRestartHandler(func(t state.RestartType) {
-		restartRequested = true
-	})
 
 	o.State().RequestRestart(state.RestartDaemon)
 
-	c.Check(restartRequested, Equals, true)
+	c.Check(rb.restartRequested, Equals, state.RestartDaemon)
 }
 
 func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {
