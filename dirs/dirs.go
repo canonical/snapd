@@ -75,6 +75,8 @@ var (
 	SnapRepairAssertsDir string
 	SnapRunRepairDir     string
 
+	SnapRollbackDir string
+
 	SnapCacheDir        string
 	SnapNamesFile       string
 	SnapSectionsFile    string
@@ -98,8 +100,8 @@ var (
 	XdgRuntimeDirBase string
 	XdgRuntimeDirGlob string
 
-	CompletionHelper string
-	CompletersDir    string
+	CompletionHelperInCore string
+	CompletersDir          string
 
 	SystemFontsDir            string
 	SystemLocalFontsDir       string
@@ -256,6 +258,8 @@ func SetRootDir(rootdir string) {
 	SnapRepairAssertsDir = filepath.Join(SnapRepairDir, "assertions")
 	SnapRunRepairDir = filepath.Join(SnapRunDir, "repair")
 
+	SnapRollbackDir = filepath.Join(rootdir, snappyDir, "rollback")
+
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")
@@ -291,7 +295,7 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
-	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 
 	// These paths agree across all supported distros

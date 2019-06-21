@@ -52,7 +52,7 @@ var _ = Suite(&CpuControlInterfaceSuite{
 
 func (s *CpuControlInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "cpu-control",
 		Interface: "cpu-control",
 	}

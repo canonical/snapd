@@ -13,7 +13,7 @@ execute: |
     dir="$TESTSLIB/snaps/test-snapd-service-start-timeout"
 
     # with the 30s sleep, start-timeout stops the snap from working
-    ! snap try "$dir"
+    not snap try "$dir"
 
     # drop the 'sleep 30'
     sed -i -e '/@@@/d' "$dir/forking.sh"

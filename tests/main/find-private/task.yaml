@@ -20,10 +20,10 @@ execute: |
     . "$TESTSLIB"/systems.sh
 
     echo "When a snap is private it doesn't show up in the find without login and without specifying private search"
-    ! snap find test-snapd-private | MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
+    snap find test-snapd-private | not MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
 
     echo "When a snap is private it doesn't show up in the find --private results without login"
-    ! snap find test-snapd-private --private | MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
+    snap find test-snapd-private --private | not MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
 
     echo "Given account store credentials are available"
     # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems

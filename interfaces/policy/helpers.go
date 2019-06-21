@@ -47,7 +47,7 @@ func checkSnapType(snap *snap.Info, types []string) error {
 		return nil
 	}
 	snapID := snap.SnapID
-	s := string(snap.Type)
+	s := string(snap.GetType())
 	if s == "os" || snapIDSnapd(snapID) {
 		// we use "core" in the assertions and we need also to
 		// allow for the "snapd" snap

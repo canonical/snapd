@@ -25,25 +25,27 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/storecontext"
 )
 
 // TODO: should we move this into a new handlers suite?
 func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	s.state.Lock()
-	auth.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
-	err := assertstate.Add(s.state, s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"revision":     "1",
-	}))
-	c.Assert(err, IsNil)
+	})
 	s.state.Unlock()
 
-	newModel := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -52,8 +54,8 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	t.Set("new-model", asserts.Encode(newModel))
 	chg := s.state.NewChange("dummy", "...")
+	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -61,17 +63,17 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
+	s.state.Lock()
+	defer s.state.Unlock()
 	m, err := s.mgr.Model()
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, newModel)
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	c.Assert(chg.Err(), IsNil)
 }
 
 func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
-	model := s.makeModelAssertion(c, "canonical", "pc-model", map[string]interface{}{
+	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -80,7 +82,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 
 	s.state.Lock()
 
-	auth.SetDevice(s.state, &auth.DeviceState{
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc-model",
 	})
@@ -88,8 +90,8 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	c.Assert(err, IsNil)
 
 	t := s.state.NewTask("set-model", "set-model test")
-	t.Set("new-model", asserts.Encode(model))
 	chg := s.state.NewChange("dummy", "...")
+	chg.Set("new-model", string(asserts.Encode(model)))
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -100,4 +102,68 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Assert(chg.Err(), IsNil)
+}
+
+func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
+	s.state.Lock()
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"revision":     "1",
+	})
+	s.state.Unlock()
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"store":        "switched-store",
+		"revision":     "2",
+	})
+
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		mod, err := devBE.Model()
+		c.Check(err, IsNil)
+		if err == nil {
+			c.Check(mod, DeepEquals, newModel)
+		}
+		return &freshSessionStore{}
+	}
+
+	s.state.Lock()
+	t := s.state.NewTask("set-model", "set-model test")
+	chg := s.state.NewChange("dummy", "...")
+	chg.Set("new-model", string(asserts.Encode(newModel)))
+	chg.Set("device", auth.DeviceState{
+		Brand:           "canonical",
+		Model:           "pc-model",
+		SessionMacaroon: "switched-store-session",
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.Err(), IsNil)
+
+	m, err := s.mgr.Model()
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, newModel)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{
+		Brand:           "canonical",
+		Model:           "pc-model",
+		SessionMacaroon: "switched-store-session",
+	})
 }

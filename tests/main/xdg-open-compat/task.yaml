@@ -117,10 +117,10 @@ execute: |
 
     # Ensure other schemes are not passed through
     rm "$XDG_OPEN_OUTPUT"
-    ! xdg_open_url ftp://snapcraft.io
+    not xdg_open_url ftp://snapcraft.io
     test ! -e "$XDG_OPEN_OUTPUT"
-    ! xdg_open_url aabbcc
+    not xdg_open_url aabbcc
     test ! -e "$XDG_OPEN_OUTPUT"
     # help is blocked by snapd-xdg-open
-    ! xdg_open_url help:snapcraft
+    not xdg_open_url help:snapcraft
     test ! -e "$XDG_OPEN_OUTPUT"

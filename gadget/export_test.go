@@ -24,4 +24,12 @@ var (
 	ValidateVolumeStructure = validateVolumeStructure
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
+
+	ResolveVolume      = resolveVolume
+	CanUpdateStructure = canUpdateStructure
+	CanUpdateVolume    = canUpdateVolume
+
+	EncodeLabel = encodeLabel
+
+	RawContentBackupPath = rawContentBackupPath
 )
