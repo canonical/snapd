@@ -332,7 +332,6 @@ func (o *Overlord) Loop() {
 
 func (o *Overlord) ensureDidRun() {
 	atomic.StoreInt32(&o.ensureRun, 1)
-
 }
 
 func (o *Overlord) CanStandby() bool {
