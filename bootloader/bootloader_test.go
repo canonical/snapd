@@ -30,19 +30,42 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
+const packageKernel = `
+name: ubuntu-kernel
+version: 4.0-1
+type: kernel
+vendor: Someone
+`
+
+type baseBootenvTestSuite struct {
+	testutil.BaseTest
+}
+
+func (s *baseBootenvTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
+
 type bootenvTestSuite struct {
+	baseBootenvTestSuite
+
 	b *boottest.MockBootloader
 }
 
 var _ = Suite(&bootenvTestSuite{})
 
 func (s *bootenvTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	s.baseBootenvTestSuite.SetUpTest(c)
+
 	s.b = boottest.NewMockBootloader("mocky", c.MkDir())
 }
 
