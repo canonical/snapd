@@ -440,6 +440,10 @@ var defaultTemplate = `
   # Note: this does not grant access to the DBus sockets of well known buses
   # (will still need to use an appropriate interface for that).
   dbus (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),
+  # In addition to the above, dbus-run-session attempts reading these files
+  # from the snap base runtime.
+  /usr/share/dbus-1/services/{,*} r,
+  /usr/share/dbus-1/system-services/{,*} r,
 
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_INSTANCE_NAME}.*,
