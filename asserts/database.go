@@ -264,6 +264,25 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	}, nil
 }
 
+// WithStackedBackstore returns a new database that adds to the given backstore
+// only but finds in backstore and the base database backstores and
+// cross-checks against all of them.
+// This is useful to cross-check a set of assertions without adding
+// them to the database.
+func (db *Database) WithStackedBackstore(backstore Backstore) *Database {
+	backstores := []Backstore{db.trusted, db.predefined}
+	backstores = append(backstores, backstore)
+	backstores = append(backstores, db.backstores[2:]...)
+	return &Database{
+		bs:         backstore,
+		keypairMgr: db.keypairMgr,
+		trusted:    db.trusted,
+		predefined: db.predefined,
+		backstores: backstores,
+		checkers:   db.checkers,
+	}
+}
+
 // ImportKey stores the given private/public key pair.
 func (db *Database) ImportKey(privKey PrivateKey) error {
 	return db.keypairMgr.Put(privKey)
@@ -406,6 +425,25 @@ func (db *Database) Add(assert Assertion) error {
 	_, err = db.predefined.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 	if !IsNotFound(err) {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a predefined assertion: %v", ref.Type.Name, ref.PrimaryKey)
+	}
+
+	// this is non empty only in the stacked case
+	stackedOn := db.backstores[3:]
+	if len(stackedOn) != 0 {
+		headers, err := HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+		if err != nil {
+			return fmt.Errorf("internal error: HeadersFromPrimaryKey for %q failed on prechecked data: %s", ref.Type.Name, ref.PrimaryKey)
+		}
+		cur, err := find(stackedOn, ref.Type, headers, -1)
+		if err == nil {
+			curRev := cur.Revision()
+			rev := assert.Revision()
+			if curRev >= rev {
+				return &RevisionError{Current: curRev, Used: rev}
+			}
+		} else if !IsNotFound(err) {
+			return err
+		}
 	}
 
 	return db.bs.Put(ref.Type, assert)
