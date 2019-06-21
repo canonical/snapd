@@ -94,7 +94,7 @@
 %endif
 
 Name:           snapd
-Version:        2.39.2
+Version:        2.39.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -869,6 +869,12 @@ fi
 
 
 %changelog
+* Fri Jun 21 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.39.3
+  - daemon: increase `shutdownTimeout` to 25s to deal with slow HW
+  - spread: run tests against openSUSE 15.1
+  - data/selinux: fix policy for snaps with bases and classic snaps
+
 * Wed Jun 05 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.39.2
  - debian: rework how we run autopkgtests

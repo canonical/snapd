@@ -1,8 +1,11 @@
-snapd (2.39.3) UNRELEASED; urgency=medium
+snapd (2.39.3) xenial; urgency=medium
 
-  * placeholder for the 2.39.3 changelog
+  * New upstream release, LP: #1827495
+    - daemon: increase `shutdownTimeout` to 25s to deal with slow HW
+    - spread: run tests against openSUSE 15.1
+    - data/selinux: fix policy for snaps with bases and classic snaps
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 21 Jun 2019 09:30:10 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 21 Jun 2019 09:06:01 +0200
 
 snapd (2.39.2) xenial; urgency=medium
 
