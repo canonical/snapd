@@ -100,9 +100,7 @@ func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
 	return refs, nil
 }
 
-// Commit adds the batch of assertions to the system assertion database.
-func (b *Batch) Commit(st *state.State) error {
-	db := cachedDB(st)
+func (b *Batch) commit(db *asserts.Database) error {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if asserts.IsNotFound(err) {
@@ -116,7 +114,7 @@ func (b *Batch) Commit(st *state.State) error {
 	}
 
 	// linearize using fetcher
-	f := newFetcher(st, retrieve)
+	f := newFetcher(db, retrieve)
 	for _, ref := range b.refs {
 		if err := f.Fetch(ref); err != nil {
 			return err
@@ -127,6 +125,21 @@ func (b *Batch) Commit(st *state.State) error {
 	// (but try to save as much possible still),
 	// or err is a check error
 	return f.commit()
+}
+
+// Commit adds the batch of assertions to the system assertion database.
+func (b *Batch) Commit(st *state.State) error {
+	db := cachedDB(st)
+
+	return b.commit(db)
+}
+
+// Preflight checks whether adding the batch of assertions to the system assertion database should fully succeed.
+func (b *Batch) Preflight(st *state.State) error {
+	db := cachedDB(st)
+	db = db.WithStackedBackstore(asserts.NewMemoryBackstore())
+
+	return b.commit(db)
 }
 
 func findError(format string, ref *asserts.Ref, err error) error {

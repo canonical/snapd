@@ -45,9 +45,7 @@ type fetcher struct {
 }
 
 // newFetches creates a fetcher used to retrieve assertions and later commit them to the system database in one go.
-func newFetcher(s *state.State, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *fetcher {
-	db := cachedDB(s)
-
+func newFetcher(db *asserts.Database, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *fetcher {
 	f := &fetcher{db: db}
 
 	save := func(a asserts.Assertion) error {
@@ -111,7 +109,8 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
 	}
 
-	f := newFetcher(s, retrieve)
+	db := cachedDB(s)
+	f := newFetcher(db, retrieve)
 
 	s.Unlock()
 	err = fetching(f)

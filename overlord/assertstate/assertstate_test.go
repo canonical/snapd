@@ -317,6 +317,148 @@ func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
 	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 111 is latest supported`)
 }
 
+func (s *assertMgrSuite) TestBatchCommitPartial(c *C) {
+	// Commit does add any successful assertion until the first error
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// store key already present
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	err = batch.Add(snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = batch.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	// too old
+	rev := 1
+	headers := map[string]interface{}{
+		"snap-id":       "foo-id",
+		"snap-sha3-384": makeDigest(rev),
+		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
+		"snap-revision": fmt.Sprintf("%d", rev),
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Time{}.Format(time.RFC3339),
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = batch.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	err = batch.Commit(s.state)
+	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
+
+	// snap-declaration was added anyway
+	_, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestBatchPreflightPartial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// store key already present
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	err = batch.Add(snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = batch.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	// too old
+	rev := 1
+	headers := map[string]interface{}{
+		"snap-id":       "foo-id",
+		"snap-sha3-384": makeDigest(rev),
+		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
+		"snap-revision": fmt.Sprintf("%d", rev),
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Time{}.Format(time.RFC3339),
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = batch.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	err = batch.Preflight(s.state)
+	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
+
+	// nothing was added
+	_, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+}
+
+func (s *assertMgrSuite) TestBatchPreflightHappy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// store key already present
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	err = batch.Add(snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = batch.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	rev := 1
+	revDigest := makeDigest(rev)
+	headers := map[string]interface{}{
+		"snap-id":       "foo-id",
+		"snap-sha3-384": revDigest,
+		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
+		"snap-revision": fmt.Sprintf("%d", rev),
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = batch.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	err = batch.Preflight(s.state)
+	c.Assert(err, IsNil)
+
+	// nothing was added yet
+	_, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+
+	// commit
+	err = batch.Commit(s.state)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": revDigest,
+	})
+	c.Check(err, IsNil)
+}
+
 func fakeSnap(rev int) []byte {
 	fake := fmt.Sprintf("hsqs________________%d", rev)
 	return []byte(fake)
