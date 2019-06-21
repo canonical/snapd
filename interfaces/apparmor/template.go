@@ -108,10 +108,14 @@ var defaultTemplate = `
   /{,usr/}bin/bash ixr,
   /{,usr/}bin/dash ixr,
   /etc/bash.bashrc r,
+
+  # user/group/seat lookups
   /etc/{passwd,group,nsswitch.conf} r,  # very common
-  /etc/default/nss r,
-  /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
+  /run/systemd/users/[0-9]* r,
+  /etc/default/nss r,
+
+  /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /etc/profile r,
   /etc/environment r,
   /usr/share/terminfo/** r,
