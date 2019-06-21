@@ -547,6 +547,8 @@ func (d *Daemon) Start() {
 			d.restartSystem = true
 			d.tomb.Kill(nil)
 		case state.RestartSocket:
+			d.mu.Lock()
+			defer d.mu.Unlock()
 			d.restartSocket = true
 			d.tomb.Kill(nil)
 		default:
