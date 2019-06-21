@@ -366,6 +366,16 @@ func ValidateBase(info *Info) error {
 	if info.Base == "none" && (len(info.Hooks) > 0 || len(info.Apps) > 0) {
 		return fmt.Errorf(`cannot have apps or hooks with base "none"`)
 	}
+
+	if info.Base != "" {
+		baseSnapName, instanceKey := SplitInstanceName(info.Base)
+		if instanceKey != "" {
+			return fmt.Errorf("base cannot specify a snap instance name: %q", info.Base)
+		}
+		if err := ValidateName(baseSnapName); err != nil {
+			return fmt.Errorf("invalid base name: %s", err)
+		}
+	}
 	return nil
 }
 

@@ -14571,3 +14571,41 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
 
 }
+
+func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
+	flags := snapstate.Flags{
+		DevMode:          true,
+		JailMode:         true,
+		Classic:          true,
+		TryMode:          true,
+		Revert:           true,
+		RemoveSnapPath:   true,
+		IgnoreValidation: true,
+		Required:         true,
+		SkipConfigure:    true,
+		Unaliased:        true,
+		Amend:            true,
+		IsAutoRefresh:    true,
+		NoReRefresh:      true,
+		RequireTypeBase:  true,
+	}
+	flags = flags.ForSnapSetup()
+
+	// certain flags get reset, others are not touched
+	c.Check(flags, DeepEquals, snapstate.Flags{
+		DevMode:          true,
+		JailMode:         true,
+		Classic:          true,
+		TryMode:          true,
+		Revert:           true,
+		RemoveSnapPath:   true,
+		IgnoreValidation: true,
+		Required:         true,
+		SkipConfigure:    false,
+		Unaliased:        true,
+		Amend:            true,
+		IsAutoRefresh:    true,
+		NoReRefresh:      false,
+		RequireTypeBase:  false,
+	})
+}
