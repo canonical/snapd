@@ -30,6 +30,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
@@ -124,4 +126,75 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 
 	c.Check(grubEditenvGet(c, "k1"), Equals, "v1")
 	c.Check(grubEditenvGet(c, "k2"), Equals, "v2")
+}
+
+func (s *PartitionTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
+	s.makeFakeGrubEnv(c)
+
+	g := newGrub()
+	c.Assert(g, NotNil)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = g.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is *not* here
+	kernimg := filepath.Join(g.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, false)
+}
+
+func (s *PartitionTestSuite) TestExtractKernelForceWorks(c *C) {
+	s.makeFakeGrubEnv(c)
+
+	g := newGrub()
+	c.Assert(g, NotNil)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/force-kernel-extraction", ""},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = g.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is extracted
+	kernimg := filepath.Join(g.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, true)
+	// initrd
+	initrdimg := filepath.Join(g.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	c.Assert(osutil.FileExists(initrdimg), Equals, true)
+
+	// ensure that removal of assets also works
+	err = g.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
 }
