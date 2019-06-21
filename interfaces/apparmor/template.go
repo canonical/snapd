@@ -586,6 +586,7 @@ var ptraceTraceDenySnippet = `
 # silence noisy denials/avoid confusion and accidentally giving away this
 # dangerous access frivolously.
 deny ptrace (trace),
+deny capability sys_ptrace,
 `
 
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.
