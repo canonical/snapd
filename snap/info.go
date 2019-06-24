@@ -358,6 +358,9 @@ func (s *Info) Description() string {
 }
 
 func (s *Info) GetType() Type {
+	if s.SnapType == TypeApp && SnapIDSnapd(s.SnapID) {
+		return TypeSnapd
+	}
 	return s.SnapType
 }
 

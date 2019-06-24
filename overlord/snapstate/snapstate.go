@@ -733,11 +733,6 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 		CohortKey: opts.CohortKey,
 	}
 
-	// for backwards-compatibility
-	if snap.SnapIDSnapd(snapsup.SideInfo.SnapID) {
-		snapsup.Type = snap.TypeSnapd
-	}
-
 	return doInstall(st, &snapst, snapsup, 0, "")
 }
 
