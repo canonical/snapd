@@ -100,7 +100,7 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 // /writable. The system is booted from the parent of the device mounted at
 // /writable.
 //
-// Returns the device name and an offset at which the stricture content starts
+// Returns the device name and an offset at which the structure content starts
 // within the device or an error.
 func FindDeviceForStructureWithFallback(ps *PositionedStructure) (dev string, offs Size, err error) {
 	if !ps.IsBare() {
@@ -204,14 +204,10 @@ func findDeviceForWritable() (device string, err error) {
 	}
 	for _, entry := range mountInfo {
 		if isWritableMount(entry) {
-			device = entry.MountSource
-			break
+			return entry.MountSource, nil
 		}
 	}
-	if device == "" {
-		return "", ErrDeviceNotFound
-	}
-	return device, nil
+	return "", ErrDeviceNotFound
 }
 
 func findParentDeviceWithWritableFallback() (string, error) {
