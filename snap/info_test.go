@@ -1503,6 +1503,19 @@ func (s *infoSuite) TestIsActive(c *C) {
 	c.Check(info2.IsActive(), Equals, false)
 }
 
+func (s *infoSuite) TestGetTypeSnapdBackwardCompatibility(c *C) {
+	restore := snap.MockSnapdSnapID("snapd-id")
+	defer restore()
+
+	const snapdYaml = `
+name: snapd
+type: app
+version: 1
+`
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "snapd-id"})
+	c.Check(snapInfo.GetType(), Equals, snap.TypeSnapd)
+}
+
 func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	dirs.SetRootDir("")
 
