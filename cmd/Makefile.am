@@ -61,10 +61,10 @@ new_format = \
 	 libsnap-confine-private/cgroup-support.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
-	 snap-confine/snap-confine-invocation.c \
-	 snap-confine/snap-confine-invocation.h \
 	 snap-confine/selinux-support.c \
 	 snap-confine/selinux-support.h \
+	 snap-confine/snap-confine-invocation.c \
+	 snap-confine/snap-confine-invocation.h \
 	 snap-discard-ns/snap-discard-ns.c
 
 # NOTE: clang-format is using project-wide .clang-format file.
