@@ -259,7 +259,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	snap := &Info{
 		SuggestedName:       y.Name,
 		Version:             y.Version,
-		Type:                typ,
+		SnapType:            typ,
 		Architectures:       architectures,
 		Assumes:             y.Assumes,
 		OriginalTitle:       y.Title,

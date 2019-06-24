@@ -1294,6 +1294,28 @@ base: none
 	c.Assert(Validate(info), IsNil)
 }
 
+func (s *ValidateSuite) TestValidateBaseInorrectSnapName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: aAAAA
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid base name: invalid snap name: \"aAAAA\"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseSnapInstanceNameNotAllowed(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: foo_abc
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `base cannot specify a snap instance name: "foo_abc"`)
+}
+
 func (s *ValidateSuite) TestValidateBaseCannotHaveBase(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0

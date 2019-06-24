@@ -3252,9 +3252,18 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
+	// we cannot use "s.o.Settle()" here because this change has an
+	// error which means that the settle will never converge
+	for i := 0; i < 50; i++ {
 		s.se.Ensure()
 		s.se.Wait()
+
+		s.state.Lock()
+		ready := chg.IsReady()
+		s.state.Unlock()
+		if ready {
+			break
+		}
 	}
 
 	s.state.Lock()
