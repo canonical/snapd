@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -57,12 +56,14 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 		if !osutil.FileExists(candidate) {
 			continue
 		}
-		target, err := os.Readlink(candidate)
+		if !osutil.IsSymlink(candidate) {
+			// /dev/disk/by-label/* and /dev/disk/by-partlabel/* are
+			// expected to be symlink
+			return "", fmt.Errorf("candidate %v is not a symlink", candidate)
+		}
+		target, err := filepath.EvalSymlinks(candidate)
 		if err != nil {
 			return "", fmt.Errorf("cannot read device link: %v", err)
-		}
-		if !osutil.FileExists(target) {
-			continue
 		}
 		if found != "" && target != found {
 			// partition and filesystem label links point to
