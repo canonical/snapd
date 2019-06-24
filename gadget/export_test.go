@@ -33,3 +33,11 @@ var (
 
 	RawContentBackupPath = rawContentBackupPath
 )
+
+func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
+	oldEvalSymlinks := evalSymlinks
+	evalSymlinks = mock
+	return func() {
+		evalSymlinks = oldEvalSymlinks
+	}
+}
