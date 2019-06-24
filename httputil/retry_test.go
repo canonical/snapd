@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -50,6 +51,24 @@ var testRetryStrategy = retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		Factor:  1,
 	},
 ))
+
+type counter struct {
+	n  int
+	mu sync.Mutex
+}
+
+func (cnt *counter) Inc() int {
+	cnt.mu.Lock()
+	defer cnt.mu.Unlock()
+	cnt.n++
+	return cnt.n
+}
+
+func (cnt *counter) Count() int {
+	cnt.mu.Lock()
+	defer cnt.mu.Unlock()
+	return cnt.n
+}
 
 func (s *retrySuite) TestRetryRequestOnEOF(c *C) {
 	n := 0
@@ -93,10 +112,10 @@ func (s *retrySuite) TestRetryRequestOnEOF(c *C) {
 }
 
 func (s *retrySuite) TestRetryRequestFailWithEOF(c *C) {
-	n := 0
+	n := new(counter)
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
+		n.Inc()
 		io.WriteString(w, "{")
 		mockServer.CloseClientConnections()
 		return
@@ -127,7 +146,7 @@ func (s *retrySuite) TestRetryRequestFailWithEOF(c *C) {
 	c.Check(err, ErrorMatches, `^Get http://127.0.0.1:.*?: EOF$`)
 
 	c.Check(failure, Equals, false)
-	c.Assert(n, Equals, 5)
+	c.Assert(n.Count(), Equals, 5)
 }
 
 func (s *retrySuite) TestRetryRequestOn500(c *C) {
@@ -337,21 +356,21 @@ func (s *retrySuite) TestRetryRequestReadResponseBodyFailure(c *C) {
 }
 
 func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
-	permanentlyBrokenSrvCalls := 0
-	somewhatBrokenSrvCalls := 0
+	permanentlyBrokenSrvCalls := new(counter)
+	somewhatBrokenSrvCalls := new(counter)
 
 	finished := make(chan struct{})
 
 	mockPermanentlyBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		permanentlyBrokenSrvCalls++
+		permanentlyBrokenSrvCalls.Inc()
 		<-finished
 	}))
 	c.Assert(mockPermanentlyBrokenServer, NotNil)
 	defer mockPermanentlyBrokenServer.Close()
 
 	mockSomewhatBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		somewhatBrokenSrvCalls++
-		if somewhatBrokenSrvCalls > 2 {
+		calls := somewhatBrokenSrvCalls.Inc()
+		if calls > 2 {
 			io.WriteString(w, `{"ok": true}`)
 			return
 		}
@@ -388,7 +407,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `.*Client.Timeout.*`)
 	// check that we exhausted all retries (as defined by mocked retry strategy)
-	c.Assert(permanentlyBrokenSrvCalls, Equals, 5)
+	c.Assert(permanentlyBrokenSrvCalls.Count(), Equals, 5)
 	c.Check(failure, Equals, false)
 	c.Check(got, Equals, nil)
 
@@ -401,7 +420,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	// check that we retried 4 times
 	c.Check(failure, Equals, false)
 	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
-	c.Assert(somewhatBrokenSrvCalls, Equals, 3)
+	c.Assert(somewhatBrokenSrvCalls.Count(), Equals, 3)
 }
 
 func (s *retrySuite) TestRetryDoesNotFailForPermanentDNSErrors(c *C) {

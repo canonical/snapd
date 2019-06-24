@@ -53,7 +53,7 @@ var _ = Suite(&AutopilotInterfaceSuite{
 
 func (s *AutopilotInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "autopilot-introspection",
 		Interface: "autopilot-introspection",
 	}

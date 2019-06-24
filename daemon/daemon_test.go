@@ -450,6 +450,10 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 
 	expected := make([]string, len(api))
 	for i, v := range api {
+		if v.PathPrefix != "" {
+			expected[i] = v.PathPrefix
+			continue
+		}
 		expected[i] = v.Path
 	}
 

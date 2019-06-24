@@ -560,7 +560,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// Sanity check, note that we could support this case
 		// if we have a use-case but it requires changes in the
 		// devicestate/firstboot.go ordering code.
-		if info.Type == snap.TypeGadget && info.Base != model.Base() {
+		if info.GetType() == snap.TypeGadget && info.Base != model.Base() {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
 		}
 		if err := hasBase(info, local, snaps); err != nil {
@@ -575,7 +575,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 
 		seen[name] = true
-		typ := info.Type
+		typ := info.GetType()
 
 		needsClassic := info.NeedsClassic()
 		if needsClassic && !opts.Classic {
@@ -749,7 +749,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			}
 			return fmt.Errorf("cannot get download info for snap %s, available infos: %v", fn, keys)
 		}
-		switch info.Type {
+		switch info.GetType() {
 		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
 		case snap.TypeKernel:
