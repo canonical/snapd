@@ -27,53 +27,33 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
+const packageKernel = `
+name: ubuntu-kernel
+version: 4.0-1
+type: kernel
+vendor: Someone
+`
+
 // partition specific testsuite
 type PartitionTestSuite struct {
+	testutil.BaseTest
 }
 
 var _ = Suite(&PartitionTestSuite{})
 
-type mockBootloader struct {
-	bootVars map[string]string
-}
-
-func newMockBootloader() *mockBootloader {
-	return &mockBootloader{
-		bootVars: make(map[string]string),
-	}
-}
-func (b *mockBootloader) Name() string {
-	return "mocky"
-}
-func (b *mockBootloader) Dir() string {
-	return "/boot/mocky"
-}
-func (b *mockBootloader) GetBootVars(names ...string) (map[string]string, error) {
-	out := map[string]string{}
-	for _, name := range names {
-		out[name] = b.bootVars[name]
-	}
-
-	return out, nil
-}
-func (b *mockBootloader) SetBootVars(values map[string]string) error {
-	for k, v := range values {
-		b.bootVars[k] = v
-	}
-	return nil
-}
-func (b *mockBootloader) ConfigFile() string {
-	return "/boot/mocky/mocky.env"
-}
-
 func (s *PartitionTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll((&grub{}).Dir(), 0755)
 	c.Assert(err, IsNil)
@@ -81,8 +61,13 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *PartitionTestSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+	s.BaseTest.TearDownTest(c)
+}
+
 func (s *PartitionTestSuite) TestForceBootloader(c *C) {
-	b := newMockBootloader()
+	b := boottest.NewMockBootloader("mocky", c.MkDir())
 	Force(b)
 	defer Force(nil)
 
@@ -92,10 +77,10 @@ func (s *PartitionTestSuite) TestForceBootloader(c *C) {
 }
 
 func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
-	b := newMockBootloader()
-	b.bootVars["snap_mode"] = "trying"
-	b.bootVars["snap_try_core"] = "os1"
-	b.bootVars["snap_try_kernel"] = "k1"
+	b := boottest.NewMockBootloader("mocky", c.MkDir())
+	b.BootVars["snap_mode"] = "trying"
+	b.BootVars["snap_try_core"] = "os1"
+	b.BootVars["snap_try_kernel"] = "k1"
 	err := MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
 
@@ -108,24 +93,24 @@ func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 		"snap_kernel": "k1",
 		"snap_core":   "os1",
 	}
-	c.Assert(b.bootVars, DeepEquals, expected)
+	c.Assert(b.BootVars, DeepEquals, expected)
 
 	// do it again, verify its still valid
 	err = MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
-	c.Assert(b.bootVars, DeepEquals, expected)
+	c.Assert(b.BootVars, DeepEquals, expected)
 }
 
 func (s *PartitionTestSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
-	b := newMockBootloader()
-	b.bootVars["snap_mode"] = "trying"
-	b.bootVars["snap_core"] = "os1"
-	b.bootVars["snap_kernel"] = "k1"
-	b.bootVars["snap_try_core"] = ""
-	b.bootVars["snap_try_kernel"] = "k2"
+	b := boottest.NewMockBootloader("mocky", c.MkDir())
+	b.BootVars["snap_mode"] = "trying"
+	b.BootVars["snap_core"] = "os1"
+	b.BootVars["snap_kernel"] = "k1"
+	b.BootVars["snap_try_core"] = ""
+	b.BootVars["snap_try_kernel"] = "k2"
 	err := MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
-	c.Assert(b.bootVars, DeepEquals, map[string]string{
+	c.Assert(b.BootVars, DeepEquals, map[string]string{
 		// cleared
 		"snap_mode":       "",
 		"snap_try_kernel": "",

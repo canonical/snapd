@@ -102,7 +102,7 @@ func NotesFromLocal(snp *client.Snap) *Notes {
 
 func NotesFromInfo(info *snap.Info) *Notes {
 	return &Notes{
-		SnapType: info.Type,
+		SnapType: info.GetType(),
 		Private:  info.Private,
 		DevMode:  info.Confinement == client.DevModeConfinement,
 		Classic:  info.Confinement == client.ClassicConfinement,

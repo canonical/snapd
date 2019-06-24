@@ -36,14 +36,20 @@ type StateManager interface {
 	Ensure() error
 }
 
-// StateWaiterStopper is implemented by StateManagers that have
-// running activities that can be waited or terminated.
-type StateWaiterStopper interface {
-	// Wait asks manager to wait for all running activities to finish.
+// StateWaiter is optionally implemented by StateManagers that have running
+// activities that can be waited.
+type StateWaiter interface {
+	// Wait asks manager to wait for all running activities to
+	// finish.
 	Wait()
+}
 
-	// Stop asks the manager to terminate all activities running concurrently.
-	// It must not return before these activities are finished.
+// StateStopper is optionally implemented by StateManagers that have
+// running activities that can be terminated.
+type StateStopper interface {
+	// Stop asks the manager to terminate all activities running
+	// concurrently.  It must not return before these activities
+	// are finished.
 	Stop()
 }
 
@@ -124,7 +130,7 @@ func (se *StateEngine) Wait() {
 		return
 	}
 	for _, m := range se.managers {
-		if waiter, ok := m.(StateWaiterStopper); ok {
+		if waiter, ok := m.(StateWaiter); ok {
 			waiter.Wait()
 		}
 	}
@@ -138,7 +144,7 @@ func (se *StateEngine) Stop() {
 		return
 	}
 	for _, m := range se.managers {
-		if stopper, ok := m.(StateWaiterStopper); ok {
+		if stopper, ok := m.(StateStopper); ok {
 			stopper.Stop()
 		}
 	}

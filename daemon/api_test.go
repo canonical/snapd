@@ -128,10 +128,10 @@ func (s *apiBaseSuite) pokeStateLock() {
 	st.Unlock()
 }
 
-func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *apiBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.pokeStateLock()
-
 	s.user = user
+	s.ctx = ctx
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -784,7 +784,7 @@ UnitFileState=enabled
 			Contact:     "",
 			License:     "GPL-3.0",
 			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{},
+			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 			CohortKey:   "some-long-cohort-key",
 		},
 		Meta: meta,
@@ -873,7 +873,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 			Private:           true,
 		},
 		InstanceKey: "instance",
-		Type:        "app",
+		SnapType:    "app",
 		Base:        "the-base",
 		Version:     "v1.0",
 		License:     "MIT",
@@ -939,7 +939,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      media.Screenshots(),
+		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1743,7 +1743,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.IsNil)
+	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -1845,6 +1845,31 @@ func (s *apiSuite) TestFindUserAgentContextCreated(c *check.C) {
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/find", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Add("User-Agent", "some-agent/1.0")
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
+}
+
+func (s *apiSuite) TestFindOneUserAgentContextCreated(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SnapType: snap.TypeApp,
+		Version:  "v2",
+		SideInfo: snap.SideInfo{
+			RealName: "banana",
+		},
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
+	}}
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
@@ -2064,8 +2089,8 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 	s.suggestedCurrency = "GBP"
 
 	s.rsnaps = []*snap.Info{{
-		Type:    snap.TypeApp,
-		Version: "v2",
+		SnapType: snap.TypeApp,
+		Version:  "v2",
 		Prices: map[string]float64{
 			"GBP": 1.23,
 			"EUR": 2.34,
@@ -2105,8 +2130,8 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
-		Type:    snap.TypeApp,
-		Version: "v2",
+		SnapType: snap.TypeApp,
+		Version:  "v2",
 		Media: []snap.MediaInfo{
 			{
 				Type:   "screenshot",
@@ -2142,13 +2167,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
 	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
-			"url":    "http://example.com/screenshot.png",
-			"width":  float64(800),
-			"height": float64(1280),
-			"note":   snap.ScreenshotsDeprecationNotice,
-		},
-		map[string]interface{}{
-			"url":  "http://example.com/screenshot2.png",
 			"note": snap.ScreenshotsDeprecationNotice,
 		},
 	})
@@ -2446,6 +2464,50 @@ func (s *apiSuite) TestPostSnapCohortRandoAction(c *check.C) {
 	}
 }
 
+func (s *apiSuite) TestPostSnapLeaveCohortRandoAction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+	s.vars = map[string]string{"name": "some-snap"}
+	const expectedErr = "leave-cohort can only be specified for refresh or switch"
+
+	for _, action := range []string{"install", "remove", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "leave-cohort": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *apiSuite) TestPostSnapCohortIncompat(c *check.C) {
+	s.daemonWithOverlordMock(c)
+	s.vars = map[string]string{"name": "some-snap"}
+
+	type T struct {
+		opts   string
+		errmsg string
+	}
+
+	for i, t := range []T{
+		// TODO: more?
+		{`"cohort-key": "what", "revision": "42"`, `cannot specify both cohort-key and revision`},
+		{`"cohort-key": "what", "leave-cohort": true`, `cannot specify both cohort-key and leave-cohort`},
+	} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "refresh", %s}`, t.opts))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil, check.Commentf("%d (%s)", i, t.opts))
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError, check.Commentf("%d (%s)", i, t.opts))
+		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%d (%s)", i, t.opts))
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, t.errmsg, check.Commentf("%d (%s)", i, t.opts))
+	}
+}
+
 func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 
@@ -2467,11 +2529,12 @@ func (s *apiSuite) TestPostSnapsNoWeirdses(c *check.C) {
 	// one could add more actions here ... 🤷
 	for _, action := range []string{"install", "refresh", "remove"} {
 		for weird, v := range map[string]string{
-			"channel":    `"beta"`,
-			"revision":   `"1"`,
-			"devmode":    "true",
-			"jailmode":   "true",
-			"cohort-key": `"what"`,
+			"channel":      `"beta"`,
+			"revision":     `"1"`,
+			"devmode":      "true",
+			"jailmode":     "true",
+			"cohort-key":   `"what"`,
+			"leave-cohort": "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -3754,10 +3817,42 @@ func (s *apiSuite) TestRefreshCohort(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *apiSuite) TestRefreshLeaveCohort(c *check.C) {
+	var leave *bool
+
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		leave = &opts.LeaveCohort
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:      "refresh",
+		LeaveCohort: true,
+		Snaps:       []string{"some-snap"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(*leave, check.Equals, true)
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
 func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 	var cohort, channel string
+	var leave *bool
 	snapstateSwitch = func(s *state.State, name string, opts *snapstate.RevisionOptions) (*state.TaskSet, error) {
 		cohort = opts.CohortKey
+		leave = &opts.LeaveCohort
 		channel = opts.Channel
 
 		t := s.NewTask("fake-switch", "Doing a fake switch")
@@ -3768,21 +3863,28 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 	st := d.overlord.State()
 
 	type T struct {
-		channel, cohort, summary string
+		channel string
+		cohort  string
+		leave   bool
+		summary string
 	}
 	table := []T{
-		{"", "some-cohort", `Switch "some-snap" snap to cohort "some-coho…"`},
-		{"some-channel", "", `Switch "some-snap" snap to channel "some-channel"`},
-		{"some-channel", "some-cohort", `Switch "some-snap" snap to channel "some-channel" and cohort "some-coho…"`},
+		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "some-coho…"`},
+		{"some-channel", "", false, `Switch "some-snap" snap to channel "some-channel"`},
+		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "some-coho…"`},
+		{"", "", true, `Switch "some-snap" snap away from cohort`},
+		{"some-channel", "", true, `Switch "some-snap" snap to channel "some-channel" and away from cohort`},
 	}
 
 	for _, t := range table {
 		cohort, channel = "", ""
+		leave = nil
 		inst := &snapInstruction{
-			Action:    "switch",
-			CohortKey: t.cohort,
-			Channel:   t.channel,
-			Snaps:     []string{"some-snap"},
+			Action:      "switch",
+			CohortKey:   t.cohort,
+			Channel:     t.channel,
+			Snaps:       []string{"some-snap"},
+			LeaveCohort: t.leave,
 		}
 
 		st.Lock()
@@ -3793,6 +3895,7 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 		c.Check(cohort, check.Equals, t.cohort)
 		c.Check(channel, check.Equals, t.channel)
 		c.Check(summary, check.Equals, t.summary)
+		c.Check(*leave, check.Equals, t.leave)
 	}
 }
 

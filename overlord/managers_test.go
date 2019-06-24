@@ -566,7 +566,7 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
-		hit = strings.Replace(hit, `@TYPE@`, string(info.Type), -1)
+		hit = strings.Replace(hit, `@TYPE@`, string(info.GetType()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		return hit
 	}
@@ -3298,12 +3298,16 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
 
+	c.Check(devicestate.Remodeling(st), Equals, true)
+
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	c.Check(devicestate.Remodeling(st), Equals, false)
 
 	// the new required-snap "foo" is installed
 	var snapst snapstate.SnapState

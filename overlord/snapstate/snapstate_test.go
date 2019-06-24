@@ -908,7 +908,7 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 		if name != "some-snap" {
 			return s.fakeBackend.ReadInfo(name, si)
 		}
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, Type: snap.TypeApp}
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -962,7 +962,7 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 		if name != "some-snap" {
 			return s.fakeBackend.ReadInfo(name, si)
 		}
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, Type: snap.TypeApp}
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -1863,7 +1863,7 @@ func (s *snapmgrTestSuite) TestDoUpdateHadSlots(c *C) {
 
 		info := &snap.Info{
 			SideInfo: *si,
-			Type:     snap.TypeApp,
+			SnapType: snap.TypeApp,
 		}
 		info.Slots = map[string]*snap.SlotInfo{
 			"some-slot": {
@@ -9065,47 +9065,115 @@ type switchScenario struct {
 	summary  string
 }
 
-var switchScenarios = []switchScenario{
-	// no cohort at all
-	{"stable", "some-channel", "", "", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
-	// no cohort, from empty channel
-	{"", "some-channel", "", "", `Switch snap "some-snap" from no channel to "some-channel"`},
-	// cohort specified is the same as current
-	{"stable", "some-channel", "some-cohort", "some-cohort", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
-	// no cohort change requested
-	{"stable", "some-channel", "some-cohort", "", `Switch snap "some-snap" from channel "stable" to "some-channel"`},
-	// no channel at all (local installed snap? XXX: might actually need an error for sanity)
-	{"", "", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
-	// channel specified is the same as current
-	{"stable", "stable", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
-	// no channel change requested
-	{"stable", "", "some-cohort", "some-other-cohort", `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`},
-	// no channel change requested, from empty cohort
-	{"stable", "", "", "some-cohort", `Switch snap "some-snap" from no cohort to "some-coho…"`},
-	// all change
-	{"stable", "edge", "some-cohort", "some-other-cohort",
-		`Switch snap "some-snap" from channel "stable" to "edge" and from cohort "some-coho…" to "some-othe…"`},
-	// all change, from empty channel
-	{"", "stable", "some-cohort", "some-other-cohort",
-		`Switch snap "some-snap" from no channel to "stable" and from cohort "some-coho…" to "some-othe…"`},
-	// all change, from empty cohort
-	{"stable", "edge", "", "some-cohort",
-		`Switch snap "some-snap" from channel "stable" to "edge" and from no cohort to "some-coho…"`},
-	// all change, from empty channel and cohort
-	{"", "stable", "", "some-cohort",
-		`Switch snap "some-snap" from no channel to "stable" and from no cohort to "some-coho…"`},
-	// no change (XXX: error?)
-	{"stable", "stable", "some-cohort", "some-cohort", `No change switch (bug?)`},
+var switchScenarios = map[string]switchScenario{
+	"no cohort at all": {
+		chanFrom: "stable",
+		chanTo:   "some-channel",
+		cohFrom:  "",
+		cohTo:    "",
+		summary:  `Switch snap "some-snap" from channel "stable" to "some-channel"`,
+	},
+	"no cohort, from empty channel": {
+		chanFrom: "",
+		chanTo:   "some-channel",
+		cohFrom:  "",
+		cohTo:    "",
+		summary:  `Switch snap "some-snap" to channel "some-channel"`,
+	},
+	"no cohort change requested": {
+		chanFrom: "stable",
+		chanTo:   "some-channel",
+		cohFrom:  "some-cohort",
+		cohTo:    "some-cohort",
+		summary:  `Switch snap "some-snap" from channel "stable" to "some-channel"`,
+	},
+	"leave cohort": {
+		chanFrom: "stable",
+		chanTo:   "stable",
+		cohFrom:  "some-cohort",
+		cohTo:    "",
+		summary:  `Switch snap "some-snap" away from cohort "some-coho…"`,
+	},
+	"leave cohort, change channel": {
+		chanFrom: "stable",
+		chanTo:   "edge",
+		cohFrom:  "some-cohort",
+		cohTo:    "",
+		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and away from cohort "some-coho…"`,
+	},
+	"leave cohort, change from empty channel": {
+		chanFrom: "",
+		chanTo:   "stable",
+		cohFrom:  "some-cohort",
+		cohTo:    "",
+		summary:  `Switch snap "some-snap" to channel "stable" and away from cohort "some-coho…"`,
+	},
+	"no channel at all": {
+		chanFrom: "",
+		chanTo:   "",
+		cohFrom:  "some-cohort",
+		cohTo:    "some-other-cohort",
+		summary:  `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`,
+	},
+	"no channel change requested": {
+		chanFrom: "stable",
+		chanTo:   "stable",
+		cohFrom:  "some-cohort",
+		cohTo:    "some-other-cohort",
+		summary:  `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`,
+	},
+	"no channel change requested, from empty cohort": {
+		chanFrom: "stable",
+		chanTo:   "stable",
+		cohFrom:  "",
+		cohTo:    "some-cohort",
+		summary:  `Switch snap "some-snap" from no cohort to "some-coho…"`,
+	},
+	"all change": {
+		chanFrom: "stable",
+		chanTo:   "edge",
+		cohFrom:  "some-cohort",
+		cohTo:    "some-other-cohort",
+		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and from cohort "some-coho…" to "some-othe…"`,
+	},
+	"all change, from empty channel": {
+		chanFrom: "",
+		chanTo:   "stable",
+		cohFrom:  "some-cohort",
+		cohTo:    "some-other-cohort",
+		summary:  `Switch snap "some-snap" to channel "stable" and from cohort "some-coho…" to "some-othe…"`,
+	},
+	"all change, from empty cohort": {
+		chanFrom: "stable",
+		chanTo:   "edge",
+		cohFrom:  "",
+		cohTo:    "some-cohort",
+		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and from no cohort to "some-coho…"`,
+	},
+	"all change, from empty channel and cohort": {
+		chanFrom: "",
+		chanTo:   "stable",
+		cohFrom:  "",
+		cohTo:    "some-cohort",
+		summary:  `Switch snap "some-snap" to channel "stable" and from no cohort to "some-coho…"`,
+	},
+	"no change": {
+		chanFrom: "stable",
+		chanTo:   "stable",
+		cohFrom:  "some-cohort",
+		cohTo:    "some-cohort",
+		summary:  `No change switch (no-op)`,
+	},
 }
 
 func (s *snapmgrTestSuite) TestSwitchScenarios(c *C) {
-	for i, t := range switchScenarios {
-		s.testSwitchScenario(c, i, t)
+	for k, t := range switchScenarios {
+		s.testSwitchScenario(c, k, t)
 	}
 }
 
-func (s *snapmgrTestSuite) testSwitchScenario(c *C, i int, t switchScenario) {
-	comment := Commentf("%d (%+v)", i, t)
+func (s *snapmgrTestSuite) testSwitchScenario(c *C, desc string, t switchScenario) {
+	comment := Commentf("%q (%+v)", desc, t)
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -9127,8 +9195,9 @@ func (s *snapmgrTestSuite) testSwitchScenario(c *C, i int, t switchScenario) {
 	c.Check(summary, Equals, t.summary, comment)
 	chg := s.state.NewChange("switch-snap", summary)
 	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{
-		Channel:   t.chanTo,
-		CohortKey: t.cohTo,
+		Channel:     t.chanTo,
+		CohortKey:   t.cohTo,
+		LeaveCohort: t.cohFrom != "" && t.cohTo == "",
 	})
 	c.Assert(err, IsNil, comment)
 	chg.AddAll(ts)
@@ -9145,9 +9214,6 @@ func (s *snapmgrTestSuite) testSwitchScenario(c *C, i int, t switchScenario) {
 		expectedChanTo = t.chanFrom
 	}
 	expectedCohTo := t.cohTo
-	if t.cohTo == "" {
-		expectedCohTo = t.cohFrom
-	}
 
 	// ensure the desired channel/cohort has changed
 	var snapst snapstate.SnapState
@@ -9164,16 +9230,16 @@ func (s *snapmgrTestSuite) testSwitchScenario(c *C, i int, t switchScenario) {
 
 func (s *snapmgrTestSuite) TestUpdateScenarios(c *C) {
 	// TODO: also use channel-for-7 or equiv to check updates that are switches
-	for i, t := range switchScenarios {
-		s.testUpdateScenario(c, i, t)
+	for k, t := range switchScenarios {
+		s.testUpdateScenario(c, k, t)
 	}
 }
 
-func (s *snapmgrTestSuite) testUpdateScenario(c *C, i int, t switchScenario) {
+func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenario) {
 	// reset
 	s.fakeBackend.ops = nil
 
-	comment := Commentf("%d (%+v)", i, t)
+	comment := Commentf("%q (%+v)", desc, t)
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -9194,8 +9260,9 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, i int, t switchScenario) {
 
 	chg := s.state.NewChange("update-snap", t.summary)
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{
-		Channel:   t.chanTo,
-		CohortKey: t.cohTo,
+		Channel:     t.chanTo,
+		CohortKey:   t.cohTo,
+		LeaveCohort: t.cohFrom != "" && t.cohTo == "",
 	}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil, comment)
 	chg.AddAll(ts)
@@ -9229,9 +9296,6 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, i int, t switchScenario) {
 		expectedChanTo = t.chanFrom
 	}
 	expectedCohTo := t.cohTo
-	if t.cohTo == "" {
-		expectedCohTo = t.cohFrom
-	}
 
 	// ensure the desired channel/cohort has changed
 	var snapst snapstate.SnapState
@@ -10503,7 +10567,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 		c.Check(info.InstanceName(), Equals, x.snapName)
 		c.Check(info.Revision, Equals, snap.R(2))
 		c.Check(info.Version, Equals, x.snapName)
-		c.Check(info.Type, Equals, x.snapType)
+		c.Check(info.GetType(), Equals, x.snapType)
 	}
 }
 
@@ -10561,7 +10625,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 		} else {
 			c.Assert(info, NotNil)
 			c.Check(info.InstanceName(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
-			c.Check(info.Type, Equals, snap.TypeOS)
+			c.Check(info.GetType(), Equals, snap.TypeOS)
 		}
 	}
 }
@@ -11000,7 +11064,7 @@ func (s *canRemoveSuite) TearDownTest(c *C) {
 
 func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	info := &snap.Info{
-		Type: snap.TypeApp,
+		SnapType: snap.TypeApp,
 	}
 	info.RealName = "foo"
 
@@ -11010,7 +11074,7 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 
 func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 	info := &snap.Info{
-		Type: snap.TypeGadget,
+		SnapType: snap.TypeGadget,
 	}
 	info.RealName = "foo"
 
@@ -11019,11 +11083,11 @@ func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 
 func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	os := &snap.Info{
-		Type: snap.TypeOS,
+		SnapType: snap.TypeOS,
 	}
 	os.RealName = "os"
 	kernel := &snap.Info{
-		Type: snap.TypeKernel,
+		SnapType: snap.TypeKernel,
 	}
 	// this kernel part of the model
 	kernel.RealName = "kernel"
@@ -11035,7 +11099,7 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 
 func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 	kernel := &snap.Info{
-		Type: snap.TypeKernel,
+		SnapType: snap.TypeKernel,
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(3),
 		},
@@ -11052,7 +11116,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 
 func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 	base := &snap.Info{
-		Type: snap.TypeBase,
+		SnapType: snap.TypeBase,
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(3),
 		},
@@ -11069,7 +11133,7 @@ func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 
 func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
 	kernel := &snap.Info{
-		Type: snap.TypeKernel,
+		SnapType: snap.TypeKernel,
 	}
 	kernel.RealName = "other-non-model-kernel"
 
@@ -11078,7 +11142,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
 
 func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
 	kernel := &snap.Info{
-		Type: snap.TypeKernel,
+		SnapType: snap.TypeKernel,
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(2),
 		},
@@ -11098,7 +11162,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
 	os := &snap.Info{
-		Type: snap.TypeOS,
+		SnapType: snap.TypeOS,
 	}
 	os.RealName = "os"
 
@@ -11123,7 +11187,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
 
 	// now pretend we want to remove the core snap
 	os := &snap.Info{
-		Type: snap.TypeOS,
+		SnapType: snap.TypeOS,
 	}
 	os.RealName = "core"
 	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, deviceCtx), Equals, false)
@@ -11131,7 +11195,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
 
 func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
 	info := &snap.Info{
-		Type: snap.TypeGadget,
+		SnapType: snap.TypeGadget,
 	}
 	info.RealName = "foo"
 
@@ -11140,7 +11204,7 @@ func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
 
 func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
 	info := &snap.Info{
-		Type: snap.TypeApp,
+		SnapType: snap.TypeApp,
 	}
 	info.RealName = "foo"
 
@@ -11154,7 +11218,7 @@ func (s *canRemoveSuite) TestBaseUnused(c *C) {
 	defer s.st.Unlock()
 
 	info := &snap.Info{
-		Type: snap.TypeBase,
+		SnapType: snap.TypeBase,
 	}
 	info.RealName = "some-base"
 
@@ -11177,7 +11241,7 @@ func (s *canRemoveSuite) TestBaseInUse(c *C) {
 
 	// pretend now we want to remove "some-base"
 	info := &snap.Info{
-		Type: snap.TypeBase,
+		SnapType: snap.TypeBase,
 	}
 	info.RealName = "some-base"
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, false)
@@ -11202,7 +11266,7 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
 
 	// pretend now we want to remove "some-base"
 	info := &snap.Info{
-		Type: snap.TypeBase,
+		SnapType: snap.TypeBase,
 	}
 	info.RealName = "some-base"
 	// revision 1 requires some-base
@@ -11210,7 +11274,7 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
 
 	// now pretend we want to remove the core snap
 	os := &snap.Info{
-		Type: snap.TypeOS,
+		SnapType: snap.TypeOS,
 	}
 	os.RealName = "core"
 	// but revision 2 requires core
@@ -12884,6 +12948,18 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestConflictManyRemodeling(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoingStatus)
+
+	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+}
+
 func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -14421,7 +14497,7 @@ func (s *canDisableSuite) TestCanDisable(c *C) {
 		{snap.TypeKernel, false},
 		{snap.TypeOS, false},
 	} {
-		info := &snap.Info{Type: tt.typ}
+		info := &snap.Info{SnapType: tt.typ}
 		c.Check(snapstate.CanDisable(info), Equals, tt.canDisable)
 	}
 }
@@ -14605,4 +14681,42 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
 
+}
+
+func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
+	flags := snapstate.Flags{
+		DevMode:          true,
+		JailMode:         true,
+		Classic:          true,
+		TryMode:          true,
+		Revert:           true,
+		RemoveSnapPath:   true,
+		IgnoreValidation: true,
+		Required:         true,
+		SkipConfigure:    true,
+		Unaliased:        true,
+		Amend:            true,
+		IsAutoRefresh:    true,
+		NoReRefresh:      true,
+		RequireTypeBase:  true,
+	}
+	flags = flags.ForSnapSetup()
+
+	// certain flags get reset, others are not touched
+	c.Check(flags, DeepEquals, snapstate.Flags{
+		DevMode:          true,
+		JailMode:         true,
+		Classic:          true,
+		TryMode:          true,
+		Revert:           true,
+		RemoveSnapPath:   true,
+		IgnoreValidation: true,
+		Required:         true,
+		SkipConfigure:    false,
+		Unaliased:        true,
+		Amend:            true,
+		IsAutoRefresh:    true,
+		NoReRefresh:      false,
+		RequireTypeBase:  false,
+	})
 }
