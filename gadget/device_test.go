@@ -20,6 +20,7 @@
 package gadget_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -222,6 +223,27 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 		},
 	})
 	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-label/foo is not a symlink`)
+	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
+	fooSymlink := filepath.Join(d.dir, "/dev/disk/by-label/foo")
+	err := os.Symlink(fakedevice, fooSymlink)
+	c.Assert(err, IsNil)
+
+	restore := gadget.MockEvalSymlinks(func(p string) (string, error) {
+		c.Assert(p, Equals, fooSymlink)
+		return "", errors.New("failed")
+	})
+	defer restore()
+
+	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label: "foo",
+		},
+	})
+	c.Check(err, ErrorMatches, `cannot read device link: failed`)
 	c.Check(found, Equals, "")
 }
 
