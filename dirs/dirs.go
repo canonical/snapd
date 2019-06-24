@@ -100,8 +100,8 @@ var (
 	XdgRuntimeDirBase string
 	XdgRuntimeDirGlob string
 
-	CompletionHelper string
-	CompletersDir    string
+	CompletionHelperInCore string
+	CompletersDir          string
 
 	SystemFontsDir            string
 	SystemLocalFontsDir       string
@@ -295,7 +295,7 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
-	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 
 	// These paths agree across all supported distros

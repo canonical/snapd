@@ -83,7 +83,8 @@ type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
 
 // A Command routes a request to an individual per-verb ResponseFUnc
 type Command struct {
-	Path string
+	Path       string
+	PathPrefix string
 	//
 	GET    ResponseFunc
 	PUT    ResponseFunc
@@ -413,7 +414,11 @@ func (d *Daemon) addRoutes() {
 
 	for _, c := range api {
 		c.d = d
-		d.router.Handle(c.Path, c).Name(c.Path)
+		if c.PathPrefix == "" {
+			d.router.Handle(c.Path, c).Name(c.Path)
+		} else {
+			d.router.PathPrefix(c.PathPrefix).Handler(c).Name(c.PathPrefix)
+		}
 	}
 
 	// also maybe add a /favicon.ico handler...
@@ -422,7 +427,7 @@ func (d *Daemon) addRoutes() {
 }
 
 var (
-	shutdownTimeout = 5 * time.Second
+	shutdownTimeout = 25 * time.Second
 )
 
 // shutdownServer supplements a http.Server with graceful shutdown.
@@ -542,6 +547,8 @@ func (d *Daemon) Start() {
 			d.restartSystem = true
 			d.tomb.Kill(nil)
 		case state.RestartSocket:
+			d.mu.Lock()
+			defer d.mu.Unlock()
 			d.restartSocket = true
 			d.tomb.Kill(nil)
 		default:
@@ -662,7 +669,15 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	err := d.tomb.Wait()
 	if err != nil {
-		return err
+		// do not stop the shutdown even if the tomb errors
+		// because we already scheduled a slow shutdown and
+		// exiting here will just restart snapd (via systemd)
+		// which will lead to confusing results.
+		if restartSystem {
+			logger.Noticef("WARNING: cannot stop daemon: %v", err)
+		} else {
+			return err
+		}
 	}
 
 	if restartSystem {

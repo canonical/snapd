@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 type grub struct{}
@@ -80,4 +81,16 @@ func (g *grub) SetBootVars(values map[string]string) error {
 		env.Set(k, v)
 	}
 	return env.Save()
+}
+
+func (g *grub) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+	// XXX: should we use "kernel.yaml" for this?
+	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
+		return extractKernelAssetsToBootDir(g.Dir(), s, snapf)
+	}
+	return nil
+}
+
+func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
+	return removeKernelAssetsFromBootDir(g.Dir(), s)
 }
