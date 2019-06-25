@@ -20,6 +20,7 @@ const (
 type NetlinkConn struct {
 	Fd   int
 	Addr syscall.SockaddrNetlink
+	buf  []byte
 }
 
 type UEventConn struct {
@@ -47,6 +48,10 @@ func (c *UEventConn) Connect(mode Mode) (err error) {
 		syscall.Close(c.Fd)
 	}
 
+	// this must be rather large for some events, see the reference implementation from systemd:
+	// https://github.com/systemd/systemd/blob/0d92a3088a50212f16bf72672832b2b61dfca551/src/udev/udevadm-monitor.c#L73
+	c.buf = make([]byte, 128*1024*1024)
+
 	return
 }
 
@@ -59,30 +64,14 @@ func (c *UEventConn) Close() error {
 func (c *UEventConn) ReadMsg() (msg []byte, err error) {
 	var n int
 
-	buf := make([]byte, os.Getpagesize())
-	for {
-		// Just read how many bytes are available in the socket
-		if n, _, err = syscall.Recvfrom(c.Fd, buf, syscall.MSG_PEEK); err != nil {
-			return
-		}
-
-		// If all message could be store inside the buffer : break
-		if n < len(buf) {
-			break
-		}
-
-		// Increase size of buffer if not enough
-		buf = make([]byte, len(buf)+os.Getpagesize())
-	}
-
-	// Now read complete data
-	n, _, err = syscall.Recvfrom(c.Fd, buf, 0)
+	// Read complete data
+	n, _, err = syscall.Recvfrom(c.Fd, c.buf, 0)
 	if err != nil {
 		return
 	}
 
 	// Extract only real data from buffer and return that
-	msg = buf[:n]
+	msg = c.buf[:n]
 
 	return
 }
