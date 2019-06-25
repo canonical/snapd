@@ -137,7 +137,6 @@ var seccompSyscallRunnerContent = []byte(`
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include <errno.h>
 #include <inttypes.h>
 int main(int argc, char** argv)
 {

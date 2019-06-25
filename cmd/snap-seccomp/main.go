@@ -467,9 +467,9 @@ func (sc *SeccompData) SetArgs(args [6]uint64) {
 
 // Only support negative args for syscalls where we understand the glibc/kernel
 // prototypes and behavior. This lists all the syscalls that support negative
-// arguments and where we want to ignore the high 32 bits (ie, we'll masq it)
-// since the arg is known to be 32 bit (uid_t/gid_t) and the kernel accepts one
-// or both of uint32(-1) and uint64(-1) and does its own masking.
+// arguments where we want to ignore the high 32 bits (ie, we'll mask it since
+// the arg is known to be 32 bit (uid_t/gid_t) and the kernel accepts one
+// or both of uint32(-1) and uint64(-1) and does its own masking).
 var syscallsWithNegArgsMaskHi32 = map[string]bool{
 	"chown":       true,
 	"chown32":     true,
@@ -511,16 +511,18 @@ func readNumber(token string, syscallName string) (uint64, error) {
 		return value, nil
 	}
 
-	// Not a positive integer, see if negative
+	// Not a positive integer, see if negative is allowed for this syscall
 	if !syscallsWithNegArgsMaskHi32[syscallName] {
 		return 0, fmt.Errorf(`negative argument not supported with "%s"`, syscallName)
 	}
 
+	// It is, so try to parse as an int32
 	value, err := strconv.ParseInt(token, 10, 32)
 	if err != nil {
 		return 0, err
 	}
-	// convert the int64 to uint32 then to uint64 (see above)
+
+	// convert the int32 to uint32 then to uint64 (see above)
 	return uint64(uint32(value)), nil
 }
 
@@ -596,7 +598,8 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		}
 
 		// For now only support EQ with negative args. If change this,
-		// be sure to adjust readNumber accordingly.
+		// be sure to adjust readNumber accordingly and use libseccomp
+		// carefully.
 		if syscallsWithNegArgsMaskHi32[syscallName] {
 			if cmpOp != seccomp.CompareEqual {
 				return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
@@ -606,7 +609,7 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		var scmpCond seccomp.ScmpCondition
 		if cmpOp == seccomp.CompareMaskedEqual {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value, value)
-		} else if syscallsWithNegArgsMaskHi32[syscallName] && cmpOp == seccomp.CompareEqual {
+		} else if syscallsWithNegArgsMaskHi32[syscallName] {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), seccomp.CompareMaskedEqual, 0xFFFFFFFF, value)
 		} else {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value)
