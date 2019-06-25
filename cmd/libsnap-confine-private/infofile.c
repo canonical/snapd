@@ -59,6 +59,11 @@ void sc_infofile_query(FILE *stream, ...) {
             if (nread <= 0) {
                 break; /* There is nothing more to read. */
             }
+            /* Guard against malformed input that may contain NUL bytes that
+             * would confuse the code below. */
+            if (memchr(line_buf, '\0', nread) != NULL) {
+                die("read line contains embedded NUL byte");
+            }
             /* Skip lines shorter than the key length. They cannot match our
              * key. The extra byte ensures that we can look for the equals sign
              * ('='). Note that at this time nread cannot be negative. */
