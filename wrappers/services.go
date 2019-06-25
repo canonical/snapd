@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -600,6 +601,11 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 func renderListenStream(socket *snap.SocketInfo) string {
 	snap := socket.App.Snap
 	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
+	// TODO: when we support User/Group in the generated systemd unit,
+	// adjust this accordingly
+	serviceUserUid := sys.UserID(0)
+	runtimeDir := snap.UserXdgRuntimeDir(serviceUserUid)
+	listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
 	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
 }
 
