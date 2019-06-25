@@ -206,7 +206,16 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
-// InstanceMode determines which instance of systemd to talk to
+// InstanceMode determines which instance of systemd to control.
+//
+// SystemMode refers to the system instance (i.e. pid 1).  UserMode
+// refers to the the instance launched to manage the user's desktop
+// session.  GlobalUserMode controls configuration respected by all
+// user instances on the system.
+//
+// As GlobalUserMode does not refer to a single instance of systemd,
+// some operations are not supported such as starting and stopping
+// daemons.
 type InstanceMode int
 
 const (
@@ -236,6 +245,9 @@ func (s *systemd) systemctl(args ...string) ([]byte, error) {
 
 // DaemonReload reloads systemd's configuration.
 func (s *systemd) DaemonReload() error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call daemon-reload with GlobalUserMode")
+	}
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
@@ -275,12 +287,18 @@ func (s *systemd) Mask(serviceName string) error {
 
 // Start the given service or services
 func (s *systemd) Start(serviceNames ...string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call start with GlobalUserMode")
+	}
 	_, err := s.systemctl(append([]string{"start"}, serviceNames...)...)
 	return err
 }
 
 // StartNoBlock starts the given service or services non-blocking
 func (s *systemd) StartNoBlock(serviceNames ...string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call start with GlobalUserMode")
+	}
 	_, err := s.systemctl(append([]string{"start", "--no-block"}, serviceNames...)...)
 	return err
 }
@@ -395,6 +413,9 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 // Status fetches the status of given units. Statuses are returned in the same
 // order as unit names passed in argument.
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+	if s.mode == GlobalUserMode {
+		panic("cannot call status with GlobalUserMode")
+	}
 	unitToStatus := make(map[string]*UnitStatus, len(unitNames))
 
 	var limitedUnits []string
@@ -442,6 +463,9 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 
 // IsEnabled checkes whether the given service is enabled
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
+	if s.mode == GlobalUserMode {
+		panic("cannot call is-enabled with GlobalUserMode")
+	}
 	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
 	if err == nil {
 		return true, nil
@@ -457,6 +481,9 @@ func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 
 // IsActive checkes whether the given service is Active
 func (s *systemd) IsActive(serviceName string) (bool, error) {
+	if s.mode == GlobalUserMode {
+		panic("cannot call is-active with GlobalUserMode")
+	}
 	_, err := s.systemctl("--root", s.rootDir, "is-active", serviceName)
 	if err == nil {
 		return true, nil
@@ -471,6 +498,9 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call stop with GlobalUserMode")
+	}
 	if _, err := s.systemctl("stop", serviceName); err != nil {
 		return err
 	}
@@ -511,6 +541,9 @@ loop:
 
 // Kill all processes of the unit with the given signal
 func (s *systemd) Kill(serviceName, signal, who string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call kill with GlobalUserMode")
+	}
 	if who == "" {
 		who = "all"
 	}
@@ -520,6 +553,9 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 
 // Restart the service, waiting for it to stop before starting it again.
 func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call restart with GlobalUserMode")
+	}
 	if err := s.Stop(serviceName, timeout); err != nil {
 		return err
 	}
