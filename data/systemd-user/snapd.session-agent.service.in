@@ -1,5 +1,5 @@
 [Unit]
-Description=Snapd's user session agent
+Description=snapd user session agent
 Requires=snapd.session-agent.socket
 
 [Service]

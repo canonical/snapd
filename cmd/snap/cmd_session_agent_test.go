@@ -40,9 +40,8 @@ import (
 type sessionAgentSuite struct {
 	BaseSnapSuite
 
-	restoreLogger func()
-	socketPath    string
-	client        *http.Client
+	socketPath string
+	client     *http.Client
 }
 
 var _ = Suite(&sessionAgentSuite{})
@@ -50,7 +49,8 @@ var _ = Suite(&sessionAgentSuite{})
 func (s *sessionAgentSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
-	_, s.restoreLogger = logger.MockLogger()
+	_, restore := logger.MockLogger()
+	s.AddCleanup(restore)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
@@ -62,12 +62,6 @@ func (s *sessionAgentSuite) SetUpTest(c *C) {
 		DisableKeepAlives: true,
 	}
 	s.client = &http.Client{Transport: transport}
-}
-
-func (s *sessionAgentSuite) TearDownTest(c *C) {
-	s.BaseSnapSuite.TearDownTest(c)
-
-	s.restoreLogger()
 }
 
 func (s *sessionAgentSuite) TestSessionAgentBadCommandline(c *C) {
