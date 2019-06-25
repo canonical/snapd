@@ -61,6 +61,11 @@ typedef struct sc_error {
 #define SC_ERRNO_DOMAIN "errno"
 
 /**
+ * Error domain for errors in the libsnap-confine-private library.
+ **/
+#define SC_INTERNAL_DOMAIN "libsnap-confine-private"
+
+/**
  * Initialize a new error object.
  *
  * The domain is a cookie-like string that allows the caller to distinguish
