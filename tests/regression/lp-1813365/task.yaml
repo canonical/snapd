@@ -11,4 +11,4 @@ restore: |
     rm -f /tmp/logger.log
 execute: |
     su -l -c "$(pwd)/helper" test
-    ! test -e /tmp/logger.log
+    not test -e /tmp/logger.log

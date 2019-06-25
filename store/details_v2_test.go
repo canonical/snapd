@@ -164,7 +164,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			Paid:              false,
 		},
 		Epoch:       snap.E("0"),
-		Type:        snap.TypeOS,
+		SnapType:    snap.TypeOS,
 		Version:     "16-2.30",
 		Confinement: snap.StrictConfinement,
 		Publisher: snap.StoreAccount{
@@ -215,7 +215,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			Read:  []uint32{0, 1},
 			Write: []uint32{1},
 		},
-		Type:        snap.TypeApp,
+		SnapType:    snap.TypeApp,
 		Version:     "9.50",
 		Confinement: snap.StrictConfinement,
 		License:     "Proprietary",

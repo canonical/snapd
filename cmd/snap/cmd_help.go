@@ -48,8 +48,18 @@ func addHelp(parser *flags.Parser) error {
 		// on which help is being requested (like "snap foo
 		// --help", active is foo), or nil in the toplevel.
 		if parser.Command.Active == nil {
-			// toplevel --help will get handled via ErrCommandRequired
-			return nil
+			// this means *either* a bare 'snap --help',
+			// *or* 'snap --help command'
+			//
+			// If we return nil in the first case go-flags
+			// will throw up an ErrCommandRequired on its
+			// own, but in the second case it'll go on to
+			// run the command, which is very unexpected.
+			//
+			// So we force the ErrCommandRequired here.
+
+			// toplevel --help gets handled via ErrCommandRequired
+			return &flags.Error{Type: flags.ErrCommandRequired}
 		}
 		// not toplevel, so ask for regular help
 		return &flags.Error{Type: flags.ErrHelp}

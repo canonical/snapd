@@ -112,6 +112,7 @@ var (
 	RefreshAliases        = refreshAliases
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
+	SwitchSummary         = switchSummary
 )
 
 // readme files

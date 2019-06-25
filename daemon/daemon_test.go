@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
@@ -450,6 +450,10 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 
 	expected := make([]string, len(api))
 	for i, v := range api {
+		if v.PathPrefix != "" {
+			expected[i] = v.PathPrefix
+			continue
+		}
 		expected[i] = v.Path
 	}
 
@@ -502,7 +506,7 @@ func (s *daemonSuite) markSeeded(d *Daemon) {
 	st := d.overlord.State()
 	st.Lock()
 	st.Set("seeded", true)
-	devicestate.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "serialserial",

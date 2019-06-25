@@ -655,8 +655,7 @@ type: 21686148-6449-6E6F-744E-656564454649
 size: 1023
 `
 	bareType := `
-type: mbr
-size: 446
+type: bare
 `
 	invalidSystemDataLabel := uuidType + `
 role: system-data
@@ -668,6 +667,7 @@ role: mbr
 size: 467`
 	mbrBadOffset := bareType + `
 role: mbr
+size: 446
 offset: 123`
 	mbrBadID := bareType + `
 role: mbr
@@ -675,15 +675,13 @@ id: 123
 size: 446`
 	mbrBadFilesystem := bareType + `
 role: mbr
+size: 446
 filesystem: vfat`
 	mbrNoneFilesystem := `
 type: bare
 role: mbr
 filesystem: none
 size: 446`
-	typeAsMBRTooLarge := `
-type: mbr
-size: 447`
 	typeConflictsRole := `
 type: bare
 role: system-data
@@ -702,6 +700,17 @@ size: 123M
 	legacyMBR := `
 type: mbr
 size: 446`
+	legacyTypeMatchingRole := `
+type: mbr
+role: mbr
+size: 446`
+	legacyTypeConflictsRole := `
+type: mbr
+role: system-data
+size: 446`
+	legacyTypeAsMBRTooLarge := `
+type: mbr
+size: 447`
 	vol := &gadget.Volume{}
 	mbrVol := &gadget.Volume{Schema: gadget.MBR}
 	for i, tc := range []struct {
@@ -725,7 +734,9 @@ size: 446`
 		{mustParseStructure(c, mbrNoneFilesystem), mbrVol, ""},
 		// legacy, type: mbr treated like role: mbr
 		{mustParseStructure(c, legacyMBR), mbrVol, ""},
-		{mustParseStructure(c, typeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, legacyTypeMatchingRole), mbrVol, ""},
+		{mustParseStructure(c, legacyTypeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, legacyTypeConflictsRole), vol, `invalid role "system-data": conflicting legacy type: "mbr"`},
 		// conflicting type/role
 		{mustParseStructure(c, typeConflictsRole), vol, `invalid role "system-data": conflicting type: "bare"`},
 	} {
@@ -949,52 +960,6 @@ volumes:
           - image: pc-core.img
             offset-write: bad-name+123
 `
-	gadgetYamlBadOffsetWriteCrossingSize := gadgetYamlHeader + `
-      - name: other-name
-        type: bare
-        size: 1M
-        offset: 1M
-        offset-write: my-name-is+438
-        content:
-          - image: pc-core.img
-`
-	gadgetYamlBadContentOffsetWriteCrossingSize := gadgetYamlHeader + `
-      - name: other-name
-        type: bare
-        size: 1M
-        offset: 1M
-        content:
-          - image: pc-core.img
-            offset-write: my-name-is+438
-`
-
-	gadgetYamlHeaderSmall := `
-volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: too-small
-        type: bare
-        size: 3
-`
-	gadgetYamlBadContentOffsetWriteTooSmall := gadgetYamlHeaderSmall + `
-      - name: other-name
-        type: bare
-        size: 1M
-        offset: 1M
-        content:
-          - image: pc-core.img
-            offset-write: too-small+0
-`
-	gadgetYamlBadOffsetWriteTooSmall := gadgetYamlHeaderSmall + `
-      - name: other-name
-        type: bare
-        size: 1M
-        offset: 1M
-        offset-write: too-small+0
-        content:
-          - image: pc-core.img
-`
 
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
@@ -1007,30 +972,6 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
-
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadOffsetWriteCrossingSize), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = gadget.ReadInfo(s.dir, false)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) offset-write crosses structure #0 \("my-name-is"\) size`)
-
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadOffsetWriteTooSmall), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = gadget.ReadInfo(s.dir, false)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) offset-write crosses structure #0 \("too-small"\) size`)
-
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadContentOffsetWriteCrossingSize), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = gadget.ReadInfo(s.dir, false)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) offset-write crosses structure "my-name-is" size`)
-
-	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadContentOffsetWriteTooSmall), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = gadget.ReadInfo(s.dir, false)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) offset-write crosses structure "too-small" size`)
 
 }
 
