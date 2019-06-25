@@ -341,6 +341,7 @@ var defaultTemplate = `
   @{PROC}/@{pid}/task/[0-9]*/stat r,
   @{PROC}/@{pid}/task/[0-9]*/statm r,
   @{PROC}/@{pid}/task/[0-9]*/status r,
+  @{PROC}/sys/fs/pipe-max-size r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
   @{PROC}/sys/kernel/ostype r,
