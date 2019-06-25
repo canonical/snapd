@@ -55,11 +55,11 @@ int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
             err = sc_error_init_from_errno(errno, "cannot set stream position");
             goto out;
         }
-        for (;;) { /* This loop advances through subsequent lines. */
+        for (int lineno = 1;; ++lineno) { /* This loop advances through subsequent lines. */
             errno = 0;
             ssize_t nread = getline(&line_buf, &line_size, stream);
             if (nread < 0 && errno != 0) {
-                err = sc_error_init_from_errno(errno, "cannot read another line");
+                err = sc_error_init_from_errno(errno, "cannot read beyond line %d", lineno);
                 goto out;
             }
             if (nread <= 0) {
@@ -68,9 +68,16 @@ int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
             /* Guard against malformed input that may contain NUL bytes that
              * would confuse the code below. */
             if (memchr(line_buf, '\0', nread) != NULL) {
-                err = sc_error_init(SC_INTERNAL_DOMAIN, 0, "read line contains embedded NUL byte");
+                err = sc_error_init(SC_INTERNAL_DOMAIN, 0, "line %d contains NUL byte", lineno);
                 goto out;
             }
+            /* Guard against malformed input that does not contain '=' byte */
+            char *eq_ptr = memchr(line_buf, '=', nread);
+            if (eq_ptr == NULL) {
+                err = sc_error_init(SC_INTERNAL_DOMAIN, 0, "line %d is not a key=value assignment", lineno);
+                goto out;
+            }
+
             /* Skip lines shorter than the key length. They cannot match our
              * key. The extra byte ensures that we can look for the equals sign
              * ('='). Note that at this time nread cannot be negative. */
