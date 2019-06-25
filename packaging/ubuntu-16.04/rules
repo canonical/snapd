@@ -246,12 +246,6 @@ override_dh_install:
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
-	# We have to disable the systemd generator on bionic because of
-	# the systemd bug LP: 1771858. Enabling it caused bug #1811233
-ifeq (${VERSION_ID},"18.04")
-	chmod -x ${CURDIR}/debian/tmp/usr/lib/systemd/system-environment-generators/snapd-env-generator
-endif
-
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
 
