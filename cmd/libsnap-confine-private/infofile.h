@@ -20,6 +20,8 @@
 
 #include <stdio.h>
 
+#include "../libsnap-confine-private/error.h"
+
 /**
  * sc_infofile_query extracts specific KEY=VALUE fields from a given file.
  *
@@ -37,7 +39,12 @@
  * If the key is missing the value is set to NULL. If the key is found the
  * value is set to a dynamically allocated copy of the value. The caller is
  * responsible for calling free on the returned values.
+ *
+ * The return value on success is zero. On failure -1 is returned and more
+ * information is conveyed through the err_out pointer, which contains the
+ * forwareded error. If the error cannot be forwarded the program dies,
+ * printing the error message.
  **/
-void sc_infofile_query(FILE *stream, ...) __attribute__((sentinel));
+int sc_infofile_query(FILE *stream, sc_error **err_out, ...) __attribute__((sentinel));
 
 #endif
