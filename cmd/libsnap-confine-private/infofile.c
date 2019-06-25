@@ -42,9 +42,10 @@ void sc_infofile_query(FILE *stream, ...) {
             break;
         }
         char **value = va_arg(ap, char **);
-        if (value != NULL) {
-            *value = NULL;
+        if (value == NULL) {
+            die("no storage provided for key %s", key);
         }
+        *value = NULL;
         size_t key_len = strlen(key);
         if (fsetpos(stream, &start_pos) < 0) {
             die("cannot set stream position");
@@ -73,9 +74,7 @@ void sc_infofile_query(FILE *stream, ...) {
              * equals sign then this is a matching entry. Copy it to the
              * provided pointer, if any, and stop searching. */
             if (strstr(line_buf, key) == line_buf && line_buf[key_len] == '=') {
-                if (value != NULL) {
-                    *value = sc_strdup(line_buf + key_len + 1);
-                }
+                *value = sc_strdup(line_buf + key_len + 1);
                 break;
             }
         }
