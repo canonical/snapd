@@ -408,27 +408,30 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 			die("cannot join preserved mount namespace");
 		}
 		// Check if the namespace needs to be discarded.
-		//
+		eventfd_t value = SC_DISCARD_NO;
+		const char *value_str = "no";
+
 		// TODO: enable this for core distributions. This is complex because on
 		// core the rootfs is mounted in initrd and is _not_ changed (no
 		// pivot_root) and the base snap is again mounted (2nd time) by
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
-		bool should_discard = inv->is_normal_mode ?
-		    should_discard_current_ns(base_snap_dev) : false;
+		if (inv->is_normal_mode
+		    && should_discard_current_ns(base_snap_dev)) {
+			value = SC_DISCARD_SHOULD;
+			value_str = "should";
 
-		// The namespace is stale, let's check if we must discard it because
-		// base snap has changed. We must do so even though the "view" of the
-		// snap mount namespace becomes fractured because otherwise snaps might
-		// run against the base snap declared by an older revision of the app
-		// snap, For more information see LP: #1819875
-		bool must_discard = is_base_transition(inv);
-
-		eventfd_t value =
-		    should_discard ? must_discard ? SC_DISCARD_MUST :
-		    SC_DISCARD_SHOULD : SC_DISCARD_NO;
-		const char *value_str =
-		    should_discard ? must_discard ? "must" : "should" : "no";
+			// The namespace is stale, let's check if we must discard it because
+			// base snap has changed. We must do so even though the "view" of the
+			// snap mount namespace becomes fractured because otherwise snaps might
+			// run against the base snap declared by an older revision of the app
+			// snap, For more information see LP: #1819875
+			if (is_base_transition(inv)) {
+				// The base snap has changed. We must discard ...
+				value = SC_DISCARD_MUST;
+				value_str = "must";
+			}
+		}
 		// Send this back to the parent: 3 - force discard 2 - prefer discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
 		if (eventfd_write(event_fd, value) < 0) {
