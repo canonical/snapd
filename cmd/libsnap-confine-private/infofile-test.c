@@ -31,19 +31,19 @@ static void test_infofile_query(void) {
 
     /* Keys that are not found get NULL values. */
     char *value = (void *)0xfefefefe;
-    sc_infofile_query(stream, "missing-key", &value, NULL);
+    sc_infofile_query(stream, NULL, "missing-key", &value, NULL);
     g_assert_null(value);
 
     /* Keys that are found get strdup-duplicated values. */
     value = NULL;
-    sc_infofile_query(stream, "key", &value, NULL);
+    sc_infofile_query(stream, NULL, "key", &value, NULL);
     g_assert_nonnull(value);
     g_assert_cmpstr(value, ==, "value");
     free(value);
 
     /* Multiple keys can be extracted on one go. */
     char *other_value;
-    sc_infofile_query(stream, "key", &value, "other-key", &other_value, NULL);
+    sc_infofile_query(stream, NULL, "key", &value, "other-key", &other_value, NULL);
     g_assert_nonnull(value);
     g_assert_nonnull(other_value);
     g_assert_cmpstr(value, ==, "value");
@@ -52,7 +52,7 @@ static void test_infofile_query(void) {
     free(other_value);
 
     /* Order in which keys are extracted does not matter. */
-    sc_infofile_query(stream, "other-key", &other_value, "key", &value, NULL);
+    sc_infofile_query(stream, NULL, "other-key", &other_value, "key", &value, NULL);
     g_assert_nonnull(value);
     g_assert_nonnull(other_value);
     g_assert_cmpstr(value, ==, "value");
@@ -62,7 +62,7 @@ static void test_infofile_query(void) {
 
     /* When duplicate keys are present the first value is extracted. */
     char *dup_value;
-    sc_infofile_query(stream, "dup-key", &dup_value, NULL);
+    sc_infofile_query(stream, NULL, "dup-key", &dup_value, NULL);
     g_assert_nonnull(dup_value);
     g_assert_cmpstr(dup_value, ==, "value-one");
     free(dup_value);

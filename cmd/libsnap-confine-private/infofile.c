@@ -22,16 +22,19 @@
 #include <string.h>
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/error.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
-void sc_infofile_query(FILE *stream, ...) {
+int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
     va_list ap;
-    va_start(ap, stream);
+    va_start(ap, err_out);
+    sc_error *err = NULL;
 
     fpos_t start_pos;
     if (fgetpos(stream, &start_pos) < 0) {
-        die("cannot determine stream position");
+        err = sc_error_init_from_errno(errno, "cannot determine stream position");
+        goto out;
     }
 
     size_t line_size = 0;
@@ -43,18 +46,21 @@ void sc_infofile_query(FILE *stream, ...) {
         }
         char **value = va_arg(ap, char **);
         if (value == NULL) {
-            die("no storage provided for key %s", key);
+            err = sc_error_init(SC_INTERNAL_DOMAIN, 0, "no storage provided for key %s", key);
+            goto out;
         }
         *value = NULL;
         size_t key_len = strlen(key);
         if (fsetpos(stream, &start_pos) < 0) {
-            die("cannot set stream position");
+            err = sc_error_init_from_errno(errno, "cannot set stream position");
+            goto out;
         }
         for (;;) { /* This loop advances through subsequent lines. */
             errno = 0;
             ssize_t nread = getline(&line_buf, &line_size, stream);
             if (nread < 0 && errno != 0) {
-                die("cannot read another line");
+                err = sc_error_init_from_errno(errno, "cannot read another line");
+                goto out;
             }
             if (nread <= 0) {
                 break; /* There is nothing more to read. */
@@ -62,7 +68,8 @@ void sc_infofile_query(FILE *stream, ...) {
             /* Guard against malformed input that may contain NUL bytes that
              * would confuse the code below. */
             if (memchr(line_buf, '\0', nread) != NULL) {
-                die("read line contains embedded NUL byte");
+                err = sc_error_init(SC_INTERNAL_DOMAIN, 0, "read line contains embedded NUL byte");
+                goto out;
             }
             /* Skip lines shorter than the key length. They cannot match our
              * key. The extra byte ensures that we can look for the equals sign
@@ -86,6 +93,11 @@ void sc_infofile_query(FILE *stream, ...) {
     }
     va_end(ap);
     if (fsetpos(stream, &start_pos) < 0) {
-        die("cannot set stream position");
+        err = sc_error_init_from_errno(errno, "cannot set stream position");
+        goto out;
     }
+
+out:
+    sc_error_forward(err_out, err);
+    return err != NULL ? -1 : 0;
 }
