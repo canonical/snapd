@@ -19,6 +19,7 @@
 #include "infofile.c"
 
 #include <glib.h>
+#include <unistd.h>
 
 static void test_infofile_query(void) {
     int rc;
@@ -47,6 +48,13 @@ static void test_infofile_query(void) {
     g_assert_nonnull(value);
     g_assert_cmpstr(value, ==, "value");
     free(value);
+
+    /* Caller must provide storage for each value. */
+    rc = sc_infofile_query(stream, &err, "key", NULL, NULL);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_msg(err), ==, "no storage provided for key key");
+    sc_error_free(err);
 
     /* Multiple keys can be extracted on one go. */
     char *other_value;
@@ -82,14 +90,17 @@ static void test_infofile_query(void) {
 
     fclose(stream);
 
+    /* Various imperfect input */
     char *malformed_value;
-
     char malformed1[] = "key\n";
     stream = fmemopen(malformed1, sizeof malformed1 - 1, "r");
     g_assert_nonnull(stream);
     rc = sc_infofile_query(stream, &err, "key", &malformed_value, NULL);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_INTERNAL_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, 0);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line 1 is not a key=value assignment");
     g_assert_null(malformed_value);
     sc_error_free(err);
     fclose(stream);
@@ -100,6 +111,9 @@ static void test_infofile_query(void) {
     rc = sc_infofile_query(stream, &err, "key", &malformed_value, NULL);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_INTERNAL_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, 0);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line 1 contains NUL byte");
     g_assert_null(malformed_value);
     sc_error_free(err);
     fclose(stream);
@@ -114,6 +128,23 @@ static void test_infofile_query(void) {
     sc_error_free(err);
     fclose(stream);
     free(malformed_value);
+
+    /* Stream must be seekable */
+    int pipefd[2];
+    rc = pipe(pipefd);
+    g_assert_cmpint(rc, ==, 0);
+    stream = fdopen(pipefd[0], "r");
+    g_assert_nonnull(stream);
+    rc = sc_infofile_query(stream, &err, NULL);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_ERRNO_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, ESPIPE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "cannot determine stream position");
+    g_assert_nonnull(err);
+    sc_error_free(err);
+    fclose(stream);
+    close(pipefd[0]);
+    close(pipefd[1]);
 }
 
 static void __attribute__((constructor)) init(void) { g_test_add_func("/infofile/query", test_infofile_query); }
