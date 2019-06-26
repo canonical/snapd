@@ -101,8 +101,8 @@ label: gpt
 first-lba: 34
 label-id: 123-123
 
-1 : start=2048, size=8192, type=21686148-6449-6E6F-744E-656564454649, name="foo"
-2 : start=10240, size=24576, type=21686148-6449-6E6F-744E-656564454650, name="bar"
+start=2048, size=8192, type=21686148-6449-6E6F-744E-656564454649, name="foo"
+start=10240, size=24576, type=21686148-6449-6E6F-744E-656564454650, name="bar"
 `)
 	c.Assert(s.sfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "foo"},
@@ -165,8 +165,8 @@ func (s *partitionSuite) TestMBRHappy(c *C) {
 label: dos
 label-id: 0x123
 
-1 : start=2048, size=262144, type=0C, bootable
-2 : start=264192, size=24576
+start=2048, size=262144, type=0C, bootable
+start=264192, size=24576
 `)
 	c.Assert(s.sfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "foo"},
@@ -196,7 +196,7 @@ func (s *partitionSuite) TestHybridType(c *C) {
 label: gpt
 first-lba: 34
 
-1 : start=2048, size=4096, type=21686148-6449-6E6F-744E-656564454649
+start=2048, size=4096, type=21686148-6449-6E6F-744E-656564454649
 `)
 
 	pvMBR := &gadget.PositionedVolume{
@@ -212,7 +212,7 @@ first-lba: 34
 	c.Assert(s.input(c), Equals, `unit: sectors
 label: dos
 
-1 : start=2048, size=4096, type=0C
+start=2048, size=4096, type=0C
 `)
 }
 

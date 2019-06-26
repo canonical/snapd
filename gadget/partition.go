@@ -73,17 +73,14 @@ func Partition(image string, pv *PositionedVolume) error {
 	}
 	fmt.Fprintf(script, "\n")
 
-	nonBareIdx := 0
 	for _, ps := range pv.PositionedStructure {
 		if ps.Type == "bare" || ps.Type == "mbr" {
 			continue
 		}
 
-		nonBareIdx++
-
 		start := asSector(ps.StartOffset)
 		size := asSector(ps.Size)
-		fmt.Fprintf(script, "%v : start=%v, size=%v", nonBareIdx, start, size)
+		fmt.Fprintf(script, "start=%v, size=%v", start, size)
 
 		mbrType, gptType := splitType(ps.Type)
 		pType := mbrType
