@@ -55,7 +55,6 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
-	snapdSnapTypeMigrationOnce      bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.

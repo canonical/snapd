@@ -630,7 +630,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
-func (s *snapmgrTestSuite) TestInstallSetsSnapdSnapType(c *C) {
+func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
 	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
 	defer restore()
 
@@ -9638,96 +9638,6 @@ func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 	s.state.Lock()
 
 	// no failure report was generated
-}
-
-func (s *snapmgrTestSuite) TestEnsureUpdatesSnapdSnapTypeOnce(c *C) {
-	st := s.state
-
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
-	sideInfo := &snap.SideInfo{RealName: "snapd", Revision: snap.R(10), SnapID: "snapd-id"}
-	snaptest.MockSnap(c, `
-name: snap
-`, sideInfo)
-
-	initialSnapState := &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  sideInfo.Revision,
-		SnapType: "app",
-	}
-
-	st.Lock()
-	snapstate.Set(s.state, "snapd", initialSnapState)
-	st.Unlock()
-
-	s.snapmgr.Ensure()
-
-	st.Lock()
-	defer st.Unlock()
-
-	var snapSt snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, "snapd", &snapSt), IsNil)
-	tp, err := snapSt.Type()
-	c.Assert(err, IsNil)
-
-	// first run of Ensure updated snapd snap type
-	c.Check(tp, Equals, snap.TypeSnapd)
-
-	// reset snapd snap back to 'app' to test that ensureSnapdSnapType runs only once.
-	snapstate.Set(s.state, "snapd", initialSnapState)
-
-	st.Unlock()
-	s.snapmgr.Ensure()
-	st.Lock()
-
-	// snapd is not updated
-	c.Assert(snapstate.Get(s.state, "snapd", &snapSt), IsNil)
-	tp, err = snapSt.Type()
-	c.Assert(err, IsNil)
-	c.Check(tp, Equals, snap.TypeApp)
-}
-
-func (s *snapmgrTestSuite) TestEnsureUpdatesSnapdSnapTypeTasks(c *C) {
-	st := s.state
-
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
-	si := &snap.SideInfo{RealName: "snapd", Revision: snap.R(10), SnapID: "snapd-id"}
-	sup := snapstate.SnapSetup{
-		SideInfo: si,
-		Type:     "app",
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	task1 := st.NewTask("kind", "...")
-	task1.Set("snap-setup", &sup)
-	task2 := st.NewTask("kind", "...") // irrelevant task, no snap-setup
-	chg1 := st.NewChange("", "")
-	chg1.AddTask(task1)
-	chg1.AddTask(task2)
-
-	task3 := st.NewTask("kind", "...")
-	task3.Set("snap-setup", &sup) // irrelevant task, status is Done
-	chg2 := st.NewChange("", "")
-	chg2.AddTask(task3)
-	chg2.SetStatus(state.DoneStatus)
-
-	st.Unlock()
-	s.snapmgr.Ensure()
-	st.Lock()
-
-	c.Assert(task1.Get("snap-setup", &sup), IsNil)
-	c.Check(sup.Type, Equals, snap.TypeSnapd)
-
-	c.Assert(task2.Get("snap-setup", &sup), Equals, state.ErrNoState)
-
-	c.Assert(task3.Get("snap-setup", &sup), IsNil)
-	c.Check(sup.Type, Equals, snap.TypeSnapd)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
