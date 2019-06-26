@@ -980,16 +980,16 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	c.Check(d.restartSocket, check.Equals, false)
 }
 
-func (s *daemonSuite) TestShutdownServerCanShutdown(c *check.C) {
-	shush := newShutdownServer(nil, nil)
-	c.Check(shush.CanStandby(), check.Equals, true)
+func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
+	ct := &connTracker{conns: make(map[net.Conn]struct{})}
+	c.Check(ct.CanStandby(), check.Equals, true)
 
 	con := &net.IPConn{}
-	shush.conns[con] = http.StateActive
-	c.Check(shush.CanStandby(), check.Equals, false)
+	ct.trackConn(con, http.StateActive)
+	c.Check(ct.CanStandby(), check.Equals, false)
 
-	shush.conns[con] = http.StateIdle
-	c.Check(shush.CanStandby(), check.Equals, true)
+	ct.trackConn(con, http.StateIdle)
+	c.Check(ct.CanStandby(), check.Equals, true)
 }
 
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
