@@ -90,16 +90,6 @@ type patch62SnapSetup struct {
 	InstanceKey string `json:"instance-key,omitempty"`
 }
 
-type patch62DeltaInfo struct {
-	FromRevision    int    `json:"from-revision,omitempty"`
-	ToRevision      int    `json:"to-revision,omitempty"`
-	Format          string `json:"format,omitempty"`
-	AnonDownloadURL string `json:"anon-download-url,omitempty"`
-	DownloadURL     string `json:"download-url,omitempty"`
-	Size            int64  `json:"size,omitempty"`
-	Sha3_384        string `json:"sha3-384,omitempty"`
-}
-
 type patch62auxStoreInfo struct {
 	Media interface{} `json:"media,omitempty"`
 }
@@ -143,20 +133,19 @@ func patch6_2(st *state.State) error {
 	}
 
 	// migrate tasks' snap setup
-	tasks := st.Tasks()
-	for _, task := range tasks {
+	for _, task := range st.Tasks() {
 		if task.Status().Ready() {
 			continue
 		}
 
-		var snapsup *patch62SnapSetup
+		var snapsup patch62SnapSetup
 		err := task.Get("snap-setup", &snapsup)
 		if err != nil && err != state.ErrNoState {
 			return fmt.Errorf("internal error: cannot get snap-setup of task %s: %s", task.ID(), err)
 		}
 
-		if err == nil && snapsup != nil && snapsup.SideInfo != nil {
-			if snap.SnapIDSnapd(snapsup.SideInfo.SnapID) && snapsup.Type != snap.TypeSnapd {
+		if err == nil && snapsup.SideInfo != nil {
+			if snapsup.Type != snap.TypeSnapd && snap.SnapIDSnapd(snapsup.SideInfo.SnapID) {
 				snapsup.Type = snap.TypeSnapd
 				task.Set("snap-setup", snapsup)
 			}
