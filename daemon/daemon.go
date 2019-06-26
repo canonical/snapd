@@ -58,11 +58,10 @@ var systemdSdNotify = systemd.SdNotify
 type Daemon struct {
 	Version         string
 	overlord        *overlord.Overlord
-	connTracker     *connTracker
 	snapdListener   net.Listener
-	snapdServe      *http.Server
 	snapListener    net.Listener
-	snapServe       *http.Server
+	connTracker     *connTracker
+	serve           *http.Server
 	tomb            tomb.Tomb
 	router          *mux.Router
 	standbyOpinions *standby.StandbyOpinions
@@ -377,15 +376,6 @@ var (
 	shutdownTimeout = 25 * time.Second
 )
 
-func httpShutdown(server *http.Server) error {
-	// We're using the background context here because the tomb's
-	// context will likely already have been cancelled when we are
-	// called.
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	return server.Shutdown(ctx)
-}
-
 type connTracker struct {
 	mu    sync.Mutex
 	conns map[net.Conn]struct{}
@@ -450,11 +440,7 @@ func (d *Daemon) Start() {
 	})
 
 	d.connTracker = &connTracker{conns: make(map[net.Conn]struct{})}
-	d.snapdServe = &http.Server{
-		Handler:   logit(d.router),
-		ConnState: d.connTracker.trackConn,
-	}
-	d.snapServe = &http.Server{
+	d.serve = &http.Server{
 		Handler:   logit(d.router),
 		ConnState: d.connTracker.trackConn,
 	}
@@ -468,7 +454,7 @@ func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
 		if d.snapListener != nil {
 			d.tomb.Go(func() error {
-				if err := d.snapServe.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+				if err := d.serve.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
 					return err
 				}
 
@@ -476,7 +462,7 @@ func (d *Daemon) Start() {
 			})
 		}
 
-		if err := d.snapdServe.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+		if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -538,10 +524,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		time.Sleep(rebootNoticeWait)
 	}
 
-	d.tomb.Kill(httpShutdown(d.snapdServe))
-	if d.snapListener != nil {
-		d.tomb.Kill(httpShutdown(d.snapServe))
-	}
+	// We're using the background context here because the tomb's
+	// context will likely already have been cancelled when we are
+	// called.
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	d.tomb.Kill(d.serve.Shutdown(ctx))
+	cancel()
 
 	if !restartSystem {
 		// tell systemd that we are stopping

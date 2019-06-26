@@ -530,14 +530,16 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	})
 	st.Unlock()
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l1, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	l2, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+	d.snapdListener = &witnessAcceptListener{Listener: l1, accept: snapdAccept}
 
 	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
+	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
 
 	d.Start()
 
