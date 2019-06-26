@@ -52,7 +52,7 @@ const fuseSupportConnectedPlugAppArmor = `
 capability sys_admin,
 
 # Allow mounts to our snap-specific writable directories
-# Note 1: fstype is 'fuse.<command>', eg 'fuse.sshfs'
+# Note 1: fstype is 'fuse' or 'fuse.<command>', eg 'fuse.sshfs'
 # Note 2: due to LP: #1612393 - @{HOME} can't be used in mountpoint
 # Note 3: local fuse mounts of filesystem directories are mediated by
 #         AppArmor. The actual underlying file in the source directory is
@@ -65,16 +65,16 @@ capability sys_admin,
 #         read-only.
 #
 # parallel-installs: SNAP_USER_{DATA,COMMON} are not remapped, need to use SNAP_INSTANCE_NAME
-mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/{,**/},
-mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/{,**/},
-mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/common/{,**/},
-mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/common/{,**/},
+mount fstype=fuse* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/{,**/},
+mount fstype=fuse* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/{,**/},
+mount fstype=fuse* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/common/{,**/},
+mount fstype=fuse* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_INSTANCE_NAME}/common/{,**/},
 # parallel-installs: SNAP_{DATA,COMMON} are remapped, use SNAP_NAME instead, for
 # completeness allow SNAP_INSTANCE_NAME too
-mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/},
-mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/},
-mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/},
-mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/},
+mount fstype=fuse* options=(ro,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/},
+mount fstype=fuse* options=(rw,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/},
+mount fstype=fuse* options=(ro,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/},
+mount fstype=fuse* options=(rw,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/},
 
 # Explicitly deny reads to /etc/fuse.conf. We do this to ensure that
 # the safe defaults of fuse are used (which are enforced by our mount
