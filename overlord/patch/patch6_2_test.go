@@ -83,7 +83,7 @@ var statePatch6_2JSON = []byte(`
 				},
 				"snap-names": ["snapd"]
 				},
-				"task-ids": ["1"]
+				"task-ids": ["1", "8"]
 			}
 	  },
 	  "tasks": {
@@ -93,11 +93,6 @@ var statePatch6_2JSON = []byte(`
 			"summary": "...",
 			"status": 2,
 			"clean": true,
-			"progress": {
-			  "label": "...",
-			  "done": 1,
-			  "total": 2
-			},
 			"data": {
 			  "snap-setup": {
 				"channel": "stable",
@@ -107,7 +102,7 @@ var statePatch6_2JSON = []byte(`
 				"download-info": {
 				  "download-url": "foo",
 				  "size": 1234,
-				  "sha3-384": "1",
+				  "sha3-384": "123456",
 				  "deltas": [
 					{
 					  "from-revision": 10934,
@@ -124,10 +119,7 @@ var statePatch6_2JSON = []byte(`
 				  "snap-id": "snapd-snap-id",
 				  "revision": "1",
 				  "channel": "stable",
-				  "contact": "foo",
-				  "title": "snapd",
-				  "summary": "...",
-				  "description": "..."
+				  "title": "snapd"
 				},
 				"media": [
 				  {
@@ -153,8 +145,27 @@ var statePatch6_2JSON = []byte(`
 				]
 			  }
 			},
-			"wait-tasks": ["3"],
-			"halt-tasks": ["4"],
+			"change": "6"
+		  },
+		  "8": {
+			"id": "1",
+			"kind": "other",
+			"summary": "",
+			"status": 4,
+			"data": {
+			  "snap-setup": {
+				"channel": "stable",
+				"type": "app",
+				"snap-path": "/path",
+				"side-info": {
+				  "name": "snapd",
+				  "snap-id": "snapd-snap-id",
+				  "revision": "1",
+				  "channel": "stable",
+				  "title": "snapd"
+				}
+			  }
+			},
 			"change": "6"
 		  }
 		}
@@ -192,7 +203,7 @@ func (s *patch62Suite) TestPatch62(c *C) {
 
 	// our mocks are correct
 	c.Assert(st.Changes(), HasLen, 1)
-	c.Assert(st.Tasks(), HasLen, 1)
+	c.Assert(st.Tasks(), HasLen, 2)
 
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(st, "snapd", &snapst), IsNil)
@@ -211,10 +222,17 @@ func (s *patch62Suite) TestPatch62(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
 
-	// sanity check
+	// sanity check, structures not defined explicitely via patch62* are preserved
 	c.Check(snapsup.Flags.IsAutoRefresh, Equals, true)
 	c.Assert(snapsup.Media, HasLen, 5)
 	c.Check(snapsup.Media[0].URL, Equals, "a")
 	c.Assert(snapsup.DownloadInfo, NotNil)
 	c.Check(snapsup.DownloadInfo.DownloadURL, Equals, "foo")
+	c.Check(snapsup.DownloadInfo.Deltas, HasLen, 1)
+
+	// task with 'Done' status is not updated
+	task = st.Task("8")
+	c.Assert(task, NotNil)
+	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Type, Equals, snap.TypeApp)
 }
