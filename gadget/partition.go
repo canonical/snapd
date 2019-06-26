@@ -107,11 +107,11 @@ func Partition(image string, pv *PositionedVolume) error {
 }
 
 func runSfdisk(image string, script string) error {
-	logger.Debugf("running sfdisk script:\n%v", script)
 	cmd := exec.Command("sfdisk", image)
 	cmd.Stdin = bytes.NewBufferString(script)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		logger.Noticef("failed sfdisk script:\n%v", script)
 		return fmt.Errorf("cannot partition image using sfdisk: %v", osutil.OutputErr(out, err))
 	}
 	return nil
