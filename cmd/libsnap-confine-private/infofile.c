@@ -30,6 +30,8 @@ int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
     va_list ap;
     va_start(ap, err_out);
     sc_error *err = NULL;
+    size_t line_size = 0;
+    char *line_buf SC_CLEANUP(sc_cleanup_string) = NULL;
 
     fpos_t start_pos;
     if (fgetpos(stream, &start_pos) < 0) {
@@ -37,8 +39,6 @@ int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
         goto out;
     }
 
-    size_t line_size = 0;
-    char *line_buf SC_CLEANUP(sc_cleanup_string) = NULL;
     for (;;) { /* This loop advances through the keys we are looking for. */
         const char *key = va_arg(ap, const char *);
         if (key == NULL) {
@@ -65,6 +65,8 @@ int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
             if (nread <= 0) {
                 break; /* There is nothing more to read. */
             }
+            /* NOTE: beyond this line the buffer is never empty. */
+
             /* Guard against malformed input that may contain NUL bytes that
              * would confuse the code below. */
             if (memchr(line_buf, '\0', nread) != NULL) {
@@ -85,7 +87,7 @@ int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
                 continue;
             }
             /* Replace the newline character, if any, with the NUL byte. */
-            if (nread > 0 && line_buf[nread - 1] == '\n') {
+            if (line_buf[nread - 1] == '\n') {
                 line_buf[nread - 1] = '\0';
                 nread--;
             }
@@ -98,13 +100,12 @@ int sc_infofile_query(FILE *stream, sc_error **err_out, ...) {
             }
         }
     }
-    va_end(ap);
     if (fsetpos(stream, &start_pos) < 0) {
         err = sc_error_init_from_errno(errno, "cannot set stream position");
         goto out;
     }
-
 out:
+    va_end(ap);
     sc_error_forward(err_out, err);
     return err != NULL ? -1 : 0;
 }
