@@ -18,19 +18,19 @@ bool has_cap(const char *s) {
 	cap_flag_value_t cap_flags_value;
 
 	if (cap_from_name(s, &cap) < 0) {
-		fprintf(stderr, "could not cap_from_name()\n");
+		fprintf(stderr, "cannot get capability index from capability name()\n");
 		exit(2);
 	}
 
 	if ((caps = cap_get_proc()) == NULL) {
-		perror("could not get capabilities");
+		perror("cannot get process capabilities");
 		exit(2);
 	}
 
 	res = cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_flags_value);
 	cap_free(caps);
 	if (res < 0) {
-		fprintf(stderr, "could not cap_get_flag()\n");
+		fprintf(stderr, "cannot get value of capability flag()\n");
 		exit(2);
 	}
 
@@ -43,10 +43,10 @@ bool has_cap(const char *s) {
 
 int main(void)
 {
-	char *cap = "cap_sys_admin";
+	const char *cap = "cap_sys_admin";
 	if (has_cap(cap))
-		printf("Can %s\n", cap);
+		printf("Has %s\n", cap);
 	else
-		printf("Cannot %s\n", cap);
-	exit(0);
+		printf("Does not have %s\n", cap);
+	return 0;
 }
