@@ -930,7 +930,7 @@ func (infoSuite) TestMaybePrintCohortKey(c *check.C) {
 		{snap: &client.Snap{}, verbose: false, expected: ""},
 		{snap: &client.Snap{}, verbose: true, expected: ""},
 		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: false, expected: ""},
-		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: true, expected: "cohort:\tsome…\n"},
+		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: true, expected: "cohort:\t…-key\n"},
 	}
 
 	var buf flushBuffer
