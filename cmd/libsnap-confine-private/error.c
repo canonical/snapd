@@ -112,13 +112,14 @@ void sc_die_on_error(sc_error * error)
 	}
 }
 
-void sc_error_forward(sc_error ** recipient, sc_error * error)
+int sc_error_forward(sc_error ** recipient, sc_error * error)
 {
 	if (recipient != NULL) {
 		*recipient = error;
 	} else {
 		sc_die_on_error(error);
 	}
+	return error != NULL ? -1 : 0;
 }
 
 bool sc_error_match(sc_error * error, const char *domain, int code)
