@@ -18,7 +18,6 @@
 #ifndef SNAP_CONFINE_INFOFILE_H
 #define SNAP_CONFINE_INFOFILE_H
 
-#include <stdbool.h>
 #include <stdio.h>
 
 #include "../libsnap-confine-private/error.h"

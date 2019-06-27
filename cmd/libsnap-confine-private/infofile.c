@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
