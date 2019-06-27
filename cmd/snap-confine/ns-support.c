@@ -325,8 +325,8 @@ static bool is_base_transition(const sc_invocation * inv)
 
 	char *base_snap_name SC_CLEANUP(sc_cleanup_string) = NULL;
 	sc_error *err = NULL;
-	if (sc_infofile_query
-	    (stream, &err, "base-snap-name", &base_snap_name, NULL) < 0) {
+	if (sc_infofile_get_key
+	    (stream, "base-snap-name", &base_snap_name, &err) < 0) {
 		sc_die_on_error(err);
 	}
 
