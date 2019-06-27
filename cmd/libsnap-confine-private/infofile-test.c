@@ -145,4 +145,88 @@ static void test_infofile_get_key(void) {
     fclose(stream);
 }
 
-static void __attribute__((constructor)) init(void) { g_test_add_func("/infofile/get_key", test_infofile_get_key); }
+static void test_infofile_get_key_scanner(void) {
+    sc_error *err;
+    int rc;
+
+    /* scanner_state cannot be NULL. */
+    rc = sc_infofile_get_key_scanner(NULL, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_BUG);
+    g_assert_cmpstr(sc_error_msg(err), ==, "scanner_state cannot be NULL");
+    sc_error_free(err);
+
+    sc_infofile_scanner_state scanner_state = {0};
+
+    /* scanner_state->key cannot be NULL. */
+    rc = sc_infofile_get_key_scanner(&scanner_state, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_BUG);
+    g_assert_cmpstr(sc_error_msg(err), ==, "scanner_state->key cannot be NULL");
+    sc_error_free(err);
+
+    scanner_state.key = "key";
+
+    /* scanner_state->value cannot be NULL. */
+    rc = sc_infofile_get_key_scanner(&scanner_state, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_BUG);
+    g_assert_cmpstr(sc_error_msg(err), ==, "scanner_state->value cannot be NULL");
+    sc_error_free(err);
+
+    scanner_state.value = "value";
+
+    /* scanner_state->caller_state cannot be NULL. */
+    rc = sc_infofile_get_key_scanner(&scanner_state, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_BUG);
+    g_assert_cmpstr(sc_error_msg(err), ==, "scanner_state->caller_state cannot be NULL");
+    sc_error_free(err);
+
+    sc_infofile_get_key_state caller_state = {NULL};
+    scanner_state.caller_state = &caller_state;
+
+    /* caller_state->wanted_key cannot be NULL. */
+    rc = sc_infofile_get_key_scanner(&scanner_state, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_BUG);
+    g_assert_cmpstr(sc_error_msg(err), ==, "caller_state->wanted_key cannot be NULL");
+    sc_error_free(err);
+
+    caller_state.wanted_key = "other-key";
+    caller_state.stored_value = (void *)0xfefefefe;
+
+    /* if wanted_key doesn't match key then the value is not stored and scanner continues. */
+    rc = sc_infofile_get_key_scanner(&scanner_state, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_false(scanner_state.stop);
+    g_assert_cmpuint((intptr_t)caller_state.stored_value, ==, (intptr_t)0xfefefefe);
+
+    caller_state.wanted_key = "key";
+
+    /* if wanted_key matches key the value is copied and the scanner stops. */
+    rc = sc_infofile_get_key_scanner(&scanner_state, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_true(scanner_state.stop);
+    g_assert_nonnull(caller_state.stored_value);
+    g_assert_cmpstr(caller_state.stored_value, ==, "value");
+    g_assert_cmpuint((intptr_t)caller_state.stored_value, !=, (intptr_t)"value");
+    free(caller_state.stored_value);
+}
+
+static void __attribute__((constructor)) init(void) {
+    g_test_add_func("/infofile/get_key", test_infofile_get_key);
+    g_test_add_func("/infofile/get_key_scanner", test_infofile_get_key_scanner);
+}
