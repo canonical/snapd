@@ -130,6 +130,19 @@ static void test_infofile_get_key(void) {
     sc_error_free(err);
     fclose(stream);
     free(malformed_value);
+
+    char malformed4[] = "=";
+    stream = fmemopen(malformed4, sizeof malformed4 - 1, "r");
+    g_assert_nonnull(stream);
+    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, 0);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line 1 contains empty key");
+    g_assert_null(malformed_value);
+    sc_error_free(err);
+    fclose(stream);
 }
 
 static void __attribute__((constructor)) init(void) { g_test_add_func("/infofile/get_key", test_infofile_get_key); }
