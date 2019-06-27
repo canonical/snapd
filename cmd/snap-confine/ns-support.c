@@ -312,7 +312,7 @@ static bool is_base_transition(const sc_invocation * inv)
 			 "/run/snapd/ns/snap.%s.info", inv->snap_instance);
 
 	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
-	stream = fopen(info_path, "rt");
+	stream = fopen(info_path, "r");
 	if (stream == NULL && errno == ENOENT) {
 		// If the info file is absent then we cannot decide if a transition had
 		// occurred. For people upgrading from snap-confine without the info
