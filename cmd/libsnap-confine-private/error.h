@@ -157,10 +157,14 @@ void sc_die_on_error(sc_error * error);
  * sc_die_on_error() is called as a safety measure.
  *
  * Change of ownership takes place and the error is now stored in the recipient.
+ *
+ * The return value -1 if error is non-NULL and 0 otherwise. The return value
+ * makes it convenient to `return sc_error_forward(err_out, err);` as the last
+ * line of a function.
  **/
 // NOTE: There's no nonnull(1) attribute as the recipient *can* be NULL. With
 // the attribute in place GCC optimizes some things out and tests fail.
-void sc_error_forward(sc_error ** recipient, sc_error * error);
+int sc_error_forward(sc_error ** recipient, sc_error * error);
 
 /**
  * Check if a given error matches the specified domain and code.
