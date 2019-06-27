@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var snapshotsTests = []getCmdArgs{{
@@ -81,8 +82,8 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
 			c.Check(err, IsNil)
-			c.Check(s.Stderr(), Equals, test.stderr)
-			c.Check(s.Stdout(), Matches, test.stdout)
+			c.Check(s.Stderr(), testutil.EqualsWrapped, test.stderr)
+			c.Check(s.Stdout(), testutil.MatchesWrapped, test.stdout)
 		}
 	}
 }
