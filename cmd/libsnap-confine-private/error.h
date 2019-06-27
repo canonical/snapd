@@ -65,6 +65,7 @@ typedef struct sc_error {
  **/
 #define SC_LIBSNAP_ERROR "libsnap-confine-private"
 
+/** sc_libsnap_error represents distinct error codes used by libsnap-confine-private library. */
 typedef enum sc_libsnap_error {
     /** SC_UNSPECIFIED_ERROR indicates an error not worthy of a distinct code. */
 	SC_UNSPECIFIED_ERROR = 0,
