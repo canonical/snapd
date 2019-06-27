@@ -295,7 +295,7 @@ enum sc_discard_vote {
 };
 
 /**
- * is_base_transition returns true a base transition is occurring.
+ * is_base_transition returns true if a base transition is occurring.
  *
  * The function inspects /run/snapd/ns/snap.$SNAP_INSTANCE_NAME.info as well
  * as the invocation parameters of snap-confine. If the base snap name, as
