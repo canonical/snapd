@@ -105,12 +105,12 @@ typedef struct sc_infofile_get_key_state {
 static int sc_infofile_get_key_scanner(sc_infofile_scanner_state *scanner_state, sc_error **err_out) {
     sc_error *err = NULL;
     if (scanner_state == NULL) {
-        err = sc_error_init(SC_INTERNAL_DOMAIN, SC_BUG, "scanner_state cannot be NULL");
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "scanner_state cannot be NULL");
         goto out;
     }
     sc_infofile_get_key_state *caller_state = scanner_state->caller_state;
     if (caller_state == NULL) {
-        err = sc_error_init(SC_INTERNAL_DOMAIN, SC_BUG, "caller_state cannot be NULL");
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "caller_state cannot be NULL");
         goto out;
     }
 
@@ -128,11 +128,11 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
 
     /* NOTE: stream is checked by sc_infofile_scan */
     if (key == NULL) {
-        err = sc_error_init(SC_INTERNAL_DOMAIN, SC_API_MISUSE, "key cannot be NULL");
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "key cannot be NULL");
         goto out;
     }
     if (value == NULL) {
-        err = sc_error_init(SC_INTERNAL_DOMAIN, SC_API_MISUSE, "value cannot be NULL");
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "value cannot be NULL");
         goto out;
     }
 
@@ -154,11 +154,11 @@ static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, voi
     char *line_buf SC_CLEANUP(sc_cleanup_string) = NULL;
 
     if (stream == NULL) {
-        err = sc_error_init(SC_INTERNAL_DOMAIN, SC_API_MISUSE, "stream cannot be NULL");
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "stream cannot be NULL");
         goto out;
     }
     if (scanner_fn == NULL) {
-        err = sc_error_init(SC_INTERNAL_DOMAIN, SC_API_MISUSE, "scanner_fn cannot be NULL");
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "scanner_fn cannot be NULL");
         goto out;
     }
 
@@ -178,7 +178,7 @@ static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, voi
         /* Guard against malformed input that may contain NUL bytes that
          * would confuse the code below. */
         if (memchr(line_buf, '\0', nread) != NULL) {
-            err = sc_error_init(SC_INTERNAL_DOMAIN, 0, "line %d contains NUL byte", lineno);
+            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains NUL byte", lineno);
             goto out;
         }
         /* Replace the newline character, if any, with the NUL byte. */
@@ -188,7 +188,7 @@ static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, voi
         /* Guard against malformed input that does not contain '=' byte */
         char *eq_ptr = memchr(line_buf, '=', nread);
         if (eq_ptr == NULL) {
-            err = sc_error_init(SC_INTERNAL_DOMAIN, 0, "line %d is not a key=value assignment", lineno);
+            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d is not a key=value assignment", lineno);
             goto out;
         }
         /* Replace the first '=' with string terminator byte. */

@@ -63,16 +63,16 @@ typedef struct sc_error {
 /**
  * Error domain for errors in the libsnap-confine-private library.
  **/
-#define SC_INTERNAL_DOMAIN "libsnap-confine-private"
+#define SC_LIBSNAP_ERROR "libsnap-confine-private"
 
-typedef enum sc_internal_error {
+typedef enum sc_libsnap_error {
     /** SC_UNSPECIFIED_ERROR indicates an error not worthy of a distinct code. */
 	SC_UNSPECIFIED_ERROR = 0,
     /** SC_API_MISUSE indicates that public API was called incorrectly. */
 	SC_API_MISUSE,
     /** SC_BUG indicates that private API was called incorrectly. */
 	SC_BUG,
-} sc_internal_error;
+} sc_libsnap_error;
 
 /**
  * Initialize a new error object.
