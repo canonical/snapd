@@ -191,6 +191,11 @@ static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, voi
             err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d is not a key=value assignment", lineno);
             goto out;
         }
+        /* Guard against malformed input with empty key. */
+        if (eq_ptr == line_buf) {
+            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains empty key", lineno);
+            goto out;
+        }
         /* Replace the first '=' with string terminator byte. */
         *eq_ptr = '\0';
 
