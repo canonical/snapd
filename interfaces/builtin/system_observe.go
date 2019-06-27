@@ -46,7 +46,7 @@ const systemObserveConnectedPlugAppArmor = `
 #
 # Some files like /proc/kallsyms (but anything using %pK format specifier) need
 # 'capability syslog' when /proc/sys/kernel/kptr_restrict=1, but we
-# intentionally do not allow since it could be used to default KASLR.
+# intentionally do not allow since it could be used to defeat KASLR.
 ptrace (read),
 
 # Other miscellaneous accesses for observing the system
