@@ -139,10 +139,11 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
 
     sc_infofile_get_key_state scanner_state = {.wanted_key = key};
     sc_infofile_scanner_fn scanner_fn = sc_infofile_get_key_scanner;
-    /* Call the scanner and ignore the error code. We will forward any
-     * error in a moment, but first we want to store the result of the
-     * search, successful or not, so that *value is always defined. */
-    (void)sc_infofile_scan(stream, scanner_fn, &scanner_state, &err);
+
+    *value = NULL;
+    if (sc_infofile_scan(stream, scanner_fn, &scanner_state, &err) < 0) {
+        goto out;
+    }
     *value = scanner_state.stored_value;
 
 out:
