@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// MountedFilesystemWriter assints in writing contents of a structure to a
+// MountedFilesystemWriter assists in writing contents of a structure to a
 // mounted filesystem.
 type MountedFilesystemWriter struct {
 	contentDir string
@@ -68,7 +68,8 @@ func prefixPreserve(dstDir string, preserve []string) []string {
 
 // Write writes structure data into provided directory. All existing files are
 // overwritten, unless their paths, relative to target directory, are listed in
-// the preserve list.
+// the preserve list. Permission bits and ownership of updated entries is not
+// preserved.
 func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) error {
 	if whereDir == "" {
 		return fmt.Errorf("internal error: destination directory cannot be unset")
@@ -152,6 +153,7 @@ func writeFile(src, dst string, preserveInDst []string) error {
 	copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
 
 	// TODO use osutil.AtomicFile
+	// TODO try to preserve ownership and permission bits
 	if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
 		return fmt.Errorf("cannot copy %s: %v", src, err)
 	}
