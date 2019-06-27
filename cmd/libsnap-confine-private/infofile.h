@@ -18,33 +18,20 @@
 #ifndef SNAP_CONFINE_INFOFILE_H
 #define SNAP_CONFINE_INFOFILE_H
 
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "../libsnap-confine-private/error.h"
 
 /**
- * sc_infofile_query extracts specific KEY=VALUE fields from a given file.
+ * sc_infofile_get_key extracts a single value of a key=value pair from a given
+ * stream.
  *
- * The first argument is a stream which must support seeking. The function
- * scans the stream, starting from the current position, all the way until the
- * end of the stream, once for each key being extracted. At the end of the
- * operation the stream position is reset to the original location. This allows
- * repeated operation against a stream, as more information about the necessary
- * queries becomes known.
- *
- * The remaining function arguments form a NULL terminated list of pairs (key,
- * value_pointer) with types (const char *, char **). Each value pointer is
- * always set.
- *
- * If the key is missing the value is set to NULL. If the key is found the
- * value is set to a dynamically allocated copy of the value. The caller is
- * responsible for calling free on the returned values.
- *
- * The return value on success is zero. On failure -1 is returned and more
- * information is conveyed through the err_out pointer, which contains the
- * forwareded error. If the error cannot be forwarded the program dies,
- * printing the error message.
+ * On success the return value is zero and err_out, if not NULL, is deferences
+ * and set to NULL.  On failure the return value is -1 is and detailed error
+ * information is stored by dereferencing err_out.  If an error occurs and
+ * err_out is NULL then the program dies, printing the error message.
  **/
-int sc_infofile_query(FILE *stream, sc_error **err_out, ...) __attribute__((sentinel));
+int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **err_out);
 
 #endif

@@ -21,7 +21,7 @@
 #include <glib.h>
 #include <unistd.h>
 
-static void test_infofile_query(void) {
+static void test_infofile_get_key(void) {
     int rc;
     sc_error *err;
 
@@ -33,55 +33,57 @@ static void test_infofile_query(void) {
     FILE *stream = fmemopen(text, sizeof text - 1, "r");
     g_assert_nonnull(stream);
 
+    char *value;
+
+    /* Caller must provide the stream to scan. */
+    rc = sc_infofile_get_key(NULL, "key", &value, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_INTERNAL_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "stream cannot be NULL");
+    sc_error_free(err);
+
+    /* Caller must provide the key to look for. */
+    rc = sc_infofile_get_key(stream, NULL, &value, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_INTERNAL_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "key cannot be NULL");
+    sc_error_free(err);
+
+    /* Caller must provide storage for the value. */
+    rc = sc_infofile_get_key(stream, "key", NULL, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_INTERNAL_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "value cannot be NULL");
+    sc_error_free(err);
+
     /* Keys that are not found get NULL values. */
-    char *value = (void *)0xfefefefe;
-    rc = sc_infofile_query(stream, &err, "missing-key", &value, NULL);
+    value = (void *)0xfefefefe;
+    rewind(stream);
+    rc = sc_infofile_get_key(stream, "missing-key", &value, &err);
     g_assert_cmpint(rc, ==, 0);
     g_assert_null(err);
     g_assert_null(value);
 
     /* Keys that are found get strdup-duplicated values. */
     value = NULL;
-    rc = sc_infofile_query(stream, &err, "key", &value, NULL);
+    rewind(stream);
+    rc = sc_infofile_get_key(stream, "key", &value, &err);
     g_assert_cmpint(rc, ==, 0);
     g_assert_null(err);
     g_assert_nonnull(value);
     g_assert_cmpstr(value, ==, "value");
     free(value);
-
-    /* Caller must provide storage for each value. */
-    rc = sc_infofile_query(stream, &err, "key", NULL, NULL);
-    g_assert_cmpint(rc, ==, -1);
-    g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_msg(err), ==, "no storage provided for key key");
-    sc_error_free(err);
-
-    /* Multiple keys can be extracted on one go. */
-    char *other_value;
-    rc = sc_infofile_query(stream, &err, "key", &value, "other-key", &other_value, NULL);
-    g_assert_cmpint(rc, ==, 0);
-    g_assert_null(err);
-    g_assert_nonnull(value);
-    g_assert_nonnull(other_value);
-    g_assert_cmpstr(value, ==, "value");
-    g_assert_cmpstr(other_value, ==, "other-value");
-    free(value);
-    free(other_value);
-
-    /* Order in which keys are extracted does not matter. */
-    rc = sc_infofile_query(stream, &err, "other-key", &other_value, "key", &value, NULL);
-    g_assert_cmpint(rc, ==, 0);
-    g_assert_null(err);
-    g_assert_nonnull(value);
-    g_assert_nonnull(other_value);
-    g_assert_cmpstr(value, ==, "value");
-    g_assert_cmpstr(other_value, ==, "other-value");
-    free(value);
-    free(other_value);
 
     /* When duplicate keys are present the first value is extracted. */
     char *dup_value;
-    rc = sc_infofile_query(stream, &err, "dup-key", &dup_value, NULL);
+    rewind(stream);
+    rc = sc_infofile_get_key(stream, "dup-key", &dup_value, &err);
     g_assert_cmpint(rc, ==, 0);
     g_assert_null(err);
     g_assert_nonnull(dup_value);
@@ -95,7 +97,7 @@ static void test_infofile_query(void) {
     char malformed1[] = "key\n";
     stream = fmemopen(malformed1, sizeof malformed1 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_query(stream, &err, "key", &malformed_value, NULL);
+    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
     g_assert_cmpstr(sc_error_domain(err), ==, SC_INTERNAL_DOMAIN);
@@ -108,7 +110,7 @@ static void test_infofile_query(void) {
     char malformed2[] = "key=value\0garbage\n";
     stream = fmemopen(malformed2, sizeof malformed2 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_query(stream, &err, "key", &malformed_value, NULL);
+    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
     g_assert_cmpstr(sc_error_domain(err), ==, SC_INTERNAL_DOMAIN);
@@ -121,30 +123,13 @@ static void test_infofile_query(void) {
     char malformed3[] = "key=";
     stream = fmemopen(malformed3, sizeof malformed3 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_query(stream, &err, "key", &malformed_value, NULL);
+    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
     g_assert_cmpint(rc, ==, 0);
     g_assert_null(err);
     g_assert_cmpstr(malformed_value, ==, "");
     sc_error_free(err);
     fclose(stream);
     free(malformed_value);
-
-    /* Stream must be seekable */
-    int pipefd[2];
-    rc = pipe(pipefd);
-    g_assert_cmpint(rc, ==, 0);
-    stream = fdopen(pipefd[0], "r");
-    g_assert_nonnull(stream);
-    rc = sc_infofile_query(stream, &err, NULL);
-    g_assert_cmpint(rc, ==, -1);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_ERRNO_DOMAIN);
-    g_assert_cmpint(sc_error_code(err), ==, ESPIPE);
-    g_assert_cmpstr(sc_error_msg(err), ==, "cannot determine stream position");
-    g_assert_nonnull(err);
-    sc_error_free(err);
-    fclose(stream);
-    close(pipefd[0]);
-    close(pipefd[1]);
 }
 
-static void __attribute__((constructor)) init(void) { g_test_add_func("/infofile/query", test_infofile_query); }
+static void __attribute__((constructor)) init(void) { g_test_add_func("/infofile/get_key", test_infofile_get_key); }
