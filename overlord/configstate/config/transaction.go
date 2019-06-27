@@ -172,6 +172,14 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
 	applyChanges(config, t.changes[snapName])
+
+	out := purgeNulls(config)
+	if out == nil {
+		// XXX: an edge case - uncommited changes gave null after normalizing; we could return "snap has no configration" error
+		// instead, this however affects feature flags which expect NoOptionError. Note, special-casing NoOptionError is not
+		// strictly neccessary here as it would be the outcome of getFromConfig() below, however it makes the intent more clear.
+		return &NoOptionError{SnapName: snapName, Key: key}
+	}
 	return getFromConfig(snapName, subkeys, 0, config, result)
 }
 
@@ -254,7 +262,11 @@ func (t *Transaction) Commit() {
 			config = make(map[string]*json.RawMessage)
 		}
 		applyChanges(config, snapChanges)
-		t.pristine[instanceName] = config
+		if purgeNulls(config) == nil {
+			delete(t.pristine, instanceName)
+		} else {
+			t.pristine[instanceName] = config
+		}
 	}
 
 	t.state.Set("config", t.pristine)
