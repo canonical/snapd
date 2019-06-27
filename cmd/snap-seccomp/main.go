@@ -597,12 +597,12 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 			return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
 		}
 
-		// For now only support EQ with negative args. If change this,
-		// be sure to adjust readNumber accordingly and use libseccomp
-		// carefully.
+		// For now only support EQ with negative args. If changing
+		// this, be sure to adjust readNumber accordingly and use
+		// libseccomp carefully.
 		if syscallsWithNegArgsMaskHi32[syscallName] {
 			if cmpOp != seccomp.CompareEqual {
-				return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
+				return fmt.Errorf("cannot parse token %q (line %q): unsupported comparison", arg, line)
 			}
 		}
 
