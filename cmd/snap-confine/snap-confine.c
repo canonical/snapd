@@ -439,7 +439,7 @@ int main(int argc, char **argv)
 	debug("ruid: %d, euid: %d, suid: %d",
 	      real_uid, effective_uid, saved_uid);
 	struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
-	struct __user_cap_data_struct data[2] = { {0} };
+	struct __user_cap_data_struct cap_data[2] = { {0} };
 
 	// At this point in time, if we are going to permanently drop our
 	// effective_uid will not be '0' but our saved_uid will be '0'. Detect
@@ -449,14 +449,14 @@ int main(int argc, char **argv)
 	if (keep_sys_admin) {
 		debug("setting capabilities bounding set");
 		// clear all 32 bit caps but SYS_ADMIN, with none inheritable
-		data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
-		data[0].permitted = data[0].effective;
-		data[0].inheritable = 0;
+		cap_data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+		cap_data[0].permitted = cap_data[0].effective;
+		cap_data[0].inheritable = 0;
 		// clear all 64 bit caps
-		data[1].effective = 0;
-		data[1].permitted = 0;
-		data[1].inheritable = 0;
-		if (capset(&hdr, data) != 0) {
+		cap_data[1].effective = 0;
+		cap_data[1].permitted = 0;
+		cap_data[1].inheritable = 0;
+		if (capset(&hdr, cap_data) != 0) {
 			die("capset failed");
 		}
 	}
@@ -479,9 +479,9 @@ int main(int argc, char **argv)
 	// Now that we've permanently dropped, regain SYS_ADMIN
 	if (keep_sys_admin) {
 		debug("regaining SYS_ADMIN");
-		data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
-		data[0].permitted = data[0].effective;
-		if (capset(&hdr, data) != 0) {
+		cap_data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+		cap_data[0].permitted = cap_data[0].effective;
+		if (capset(&hdr, cap_data) != 0) {
 			die("capset regain failed");
 		}
 	}
@@ -498,9 +498,9 @@ int main(int argc, char **argv)
 	// explicitly
 	if (keep_sys_admin) {
 		debug("clearing SYS_ADMIN");
-		data[0].effective = 0;
-		data[0].permitted = data[0].effective;
-		if (capset(&hdr, data) != 0) {
+		cap_data[0].effective = 0;
+		cap_data[0].permitted = cap_data[0].effective;
+		if (capset(&hdr, cap_data) != 0) {
 			die("capset clear failed");
 		}
 	}
