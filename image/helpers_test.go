@@ -39,13 +39,13 @@ func (s *imageSuite) TestDownloadOptionsString(c *check.C) {
 		{Revision: snap.R(42)}: `(42)`,
 		{
 			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
-		}: `from cohort "…StUvWxYz"`,
+		}: `from cohort "…rStUvWxYz"`,
 		{
 			TargetDir: "foo",
 			Channel:   "bar",
 			Revision:  snap.R(13),
 			CohortKey: "MSBIc3dwOW9PemozYjRtdzhnY0MwMFh0eFduS0g5UWlDUSAxNTU1NDExNDE1IDBjYzJhNTc1ZjNjOTQ3ZDEwMWE1NTNjZWFkNmFmZDE3ZWJhYTYyNjM4ZWQ3ZGMzNjI5YmU4YjQ3NzAwMjdlMDk=",
-		}: `(13) from channel "bar" from cohort "…MjdlMDk=" to "foo"`, // note this one is not 'valid' so it's ok if the string is a bit wonky
+		}: `(13) from channel "bar" from cohort "…wMjdlMDk=" to "foo"`, // note this one is not 'valid' so it's ok if the string is a bit wonky
 	} {
 		c.Check(opts.String(), check.Equals, str)
 	}

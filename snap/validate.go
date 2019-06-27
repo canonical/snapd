@@ -200,9 +200,9 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
+	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 		return fmt.Errorf(
-			"invalid %q: must have a prefix of $SNAP_DATA or $SNAP_COMMON", fieldName)
+			"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
 	}
 
 	return nil
@@ -357,14 +357,24 @@ func Validate(info *Info) error {
 // ValidateBase validates the base field.
 func ValidateBase(info *Info) error {
 	// validate that bases do not have base fields
-	if info.Type == TypeOS || info.Type == TypeBase {
+	if info.GetType() == TypeOS || info.GetType() == TypeBase {
 		if info.Base != "" && info.Base != "none" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.GetType(), info.InstanceName())
 		}
 	}
 
 	if info.Base == "none" && (len(info.Hooks) > 0 || len(info.Apps) > 0) {
 		return fmt.Errorf(`cannot have apps or hooks with base "none"`)
+	}
+
+	if info.Base != "" {
+		baseSnapName, instanceKey := SplitInstanceName(info.Base)
+		if instanceKey != "" {
+			return fmt.Errorf("base cannot specify a snap instance name: %q", info.Base)
+		}
+		if err := ValidateName(baseSnapName); err != nil {
+			return fmt.Errorf("invalid base name: %s", err)
+		}
 	}
 	return nil
 }

@@ -69,7 +69,8 @@ func IsRootWritableOverlay() (string, error) {
 					continue
 				}
 
-				if dir == "/media/root-rw/overlay" {
+				switch dir {
+				case "/media/root-rw/overlay":
 					// On the Ubuntu server ephemeral image, '/' is setup via
 					// overlayroot (on at least 18.10), which uses a combination
 					// of overlayfs and chroot. This differs from the livecd setup
@@ -77,10 +78,13 @@ func IsRootWritableOverlay() (string, error) {
 					// upperdir for this configuration, and return the required
 					// path. See LP: #1797218 for details.
 					return "/overlay", nil
+				case "/run/miso/overlay_root/upper":
+					// On the Manjaro ephemeral image, '/' is setup via
+					// overlayroot. This is similar to the workaround above.
+					return "/upper", nil
 				}
 
-				// Make sure trailing slashes are predicatably
-				// missing
+				// Make sure trailing slashes are predictably missing
 				return dir, nil
 			}
 		}

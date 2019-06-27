@@ -218,6 +218,7 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 		// socket paths using variables as prefix
 		"$SNAP_DATA/my.socket",
 		"$SNAP_COMMON/my.socket",
+		"$XDG_RUNTIME_DIR/my.socket",
 		// abstract sockets
 		"@snap.mysnap.my.socket",
 		// addresses and ports
@@ -273,7 +274,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 		err := ValidateApp(app)
 		c.Assert(
 			err, ErrorMatches,
-			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA or \$SNAP_COMMON`)
+			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
 	}
 }
 
@@ -1292,6 +1293,28 @@ base: none
 `))
 	c.Assert(err, IsNil)
 	c.Assert(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateBaseInorrectSnapName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: aAAAA
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid base name: invalid snap name: \"aAAAA\"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseSnapInstanceNameNotAllowed(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: foo_abc
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `base cannot specify a snap instance name: "foo_abc"`)
 }
 
 func (s *ValidateSuite) TestValidateBaseCannotHaveBase(c *C) {

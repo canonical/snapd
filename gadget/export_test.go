@@ -41,3 +41,11 @@ func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbac
 		updaterForStructure = old
 	}
 }
+
+func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
+	oldEvalSymlinks := evalSymlinks
+	evalSymlinks = mock
+	return func() {
+		evalSymlinks = oldEvalSymlinks
+	}
+}
