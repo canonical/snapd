@@ -425,11 +425,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 			value = SC_DISCARD_SHOULD;
 			value_str = "should";
 
-			// The namespace is stale, let's check if we must discard it because
-			// base snap has changed. We must do so even though the "view" of the
-			// snap mount namespace becomes fractured because otherwise snaps might
-			// run against the base snap declared by an older revision of the app
-			// snap, For more information see LP: #1819875
+			// The namespace is stale so also check if we must discard it due to the
+			// base snap changing. If the base snap changed, we must discard since even
+			// though currently running processes from this snap will continue to see
+			// the old base, we want new processes to use the new base. See LP:
+			// #1819875 for details.
 			if (is_base_transition(inv)) {
 				// The base snap has changed. We must discard ...
 				value = SC_DISCARD_MUST;
