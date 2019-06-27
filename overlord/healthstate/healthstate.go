@@ -178,7 +178,10 @@ func appendHealth(ctx *hookstate.Context, health *HealthState) error {
 	return nil
 }
 
-func SetHealth(ctx *hookstate.Context) error {
+// SetFromHookContext extracts the health of a snap from a hook
+// context, and saves it in snapd's state.
+// Must be called with the context lock held.
+func SetFromHookContext(ctx *hookstate.Context) error {
 	var health HealthState
 	err := ctx.Get("health", &health)
 

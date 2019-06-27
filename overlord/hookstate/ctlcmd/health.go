@@ -35,6 +35,11 @@ var (
 The set-health command is called from a snap to inform the system of the snap's
 overall health.
 
+It can be called from any hook, and even from the apps themselves, although a
+snap can provide a 'check-health' hook that is solely concerned with this; if it
+does, that hook is called periodically (with increased frequency while the snap
+is "unhealthy"). Any health regression will issue a warning to the user.
+
 Note the health is of the snap, not of the apps it contains; it’s up to the
 snap developer to determine how the health of the individual apps add up to
 the health of the snap as a whole.
@@ -124,7 +129,7 @@ func (c *healthCommand) Execute([]string) error {
 	// (which sets it to a dummy entry for this purpose).
 	if err := ctx.Get("health", &v); err == state.ErrNoState {
 		ctx.OnDone(func() error {
-			return healthstate.SetHealth(ctx)
+			return healthstate.SetFromHookContext(ctx)
 		})
 	}
 

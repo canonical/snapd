@@ -207,3 +207,42 @@ func (*healthSuite) TestStatusUnhappy(c *check.C) {
 	c.Check(err, check.ErrorMatches, `invalid status "rabbits".*`)
 	c.Check(status.String(), check.Equals, "invalid (-1)")
 }
+
+func (s *healthSuite) TestSetFromHookContext(c *check.C) {
+	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "foo"}, nil, "")
+	c.Assert(err, check.IsNil)
+
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	var hs map[string]healthstate.HealthState
+	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
+
+	ctx.Set("health", &healthstate.HealthState{Status: 42})
+
+	err = healthstate.SetFromHookContext(ctx)
+	c.Assert(err, check.IsNil)
+
+	err = s.state.Get("health", &hs)
+	c.Check(err, check.IsNil)
+	c.Check(hs, check.DeepEquals, map[string]healthstate.HealthState{
+		"foo": {Status: 42},
+	})
+}
+
+func (s *healthSuite) TestSetFromHookContextEmpty(c *check.C) {
+	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "foo"}, nil, "")
+	c.Assert(err, check.IsNil)
+
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	var hs map[string]healthstate.HealthState
+	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
+
+	err = healthstate.SetFromHookContext(ctx)
+	c.Assert(err, check.IsNil)
+
+	// no health in the context -> no health in state
+	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
+}
