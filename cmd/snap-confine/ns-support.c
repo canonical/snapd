@@ -289,8 +289,23 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 }
 
 enum sc_discard_vote {
+	/**
+	 * SC_DISCARD_NO denotes that the mount namespace doesn't have to be
+	 * discarded. This happens when the base snap block has not changed.
+	 **/
 	SC_DISCARD_NO = 1,
+	/**
+	 * SC_DISCARD_SHOULD indicates that the mount namespace should be discarded
+	 * but may be reused if it is still inhabited by processes. This only
+	 * happens when the base snap revision changes but the name of the base
+	 * snap is the same as before.
+	 **/
 	SC_DISCARD_SHOULD = 2,
+	/**
+	 * SC_DISCARD_MUST indicates that the mount namespace must be discarded
+	 * even if it still inhabited by processes. This only happens when the name
+	 * of the base snap changes.
+	 **/
 	SC_DISCARD_MUST = 3,
 };
 
