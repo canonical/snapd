@@ -67,11 +67,11 @@ typedef struct sc_error {
 
 /** sc_libsnap_error represents distinct error codes used by libsnap-confine-private library. */
 typedef enum sc_libsnap_error {
-    /** SC_UNSPECIFIED_ERROR indicates an error not worthy of a distinct code. */
+	/** SC_UNSPECIFIED_ERROR indicates an error not worthy of a distinct code. */
 	SC_UNSPECIFIED_ERROR = 0,
-    /** SC_API_MISUSE indicates that public API was called incorrectly. */
+	/** SC_API_MISUSE indicates that public API was called incorrectly. */
 	SC_API_MISUSE,
-    /** SC_BUG indicates that private API was called incorrectly. */
+	/** SC_BUG indicates that private API was called incorrectly. */
 	SC_BUG,
 } sc_libsnap_error;
 
