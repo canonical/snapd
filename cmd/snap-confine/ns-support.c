@@ -847,6 +847,9 @@ void sc_store_ns_info(const sc_invocation * inv)
 		die("cannot open %s", info_path);
 	}
 	fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
+	if (ferror(stream) != 0) {
+		die("I/O error when writing to %s", info_path);
+	}
 	if (fflush(stream) == EOF) {
 		die("cannot flush %s", info_path);
 	}
