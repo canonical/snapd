@@ -611,7 +611,7 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 		switch (errno) {
 		case ESRCH:
 			debug("parent process has terminated");
-			abort();
+			exit(0);
 		default:
 			die("cannot confirm that parent process is alive");
 			break;
