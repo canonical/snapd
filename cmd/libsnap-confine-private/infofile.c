@@ -109,9 +109,21 @@ static int sc_infofile_get_key_scanner(sc_infofile_scanner_state *scanner_state,
         err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "scanner_state cannot be NULL");
         goto out;
     }
+    if (scanner_state->key == NULL) {
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "scanner_state->key cannot be NULL");
+        goto out;
+    }
+    if (scanner_state->value == NULL) {
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "scanner_state->value cannot be NULL");
+        goto out;
+    }
     sc_infofile_get_key_state *caller_state = scanner_state->caller_state;
     if (caller_state == NULL) {
-        err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "caller_state cannot be NULL");
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "scanner_state->caller_state cannot be NULL");
+        goto out;
+    }
+    if (caller_state->wanted_key == NULL) {
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_BUG, "caller_state->wanted_key cannot be NULL");
         goto out;
     }
 
