@@ -149,6 +149,17 @@ func writeFile(src, dst string, preserveInDst []string) error {
 		return fmt.Errorf("cannot create prefix directory: %v", err)
 	}
 
+	if osutil.IsSymlink(src) {
+		to, err := os.Readlink(src)
+		if err != nil {
+			return fmt.Errorf("cannot read symlink: %v", err)
+		}
+		if err := os.Symlink(to, dst); err != nil {
+			return fmt.Errorf("cannot deploy a symlink: %v", err)
+		}
+		return nil
+	}
+
 	// overwrite & sync by default
 	copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
 
