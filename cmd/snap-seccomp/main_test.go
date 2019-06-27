@@ -541,7 +541,7 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"setpriority 1\\n2", `cannot parse line: cannot parse token "1\\\\n2" .*`},
 		// 1 bigger than uint32
 		{"chown 0 4294967296", `cannot parse line: cannot parse token "4294967296" .*`},
-		// 1 bigger than int32
+		// 1 smaller than int32
 		{"chown - 0 -2147483649", `cannot parse line: cannot parse token "-2147483649" .*`},
 		{"setpriority 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", `cannot parse line: cannot parse token "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999" .*`},
 		{"mbind - - - - - - 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
