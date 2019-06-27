@@ -52,7 +52,7 @@ apps:
     plugs: [removable-media]
 `, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "removable-media",
 		Interface: "removable-media",
 	}

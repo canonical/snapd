@@ -44,7 +44,7 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 	// Implicit slots can be added to the special "snapd" snap or to snaps with
 	// type "os". Currently there are no other snaps that gain implicit
 	// interfaces.
-	if snapInfo.Type != snap.TypeOS && snapInfo.InstanceName() != "snapd" {
+	if snapInfo.GetType() != snap.TypeOS && snapInfo.InstanceName() != "snapd" {
 		return nil
 	}
 

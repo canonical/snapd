@@ -372,7 +372,6 @@ func (t *Tokenizer) scanStream() (*Token, error) {
 				case spaceRuneClass:
 					{
 						if nextRune == '\n' {
-							state = startState
 							token := &Token{
 								tokenType: tokenType,
 								value:     string(value)}

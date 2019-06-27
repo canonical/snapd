@@ -48,6 +48,9 @@ type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 
+	// newStore can make new stores for remodeling
+	newStore func(storecontext.DeviceBackend) snapstate.StoreService
+
 	bootOkRan            bool
 	bootRevisionsUpdated bool
 
@@ -60,7 +63,7 @@ type DeviceManager struct {
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -69,7 +72,16 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, reg: make(chan struct{})}
+	m := &DeviceManager{
+		state:      s,
+		keypairMgr: keypairMgr,
+		newStore:   newStore,
+		reg:        make(chan struct{}),
+	}
+
+	s.Lock()
+	s.Cache(deviceMgrKey{}, m)
+	s.Unlock()
 
 	if err := m.confirmRegistered(); err != nil {
 		return nil, err
@@ -82,8 +94,27 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
+	// There is no undo for successful gadget updates. The system is
+	// rebooted during update, if it boots up to the point where snapd runs
+	// we deem the new assets (be it bootloader or firmware) functional. The
+	// deployed boot assets must be backward compatible with reverted kernel
+	// or gadget snaps. There are no further changes to the boot assets,
+	// unless a new gadget update is deployed.
+	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
+
+	runner.AddBlocked(gadgetUpdateBlocked)
 
 	return m, nil
+}
+
+type deviceMgrKey struct{}
+
+func deviceMgr(st *state.State) *DeviceManager {
+	mgr := st.Cached(deviceMgrKey{})
+	if mgr == nil {
+		panic("internal error: device manager is not yet associated with state")
+	}
+	return mgr.(*DeviceManager)
 }
 
 func (m *DeviceManager) CanStandby() bool {
@@ -115,6 +146,23 @@ func (m *DeviceManager) markRegistered() {
 	}
 	m.registered = true
 	close(m.reg)
+}
+
+func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
+	if cand.Kind() == "update-gadget-assets" && len(running) != 0 {
+		// update-gadget-assets must be the only task running
+		return true
+	} else {
+		for _, other := range running {
+			if other.Kind() == "update-gadget-assets" {
+				// no other task can be started when
+				// update-gadget-assets is running
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 type prepareDeviceHandler struct{}
@@ -532,7 +580,7 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	return findSerial(m.state)
+	return findSerial(m.state, nil)
 }
 
 // implement storecontext.Backend

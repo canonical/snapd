@@ -210,24 +210,30 @@ func (strutilSuite) TestCommaSeparatedList(c *check.C) {
 	}
 }
 
-func (strutilSuite) TestElliptRight(c *check.C) {
+func (strutilSuite) TestEllipt(c *check.C) {
 	type T struct {
-		in  string
-		n   int
-		out string
+		in    string
+		n     int
+		right string
+		left  string
 	}
 	for _, t := range []T{
-		{"", 10, ""},
-		{"", -1, ""},
-		{"hello", 10, "hello"},
-		{"hello", 5, "hello"},
-		{"hello", 3, "he…"},
-		{"hello", 0, "…"},
-		{"héllo", 4, "hé…"},
-		{"héllo", 3, "he…"},
-		{"he🐧lo", 4, "he🐧…"},
-		{"he🐧lo", 3, "he…"},
+		{"", 10, "", ""},
+		{"", -1, "", ""},
+		{"hello", -1, "…", "…"},
+		{"hello", 0, "…", "…"},
+		{"hello", 1, "…", "…"},
+		{"hello", 2, "h…", "…o"},
+		{"hello", 3, "he…", "…lo"},
+		{"hello", 4, "hel…", "…llo"},
+		{"hello", 5, "hello", "hello"},
+		{"hello", 10, "hello", "hello"},
+		{"héllo", 4, "hé…", "…llo"},
+		{"héllo", 3, "he…", "…lo"},
+		{"he🐧lo", 4, "he🐧…", "…🐧lo"},
+		{"he🐧lo", 3, "he…", "…lo"},
 	} {
-		c.Check(strutil.ElliptRight(t.in, t.n), check.Equals, t.out, check.Commentf("%q[:%d] -> %q", t.in, t.n, t.out))
+		c.Check(strutil.ElliptRight(t.in, t.n), check.Equals, t.right, check.Commentf("%q[:%d] -> %q", t.in, t.n, t.right))
+		c.Check(strutil.ElliptLeft(t.in, t.n), check.Equals, t.left, check.Commentf("%q[-%d:] -> %q", t.in, t.n, t.left))
 	}
 }

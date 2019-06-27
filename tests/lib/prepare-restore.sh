@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
-
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
@@ -280,7 +277,9 @@ prepare_project() {
 
     create_test_user
 
-    distro_update_package_db
+    if ! distro_update_package_db; then
+        echo "Error updating the package db, continue with the system preparation"
+    fi
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
         # perform system upgrade on Arch so that we run with most recent kernel
@@ -379,7 +378,9 @@ prepare_project() {
             ;;
     esac
 
-    install_pkg_dependencies
+    if ! install_pkg_dependencies; then
+        echo "Error installing test dependencies, continue with the system preparation"
+    fi
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
@@ -580,7 +581,7 @@ restore_project_each() {
     fi
 
     # Something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
+    not grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {

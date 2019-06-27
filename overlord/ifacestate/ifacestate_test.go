@@ -1631,7 +1631,7 @@ func (s *interfaceManagerSuite) mockSnapInstance(c *C, instanceName, yamlText st
 		Active:      true,
 		Sequence:    []*snap.SideInfo{sideInfo},
 		Current:     sideInfo.Revision,
-		SnapType:    string(snapInfo.Type),
+		SnapType:    string(snapInfo.GetType()),
 		InstanceKey: snapInfo.InstanceKey,
 	})
 	return snapInfo
@@ -5344,12 +5344,13 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
+	s.o.AddManager(mgr)
 
 	// succesfull initialization should result in exactly 1 connect and run call
 	for i := 0; i < 5; i++ {
-		c.Assert(mgr.Ensure(), IsNil)
+		c.Assert(s.se.Ensure(), IsNil)
 	}
-	mgr.Stop()
+	s.se.Stop()
 
 	c.Assert(u.ConnectCalls, Equals, 1)
 	c.Assert(u.RunCalls, Equals, 1)
@@ -5382,24 +5383,25 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
+	s.o.AddManager(mgr)
 
-	c.Assert(mgr.Ensure(), ErrorMatches, "Connect failed")
+	c.Assert(s.se.Ensure(), ErrorMatches, ".*Connect failed.*")
 	c.Assert(u.ConnectCalls, Equals, 1)
 	c.Assert(u.RunCalls, Equals, 0)
 	c.Assert(u.StopCalls, Equals, 0)
 
 	u.ConnectError = nil
 	u.RunError = fmt.Errorf("Run failed")
-	c.Assert(mgr.Ensure(), ErrorMatches, "Run failed")
+	c.Assert(s.se.Ensure(), ErrorMatches, ".*Run failed.*")
 	c.Assert(u.ConnectCalls, Equals, 2)
 	c.Assert(u.RunCalls, Equals, 1)
 	c.Assert(u.StopCalls, Equals, 0)
 	c.Assert(u.DisconnectCalls, Equals, 1)
 
 	u.RunError = nil
-	c.Assert(mgr.Ensure(), IsNil)
+	c.Assert(s.se.Ensure(), IsNil)
 
-	mgr.Stop()
+	s.se.Stop()
 
 	c.Assert(u.StopCalls, Equals, 1)
 }
@@ -5417,9 +5419,10 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
+	s.o.AddManager(mgr)
 
 	for i := 0; i < 5; i++ {
-		c.Assert(mgr.Ensure(), IsNil)
+		c.Assert(s.se.Ensure(), IsNil)
 		c.Assert(udevMonitorCreated, Equals, false)
 	}
 
@@ -5437,7 +5440,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	st.Unlock()
 
 	// and udev monitor is now created
-	c.Assert(mgr.Ensure(), IsNil)
+	c.Assert(s.se.Ensure(), IsNil)
 	c.Assert(udevMonitorCreated, Equals, true)
 }
 

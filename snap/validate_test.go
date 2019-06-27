@@ -218,6 +218,7 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 		// socket paths using variables as prefix
 		"$SNAP_DATA/my.socket",
 		"$SNAP_COMMON/my.socket",
+		"$XDG_RUNTIME_DIR/my.socket",
 		// abstract sockets
 		"@snap.mysnap.my.socket",
 		// addresses and ports
@@ -273,7 +274,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 		err := ValidateApp(app)
 		c.Assert(
 			err, ErrorMatches,
-			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA or \$SNAP_COMMON`)
+			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
 	}
 }
 
@@ -619,6 +620,46 @@ slots:
 	c.Assert(info.Slots, HasLen, 1)
 	err = Validate(info)
 	c.Assert(err, ErrorMatches, `invalid interface name "i--face" for slot "slot"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseNone(c *C) {
+	const yaml = `name: requires-base
+version: 1
+base: none
+`
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Assert(err, IsNil)
+	c.Check(info.Base, Equals, "none")
+}
+
+func (s *ValidateSuite) TestValidateBaseNoneError(c *C) {
+	yamlTemplate := `name: use-base-none
+version: 1
+base: none
+
+%APPS_OR_HOOKS%
+`
+	const apps = `
+apps:
+  useradd:
+    command: bin/true
+`
+	const hooks = `
+hooks:
+  configure:
+`
+
+	for _, appsOrHooks := range []string{apps, hooks} {
+		yaml := strings.Replace(yamlTemplate, "%APPS_OR_HOOKS%", appsOrHooks, -1)
+		strk := NewScopedTracker()
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, ErrorMatches, `cannot have apps or hooks with base "none"`)
+	}
 }
 
 type testConstraint string
@@ -1244,6 +1285,38 @@ base: bar
 	c.Check(err, ErrorMatches, `cannot have "base" field on "os" snap "foo"`)
 }
 
+func (s *ValidateSuite) TestValidateOsCanHaveBaseNone(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+type: os
+base: none
+`))
+	c.Assert(err, IsNil)
+	c.Assert(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateBaseInorrectSnapName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: aAAAA
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid base name: invalid snap name: \"aAAAA\"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseSnapInstanceNameNotAllowed(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: foo_abc
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `base cannot specify a snap instance name: "foo_abc"`)
+}
+
 func (s *ValidateSuite) TestValidateBaseCannotHaveBase(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
@@ -1254,6 +1327,16 @@ base: bar
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseCanHaveBaseNone(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+type: base
+base: none
+`))
+	c.Assert(err, IsNil)
+	c.Assert(Validate(info), IsNil)
 }
 
 func (s *ValidateSuite) TestValidateCommonIDs(c *C) {

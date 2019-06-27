@@ -20,16 +20,20 @@
 package devicestate_test
 
 import (
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -38,10 +42,12 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -54,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -77,9 +84,15 @@ type deviceMgrSuite struct {
 	storeSigning *assertstest.StoreStack
 	brands       *assertstest.SigningAccounts
 
+	reqID string
+
+	restartRequests []state.RestartType
+
 	restoreOnClassic         func()
 	restoreGenericClassicMod func()
 	restoreSanitize          func()
+
+	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -113,6 +126,8 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
+	s.restartRequests = nil
+
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
@@ -122,6 +137,9 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.o = overlord.Mock()
+	s.o.SetRestartHandler(func(req state.RestartType) {
+		s.restartRequests = append(s.restartRequests, req)
+	})
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
 
@@ -146,7 +164,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner())
+	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
 	s.db = db
@@ -156,12 +174,22 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
 
+	// For triggering errors
+	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return errors.New("error out")
+	}
+	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
+
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
 	s.state.Unlock()
+}
+
+func (s *deviceMgrSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
+	return s.newFakeStore(devBE)
 }
 
 func (s *deviceMgrSuite) TearDownTest(c *C) {
@@ -1967,11 +1995,11 @@ func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, 
 	assertstatetest.AddMany(s.state, modelAs)
 }
 
-func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {
+func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) {
 	devKey, _ := assertstest.GenerateKey(752)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Assert(err, IsNil)
-	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            brandID,
 		"model":               model,
 		"serial":              serialN,
@@ -1980,8 +2008,12 @@ func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serial
 		"timestamp":           time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, serial)
+	err = assertstate.Add(st, serial)
 	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {
+	makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
@@ -2229,7 +2261,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	runner1 := state.NewTaskRunner(st)
 	hookMgr1, err := hookstate.Manager(st, runner1)
 	c.Assert(err, IsNil)
-	mgr1, err := devicestate.Manager(st, hookMgr1, runner1)
+	mgr1, err := devicestate.Manager(st, hookMgr1, runner1, nil)
 	c.Assert(err, IsNil)
 
 	ok := false
@@ -2251,7 +2283,7 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	runner2 := state.NewTaskRunner(st)
 	hookMgr2, err := hookstate.Manager(st, runner2)
 	c.Assert(err, IsNil)
-	mgr2, err := devicestate.Manager(st, hookMgr2, runner2)
+	mgr2, err := devicestate.Manager(st, hookMgr2, runner2, nil)
 	c.Assert(err, IsNil)
 
 	ok = false
@@ -2386,7 +2418,7 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 	runner := state.NewTaskRunner(st)
 	hookMgr, err := hookstate.Manager(st, runner)
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(st, hookMgr, runner)
+	mgr, err := devicestate.Manager(st, hookMgr, runner, nil)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -2446,8 +2478,8 @@ func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 		new    map[string]string
 		errStr string
 	}{
-		{map[string]string{"brand": "my-brand"}, "cannot remodel to different brands yet"},
-		{map[string]string{"model": "other-model"}, "cannot remodel to different models yet"},
+		{map[string]string{"brand": "my-brand"}, "cannot remodel to different brand/model yet"},
+		{map[string]string{"model": "other-model"}, "cannot remodel to different brand/model yet"},
 		{map[string]string{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
 		{map[string]string{"base": "core20"}, "cannot remodel to different bases yet"},
 		{map[string]string{"kernel": "other-kernel"}, "cannot remodel to different kernels yet"},
@@ -2478,9 +2510,12 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	var testDeviceCtx snapstate.DeviceContext
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 
 		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, Equals, testDeviceCtx)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2515,7 +2550,10 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
-	tss, err := devicestate.RemodelTasks(s.state, current, new)
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{}
+
+	tss, err := devicestate.RemodelTasks(s.state, current, new, testDeviceCtx)
 	c.Assert(err, IsNil)
 	// 2 snaps plus the remodel task, the wait chain is tested in
 	// TestRemodel*
@@ -2528,9 +2566,11 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 
 		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2567,14 +2607,16 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
-	var modelOnChange string
-	err = chg.Get("new-model", &modelOnChange)
-	c.Assert(err, IsNil)
-	c.Assert(string(asserts.Encode(new)), Equals, modelOnChange)
-
 	tl := chg.Tasks()
 	// 2 snaps,
 	c.Assert(tl, HasLen, 2*3+1)
+
+	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	c.Assert(err, IsNil)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), IsNil)
 
 	// check the tasks
 	tDownloadSnap1 := tl[0]
@@ -2632,8 +2674,10 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstall(func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2646,8 +2690,11 @@ func (s *deviceMgrSuite) TestRemodelSwitchKernelTrack(c *C) {
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdate(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -2767,6 +2814,116 @@ func (s *deviceMgrSuite) TestRemodelLessRequiredSnaps(c *C) {
 	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 }
 
+type freshSessionStore struct {
+	storetest.Store
+
+	ensureDeviceSession int
+}
+
+func (sto *freshSessionStore) EnsureDeviceSession() (*auth.DeviceState, error) {
+	sto.ensureDeviceSession += 1
+	return nil, nil
+}
+
+func (s *deviceMgrSuite) TestRemodelStoreSwitch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testStore snapstate.StoreService
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
+
+		c.Check(deviceCtx.Store(), Equals, testStore)
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"store":          "switched-store",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+
+	freshStore := &freshSessionStore{}
+	testStore = freshStore
+
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		mod, err := devBE.Model()
+		c.Check(err, IsNil)
+		if err == nil {
+			c.Check(mod, DeepEquals, new)
+		}
+		return testStore
+	}
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	c.Check(freshStore.ensureDeviceSession, Equals, 1)
+
+	tl := chg.Tasks()
+	// 2 snaps * 3 tasks (from the mock install above) +
+	// 1 "set-model" task at the end
+	c.Assert(tl, HasLen, 2*3+1)
+
+	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	c.Assert(err, IsNil)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), Equals, testStore)
+}
+
+func (s *deviceMgrSuite) TestRemodeling(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no changes
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+
+	// other change
+	s.state.NewChange("other", "...")
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+
+	// remodel change
+	chg := s.state.NewChange("remodel", "...")
+	c.Check(devicestate.Remodeling(s.state), Equals, true)
+
+	// done
+	chg.SetStatus(state.DoneStatus)
+	c.Check(devicestate.Remodeling(s.state), Equals, false)
+}
+
 func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2812,4 +2969,436 @@ func (s *deviceMgrSuite) TestDeviceCtxProvided(c *C) {
 	deviceCtx1, err := devicestate.DeviceCtx(s.state, nil, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx1, Equals, deviceCtx)
+}
+
+var snapYaml = `
+name: foo-gadget
+type: gadget
+`
+
+var gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+`
+
+func setupGadgetUpdate(c *C, st *state.State) (chg *state.Change, tsk *state.Task) {
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	st.Lock()
+
+	snapstate.Set(st, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	tsk = st.NewTask("update-gadget-assets", "update gadget")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg = st.NewChange("dummy", "...")
+	chg.AddTask(tsk)
+
+	st.Unlock()
+
+	return chg, tsk
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
+	var updateCalled bool
+	var passedRollbackDir string
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		updateCalled = true
+		passedRollbackDir = path
+		st, err := os.Stat(path)
+		c.Assert(err, IsNil)
+		m := st.Mode()
+		c.Assert(m.IsDir(), Equals, true)
+		c.Check(m.Perm(), Equals, os.FileMode(0750))
+		return nil
+	})
+	defer restore()
+
+	chg, t := setupGadgetUpdate(c, s.state)
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(updateCalled, Equals, true)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
+	c.Check(rollbackDir, Equals, passedRollbackDir)
+	// should have been removed right after update
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
+	var called bool
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		called = true
+		return gadget.ErrNoUpdate
+	})
+	defer restore()
+
+	chg, t := setupGadgetUpdate(c, s.state)
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.Log(), HasLen, 1)
+	c.Check(t.Log()[0], Matches, ".* INFO No gadget assets update needed")
+	c.Check(called, Equals, true)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (permissions are not honored)")
+	}
+
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+
+	chg, t := setupGadgetUpdate(c, s.state)
+
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
+	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
+	c.Assert(err, IsNil)
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot prepare update rollback directory: .*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		return errors.New("gadget exploded")
+	})
+	defer restore()
+	chg, t := setupGadgetUpdate(c, s.state)
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(gadget exploded\).*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
+	// update rollback left for inspection
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, true)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+
+	// simulate first-boot/seeding, there is no existing snap state information
+
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	s.state.Lock()
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
+	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	// invalid gadget.yaml data
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", "foobar"},
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot read gadget snap details: .*\).*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+
+	s.state.Lock()
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	// we cannot use "s.o.Settle()" here because this change has an
+	// error which means that the settle will never converge
+	for i := 0; i < 50; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+
+		s.state.Lock()
+		ready := chg.IsReady()
+		s.state.Unlock()
+		if ready {
+			break
+		}
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget assets task on a classic system\).*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *deviceMgrSuite) TestCurrentAndUpdateInfo(c *C) {
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	}
+
+	current, update, err := devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, IsNil)
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	// mock current first, but gadget.yaml is still missing
+	ci := snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, nil)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: .*/meta/gadget.yaml: no such file or directory")
+
+	// drop gadget.yaml for current snap
+	ioutil.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot find installed snap \"foo-gadget\" at revision 34: .*")
+
+	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(current, IsNil)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: .*")
+
+	var updateGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    id: 123
+`
+
+	// drop gadget.yaml for update snap
+	ioutil.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
+
+	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(current, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"pc": {
+				Bootloader: "grub",
+			},
+		},
+	})
+	c.Assert(update, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"pc": {
+				Bootloader: "grub",
+				ID:         "123",
+			},
+		},
+	})
+}
+
+func (s *deviceMgrSuite) TestGadgetUpdateBlocksWhenOtherTasks(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tUpdate := s.state.NewTask("update-gadget-assets", "update gadget")
+	t1 := s.state.NewTask("other-task-1", "other 1")
+	t2 := s.state.NewTask("other-task-2", "other 2")
+
+	// no other running tasks, does not block
+	c.Assert(devicestate.GadgetUpdateBlocked(tUpdate, nil), Equals, false)
+
+	// list of running tasks actually contains ones that are in the 'running' state
+	t1.SetStatus(state.DoingStatus)
+	t2.SetStatus(state.UndoingStatus)
+	// block on any other running tasks
+	c.Assert(devicestate.GadgetUpdateBlocked(tUpdate, []*state.Task{t1, t2}), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestGadgetUpdateBlocksOtherTasks(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tUpdate := s.state.NewTask("update-gadget-assets", "update gadget")
+	tUpdate.SetStatus(state.DoingStatus)
+	t1 := s.state.NewTask("other-task-1", "other 1")
+	t2 := s.state.NewTask("other-task-2", "other 2")
+
+	// block on any other running tasks
+	c.Assert(devicestate.GadgetUpdateBlocked(t1, []*state.Task{tUpdate}), Equals, true)
+	c.Assert(devicestate.GadgetUpdateBlocked(t2, []*state.Task{tUpdate}), Equals, true)
+
+	t2.SetStatus(state.UndoingStatus)
+	// update-gadget should be the only running task, for the sake of
+	// completeness pretend it's one of many running tasks
+	c.Assert(devicestate.GadgetUpdateBlocked(t1, []*state.Task{tUpdate, t2}), Equals, true)
+
+	// not blocking without gadget update task
+	c.Assert(devicestate.GadgetUpdateBlocked(t1, []*state.Task{t2}), Equals, false)
 }

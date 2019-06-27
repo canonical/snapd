@@ -180,7 +180,7 @@ func (vc VolumeContent) String() string {
 	if vc.Image != "" {
 		return fmt.Sprintf("image:%s", vc.Image)
 	}
-	return fmt.Sprintf("data:%s", vc.Source)
+	return fmt.Sprintf("source:%s", vc.Source)
 }
 
 type VolumeUpdate struct {

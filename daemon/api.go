@@ -80,6 +80,7 @@ var api = []*Command{
 	snapsCmd,
 	snapCmd,
 	snapFileCmd,
+	snapDownloadCmd,
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -96,6 +97,7 @@ var api = []*Command{
 	appsCmd,
 	logsCmd,
 	warningsCmd,
+	debugPprofCmd,
 	debugCmd,
 	snapshotCmd,
 	connectionsCmd,
@@ -500,7 +502,8 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	theStore := getStore(c)
-	found, err := theStore.Find(&store.Search{
+	ctx := store.WithClientUserAgent(r.Context(), r)
+	found, err := theStore.Find(ctx, &store.Search{
 		Query:    q,
 		Prefix:   prefix,
 		CommonID: commonID,
@@ -566,7 +569,8 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	spec := store.SnapSpec{
 		Name: name,
 	}
-	snapInfo, err := theStore.SnapInfo(spec, user)
+	ctx := store.WithClientUserAgent(r.Context(), r)
+	snapInfo, err := theStore.SnapInfo(ctx, spec, user)
 	switch err {
 	case nil:
 		// pass
@@ -733,6 +737,7 @@ type snapInstruction struct {
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
 	CohortKey        string        `json:"cohort-key"`
+	LeaveCohort      bool          `json:"leave-cohort"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
 	Classic          bool          `json:"classic"`
@@ -752,8 +757,10 @@ type snapInstruction struct {
 
 func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
 	return &snapstate.RevisionOptions{
-		Channel:  inst.Channel,
-		Revision: inst.Revision,
+		Channel:     inst.Channel,
+		Revision:    inst.Revision,
+		CohortKey:   inst.CohortKey,
+		LeaveCohort: inst.LeaveCohort,
 	}
 }
 
@@ -782,7 +789,6 @@ type snapInstructionResult struct {
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
-	snapstateInstallCohort     = snapstate.InstallCohort
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
@@ -791,6 +797,7 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+	snapstateSwitch            = snapstate.Switch
 
 	snapshotList    = snapshotstate.List
 	snapshotCheck   = snapshotstate.Check
@@ -869,11 +876,19 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 
 func verifySnapInstructions(inst *snapInstruction) error {
 	if inst.CohortKey != "" {
+		if inst.LeaveCohort {
+			return fmt.Errorf("cannot specify both cohort-key and leave-cohort")
+		}
 		if !inst.Revision.Unset() {
 			return fmt.Errorf("cannot specify both cohort-key and revision")
 		}
 		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
 			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
+		}
+	}
+	if inst.LeaveCohort {
+		if inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("leave-cohort can only be specified for refresh or switch")
 		}
 	}
 	switch inst.Action {
@@ -930,16 +945,14 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
-	var tset *state.TaskSet
 	var ckey string
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
-		tset, err = snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	} else {
-		ckey = strutil.ElliptRight(inst.CohortKey, 10)
+		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
-		tset, err = snapstateInstallCohort(st, inst.Snaps[0], inst.Channel, inst.CohortKey, inst.userID, flags)
 	}
+	tset, err := snapstateInstall(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1071,12 +1084,24 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	if !inst.Revision.Unset() {
 		return "", nil, errors.New("switch takes no revision")
 	}
-	ts, err := snapstate.Switch(st, inst.Snaps[0], &snapstate.RevisionOptions{Channel: inst.Channel})
+	ts, err := snapstateSwitch(st, inst.Snaps[0], inst.revnoOpts())
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
+	var msg string
+	switch {
+	case inst.LeaveCohort && inst.Channel != "":
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q and away from cohort"), inst.Snaps[0], inst.Channel)
+	case inst.LeaveCohort:
+		msg = fmt.Sprintf(i18n.G("Switch %q snap away from cohort"), inst.Snaps[0])
+	case inst.CohortKey == "" && inst.Channel != "":
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q"), inst.Snaps[0], inst.Channel)
+	case inst.CohortKey != "" && inst.Channel == "":
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to cohort %q"), inst.Snaps[0], strutil.ElliptLeft(inst.CohortKey, 10))
+	default:
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q and cohort %q"), inst.Snaps[0], inst.Channel, strutil.ElliptLeft(inst.CohortKey, 10))
+	}
 	return msg, []*state.TaskSet{ts}, nil
 }
 
@@ -1253,7 +1278,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" {
+	// TODO: inst.Amend, etc?
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if err := verifySnapInstructions(&inst); err != nil {
@@ -1509,7 +1535,7 @@ func iconGet(st *state.State, name string) Response {
 		return NotFound("local snap has no icon")
 	}
 
-	return FileResponse(icon)
+	return fileResponse(icon)
 }
 
 func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -2290,7 +2316,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)

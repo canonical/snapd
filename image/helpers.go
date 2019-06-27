@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
@@ -223,15 +224,6 @@ func (opts *DownloadOptions) validate() error {
 	return errRevisionAndCohort
 }
 
-// TODO: maybe move this to strutil next to ElliptRight
-func elliptLeft(str string) string {
-	if len(str) < 10 {
-		// shouldn't happen outside of tests
-		return str
-	}
-	return "…" + str[len(str)-8:]
-}
-
 func (opts *DownloadOptions) String() string {
 	spec := make([]string, 0, 4)
 	if !opts.Revision.Unset() {
@@ -243,7 +235,7 @@ func (opts *DownloadOptions) String() string {
 	if opts.CohortKey != "" {
 		// cohort keys are really long, and the rightmost bit being the
 		// interesting bit, so ellipt the rest
-		spec = append(spec, fmt.Sprintf(`from cohort %q`, elliptLeft(opts.CohortKey)))
+		spec = append(spec, fmt.Sprintf(`from cohort %q`, strutil.ElliptLeft(opts.CohortKey, 10)))
 	}
 	if opts.TargetDir != "" {
 		spec = append(spec, fmt.Sprintf("to %q", opts.TargetDir))

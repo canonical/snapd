@@ -19,6 +19,11 @@
 
 package daemon
 
-var SnapFileCmd = snapFileCmd
+var (
+	SnapFileCmd = snapFileCmd
+	GetSnapFile = getSnapFile
+)
 
-var GetSnapFile = getSnapFile
+type (
+	FileResponse = fileResponse
+)

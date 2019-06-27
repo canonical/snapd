@@ -264,7 +264,7 @@ func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
 }
 
 func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
-	if snapInfo.Type != snap.TypeOS {
+	if snapInfo.GetType() != snap.TypeOS {
 		// not a relevant check
 		return nil
 	}
@@ -302,7 +302,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, d
 func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	kind := ""
 	var currentInfo func(*state.State) (*snap.Info, error)
-	switch snapInfo.Type {
+	switch snapInfo.GetType() {
 	case snap.TypeGadget:
 		kind = "gadget"
 		currentInfo = GadgetInfo
@@ -345,10 +345,13 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 
 func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	// check if this is relevant
-	if snapInfo.Type != snap.TypeApp && snapInfo.Type != snap.TypeGadget {
+	if snapInfo.GetType() != snap.TypeApp && snapInfo.GetType() != snap.TypeGadget {
 		return nil
 	}
 	if snapInfo.Base == "" {
+		return nil
+	}
+	if snapInfo.Base == "none" {
 		return nil
 	}
 
