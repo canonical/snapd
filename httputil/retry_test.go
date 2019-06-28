@@ -423,6 +423,26 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	c.Assert(somewhatBrokenSrvCalls.Count(), Equals, 3)
 }
 
+func (s *retrySuite) TestRetryDoesNotFailForServerMisbehavePermanentDNSErrors(c *C) {
+	n := 0
+	doRequest := func() (*http.Response, error) {
+		n++
+		return nil, &net.OpError{
+			Op:  "dial",
+			Net: "tcp",
+			Err: fmt.Errorf("server misbehaving"),
+		}
+	}
+
+	readResponseBody := func(resp *http.Response) error {
+		return nil
+	}
+
+	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	c.Assert(err, NotNil)
+	c.Assert(n, Equals, 1)
+}
+
 func (s *retrySuite) TestRetryDoesNotFailForPermanentDNSErrors(c *C) {
 	n := 0
 	doRequest := func() (*http.Response, error) {
