@@ -93,69 +93,69 @@ static void test_infofile_get_key(void) {
     fclose(stream);
 
     /* Key without a value. */
-    char *malformed_value;
-    char malformed1[] = "key\n";
-    stream = fmemopen(malformed1, sizeof malformed1 - 1, "r");
+    char *tricky_value;
+    char tricky1[] = "key\n";
+    stream = fmemopen(tricky1, sizeof tricky1 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
+    rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
     g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
     g_assert_cmpint(sc_error_code(err), ==, 0);
     g_assert_cmpstr(sc_error_msg(err), ==, "line 1 is not a key=value assignment");
-    g_assert_null(malformed_value);
+    g_assert_null(tricky_value);
     sc_error_free(err);
     fclose(stream);
 
     /* Key-value pair with embedded NUL byte. */
-    char malformed2[] = "key=value\0garbage\n";
-    stream = fmemopen(malformed2, sizeof malformed2 - 1, "r");
+    char tricky2[] = "key=value\0garbage\n";
+    stream = fmemopen(tricky2, sizeof tricky2 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
+    rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
     g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
     g_assert_cmpint(sc_error_code(err), ==, 0);
     g_assert_cmpstr(sc_error_msg(err), ==, "line 1 contains NUL byte");
-    g_assert_null(malformed_value);
+    g_assert_null(tricky_value);
     sc_error_free(err);
     fclose(stream);
 
     /* Key with empty value (which is valid). */
-    char malformed3[] = "key=";
-    stream = fmemopen(malformed3, sizeof malformed3 - 1, "r");
+    char tricky3[] = "key=";
+    stream = fmemopen(tricky3, sizeof tricky3 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
+    rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, 0);
     g_assert_null(err);
-    g_assert_cmpstr(malformed_value, ==, "");
+    g_assert_cmpstr(tricky_value, ==, "");
     sc_error_free(err);
     fclose(stream);
-    free(malformed_value);
+    free(tricky_value);
 
     /* Key with empty value with a trailing newline (which is also valid). */
-    char malformed4[] = "key=\n";
-    stream = fmemopen(malformed4, sizeof malformed4 - 1, "r");
+    char tricky4[] = "key=\n";
+    stream = fmemopen(tricky4, sizeof tricky4 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
+    rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, 0);
     g_assert_null(err);
-    g_assert_cmpstr(malformed_value, ==, "");
+    g_assert_cmpstr(tricky_value, ==, "");
     sc_error_free(err);
     fclose(stream);
-    free(malformed_value);
+    free(tricky_value);
 
     /* The equals character alone (key is empty) */
-    char malformed5[] = "=";
-    stream = fmemopen(malformed5, sizeof malformed5 - 1, "r");
+    char tricky5[] = "=";
+    stream = fmemopen(tricky5, sizeof tricky5 - 1, "r");
     g_assert_nonnull(stream);
-    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
+    rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
     g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
     g_assert_cmpint(sc_error_code(err), ==, 0);
     g_assert_cmpstr(sc_error_msg(err), ==, "line 1 contains empty key");
-    g_assert_null(malformed_value);
+    g_assert_null(tricky_value);
     sc_error_free(err);
     fclose(stream);
 }
