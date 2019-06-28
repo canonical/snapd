@@ -148,12 +148,12 @@ static bool is_octal_digit(char c)
 }
 
 static char *parse_next_string_field(sc_mountinfo_entry * entry,
-				     const char *line, size_t * offset)
+				     const char *line, size_t *offset)
 {
 	const char *input = &line[*offset];
 	char *output = &entry->line_buf[*offset];
-	size_t input_idx = 0; // reading index
-	size_t output_idx = 0; // writing index
+	size_t input_idx = 0;	// reading index
+	size_t output_idx = 0;	// writing index
 
 	// Scan characters until we run out of memory to scan or we find a
 	// space.  The kernel uses simple octal escape sequences for the
@@ -166,7 +166,7 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 			// return NULL. This is an indication of end-of-input
 			// to the caller.
 			if (output_idx == 0) {
-			    return NULL;
+				return NULL;
 			}
 			// The scanned line is NUL terminated. This ensures that the
 			// terminator is copied to the output buffer.

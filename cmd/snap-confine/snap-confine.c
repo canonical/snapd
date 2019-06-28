@@ -229,7 +229,8 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 * designated user so UNIX permissions are in effect. */
 	if (fchdir(inner_cwd_fd) < 0) {
 		if (errno == EPERM || errno == EACCES) {
-			debug("cannot access original working directory %s", orig_cwd);
+			debug("cannot access original working directory %s",
+			      orig_cwd);
 			goto the_void;
 		}
 		die("cannot restore original working directory via path");
@@ -239,9 +240,9 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 * instruct the user and avoid potential confusion. This mostly applies to
 	 * tools that are invoked from /tmp. */
 	if (proc_state->file_info_orig_cwd.st_dev ==
-		file_info_inner.st_dev
-		&& proc_state->file_info_orig_cwd.st_ino ==
-		file_info_inner.st_ino) {
+	    file_info_inner.st_dev
+	    && proc_state->file_info_orig_cwd.st_ino ==
+	    file_info_inner.st_ino) {
 		/* The path of the original working directory points to the same
 		 * inode as before. */
 		debug("working directory restored to %s", orig_cwd);
@@ -303,7 +304,8 @@ int main(int argc, char **argv)
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 	sc_preserved_process_state proc_state
 	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {
-	.orig_umask = 0,.orig_cwd_fd = -1};
+		.orig_umask = 0,.orig_cwd_fd = -1
+	};
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
@@ -425,7 +427,6 @@ int main(int argc, char **argv)
 		// for compatibility, if facing older snapd.
 		setenv("SNAP_CONTEXT", snap_context, 1);
 	}
-
 	// Normally setuid/setgid not only permanently drops the UID/GID, but
 	// also clears the capabilities bounding sets (see "Effect of user ID
 	// changes on capabilities" in 'man capabilities'). To load a seccomp
@@ -438,7 +439,8 @@ int main(int argc, char **argv)
 	}
 	debug("ruid: %d, euid: %d, suid: %d",
 	      real_uid, effective_uid, saved_uid);
-	struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+	struct __user_cap_header_struct hdr =
+	    { _LINUX_CAPABILITY_VERSION_3, 0 };
 	struct __user_cap_data_struct cap_data[2] = { {0} };
 
 	// At this point in time, if we are going to permanently drop our
@@ -460,7 +462,6 @@ int main(int argc, char **argv)
 			die("capset failed");
 		}
 	}
-
 	// Permanently drop if not root
 	if (effective_uid == 0) {
 		// Note that we do not call setgroups() here because its ok
@@ -475,7 +476,6 @@ int main(int argc, char **argv)
 		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
 			die("permanently dropping privs did not work");
 	}
-
 	// Now that we've permanently dropped, regain SYS_ADMIN
 	if (keep_sys_admin) {
 		debug("regaining SYS_ADMIN");
@@ -485,7 +485,6 @@ int main(int argc, char **argv)
 			die("capset regain failed");
 		}
 	}
-
 	// Now that we've dropped and regained SYS_ADMIN, we can load the
 	// seccomp profiles.
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
@@ -493,7 +492,6 @@ int main(int argc, char **argv)
 		// global profile as well.
 		sc_apply_global_seccomp_profile();
 	}
-
 	// Even though we set inheritable to 0, let's clear SYS_ADMIN
 	// explicitly
 	if (keep_sys_admin) {
@@ -504,7 +502,6 @@ int main(int argc, char **argv)
 			die("capset clear failed");
 		}
 	}
-
 	// and exec the new executable
 	argv[0] = (char *)invocation.executable;
 	debug("execv(%s, %s...)", invocation.executable, argv[0]);
@@ -603,7 +600,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	 **/
 	sc_distro distro = sc_classify_distro();
 	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
-		!sc_streq(inv->orig_base_snap_name, "core");
+	    !sc_streq(inv->orig_base_snap_name, "core");
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
