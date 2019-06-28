@@ -92,7 +92,7 @@ static void test_infofile_get_key(void) {
 
     fclose(stream);
 
-    /* Various imperfect input */
+    /* Key without a value. */
     char *malformed_value;
     char malformed1[] = "key\n";
     stream = fmemopen(malformed1, sizeof malformed1 - 1, "r");
@@ -107,6 +107,7 @@ static void test_infofile_get_key(void) {
     sc_error_free(err);
     fclose(stream);
 
+    /* Key-value pair with embedded NUL byte. */
     char malformed2[] = "key=value\0garbage\n";
     stream = fmemopen(malformed2, sizeof malformed2 - 1, "r");
     g_assert_nonnull(stream);
@@ -120,6 +121,7 @@ static void test_infofile_get_key(void) {
     sc_error_free(err);
     fclose(stream);
 
+    /* Key with empty value (which is valid). */
     char malformed3[] = "key=";
     stream = fmemopen(malformed3, sizeof malformed3 - 1, "r");
     g_assert_nonnull(stream);
@@ -131,8 +133,21 @@ static void test_infofile_get_key(void) {
     fclose(stream);
     free(malformed_value);
 
-    char malformed4[] = "=";
+    /* Key with empty value with a trailing newline (which is also valid). */
+    char malformed4[] = "key=\n";
     stream = fmemopen(malformed4, sizeof malformed4 - 1, "r");
+    g_assert_nonnull(stream);
+    rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_cmpstr(malformed_value, ==, "");
+    sc_error_free(err);
+    fclose(stream);
+    free(malformed_value);
+
+    /* The equals character alone (key is empty) */
+    char malformed5[] = "=";
+    stream = fmemopen(malformed5, sizeof malformed5 - 1, "r");
     g_assert_nonnull(stream);
     rc = sc_infofile_get_key(stream, "key", &malformed_value, &err);
     g_assert_cmpint(rc, ==, -1);
