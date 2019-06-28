@@ -291,7 +291,7 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 enum sc_discard_vote {
 	/**
 	 * SC_DISCARD_NO denotes that the mount namespace doesn't have to be
-	 * discarded. This happens when the base snap block has not changed.
+	 * discarded. This happens when the base snap has not changed.
 	 **/
 	SC_DISCARD_NO = 1,
 	/**
