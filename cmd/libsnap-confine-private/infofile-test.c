@@ -222,7 +222,7 @@ static void test_infofile_get_key_scanner(void) {
     g_assert_true(scanner_state.stop);
     g_assert_nonnull(caller_state.stored_value);
     g_assert_cmpstr(caller_state.stored_value, ==, "value");
-    g_assert_cmpuint((intptr_t)caller_state.stored_value, !=, (intptr_t)"value");
+    g_assert_cmpuint((intptr_t)caller_state.stored_value, !=, (intptr_t) "value");
     free(caller_state.stored_value);
 }
 
