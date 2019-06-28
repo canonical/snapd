@@ -77,6 +77,8 @@ typedef struct sc_infofile_scanner_conf {
     FILE *stream;
     sc_infofile_scanner_fn scanner_fn;
     void *caller_state;
+    char *line_buf;
+    size_t line_buf_size;
 } sc_infofile_scanner_conf;
 
 /**
@@ -162,11 +164,14 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
         goto out;
     }
 
+    char line_buf[1024];
     sc_infofile_get_key_state get_key_state = {.wanted_key = key};
     sc_infofile_scanner_conf scanner_conf = {
         .stream = stream,
         .scanner_fn = sc_infofile_get_key_scanner,
         .caller_state = &get_key_state,
+        .line_buf = line_buf,
+        .line_buf_size = sizeof line_buf,
     };
     *value = NULL;
     if (sc_infofile_scan(&scanner_conf, &err) < 0) {
@@ -180,8 +185,6 @@ out:
 
 static int sc_infofile_scan(sc_infofile_scanner_conf *scanner_conf, sc_error **err_out) {
     sc_error *err = NULL;
-    size_t line_size = 0;
-    char *line_buf SC_CLEANUP(sc_cleanup_string) = NULL;
 
     if (scanner_conf == NULL) {
         err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "scanner_conf cannot be NULL");
@@ -195,32 +198,59 @@ static int sc_infofile_scan(sc_infofile_scanner_conf *scanner_conf, sc_error **e
         err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "scanner_fn cannot be NULL");
         goto out;
     }
+    if (scanner_conf->line_buf == NULL) {
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "line_buf cannot be NULL");
+        goto out;
+    }
+    /* Four bytes are sufficient to encode smallest, non-empty k=v pair. */
+    if (scanner_conf->line_buf_size < 4) {
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "line_buf_size cannot be smaller than 4");
+        goto out;
+    }
 
     /* This loop advances through subsequent lines. */
     for (int lineno = 1;; ++lineno) {
-        errno = 0;
-        ssize_t nread = getline(&line_buf, &line_size, scanner_conf->stream);
-        if (nread < 0 && errno != 0) {
-            err = sc_error_init_from_errno(errno, "cannot read beyond line %d", lineno);
+        char *line_buf = scanner_conf->line_buf;
+        char *eq_ptr = NULL;
+        size_t nread;
+        for (nread = 0; nread < scanner_conf->line_buf_size; ++nread) {
+            int c = fgetc(scanner_conf->stream);
+            if (c == EOF) {
+                /* Break when we run out of input, terminating the string. */
+                line_buf[nread] = '\0';
+                break;
+            } else if (c == '\n') {
+                /* Convert newline to the string terminator and stop reading.
+                 * Because we explicitly break here, nread is not incremented
+                 * anymore and it contains the number of characters read up to
+                 * this point, but excluding the newline. */
+                line_buf[nread] = '\0';
+                break;
+            } else if (c == '\0') {
+                /* Guard against malformed input that may contain NUL bytes
+                 * that would confuse the code below. */
+                err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains NUL byte", lineno);
+                goto out;
+            } else if (c == '=' && eq_ptr == NULL) {
+                /* Find the first '=' and replace it with a string terminator.
+                 * This will allow us to easily process key=value as two
+                 * separate strings. */
+                eq_ptr = &line_buf[nread];
+                line_buf[nread] = '\0';
+            } else {
+                line_buf[nread] = (char)c;
+            }
+        }
+        /* Perhaps there is no more input? */
+        if (nread == 0) {
+            break;
+        }
+        /* Guard against overly long lines. */
+        if (nread == scanner_conf->line_buf_size) {
+            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d is too long to process", lineno);
             goto out;
-        }
-        if (nread <= 0) {
-            break; /* There is nothing more to read. */
-        }
-        /* NOTE: beyond this line the buffer is never empty. */
-
-        /* Guard against malformed input that may contain NUL bytes that
-         * would confuse the code below. */
-        if (memchr(line_buf, '\0', nread) != NULL) {
-            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains NUL byte", lineno);
-            goto out;
-        }
-        /* Replace the newline character, if any, with the NUL byte. */
-        if (line_buf[nread - 1] == '\n') {
-            line_buf[nread - 1] = '\0';
         }
         /* Guard against malformed input that does not contain '=' byte */
-        char *eq_ptr = memchr(line_buf, '=', nread);
         if (eq_ptr == NULL) {
             err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d is not a key=value assignment", lineno);
             goto out;
@@ -230,12 +260,13 @@ static int sc_infofile_scan(sc_infofile_scanner_conf *scanner_conf, sc_error **e
             err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains empty key", lineno);
             goto out;
         }
-        /* Replace the first '=' with string terminator byte. */
-        *eq_ptr = '\0';
-
         /* Call the scanner callback with the state for this location. */
         sc_infofile_scanner_state scanner_state = {
             .key = line_buf,
+            /* eq_ptr + 1 is always inside the line buffer and is always
+             * initialized, even if = is the final character of the string
+             * because both '\n' and EOF are replaced with the string
+             * terminator. */
             .value = eq_ptr + 1,
             .lineno = lineno,
             .caller_state = scanner_conf->caller_state,

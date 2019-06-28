@@ -226,7 +226,98 @@ static void test_infofile_get_key_scanner(void) {
     free(caller_state.stored_value);
 }
 
+static int sc_infofile_nop_scanner(sc_infofile_scanner_state *scanner_state, sc_error **err_out) {
+    return sc_error_forward(err_out, NULL);
+}
+
+static void test_infofile_scan(void) {
+    int rc;
+    sc_error *err;
+
+    /* scanner_conf cannot be NULL. */
+    rc = sc_infofile_scan(NULL, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "scanner_conf cannot be NULL");
+    sc_error_free(err);
+
+    sc_infofile_scanner_conf scanner_conf = {NULL};
+
+    /* stream cannot be NULL. */
+    rc = sc_infofile_scan(&scanner_conf, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "stream cannot be NULL");
+    sc_error_free(err);
+
+    char text[] = "key=value\n";
+    scanner_conf.stream = fmemopen(text, sizeof text - 1, "r");
+    g_assert_nonnull(scanner_conf.stream);
+
+    /* scanner_fn cannot be NULL. */
+    rc = sc_infofile_scan(&scanner_conf, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "scanner_fn cannot be NULL");
+    sc_error_free(err);
+
+    scanner_conf.scanner_fn = sc_infofile_nop_scanner;
+
+    /* line_buf cannot be NULL. */
+    rc = sc_infofile_scan(&scanner_conf, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line_buf cannot be NULL");
+    sc_error_free(err);
+
+    char line_buf4[4];
+    scanner_conf.line_buf = line_buf4;
+
+    /* line_buf_size cannot be zero. */
+    rc = sc_infofile_scan(&scanner_conf, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line_buf_size cannot be smaller than 4");
+    sc_error_free(err);
+
+    scanner_conf.line_buf_size = sizeof line_buf4;
+
+    rewind(scanner_conf.stream);
+
+    /* lines must fit inside the buffer */
+    rc = sc_infofile_scan(&scanner_conf, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, 0);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line 1 is too long to process");
+    sc_error_free(err);
+
+    char line_buf64[64];
+    scanner_conf.line_buf = line_buf64;
+    scanner_conf.line_buf_size = sizeof line_buf64;
+    rewind(scanner_conf.stream);
+
+    /* when everything works, no errors are reported. */
+    rc = sc_infofile_scan(&scanner_conf, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+
+    fclose(scanner_conf.stream);
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/infofile/get_key", test_infofile_get_key);
     g_test_add_func("/infofile/get_key_scanner", test_infofile_get_key_scanner);
+    g_test_add_func("/infofile/scan", test_infofile_scan);
 }

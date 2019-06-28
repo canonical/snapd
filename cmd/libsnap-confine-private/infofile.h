@@ -26,6 +26,10 @@
  * sc_infofile_get_key extracts a single value of a key=value pair from a given
  * stream.
  *
+ * Internally a constant-size buffer is used, limiting the size of each scanned
+ * line to at most one kilobyte. Larger lines cause the parser to report an error
+ * and return.
+ *
  * On success the return value is zero and err_out, if not NULL, is deferences
  * and set to NULL.  On failure the return value is -1 is and detailed error
  * information is stored by dereferencing err_out.  If an error occurs and
