@@ -67,6 +67,19 @@ typedef struct sc_infofile_scanner_state {
 typedef int (*sc_infofile_scanner_fn)(sc_infofile_scanner_state *scanner_state, sc_error **err_out);
 
 /**
+ * sc_infofile_scanner_conf represents the configuration of the scanner.
+ *
+ * The configuration is comprised of the FILE stream to scan, the scanner function
+ * as well as the caller state that is provided by the caller and conveyed into the
+ * scanner function.
+ **/
+typedef struct sc_infofile_scanner_conf {
+    FILE *stream;
+    sc_infofile_scanner_fn scanner_fn;
+    void *caller_state;
+} sc_infofile_scanner_conf;
+
+/**
  * sc_infofile_scan performs linear scan of a given stream, extracting
  * key=value pairs and passing them along to the scanner function.
  *
@@ -84,7 +97,7 @@ typedef int (*sc_infofile_scanner_fn)(sc_infofile_scanner_state *scanner_state, 
  * information is stored by dereferencing err_out.  If an error occurs and
  * err_out is NULL then the program dies, printing the error message.
  **/
-static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, void *caller_state, sc_error **err_out);
+static int sc_infofile_scan(sc_infofile_scanner_conf *scanner_conf, sc_error **err_out);
 
 /**
  * sc_infofile_get_key_state represents caller state for sc_infofile_get_key.
@@ -149,29 +162,36 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
         goto out;
     }
 
-    sc_infofile_get_key_state scanner_state = {.wanted_key = key};
-    sc_infofile_scanner_fn scanner_fn = sc_infofile_get_key_scanner;
-
+    sc_infofile_get_key_state get_key_state = {.wanted_key = key};
+    sc_infofile_scanner_conf scanner_conf = {
+        .stream = stream,
+        .scanner_fn = sc_infofile_get_key_scanner,
+        .caller_state = &get_key_state,
+    };
     *value = NULL;
-    if (sc_infofile_scan(stream, scanner_fn, &scanner_state, &err) < 0) {
+    if (sc_infofile_scan(&scanner_conf, &err) < 0) {
         goto out;
     }
-    *value = scanner_state.stored_value;
+    *value = get_key_state.stored_value;
 
 out:
     return sc_error_forward(err_out, err);
 }
 
-static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, void *caller_state, sc_error **err_out) {
+static int sc_infofile_scan(sc_infofile_scanner_conf *scanner_conf, sc_error **err_out) {
     sc_error *err = NULL;
     size_t line_size = 0;
     char *line_buf SC_CLEANUP(sc_cleanup_string) = NULL;
 
-    if (stream == NULL) {
+    if (scanner_conf == NULL) {
+        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "scanner_conf cannot be NULL");
+        goto out;
+    }
+    if (scanner_conf->stream == NULL) {
         err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "stream cannot be NULL");
         goto out;
     }
-    if (scanner_fn == NULL) {
+    if (scanner_conf->scanner_fn == NULL) {
         err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "scanner_fn cannot be NULL");
         goto out;
     }
@@ -179,7 +199,7 @@ static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, voi
     /* This loop advances through subsequent lines. */
     for (int lineno = 1;; ++lineno) {
         errno = 0;
-        ssize_t nread = getline(&line_buf, &line_size, stream);
+        ssize_t nread = getline(&line_buf, &line_size, scanner_conf->stream);
         if (nread < 0 && errno != 0) {
             err = sc_error_init_from_errno(errno, "cannot read beyond line %d", lineno);
             goto out;
@@ -218,9 +238,9 @@ static int sc_infofile_scan(FILE *stream, sc_infofile_scanner_fn scanner_fn, voi
             .key = line_buf,
             .value = eq_ptr + 1,
             .lineno = lineno,
-            .caller_state = caller_state,
+            .caller_state = scanner_conf->caller_state,
         };
-        if (scanner_fn(&scanner_state, &err) < 0) {
+        if (scanner_conf->scanner_fn(&scanner_state, &err) < 0) {
             goto out;
         }
         /* Stop scanning if the callback asked us to do so. */
