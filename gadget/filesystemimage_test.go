@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type filesystemImageTestSuite struct {
@@ -55,6 +55,7 @@ func (s *filesystemImageTestSuite) SetUpTest(c *C) {
 			Size:       2 * gadget.SizeMiB,
 			Content:    []gadget.VolumeContent{},
 		},
+		Index: 1,
 	}
 }
 
@@ -113,6 +114,7 @@ func (s *filesystemImageTestSuite) TestHappyFull(c *C) {
 				{Source: "/foo", Target: "/"},
 			},
 		},
+		Index: 2,
 	}
 
 	// image file
@@ -126,22 +128,20 @@ func (s *filesystemImageTestSuite) TestHappyFull(c *C) {
 
 	var cbCalled bool
 	var mkfsCalled bool
-	var stagedContentDir string
 
 	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
 		c.Assert(cbPs, DeepEquals, ps)
+		c.Assert(rootDir, Equals, filepath.Join(s.work, "snap-stage-content-part-0002"))
 		verifyDeployedGadgetData(c, rootDir, gd)
 
 		cbCalled = true
-		stagedContentDir = rootDir
 		return nil
 	}
 
 	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
 		c.Assert(imgFile, Equals, img)
 		c.Assert(label, Equals, "so-happy")
-		c.Assert(len(stagedContentDir) > 0, Equals, true, Commentf("staging directory location unknown"))
-		c.Assert(contentsRootDir, Equals, stagedContentDir)
+		c.Assert(contentsRootDir, Equals, filepath.Join(s.work, "snap-stage-content-part-0002"))
 		mkfsCalled = true
 		return nil
 	}
@@ -158,9 +158,7 @@ func (s *filesystemImageTestSuite) TestHappyFull(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cbCalled, Equals, true)
 	c.Assert(mkfsCalled, Equals, true)
-	// called for temporary staging location
-	c.Assert(strings.HasPrefix(stagedContentDir, s.work+"/"), Equals, true, Commentf("unexpected work dir path: %q", stagedContentDir))
-
+	// nothing left in temporary staging location
 	matches, err := filepath.Glob(s.work + "/*")
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 0)
@@ -339,7 +337,13 @@ func (s *filesystemImageTestSuite) TestBadWorkDirError(c *C) {
 	img := s.imgForPs(c, s.psTrivial)
 
 	err = fiw.Write(img, cb)
-	c.Assert(err, ErrorMatches, `cannot prepare staging directory: .*/bad-work: no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot prepare staging directory: mkdir .*/bad-work/snap-stage-content-part-0001: no such file or directory`)
+
+	err = os.MkdirAll(filepath.Join(badWork, "snap-stage-content-part-0001"), 0755)
+	c.Assert(err, IsNil)
+
+	err = fiw.Write(img, cb)
+	c.Assert(err, ErrorMatches, `cannot prepare staging directory .*/bad-work/snap-stage-content-part-0001: path exists`)
 }
 
 func (s *filesystemImageTestSuite) TestKeepsStagingDir(c *C) {
@@ -367,5 +371,5 @@ func (s *filesystemImageTestSuite) TestKeepsStagingDir(c *C) {
 	matches, err := filepath.Glob(s.work + "/*")
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 1)
-	c.Assert(strings.HasPrefix(filepath.Base(matches[0]), "snap-stage-content-"), Equals, true, Commentf("unexpected workddir entry: %v", matches[0]))
+	c.Assert(osutil.IsDirectory(filepath.Join(s.work, "snap-stage-content-part-0001")), Equals, true)
 }

@@ -20,10 +20,11 @@ package gadget
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type MkfsFunc func(imgFile, label, contentsRootDir string) error
@@ -65,8 +66,12 @@ func (f *FilesystemImageWriter) Write(fname string, postStage PostStageFunc) err
 		return fmt.Errorf("internal error: filesystem %q has no handler", f.ps.Filesystem)
 	}
 
-	where, err := ioutil.TempDir(f.workDir, "snap-stage-content-")
-	if err != nil {
+	where := filepath.Join(f.workDir, fmt.Sprintf("snap-stage-content-part-%04d", f.ps.Index))
+	if osutil.IsDirectory(where) {
+		return fmt.Errorf("cannot prepare staging directory %s: path exists", where)
+	}
+
+	if err := os.Mkdir(where, 0755); err != nil {
 		return fmt.Errorf("cannot prepare staging directory: %v", err)
 	}
 
