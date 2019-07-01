@@ -102,8 +102,7 @@ dbus send
 network netlink dgram,
 
 # ip, et al
-/etc/iproute2/ r,
-/etc/iproute2/* r,
+/etc/iproute2/{,**} r,
 
 # ping - child profile would be nice but seccomp causes problems with that
 /{,usr/}{,s}bin/ping ixr,
