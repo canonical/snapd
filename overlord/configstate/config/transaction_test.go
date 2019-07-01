@@ -122,7 +122,7 @@ var setGetTests = [][]setGetOp{{
 	`commit`,
 	`get doc={"two":2}`,
 	`getroot ={"doc":{"two":2}}`,
-	`getunder doc={"two":2}`, // nils are not commited to state
+	`getunder doc={"two":2}`, // nils are not committed to state
 }, {
 	// Nulls via dotted path, resuling in empty map
 	`set doc={"one":{"three":3},"two":2}`,
@@ -130,7 +130,7 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"two":2}`,
 	`commit`,
 	`get doc={"two":2}`,
-	`getunder doc={"two":2}`, // nils are not commited to state
+	`getunder doc={"two":2}`, // nils are not committed to state
 }, {
 	// Nulls via dotted path in a doc
 	`set doc={"one":1,"two":2}`,
@@ -140,7 +140,7 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":1,"two":2}`,
 	`commit`,
 	`get doc={"one":1,"two":2}`,
-	`getunder doc={"one":1,"two":2}`, // nils are not commited to state
+	`getunder doc={"one":1,"two":2}`, // nils are not committed to state
 }, {
 	// Nulls nested in a document
 	`set doc={"one":{"three":3,"two":2}}`,
@@ -150,7 +150,7 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":{"two":2}}`,
 	`commit`,
 	`get doc={"one":{"two":2}}`,
-	`getunder doc={"one":{"two":2}}`, // nils are not commited to state
+	`getunder doc={"one":{"two":2}}`, // nils are not committed to state
 }, {
 	// Nulls with mutating
 	`set doc={"one":{"two":2}}`,
@@ -159,7 +159,7 @@ var setGetTests = [][]setGetOp{{
 	`get doc.one="foo"`,
 	`commit`,
 	`get doc={"one":"foo"}`,
-	`getunder doc={"one":"foo"}`, // nils are not commited to state
+	`getunder doc={"one":"foo"}`, // nils are not committed to state
 }, {
 	// Nulls, intermediate temporary maps get dropped
 	`set doc={"one":{"two":2}}`,
@@ -168,7 +168,7 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":{"two":2}}`,
 	`commit`,
 	`get doc={"one":{"two":2}}`,
-	`getrootunder ={"doc":{"one":{"two":2}}}`, // nils are not commited to state
+	`getrootunder ={"doc":{"one":{"two":2}}}`, // nils are not committed to state
 }, {
 	// Nulls, same transaction, intermediate non-existing maps get dropped
 	`set doc={"one":{"two":2}}`,
@@ -176,7 +176,7 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":{"two":2}}`,
 	`commit`,
 	`get doc={"one":{"two":2}}`,
-	`getrootunder ={"doc":{"one":{"two":2}}}`, // nils are not commited to state
+	`getrootunder ={"doc":{"one":{"two":2}}}`, // nils are not committed to state
 }, {
 	// Nulls, empty doc dropped
 	`set doc={"one":1}`,

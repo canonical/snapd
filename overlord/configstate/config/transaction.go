@@ -175,9 +175,9 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 
 	out := purgeNulls(config)
 	if out == nil {
-		// XXX: an edge case - uncommited changes gave null after normalizing; we could return "snap has no configration" error
+		// XXX: an edge case - uncommitted changes gave null after normalizing; we could return "snap has no configration" error
 		// instead, this however affects feature flags which expect NoOptionError. Note, special-casing NoOptionError is not
-		// strictly neccessary here as it would be the outcome of getFromConfig() below, however it makes the intent more clear.
+		// strictly necessary here as it would be the outcome of getFromConfig() below, however it makes the intent more clear.
 		return &NoOptionError{SnapName: snapName, Key: key}
 	}
 	return getFromConfig(snapName, subkeys, 0, config, result)
