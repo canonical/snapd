@@ -121,17 +121,19 @@ static void test_infofile_get_key(void) {
     sc_error_free(err);
     fclose(stream);
 
-    /* Key with empty value (which is valid). */
+    /* Key with empty value but without trailing newline. */
     char tricky3[] = "key=";
     stream = fmemopen(tricky3, sizeof tricky3 - 1, "r");
     g_assert_nonnull(stream);
     rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
-    g_assert_cmpint(rc, ==, 0);
-    g_assert_null(err);
-    g_assert_cmpstr(tricky_value, ==, "");
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpint(sc_error_code(err), ==, 0);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line 1 does not end with a newline");
+    g_assert_null(tricky_value);
     sc_error_free(err);
     fclose(stream);
-    free(tricky_value);
 
     /* Key with empty value with a trailing newline (which is also valid). */
     char tricky4[] = "key=\n";
@@ -146,7 +148,7 @@ static void test_infofile_get_key(void) {
     free(tricky_value);
 
     /* The equals character alone (key is empty) */
-    char tricky5[] = "=";
+    char tricky5[] = "=\n";
     stream = fmemopen(tricky5, sizeof tricky5 - 1, "r");
     g_assert_nonnull(stream);
     rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
