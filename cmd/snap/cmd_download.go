@@ -38,7 +38,7 @@ type cmdDownload struct {
 	channelMixin
 	Revision  string `long:"revision"`
 	Basename  string `long:"basename"`
-	TargetDir string `long:"target-dir"`
+	TargetDir string `long:"target-directory"`
 
 	CohortKey  string `long:"cohort"`
 	Positional struct {
@@ -61,9 +61,9 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"cohort": i18n.G("Download from the given cohort"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"basename": i18n.G("Use this basename for the snap and assertion (defaults to <snap>_<revision>)"),
+		"basename": i18n.G("Use this basename for the snap and assertion files (defaults to <snap>_<revision>)"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"target-dir": i18n.G("Download to this directory (defaults to the current directory)"),
+		"target-directory": i18n.G("Download to this directory (defaults to the current directory)"),
 	}), []argDesc{{
 		name: "<snap>",
 		// TRANSLATORS: This should not start with a lowercase letter.

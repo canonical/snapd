@@ -48,6 +48,6 @@ execute: |
     MATCH 'cannot download snap.*: Invalid cohort key' < out
 
     echo "Snap download can specify basename and target directory"
-    snap download --target-dir=foo --basename=bar test-snapd-tools
+    snap download --target-directory=foo --basename=bar test-snapd-tools
     ls -l foo/bar.snap
     verify_asserts foo/bar.assert
