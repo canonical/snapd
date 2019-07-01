@@ -857,7 +857,7 @@ void sc_store_ns_info(const sc_invocation * inv)
 	char info_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(info_path, sizeof info_path,
 			 "/run/snapd/ns/snap.%s.info", inv->snap_instance);
-	stream = fopen(info_path, "wt");
+	stream = fopen(info_path, "w");
 	if (stream == NULL) {
 		die("cannot open %s", info_path);
 	}
