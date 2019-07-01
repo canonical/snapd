@@ -727,6 +727,51 @@ func (layout *Layout) constraint() LayoutConstraint {
 	return mountedTree(path)
 }
 
+// layoutRejectionList contains directories that cannot be used as layout
+// targets. Nothing there, or underneath can be replaced with $SNAP or
+// $SNAP_DATA, or $SNAP_COMMON content, even from the point of view of a single
+// snap.
+var layoutRejectionList = []string{
+	// There's no known reason to allow snaps to replace things there.
+	"/boot",
+	// The /dev directory contains essential device nodes and there's no valid
+	// reason to allow snaps to replace it.
+	"/dev",
+	// The firmware is sometimes loaded on demand by the kernel, in response to
+	// a process performing generic I/O to a specific device. In that case the
+	// mount namespace of the process is searched, by the kernel, for the
+	// firmware. Therefore firmware must not be replicable to prevent malicious
+	// firmware from attacking the host.
+	"/lib/firmware",
+	// Similarly the kernel will load modules and the modules should not be
+	// something that snaps can tamper with.
+	"/lib/modules",
+	"/lost+found",
+	// The media directory is bi-directionally mounted and any mount operations
+	// there are reflected in the host's view of /media, which may be either
+	// itself or /run/media.
+	"/media",
+	// The /proc directory contains essential process meta-data and
+	// miscellaneous kernel configuration parameters and there is no valid
+	// reason to allow snaps to replace it.
+	"/proc",
+	// The /run directory contains various ephemeral information files or
+	// sockets used by various programs. Providing view of the true /run allows
+	// snap applications to be integrated with the rest of the system and
+	// therefore snaps should not be allowed to replace it.
+	"/run",
+	// The /sys directory exposes many kernel internals, similar to /proc and
+	// there is no known reason to allow snaps to replace it.
+	"/sys",
+	// The /var/lib/snapd directory contains essential state of snapd and is
+	// sometimes consulted from inside the mount namespace.
+	"/var/lib/snapd",
+	// The /var/snap directory contains system-wide state of particular snaps
+	// and should not be replaced as it would break content interface
+	// connections that use $SNAP_DATA or $SNAP_COMMON.
+	"/var/snap",
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
 func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	si := layout.Snap
@@ -750,7 +795,7 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
-	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap", "/lib/firmware", "/lib/modules"} {
+	for _, path := range layoutRejectionList {
 		// We use the mountedTree constraint as this has the right semantics.
 		if mountedTree(path).IsOffLimits(mountPoint) {
 			return fmt.Errorf("layout %q in an off-limits area", layout.Path)
