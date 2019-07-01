@@ -60,7 +60,7 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
         if (nread <= 0) {
             break; /* There is nothing more to read. */
         }
-        /* NOTE: beyond this line the buffer is never empty. */
+		/* NOTE: beyond this line the buffer is never empty (ie, nread > 0). */
 
         /* Guard against malformed input that may contain NUL bytes that
          * would confuse the code below. */
