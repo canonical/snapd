@@ -20,10 +20,13 @@
 package builtin
 
 import (
+	"bytes"
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -56,8 +59,36 @@ const appstreamMetadataConnectedPlugAppArmor = `
 /var/lib/apt/lists/*.yml.gz r,
 `
 
+var appstreamMetadataDirs = []string{
+	"/usr/share/metainfo",
+	"/usr/share/app-info",
+	"/var/cache/app-info",
+	"/var/lib/app-info",
+	"/var/lib/apt/lists",
+}
+
 type appstreamMetadataInterface struct {
 	commonInterface
+}
+
+func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(appstreamMetadataConnectedPlugAppArmor)
+
+	// Generate rules to allow snap-update-ns to do its thing
+	var buf bytes.Buffer
+	for _, target := range appstreamMetadataDirs {
+		source := "/var/lib/snapd/hostfs" + target
+		fmt.Fprintf(&buf, "  # Read-only access to %s\n", target)
+		fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
+		fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
+		fmt.Fprintf(&buf, "  umount %s/,\n\n", target)
+		// Allow constructing writable mimic to mount point We
+		// expect three components to already exist: /, /usr,
+		// and /usr/share (or equivalents under /var).
+		apparmor.WritableProfile(&buf, target, 3)
+	}
+	spec.AddUpdateNS(buf.String())
+	return nil
 }
 
 func (iface *appstreamMetadataInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -84,11 +115,10 @@ func (iface *appstreamMetadataInterface) MountConnectedPlug(spec *mount.Specific
 
 func init() {
 	registerIface(&appstreamMetadataInterface{commonInterface{
-		name:                  "appstream-metadata",
-		summary:               appstreamMetadataSummary,
-		implicitOnClassic:     true,
-		reservedForOS:         true,
-		baseDeclarationSlots:  appstreamMetadataBaseDeclarationSlots,
-		connectedPlugAppArmor: appstreamMetadataConnectedPlugAppArmor,
+		name:                 "appstream-metadata",
+		summary:              appstreamMetadataSummary,
+		implicitOnClassic:    true,
+		reservedForOS:        true,
+		baseDeclarationSlots: appstreamMetadataBaseDeclarationSlots,
 	}})
 }
