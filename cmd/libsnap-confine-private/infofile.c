@@ -68,10 +68,14 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
             err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains NUL byte", lineno);
             goto out;
         }
-        /* Replace the newline character, if any, with the NUL byte. */
-        if (line_buf[nread - 1] == '\n') {
-            line_buf[nread - 1] = '\0';
+        /* Guard against non-strictly formatted input that doesn't contain
+         * trailing newline. */
+        if (line_buf[nread - 1] != '\n') {
+            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d does not end with a newline", lineno);
+            goto out;
         }
+        /* Replace the trailing newline character with the NUL byte. */
+        line_buf[nread - 1] = '\0';
         /* Guard against malformed input that does not contain '=' byte */
         char *eq_ptr = memchr(line_buf, '=', nread);
         if (eq_ptr == NULL) {
