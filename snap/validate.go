@@ -767,6 +767,9 @@ var layoutRejectionList = []string{
 	// The /sys directory exposes many kernel internals, similar to /proc and
 	// there is no known reason to allow snaps to replace it.
 	"/sys",
+	// The /tmp directory contains private, per-snap, view of /tmp and there's
+	// no valid reason to allow snaps to replace it.
+	"/tmp",
 	// The /var/lib/snapd directory contains essential state of snapd and is
 	// sometimes consulted from inside the mount namespace.
 	"/var/lib/snapd",
