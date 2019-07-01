@@ -737,6 +737,10 @@ var layoutRejectionList = []string{
 	// The /dev directory contains essential device nodes and there's no valid
 	// reason to allow snaps to replace it.
 	"/dev",
+	// The /home directory contains user data, including $SNAP_USER_DATA,
+	// $SNAP_USER_COMMON and should be disallowed for the same reasons as
+	// /var/snap.
+	"/home",
 	// The firmware is sometimes loaded on demand by the kernel, in response to
 	// a process performing generic I/O to a specific device. In that case the
 	// mount namespace of the process is searched, by the kernel, for the
