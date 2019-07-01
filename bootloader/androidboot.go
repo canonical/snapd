@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/androidbootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 type androidboot struct{}
@@ -74,4 +75,13 @@ func (a *androidboot) SetBootVars(values map[string]string) error {
 		env.Set(k, v)
 	}
 	return env.Save()
+}
+
+func (a *androidboot) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+	return nil
+
+}
+
+func (a *androidboot) RemoveKernelAssets(s snap.PlaceInfo) error {
+	return nil
 }

@@ -636,7 +636,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		SnapPath:    path,
 		Channel:     channel,
 		Flags:       flags.ForSnapSetup(),
-		Type:        info.Type,
+		Type:        info.GetType(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
 	}
@@ -703,6 +703,10 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 		return nil, err
 	}
 
+	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
+		return nil, fmt.Errorf("declared snap base %q has unexpected type %q, instead of 'base'", name, info.GetType())
+	}
+
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
@@ -720,7 +724,7 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
-		Type:         info.Type,
+		Type:         info.GetType(),
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
@@ -786,7 +790,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &info.DownloadInfo,
 			SideInfo:     &info.SideInfo,
-			Type:         info.Type,
+			Type:         info.GetType(),
 			PlugsOnly:    len(info.Slots) == 0,
 			InstanceKey:  info.InstanceKey,
 		}
@@ -980,7 +984,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
-			Type:         update.Type,
+			Type:         update.GetType(),
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
 			auxStoreInfo: auxStoreInfo{
@@ -1002,7 +1006,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if update.Type == snap.TypeOS || update.Type == snap.TypeBase || update.InstanceName() == "snapd" {
+		if update.GetType() == snap.TypeOS || update.GetType() == snap.TypeBase || update.InstanceName() == "snapd" {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
@@ -1221,45 +1225,45 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 			// leave cohort
 			if chanFrom == chanTo {
 				return fmt.Sprintf(i18n.G("Switch snap %q away from cohort %q"),
-					snap, strutil.ElliptRight(cohFrom, 10))
+					snap, strutil.ElliptLeft(cohFrom, 10))
 			}
 			if chanFrom == "" {
 				return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and away from cohort %q"),
-					snap, chanTo, strutil.ElliptRight(cohFrom, 10),
+					snap, chanTo, strutil.ElliptLeft(cohFrom, 10),
 				)
 			}
 			return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and away from cohort %q"),
-				snap, chanFrom, chanTo, strutil.ElliptRight(cohFrom, 10),
+				snap, chanFrom, chanTo, strutil.ElliptLeft(cohFrom, 10),
 			)
 		}
 		if cohFrom == "" {
 			// moving into a cohort
 			if chanFrom == chanTo {
 				return fmt.Sprintf(i18n.G("Switch snap %q from no cohort to %q"),
-					snap, strutil.ElliptRight(cohTo, 10))
+					snap, strutil.ElliptLeft(cohTo, 10))
 			}
 			if chanFrom == "" {
 				return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and from no cohort to %q"),
-					snap, chanTo, strutil.ElliptRight(cohTo, 10),
+					snap, chanTo, strutil.ElliptLeft(cohTo, 10),
 				)
 			}
 			// chanTo == "" is not interesting
 			return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from no cohort to %q"),
-				snap, chanFrom, chanTo, strutil.ElliptRight(cohTo, 10),
+				snap, chanFrom, chanTo, strutil.ElliptLeft(cohTo, 10),
 			)
 		}
 		if chanFrom == chanTo {
 			return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"),
-				snap, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10))
+				snap, strutil.ElliptLeft(cohFrom, 10), strutil.ElliptLeft(cohTo, 10))
 		}
 		if chanFrom == "" {
 			return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and from cohort %q to %q"),
-				snap, chanTo, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+				snap, chanTo, strutil.ElliptLeft(cohFrom, 10), strutil.ElliptLeft(cohTo, 10),
 			)
 		}
 		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"),
 			snap, chanFrom, chanTo,
-			strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+			strutil.ElliptLeft(cohFrom, 10), strutil.ElliptLeft(cohTo, 10),
 		)
 	}
 
@@ -1569,7 +1573,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
-		Type:        info.Type,
+		Type:        info.GetType(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1628,7 +1632,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			RealName: snap.InstanceSnap(name),
 			Revision: snapst.Current,
 		},
-		Type:        info.Type,
+		Type:        info.GetType(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1655,7 +1659,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 // canDisable verifies that a snap can be deactivated.
 func canDisable(si *snap.Info) bool {
 	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == si.Type {
+		if importantSnapType == si.GetType() {
 			return false
 		}
 	}
@@ -1672,7 +1676,7 @@ func baseInUse(st *state.State, base *snap.Info) bool {
 	for name, snapst := range snapStates {
 		for _, si := range snapst.Sequence {
 			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.Type != snap.TypeApp {
+				if snapInfo.GetType() != snap.TypeApp {
 					continue
 				}
 				if snapInfo.Base == base.SnapName() {
@@ -1694,7 +1698,7 @@ func coreInUse(st *state.State) bool {
 	for name, snapst := range snapStates {
 		for _, si := range snapst.Sequence {
 			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.Type != snap.TypeApp || snapInfo.SnapName() == "snapd" {
+				if snapInfo.GetType() != snap.TypeApp || snapInfo.SnapName() == "snapd" {
 					continue
 				}
 				if snapInfo.Base == "" {
@@ -1731,7 +1735,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Do not remove their last
 	// revision left.
-	if si.Type == snap.TypeGadget {
+	if si.GetType() == snap.TypeGadget {
 		return false
 	}
 
@@ -1745,12 +1749,12 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	//
 	// Once the ubuntu-core -> core transition has landed for some
 	// time we can remove the two lines below.
-	if si.InstanceName() == "ubuntu-core" && si.Type == snap.TypeOS {
+	if si.InstanceName() == "ubuntu-core" && si.GetType() == snap.TypeOS {
 		return true
 	}
 
 	// do not allow removal of bases that are in use
-	if si.Type == snap.TypeBase && baseInUse(st, si) {
+	if si.GetType() == snap.TypeBase && baseInUse(st, si) {
 		return false
 	}
 
@@ -1759,7 +1763,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	// Note that removal of the boot base itself is prevented
 	// via the snapst.Required flag that is set on firstboot.
 	model := deviceCtx.Model()
-	if si.Type == snap.TypeOS {
+	if si.GetType() == snap.TypeOS {
 		if model.Base() != "" && !coreInUse(st) {
 			return true
 		}
@@ -1768,7 +1772,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 
 	// Because of a Remodel() we may have multiple kernels. Allow
 	// removals of kernel(s) that are not model kernels (anymore).
-	if si.Type == snap.TypeKernel {
+	if si.GetType() == snap.TypeKernel {
 		if model.Kernel() != si.InstanceName() {
 			return true
 		}
@@ -1849,7 +1853,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
-		Type:        info.Type,
+		Type:        info.GetType(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -2043,7 +2047,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
-		Type:        info.Type,
+		Type:        info.GetType(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -2087,7 +2091,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-			Type:         newInfo.Type,
+			Type:         newInfo.GetType(),
 		}, 0, "")
 		if err != nil {
 			return nil, err

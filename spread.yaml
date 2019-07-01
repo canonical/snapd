@@ -49,6 +49,7 @@ environment:
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: "$(HOST: echo \"${SPREAD_REUSE_SNAPD:-0}\")"
+    PROFILE_SNAPS: "$(HOST: echo \"${SPREAD_PROFILE_SNAPS:-0}\")"
 
 backends:
     google:
@@ -113,14 +114,14 @@ backends:
         location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-14.04-64:
-                workers: 4
             - ubuntu-16.04-64:
                 workers: 4
             - ubuntu-18.04-64:
                 workers: 4
             - ubuntu-18.10-64:
                 image: ubuntu-1810
+                workers: 4
+            - ubuntu-19.04-64:
                 workers: 4
 
     google-nested:
