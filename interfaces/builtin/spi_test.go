@@ -96,6 +96,9 @@ slots:
   spi-2:
     interface: spi
     path: /dev/spidev0.1
+  spi-3:
+    interface: spi
+    path: /dev/spidev33566.0
   bad-spi-1:
     interface: spi
     path: /dev/spev0.0

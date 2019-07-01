@@ -29,34 +29,19 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
-const packageKernel = `
-name: ubuntu-kernel
-version: 4.0-1
-type: kernel
-vendor: Someone
-`
-
 type androidBootTestSuite struct {
-	testutil.BaseTest
+	baseBootenvTestSuite
 }
 
 var _ = Suite(&androidBootTestSuite{})
 
-func (g *androidBootTestSuite) SetUpTest(c *C) {
-	g.BaseTest.SetUpTest(c)
-	g.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
-	dirs.SetRootDir(c.MkDir())
+func (s *androidBootTestSuite) SetUpTest(c *C) {
+	s.baseBootenvTestSuite.SetUpTest(c)
 
 	// the file needs to exist for androidboot object to be created
 	bootloader.MockAndroidBootFile(c, 0644)
-}
-
-func (g *androidBootTestSuite) TearDownTest(c *C) {
-	g.BaseTest.TearDownTest(c)
-	dirs.SetRootDir("")
 }
 
 func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {

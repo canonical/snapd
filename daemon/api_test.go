@@ -3869,9 +3869,9 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 		summary string
 	}
 	table := []T{
-		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "some-coho…"`},
+		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "…me-cohort"`},
 		{"some-channel", "", false, `Switch "some-snap" snap to channel "some-channel"`},
-		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "some-coho…"`},
+		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "…me-cohort"`},
 		{"", "", true, `Switch "some-snap" snap away from cohort`},
 		{"some-channel", "", true, `Switch "some-snap" snap to channel "some-channel" and away from cohort`},
 	}
@@ -4196,7 +4196,7 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(calledName, check.Equals, "fake")
 	c.Check(calledCohort, check.Equals, "To the legion of the lost ones, to the cohort of the damned.")
-	c.Check(msg, check.Equals, `Install "fake" snap from "To the le…" cohort`)
+	c.Check(msg, check.Equals, `Install "fake" snap from "…e damned." cohort`)
 }
 
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
