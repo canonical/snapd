@@ -38,6 +38,8 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
+    # Needed to run /usr/bin/sh for snap-device-helper.
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libtinfo.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 

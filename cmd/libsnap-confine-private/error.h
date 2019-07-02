@@ -101,7 +101,6 @@ __attribute__((warn_unused_result,
 	       format(printf, 2, 3) SC_APPEND_RETURNS_NONNULL))
 sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt, ...);
 
-
 /**
  * Get the error domain out of an error object.
  *

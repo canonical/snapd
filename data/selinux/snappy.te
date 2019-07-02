@@ -199,6 +199,10 @@ getattr_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 gen_require(` type user_tmp_t; ')
 allow snappy_t user_tmp_t:dir { read };
 
+# Allow snapd to clean up /run/user sockets
+userdom_manage_tmp_dirs(snappy_t)
+userdom_manage_tmp_sockets(snappy_t)
+
 gen_require(` type systemd_unit_file_t; ')
 allow snappy_t systemd_unit_file_t:dir { rmdir };
 

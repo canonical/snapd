@@ -516,7 +516,7 @@ func (iw *infoWriter) maybePrintCohortKey() {
 	}
 	if isStdoutTTY {
 		// 15 is 1 + the length of "refresh-date: "
-		coh = strutil.ElliptRight(iw.localSnap.CohortKey, iw.termWidth-15)
+		coh = strutil.ElliptLeft(iw.localSnap.CohortKey, iw.termWidth-15)
 	}
 	fmt.Fprintf(iw, "cohort:\t%s\n", coh)
 }
