@@ -572,6 +572,12 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// Init and check rootfs_dir, apply any fallback behaviors.
 	sc_check_rootfs_dir(inv);
 
+	/** Populate and join the device control group. */
+	struct snappy_udev udev_s;
+	if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
+		setup_devices_cgroup(inv->security_tag, &udev_s);
+	snappy_udev_cleanup(&udev_s);
+
 	/**
 	 * is_normal_mode controls if we should pivot into the base snap.
 	 *
@@ -705,8 +711,4 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			die("cannot set environment variable '%s'", tmpd[i]);
 		}
 	}
-	struct snappy_udev udev_s;
-	if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
-		setup_devices_cgroup(inv->security_tag, &udev_s);
-	snappy_udev_cleanup(&udev_s);
 }
