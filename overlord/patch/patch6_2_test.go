@@ -222,7 +222,7 @@ func (s *patch62Suite) TestPatch62(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
 
-	// sanity check, structures not defined explicitely via patch62* are preserved
+	// sanity check, structures not defined explicitly via patch62* are preserved
 	c.Check(snapsup.Flags.IsAutoRefresh, Equals, true)
 	c.Assert(snapsup.Media, HasLen, 5)
 	c.Check(snapsup.Media[0].URL, Equals, "a")
