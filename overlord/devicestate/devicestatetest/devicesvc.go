@@ -43,7 +43,7 @@ type DeviceServiceBehavior struct {
 	Head          func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 	PostPreflight func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 
-	SignSerial func(c *C, bhv *DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error)
+	SignSerial func(c *C, bhv *DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error)
 }
 
 // Request IDs for hard-coded behaviors.
@@ -159,7 +159,7 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			} else {
 				c.Check(extra, HasLen, 0)
 			}
-			serial, err := bhv.SignSerial(c, bhv, map[string]interface{}{
+			serial, ancillary, err := bhv.SignSerial(c, bhv, map[string]interface{}{
 				"authority-id":        "canonical",
 				"brand-id":            brandID,
 				"model":               model,
@@ -171,11 +171,18 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			c.Assert(err, IsNil)
 			w.Header().Set("Content-Type", asserts.MediaType)
 			w.WriteHeader(200)
-			encoded := asserts.Encode(serial)
 			if reqID == ReqIDSerialWithBadModel {
+				encoded := asserts.Encode(serial)
+
 				encoded = bytes.Replace(encoded, []byte("model: pc"), []byte("model: bad-model-foo"), 1)
+				w.Write(encoded)
+				return
 			}
-			w.Write(encoded)
+			enc := asserts.NewEncoder(w)
+			enc.Encode(serial)
+			for _, a := range ancillary {
+				enc.Encode(a)
+			}
 		}
 	}))
 }

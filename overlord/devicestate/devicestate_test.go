@@ -87,6 +87,8 @@ type deviceMgrSuite struct {
 
 	reqID string
 
+	ancillary []asserts.Assertion
+
 	restartRequests []state.RestartType
 
 	restoreOnClassic         func()
@@ -198,6 +200,7 @@ func (s *deviceMgrSuite) newStore(devBE storecontext.DeviceBackend) snapstate.St
 }
 
 func (s *deviceMgrSuite) TearDownTest(c *C) {
+	s.ancillary = nil
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
@@ -221,7 +224,7 @@ func (s *deviceMgrSuite) seeding() {
 	chg.SetStatus(state.DoingStatus)
 }
 
-func (s *deviceMgrSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+func (s *deviceMgrSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 	brandID := headers["brand-id"].(string)
 	model := headers["model"].(string)
 	keyID := ""
@@ -242,7 +245,8 @@ func (s *deviceMgrSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBeha
 	default:
 		c.Fatalf("unknown model: %s", model)
 	}
-	return signing.Sign(asserts.SerialType, headers, body, keyID)
+	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
+	return a, s.ancillary, err
 }
 
 func (s *deviceMgrSuite) mockServer(c *C, reqID string, bhv *devicestatetest.DeviceServiceBehavior) *httptest.Server {
@@ -3018,6 +3022,91 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
 	defer restore()
 
 	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("rereg-brand")...)
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		KeyID:  devKey.PublicKey().ID(),
+		Serial: "9999",
+	})
+	devicestate.KeypairManager(s.mgr).Put(devKey)
+
+	// have a serial assertion
+	s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
+
+	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	cur, err := s.mgr.Model()
+	c.Assert(err, IsNil)
+
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		mod, err := devBE.Model()
+		c.Check(err, IsNil)
+		if err == nil {
+			c.Check(mod, DeepEquals, new)
+		}
+		return nil
+	}
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, cur, new)
+	c.Assert(err, IsNil)
+	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("remodel", "...")
+	// associate with context
+	remodCtx.Init(chg)
+	chg.AddTask(t)
+
+	// sanity
+	regCtx, err := devicestate.RegistrationCtx(s.mgr, t)
+	c.Assert(err, IsNil)
+	c.Check(regCtx, Equals, remodCtx.(devicestate.RegistrationContext))
+
+	// avoid full seeding
+	s.seeding()
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("%s", t.Log()))
+	c.Check(chg.Err(), IsNil)
+	device, err := devicestatetest.Device(s.state)
+	c.Check(err, IsNil)
+	c.Check(device.Serial, Equals, "9999")
+	_, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "rereg-brand",
+		"model":    "rereg-model",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialReregistrationStreamFromService(c *C) {
+	mockServer := s.mockServer(c, "REQID-1", nil)
+	defer mockServer.Close()
+
+	restore := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer restore()
+
+	s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
 
 	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	s.state.Lock()
