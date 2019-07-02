@@ -256,7 +256,7 @@ func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (
 
 	seedDest := path.Join(dest, "snaps")
 
-	core = path.Base(globFile(seedDest, "core18_*.snap"))
+	core = path.Base(globFile(seedDest, "core20_*.snap"))
 	kernel = path.Base(globFile(seedDest, "pc-kernel_*.snap"))
 
 	logger.Noticef("core: %s", core)
