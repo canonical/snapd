@@ -61,24 +61,24 @@ func (f *FilesystemImageWriter) Write(fname string, postStage PostStageFunc) err
 		return fmt.Errorf("size of image file %v is different from declared structure size %v", sz, f.ps.Size)
 	}
 
-	mkfs := mkfsHandlers[f.ps.Filesystem]
-	if mkfs == nil {
+	mkfsWithContent := mkfsHandlers[f.ps.Filesystem]
+	if mkfsWithContent == nil {
 		return fmt.Errorf("internal error: filesystem %q has no handler", f.ps.Filesystem)
 	}
 
-	where := filepath.Join(f.workDir, fmt.Sprintf("snap-stage-content-part-%04d", f.ps.Index))
-	if osutil.IsDirectory(where) {
-		return fmt.Errorf("cannot prepare staging directory %s: path exists", where)
+	stagingDir := filepath.Join(f.workDir, fmt.Sprintf("snap-stage-content-part-%04d", f.ps.Index))
+	if osutil.IsDirectory(stagingDir) {
+		return fmt.Errorf("cannot prepare staging directory %s: path exists", stagingDir)
 	}
 
-	if err := os.Mkdir(where, 0755); err != nil {
+	if err := os.Mkdir(stagingDir, 0755); err != nil {
 		return fmt.Errorf("cannot prepare staging directory: %v", err)
 	}
 
 	if os.Getenv("SNAP_DEBUG_IMAGE_NO_CLEANUP") == "" {
 		defer func() {
-			if err := os.RemoveAll(where); err != nil {
-				logger.Noticef("cannot remove filesystem staging directory %q: %v", where, err)
+			if err := os.RemoveAll(stagingDir); err != nil {
+				logger.Noticef("cannot remove filesystem staging directory %q: %v", stagingDir, err)
 			}
 		}()
 	}
@@ -88,17 +88,18 @@ func (f *FilesystemImageWriter) Write(fname string, postStage PostStageFunc) err
 		return fmt.Errorf("cannot prepare filesystem writer for %v: %v", f.ps, err)
 	}
 	// drop all contents to the staging directory
-	if err := mrw.Write(where, nil); err != nil {
+	if err := mrw.Write(stagingDir, nil); err != nil {
 		return fmt.Errorf("cannot prepare filesystem content: %v", err)
 	}
 
 	if postStage != nil {
-		if err := postStage(where, f.ps); err != nil {
+		if err := postStage(stagingDir, f.ps); err != nil {
 			return fmt.Errorf("post stage callback failed: %v", err)
 		}
 	}
 
-	if err := mkfs(fname, f.ps.Label, where); err != nil {
+	// create a filesystem with contents of the staging directory
+	if err := mkfsWithContent(fname, f.ps.Label, stagingDir); err != nil {
 		return fmt.Errorf("cannot create %q filesystem: %v", f.ps.Filesystem, err)
 	}
 
@@ -121,7 +122,7 @@ func NewFilesystemImageWriter(contentDir string, ps *PositionedStructure, workDi
 		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
 	}
 	if _, ok := mkfsHandlers[ps.Filesystem]; !ok {
-		return nil, fmt.Errorf("internal error: filesystem %q is not supported", ps.Filesystem)
+		return nil, fmt.Errorf("internal error: filesystem %q has no handler", ps.Filesystem)
 	}
 
 	fiw := &FilesystemImageWriter{

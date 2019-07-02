@@ -100,7 +100,7 @@ func (s *filesystemImageTestSuite) TestSimpleErrors(c *C) {
 		},
 	}
 	fiw, err = gadget.NewFilesystemImageWriter(s.dir, psInvalidFs, "")
-	c.Assert(err, ErrorMatches, `internal error: filesystem "xfs" is not supported`)
+	c.Assert(err, ErrorMatches, `internal error: filesystem "xfs" has no handler`)
 	c.Assert(fiw, IsNil)
 }
 
