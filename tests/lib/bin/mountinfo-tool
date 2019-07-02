@@ -502,10 +502,11 @@ class RewriteState(object):
         self.seen_mount_opts = {}  # type: Dict[Tuple[Text, Text], int]
 
 
-def rewrite_renumber(entries, rs):
-    # type: (List[MountInfoEntry], RewriteState) -> None
-    """rewrite_renumber applies all re-numbering helpers."""
-    for entry in entries:
+def rewrite_renumber(entries, order, rs):
+    # type: (List[MountInfoEntry], List[int], RewriteState) -> None
+    """rewrite_renumber applies all re-numbering helpers to a single entry."""
+    for i in range(len(entries)):
+        entry = entries[order[i]]
         renumber_mount_ids(entry, rs.seen_mount_ids)
         renumber_devices(entry, rs.seen_devices)
         renumber_snap_revision(entry, rs.seen_snap_revs)
@@ -515,11 +516,12 @@ def rewrite_renumber(entries, rs):
         renumber_mount_opts(entry, rs.seen_mount_opts)
 
 
-def rewrite_rename(entries, rs):
-    # type: (List[MountInfoEntry], RewriteState) -> None
-    """rewrite_rename applies all re-naming helpers."""
+def rewrite_rename(entries, order, rs):
+    # type: (List[MountInfoEntry], List[int], RewriteState) -> None
+    """rewrite_rename applies all re-naming helpers to a single entry."""
     # TODO: allocate devices like everything else above.
-    for entry in entries:
+    for i in range(len(entries)):
+        entry = entries[order[i]]
         entry.mount_source = re.sub(
             "/dev/[sv]d([a-z])", "/dev/sd\\1", entry.mount_source
         )
@@ -604,6 +606,14 @@ Known attributes, applicable for both filtering and display.
         "--one", default=False, action="store_true", help="expect exactly one match"
     )
     parser.add_argument(
+        "--rewrite-order",
+        metavar="FIELD",
+        action="append",
+        default=[],
+        choices=MountInfoEntry.known_attrs.keys(),
+        help="rewrite entries in the order determined by given fields",
+    )
+    parser.add_argument(
         "exprs",
         metavar="EXPRESSION",
         nargs="*",
@@ -630,14 +640,33 @@ Known attributes, applicable for both filtering and display.
 
     for ref in opts.refs:
         ref_entries = [MountInfoEntry.parse(line) for line in ref]
+        ref_rewrite_order = list(range(len(ref_entries)))
+        if opts.rewrite_order:
+
+            def ref_rewrite_key_fn(i):
+                # type: (int) -> Tuple[Any, ...]
+                return tuple(
+                    getattr(ref_entries[i], field) for field in opts.rewrite_order
+                )
+
+        ref_rewrite_order.sort(key=ref_rewrite_key_fn)
         if opts.renumber:
-            rewrite_renumber(ref_entries, rs)
+            rewrite_renumber(ref_entries, ref_rewrite_order, rs)
         if opts.rename:
-            rewrite_rename(ref_entries, rs)
+            rewrite_rename(ref_entries, ref_rewrite_order, rs)
+
+    rewrite_order = list(range(len(entries)))
+    if opts.rewrite_order:
+
+        def rewrite_key_fn(i):
+            # type: (int) -> Tuple[Any, ...]
+            return tuple(getattr(entries[i], field) for field in opts.rewrite_order)
+
+        rewrite_order.sort(key=rewrite_key_fn)
     if opts.renumber:
-        rewrite_renumber(entries, rs)
+        rewrite_renumber(entries, rewrite_order, rs)
     if opts.rename:
-        rewrite_rename(entries, rs)
+        rewrite_rename(entries, rewrite_order, rs)
     for e in entries:
         if attrs:
             values = []  # type: List[Any]
@@ -916,11 +945,12 @@ class RewriteTests(unittest.TestCase):
                 "47 22 0:42 / /proc/sys/fs/binfmt_misc rw,relatime shared:28 - autofs systemd-1 rw,fd=40,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=16610",
             )
         ]
+        self.order = list(range(len(self.entries)))
         self.rs = RewriteState()
 
     def test_rewrite_renumber(self):
         # type: () -> None
-        rewrite_renumber(self.entries, self.rs)
+        rewrite_renumber(self.entries, self.order, self.rs)
         self.assertEqual(
             self.entries,
             [
