@@ -13,6 +13,9 @@ plugs:
 apps:
     test-snapd-sh:
         command: bin/sh
+    with-appstream-metadata-plug:
+        command: bin/sh
+        plugs: [appstream-metadata]
     with-broadcom-asic-control-plug:
         command: bin/sh
         plugs: [broadcom-asic-control]
