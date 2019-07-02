@@ -147,6 +147,11 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+        echo Checking pull request summary
+        ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
+    fi
+
     echo Checking formatting
     fmt=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do

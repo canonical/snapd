@@ -45,6 +45,8 @@ type PositionedVolume struct {
 	SectorSize Size
 	// PositionedStructure are sorted in order of 'appearance' in the volume
 	PositionedStructure []PositionedStructure
+	// RootDir is the root directory for volume data
+	RootDir string
 }
 
 // PositionedStructure describes a VolumeStructure that has been positioned
@@ -54,6 +56,9 @@ type PositionedStructure struct {
 	// StartOffset defines the start offset of the structure within the
 	// enclosing volume
 	StartOffset Size
+	// PositionedOffsetWrite is the resolved position of offset-write for
+	// this structure element within the enclosing volume
+	PositionedOffsetWrite *Size
 	// Index of the structure definition in gadget YAML
 	Index int
 
@@ -78,8 +83,20 @@ type PositionedContent struct {
 
 	// StartOffset defines the start offset of this content image
 	StartOffset Size
+	// PositionedOffsetWrite is the resolved position of offset-write for
+	// this content element within the enclosing volume
+	PositionedOffsetWrite *Size
 	// Size is the maximum size occupied by this image
 	Size Size
+	// Index of the content in structure declaration inside gadget YAML
+	Index int
+}
+
+func (p PositionedContent) String() string {
+	if p.Image != "" {
+		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
+	}
+	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
 }
 
 // PositionVolume attempts to lay out the volume using constraints and returns a
@@ -87,7 +104,9 @@ type PositionedContent struct {
 func PositionVolume(gadgetRootDir string, volume *Volume, constraints PositioningConstraints) (*PositionedVolume, error) {
 	previousEnd := Size(0)
 	farthestEnd := Size(0)
+	fartherstOffsetWrite := Size(0)
 	structures := make([]PositionedStructure, len(volume.Structure))
+	structuresByName := make(map[string]*PositionedStructure, len(volume.Structure))
 
 	if constraints.SectorSize == 0 {
 		return nil, fmt.Errorf("cannot position volume, invalid constraints: sector size cannot be 0")
@@ -119,6 +138,10 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 			}
 		}
 
+		if ps.Name != "" {
+			structuresByName[ps.Name] = &ps
+		}
+
 		structures[idx] = ps
 
 		if end > farthestEnd {
@@ -137,18 +160,41 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 		}
 		previousEnd = ps.StartOffset + ps.Size
 
-		content, err := positionStructureContent(gadgetRootDir, &structures[idx])
+		offsetWrite, err := resolveOffsetWrite(ps.OffsetWrite, structuresByName)
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
+		}
+		structures[idx].PositionedOffsetWrite = offsetWrite
+
+		if offsetWrite != nil && *offsetWrite > fartherstOffsetWrite {
+			fartherstOffsetWrite = *offsetWrite
+		}
+
+		content, err := positionStructureContent(gadgetRootDir, &structures[idx], structuresByName)
 		if err != nil {
 			return nil, err
 		}
+
+		for _, c := range content {
+			if c.PositionedOffsetWrite != nil && *c.PositionedOffsetWrite > fartherstOffsetWrite {
+				fartherstOffsetWrite = *c.PositionedOffsetWrite
+			}
+		}
+
 		structures[idx].PositionedContent = content
+	}
+
+	volumeSize := farthestEnd
+	if fartherstOffsetWrite+SizeLBA48Pointer > farthestEnd {
+		volumeSize = fartherstOffsetWrite + SizeLBA48Pointer
 	}
 
 	vol := &PositionedVolume{
 		Volume:              volume,
-		Size:                farthestEnd,
+		Size:                volumeSize,
 		SectorSize:          constraints.SectorSize,
 		PositionedStructure: structures,
+		RootDir:             gadgetRootDir,
 	}
 	return vol, nil
 }
@@ -167,7 +213,7 @@ func getImageSize(path string) (Size, error) {
 	return Size(stat.Size()), nil
 }
 
-func positionStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]PositionedContent, error) {
+func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, known map[string]*PositionedStructure) ([]PositionedContent, error) {
 	if !ps.IsBare() {
 		// structures with a filesystem do not need any extra
 		// positioning
@@ -202,10 +248,18 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]
 			actualSize = c.Size
 		}
 
+		offsetWrite, err := resolveOffsetWrite(c.OffsetWrite, known)
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve offset-write of structure %v content %q: %v", ps, c.Image, err)
+		}
+
 		content[idx] = PositionedContent{
 			VolumeContent: &ps.Content[idx],
-			StartOffset:   ps.StartOffset + start,
 			Size:          actualSize,
+			StartOffset:   ps.StartOffset + start,
+			Index:         idx,
+			// break for gofmt < 1.11
+			PositionedOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + actualSize
 		if previousEnd > ps.Size {
@@ -224,4 +278,40 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure) ([]
 	}
 
 	return content, nil
+}
+
+func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*PositionedStructure) (*Size, error) {
+	if offsetWrite == nil {
+		return nil, nil
+	}
+
+	var relativeToOffset Size
+	if offsetWrite.RelativeTo != "" {
+		otherStruct, ok := knownStructs[offsetWrite.RelativeTo]
+		if !ok {
+			return nil, fmt.Errorf("refers to an unknown structure %q", offsetWrite.RelativeTo)
+		}
+		relativeToOffset = otherStruct.StartOffset
+	}
+
+	resolvedOffsetWrite := relativeToOffset + offsetWrite.Offset
+	return &resolvedOffsetWrite, nil
+}
+
+// ShiftStructureTo creates a new positioned structure, shifted to start at a
+// given offset. The start offsets of positioned content within the structure is
+// updated.
+func ShiftStructureTo(ps PositionedStructure, offset Size) PositionedStructure {
+	change := int64(offset - ps.StartOffset)
+
+	newPs := ps
+	newPs.StartOffset = Size(int64(ps.StartOffset) + change)
+
+	newPs.PositionedContent = make([]PositionedContent, len(ps.PositionedContent))
+	for idx, pc := range ps.PositionedContent {
+		newPc := pc
+		newPc.StartOffset = Size(int64(pc.StartOffset) + change)
+		newPs.PositionedContent[idx] = newPc
+	}
+	return newPs
 }

@@ -13,7 +13,10 @@ execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
-    ! install_local_as test-snapd-tools test-snapd-tools_foo 2> run.err
+    if install_local_as test-snapd-tools test-snapd-tools_foo 2>run.err; then
+        echo "install_local_as was expected to fail"
+        exit 1
+    fi
     MATCH 'experimental feature disabled' < run.err
 
     snap set system experimental.parallel-instances=true

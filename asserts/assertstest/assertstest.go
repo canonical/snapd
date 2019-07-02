@@ -565,6 +565,10 @@ func (sa *SigningAccounts) PublicKey(accountID string) asserts.PublicKey {
 }
 
 func (sa *SigningAccounts) Signing(accountID string) *SigningDB {
+	// convenience
+	if accountID == sa.store.RootSigning.AuthorityID {
+		return sa.store.RootSigning
+	}
 	if signer := sa.signing[accountID]; signer != nil {
 		return signer
 	}
@@ -585,12 +589,7 @@ func (sa *SigningAccounts) Model(accountID, model string, extras ...map[string]i
 		}
 	}
 
-	var signer SignerDB
-	if accountID == sa.store.RootSigning.AuthorityID {
-		signer = sa.store.RootSigning
-	} else {
-		signer = sa.Signing(accountID)
-	}
+	signer := sa.Signing(accountID)
 
 	modelAs, err := signer.Sign(asserts.ModelType, headers, nil, "")
 	if err != nil {

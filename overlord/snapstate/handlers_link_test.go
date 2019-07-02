@@ -122,6 +122,55 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(snapst.UserID, Equals, 2)
+	c.Check(snapst.CohortKey, Equals, "")
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+
+	// we end with the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
+	// we start without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Channel:   "beta",
+		UserID:    2,
+		CohortKey: "wobbling",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	checkHasCookieForSnap(c, s.state, "foo")
+
+	typ, err := snapst.Type()
+	c.Check(err, IsNil)
+	c.Check(typ, Equals, snap.TypeApp)
+
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(snapst.Channel, Equals, "beta")
+	c.Check(snapst.UserID, Equals, 2)
+	c.Check(snapst.CohortKey, Equals, "wobbling")
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 
@@ -908,7 +957,7 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	// mock that "some-snap" has an app and that this app has pids running
 	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, Type: snap.TypeApp}
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"some-app": {Snap: info, Name: "some-app"},
 		}

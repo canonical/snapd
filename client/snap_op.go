@@ -30,15 +30,18 @@ import (
 )
 
 type SnapOptions struct {
-	Amend            bool   `json:"amend,omitempty"`
 	Channel          string `json:"channel,omitempty"`
 	Revision         string `json:"revision,omitempty"`
+	CohortKey        string `json:"cohort-key,omitempty"`
+	LeaveCohort      bool   `json:"leave-cohort,omitempty"`
 	DevMode          bool   `json:"devmode,omitempty"`
 	JailMode         bool   `json:"jailmode,omitempty"`
 	Classic          bool   `json:"classic,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
+	Purge            bool   `json:"purge,omitempty"`
+	Amend            bool   `json:"amend,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }

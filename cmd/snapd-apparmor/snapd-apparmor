@@ -81,6 +81,9 @@ case "$1" in
 		fi
 		# </copied-code>
 
+		if [ "$(find /var/lib/snapd/apparmor/profiles/ -type f | wc -l)" -eq 0 ]; then
+			exit 0
+		fi
 		for profile in /var/lib/snapd/apparmor/profiles/*; do
 			# Filter out profiles with names ending with ~, those are temporary files created by snapd.
 			test "${profile%\~}" != "${profile}" && continue

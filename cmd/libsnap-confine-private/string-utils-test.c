@@ -815,7 +815,7 @@ static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
 	g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
-        g_test_add_func("/string-utils/sc_startswith", test_sc_startswith);
+	g_test_add_func("/string-utils/sc_startswith", test_sc_startswith);
 	g_test_add_func("/string-utils/sc_must_snprintf",
 			test_sc_must_snprintf);
 	g_test_add_func("/string-utils/sc_must_snprintf/fail",

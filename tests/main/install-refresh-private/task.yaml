@@ -15,7 +15,7 @@ restore: |
 
 execute: |
     echo "Cannot install a private snap without login"
-    ! snap install test-snapd-private
+    not snap install test-snapd-private
 
     echo "Given account store credentials are available"
     # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
