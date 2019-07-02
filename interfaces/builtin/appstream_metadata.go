@@ -49,6 +49,7 @@ const appstreamMetadataConnectedPlugAppArmor = `
 
 # Allow access to AppStream upstream metadata files
 /usr/share/metainfo/** r,
+/usr/share/appdata/** r,
 
 # Allow access to AppStream collection metadata
 /usr/share/app-info/** r,
@@ -61,6 +62,7 @@ const appstreamMetadataConnectedPlugAppArmor = `
 
 var appstreamMetadataDirs = []string{
 	"/usr/share/metainfo",
+	"/usr/share/appdata",
 	"/usr/share/app-info",
 	"/var/cache/app-info",
 	"/var/lib/app-info",
@@ -92,13 +94,7 @@ func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 }
 
 func (iface *appstreamMetadataInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	for _, dir := range []string{
-		"/usr/share/metainfo",
-		"/usr/share/app-info",
-		"/var/cache/app-info",
-		"/var/lib/app-info",
-		"/var/lib/apt/lists",
-	} {
+	for _, dir := range appstreamMetadataDirs {
 		dir = filepath.Join(dirs.GlobalRootDir, dir)
 		if !osutil.IsDirectory(dir) {
 			continue

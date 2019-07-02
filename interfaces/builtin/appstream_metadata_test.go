@@ -92,6 +92,7 @@ func (s *AppstreamMetadataInterfaceSuite) TestMountConnectedPlug(c *C) {
 	dirs.SetRootDir(tmpdir)
 
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/metainfo"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/appdata"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/app-info"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/app-info"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/app-info"), 0777), IsNil)
@@ -100,24 +101,27 @@ func (s *AppstreamMetadataInterfaceSuite) TestMountConnectedPlug(c *C) {
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	entries := spec.MountEntries()
-	c.Assert(entries, HasLen, 5)
+	c.Assert(entries, HasLen, 6)
 
 	const hostfs = "/var/lib/snapd/hostfs"
 	c.Check(entries[0].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/usr/share/metainfo"))
 	c.Check(entries[0].Dir, Equals, "/usr/share/metainfo")
 	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[1].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/usr/share/app-info"))
-	c.Check(entries[1].Dir, Equals, "/usr/share/app-info")
+	c.Check(entries[1].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/usr/share/appdata"))
+	c.Check(entries[1].Dir, Equals, "/usr/share/appdata")
 	c.Check(entries[1].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[2].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/cache/app-info"))
-	c.Check(entries[2].Dir, Equals, "/var/cache/app-info")
+	c.Check(entries[2].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/usr/share/app-info"))
+	c.Check(entries[2].Dir, Equals, "/usr/share/app-info")
 	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[3].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/app-info"))
-	c.Check(entries[3].Dir, Equals, "/var/lib/app-info")
+	c.Check(entries[3].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/cache/app-info"))
+	c.Check(entries[3].Dir, Equals, "/var/cache/app-info")
 	c.Check(entries[3].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[4].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/apt/lists"))
-	c.Check(entries[4].Dir, Equals, "/var/lib/apt/lists")
+	c.Check(entries[4].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/app-info"))
+	c.Check(entries[4].Dir, Equals, "/var/lib/app-info")
 	c.Check(entries[4].Options, DeepEquals, []string{"bind", "ro"})
+	c.Check(entries[5].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/apt/lists"))
+	c.Check(entries[5].Dir, Equals, "/var/lib/apt/lists")
+	c.Check(entries[5].Options, DeepEquals, []string{"bind", "ro"})
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestStaticInfo(c *C) {

@@ -19,7 +19,8 @@ prepare: |
     install_local test-snapd-sh
 
 restore: |
-    rm -f /usr/share/metainfo/test.metainfo.xml
+    rm -f /usr/share/metainfo/test1.metainfo.xml
+    rm -f /usr/share/appdata/test2.metainfo.xml
     rm -f /usr/share/app-info/xmls/test1.xml
     rm -f /var/cache/app-info/xmls/test2.xml
     rm -f /var/lib/app-info/yaml/test3.yml.gz
@@ -27,7 +28,9 @@ restore: |
 
 execute: |
     mkdir -p /usr/share/metainfo
-    echo "Appstream metainfo" > /usr/share/metainfo/test.metainfo.xml
+    echo "Appstream metainfo 1" > /usr/share/metainfo/test1.metainfo.xml
+    mkdir -p /usr/share/appdata
+    echo "Appstream metainfo 2" > /usr/share/appdata/test2.metainfo.xml
     mkdir -p /usr/share/app-info/xmls
     echo "Appstream app-info 1" > /usr/share/app-info/xmls/test1.xml
     mkdir -p /var/cache/app-info/xmls
@@ -47,7 +50,8 @@ execute: |
     snap connections test-snapd-sh | MATCH "appstream-metadata +test-snapd-sh:appstream-metadata +:appstream-metadata +manual"
 
     echo "Appstream metadata is now available from the sandbox"
-    test-snapd-sh.with-appstream-metadata-plug -c "cat /usr/share/metainfo/test.metainfo.xml" | MATCH "Appstream metainfo"
+    test-snapd-sh.with-appstream-metadata-plug -c "cat /usr/share/metainfo/test1.metainfo.xml" | MATCH "Appstream metainfo 1"
+    test-snapd-sh.with-appstream-metadata-plug -c "cat /usr/share/appdata/test2.metainfo.xml" | MATCH "Appstream metainfo 2"
 
     test-snapd-sh.with-appstream-metadata-plug -c "cat /usr/share/app-info/xmls/test1.xml" | MATCH "Appstream app-info 1"
     test-snapd-sh.with-appstream-metadata-plug -c "cat /var/cache/app-info/xmls/test2.xml" | MATCH "Appstream app-info 2"
