@@ -45,10 +45,17 @@ dbus (receive, send)
         interface=org.freedesktop.PackageKit.Offline
         path=/org/freedesktop/PackageKit
         peer=(label=unconfined),
-dbus (receive, send)
+dbus (send)
         bus=system
         interface=org.freedesktop.DBus.Properties
         path=/org/freedesktop/PackageKit
+        member=Get{,All}
+        peer=(label=unconfined),
+dbus (receive)
+        bus=system
+        interface=org.freedesktop.DBus.Properties
+        path=/org/freedesktop/PackageKit
+        member=PropertiesChanged
         peer=(label=unconfined),
 dbus (send)
 	bus=system
@@ -65,9 +72,15 @@ dbus (receive, send)
         bus=system
         interface=org.freedesktop.PackageKit.Transaction
         peer=(label=unconfined),
-dbus (receive, send)
+dbus (send)
         bus=system
         interface=org.freedesktop.DBus.Properties
+        member=Get{,All}
+        peer=(label=unconfined),
+dbus (receive)
+        bus=system
+        interface=org.freedesktop.DBus.Properties
+        member=PropertiesChanged
         peer=(label=unconfined),
 dbus (send)
 	bus=system
