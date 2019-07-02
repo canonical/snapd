@@ -26,12 +26,14 @@ import (
 	"context"
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/mvo5/goconfigparser"
@@ -45,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
@@ -206,37 +209,81 @@ func NewToolingStore() (*ToolingStore, error) {
 
 // DownloadOptions carries options for downloading snaps plus assertions.
 type DownloadOptions struct {
+	Revision  snap.Revision
 	TargetDir string
 	Channel   string
+	CohortKey string
+	Basename  string
 }
 
-// DownloadSnap downloads the snap with the given name and optionally revision  using the provided store and options. It returns the final full path of the snap inside the opts.TargetDir and a snap.Info for the snap.
-func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts *DownloadOptions) (targetFn string, info *snap.Info, err error) {
-	if opts == nil {
-		opts = &DownloadOptions{}
+var (
+	errRevisionAndCohort = errors.New("cannot specify both revision and cohort")
+	errPathInBase        = errors.New("cannot specify a path in basename (use target dir for that)")
+)
+
+func (opts *DownloadOptions) validate() error {
+	if strings.ContainsRune(opts.Basename, filepath.Separator) {
+		return errPathInBase
+	}
+	if !(opts.Revision.Unset() || opts.CohortKey == "") {
+		return errRevisionAndCohort
+	}
+	return nil
+}
+
+func (opts *DownloadOptions) String() string {
+	spec := make([]string, 0, 5)
+	if !opts.Revision.Unset() {
+		spec = append(spec, fmt.Sprintf("(%s)", opts.Revision))
+	}
+	if opts.Channel != "" {
+		spec = append(spec, fmt.Sprintf("from channel %q", opts.Channel))
+	}
+	if opts.CohortKey != "" {
+		// cohort keys are really long, and the rightmost bit being the
+		// interesting bit, so ellipt the rest
+		spec = append(spec, fmt.Sprintf(`from cohort %q`, strutil.ElliptLeft(opts.CohortKey, 10)))
+	}
+	if opts.Basename != "" {
+		spec = append(spec, fmt.Sprintf("to %q", opts.Basename+".snap"))
+	}
+	if opts.TargetDir != "" {
+		spec = append(spec, fmt.Sprintf("in %q", opts.TargetDir))
+	}
+	return strings.Join(spec, " ")
+}
+
+// DownloadSnap downloads the snap with the given name and optionally revision
+// using the provided store and options. It returns the final full path of the
+// snap inside the opts.TargetDir and a snap.Info for the snap.
+func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targetFn string, info *snap.Info, err error) {
+	if err := opts.validate(); err != nil {
+		return "", nil, err
 	}
 	sto := tsto.sto
 
-	targetDir := opts.TargetDir
-	if targetDir == "" {
+	if opts.TargetDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return "", nil, err
 		}
-		targetDir = pwd
+		opts.TargetDir = pwd
 	}
 
-	logger.Debugf("Going to download snap %q (%s) from channel %q to %q.", name, revision, opts.Channel, opts.TargetDir)
+	if !opts.Revision.Unset() {
+		// XXX: is this really necessary (and, if it is, shoudn't we error out instead)
+		opts.Channel = ""
+	}
+
+	logger.Debugf("Going to download snap %q %s.", name, &opts)
 
 	actions := []*store.SnapAction{{
 		Action:       "download",
 		InstanceName: name,
-		Revision:     revision,
+		Revision:     opts.Revision,
+		CohortKey:    opts.CohortKey,
+		Channel:      opts.Channel,
 	}}
-
-	if revision.Unset() {
-		actions[0].Channel = opts.Channel
-	}
 
 	snaps, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
 	if err != nil {
@@ -245,8 +292,13 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 	}
 	snap := snaps[0]
 
-	baseName := filepath.Base(snap.MountFile())
-	targetFn = filepath.Join(targetDir, baseName)
+	baseName := opts.Basename
+	if baseName == "" {
+		baseName = filepath.Base(snap.MountFile())
+	} else {
+		baseName += ".snap"
+	}
+	targetFn = filepath.Join(opts.TargetDir, baseName)
 
 	// check if we already have the right file
 	if osutil.FileExists(targetFn) {

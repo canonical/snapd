@@ -23,7 +23,7 @@ execute: |
     snap interfaces -i snapd-control | MATCH ":snapd-control .*test-snapd-control-consumer"
 
     echo "Then the snap command is able to control snapd"
-    ! test-snapd-control-consumer.list | grep -q test-snapd-tools
+    test-snapd-control-consumer.list | not grep -q test-snapd-tools
     test-snapd-control-consumer.install test-snapd-tools
     while ! test-snapd-control-consumer.list | grep -q test-snapd-tools; do sleep 1; done
 

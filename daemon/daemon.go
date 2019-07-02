@@ -26,14 +26,11 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-	unix "syscall"
 	"time"
 
-	"github.com/coreos/go-systemd/activation"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
@@ -42,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -83,7 +81,8 @@ type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
 
 // A Command routes a request to an individual per-verb ResponseFUnc
 type Command struct {
-	Path string
+	Path       string
+	PathPrefix string
 	//
 	GET    ResponseFunc
 	PUT    ResponseFunc
@@ -95,6 +94,8 @@ type Command struct {
 	UserOK bool
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
+	// this path is only accessible to root
+	RootOnly bool
 
 	// can polkit grant access? set to polkit action ID if so
 	PolkitOK string
@@ -115,17 +116,23 @@ var polkitCheckAuthorization = polkit.CheckAuthorization
 
 // canAccess checks the following properties:
 //
-// - if a user is logged in (via `snap login`) everything is allowed
 // - if the user is `root` everything is allowed
-// - POST/PUT/DELETE all require `snap login` or `root`
+// - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
+// - POST/PUT/DELETE all require `root`, or just `snap login` if not RootOnly
 //
 // Otherwise for GET requests the following parameters are honored:
 // - GuestOK: anyone can access GET
 // - UserOK: any uid on the local system can access GET
+// - RootOnly: only root can access this
 // - SnapOK: a snap can access this via `snapctl`
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
-	if user != nil {
-		// Authenticated users do anything for now.
+	if c.RootOnly && (c.UserOK || c.GuestOK || c.SnapOK) {
+		// programming error
+		logger.Panicf("Command can't have RootOnly together with any *OK flag")
+	}
+
+	if user != nil && !c.RootOnly {
+		// Authenticated users do anything not requiring explicit root.
 		return accessOK
 	}
 
@@ -148,7 +155,8 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessUnauthorized
 	}
 
-	if r.Method == "GET" {
+	// the !RootOnly check is redundant, but belt-and-suspenders
+	if r.Method == "GET" && !c.RootOnly {
 		// Guest and user access restricted to GET requests
 		if c.GuestOK {
 			return accessOK
@@ -167,6 +175,10 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	if uid == 0 {
 		// Superuser does anything.
 		return accessOK
+	}
+
+	if c.RootOnly {
+		return accessUnauthorized
 	}
 
 	if c.PolkitOK != "" {
@@ -298,75 +310,22 @@ func logit(handler http.Handler) http.Handler {
 	})
 }
 
-// getListener tries to get a listener for the given socket path from
-// the listener map, and if it fails it tries to set it up directly.
-func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Listener, error) {
-	if listener, ok := listenerMap[socketPath]; ok {
-		return listener, nil
-	}
-
-	if c, err := net.Dial("unix", socketPath); err == nil {
-		c.Close()
-		return nil, fmt.Errorf("socket %q already in use", socketPath)
-	}
-
-	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-
-	address, err := net.ResolveUnixAddr("unix", socketPath)
-	if err != nil {
-		return nil, err
-	}
-
-	runtime.LockOSThread()
-	oldmask := unix.Umask(0111)
-	listener, err := net.ListenUnix("unix", address)
-	unix.Umask(oldmask)
-	runtime.UnlockOSThread()
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Debugf("socket %q was not activated; listening", socketPath)
-
-	return listener, nil
-}
-
-// activationListeners builds a map of addresses to listeners that were passed
-// during systemd activation
-func activationListeners() (lns map[string]net.Listener, err error) {
-	// pass false to keep LISTEN_* environment variables passed by systemd
-	files := activation.Files(false)
-	lns = make(map[string]net.Listener, len(files))
-
-	for _, f := range files {
-		ln, err := net.FileListener(f)
-		if err != nil {
-			return nil, err
-		}
-		addr := ln.Addr().String()
-		lns[addr] = ln
-	}
-	return lns, nil
-}
-
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
-	listenerMap, err := activationListeners()
+	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
 		return err
 	}
 
 	// The SnapdSocket is required-- without it, die.
-	if listener, err := getListener(dirs.SnapdSocket, listenerMap); err == nil {
+	if listener, err := netutil.GetListener(dirs.SnapdSocket, listenerMap); err == nil {
 		d.snapdListener = &ucrednetListener{listener}
 	} else {
 		return fmt.Errorf("when trying to listen on %s: %v", dirs.SnapdSocket, err)
 	}
 
-	if listener, err := getListener(dirs.SnapSocket, listenerMap); err == nil {
+	if listener, err := netutil.GetListener(dirs.SnapSocket, listenerMap); err == nil {
 		// This listener may also be nil if that socket wasn't among
 		// the listeners, so check it before using it.
 		d.snapListener = &ucrednetListener{listener}
@@ -400,7 +359,11 @@ func (d *Daemon) addRoutes() {
 
 	for _, c := range api {
 		c.d = d
-		d.router.Handle(c.Path, c).Name(c.Path)
+		if c.PathPrefix == "" {
+			d.router.Handle(c.Path, c).Name(c.Path)
+		} else {
+			d.router.PathPrefix(c.PathPrefix).Handler(c).Name(c.PathPrefix)
+		}
 	}
 
 	// also maybe add a /favicon.ico handler...
@@ -409,7 +372,7 @@ func (d *Daemon) addRoutes() {
 }
 
 var (
-	shutdownTimeout = 5 * time.Second
+	shutdownTimeout = 25 * time.Second
 )
 
 // shutdownServer supplements a http.Server with graceful shutdown.
@@ -529,6 +492,8 @@ func (d *Daemon) Start() {
 			d.restartSystem = true
 			d.tomb.Kill(nil)
 		case state.RestartSocket:
+			d.mu.Lock()
+			defer d.mu.Unlock()
 			d.restartSocket = true
 			d.tomb.Kill(nil)
 		default:
@@ -649,7 +614,15 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	err := d.tomb.Wait()
 	if err != nil {
-		return err
+		// do not stop the shutdown even if the tomb errors
+		// because we already scheduled a slow shutdown and
+		// exiting here will just restart snapd (via systemd)
+		// which will lead to confusing results.
+		if restartSystem {
+			logger.Noticef("WARNING: cannot stop daemon: %v", err)
+		} else {
+			return err
+		}
 	}
 
 	if restartSystem {

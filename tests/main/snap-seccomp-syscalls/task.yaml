@@ -1,5 +1,12 @@
 summary: Ensure that we accounted for all syscalls known to libseccomp
 
+description: |
+  The snap-seccomp tool maintains a list of all syscalls supported by
+  libseccomp. The test ensures that we catch when the internal list is not in
+  sync with upstream anymore, and thus an update is needed. See
+  https://forum.snapcraft.io/t/spread-test-failing-due-to-new-syscalls/12018 for
+  more details.
+
 # one system is enough
 systems: [ubuntu-18.04-64]
 
@@ -27,5 +34,6 @@ execute: |
     # grab the list snap-seccomp knows about
     go run listcalls.go > syscalls.known
 
-    # both lists should be identical, otherwise we need an update
+    # both lists should be identical, otherwise we need an update in
+    # snap-seccomp
     diff -up syscalls.uniq syscalls.known

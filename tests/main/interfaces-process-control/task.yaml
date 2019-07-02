@@ -33,7 +33,7 @@ execute: |
     ps ax | grep -Pq "^ *$pid"
     process-control-consumer.signal "SIGTERM" $pid
     #shellcheck disable=SC2009
-    ! ps ax | grep -Pq "^ *$pid"
+    ps ax | not grep -Pq "^ *$pid"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -54,4 +54,4 @@ execute: |
     ps ax | grep -Pq "^ *$pid"
     kill -9 $pid
     #shellcheck disable=SC2009
-    ! ps ax | grep -Pq "^ *$pid"
+    ps ax | not grep -Pq "^ *$pid"

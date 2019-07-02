@@ -458,6 +458,16 @@ func (cs *clientSuite) TestClientCreateUser(c *C) {
 	})
 }
 
+func (cs *clientSuite) TestUserAgent(c *C) {
+	cli := client.New(&client.Config{UserAgent: "some-agent/9.87"})
+	cli.SetDoer(cs)
+
+	var v string
+	_ = cli.Do("GET", "/", nil, nil, &v)
+	c.Assert(cs.req, NotNil)
+	c.Check(cs.req.Header.Get("User-Agent"), Equals, "some-agent/9.87")
+}
+
 var createUsersTests = []struct {
 	options   []*client.CreateUserOptions
 	bodies    []string

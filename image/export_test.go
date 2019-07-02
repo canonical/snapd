@@ -48,3 +48,12 @@ func (ls *localInfos) NameToPath() map[string]string {
 func ToolingStoreContext() store.DeviceAndAuthContext {
 	return toolingStoreContext{}
 }
+
+func (opts *DownloadOptions) Validate() error {
+	return opts.validate()
+}
+
+var (
+	ErrRevisionAndCohort = errRevisionAndCohort
+	ErrPathInBase        = errPathInBase
+)

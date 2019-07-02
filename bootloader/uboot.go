@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 type uboot struct{}
@@ -91,4 +92,12 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	}
 
 	return out, nil
+}
+
+func (u *uboot) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+	return extractKernelAssetsToBootDir(u.Dir(), s, snapf)
+}
+
+func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {
+	return removeKernelAssetsFromBootDir(u.Dir(), s)
 }

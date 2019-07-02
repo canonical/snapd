@@ -62,7 +62,7 @@ execute: |
     fi
 
     # sanity check
-    ! snap list test-snapd-tools
+    not snap list test-snapd-tools
     
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
@@ -80,7 +80,7 @@ execute: |
     snap changes | MATCH "Refresh model assertion from revision 0 to 2"
 
     echo "and we cannot remove the new required snap"
-    ! snap remove test-snapd-tools
+    not snap remove test-snapd-tools
 
     echo "And we can remodel again this time test-snapd-tools is no longer required"
     snap remodel "$TESTSLIB"/assertions/developer1-pc-revno3.model

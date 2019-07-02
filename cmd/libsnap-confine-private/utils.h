@@ -25,9 +25,6 @@ __attribute__((noreturn))
 void die(const char *fmt, ...);
 
 __attribute__((format(printf, 1, 2)))
-bool error(const char *fmt, ...);
-
-__attribute__((format(printf, 1, 2)))
 void debug(const char *fmt, ...);
 
 /**
