@@ -62,33 +62,17 @@ size_t sc_read_seccomp_filter(const char *filename, char *buf, size_t buf_size) 
 }
 
 void sc_apply_seccomp_filter(struct sock_fprog *prog) {
-    uid_t real_uid, effective_uid, saved_uid;
     int err;
 
-    if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {
-        die("cannot call getresuid");
-    }
-
-    // If we can, raise privileges so that we can load the BPF into the kernel
-    // via 'prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ...)'.
-    debug("raising privileges to load seccomp profile");
-    if (effective_uid != 0 && saved_uid == 0) {
-        if (seteuid(0) != 0) {
-            die("seteuid failed");
-        }
-        if (geteuid() != 0) {
-            die("raising privs before seccomp_load did not work");
-        }
-    }
-
-    // Load filter into the kernel.
+    // Load filter into the kernel (by this point we have dropped to the
+    // calling user but still retain CAP_SYS_ADMIN).
     //
     // Importantly we are intentionally *not* setting NO_NEW_PRIVS because it
-    // interferes with exec transitions in AppArmor with certain snappy
+    // interferes with exec transitions in AppArmor with certain snapd
     // interfaces. Not setting NO_NEW_PRIVS does mean that applications can
     // adjust their sandbox if they have CAP_SYS_ADMIN or, if running on < 4.8
     // kernels, break out of the seccomp via ptrace. Both CAP_SYS_ADMIN and
-    // 'ptrace (trace)' are blocked by AppArmor with typical snappy interfaces.
+    // 'ptrace (trace)' are blocked by AppArmor with typical snapd interfaces.
     err = seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_LOG, prog);
     if (err != 0) {
         /* The profile may fail to load using the "modern" interface.
@@ -105,18 +89,6 @@ void sc_apply_seccomp_filter(struct sock_fprog *prog) {
         err = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, prog);
         if (err != 0) {
             die("cannot apply seccomp profile");
-        }
-    }
-
-    /* Drop privileges again. */
-    debug("dropping privileges after loading seccomp profile");
-    if (geteuid() == 0) {
-        unsigned real_uid = getuid();
-        if (seteuid(real_uid) != 0) {
-            die("seteuid failed");
-        }
-        if (real_uid != 0 && geteuid() == 0) {
-            die("dropping privs after seccomp_load did not work");
         }
     }
 }

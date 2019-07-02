@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type RemovableMediaInterfaceSuite struct {
+type jack1InterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -38,58 +38,62 @@ type RemovableMediaInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&RemovableMediaInterfaceSuite{
-	iface: builtin.MustInterface("removable-media"),
+var _ = Suite(&jack1InterfaceSuite{
+	iface: builtin.MustInterface("jack1"),
 })
 
-func (s *RemovableMediaInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: client-snap
-version: 0
+func (s *jack1InterfaceSuite) SetUpTest(c *C) {
+	var mockPlugSnapInfoYaml = `name: other
+version: 1.0
 apps:
-  other:
-    command: foo
-    plugs: [removable-media]
-`, nil)
+ app:
+  command: foo
+  plugs: [jack1]
+`
 	s.slotInfo = &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "removable-media",
-		Interface: "removable-media",
+		Name:      "jack1",
+		Interface: "jack1",
 	}
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["removable-media"]
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plugInfo = snapInfo.Plugs["jack1"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
-func (s *RemovableMediaInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "removable-media")
+func (s *jack1InterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "jack1")
 }
 
-func (s *RemovableMediaInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *jack1InterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "removable-media",
-		Interface: "removable-media",
+		Name:      "jack1",
+		Interface: "jack1",
 	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"removable-media slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "jack1 slots are reserved for the core snap")
 }
 
-func (s *RemovableMediaInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *jack1InterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.other"})
-	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/{,run/}media/*/ r")
-	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/mnt/** rwkl,")
+func (s *jack1InterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /dev/shm/jack-[0-9]*/*/* rw")
 }
 
-func (s *RemovableMediaInterfaceSuite) TestInterfaces(c *C) {
+func (s *jack1InterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *jack1InterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows interacting with a JACK1 server`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "jack1")
 }

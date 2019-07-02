@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,32 +19,29 @@
 
 package builtin
 
-const cpuControlSummary = `allows setting CPU tunables`
+const jack1Summary = `allows interacting with a JACK1 server`
 
-const cpuControlBaseDeclarationSlots = `
-  cpu-control:
+const jack1BaseDeclarationSlots = `
+  jack1:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const cpuControlConnectedPlugAppArmor = `
-# Description: This interface allows for setting CPU tunables
-/sys/devices/system/cpu/**/ r,
-/sys/devices/system/cpu/cpu*/online rw,
-/sys/devices/system/cpu/smt/*       r,
-/sys/devices/system/cpu/smt/control w,
+const jack1ConnectedPlugAppArmor = `
+# Per libjack/shm.c, various endpoints for JACK1 are setup like:
+# jack-<userid>/<server name>/jack*
+owner /dev/shm/jack-[0-9]*/*/* rw,
 `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "cpu-control",
-		summary:               cpuControlSummary,
-		implicitOnCore:        true,
+		name:                  "jack1",
+		summary:               jack1Summary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  cpuControlBaseDeclarationSlots,
-		connectedPlugAppArmor: cpuControlConnectedPlugAppArmor,
+		baseDeclarationSlots:  jack1BaseDeclarationSlots,
+		connectedPlugAppArmor: jack1ConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }
