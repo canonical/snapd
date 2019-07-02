@@ -991,10 +991,10 @@ func (x cmdSwitch) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot specify both --cohort and --leave-cohort"))
 	case switchCohort && !x.LeaveCohort && !switchChannel:
 		// TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
-		msg = fmt.Sprintf(i18n.G("%q switched to the %q cohort\n"), name, strutil.ElliptRight(x.Cohort, 10))
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q cohort\n"), name, strutil.ElliptLeft(x.Cohort, 10))
 	case switchCohort && !x.LeaveCohort && switchChannel:
 		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel, the third an ellipted cohort string
-		msg = fmt.Sprintf(i18n.G("%q switched to the %q channel and the %q cohort\n"), name, channel, strutil.ElliptRight(x.Cohort, 10))
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q channel and the %q cohort\n"), name, channel, strutil.ElliptLeft(x.Cohort, 10))
 	case !switchCohort && !x.LeaveCohort && switchChannel:
 		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
 		msg = fmt.Sprintf(i18n.G("%q switched to the %q channel\n"), name, channel)

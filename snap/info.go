@@ -754,7 +754,7 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	URL    string `json:"url"`
+	URL    string `json:"url,omitempty"`
 	Width  int64  `json:"width,omitempty"`
 	Height int64  `json:"height,omitempty"`
 	Note   string `json:"note,omitempty"`
@@ -772,19 +772,7 @@ type MediaInfos []MediaInfo
 const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
 
 func (mis MediaInfos) Screenshots() []ScreenshotInfo {
-	shots := make([]ScreenshotInfo, 0, len(mis))
-	for _, mi := range mis {
-		if mi.Type != "screenshot" {
-			continue
-		}
-		shots = append(shots, ScreenshotInfo{
-			URL:    mi.URL,
-			Width:  mi.Width,
-			Height: mi.Height,
-			Note:   ScreenshotsDeprecationNotice,
-		})
-	}
-	return shots
+	return []ScreenshotInfo{{Note: ScreenshotsDeprecationNotice}}
 }
 
 func (mis MediaInfos) IconURL() string {

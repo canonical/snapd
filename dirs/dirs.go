@@ -165,14 +165,19 @@ func StripRootDir(dir string) string {
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
 func SupportsClassicConfinement() bool {
+	// Core systems don't support classic confinement as a policy decision.
+	if !release.OnClassic {
+		return false
+	}
+
+	// Classic systems support classic confinement if using the primary mount
+	// location for snaps, that is /snap or if using the alternate mount
+	// location, /var/lib/snapd/snap along with the /snap ->
+	// /var/lib/snapd/snap symlink in place.
 	smd := filepath.Join(GlobalRootDir, defaultSnapMountDir)
 	if SnapMountDir == smd {
 		return true
 	}
-
-	// distros with a non-default /snap location may still be good
-	// if there is a symlink in place that links from the
-	// defaultSnapMountDir (/snap) to the distro specific mount dir
 	fi, err := os.Lstat(smd)
 	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
 		if target, err := filepath.EvalSymlinks(smd); err == nil {

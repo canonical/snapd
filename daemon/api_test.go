@@ -784,7 +784,7 @@ UnitFileState=enabled
 			Contact:     "",
 			License:     "GPL-3.0",
 			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{},
+			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 			CohortKey:   "some-long-cohort-key",
 		},
 		Meta: meta,
@@ -939,7 +939,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      media.Screenshots(),
+		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1743,7 +1743,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.IsNil)
+	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -2167,13 +2167,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
 	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
-			"url":    "http://example.com/screenshot.png",
-			"width":  float64(800),
-			"height": float64(1280),
-			"note":   snap.ScreenshotsDeprecationNotice,
-		},
-		map[string]interface{}{
-			"url":  "http://example.com/screenshot2.png",
 			"note": snap.ScreenshotsDeprecationNotice,
 		},
 	})
@@ -3876,9 +3869,9 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 		summary string
 	}
 	table := []T{
-		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "some-coho…"`},
+		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "…me-cohort"`},
 		{"some-channel", "", false, `Switch "some-snap" snap to channel "some-channel"`},
-		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "some-coho…"`},
+		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "…me-cohort"`},
 		{"", "", true, `Switch "some-snap" snap away from cohort`},
 		{"some-channel", "", true, `Switch "some-snap" snap to channel "some-channel" and away from cohort`},
 	}
@@ -4203,7 +4196,7 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(calledName, check.Equals, "fake")
 	c.Check(calledCohort, check.Equals, "To the legion of the lost ones, to the cohort of the damned.")
-	c.Check(msg, check.Equals, `Install "fake" snap from "To the le…" cohort`)
+	c.Check(msg, check.Equals, `Install "fake" snap from "…e damned." cohort`)
 }
 
 func (s *apiSuite) TestInstallDevMode(c *check.C) {

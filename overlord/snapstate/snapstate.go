@@ -711,6 +711,10 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 		return nil, err
 	}
 
+	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
+		return nil, fmt.Errorf("declared snap base %q has unexpected type %q, instead of 'base'", name, info.GetType())
+	}
+
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
@@ -1229,45 +1233,45 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 			// leave cohort
 			if chanFrom == chanTo {
 				return fmt.Sprintf(i18n.G("Switch snap %q away from cohort %q"),
-					snap, strutil.ElliptRight(cohFrom, 10))
+					snap, strutil.ElliptLeft(cohFrom, 10))
 			}
 			if chanFrom == "" {
 				return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and away from cohort %q"),
-					snap, chanTo, strutil.ElliptRight(cohFrom, 10),
+					snap, chanTo, strutil.ElliptLeft(cohFrom, 10),
 				)
 			}
 			return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and away from cohort %q"),
-				snap, chanFrom, chanTo, strutil.ElliptRight(cohFrom, 10),
+				snap, chanFrom, chanTo, strutil.ElliptLeft(cohFrom, 10),
 			)
 		}
 		if cohFrom == "" {
 			// moving into a cohort
 			if chanFrom == chanTo {
 				return fmt.Sprintf(i18n.G("Switch snap %q from no cohort to %q"),
-					snap, strutil.ElliptRight(cohTo, 10))
+					snap, strutil.ElliptLeft(cohTo, 10))
 			}
 			if chanFrom == "" {
 				return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and from no cohort to %q"),
-					snap, chanTo, strutil.ElliptRight(cohTo, 10),
+					snap, chanTo, strutil.ElliptLeft(cohTo, 10),
 				)
 			}
 			// chanTo == "" is not interesting
 			return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from no cohort to %q"),
-				snap, chanFrom, chanTo, strutil.ElliptRight(cohTo, 10),
+				snap, chanFrom, chanTo, strutil.ElliptLeft(cohTo, 10),
 			)
 		}
 		if chanFrom == chanTo {
 			return fmt.Sprintf(i18n.G("Switch snap %q from cohort %q to %q"),
-				snap, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10))
+				snap, strutil.ElliptLeft(cohFrom, 10), strutil.ElliptLeft(cohTo, 10))
 		}
 		if chanFrom == "" {
 			return fmt.Sprintf(i18n.G("Switch snap %q to channel %q and from cohort %q to %q"),
-				snap, chanTo, strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+				snap, chanTo, strutil.ElliptLeft(cohFrom, 10), strutil.ElliptLeft(cohTo, 10),
 			)
 		}
 		return fmt.Sprintf(i18n.G("Switch snap %q from channel %q to %q and from cohort %q to %q"),
 			snap, chanFrom, chanTo,
-			strutil.ElliptRight(cohFrom, 10), strutil.ElliptRight(cohTo, 10),
+			strutil.ElliptLeft(cohFrom, 10), strutil.ElliptLeft(cohTo, 10),
 		)
 	}
 

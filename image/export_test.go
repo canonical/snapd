@@ -53,4 +53,7 @@ func (opts *DownloadOptions) Validate() error {
 	return opts.validate()
 }
 
-var ErrRevisionAndCohort = errRevisionAndCohort
+var (
+	ErrRevisionAndCohort = errRevisionAndCohort
+	ErrPathInBase        = errPathInBase
+)
