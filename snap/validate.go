@@ -413,6 +413,16 @@ func ValidateLayoutAll(info *Info) error {
 		}
 	}
 
+	// Validate that layout are not attempting to define elements that normally
+	// come from other snaps. This is separate from the ValidateLayout below to
+	// simplify argument passing.
+	thisSnapMntDir := filepath.Join("/snap/", info.SnapName())
+	for _, path := range paths {
+		if strings.HasPrefix(path, "/snap/") && !strings.HasPrefix(path, thisSnapMntDir) {
+			return fmt.Errorf("layout %q defines a layout in space belonging to another snap", path)
+		}
+	}
+
 	// Validate each layout item and collect resulting constraints.
 	constraints := make([]LayoutConstraint, 0, len(info.Layout))
 	for _, path := range paths {
