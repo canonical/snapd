@@ -76,22 +76,22 @@ func (s *healthSuite) TestBadArgs(c *check.C) {
 			`status cannot be manually set to "unknown"`,
 		}, {
 			[]string{"set-health", "okay", "message"},
-			`when status is "okay", message and code should be empty`,
+			`when status is "okay", message and code must be empty`,
 		}, {
 			[]string{"set-health", "okay", "--code=what"},
-			`when status is "okay", message and code should be empty`,
+			`when status is "okay", message and code must be empty`,
 		}, {
 			[]string{"set-health", "blocked"},
 			`when status is not "okay", message is required`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=xx"},
-			`code should have between 3 and 30 characters, got 2`,
+			`code must have between 3 and 30 characters, got 2`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=abcdefghijklmnopqrstuvwxyz12345"},
-			`code should have between 3 and 30 characters, got 31`,
+			`code must have between 3 and 30 characters, got 31`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=☠☢☣💣💢🐍✴👿‼"},
-			`code should have between 3 and 30 characters, got 31`,
+			`code must have between 3 and 30 characters, got 31`,
 		}, {
 			[]string{"set-health", "blocked", "message", "--code=123"},
 			`invalid code "123".*`,

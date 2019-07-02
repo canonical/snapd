@@ -44,10 +44,10 @@ func init() {
 		}
 	}
 
-	snapstate.HealthCheckHook = CheckHook
+	snapstate.CheckHealthHook = Hook
 }
 
-func CheckHook(st *state.State, snapName string, snapRev snap.Revision) *state.Task {
+func Hook(st *state.State, snapName string, snapRev snap.Revision) *state.Task {
 	summary := fmt.Sprintf("Run health check of %q snap", snapName)
 	hooksup := &hookstate.HookSetup{
 		Snap:     snapName,

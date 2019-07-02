@@ -30,30 +30,31 @@ import (
 )
 
 var (
-	shortHealthHelp = i18n.G("Report on snap's health")
+	shortHealthHelp = i18n.G("Report the health status of a snap")
 	longHealthHelp  = i18n.G(`
-The set-health command is called from a snap to inform the system of the snap's
-overall health.
+The set-health command is called from within a snap to inform the system of the
+snap's overall health.
 
-It can be called from any hook, and even from the apps themselves, although a
-snap can provide a 'check-health' hook that is solely concerned with this; if it
-does, that hook is called periodically (with increased frequency while the snap
-is "unhealthy"). Any health regression will issue a warning to the user.
+It can be called from any hook, and even from the apps themselves. A snap can
+optionally provide a 'check-health' hook to better manage these calls, which is
+then called periodically and with increased frequency while the snap is
+"unhealthy". Any health regression will issue a warning to the user.
 
-Note the health is of the snap, not of the apps it contains; it’s up to the
-snap developer to determine how the health of the individual apps add up to
-the health of the snap as a whole.
+Note: the health is of the snap only, not of the apps it contains; it’s up to
+      the snap developer to determine how the health of the individual apps is
+      reflected in the overall health of the snap.
 
-status can be one of
+status can be one of:
 
 - okay: the snap is healthy. This status takes no message and no code.
 
-- waiting: some resource (e.g. a device, network, or service) the snap needs
-  isn’t ready yet; the user just needs to wait.  The message must explain what
-  it’s waiting for.
+- waiting: a resource needed by the snap (e.g. a device, network, or service) is
+  not ready and the user will need to wait.  The message must explain what
+  resource is being waited for.
 
-- blocked: something needs doing to unblock the snap; the message must be
-  sufficient to point the user in the right direction.
+- blocked: something needs doing to unblock the snap (e.g. a service needs to be
+  configured); the message must be sufficient to point the user in the right
+  direction.
 
 - error: something is broken; the message must explain what.
 `)
@@ -65,13 +66,13 @@ func init() {
 
 type healthPositional struct {
 	Status  string `positional-arg-name:"<status>" required:"yes" description:"a valid health status; required."`
-	Message string `positional-arg-name:"<message>" description:"a short human-readable explanation of the status (when not okay). Must be longer than 7 characters, and will be truncated if over 70. Message cannot be provided if status is okay, and is required otherwise."`
+	Message string `positional-arg-name:"<message>" description:"a short human-readable explanation of the status (when not okay). Must be longer than 7 characters, and will be truncated if over 70. Message cannot be provided if status is okay, but is required otherwise."`
 }
 
 type healthCommand struct {
 	baseCommand
 	healthPositional `positional-args:"yes"`
-	Code             string `long:"code" value-name:"<code>" description:"optional tool-friendly value representing the problem that makes the snap unhealthy.  Not a number, but a word with 3-30 bytes matching [a-z](-?[a-z0-9])+"`
+	Code             string `long:"code" value-name:"<code>" description:"optional tool-friendly value representing the problem that makes the snap unhealthy.  Not a number, but a word with 3-30 characters matching [a-z](-?[a-z0-9])+"`
 }
 
 var (
@@ -80,7 +81,7 @@ var (
 
 func (c *healthCommand) Execute([]string) error {
 	if c.Status == "okay" && (len(c.Message) > 0 || len(c.Code) > 0) {
-		return fmt.Errorf(`when status is "okay", message and code should be empty`)
+		return fmt.Errorf(`when status is "okay", message and code must be empty`)
 	}
 
 	status, err := healthstate.StatusLookup(c.Status)
@@ -93,7 +94,7 @@ func (c *healthCommand) Execute([]string) error {
 
 	if len(c.Code) > 0 {
 		if len(c.Code) < 3 || len(c.Code) > 30 {
-			return fmt.Errorf("code should have between 3 and 30 characters, got %d", len(c.Code))
+			return fmt.Errorf("code must have between 3 and 30 characters, got %d", len(c.Code))
 		}
 		if !validCode(c.Code) {
 			return fmt.Errorf("invalid code %q (code must start with lowercase ASCII letters, and contain only ASCII letters and numbers, optionally separated by single dashes)", c.Code) // technically not dashes but hyphen-minuses

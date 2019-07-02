@@ -128,7 +128,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 	}
 
 	s.state.Lock()
-	task := healthstate.CheckHook(s.state, "test-snap", snap.R(42))
+	task := healthstate.Hook(s.state, "test-snap", snap.R(42))
 	change := s.state.NewChange("kind", "summary")
 	change.AddTask(task)
 	s.state.Unlock()
