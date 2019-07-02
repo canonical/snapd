@@ -77,9 +77,6 @@
 %define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
 %endif
 
-# Avoid causing incompatibilities among base snaps
-%global __brp_mangle_shebangs_exclude ^/bin/(bash|sh)$
-
 # Compat path macros
 %{!?_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
