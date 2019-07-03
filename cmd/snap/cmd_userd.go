@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,14 +27,15 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/sessionagent"
 	"github.com/snapcore/snapd/userd"
 )
 
 type cmdUserd struct {
-	userd userd.Userd
-
 	Autostart bool `long:"autostart"`
+	Agent     bool `long:"agent"`
 }
 
 var shortUserdHelp = i18n.G("Start the userd service")
@@ -51,6 +52,8 @@ func init() {
 		}, map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"autostart": i18n.G("Autostart user applications"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"agent": i18n.G("Run the user session agent"),
 		}, nil)
 	cmd.hidden = true
 }
@@ -64,21 +67,51 @@ func (x *cmdUserd) Execute(args []string) error {
 		return x.runAutostart()
 	}
 
-	if err := x.userd.Init(); err != nil {
+	if x.Agent {
+		return x.runAgent()
+	}
+
+	return x.runUserd()
+}
+
+func (x *cmdUserd) runUserd() error {
+	var userd userd.Userd
+	if err := userd.Init(); err != nil {
 		return err
 	}
-	x.userd.Start()
+	userd.Start()
 
 	ch := make(chan os.Signal, 3)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
-	case <-x.userd.Dying():
+	case <-userd.Dying():
 		// something called Stop()
 	}
 
-	return x.userd.Stop()
+	return userd.Stop()
+}
+
+func (x *cmdUserd) runAgent() error {
+	var agent sessionagent.SessionAgent
+	agent.Version = cmd.Version
+
+	if err := agent.Init(); err != nil {
+		return err
+	}
+	agent.Start()
+
+	ch := make(chan os.Signal, 3)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	select {
+	case sig := <-ch:
+		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
+	case <-agent.Dying():
+		// something called Stop()
+	}
+
+	return agent.Stop()
 }
 
 func (x *cmdUserd) runAutostart() error {

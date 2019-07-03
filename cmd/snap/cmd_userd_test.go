@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,9 @@
 package main_test
 
 import (
+	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"syscall"
@@ -28,7 +31,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -36,7 +41,7 @@ type userdSuite struct {
 	BaseSnapSuite
 	testutil.DBusTest
 
-	restoreLogger func()
+	agentSocketPath string
 }
 
 var _ = Suite(&userdSuite{})
@@ -45,14 +50,17 @@ func (s *userdSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
 	s.DBusTest.SetUpTest(c)
 
-	_, s.restoreLogger = logger.MockLogger()
+	_, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
+	s.agentSocketPath = fmt.Sprintf("%s/snap-session.socket", xdgRuntimeDir)
 }
 
 func (s *userdSuite) TearDownTest(c *C) {
 	s.BaseSnapSuite.TearDownTest(c)
 	s.DBusTest.TearDownTest(c)
-
-	s.restoreLogger()
 }
 
 func (s *userdSuite) TestUserdBadCommandline(c *C) {
@@ -96,6 +104,46 @@ func (s *userdSuite) TestUserdDBus(c *C) {
 	}()
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd"})
+	c.Assert(err, IsNil)
+	c.Check(rest, DeepEquals, []string{})
+	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on user defined signal 1.\n")
+}
+
+func (s *userdSuite) makeAgentClient() *http.Client {
+	transport := &http.Transport{
+		Dial: func(_, _ string) (net.Conn, error) {
+			return net.Dial("unix", s.agentSocketPath)
+		},
+		DisableKeepAlives: true,
+	}
+	return &http.Client{Transport: transport}
+}
+
+func (s *userdSuite) TestSessionAgentSocket(c *C) {
+	go func() {
+		myPid := os.Getpid()
+		defer func() {
+			me, err := os.FindProcess(myPid)
+			c.Assert(err, IsNil)
+			me.Signal(syscall.SIGUSR1)
+		}()
+
+		// Wait for command to create socket file
+		for i := 0; i < 1000; i++ {
+			if osutil.FileExists(s.agentSocketPath) {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		// Check that agent functions
+		client := s.makeAgentClient()
+		response, err := client.Get("http://localhost/v1/agent-info")
+		c.Assert(err, IsNil)
+		c.Check(response.StatusCode, Equals, 200)
+	}()
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--agent"})
 	c.Assert(err, IsNil)
 	c.Check(rest, DeepEquals, []string{})
 	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on user defined signal 1.\n")

@@ -4,4 +4,4 @@ Requires=snapd.session-agent.socket
 
 [Service]
 Type=notify
-ExecStart=@bindir@/snap session-agent
+ExecStart=@bindir@/snap userd --agent
