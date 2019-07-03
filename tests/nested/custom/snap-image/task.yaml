@@ -1,0 +1,43 @@
+summary: Build Ubuntu Core image with snap-image and boot it
+
+environment:
+    MODEL/core: nested-amd64.model
+    CORE/core: core
+
+    MODEL/core18: nested-18-amd64.model
+    CORE/core18: core18
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_build_snapd
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    create_assertions_disk
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+    # clean up nested image work directory
+    rm -rf "$WORK_DIR"
+
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    snap prepare-image --channel edge "$TESTSLIB/assertions/$MODEL" "$WORK_DIR/prepared"
+
+    mkdir "$WORK_DIR/image"
+    snap-image prepare-volume --work-dir "$WORK_DIR/image" "$WORK_DIR/prepared" pc
+
+    ln "$WORK_DIR/image/output.img" "$WORK_DIR/image/ubuntu-core.img"
+
+    start_nested_core_vm
+
+    execute_remote "snap list" | MATCH "$CORE "

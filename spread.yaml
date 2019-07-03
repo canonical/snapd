@@ -871,4 +871,24 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
+    tests/nested/custom/:
+        summary: Tests for nested images that do not fit under classic or core
+        backends: [google-nested]
+        systems: [ubuntu-18.04-64]
+        manual: true
+        prepare: |
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_update_package_db
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+
+        restore: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            cleanup_nested_env
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+
 # vim:ts=4:sw=4:et
