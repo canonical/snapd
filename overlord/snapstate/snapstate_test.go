@@ -423,6 +423,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"run-hook[configure]",
 		)
 	}
+	expected = append(expected,
+		"run-hook[check-health]",
+	)
 
 	c.Assert(kinds, DeepEquals, expected)
 }
@@ -480,6 +483,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	}
 	expected = append(expected,
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	)
 	if opts&doesReRefresh != 0 {
 		expected = append(expected, "check-rerefresh")
@@ -702,11 +706,13 @@ epoch: 1*
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	// hook tasks for refresh and for configure hook only; no install hook
-	c.Assert(runHooks, HasLen, 3)
-	c.Assert(runHooks[0].Summary(), Equals, `Run pre-refresh hook of "some-snap" snap if present`)
-	c.Assert(runHooks[1].Summary(), Equals, `Run post-refresh hook of "some-snap" snap if present`)
-	c.Assert(runHooks[2].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
+	// no install hook task
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{
+		"run-hook[pre-refresh]",
+		"run-hook[post-refresh]",
+		"run-hook[configure]",
+		"run-hook[check-health]",
+	})
 }
 
 type fullFlags struct{ before, change, after, setup snapstate.Flags }
@@ -744,6 +750,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"setup-aliases",
 		"start-snap-services",
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	})
 	// a revert is a special refresh
 	verifyStopReason(c, ts, "refresh")
@@ -1555,6 +1562,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"setup-aliases",
 		"start-snap-services",
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	})
 }
 
@@ -2768,9 +2776,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2938,9 +2946,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2985,8 +2993,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Assert(snapst.InstanceKey, Equals, "instance")
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	// install and configure hooks
-	c.Assert(runHooks, HasLen, 2)
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{"run-hook[install]", "run-hook[configure]", "run-hook[check-health]"})
 	for _, hookTask := range runHooks {
 		c.Assert(hookTask.Kind(), Equals, "run-hook")
 		var hooksup hookstate.HookSetup
@@ -3264,9 +3271,9 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (666) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (666) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (666) services`)
 
 	// verify snap-setup in the task state
@@ -3427,9 +3434,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
 
 	// verify snap-setup in the task state
@@ -6486,7 +6493,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 18
+			j += 19
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -10777,6 +10784,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 		"run-hook[install]",
 		"start-snap-services",
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	})
 
 }
@@ -11554,13 +11562,13 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	var snapsup snapstate.SnapSetup
 	tasks := ts.Tasks()
 
-	i := len(tasks) - 7
+	i := len(tasks) - 8
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Revision(), Equals, si3.Revision)
 
-	i = len(tasks) - 5
+	i = len(tasks) - 6
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
@@ -11988,9 +11996,11 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	var m map[string]interface{}
 	runHooks := tasksWithKind(ts, "run-hook")
 
-	// two hooks expected - install and configure
-	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[1].Kind(), Equals, "run-hook")
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{
+		"run-hook[install]",
+		"run-hook[configure]",
+		"run-hook[check-health]",
+	})
 	err = runHooks[1].Get("hook-context", &m)
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
@@ -13124,15 +13134,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	c.Assert(chg2.IsReady(), Equals, true)
 
 	// order in which the changes run is random
-	len1 := len(chg1.Tasks())
-	len2 := len(chg2.Tasks())
-	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 26)
-		c.Assert(chg2.Tasks(), HasLen, 13)
-	} else {
-		c.Assert(chg1.Tasks(), HasLen, 13)
-		c.Assert(chg2.Tasks(), HasLen, 26)
+	if len(chg1.Tasks()) < len(chg2.Tasks()) {
+		chg1, chg2 = chg2, chg1
 	}
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 28)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 14)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }

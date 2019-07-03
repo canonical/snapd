@@ -48,6 +48,14 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/+usb:* r,
 `
 
+const rawusbConnectedPlugSecComp = `
+# Description: Allow raw access to all connected USB devices.
+# This gives privileged access to the system.
+
+# kernel uevents
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+`
+
 var rawusbConnectedPlugUDev = []string{
 	`SUBSYSTEM=="usb"`,
 	`SUBSYSTEM=="tty", ENV{ID_BUS}=="usb"`,
@@ -61,6 +69,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  rawusbBaseDeclarationSlots,
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
+		connectedPlugSecComp:  rawusbConnectedPlugSecComp,
 		connectedPlugUDev:     rawusbConnectedPlugUDev,
 		reservedForOS:         true,
 	})
