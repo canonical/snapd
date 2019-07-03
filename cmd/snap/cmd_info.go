@@ -758,6 +758,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintPath()
 		iw.printName()
 		iw.printSummary()
+		iw.maybePrintHealth()
 		iw.maybePrintPublisher()
 		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()
@@ -768,7 +769,6 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintCommands()
 		iw.maybePrintServices()
 		iw.maybePrintNotes()
-		iw.maybePrintHealth()
 		// stops the notes etc trying to be aligned with channels
 		iw.Flush()
 		iw.maybePrintType()
