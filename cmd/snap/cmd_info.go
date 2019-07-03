@@ -107,6 +107,7 @@ func (iw *infoWriter) maybePrintHealth() {
 	if !health.Revision.Unset() {
 		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
 	}
+	iw.Flush()
 }
 
 func clientSnapFromPath(path string) (*client.Snap, error) {

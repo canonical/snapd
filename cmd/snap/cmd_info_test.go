@@ -686,8 +686,11 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `
 name:    hello
 summary: The GNU Hello snap
-health:  blocked (please configure the grawflit), last run
-  2019-05-13T16:27:01+01:00 for revision 1.
+health:
+  status:   blocked
+  message:  please configure the grawflit
+  checked:  2019-05-13T16:27:01+01:00
+  revision: 1
 publisher: Canonical*
 license:   BSD-3
 description: |
