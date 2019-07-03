@@ -462,13 +462,20 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 	var recoverySystemName string
 	if hasRecovery {
-		// FIXME: calculate properly, take model/brand into account
-		//        but brand is rAnDomStringWithUpPerLowEr so not
-		//        vfat friendly
+		// FIXME: calculate properly
 		recoverySystemName = "20190523-1142"
-		dirs.SnapSeedDir = filepath.Join(opts.RootDir, "system", recoverySystemName)
+		recoverySystemPath := filepath.Join(opts.RootDir, "systems", recoverySystemName)
+		dirs.SnapSeedDir = recoverySystemPath
 		// for the bootloader
-		dirs.SnapBlobDir = filepath.Join(dirs.SnapSeedDir, "snaps")
+		dirs.SnapBlobDir = filepath.Join(opts.RootDir, "snaps")
+
+		// put the model assertion into the toplevel recovery system dir
+		if err := os.MkdirAll(recoverySystemPath, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(recoverySystemPath, "model"), asserts.Encode(model), 0644); err != nil {
+			return err
+		}
 	}
 
 	// sanity check target
@@ -500,7 +507,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// put snaps in place
-	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
+	var snapSeedDir string
+	if hasRecovery {
+		snapSeedDir = filepath.Join(opts.RootDir, "snaps")
+	} else {
+		snapSeedDir = filepath.Join(dirs.SnapSeedDir, "snaps")
+	}
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
