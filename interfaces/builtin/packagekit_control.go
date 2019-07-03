@@ -32,7 +32,7 @@ const packageKitControlBaseDeclarationSlots = `
 const packageKitControlConnectedPlugAppArmor = `
 # Description: Allow access to PackageKit service
 
-#include <abstractions/dbus-system-strict>
+#include <abstractions/dbus-strict>
 
 # Allow communication with the main PackageKit end point.
 dbus (receive, send)
