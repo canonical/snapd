@@ -152,7 +152,7 @@ func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugDefault, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugReadonly, s.slot), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugWritable, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 9) // three rules multiplied by three apps
+	c.Assert(spec.Snippets(), HasLen, 12) // four rules multiplied by three apps
 	c.Assert(spec.Snippets(), testutil.Contains, `# optical-drive
 KERNEL=="sr[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
