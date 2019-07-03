@@ -31,7 +31,7 @@ var snapIDsSnapd = []string{
 	"todo-staging-snapd-id",
 }
 
-func SnapIDSnapd(snapID string) bool {
+func IsSnapd(snapID string) bool {
 	return strutil.ListContains(snapIDsSnapd, snapID)
 }
 

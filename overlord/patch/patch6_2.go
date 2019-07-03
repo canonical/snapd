@@ -111,12 +111,12 @@ func patch6_2(st *state.State) error {
 		}
 
 		if snapst.SnapType == string(snap.TypeSnapd) {
-			// we can have just one snapd snap
+			// we can have at most one snapd snap
 			break
 		}
 		if snapst.SnapType == string(snap.TypeApp) {
 			for _, seq := range snapst.Sequence {
-				if snap.SnapIDSnapd(seq.SnapID) {
+				if snap.IsSnapd(seq.SnapID) {
 					snapst.SnapType = string(snap.TypeSnapd)
 					data, err := json.Marshal(snapst)
 					if err != nil {
@@ -125,7 +125,7 @@ func patch6_2(st *state.State) error {
 					newRaw := json.RawMessage(data)
 					snaps[name] = &newRaw
 					st.Set("snaps", snaps)
-					// we can have just one snapd snap
+					// we can have at most one snapd snap
 					break
 				}
 			}
@@ -134,7 +134,8 @@ func patch6_2(st *state.State) error {
 
 	// migrate tasks' snap setup
 	for _, task := range st.Tasks() {
-		if task.Status().Ready() {
+		chg := task.Change()
+		if chg != nil && chg.Status().Ready() {
 			continue
 		}
 
@@ -145,7 +146,7 @@ func patch6_2(st *state.State) error {
 		}
 
 		if err == nil && snapsup.SideInfo != nil {
-			if snapsup.Type != snap.TypeSnapd && snap.SnapIDSnapd(snapsup.SideInfo.SnapID) {
+			if snapsup.Type != snap.TypeSnapd && snap.IsSnapd(snapsup.SideInfo.SnapID) {
 				snapsup.Type = snap.TypeSnapd
 				task.Set("snap-setup", snapsup)
 			}
