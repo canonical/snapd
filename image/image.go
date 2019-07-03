@@ -460,15 +460,22 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	if err != nil {
 		return err
 	}
-	var recoverySystemName string
+	var recoverySystemName, recoveryKernelName string
 	if hasRecovery {
-		// FIXME: calculate properly, take model/brand into account
-		//        but brand is rAnDomStringWithUpPerLowEr so not
-		//        vfat friendly
+		// FIXME: calculate properly
 		recoverySystemName = "20190523-1142"
-		dirs.SnapSeedDir = filepath.Join(opts.RootDir, "system", recoverySystemName)
+		recoverySystemPath := filepath.Join(opts.RootDir, "systems", recoverySystemName)
+		dirs.SnapSeedDir = recoverySystemPath
 		// for the bootloader
-		dirs.SnapBlobDir = filepath.Join(dirs.SnapSeedDir, "snaps")
+		dirs.SnapBlobDir = filepath.Join(opts.RootDir, "snaps")
+
+		// put the model assertion into the toplevel recovery system dir
+		if err := os.MkdirAll(recoverySystemPath, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(recoverySystemPath, "model"), asserts.Encode(model), 0644); err != nil {
+			return err
+		}
 	}
 
 	// sanity check target
@@ -500,7 +507,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// put snaps in place
-	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
+	var snapSeedDir string
+	if hasRecovery {
+		snapSeedDir = filepath.Join(opts.RootDir, "snaps")
+	} else {
+		snapSeedDir = filepath.Join(dirs.SnapSeedDir, "snaps")
+	}
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
@@ -654,14 +666,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			downloadedSnapsInfoForBootConfig[dst] = info
 		}
 
-		// on recovery the kernel has a fixed name to make
-		// booting easier (this might change in the future)
+		// on recovery we need to specify what kernel to boot
 		if hasRecovery && typ == snap.TypeKernel {
 			downloadedSnapsInfoForBootConfig[fn] = info
-			// FIXME: meh, duplicates things
-			if err := osutil.CopyFile(fn, filepath.Join(filepath.Dir(fn), "kernel.snap"), 0); err != nil {
-				return err
-			}
+			recoveryKernelName = filepath.Base(fn)
 		}
 
 		// set seed.yaml
@@ -739,7 +747,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		if !hasRecovery {
 			err = setBootvars(downloadedSnapsInfoForBootConfig, model)
 		} else {
-			err = setRecoveryBootvars(recoverySystemName)
+			err = setRecoveryBootvars(recoverySystemName, recoveryKernelName)
 		}
 		if err != nil {
 			return err
@@ -754,7 +762,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	return nil
 }
 
-func setRecoveryBootvars(recoverySystemName string) error {
+func setRecoveryBootvars(recoverySystemName, recoveryKernelName string) error {
 	// HACK for recovery
 	loader, err := bootloader.Find()
 	if err != nil {
@@ -763,6 +771,7 @@ func setRecoveryBootvars(recoverySystemName string) error {
 	return loader.SetBootVars(map[string]string{
 		"snap_mode":            "install",
 		"snap_recovery_system": recoverySystemName,
+		"snap_recovery_kernel": recoveryKernelName,
 	})
 }
 

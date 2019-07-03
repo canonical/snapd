@@ -222,7 +222,10 @@ func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (
 	seedPath := "system-data/var/lib/snapd/seed"
 	snapPath := "system-data/var/lib/snapd/snaps"
 
-	src := path.Join(mntSysRecover, "system", version)
+	srcRecoverySystem := path.Join(mntSysRecover, "systems", version)
+	// FIXME: this is cheating, we simply write all snaps for now instead
+	// of just the ones that belong to the recovery system
+	srcSnaps := path.Join(mntSysRecover, "snaps")
 	dest := path.Join(mntWritable, seedPath)
 
 	// needed as mount-point (and for snapd.core-fixup.services)
@@ -244,12 +247,28 @@ func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (
 		return
 	}
 
-	seedFiles, err := ioutil.ReadDir(src)
+	// cp -a $srcSnaps/*, $dest+"/snaps"
+	srcSnapFiles, err := ioutil.ReadDir(srcSnaps)
+	if err != nil {
+		return
+	}
+	err = os.MkdirAll(dest+"/snaps", 0755)
+	if err != nil {
+		return
+	}
+	for _, f := range srcSnapFiles {
+		if err = copyTree(path.Join(srcSnaps, f.Name()), dest+"/snaps"); err != nil {
+			return
+		}
+	}
+
+	// cp -a $srcRecoverySystem $dest
+	seedFiles, err := ioutil.ReadDir(srcRecoverySystem)
 	if err != nil {
 		return
 	}
 	for _, f := range seedFiles {
-		if err = copyTree(path.Join(src, f.Name()), dest); err != nil {
+		if err = copyTree(path.Join(srcRecoverySystem, f.Name()), dest); err != nil {
 			return
 		}
 	}
