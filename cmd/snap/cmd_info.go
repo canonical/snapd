@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -90,7 +91,7 @@ func (iw *infoWriter) maybePrintHealth() {
 	if health.Status == "okay" && !iw.verbose {
 		return
 	}
-	buf := new(strings.Builder)
+	buf := new(bytes.Buffer) // replace with a strings.Builder when >=1.10
 	fmt.Fprint(buf, health.Status)
 	if health.Message != "" {
 		fmt.Fprintf(buf, " (%s)", health.Message)
