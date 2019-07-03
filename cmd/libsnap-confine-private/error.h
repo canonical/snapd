@@ -63,7 +63,7 @@ typedef struct sc_error {
 /**
  * Error domain for errors in the libsnap-confine-private library.
  **/
-#define SC_LIBSNAP_ERROR "libsnap-confine-private"
+#define SC_LIBSNAP_DOMAIN "libsnap-confine-private"
 
 /** sc_libsnap_error represents distinct error codes used by libsnap-confine-private library. */
 typedef enum sc_libsnap_error {
