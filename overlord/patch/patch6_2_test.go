@@ -20,9 +20,7 @@
 package patch_test
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	"bytes"
 
 	. "gopkg.in/check.v1"
 
@@ -37,6 +35,8 @@ type patch62Suite struct{}
 
 var _ = Suite(&patch62Suite{})
 
+// State with snapd snap marked as 'app' (to be converted to 'snapd' type) and a regular 'other' snap,
+// plus three tasks - two of them need to have their SnapSetup migrated to 'snapd' type.
 var statePatch6_2JSON = []byte(`
 {
 	"data": {
@@ -208,14 +208,89 @@ var statePatch6_2JSON = []byte(`
 	}
 }`)
 
+// State with 'snapd' snap with proper snap type, and an extra 'other' snap
+// with snapd-snap-id but improper 'app' type.
+var statePatch6_2JSONWithSnapd = []byte(`
+{
+	"data": {
+		"patch-level": 6,
+		"snaps": {
+		  "snapd": {
+			"type": "snapd",
+			"sequence": [
+			  {
+				"name": "snapd",
+				"snap-id": "snapd-snap-id",
+				"revision": "2"
+			  }
+			],
+			"active": true,
+			"current": "2",
+			"channel": "stable"
+		  },
+		  "other": {
+			"type": "app",
+			"sequence": [
+			  {
+				"name": "other",
+				"snap-id": "snapd-snap-id",
+				"revision": "1"
+			  }
+			],
+			"active": true,
+			"current": "1",
+			"channel": "stable"
+		  }
+		}
+	  },
+	  "changes": {}
+	  },
+	  "tasks": {}
+	}
+}`)
+
+// State with two snaps with snapd-snap-id and improper snap types
+var statePatch6_2JSONWithSnapd2 = []byte(`
+{
+	"data": {
+		"patch-level": 6,
+		"snaps": {
+		  "snapd": {
+			"type": "app",
+			"sequence": [
+			  {
+				"name": "snapd",
+				"snap-id": "snapd-snap-id",
+				"revision": "2"
+			  }
+			],
+			"active": true,
+			"current": "2",
+			"channel": "stable"
+		  },
+		  "other": {
+			"type": "app",
+			"sequence": [
+			  {
+				"name": "other",
+				"snap-id": "snapd-snap-id",
+				"revision": "1"
+			  }
+			],
+			"active": true,
+			"current": "1",
+			"channel": "stable"
+		  }
+		}
+	  },
+	  "changes": {}
+	  },
+	  "tasks": {}
+	}
+}`)
+
 func (s *patch62Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch6_2JSON, 0644)
-	c.Assert(err, IsNil)
-
 	snap.MockSanitizePlugsSlots(func(*snap.Info) {})
 }
 
@@ -226,9 +301,7 @@ func (s *patch62Suite) TestPatch62(c *C) {
 	restore2 := snap.MockSnapdSnapID("snapd-snap-id")
 	defer restore2()
 
-	r, err := os.Open(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	defer r.Close()
+	r := bytes.NewReader(statePatch6_2JSON)
 	st, err := state.ReadState(nil, r)
 	c.Assert(err, IsNil)
 
@@ -275,4 +348,56 @@ func (s *patch62Suite) TestPatch62(c *C) {
 	c.Assert(task, NotNil)
 	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
 	c.Check(snapsup.Type, Equals, snap.TypeApp)
+}
+
+func (s *patch62Suite) TestPatch62StopsIfSnapdAlreadyPresent(c *C) {
+	restore1 := patch.MockLevel(6, 2)
+	defer restore1()
+
+	restore2 := snap.MockSnapdSnapID("snapd-snap-id")
+	defer restore2()
+
+	r := bytes.NewReader(statePatch6_2JSONWithSnapd)
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	c.Assert(patch.Apply(st), IsNil)
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(st, "snapd", &snapst), IsNil)
+	c.Check(snapst.SnapType, Equals, "snapd")
+
+	// "other" is untouched and has "app" type despite of having snapd-snap-id.
+	// note, it is not a normal scenario, this is to test that patch logic doesn't
+	// process all apps if it finds snapd snap.
+	c.Assert(snapstate.Get(st, "other", &snapst), IsNil)
+	c.Check(snapst.SnapType, Equals, "app")
+}
+
+func (s *patch62Suite) TestPatch62StopsAfterFirstSnapd(c *C) {
+	restore1 := patch.MockLevel(6, 2)
+	defer restore1()
+
+	restore2 := snap.MockSnapdSnapID("snapd-snap-id")
+	defer restore2()
+
+	r := bytes.NewReader(statePatch6_2JSONWithSnapd2)
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	c.Assert(patch.Apply(st), IsNil)
+	st.Lock()
+	defer st.Unlock()
+
+	var snapdCount int
+	for _, name := range []string{"snapd", "other"} {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(st, name, &snapst), IsNil)
+		if snapst.SnapType == "snapd" {
+			snapdCount++
+		}
+	}
+	c.Check(snapdCount, Equals, 1)
 }

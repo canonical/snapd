@@ -103,7 +103,11 @@ func patch6_2(st *state.State) error {
 		return fmt.Errorf("internal error: cannot get snaps: %s", err)
 	}
 
-	// migrate snapstate
+	snapStates := make(map[string]*patch62SnapState)
+	var haveSnapdSnap bool
+
+	// Migrate snapstate; bail out early if we detect snapd snap.
+	// Break up the loop over snaps into two to ease testing.
 	for name, raw := range snaps {
 		var snapst patch62SnapState
 		if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
@@ -111,22 +115,30 @@ func patch6_2(st *state.State) error {
 		}
 
 		if snapst.SnapType == string(snap.TypeSnapd) {
-			// we can have at most one snapd snap
+			// We can have at most one snapd snap
+			haveSnapdSnap = true
 			break
 		}
-		if snapst.SnapType == string(snap.TypeApp) {
-			for _, seq := range snapst.Sequence {
-				if snap.IsSnapd(seq.SnapID) {
-					snapst.SnapType = string(snap.TypeSnapd)
-					data, err := json.Marshal(snapst)
-					if err != nil {
-						return err
+		// cache snap states for the next loop
+		snapStates[name] = &snapst
+	}
+	if !haveSnapdSnap {
+	snapsLoop:
+		for name, snapst := range snapStates {
+			if snapst.SnapType == string(snap.TypeApp) {
+				for _, seq := range snapst.Sequence {
+					if snap.IsSnapd(seq.SnapID) {
+						snapst.SnapType = string(snap.TypeSnapd)
+						data, err := json.Marshal(snapst)
+						if err != nil {
+							return err
+						}
+						newRaw := json.RawMessage(data)
+						snaps[name] = &newRaw
+						st.Set("snaps", snaps)
+						// We can have at most one snapd snap
+						break snapsLoop
 					}
-					newRaw := json.RawMessage(data)
-					snaps[name] = &newRaw
-					st.Set("snaps", snaps)
-					// we can have at most one snapd snap
-					break
 				}
 			}
 		}
