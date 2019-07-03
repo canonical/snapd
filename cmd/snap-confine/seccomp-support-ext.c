@@ -62,12 +62,7 @@ size_t sc_read_seccomp_filter(const char *filename, char *buf, size_t buf_size) 
 }
 
 void sc_apply_seccomp_filter(struct sock_fprog *prog) {
-    uid_t real_uid, effective_uid, saved_uid;
     int err;
-
-    if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {
-        die("cannot call getresuid");
-    }
 
     // Load filter into the kernel (by this point we have dropped to the
     // calling user but still retain CAP_SYS_ADMIN).
