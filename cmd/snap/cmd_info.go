@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -83,60 +82,30 @@ func (iw *infoWriter) maybePrintHealth() {
 	}
 	health := iw.localSnap.Health
 	if health == nil {
-		if iw.verbose {
-			fmt.Fprintln(iw, "health:\tunknown (no hook)")
+		if !iw.verbose {
+			return
 		}
-		return
+		health = &client.SnapHealth{
+			Status:  "unknown",
+			Message: "health has not been set",
+			Code:    "snapd-no-health",
+		}
 	}
 	if health.Status == "okay" && !iw.verbose {
 		return
 	}
-	buf := new(bytes.Buffer) // replace with a strings.Builder when >=1.10
-	fmt.Fprint(buf, health.Status)
-	if health.Message != "" {
-		fmt.Fprintf(buf, " (%s)", health.Message)
-	}
+
+	fmt.Fprintln(iw, "health:")
+	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
+	wrapGeneric(iw, []rune(quotedIfNeeded(health.Message)), "  message:\t", "    ", iw.termWidth)
 	if health.Code != "" {
-		fmt.Fprintf(buf, " code %q", health.Code)
+		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
 	}
-	fmt.Fprintf(buf, ", last run %s for revision %s.\n", iw.fmtTime(health.Timestamp), health.Revision)
-
-	wrapFlow(iw, []rune(quotedIfNeeded(buf.String())), "health:\t", iw.termWidth)
-}
-
-func maybePrintPrice(w io.Writer, snap *client.Snap, resInfo *client.ResultInfo) {
-	if resInfo == nil {
-		return
+	if !health.Timestamp.IsZero() {
+		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
 	}
-	price, currency, err := getPrice(snap.Prices, resInfo.SuggestedCurrency)
-	if err != nil {
-		return
-	}
-	fmt.Fprintf(w, "price:\t%s\n", formatPrice(price, currency))
-}
-
-func maybePrintType(w io.Writer, t string) {
-	// XXX: using literals here until we reshuffle snap & client properly
-	// (and os->core rename happens, etc)
-	switch t {
-	case "", "app", "application":
-		return
-	case "os":
-		t = "core"
-	}
-
-	fmt.Fprintf(w, "type:\t%s\n", t)
-}
-
-func maybePrintID(w io.Writer, snap *client.Snap) {
-	if snap.ID != "" {
-		fmt.Fprintf(w, "snap-id:\t%s\n", snap.ID)
-	}
-}
-
-func maybePrintBase(w io.Writer, base string, verbose bool) {
-	if verbose && base != "" {
-		fmt.Fprintf(w, "base:\t%s\n", base)
+	if !health.Revision.Unset() {
+		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
 	}
 }
 
@@ -274,10 +243,6 @@ func quotedIfNeeded(raw string) string {
 		raw = strconv.Quote(raw)
 	}
 	return raw
-}
-
-func printSummary(w io.Writer, raw string, termWidth int) error {
-	return wrapFlow(w, []rune(quotedIfNeeded(raw)), "summary:\t", termWidth)
 }
 
 // printDescr formats a given string (typically a snap description)
