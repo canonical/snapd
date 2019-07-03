@@ -318,7 +318,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	}
 	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		// structure has a partition, thus it starts at 0 offset
+		// Structure has a partition, thus it starts at 0 offset.
 		return partitionPath, 0, nil
 	})
 	c.Assert(err, IsNil)
@@ -395,7 +395,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 	}
 	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		// structure has a partition, thus it starts at 0 offset
+		// Structure has a partition, thus it starts at 0 offset.
 		return diskPath, 0, nil
 	})
 	c.Assert(err, IsNil)
@@ -435,7 +435,6 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 }
 
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
-
 	diskPath := filepath.Join(r.dir, "disk.img")
 
 	mutateFile(c, diskPath, gadget.SizeMiB+2048, []mutateWrite{
@@ -457,7 +456,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 256, []byte("xxx xxx xxx xxx"))
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			// no partition table entry, would trigger fallback lookup path
+			// No partition table entry, would trigger fallback lookup path.
 			Type: "bare",
 			Size: 2048,
 		},
@@ -481,7 +480,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 	}
 	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		// no partition table, returned path corresponds to a disk, start offset is non-0
+		// No partition table, returned path corresponds to a disk, start offset is non-0.
 		return diskPath, ps.StartOffset, nil
 	})
 	c.Assert(err, IsNil)
@@ -504,14 +503,14 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 	err = ru.Update()
 	c.Assert(err, IsNil)
 
-	// after update, files should be identical
+	// After update, files should be identical.
 	c.Check(osutil.FilesAreEqual(diskPath, expectedPath), Equals, true)
 
-	// rollback restores the original contents
+	// Rollback restores the original contents.
 	err = ru.Rollback()
 	c.Assert(err, IsNil)
 
-	// which should match the pristine copy now
+	// Which should match the pristine copy now.
 	c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
 }
 

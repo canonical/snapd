@@ -201,7 +201,7 @@ func (r *RawStructureUpdater) matchDevice() (device string, shifted *PositionedS
 		return device, r.ps, nil
 	}
 
-	// structure starts at different offset, make the necessary adjustment
+	// Structure starts at different offset, make the necessary adjustment.
 	structForDevice := ShiftStructureTo(*r.ps, offs)
 	return device, &structForDevice, nil
 }
