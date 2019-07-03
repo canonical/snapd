@@ -32,6 +32,7 @@ func GetKernelParameter(name string) string {
 
 func globFile(dir, pattern string) string {
 	files, err := filepath.Glob(path.Join(dir, pattern))
+	fmt.Printf("glob %s %s found: %s (err %s)\n", dir, pattern, files, err)
 	if err != nil {
 		return ""
 	}
@@ -77,7 +78,7 @@ func mkdirs(base string, dirlist []string, mode os.FileMode) error {
 
 func copyTree(src, dst string) error {
 	// FIXME
-	logger.Noticef("copying %s", src)
+	logger.Noticef("copying %s to %s", src, dst)
 	if err := exec.Command("cp", "-rap", src, dst).Run(); err != nil {
 		return fmt.Errorf("cannot copy tree from %s to %s: %s", src, dst, err)
 	}

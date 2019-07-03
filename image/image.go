@@ -460,7 +460,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	if err != nil {
 		return err
 	}
-	var recoverySystemName string
+	var recoverySystemName, recoveryKernelName string
 	if hasRecovery {
 		// FIXME: calculate properly
 		recoverySystemName = "20190523-1142"
@@ -666,14 +666,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			downloadedSnapsInfoForBootConfig[dst] = info
 		}
 
-		// on recovery the kernel has a fixed name to make
-		// booting easier (this might change in the future)
+		// on recovery we need to specify what kernel to boot
 		if hasRecovery && typ == snap.TypeKernel {
 			downloadedSnapsInfoForBootConfig[fn] = info
-			// FIXME: meh, duplicates things
-			if err := osutil.CopyFile(fn, filepath.Join(filepath.Dir(fn), "kernel.snap"), 0); err != nil {
-				return err
-			}
+			recoveryKernelName = filepath.Base(fn)
 		}
 
 		// set seed.yaml
@@ -751,7 +747,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		if !hasRecovery {
 			err = setBootvars(downloadedSnapsInfoForBootConfig, model)
 		} else {
-			err = setRecoveryBootvars(recoverySystemName)
+			err = setRecoveryBootvars(recoverySystemName, recoveryKernelName)
 		}
 		if err != nil {
 			return err
@@ -766,7 +762,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	return nil
 }
 
-func setRecoveryBootvars(recoverySystemName string) error {
+func setRecoveryBootvars(recoverySystemName, recoveryKernelName string) error {
 	// HACK for recovery
 	loader, err := bootloader.Find()
 	if err != nil {
@@ -775,6 +771,7 @@ func setRecoveryBootvars(recoverySystemName string) error {
 	return loader.SetBootVars(map[string]string{
 		"snap_mode":            "install",
 		"snap_recovery_system": recoverySystemName,
+		"snap_recovery_kernel": recoveryKernelName,
 	})
 }
 
