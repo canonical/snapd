@@ -754,8 +754,8 @@ var layoutRejectionList = []string{
 	// The firmware is sometimes loaded on demand by the kernel, in response to
 	// a process performing generic I/O to a specific device. In that case the
 	// mount namespace of the process is searched, by the kernel, for the
-	// firmware. Therefore firmware must not be replicable to prevent malicious
-	// firmware from attacking the host.
+	// firmware. Therefore firmware must not be replaceable to prevent
+	// malicious firmware from attacking the host.
 	"/lib/firmware",
 	// Similarly the kernel will load modules and the modules should not be
 	// something that snaps can tamper with.
