@@ -102,7 +102,6 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		if err != nil {
 			return nil, err
 		}
-
 		return jsonRaw(configm), nil
 
 	case map[string]interface{}:
