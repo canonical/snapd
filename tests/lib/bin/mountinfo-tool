@@ -303,88 +303,6 @@ def renumber_snap_revision(entry, seen):
     entry.mount_point = "/".join(compose(parts, n))
 
 
-class RenumberSnapRevisionTests(unittest.TestCase):
-    def setUp(self):
-        # type: () -> None
-        self.entry = MountInfoEntry()
-        self.seen = {}  # type: Dict[Tuple[Text, Text], int]
-
-    def test_renumbering_allocation(self):
-        # type: () -> None
-        self.entry.mount_point = "/snap/core/7079"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/snap/core/1")
-
-        self.entry.mount_point = "/snap/core/7080"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/snap/core/2")
-
-        self.entry.mount_point = "/snap/snapd/x1"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/snap/snapd/1")
-
-        self.assertEqual(
-            self.seen, {("core", "7079"): 1, ("core", "7080"): 2, ("snapd", "x1"): 1}
-        )
-
-    def test_preferred(self):
-        # type: () -> None
-        self.entry.mount_point = "/snap/core/7079"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/snap/core/1")
-
-        self.entry.mount_point = "/snap/core/7079/subdir"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/snap/core/1/subdir")
-
-        self.assertEqual(self.seen, {("core", "7079"): 1})
-
-    def test_alternate(self):
-        # type: () -> None
-        self.entry.mount_point = "/var/lib/snapd/snap/core/7079"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/snap/core/1")
-
-        self.entry.mount_point = "/var/lib/snapd/snap/core/7079/subdir"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/snap/core/1/subdir")
-
-        self.assertEqual(self.seen, {("core", "7079"): 1})
-
-    def test_preferred_via_hostfs(self):
-        # type: () -> None
-        self.entry.mount_point = "/var/lib/snapd/hostfs/snap/core/7079"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/hostfs/snap/core/1")
-
-        self.entry.mount_point = "/var/lib/snapd/hostfs/snap/core/7079/subdir"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(
-            self.entry.mount_point, "/var/lib/snapd/hostfs/snap/core/1/subdir"
-        )
-
-        self.assertEqual(self.seen, {("core", "7079"): 1})
-
-    def test_alternate_via_hostfs(self):
-        # type: () -> None
-        self.entry.mount_point = "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/7079"
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(
-            self.entry.mount_point, "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/1"
-        )
-
-        self.entry.mount_point = (
-            "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/7079/subdir"
-        )
-        renumber_snap_revision(self.entry, self.seen)
-        self.assertEqual(
-            self.entry.mount_point,
-            "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/1/subdir",
-        )
-
-        self.assertEqual(self.seen, {("core", "7079"): 1})
-
-
 def renumber_opt_fields(entry, seen):
     # type: (MountInfoEntry, Dict[int, int]) -> None
     """renumber_opt_fields re-numbers peer group in optional fields."""
@@ -615,6 +533,88 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(
             "--one requires exactly one match, found {}".format(len(entries))
         )
+
+
+class RenumberSnapRevisionTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.entry = MountInfoEntry()
+        self.seen = {}  # type: Dict[Tuple[Text, Text], int]
+
+    def test_renumbering_allocation(self):
+        # type: () -> None
+        self.entry.mount_point = "/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/1")
+
+        self.entry.mount_point = "/snap/core/7080"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/2")
+
+        self.entry.mount_point = "/snap/snapd/x1"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/snapd/1")
+
+        self.assertEqual(
+            self.seen, {("core", "7079"): 1, ("core", "7080"): 2, ("snapd", "x1"): 1}
+        )
+
+    def test_preferred(self):
+        # type: () -> None
+        self.entry.mount_point = "/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/1")
+
+        self.entry.mount_point = "/snap/core/7079/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/1/subdir")
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
+
+    def test_alternate(self):
+        # type: () -> None
+        self.entry.mount_point = "/var/lib/snapd/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/snap/core/1")
+
+        self.entry.mount_point = "/var/lib/snapd/snap/core/7079/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/snap/core/1/subdir")
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
+
+    def test_preferred_via_hostfs(self):
+        # type: () -> None
+        self.entry.mount_point = "/var/lib/snapd/hostfs/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/hostfs/snap/core/1")
+
+        self.entry.mount_point = "/var/lib/snapd/hostfs/snap/core/7079/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point, "/var/lib/snapd/hostfs/snap/core/1/subdir"
+        )
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
+
+    def test_alternate_via_hostfs(self):
+        # type: () -> None
+        self.entry.mount_point = "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point, "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/1"
+        )
+
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/7079/subdir"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/1/subdir",
+        )
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
 
 
 if __name__ == "__main__":
