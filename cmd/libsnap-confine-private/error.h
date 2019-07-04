@@ -100,7 +100,7 @@ __attribute__((warn_unused_result,
 sc_error *sc_error_init_simple(const char *msgfmt, ...);
 
 /**
- * Initialize an api misuse error with formatted message.
+ * Initialize an API misuse error with formatted message.
  *
  * This is just syntactic sugar for sc_error_init(SC_LIBSNAP_DOMAIN,
  * SC_API_MISUSE, msgfmt, ...) which is repeated often.
