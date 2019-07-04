@@ -760,6 +760,9 @@ var layoutRejectionList = []string{
 	// Similarly the kernel will load modules and the modules should not be
 	// something that snaps can tamper with.
 	"/lib/modules",
+	// The lost+found directory is used by fsck tools to link lost blocks back
+	// into the filesystem tree. Using layouts for this element is just
+	// confusing and there is no valid reason to allow it.
 	"/lost+found",
 	// The media directory is bi-directionally mounted and any mount operations
 	// there are reflected in the host's view of /media, which may be either
