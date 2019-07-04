@@ -514,7 +514,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 		}
 		if got.Type() == asserts.SerialType {
 			if serial != nil {
-				return nil, nil, fmt.Errorf("cannot accept and process a second device serial assertion from the device service")
+				return nil, nil, fmt.Errorf("cannot accept more than a single device serial assertion from the device service")
 			}
 			serial = got.(*asserts.Serial)
 		} else {
@@ -529,7 +529,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	}
 
 	if serial == nil {
-		return nil, nil, fmt.Errorf("cannot proceed without device serial assertion")
+		return nil, nil, fmt.Errorf("cannot proceed, received assertion stream from the device service missing device serial assertion")
 	}
 
 	return serial, batch, nil
