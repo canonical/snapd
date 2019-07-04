@@ -754,9 +754,9 @@ var layoutRejectionList = []string{
 	// The /sys directory exposes many kernel internals, similar to /proc and
 	// there is no known reason to allow snaps to replace it.
 	"/sys",
-	// The media directory is bi-directionally mounted and any mount operations
-	// there are reflected in the host's view of /media, which may be either
-	// itself or /run/media.
+	// The media directory is mounted with bi-directional mount event sharing.
+	// Any mount operations there are reflected in the host's view of /media,
+	// which may be either itself or /run/media.
 	"/media",
 	// The /run directory contains various ephemeral information files or
 	// sockets used by various programs. Providing view of the true /run allows
