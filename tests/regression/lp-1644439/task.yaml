@@ -11,8 +11,6 @@ details: |
     The most obvious candidate is pid one, which definitely doesn't run in a
     snap-specific namespace, has a predictable PID and is long lived.
 
-manual: true  # see https://github.com/snapcore/snapd/pull/3076
-
 prepare: |
     echo "Having installed the test snap in devmode"
     #shellcheck source=tests/lib/snaps.sh
