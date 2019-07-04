@@ -742,15 +742,36 @@ func (layout *Layout) constraint() LayoutConstraint {
 // $SNAP_DATA, or $SNAP_COMMON content, even from the point of view of a single
 // snap.
 var layoutRejectionList = []string{
-	// There's no known reason to allow snaps to replace things there.
-	"/boot",
+	// Special locations that need to retain their properties:
+
 	// The /dev directory contains essential device nodes and there's no valid
 	// reason to allow snaps to replace it.
 	"/dev",
-	// The /home directory contains user data, including $SNAP_USER_DATA,
-	// $SNAP_USER_COMMON and should be disallowed for the same reasons as
-	// /var/snap.
-	"/home",
+	// The /proc directory contains essential process meta-data and
+	// miscellaneous kernel configuration parameters and there is no valid
+	// reason to allow snaps to replace it.
+	"/proc",
+	// The /sys directory exposes many kernel internals, similar to /proc and
+	// there is no known reason to allow snaps to replace it.
+	"/sys",
+	// The media directory is bi-directionally mounted and any mount operations
+	// there are reflected in the host's view of /media, which may be either
+	// itself or /run/media.
+	"/media",
+	// The /run directory contains various ephemeral information files or
+	// sockets used by various programs. Providing view of the true /run allows
+	// snap applications to be integrated with the rest of the system and
+	// therefore snaps should not be allowed to replace it.
+	"/run",
+	// The /tmp directory contains private, per-snap, view of /tmp and there's
+	// no valid reason to allow snaps to replace it.
+	"/tmp",
+	// The /var/lib/snapd directory contains essential state of snapd and is
+	// sometimes consulted from inside the mount namespace.
+	"/var/lib/snapd",
+
+	// Locations that may be used to attack the host:
+
 	// The firmware is sometimes loaded on demand by the kernel, in response to
 	// a process performing generic I/O to a specific device. In that case the
 	// mount namespace of the process is searched, by the kernel, for the
@@ -760,36 +781,26 @@ var layoutRejectionList = []string{
 	// Similarly the kernel will load modules and the modules should not be
 	// something that snaps can tamper with.
 	"/lib/modules",
-	// The lost+found directory is used by fsck tools to link lost blocks back
-	// into the filesystem tree. Using layouts for this element is just
-	// confusing and there is no valid reason to allow it.
-	"/lost+found",
-	// The media directory is bi-directionally mounted and any mount operations
-	// there are reflected in the host's view of /media, which may be either
-	// itself or /run/media.
-	"/media",
-	// The /proc directory contains essential process meta-data and
-	// miscellaneous kernel configuration parameters and there is no valid
-	// reason to allow snaps to replace it.
-	"/proc",
-	// The /run directory contains various ephemeral information files or
-	// sockets used by various programs. Providing view of the true /run allows
-	// snap applications to be integrated with the rest of the system and
-	// therefore snaps should not be allowed to replace it.
-	"/run",
-	// The /sys directory exposes many kernel internals, similar to /proc and
-	// there is no known reason to allow snaps to replace it.
-	"/sys",
-	// The /tmp directory contains private, per-snap, view of /tmp and there's
-	// no valid reason to allow snaps to replace it.
-	"/tmp",
-	// The /var/lib/snapd directory contains essential state of snapd and is
-	// sometimes consulted from inside the mount namespace.
-	"/var/lib/snapd",
+
+	// Locations that store essential data:
+
 	// The /var/snap directory contains system-wide state of particular snaps
 	// and should not be replaced as it would break content interface
 	// connections that use $SNAP_DATA or $SNAP_COMMON.
 	"/var/snap",
+	// The /home directory contains user data, including $SNAP_USER_DATA,
+	// $SNAP_USER_COMMON and should be disallowed for the same reasons as
+	// /var/snap.
+	"/home",
+
+	// Locations that should be pristine to avoid confusion.
+
+	// There's no known reason to allow snaps to replace things there.
+	"/boot",
+	// The lost+found directory is used by fsck tools to link lost blocks back
+	// into the filesystem tree. Using layouts for this element is just
+	// confusing and there is no valid reason to allow it.
+	"/lost+found",
 }
 
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
