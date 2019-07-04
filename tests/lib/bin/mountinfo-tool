@@ -538,6 +538,12 @@ Known attributes, applicable for both filtering and display.
         help="parse specified mountinfo file",
     )
     parser.add_argument(
+        "--ref",
+        metavar="MOUNTINFO",
+        type=FileType(),
+        help="refer to another table while rewriting, makes output comparable across namespaces",
+    )
+    parser.add_argument(
         "--one", default=False, action="store_true", help="expect exactly one match"
     )
     parser.add_argument(
@@ -564,6 +570,12 @@ Known attributes, applicable for both filtering and display.
     entries = [MountInfoEntry.parse(line) for line in opts.file]
     entries = [e for e in entries if matches(e, filters)]
     rs = RewriteState()
+    if opts.ref:
+        ref_entries = [MountInfoEntry.parse(line) for line in opts.ref]
+        if opts.renumber:
+            rewrite_renumber(ref_entries, rs)
+        if opts.rename:
+            rewrite_rename(ref_entries, rs)
     if opts.renumber:
         rewrite_renumber(entries, rs)
     if opts.rename:
