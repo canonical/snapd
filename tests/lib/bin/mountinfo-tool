@@ -22,7 +22,7 @@ PY2 = sys.version_info[0] == 2
 # https://mypy.readthedocs.io/en/latest/common_issues.html#import-cycles
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Text, Tuple, Match, Optional
+    from typing import Any, Dict, List, Text, Tuple, Match, Optional, Union, Sequence
     from argparse import Namespace
 
 
@@ -522,10 +522,13 @@ class _UnitTestAction(Action):
         )
 
     def __call__(self, parser, ns, values, option_string=None):
-        # type: (ArgumentParser, Namespace, List[Text], Optional[Text]) -> None
+        # type: (ArgumentParser, Namespace, Union[str, Sequence[Any], None], Optional[Text]) -> None
         # We allow the caller to provide the test to invoke by giving
         # --run-unit-tests a set of arguments.
-        unittest.main(argv=[sys.argv[0]] + values)
+        argv = [sys.argv[0]]
+        if isinstance(values, list):
+            argv += values
+        unittest.main(argv=argv)
         parser.exit()
 
 
