@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -53,15 +54,21 @@ func makeGadgetData(c *C, where string, data []gadgetData) {
 	}
 }
 
-func verifyDeployedGadgetData(c *C, where string, data []gadgetData) {
+func verifyWrittenGadgetData(c *C, where string, data []gadgetData) {
 	for _, en := range data {
 		target := filepath.Join(where, en.target)
 		c.Check(target, testutil.FileContains, en.content)
 	}
 }
 
-func makeExistingDeployedData(c *C, where string, data []gadgetData) {
+func makeExistingData(c *C, where string, data []gadgetData) {
 	for _, en := range data {
+		if strings.HasSuffix(en.target, "/") {
+			err := os.MkdirAll(filepath.Join(where, en.target), 0755)
+			c.Check(en.content, HasLen, 0)
+			c.Assert(err, IsNil)
+			continue
+		}
 		makeSizedFile(c, filepath.Join(where, en.target), 0, []byte(en.content))
 	}
 }
@@ -113,7 +120,7 @@ func (s *mountedfilesystemTestSuite) TestWriteFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(outDir, "bar/foo"), testutil.FileEquals, []byte("foo foo foo"))
 
-	// deploy overwrites
+	// overwrites
 	makeSizedFile(c, filepath.Join(outDir, "overwrite"), 0, []byte("disappear"))
 	err = gadget.WriteFile(filepath.Join(s.dir, "foo"), filepath.Join(outDir, "overwrite"), nil)
 	c.Assert(err, IsNil)
@@ -145,7 +152,7 @@ func (s *mountedfilesystemTestSuite) TestWriteDirectoryContents(c *C) {
 	err := gadget.WriteDirectory(filepath.Join(s.dir, "boot-assets")+"/", outDir+"/", nil)
 	c.Assert(err, IsNil)
 
-	verifyDeployedGadgetData(c, outDir, gd)
+	verifyWrittenGadgetData(c, outDir, gd)
 }
 
 func (s *mountedfilesystemTestSuite) TestWriteDirectoryWhole(c *C) {
@@ -163,7 +170,7 @@ func (s *mountedfilesystemTestSuite) TestWriteDirectoryWhole(c *C) {
 	err := gadget.WriteDirectory(filepath.Join(s.dir, "boot-assets"), outDir+"/", nil)
 	c.Assert(err, IsNil)
 
-	verifyDeployedGadgetData(c, outDir, gd)
+	verifyWrittenGadgetData(c, outDir, gd)
 }
 
 func (s *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
@@ -235,7 +242,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 	err = rw.Write(outDir, nil)
 	c.Assert(err, IsNil)
 
-	verifyDeployedGadgetData(c, outDir, gd)
+	verifyWrittenGadgetData(c, outDir, gd)
 	c.Assert(osutil.IsDirectory(filepath.Join(outDir, "empty-dir")), Equals, true)
 }
 
@@ -430,7 +437,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 	// some data for the gadget
-	gdDeployed := []gadgetData{
+	gdWritten := []gadgetData{
 		{"foo", "foo-dir/foo", "data"},
 		{"bar", "bar-name", "data"},
 		{"boot-assets/splash", "splash", "data"},
@@ -438,12 +445,12 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", "data"},
 		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/more-nested/more", "data"},
 	}
-	gdNotDeployed := []gadgetData{
+	gdNotWritten := []gadgetData{
 		{"foo", "/foo", "data"},
 		{"boot-assets/some-dir/data", "data-copy", "data"},
 		{"boot-assets/nested-dir/nested", "/nested-copy/nested", "data"},
 	}
-	makeGadgetData(c, s.dir, append(gdDeployed, gdNotDeployed...))
+	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
 
 	// these exist in the root directory and are preserved
 	preserve := []string{
@@ -454,7 +461,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 		"not-listed", // not present in 'gadget' contents
 	}
 	// these are preserved, but don't exist in the root, so data from gadget
-	// will be deployed
+	// will be written
 	preserveButNotPresent := []string{
 		"/bar-name",
 		"some-dir/data",
@@ -480,12 +487,12 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 					Target: "/",
 				}, {
 					// preserved, but not present, will be
-					// deployed
+					// written
 					Source: "bar",
 					Target: "/bar-name",
 				}, {
 					// some-dir/data is preserved, but not
-					// preset, hence will be deployed
+					// preset, hence will be written
 					Source: "boot-assets/",
 					Target: "/",
 				}, {
@@ -513,8 +520,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 		p := filepath.Join(outDir, en)
 		c.Check(p, testutil.FileEquals, "can't touch this")
 	}
-	// everything else was deployed
-	verifyDeployedGadgetData(c, outDir, gdDeployed)
+	// everything else was written
+	verifyWrittenGadgetData(c, outDir, gdWritten)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
@@ -547,7 +554,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 	err = rw.Write(outDir, nil)
 	c.Assert(err, IsNil)
 
-	verifyDeployedGadgetData(c, outDir, gd)
+	verifyWrittenGadgetData(c, outDir, gd)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
@@ -610,15 +617,15 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	// some data for the gadget
-	gdDeployed := []gadgetData{
+	gdWritten := []gadgetData{
 		{"bar", "bar-name", "data"},
 		{"foo", "foo", "data"},
 		{"zed", "zed", "data"},
 		{"same-data", "same", "same"},
 		// not included in volume contents
-		{"not-deployed", "not-deployed", "data"},
+		{"not-written", "not-written", "data"},
 	}
-	makeGadgetData(c, s.dir, gdDeployed)
+	makeGadgetData(c, s.dir, gdWritten)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
@@ -631,7 +638,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 		// same content as the update
 		{target: "same", content: "same"},
 	}
-	makeExistingDeployedData(c, outDir, backedUp)
+	makeExistingData(c, outDir, backedUp)
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -694,11 +701,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *C) {
 	// some data for the gadget
-	gdDeployed := []gadgetData{
+	gdWritten := []gadgetData{
 		{name: "bar", content: "data"},
 		{name: "some-dir/foo", content: "data"},
 	}
-	makeGadgetData(c, s.dir, gdDeployed)
+	makeGadgetData(c, s.dir, gdWritten)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
@@ -708,11 +715,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 		{target: "foo", content: "can't touch this"},
 		// overwritten by some-dir/ -> /nested/
 		{target: "nested/foo", content: "can't touch this"},
+		// written to by bar -> /this/is/some/nested/
+		{target: "this/is/some/"},
 	}
-	makeExistingDeployedData(c, outDir, backedUp)
-	// and a directory
-	err := os.MkdirAll(filepath.Join(outDir, "this/is/some"), 0755)
-	c.Assert(err, IsNil)
+	makeExistingData(c, outDir, backedUp)
 
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -800,9 +806,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 	c.Assert(err, IsNil)
 
 	backupRoot := filepath.Join(s.backup, "struct-0")
-	verifyDirContents(c, backupRoot, map[string]contentType{
-		// actually empty
-	})
+	// actually empty
+	verifyDirContents(c, backupRoot, map[string]contentType{})
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErrors(c *C) {
@@ -847,7 +852,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 	makeGadgetData(c, s.dir, gd)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},
 	})
 
@@ -891,7 +896,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 	c.Assert(err, IsNil)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},
 	})
 
@@ -924,7 +929,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	// some data for the gadget
-	gdDeployed := []gadgetData{
+	gdWritten := []gadgetData{
 		{"foo", "foo-dir/foo", "data"},
 		{"bar", "bar-name", "data"},
 		{"boot-assets/splash", "splash", "data"},
@@ -932,12 +937,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", ""},
 		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/more-nested/more", "data"},
 	}
-	gdNotDeployed := []gadgetData{
+	gdNotWritten := []gadgetData{
 		{"foo", "/foo", "data"},
 		{"boot-assets/some-dir/data", "data-copy", "data"},
 		{"boot-assets/nested-dir/nested", "/nested-copy/nested", "data"},
 	}
-	makeGadgetData(c, s.dir, append(gdDeployed, gdNotDeployed...))
+	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
 
 	// these exist in the root directory and are preserved
 	preserve := []string{
@@ -948,7 +953,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 		"not-listed", // not present in 'gadget' contents
 	}
 	// these are preserved, but don't exist in the root, so data from gadget
-	// will be deployed
+	// will be written
 	preserveButNotPresent := []string{
 		"/bar-name",
 		"some-dir/data",
@@ -974,12 +979,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 					Target: "/",
 				}, {
 					// preserved, but not present, will be
-					// deployed
+					// written
 					Source: "bar",
 					Target: "/bar-name",
 				}, {
 					// some-dir/data is preserved, but not
-					// present, hence will be deployed
+					// present, hence will be written
 					Source: "boot-assets/",
 					Target: "/",
 				}, {
@@ -1020,8 +1025,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 		p := filepath.Join(outDir, en)
 		c.Check(p, testutil.FileEquals, "can't touch this")
 	}
-	// everything else was deployed
-	verifyDeployedGadgetData(c, outDir, gdDeployed)
+	// everything else was written
+	verifyWrittenGadgetData(c, outDir, gdWritten)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateLookupFails(c *C) {
@@ -1057,14 +1062,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateLookupFails(c *C) {
 }
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 	// some data for the gadget
-	gdDeployed := []gadgetData{
+	gdWritten := []gadgetData{
 		{"bar/foo", "/bar-name/foo", "data"},
 		{"bar/nested/foo", "/bar-name/nested/foo", "data"},
 		{"bar/foo", "/bar-copy/bar/foo", "data"},
 		{"bar/nested/foo", "/bar-copy/bar/nested/foo", "data"},
 		{"deep-nested", "/this/is/some/deep/nesting/deep-nested", "data"},
 	}
-	makeGadgetData(c, s.dir, gdDeployed)
+	makeGadgetData(c, s.dir, gdWritten)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
@@ -1106,7 +1111,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 	err = rw.Update()
 	c.Assert(err, IsNil)
 
-	verifyDeployedGadgetData(c, outDir, gdDeployed)
+	verifyWrittenGadgetData(c, outDir, gdWritten)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
@@ -1118,7 +1123,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 	makeGadgetData(c, s.dir, gd)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		{target: "foo", content: "content"},
 		{target: "some-dir/foo", content: "content"},
 		{target: "/preserved", content: "preserve"},
@@ -1168,7 +1173,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 	err = rw.Update()
 	c.Assert(err, IsNil)
 
-	verifyDeployedGadgetData(c, outDir, []gadgetData{
+	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "update"},
 		{target: "some-dir/foo", content: "update"},
 		{target: "/preserved", content: "preserve"},
@@ -1236,7 +1241,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 	makeGadgetData(c, s.dir, gd)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},
 		{target: "some-dir/foo", content: "same"},
 	})
@@ -1274,7 +1279,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 	err = rw.Update()
 	c.Assert(err, IsNil)
 	// files were not modified
-	verifyDeployedGadgetData(c, outDir, []gadgetData{
+	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},
 		{target: "some-dir/foo", content: "same"},
 	})
@@ -1289,9 +1294,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 	makeGadgetData(c, s.dir, gd)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
-		{target: "foo", content: "deployed"},
-		{target: "some-dir/foo", content: "deployed"},
+	makeExistingData(c, outDir, []gadgetData{
+		{target: "foo", content: "written"},
+		{target: "some-dir/foo", content: "written"},
 	})
 
 	ps := &gadget.PositionedStructure{
@@ -1327,7 +1332,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
 	// files were restored from backup
-	verifyDeployedGadgetData(c, outDir, []gadgetData{
+	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "backup"},
 		{target: "some-dir/foo", content: "backup"},
 	})
@@ -1341,7 +1346,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 	makeGadgetData(c, s.dir, gd)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},
 	})
 
@@ -1374,7 +1379,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
 	// files were not modified
-	verifyDeployedGadgetData(c, outDir, []gadgetData{
+	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},
 	})
 }
@@ -1387,7 +1392,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 	makeGadgetData(c, s.dir, gd)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		{target: "foo", content: "preserved"},
 	})
 
@@ -1421,7 +1426,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
 	// files were not modified
-	verifyDeployedGadgetData(c, outDir, []gadgetData{
+	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "preserved"},
 	})
 }
@@ -1432,10 +1437,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 	})
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
-		{target: "foo", content: "deployed"},
-		{target: "some-dir/bar", content: "deployed"},
-		{target: "this/is/some/deep/nesting/bar", content: "deployed"},
+	makeExistingData(c, outDir, []gadgetData{
+		{target: "foo", content: "written"},
+		{target: "some-dir/bar", content: "written"},
+		{target: "this/is/some/deep/nesting/bar", content: "written"},
 	})
 
 	ps := &gadget.PositionedStructure{
@@ -1471,9 +1476,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
 	// everything was removed
-	verifyDirContents(c, outDir, map[string]contentType{
-		// totally empty
-	})
+	verifyDirContents(c, outDir, map[string]contentType{})
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C) {
@@ -1482,9 +1485,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	})
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
-		{target: "foo", content: "deployed"},
-		{target: "some-dir/foo", content: "deployed"},
+	makeExistingData(c, outDir, []gadgetData{
+		{target: "foo", content: "written"},
+		{target: "some-dir/foo", content: "written"},
 	})
 	// make rollback fail when restoring
 	err := os.Chmod(filepath.Join(outDir, "foo"), 0000)
@@ -1532,10 +1535,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	defer os.Chmod(filepath.Join(outDir, "some-dir"), 0755)
 
 	err = rw.Rollback()
-	c.Assert(err, ErrorMatches, "cannot rollback content: cannot remove deployed update: remove .*/out-dir/some-dir/foo: permission denied")
+	c.Assert(err, ErrorMatches, "cannot rollback content: cannot remove written update: remove .*/out-dir/some-dir/foo: permission denied")
 }
 
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotDeployed(c *C) {
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotWritten(c *C) {
 	makeGadgetData(c, s.dir, []gadgetData{
 		{name: "bar", content: "data"},
 	})
@@ -1568,7 +1571,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotDeployed(c *C)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	// rollback does not error out if files were not deployed
+	// rollback does not error out if files were not written
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
 }
@@ -1581,19 +1584,19 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 	})
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		// some-dir/ -> /
-		{target: "foo", content: "deployed"},
-		{target: "bar", content: "deployed"},
-		{target: "nested/nested-foo", content: "deployed"},
+		{target: "foo", content: "written"},
+		{target: "bar", content: "written"},
+		{target: "nested/nested-foo", content: "written"},
 		// some-dir/ -> /other-dir/
-		{target: "other-dir/foo", content: "deployed"},
-		{target: "other-dir/bar", content: "deployed"},
-		{target: "other-dir/nested/nested-foo", content: "deployed"},
+		{target: "other-dir/foo", content: "written"},
+		{target: "other-dir/bar", content: "written"},
+		{target: "other-dir/nested/nested-foo", content: "written"},
 		// some-dir/nested -> /other-dir/nested/
-		{target: "other-dir/nested/nested/nested-foo", content: "deployed"},
+		{target: "other-dir/nested/nested/nested-foo", content: "written"},
 		// bar -> /this/is/some/deep/nesting/
-		{target: "this/is/some/deep/nesting/bar", content: "deployed"},
+		{target: "this/is/some/deep/nesting/bar", content: "written"},
 	})
 
 	ps := &gadget.PositionedStructure{
@@ -1650,7 +1653,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	// some data for the gadget
-	gdDeployed := []gadgetData{
+	gdWritten := []gadgetData{
 		{"foo", "foo-dir/foo", "data"},
 		{"bar", "bar-name", "data"},
 		{"boot-assets/splash", "splash", "data"},
@@ -1658,23 +1661,25 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", ""},
 		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/more-nested/more", "data"},
 	}
-	gdNotDeployed := []gadgetData{
+	gdNotWritten := []gadgetData{
 		{"foo", "/foo", "data"},
 		{"boot-assets/some-dir/data", "data-copy", "data"},
 		{"boot-assets/nested-dir/nested", "/nested-copy/nested", "data"},
 	}
-	makeGadgetData(c, s.dir, append(gdDeployed, gdNotDeployed...))
+	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
 	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0755)
 	c.Assert(err, IsNil)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
-	makeExistingDeployedData(c, outDir, []gadgetData{
+	makeExistingData(c, outDir, []gadgetData{
 		{target: "foo", content: "can't touch this"},
 		{target: "data-copy-preserved", content: "can't touch this"},
 		{target: "data-copy", content: "can't touch this"},
 		{target: "nested-copy/nested", content: "can't touch this"},
+		{target: "nested-copy/more-nested/"},
 		{target: "not-listed", content: "can't touch this"},
+		{target: "unrelated/data/here", content: "unrelated"},
 	})
 	// these exist in the root directory and are preserved
 	preserve := []string{
@@ -1685,7 +1690,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		"not-listed", // not present in 'gadget' contents
 	}
 	// these are preserved, but don't exist in the root, so data from gadget
-	// will be deployed
+	// will be written
 	preserveButNotPresent := []string{
 		"/bar-name",
 		"some-dir/data",
@@ -1705,12 +1710,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 					Target: "/",
 				}, {
 					// preserved, but not present, will be
-					// deployed
+					// written
 					Source: "bar",
 					Target: "/bar-name",
 				}, {
 					// some-dir/data is preserved, but not
-					// present, hence will be deployed
+					// present, hence will be written
 					Source: "boot-assets/",
 					Target: "/",
 				}, {
@@ -1744,11 +1749,13 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	c.Assert(rw, NotNil)
 
 	originalState := map[string]contentType{
-		"foo":                 typeFile,
-		"data-copy":           typeFile,
-		"not-listed":          typeFile,
-		"data-copy-preserved": typeFile,
-		"nested-copy/nested":  typeFile,
+		"foo":                     typeFile,
+		"data-copy":               typeFile,
+		"not-listed":              typeFile,
+		"data-copy-preserved":     typeFile,
+		"nested-copy/nested":      typeFile,
+		"nested-copy/more-nested": typeDir,
+		"unrelated/data/here":     typeFile,
 	}
 	verifyDirContents(c, outDir, originalState)
 
@@ -1757,11 +1764,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), map[string]contentType{
-		"nested-copy.backup":           typeFile,
-		"nested-copy/nested.preserve":  typeFile,
-		"foo.preserve":                 typeFile,
-		"data-copy-preserved.preserve": typeFile,
-		"data-copy.backup":             typeFile,
+		"nested-copy.backup":             typeFile,
+		"nested-copy/nested.preserve":    typeFile,
+		"nested-copy/more-nested.backup": typeFile,
+		"foo.preserve":                   typeFile,
+		"data-copy-preserved.preserve":   typeFile,
+		"data-copy.backup":               typeFile,
 	})
 
 	// run the update phase
@@ -1803,6 +1811,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		// boot-assets/nested-dir/ -> /nested-copy/
 		"nested-copy/nested":           typeFile,
 		"nested-copy/more-nested/more": typeFile,
+
+		// data that was not part of the update
+		"unrelated/data/here": typeFile,
 	})
 
 	// files that existed were preserved
@@ -1810,8 +1821,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		p := filepath.Join(outDir, en)
 		c.Check(p, testutil.FileEquals, "can't touch this")
 	}
-	// everything else was deployed
-	verifyDeployedGadgetData(c, outDir, gdDeployed)
+	// everything else was written
+	verifyWrittenGadgetData(c, outDir, gdWritten)
 
 	err = rw.Rollback()
 	c.Assert(err, IsNil)

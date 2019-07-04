@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-func checkSrcIsDir(src string) error {
+func checkSourceIsDir(src string) error {
 	if !osutil.IsDirectory(src) {
 		if strings.HasSuffix(src, "/") {
 			// make the error sufficiently descriptive
@@ -63,7 +63,7 @@ type MountedFilesystemWriter struct {
 	ps         *PositionedStructure
 }
 
-// NewMountedFilesystemWriter returns a writer capable of deploying provided
+// NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
 func NewMountedFilesystemWriter(contentDir string, ps *PositionedStructure) (*MountedFilesystemWriter, error) {
 	if ps == nil {
@@ -111,17 +111,17 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 
 // writeDirectory copies the source directory, or its contents under target
 // location dst. Follows rsync like semantics, that is:
-//   /foo/ -> /bar - deploys contents of foo under /bar
-//   /foo  -> /bar - deploys foo and its subtree under /bar
+//   /foo/ -> /bar - writes contents of foo under /bar
+//   /foo  -> /bar - writes foo and its subtree under /bar
 func writeDirectory(src, dst string, preserveInDst []string) error {
 	hasDirSourceSlash := strings.HasSuffix(src, "/")
 
-	if err := checkSrcIsDir(src); err != nil {
+	if err := checkSourceIsDir(src); err != nil {
 		return err
 	}
 
 	if !hasDirSourceSlash {
-		// /foo -> /bar (deploy foo and subtree)
+		// /foo -> /bar (write foo and subtree)
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
@@ -153,12 +153,12 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 
 // writeFile copies the source file at given location or under given directory.
 // Follows rsync like semantics, that is:
-//   /foo -> /bar/ - deploys foo as /bar/foo
-//   /foo  -> /bar - deploys foo as /bar
+//   /foo -> /bar/ - writes foo as /bar/foo
+//   /foo  -> /bar - writes foo as /bar
 // The destination location is overwritten.
 func writeFile(src, dst string, preserveInDst []string) error {
 	if strings.HasSuffix(dst, "/") {
-		// deploy to directory
+		// write to directory
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
@@ -182,12 +182,12 @@ func writeFile(src, dst string, preserveInDst []string) error {
 	return nil
 }
 
-func (m *MountedFilesystemWriter) writeVolumeContent(whereDir string, content *VolumeContent, preserveInDst []string) error {
+func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
 	realSource := filepath.Join(m.contentDir, content.Source)
-	realTarget := filepath.Join(whereDir, content.Target)
+	realTarget := filepath.Join(volumeRoot, content.Target)
 
 	// filepath trims the trailing /, restore if needed
 	if strings.HasSuffix(content.Target, "/") {
@@ -198,17 +198,15 @@ func (m *MountedFilesystemWriter) writeVolumeContent(whereDir string, content *V
 	}
 
 	if osutil.IsDirectory(realSource) || strings.HasSuffix(content.Source, "/") {
-		// deploy a directory
+		// write a directory
 		return writeDirectory(realSource, realTarget, preserveInDst)
 	} else {
-		// deploy a file
+		// write a file
 		return writeFile(realSource, realTarget, preserveInDst)
 	}
 }
 
-type mountLookupFunc func(ps *PositionedStructure) (string, error)
-
-func makeStampFile(stamp string) (*osutil.AtomicFile, error) {
+func newStampFile(stamp string) (*osutil.AtomicFile, error) {
 	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
 		return nil, fmt.Errorf("cannot create stamp file prefix: %v", err)
 	}
@@ -216,14 +214,29 @@ func makeStampFile(stamp string) (*osutil.AtomicFile, error) {
 }
 
 func makeStamp(stamp string) error {
-	f, err := makeStampFile(stamp)
+	f, err := newStampFile(stamp)
 	if err != nil {
 		return err
 	}
 	return f.Commit()
 }
 
-// MountedFilesystemUpdater assits in applying updates to a mounted filesystem
+type mountLookupFunc func(ps *PositionedStructure) (string, error)
+
+// MountedFilesystemUpdater assits in applying updates to a mounted filesystem.
+//
+// The update process is composed of 2 main passes, and an optional rollback:
+//
+// 1) backup, where update data and current data is analyzed to identify
+// identical content, stamp files are created for entries that are to be
+// preserved, modified or otherwise touched by the update, that is, for existing
+// files that would be created/overwritten, ones that are explicitly listed as
+// preserved, or directories to be written to
+//
+// 2) update, where update data is written to the target location
+//
+// 3) rollback (optional), where update data is rolled back and replaced with
+// backup copies of files, newly created directories are removed
 type MountedFilesystemUpdater struct {
 	*MountedFilesystemWriter
 	backupDir   string
@@ -232,7 +245,8 @@ type MountedFilesystemUpdater struct {
 
 // NewMountedFilesystemUpdater returns an updater for given filesystem
 // structure, with structure content coming from provided root directory. The
-// mount is located by calling a mount lookup helper.
+// mount is located by calling a mount lookup helper. The backup directory
+// contains backup state information for use during rollback.
 func NewMountedFilesystemUpdater(rootDir string, ps *PositionedStructure, backupDir string, mountLookup mountLookupFunc) (*MountedFilesystemUpdater, error) {
 	fw, err := NewMountedFilesystemWriter(rootDir, ps)
 	if err != nil {
@@ -256,37 +270,46 @@ func fsStructBackupPath(backupDir string, ps *PositionedStructure) string {
 	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.Index))
 }
 
-// entryNames resolves the source, destination and backup locations for given
+// entryDestPaths resolves destination and backup paths for given
+// source/target combination. Backup location is within provided
+// backup directory or empty if directory was not provided.
+func (f *MountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backupDir string) (dstPath, backupPath string) {
+	dstBasePath := target
+	if strings.HasSuffix(target, "/") {
+		// write to a directory
+		dstBasePath = filepath.Join(dstBasePath, filepath.Base(source))
+	}
+	dstPath = filepath.Join(dstRoot, dstBasePath)
+
+	if backupDir != "" {
+		backupPath = filepath.Join(backupDir, dstBasePath)
+	}
+
+	return dstPath, backupPath
+}
+
+// entryPaths resolves the source, destination and backup paths for given
 // source/target combination. The source location is always within the root
 // directory passed during initialization. Backup location is within provided
 // backup directory or empty if directory was not provided.
-func (f *MountedFilesystemUpdater) entryNames(dstRoot, source, target, backupDir string) (srcName, dstName, backupName string) {
-	srcName = f.entrySource(source)
+func (f *MountedFilesystemUpdater) entryPaths(dstRoot, source, target, backupDir string) (srcPath, dstPath, backupPath string) {
+	srcPath = f.entrySourcePath(source)
 
-	dstBase := target
-	if strings.HasSuffix(target, "/") {
-		// deploying to a directory
-		dstBase = filepath.Join(dstBase, filepath.Base(source))
-	}
-	dstName = filepath.Join(dstRoot, dstBase)
+	dstPath, backupPath = f.entryDestPaths(dstRoot, source, target, backupDir)
 
-	if backupDir != "" {
-		backupName = filepath.Join(backupDir, dstBase)
-	}
-
-	return srcName, dstName, backupName
+	return srcPath, dstPath, backupPath
 }
 
-// entrySource returns the location of given source within the root directory
-// provided during initialization.
-func (f *MountedFilesystemUpdater) entrySource(source string) string {
-	srcName := filepath.Join(f.contentDir, source)
+// entrySourcePath returns the path of given source entry within the root
+// directory provided during initialization.
+func (f *MountedFilesystemUpdater) entrySourcePath(source string) string {
+	srcPath := filepath.Join(f.contentDir, source)
 
 	if strings.HasSuffix(source, "/") {
 		// restore trailing / if one was there
-		srcName += "/"
+		srcPath += "/"
 	}
-	return srcName
+	return srcPath
 }
 
 // Update applies an update to a mounted filesystem. The caller must have
@@ -309,22 +332,36 @@ func (f *MountedFilesystemUpdater) Update() error {
 	return nil
 }
 
+func (f *MountedFilesystemUpdater) sourceDirectoryEntries(source string) ([]os.FileInfo, error) {
+	srcName := f.entrySourcePath(source)
+
+	if err := checkSourceIsDir(srcName); err != nil {
+		return nil, err
+	}
+
+	return ioutil.ReadDir(srcName)
+}
+
+// targetInSourceDir resolves the actual target for given source directory name
+// and target specification.
+//  source: /foo/bar/ target: /baz => /bar/    (contents of /foo/bar/ under /baz)
+//  source: /foo/bar  target: /baz => /bar/bar (directory /foo/bar under /baz, contents under /baz/bar)
+func targetForSourceDir(source, target string) string {
+	if strings.HasSuffix(source, "/") {
+		// contents of source directory land under target
+		return target
+	}
+	// source directory lands under target
+	return filepath.Join(target, filepath.Base(source))
+}
+
 func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcName := f.entrySource(source)
-
-	if err := checkSrcIsDir(srcName); err != nil {
-		return fmt.Errorf("cannot update directory %q: %v", source, err)
-	}
-
-	fis, err := ioutil.ReadDir(srcName)
+	fis, err := f.sourceDirectoryEntries(source)
 	if err != nil {
-		return fmt.Errorf("cannot list directory entries: %v", err)
+		return fmt.Errorf("cannot list source directory %q: %v", source, err)
 	}
 
-	if !strings.HasSuffix(source, "/") {
-		// /foo -> /bar/ => /bar/foo
-		target = filepath.Join(target, filepath.Base(source))
-	}
+	target = targetForSourceDir(source, target)
 
 	for _, fi := range fis {
 		pSrc := filepath.Join(source, fi.Name())
@@ -332,13 +369,14 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 
 		update := f.updateOrSkipFile
 		if fi.IsDir() {
-			_, dstName, _ := f.entryNames(dstRoot, source, pDst, "")
+			dstName, _ := f.entryDestPaths(dstRoot, source, pDst, "")
 			if err := os.MkdirAll(dstName, 0755); err != nil {
-				return fmt.Errorf("cannot deploy directory: %v", err)
+				return fmt.Errorf("cannot write directory: %v", err)
 			}
-
-			update = f.updateDirectory
+			// continue updating contents of the directory rather
+			// than the directory itself
 			pSrc += "/"
+			update = f.updateDirectory
 		}
 		if err := update(dstRoot, pSrc, pDst, preserveInDst, backupDir); err != nil {
 			return err
@@ -349,7 +387,7 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 }
 
 func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcName, dstName, backupName := f.entryNames(dstRoot, source, target, backupDir)
+	srcName, dstName, backupName := f.entryPaths(dstRoot, source, target, backupDir)
 
 	if osutil.FileExists(dstName) {
 		if strutil.SortedListContains(preserveInDst, dstName) {
@@ -361,8 +399,8 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 			return nil
 		}
 		if !osutil.FileExists(backupName + ".backup") {
-			// not preserver & different than the update, double
-			// check we have a backup
+			// not preserved & different than the update, error out
+			// as there is no backup
 			return fmt.Errorf("missing backup file for %v", dstName)
 		}
 	}
@@ -370,24 +408,50 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	return writeFile(srcName, dstName, preserveInDst)
 }
 
-func (f *MountedFilesystemUpdater) updateVolumeContent(whereDir string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
 
-	srcName, _, _ := f.entryNames(whereDir, content.Source, content.Target, backupDir)
+	srcName := f.entrySourcePath(content.Source)
 
 	if osutil.IsDirectory(srcName) || strings.HasSuffix(content.Source, "/") {
-		return f.updateDirectory(whereDir, content.Source, content.Target, preserveInDst, backupDir)
+		return f.updateDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
-		return f.updateOrSkipFile(whereDir, content.Source, content.Target, preserveInDst, backupDir)
+		return f.updateOrSkipFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	}
 }
 
 // Backup analyzes a mounted filesystem and prepares a rollback state
 // information should the update be applied. The content of the filesystem is
-// processed, files that would be modified by the update are backed up, while
-// other files may be stamped to improve the later step of update process.
+// processed, files and directories that would be modified by the update are
+// backed up, while identical/preserved files may be stamped to improve the
+// later step of update process.
+//
+// The backup directory structure mirrors the the structure of destination
+// location. Given the following destination structure:
+//
+// foo
+// ├── a
+// ├── b
+// ├── bar
+// │   ├── baz
+// │   │   └── d
+// │   └── z
+// └── c
+//
+// The structure of backup looks like this:
+//
+// foo-backup
+// ├── a.backup           <-- backup copy of ./a
+// ├── bar
+// │   ├── baz
+// │   │   └── d.backup   <-- backup copy of ./bar/baz/d
+// │   └── baz.backup     <-- stamp indicating ./bar/baz existed before the update
+// ├── bar.backup         <-- stamp indicating ./bar existed before the update
+// ├── b.same             <-- stamp indicating ./b is identical to the update data
+// └── c.preserve         <-- stamp indicating ./c is to be preserved
+//
 func (f *MountedFilesystemUpdater) Backup() error {
 	mount, err := f.mountLookup(f.ps)
 	if err != nil {
@@ -401,7 +465,7 @@ func (f *MountedFilesystemUpdater) Backup() error {
 	}
 
 	for _, c := range f.ps.Content {
-		if err := f.backupOrCheckpointVolumeContent(mount, &c, prefixPreserve(mount, f.ps.Update.Preserve), backupRoot); err != nil {
+		if err := f.backupVolumeContent(mount, &c, prefixPreserve(mount, f.ps.Update.Preserve), backupRoot); err != nil {
 			return fmt.Errorf("cannot backup content: %v", err)
 		}
 	}
@@ -410,21 +474,12 @@ func (f *MountedFilesystemUpdater) Backup() error {
 }
 
 func (f *MountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcName := f.entrySource(source)
-
-	if err := checkSrcIsDir(srcName); err != nil {
+	fis, err := f.sourceDirectoryEntries(source)
+	if err != nil {
 		return fmt.Errorf("cannot backup directory %q: %v", source, err)
 	}
 
-	fis, err := ioutil.ReadDir(srcName)
-	if err != nil {
-		return fmt.Errorf("cannot list directory entries: %v", err)
-	}
-
-	if !strings.HasSuffix(source, "/") {
-		// /foo -> /bar/ => /bar/foo
-		target = filepath.Join(target, filepath.Base(source))
-	}
+	target = targetForSourceDir(source, target)
 
 	for _, fi := range fis {
 		pSrc := filepath.Join(source, fi.Name())
@@ -432,12 +487,13 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, 
 
 		backup := f.backupOrCheckpointFile
 		if fi.IsDir() {
-			if err := f.backupOrCheckpointPrefix(dstRoot, pDst+"/", backupDir); err != nil {
-				return fmt.Errorf("cannot backup prefix directory: %v", err)
-			}
-
-			backup = f.backupOrCheckpointDirectory
+			// continue backing up the contents of the directory
+			// rather than the directory itself
 			pSrc += "/"
+			backup = f.backupOrCheckpointDirectory
+		}
+		if err := f.checkpointPrefix(dstRoot, pDst, backupDir); err != nil {
+			return err
 		}
 		if err := backup(dstRoot, pSrc, pDst, preserveInDst, backupDir); err != nil {
 			return err
@@ -447,11 +503,11 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, 
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) backupOrCheckpointPrefix(dstRoot, target string, backupDir string) error {
-
-	// file is different and backed up, check how much of the prefix needs to be created
+// checkpointPrefix creates stamps for each part of the destination prefix that exists
+func (f *MountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, backupDir string) error {
+	// check how much of the prefix needs to be created
 	for prefix := filepath.Dir(target); prefix != "." && prefix != "/"; prefix = filepath.Dir(prefix) {
-		_, prefixDst, prefixBackupBase := f.entryNames(dstRoot, "", prefix, backupDir)
+		prefixDst, prefixBackupBase := f.entryDestPaths(dstRoot, "", prefix, backupDir)
 
 		prefixBackupName := prefixBackupBase + ".backup"
 		if osutil.FileExists(prefixBackupName) {
@@ -473,21 +529,29 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointPrefix(dstRoot, target stri
 }
 
 func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-
-	srcName, dstName, backupBase := f.entryNames(dstRoot, source, target, backupDir)
+	srcName, dstName, backupBase := f.entryPaths(dstRoot, source, target, backupDir)
 
 	backupName := backupBase + ".backup"
 	sameStamp := backupBase + ".same"
 	preserveStamp := backupBase + ".preserve"
 
+	if !osutil.FileExists(dstName) {
+		// destination does not exist and will be created when writing
+		// the udpate, no need for backup
+		return nil
+	}
+
 	if osutil.FileExists(backupName) || osutil.FileExists(sameStamp) {
-		// file already checked, move on
+		// file already checked, either has a backup or is the same as
+		// the update, move on
 		return nil
 	}
 
 	if strutil.SortedListContains(preserveInDst, dstName) {
+		// file is to be preserved, create a relevant stamp
+
 		if !osutil.FileExists(dstName) {
-			// preserve, but does not exist, will be deployed anyway
+			// preserve, but does not exist, will be written anyway
 			return nil
 		}
 		if osutil.FileExists(preserveStamp) {
@@ -501,22 +565,20 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		return nil
 	}
 
+	// try to find out whether the update and the existing file are
+	// identical
+
 	orig, err := os.Open(dstName)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("cannot open destination file: %v", err)
-		}
-
-		// destination does not exist, no need for backup
-		return f.backupOrCheckpointPrefix(dstRoot, target, backupDir)
+		return fmt.Errorf("cannot open destination file: %v", err)
 	}
 
 	// backup of the original content
-	backup, err := makeStampFile(backupName)
+	backup, err := newStampFile(backupName)
 	if err != nil {
 		return fmt.Errorf("cannot create backup file: %v", err)
 	}
-	// becomes a noop if canceled
+	// becomes a backup copy or a noop if canceled
 	defer backup.Commit()
 
 	// checksum the original data while it's being copied
@@ -539,7 +601,8 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	origDigest := origHash.Sum(nil)
 
 	if bytes.Equal(origDigest, updateDigest) {
-		// files are identical, no backup needed
+		// mark that files are identical and update can be skipped, no
+		// backup is needed
 		if err := makeStamp(sameStamp); err != nil {
 			return fmt.Errorf("cannot create a checkpoint file: %v", err)
 		}
@@ -549,22 +612,27 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		return nil
 	}
 
-	return f.backupOrCheckpointPrefix(dstRoot, target, backupDir)
+	// update will overwrite existing file, a backup copy is created on
+	// Commit()
+	return nil
 }
 
-func (f *MountedFilesystemUpdater) backupOrCheckpointVolumeContent(whereDir string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *MountedFilesystemUpdater) backupVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
 
-	srcName := f.entrySource(content.Source)
+	srcName := f.entrySourcePath(content.Source)
 
+	if err := f.checkpointPrefix(volumeRoot, content.Target, backupDir); err != nil {
+		return err
+	}
 	if osutil.IsDirectory(srcName) || strings.HasSuffix(content.Source, "/") {
 		// backup directory contents
-		return f.backupOrCheckpointDirectory(whereDir, content.Source, content.Target, preserveInDst, backupDir)
+		return f.backupOrCheckpointDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
-		// deploy a file
-		return f.backupOrCheckpointFile(whereDir, content.Source, content.Target, preserveInDst, backupDir)
+		// backup a file
+		return f.backupOrCheckpointFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	}
 }
 
@@ -593,7 +661,7 @@ func (f *MountedFilesystemUpdater) Rollback() error {
 
 func (f *MountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backupDir string) error {
 	for prefix := filepath.Dir(target); prefix != "/" && prefix != "."; prefix = filepath.Dir(prefix) {
-		_, prefixDst, prefixBackupBase := f.entryNames(dstRoot, "", prefix, backupDir)
+		prefixDst, prefixBackupBase := f.entryDestPaths(dstRoot, "", prefix, backupDir)
 		if !osutil.FileExists(prefixBackupBase + ".backup") {
 			// try remove
 			if err := os.Remove(prefixDst); err != nil {
@@ -605,21 +673,12 @@ func (f *MountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backup
 }
 
 func (f *MountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcName := f.entrySource(source)
-
-	if err := checkSrcIsDir(srcName); err != nil {
-		return fmt.Errorf("cannot rollback directory %q: source %v", source, err)
-	}
-
-	fis, err := ioutil.ReadDir(srcName)
+	fis, err := f.sourceDirectoryEntries(source)
 	if err != nil {
-		return fmt.Errorf("cannot list directory entries: %v", err)
+		return fmt.Errorf("cannot rollback directory %q: %v", source, err)
 	}
 
-	if !strings.HasSuffix(source, "/") {
-		// /foo -> /bar/ => /bar/foo
-		target = filepath.Join(target, filepath.Base(source))
-	}
+	target = targetForSourceDir(source, target)
 
 	for _, fi := range fis {
 		pSrc := filepath.Join(source, fi.Name())
@@ -627,6 +686,8 @@ func (f *MountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target str
 
 		rollback := f.rollbackFile
 		if fi.IsDir() {
+			// continue rolling back the contents of the directory
+			// rather than the directory itself
 			rollback = f.rollbackDirectory
 			pSrc += "/"
 		}
@@ -644,7 +705,7 @@ func (f *MountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target str
 }
 
 func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	_, dstName, backupBase := f.entryNames(dstRoot, source, target, backupDir)
+	dstName, backupBase := f.entryDestPaths(dstRoot, source, target, backupDir)
 
 	backupName := backupBase + ".backup"
 	sameStamp := backupBase + ".same"
@@ -668,24 +729,24 @@ func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 	// been added by the update
 
 	if err := os.Remove(dstName); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot remove deployed update: %v", err)
+		return fmt.Errorf("cannot remove written update: %v", err)
 	}
 
 	return f.rollbackPrefix(dstRoot, target, backupDir)
 }
 
-func (f *MountedFilesystemUpdater) rollbackVolumeContent(whereDir string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *MountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
 
-	srcName := f.entrySource(content.Source)
+	srcName := f.entrySourcePath(content.Source)
 
 	if osutil.IsDirectory(srcName) || strings.HasSuffix(content.Source, "/") {
 		// rollback directory
-		return f.rollbackDirectory(whereDir, content.Source, content.Target, preserveInDst, backupDir)
+		return f.rollbackDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
 		// rollback file
-		return f.rollbackFile(whereDir, content.Source, content.Target, preserveInDst, backupDir)
+		return f.rollbackFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	}
 }
