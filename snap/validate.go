@@ -766,7 +766,7 @@ var layoutRejectionList = []string{
 	// The /tmp directory contains a private, per-snap, view of /tmp and
 	// there's no valid reason to allow snaps to replace it.
 	"/tmp",
-	// The /var/lib/snapd directory contains essential state of snapd and is
+	// The /var/lib/snapd directory contains essential snapd state and is
 	// sometimes consulted from inside the mount namespace.
 	"/var/lib/snapd",
 
