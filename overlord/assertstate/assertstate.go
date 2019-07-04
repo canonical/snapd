@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -44,20 +44,33 @@ func Add(s *state.State, a asserts.Assertion) error {
 
 // Batch allows to accumulate a set of assertions possibly out of prerequisite order and then add them in one go to the system assertion database.
 type Batch struct {
-	bs   asserts.Backstore
-	refs []*asserts.Ref
+	bs         asserts.Backstore
+	refs       []*asserts.Ref
+	linearized []asserts.Assertion
 }
 
 // NewBatch creates a new Batch to accumulate assertions to add in one go to the system assertion database.
 func NewBatch() *Batch {
 	return &Batch{
-		bs:   asserts.NewMemoryBackstore(),
-		refs: nil,
+		bs:         asserts.NewMemoryBackstore(),
+		refs:       nil,
+		linearized: nil,
 	}
+}
+
+func (b *Batch) committing() error {
+	if b.linearized != nil {
+		return fmt.Errorf("internal error: cannot add to Batch while committing")
+	}
+	return nil
 }
 
 // Add one assertion to the batch.
 func (b *Batch) Add(a asserts.Assertion) error {
+	if err := b.committing(); err != nil {
+		return err
+	}
+
 	if !a.SupportedFormat() {
 		return &asserts.UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
 	}
@@ -77,6 +90,10 @@ func (b *Batch) Add(a asserts.Assertion) error {
 // AddStream adds a stream of assertions to the batch.
 // Returns references to to the assertions effectively added.
 func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
+	if err := b.committing(); err != nil {
+		return nil, err
+	}
+
 	start := len(b.refs)
 	dec := asserts.NewDecoder(r)
 	for {
@@ -100,7 +117,22 @@ func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
 	return refs, nil
 }
 
-func (b *Batch) commit(db *asserts.Database) error {
+func (b *Batch) commitTo(db *asserts.Database) error {
+	if err := b.linearize(db); err != nil {
+		return err
+	}
+
+	// TODO: trigger w. caller a global sanity check if something is revoked
+	// (but try to save as much possible still),
+	// or err is a check error
+	return commitTo(db, b.linearized)
+}
+
+func (b *Batch) linearize(db *asserts.Database) error {
+	if b.linearized != nil {
+		return nil
+	}
+
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if asserts.IsNotFound(err) {
@@ -121,25 +153,23 @@ func (b *Batch) commit(db *asserts.Database) error {
 		}
 	}
 
-	// TODO: trigger w. caller a global sanity check if something is revoked
-	// (but try to save as much possible still),
-	// or err is a check error
-	return f.commit()
+	b.linearized = f.fetched
+	return nil
 }
 
 // Commit adds the batch of assertions to the system assertion database.
 func (b *Batch) Commit(st *state.State) error {
 	db := cachedDB(st)
 
-	return b.commit(db)
+	return b.commitTo(db)
 }
 
-// Preflight checks whether adding the batch of assertions to the system assertion database should fully succeed.
+// Preflight pre-checks whether adding the batch of assertions to the system assertion database should fully succeed.
 func (b *Batch) Preflight(st *state.State) error {
 	db := cachedDB(st)
 	db = db.WithStackedBackstore(asserts.NewMemoryBackstore())
 
-	return b.commit(db)
+	return b.commitTo(db)
 }
 
 func findError(format string, ref *asserts.Ref, err error) error {

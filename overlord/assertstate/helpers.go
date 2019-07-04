@@ -70,11 +70,11 @@ func (e *commitError) Error() string {
 	return fmt.Sprintf("cannot add some assertions to the system database:%s", strings.Join(l, "\n - "))
 }
 
-// commit does a best effort of adding all the fetched assertions to the system database.
-func (f *fetcher) commit() error {
+// commitTo does a best effort of adding all the fetched assertions to the system database.
+func commitTo(db *asserts.Database, assertions []asserts.Assertion) error {
 	var errs []error
-	for _, a := range f.fetched {
-		err := f.db.Add(a)
+	for _, a := range assertions {
+		err := db.Add(a)
 		if asserts.IsUnaccceptedUpdate(err) {
 			if _, ok := err.(*asserts.UnsupportedFormatError); ok {
 				// we kept the old one, but log the issue
@@ -122,5 +122,5 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	// TODO: trigger w. caller a global sanity check if a is revoked
 	// (but try to save as much possible still),
 	// or err is a check error
-	return f.commit()
+	return commitTo(db, f.fetched)
 }
