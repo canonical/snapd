@@ -396,24 +396,31 @@ def renumber_devices(entry, seen):
     entry.dev = alloc_n(entry.dev)
 
 
-def rewrite_renumber(entries):
-    # type: (List[MountInfoEntry]) -> None
+class RewriteState(object):
+    """RewriteState holds state used in rewriting mount entries."""
+
+    def __init__(self):
+        # type: () -> None
+        self.seen_opt_fields = {}  # type: Dict[int, int]
+        self.seen_loops = {}  # type: Dict[int, int]
+        self.seen_snap_revs = {}  # type: Dict[Tuple[Text, Text], int]
+        self.seen_mount_ids = {}  # type: Dict[int, int]
+        self.seen_devices = {}  # type: Dict[Device, Device]
+
+
+def rewrite_renumber(entries, rs):
+    # type: (List[MountInfoEntry], RewriteState) -> None
     """rewrite_renumber applies all re-numbering helpers."""
-    seen_opt_fields = {}  # type: Dict[int, int]
-    seen_loops = {}  # type: Dict[int, int]
-    seen_snap_revs = {}  # type: Dict[Tuple[Text, Text], int]
-    seen_mount_ids = {}  # type: Dict[int, int]
-    seen_devices = {}  # type: Dict[Device, Device]
     for entry in entries:
-        renumber_mount_ids(entry, seen_mount_ids)
-        renumber_devices(entry, seen_devices)
-        renumber_snap_revision(entry, seen_snap_revs)
-        renumber_opt_fields(entry, seen_opt_fields)
-        renumber_loop_devices(entry, seen_loops)
+        renumber_mount_ids(entry, rs.seen_mount_ids)
+        renumber_devices(entry, rs.seen_devices)
+        renumber_snap_revision(entry, rs.seen_snap_revs)
+        renumber_opt_fields(entry, rs.seen_opt_fields)
+        renumber_loop_devices(entry, rs.seen_loops)
 
 
-def rewrite_rename(entries):
-    # type: (List[MountInfoEntry]) -> None
+def rewrite_rename(entries, rw):
+    # type: (List[MountInfoEntry], RewriteState) -> None
     """rewrite_renameapplies all re-naming helpers."""
     # TODO: allocate devices like everything else above.
     for entry in entries:
@@ -514,10 +521,11 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(exc)
     entries = [MountInfoEntry.parse(line) for line in opts.file]
     entries = [e for e in entries if matches(e, filters)]
+    rs = RewriteState()
     if opts.renumber:
-        rewrite_renumber(entries)
+        rewrite_renumber(entries, rs)
     if opts.rename:
-        rewrite_rename(entries)
+        rewrite_rename(entries, rs)
     for e in entries:
         if attrs:
             values = []  # type: List[Any]
