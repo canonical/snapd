@@ -763,8 +763,8 @@ var layoutRejectionList = []string{
 	// snap applications to be integrated with the rest of the system and
 	// therefore snaps should not be allowed to replace it.
 	"/run",
-	// The /tmp directory contains private, per-snap, view of /tmp and there's
-	// no valid reason to allow snaps to replace it.
+	// The /tmp directory contains a private, per-snap, view of /tmp and
+	// there's no valid reason to allow snaps to replace it.
 	"/tmp",
 	// The /var/lib/snapd directory contains essential state of snapd and is
 	// sometimes consulted from inside the mount namespace.
