@@ -97,7 +97,7 @@ func (iw *infoWriter) maybePrintHealth() {
 
 	fmt.Fprintln(iw, "health:")
 	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
-	wrapGeneric(iw, []rune(quotedIfNeeded(health.Message)), "  message:\t", "    ", iw.termWidth)
+	wrapGeneric(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
 	if health.Code != "" {
 		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
 	}
@@ -232,7 +232,7 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth i
 	return err
 }
 
-func quotedIfNeeded(raw string) string {
+func quotedIfNeeded(raw string) []rune {
 	// simplest way of checking to see if it needs quoting is to try
 	raw = strings.TrimSpace(raw)
 	type T struct {
@@ -243,7 +243,7 @@ func quotedIfNeeded(raw string) string {
 	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
 		raw = strconv.Quote(raw)
 	}
-	return raw
+	return []rune(raw)
 }
 
 // printDescr formats a given string (typically a snap description)
@@ -397,18 +397,7 @@ func (iw *infoWriter) printName() {
 }
 
 func (iw *infoWriter) printSummary() {
-	// simplest way of checking to see if it needs quoting is to try
-	raw := strings.TrimSpace(iw.theSnap.Summary)
-	type T struct {
-		S string
-	}
-	if len(raw) == 0 {
-		raw = `""`
-	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
-		raw = strconv.Quote(raw)
-	}
-
-	wrapFlow(iw, []rune(raw), "summary:\t", iw.termWidth)
+	wrapFlow(iw, quotedIfNeeded(iw.theSnap.Summary), "summary:\t", iw.termWidth)
 }
 
 func (iw *infoWriter) maybePrintPublisher() {
