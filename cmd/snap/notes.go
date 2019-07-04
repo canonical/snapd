@@ -51,8 +51,6 @@ func formatPrice(val float64, currency string) string {
 // Notes encapsulate everything that might be interesting about a
 // snap, in order to present a brief summary of it.
 type Notes struct {
-	Price            string
-	Health           string
 	SnapType         snap.Type
 	Private          bool
 	DevMode          bool
@@ -63,6 +61,8 @@ type Notes struct {
 	Broken           bool
 	IgnoreValidation bool
 	InCohort         bool
+	Health           string
+	Price            string
 }
 
 func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
