@@ -230,10 +230,11 @@ func (s *configHelpersSuite) TestPurgeNulls(c *C) {
 		"bar": map[string]interface{}{
 			"one": 1,
 		},
+		"baz": map[string]interface{}{},
 	})
 
 	cfg2 := map[string]interface{}{"foo": nil}
-	c.Check(config.PurgeNulls(cfg2), Equals, nil)
+	c.Check(config.PurgeNulls(cfg2), DeepEquals, map[string]interface{}{})
 	c.Check(cfg2, DeepEquals, map[string]interface{}{})
 
 	jsonData, err := json.Marshal(map[string]interface{}{
@@ -262,5 +263,6 @@ func (s *configHelpersSuite) TestPurgeNulls(c *C) {
 		"bar": map[string]interface{}{
 			"one": json.Number("2"),
 		},
+		"baz": map[string]interface{}{},
 	})
 }

@@ -127,20 +127,20 @@ var setGetTests = [][]setGetOp{{
 	// Nulls via dotted path, resuling in empty map
 	`set doc={"one":{"three":3},"two":2}`,
 	`set doc.one.three=null`,
-	`get doc={"two":2}`,
+	`get doc={"one":{},"two":2}`,
 	`commit`,
-	`get doc={"two":2}`,
-	`getunder doc={"two":2}`, // nils are not committed to state
+	`get doc={"one":{},"two":2}`,
+	`getunder doc={"one":{},"two":2}`, // nils are not committed to state
 }, {
 	// Nulls via dotted path in a doc
 	`set doc={"one":1,"two":2}`,
 	`set doc.three={"four":4}`,
 	`get doc={"one":1,"two":2,"three":{"four":4}}`,
 	`set doc.three={"four":null}`,
-	`get doc={"one":1,"two":2}`,
+	`get doc={"one":1,"two":2,"three":{}}`,
 	`commit`,
-	`get doc={"one":1,"two":2}`,
-	`getunder doc={"one":1,"two":2}`, // nils are not committed to state
+	`get doc={"one":1,"two":2,"three":{}}`,
+	`getunder doc={"one":1,"two":2,"three":{}}`, // nils are not committed to state
 }, {
 	// Nulls nested in a document
 	`set doc={"one":{"three":3,"two":2}}`,
@@ -165,24 +165,24 @@ var setGetTests = [][]setGetOp{{
 	`set doc={"one":{"two":2}}`,
 	`commit`,
 	`set doc.one.three.four.five=null`,
-	`get doc={"one":{"two":2}}`,
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
 	`commit`,
-	`get doc={"one":{"two":2}}`,
-	`getrootunder ={"doc":{"one":{"two":2}}}`, // nils are not committed to state
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
+	`getrootunder ={"doc":{"one":{"two":2,"three":{"four":{}}}}}`, // nils are not committed to state
 }, {
 	// Nulls, same transaction, intermediate non-existing maps get dropped
 	`set doc={"one":{"two":2}}`,
 	`set doc.one.three.four.five=null`,
-	`get doc={"one":{"two":2}}`,
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
 	`commit`,
-	`get doc={"one":{"two":2}}`,
-	`getrootunder ={"doc":{"one":{"two":2}}}`, // nils are not committed to state
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
+	`getrootunder ={"doc":{"one":{"two":2,"three":{"four":{}}}}}`, // nils are not committed to state
 }, {
 	// Nulls, empty doc dropped
 	`set doc={"one":1}`,
 	`set doc.one=null`,
 	`commit`,
-	`get doc=-`,
+	`get doc={}`,
 }, {
 	// Nulls leading to no snap configuration
 	`set doc="foo"`,
