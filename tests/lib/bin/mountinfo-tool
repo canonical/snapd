@@ -504,16 +504,16 @@ def rewrite_rename(entries):
         )
 
 
-class _SelfTestAction(Action):
+class _UnitTestAction(Action):
     def __init__(
         self,
         option_strings,
         dest=SUPPRESS,
         default=SUPPRESS,
-        help="run program's self-test suite and exit",
+        help="run program's unit test suite and exit",
     ):
         # type: (Text, Text, Text, Text) -> None
-        super(_SelfTestAction, self).__init__(
+        super(_UnitTestAction, self).__init__(
             option_strings=option_strings,
             dest=dest,
             default=default,
@@ -524,7 +524,7 @@ class _SelfTestAction(Action):
     def __call__(self, parser, ns, values, option_string=None):
         # type: (ArgumentParser, Namespace, List[Text], Optional[Text]) -> None
         # We allow the caller to provide the test to invoke by giving
-        # --self-test a set of arguments.
+        # --run-unit-tests a set of arguments.
         unittest.main(argv=[sys.argv[0]] + values)
         parser.exit()
 
@@ -556,9 +556,9 @@ Known attributes, applicable for both filtering and display.
     """,
         formatter_class=RawTextHelpFormatter,
     )
-    parser.register("action", "self-test", _SelfTestAction)
+    parser.register("action", "unit-test", _UnitTestAction)
     parser.add_argument("-v", "--version", action="version", version="1.0")
-    parser.add_argument("--self-test", action="self-test")
+    parser.add_argument("--run-unit-tests", action="unit-test")
     parser.add_argument(
         "-f",
         metavar="MOUNTINFO",
