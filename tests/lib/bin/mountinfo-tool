@@ -1,9 +1,10 @@
 #!/usr/bin/env any-python
 from __future__ import print_function, absolute_import, unicode_literals
 
-from argparse import ArgumentParser, FileType, RawTextHelpFormatter
-import sys
+from argparse import Action, ArgumentParser, FileType, RawTextHelpFormatter, SUPPRESS
 import re
+import sys
+import unittest
 
 # PY2 is true when we're running under Python 2.x It is used for appropriate
 # return value selection of __str__ and __repr_ methods, which must both
@@ -21,7 +22,8 @@ PY2 = sys.version_info[0] == 2
 # https://mypy.readthedocs.io/en/latest/common_issues.html#import-cycles
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Text, Tuple, Match
+    from typing import Any, Dict, List, Text, Tuple, Match, Optional, Union, Sequence
+    from argparse import Namespace
 
 
 class Device(int):
@@ -250,6 +252,14 @@ def renumber_snap_revision(entry, seen):
         # type: (List[Text], int) -> List[Text]
         return parts[:6] + ["{}".format(n)] + parts[7:]
 
+    def compose_hostfs_preferred(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:7] + ["{}".format(n)] + parts[8:]
+
+    def compose_hostfs_alternate(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:10] + ["{}".format(n)] + parts[11:]
+
     def alloc_n(snap_name, snap_rev):
         # type: (Text, Text) -> int
         key = (snap_name, snap_rev)
@@ -269,6 +279,24 @@ def renumber_snap_revision(entry, seen):
         snap_name = parts[5]
         snap_rev = parts[6]
         compose = compose_alternate
+    elif len(parts) >= 8 and parts[:6] == ["", "var", "lib", "snapd", "hostfs", "snap"]:
+        snap_name = parts[6]
+        snap_rev = parts[7]
+        compose = compose_hostfs_preferred
+    elif len(parts) >= 11 and parts[:9] == [
+        "",
+        "var",
+        "lib",
+        "snapd",
+        "hostfs",
+        "var",
+        "lib",
+        "snapd",
+        "snap",
+    ]:
+        snap_name = parts[9]
+        snap_rev = parts[10]
+        compose = compose_hostfs_alternate
     else:
         return
     n = alloc_n(snap_name, snap_rev)
@@ -368,6 +396,29 @@ def renumber_devices(entry, seen):
     entry.dev = alloc_n(entry.dev)
 
 
+def renumber_ns(entry, seen):
+    # type: (MountInfoEntry, Dict[Tuple[Text, int], int]) -> None
+    """renumber_mount_ns re-numbers mount namespace ID from .root_dir property."""
+
+    def alloc_n(ns_type, ns_id):
+        # type: (Text, int) -> int
+        key = (ns_type, ns_id)
+        try:
+            return seen[key]
+        except KeyError:
+            n = len(seen)
+            seen[key] = n
+            return n
+
+    if entry.fs_type != "nsfs":
+        return
+    match = re.match(r"^([a-z_]+):\[(\d+)\]$", entry.root_dir)
+    if match:
+        ns_type = match.group(1)
+        ns_id = int(match.group(2))
+        entry.root_dir = "{}:[{}]".format(ns_type, alloc_n(ns_type, ns_id))
+
+
 def rewrite_renumber(entries):
     # type: (List[MountInfoEntry]) -> None
     """rewrite_renumber applies all re-numbering helpers."""
@@ -376,12 +427,14 @@ def rewrite_renumber(entries):
     seen_snap_revs = {}  # type: Dict[Tuple[Text, Text], int]
     seen_mount_ids = {}  # type: Dict[int, int]
     seen_devices = {}  # type: Dict[Device, Device]
+    seen_ns = {}  # type: Dict[Tuple[Text, int], int]
     for entry in entries:
         renumber_mount_ids(entry, seen_mount_ids)
         renumber_devices(entry, seen_devices)
         renumber_snap_revision(entry, seen_snap_revs)
         renumber_opt_fields(entry, seen_opt_fields)
         renumber_loop_devices(entry, seen_loops)
+        renumber_ns(entry, seen_ns)
 
 
 def rewrite_rename(entries):
@@ -392,6 +445,34 @@ def rewrite_rename(entries):
         entry.mount_source = re.sub(
             "/dev/[sv]d([a-z])", "/dev/sd\\1", entry.mount_source
         )
+
+
+class _UnitTestAction(Action):
+    def __init__(
+        self,
+        option_strings,
+        dest=SUPPRESS,
+        default=SUPPRESS,
+        help="run program's unit test suite and exit",
+    ):
+        # type: (Text, Text, Text, Text) -> None
+        super(_UnitTestAction, self).__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs="...",
+            help=help,
+        )
+
+    def __call__(self, parser, ns, values, option_string=None):
+        # type: (ArgumentParser, Namespace, Union[str, Sequence[Any], None], Optional[Text]) -> None
+        # We allow the caller to provide the test to invoke by giving
+        # --run-unit-tests a set of arguments.
+        argv = [sys.argv[0]]
+        if isinstance(values, list):
+            argv += values
+        unittest.main(argv=argv)
+        parser.exit()
 
 
 def main():
@@ -421,7 +502,9 @@ Known attributes, applicable for both filtering and display.
     """,
         formatter_class=RawTextHelpFormatter,
     )
+    parser.register("action", "unit-test", _UnitTestAction)
     parser.add_argument("-v", "--version", action="version", version="1.0")
+    parser.add_argument("--run-unit-tests", action="unit-test")
     parser.add_argument(
         "-f",
         metavar="MOUNTINFO",
@@ -475,6 +558,116 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(
             "--one requires exactly one match, found {}".format(len(entries))
         )
+
+
+class RenumberSnapRevisionTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.entry = MountInfoEntry()
+        self.seen = {}  # type: Dict[Tuple[Text, Text], int]
+
+    def test_renumbering_allocation(self):
+        # type: () -> None
+        self.entry.mount_point = "/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/1")
+
+        self.entry.mount_point = "/snap/core/7080"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/2")
+
+        self.entry.mount_point = "/snap/snapd/x1"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/snapd/1")
+
+        self.assertEqual(
+            self.seen, {("core", "7079"): 1, ("core", "7080"): 2, ("snapd", "x1"): 1}
+        )
+
+    def test_preferred(self):
+        # type: () -> None
+        self.entry.mount_point = "/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/1")
+
+        self.entry.mount_point = "/snap/core/7079/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/snap/core/1/subdir")
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
+
+    def test_alternate(self):
+        # type: () -> None
+        self.entry.mount_point = "/var/lib/snapd/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/snap/core/1")
+
+        self.entry.mount_point = "/var/lib/snapd/snap/core/7079/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/snap/core/1/subdir")
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
+
+    def test_preferred_via_hostfs(self):
+        # type: () -> None
+        self.entry.mount_point = "/var/lib/snapd/hostfs/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/var/lib/snapd/hostfs/snap/core/1")
+
+        self.entry.mount_point = "/var/lib/snapd/hostfs/snap/core/7079/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point, "/var/lib/snapd/hostfs/snap/core/1/subdir"
+        )
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
+
+    def test_alternate_via_hostfs(self):
+        # type: () -> None
+        self.entry.mount_point = "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/7079"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point, "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/1"
+        )
+
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/7079/subdir"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/var/lib/snapd/snap/core/1/subdir",
+        )
+
+        self.assertEqual(self.seen, {("core", "7079"): 1})
+
+
+class RenumberMountNs(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.entry = MountInfoEntry()
+        self.entry.fs_type = "nsfs"
+        self.seen = {}  # type: Dict[Tuple[Text, int], int]
+
+    def test_renumbering_allocation(self):
+        # type: () -> None
+        self.entry.root_dir = "mnt:[4026532909]"
+        renumber_ns(self.entry, self.seen)
+        self.assertEqual(self.entry.root_dir, "mnt:[0]")
+
+        self.entry.root_dir = "mnt:[4026532791]"
+        renumber_ns(self.entry, self.seen)
+        self.assertEqual(self.entry.root_dir, "mnt:[1]")
+
+        self.entry.root_dir = "pid:[4026531836]"
+        renumber_ns(self.entry, self.seen)
+        self.assertEqual(self.entry.root_dir, "pid:[2]")
+
+        self.assertEqual(
+            self.seen,
+            {("mnt", 4026532909): 0, ("mnt", 4026532791): 1, ("pid", 4026531836): 2},
+        )
+
 
 if __name__ == "__main__":
     main()
