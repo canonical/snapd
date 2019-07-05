@@ -396,6 +396,29 @@ def renumber_devices(entry, seen):
     entry.dev = alloc_n(entry.dev)
 
 
+def renumber_ns(entry, seen):
+    # type: (MountInfoEntry, Dict[Tuple[Text, int], int]) -> None
+    """renumber_mount_ns re-numbers mount namespace ID from .root_dir property."""
+
+    def alloc_n(ns_type, ns_id):
+        # type: (Text, int) -> int
+        key = (ns_type, ns_id)
+        try:
+            return seen[key]
+        except KeyError:
+            n = len(seen)
+            seen[key] = n
+            return n
+
+    if entry.fs_type != "nsfs":
+        return
+    match = re.match(r"^([a-z_]+):\[(\d+)\]$", entry.root_dir)
+    if match:
+        ns_type = match.group(1)
+        ns_id = int(match.group(2))
+        entry.root_dir = "{}:[{}]".format(ns_type, alloc_n(ns_type, ns_id))
+
+
 def rewrite_renumber(entries):
     # type: (List[MountInfoEntry]) -> None
     """rewrite_renumber applies all re-numbering helpers."""
@@ -404,12 +427,14 @@ def rewrite_renumber(entries):
     seen_snap_revs = {}  # type: Dict[Tuple[Text, Text], int]
     seen_mount_ids = {}  # type: Dict[int, int]
     seen_devices = {}  # type: Dict[Device, Device]
+    seen_ns = {}  # type: Dict[Tuple[Text, int], int]
     for entry in entries:
         renumber_mount_ids(entry, seen_mount_ids)
         renumber_devices(entry, seen_devices)
         renumber_snap_revision(entry, seen_snap_revs)
         renumber_opt_fields(entry, seen_opt_fields)
         renumber_loop_devices(entry, seen_loops)
+        renumber_ns(entry, seen_ns)
 
 
 def rewrite_rename(entries):
@@ -615,6 +640,33 @@ class RenumberSnapRevisionTests(unittest.TestCase):
         )
 
         self.assertEqual(self.seen, {("core", "7079"): 1})
+
+
+class RenumberMountNs(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.entry = MountInfoEntry()
+        self.entry.fs_type = "nsfs"
+        self.seen = {}  # type: Dict[Tuple[Text, int], int]
+
+    def test_renumbering_allocation(self):
+        # type: () -> None
+        self.entry.root_dir = "mnt:[4026532909]"
+        renumber_ns(self.entry, self.seen)
+        self.assertEqual(self.entry.root_dir, "mnt:[0]")
+
+        self.entry.root_dir = "mnt:[4026532791]"
+        renumber_ns(self.entry, self.seen)
+        self.assertEqual(self.entry.root_dir, "mnt:[1]")
+
+        self.entry.root_dir = "pid:[4026531836]"
+        renumber_ns(self.entry, self.seen)
+        self.assertEqual(self.entry.root_dir, "pid:[2]")
+
+        self.assertEqual(
+            self.seen,
+            {("mnt", 4026532909): 0, ("mnt", 4026532791): 1, ("pid", 4026531836): 2},
+        )
 
 
 if __name__ == "__main__":
