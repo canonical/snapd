@@ -453,7 +453,13 @@ def renumber_mount_option(opt, seen):
         try:
             return seen[key]
         except KeyError:
-            n = len(seen)
+            n = len(
+                {
+                    opt_value
+                    for opt_key, opt_value in seen.keys()
+                    if opt_key == mount_opt_key
+                }
+            )
             seen[key] = n
             return n
 
@@ -845,6 +851,20 @@ class RenumberMountOptionsTests(unittest.TestCase):
         # type: () -> None
         self.seen = {}  # type: Dict[Tuple[Text, Text], int]
 
+    def test_renumber_allocation(self):
+        # type: () -> None
+        """
+        numbers are allocated from subsets matching the key, this reduces delta.
+        """
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
+        self.assertEqual(renumber_mount_option("size=200", self.seen), "size=1")
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+        self.assertEqual(renumber_mount_option("fd=45", self.seen), "fd=1")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+
     def test_renumber_devtmpfs_opts(self):
         # type: () -> None
         """
@@ -857,12 +877,12 @@ class RenumberMountOptionsTests(unittest.TestCase):
         # Options size= and nr_inodes= are renumbered.
         self.assertEqual(renumber_mount_option("size=4057388k", self.seen), "size=0")
         self.assertEqual(
-            renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=1"
+            renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=0"
         )
         # Option mode= is not renumbered.
         self.assertEqual(renumber_mount_option("mode=755", self.seen), "mode=755")
         self.assertEqual(
-            self.seen, {("size", "4057388k"): 0, ("nr_inodes", "1014347"): 1}
+            self.seen, {("size", "4057388k"): 0, ("nr_inodes", "1014347"): 0}
         )
 
     def test_renumber_binfmt_misc_opts(self):
@@ -876,9 +896,9 @@ class RenumberMountOptionsTests(unittest.TestCase):
         """
         self.assertEqual(renumber_mount_option("fd=40", self.seen), "fd=0")
         self.assertEqual(
-            renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=1"
+            renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=0"
         )
-        self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 1})
+        self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 0})
 
 
 class RewriteTests(unittest.TestCase):
@@ -903,8 +923,8 @@ class RewriteTests(unittest.TestCase):
                 MountInfoEntry.parse(line)
                 for line in (
                     "1 0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw",
-                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=0,nr_inodes=1,mode=755",
-                    "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=2,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3",
+                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=0,nr_inodes=0,mode=755",
+                    "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=0,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=0",
                 )
             ],
         )
