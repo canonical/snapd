@@ -643,6 +643,16 @@ class MountInfoEntryTests(unittest.TestCase):
             setattr(e1, field, old_value)
             self.assertEqual(e0, e1)
 
+    def test_str(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        for field, value in self.non_zero_values.items():
+            setattr(e, field, value)
+        self.assertEqual(
+            str(e),
+            "1 2 3:4 /root-dir /mount-point mount-opts opt:1 fields:2 - fs-type mount-source sb-opts",
+        )
+
 
 class RenumberSnapRevisionTests(unittest.TestCase):
     def setUp(self):
