@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,7 +46,7 @@ func Recover(version string) error {
 	if GetKernelParameter("snap_mode") == "recover_reboot" {
 
 		mntSysRecover := "/mnt/sys-recover"
-		if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+		if err := mountFilesystem("ubuntu-seed", mntSysRecover); err != nil {
 			return err
 		}
 		// update recovery mode
@@ -71,7 +71,7 @@ func Recover(version string) error {
 
 	mntRecovery := "/mnt/recovery"
 
-	if err := mountFilesystem("writable", mntRecovery); err != nil {
+	if err := mountFilesystem("ubuntu-data", mntRecovery); err != nil {
 		return err
 	}
 
@@ -146,15 +146,15 @@ func Install(version string) error {
 	mntSysRecover := "/mnt/sys-recover"
 	mntSystemBoot := "/mnt/system-boot"
 
-	if err := mountFilesystem("writable", mntWritable); err != nil {
+	if err := mountFilesystem("ubuntu-data", mntWritable); err != nil {
 		return err
 	}
 
-	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+	if err := mountFilesystem("ubuntu-seed", mntSysRecover); err != nil {
 		return err
 	}
 
-	if err := mountFilesystem("system-boot", mntSystemBoot); err != nil {
+	if err := mountFilesystem("ubuntu-boot", mntSystemBoot); err != nil {
 		return err
 	}
 
@@ -187,16 +187,16 @@ func Install(version string) error {
 }
 
 func createWritable() error {
-	logger.Noticef("Creating new writable")
+	logger.Noticef("Creating new ubuntu-data")
 	disk := &DiskDevice{}
-	if err := disk.FindFromPartLabel("system-boot"); err != nil {
+	if err := disk.FindFromPartLabel("ubuntu-boot"); err != nil {
 		return fmt.Errorf("cannot determine boot device: %s", err)
 	}
 
 	// FIXME: get values from gadget, system
-	err := disk.CreatePartition(1000*sizeMB, "writable")
+	err := disk.CreatePartition(1000*sizeMB, "ubuntu-data")
 	if err != nil {
-		return fmt.Errorf("cannot create new writable: %s", err)
+		return fmt.Errorf("cannot create new ubuntu-data: %s", err)
 	}
 
 	return nil
