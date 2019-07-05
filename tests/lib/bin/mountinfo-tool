@@ -429,6 +429,7 @@ class RewriteState(object):
         self.seen_snap_revs = {}  # type: Dict[Tuple[Text, Text], int]
         self.seen_mount_ids = {}  # type: Dict[int, int]
         self.seen_devices = {}  # type: Dict[Device, Device]
+        self.seen_ns = {}  # type: Dict[Tuple[Text, int], int]
 
 
 def rewrite_renumber(entries, rs):
@@ -440,6 +441,7 @@ def rewrite_renumber(entries, rs):
         renumber_snap_revision(entry, rs.seen_snap_revs)
         renumber_opt_fields(entry, rs.seen_opt_fields)
         renumber_loop_devices(entry, rs.seen_loops)
+        renumber_ns(entry, rs.seen_ns)
 
 
 def rewrite_rename(entries, rs):
