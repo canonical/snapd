@@ -1,0 +1,6 @@
+name: test-snapd-core-migration
+version: 2
+base: core18
+apps:
+  sh:
+    command: bin/sh
