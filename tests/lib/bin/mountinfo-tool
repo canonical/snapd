@@ -586,6 +586,20 @@ Known attributes, applicable for both filtering and display.
 
 
 class MountInfoEntryTests(unittest.TestCase):
+
+    non_zero_values = {
+        "mount_id": 1,
+        "parent_id": 1,
+        "dev": Device.pack(1, 2),
+        "root_dir": "/",
+        "mount_point": "/",
+        "mount_opts": "rw",
+        "opt_fields": ["foo:1"],
+        "fs_type": "foo",
+        "mount_source": "source",
+        "sb_opts": "opts",
+    }  # Dict[Text, Any]
+
     def test_init(self):
         # type: () -> None
         e = MountInfoEntry()
@@ -621,19 +635,7 @@ class MountInfoEntryTests(unittest.TestCase):
         e0 = MountInfoEntry()
         e1 = MountInfoEntry()
         self.assertEqual(e0, e1)
-        non_zero_values = {
-            "mount_id": 1,
-            "parent_id": 1,
-            "dev": Device.pack(1, 2),
-            "root_dir": "/",
-            "mount_point": "/",
-            "mount_opts": "rw",
-            "opt_fields": ["foo:1"],
-            "fs_type": "foo",
-            "mount_source": "source",
-            "sb_opts": "opts",
-        }  # Dict[Text, Any]
-        for field, value in non_zero_values.items():
+        for field, value in self.non_zero_values.items():
             self.assertEqual(e0, e1)
             old_value = getattr(e1, field)
             setattr(e1, field, value)
