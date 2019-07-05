@@ -151,6 +151,13 @@ class MountInfoEntry(object):
             return result.encode()
         return result
 
+    def __repr__(self):
+        # type: () -> str
+        result = "MountInfoEntry.parse({!r})".format(str(self))
+        if PY2:
+            return result.encode()
+        return result
+
     @property
     def dev_maj(self):
         # type: () -> int
@@ -595,6 +602,92 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(
             "--one requires exactly one match, found {}".format(len(entries))
         )
+
+
+class MountInfoEntryTests(unittest.TestCase):
+
+    non_zero_values = {
+        "mount_id": 1,
+        "parent_id": 2,
+        "dev": Device.pack(3, 4),
+        "root_dir": "/root-dir",
+        "mount_point": "/mount-point",
+        "mount_opts": "mount-opts",
+        "opt_fields": ["opt:1", "fields:2"],
+        "fs_type": "fs-type",
+        "mount_source": "mount-source",
+        "sb_opts": "sb-opts",
+    }  # Dict[Text, Any]
+
+    def test_init(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        self.assertEqual(e.mount_id, 0)
+        self.assertEqual(e.parent_id, 0)
+        self.assertEqual(e.dev, Device.pack(0, 0))
+        self.assertEqual(e.root_dir, "")
+        self.assertEqual(e.mount_point, "")
+        self.assertEqual(e.mount_opts, "")
+        self.assertEqual(e.opt_fields, [])
+        self.assertEqual(e.fs_type, "")
+        self.assertEqual(e.mount_source, "")
+        self.assertEqual(e.sb_opts, "")
+
+    def test_parse(self):
+        # type: () -> None
+        e = MountInfoEntry.parse(
+            "2079 2266 0:3 mnt:[4026532791] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
+        )
+        self.assertEqual(e.mount_id, 2079)
+        self.assertEqual(e.parent_id, 2266)
+        self.assertEqual(e.dev, Device.pack(0, 3))
+        self.assertEqual(e.root_dir, "mnt:[4026532791]")
+        self.assertEqual(e.mount_point, "/run/snapd/ns/test-snapd-mountinfo.mnt")
+        self.assertEqual(e.mount_opts, "rw")
+        self.assertEqual(e.opt_fields, [])
+        self.assertEqual(e.fs_type, "nsfs")
+        self.assertEqual(e.mount_source, "nsfs")
+        self.assertEqual(e.sb_opts, "rw")
+
+    def test_eq(self):
+        # type: () -> None
+        e0 = MountInfoEntry()
+        e1 = MountInfoEntry()
+        self.assertEqual(e0, e1)
+        for field, value in self.non_zero_values.items():
+            self.assertEqual(e0, e1)
+            old_value = getattr(e1, field)
+            setattr(e1, field, value)
+            self.assertNotEqual(e0, e1)
+            setattr(e1, field, old_value)
+            self.assertEqual(e0, e1)
+
+    def test_str(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        for field, value in self.non_zero_values.items():
+            setattr(e, field, value)
+        self.assertEqual(
+            str(e),
+            "1 2 3:4 /root-dir /mount-point mount-opts opt:1 fields:2 - fs-type mount-source sb-opts",
+        )
+
+    def test_repr(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        for field, value in self.non_zero_values.items():
+            setattr(e, field, value)
+        self.assertEqual(
+            repr(e),
+            "MountInfoEntry.parse('1 2 3:4 /root-dir /mount-point mount-opts opt:1 fields:2 - fs-type mount-source sb-opts')",
+        )
+
+    def test_dev_maj_min(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        e.dev = Device.pack(1, 2)
+        self.assertEqual(e.dev_min, 2)
+        self.assertEqual(e.dev_maj, 1)
 
 
 class RenumberSnapRevisionTests(unittest.TestCase):
