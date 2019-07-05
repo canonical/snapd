@@ -650,7 +650,7 @@ class RenumberSnapRevisionTests(unittest.TestCase):
         self.assertEqual(self.seen, {("core", "7079"): 1})
 
 
-class RenumberMountNs(unittest.TestCase):
+class RenumberMountNsTests(unittest.TestCase):
     def setUp(self):
         # type: () -> None
         self.entry = MountInfoEntry()
