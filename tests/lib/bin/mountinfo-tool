@@ -95,6 +95,23 @@ class MountInfoEntry(object):
         self.mount_source = ""
         self.sb_opts = ""
 
+    def __eq__(self, other):
+        # type: (object) -> Union[NotImplemented, bool]
+        if not isinstance(other, MountInfoEntry):
+            return NotImplemented
+        return (
+            self.mount_id == other.mount_id
+            and self.parent_id == other.parent_id
+            and self.dev == other.dev
+            and self.root_dir == other.root_dir
+            and self.mount_point == other.mount_point
+            and self.mount_opts == other.mount_opts
+            and self.opt_fields == other.opt_fields
+            and self.fs_type == other.fs_type
+            and self.mount_source == other.mount_source
+            and self.sb_opts == other.sb_opts
+        )
+
     @classmethod
     def parse(cls, line):
         # type: (Text) -> MountInfoEntry
@@ -419,27 +436,34 @@ def renumber_ns(entry, seen):
         entry.root_dir = "{}:[{}]".format(ns_type, alloc_n(ns_type, ns_id))
 
 
-def rewrite_renumber(entries):
-    # type: (List[MountInfoEntry]) -> None
+class RewriteState(object):
+    """RewriteState holds state used in rewriting mount entries."""
+
+    def __init__(self):
+        # type: () -> None
+        self.seen_opt_fields = {}  # type: Dict[int, int]
+        self.seen_loops = {}  # type: Dict[int, int]
+        self.seen_snap_revs = {}  # type: Dict[Tuple[Text, Text], int]
+        self.seen_mount_ids = {}  # type: Dict[int, int]
+        self.seen_devices = {}  # type: Dict[Device, Device]
+        self.seen_ns = {}  # type: Dict[Tuple[Text, int], int]
+
+
+def rewrite_renumber(entries, rs):
+    # type: (List[MountInfoEntry], RewriteState) -> None
     """rewrite_renumber applies all re-numbering helpers."""
-    seen_opt_fields = {}  # type: Dict[int, int]
-    seen_loops = {}  # type: Dict[int, int]
-    seen_snap_revs = {}  # type: Dict[Tuple[Text, Text], int]
-    seen_mount_ids = {}  # type: Dict[int, int]
-    seen_devices = {}  # type: Dict[Device, Device]
-    seen_ns = {}  # type: Dict[Tuple[Text, int], int]
     for entry in entries:
-        renumber_mount_ids(entry, seen_mount_ids)
-        renumber_devices(entry, seen_devices)
-        renumber_snap_revision(entry, seen_snap_revs)
-        renumber_opt_fields(entry, seen_opt_fields)
-        renumber_loop_devices(entry, seen_loops)
-        renumber_ns(entry, seen_ns)
+        renumber_mount_ids(entry, rs.seen_mount_ids)
+        renumber_devices(entry, rs.seen_devices)
+        renumber_snap_revision(entry, rs.seen_snap_revs)
+        renumber_opt_fields(entry, rs.seen_opt_fields)
+        renumber_loop_devices(entry, rs.seen_loops)
+        renumber_ns(entry, rs.seen_ns)
 
 
-def rewrite_rename(entries):
-    # type: (List[MountInfoEntry]) -> None
-    """rewrite_renameapplies all re-naming helpers."""
+def rewrite_rename(entries, rs):
+    # type: (List[MountInfoEntry], RewriteState) -> None
+    """rewrite_rename applies all re-naming helpers."""
     # TODO: allocate devices like everything else above.
     for entry in entries:
         entry.mount_source = re.sub(
@@ -539,10 +563,11 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(exc)
     entries = [MountInfoEntry.parse(line) for line in opts.file]
     entries = [e for e in entries if matches(e, filters)]
+    rs = RewriteState()
     if opts.renumber:
-        rewrite_renumber(entries)
+        rewrite_renumber(entries, rs)
     if opts.rename:
-        rewrite_rename(entries)
+        rewrite_rename(entries, rs)
     for e in entries:
         if attrs:
             values = []  # type: List[Any]
@@ -642,7 +667,7 @@ class RenumberSnapRevisionTests(unittest.TestCase):
         self.assertEqual(self.seen, {("core", "7079"): 1})
 
 
-class RenumberMountNs(unittest.TestCase):
+class RenumberMountNsTests(unittest.TestCase):
     def setUp(self):
         # type: () -> None
         self.entry = MountInfoEntry()
@@ -666,6 +691,27 @@ class RenumberMountNs(unittest.TestCase):
         self.assertEqual(
             self.seen,
             {("mnt", 4026532909): 0, ("mnt", 4026532791): 1, ("pid", 4026531836): 2},
+        )
+
+
+class RewriteTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.entries = [
+            MountInfoEntry.parse(
+                "2079 2266 0:3 mnt:[4026532791] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
+            )
+        ]
+        self.rs = RewriteState()
+
+    def test_rewrite_renumber(self):
+        # type: () -> None
+        rewrite_renumber(self.entries, self.rs)
+        self.assertEqual(
+            self.entries[0],
+            MountInfoEntry.parse(
+                "1  0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
+            ),
         )
 
 
