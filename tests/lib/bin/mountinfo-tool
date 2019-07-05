@@ -589,15 +589,15 @@ class MountInfoEntryTests(unittest.TestCase):
 
     non_zero_values = {
         "mount_id": 1,
-        "parent_id": 1,
-        "dev": Device.pack(1, 2),
-        "root_dir": "/",
-        "mount_point": "/",
-        "mount_opts": "rw",
-        "opt_fields": ["foo:1"],
-        "fs_type": "foo",
-        "mount_source": "source",
-        "sb_opts": "opts",
+        "parent_id": 2,
+        "dev": Device.pack(3, 4),
+        "root_dir": "/root-dir",
+        "mount_point": "/mount-point",
+        "mount_opts": "mount-opts",
+        "opt_fields": ["opt:1", "fields:2"],
+        "fs_type": "fs-type",
+        "mount_source": "mount-source",
+        "sb_opts": "sb-opts",
     }  # Dict[Text, Any]
 
     def test_init(self):
