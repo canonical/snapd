@@ -653,6 +653,13 @@ class MountInfoEntryTests(unittest.TestCase):
             "1 2 3:4 /root-dir /mount-point mount-opts opt:1 fields:2 - fs-type mount-source sb-opts",
         )
 
+    def test_dev_maj_min(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        e.dev = Device.pack(1, 2)
+        self.assertEqual(e.dev_min, 2)
+        self.assertEqual(e.dev_maj, 1)
+
 
 class RenumberSnapRevisionTests(unittest.TestCase):
     def setUp(self):
