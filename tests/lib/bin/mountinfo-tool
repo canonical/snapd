@@ -694,5 +694,26 @@ class RenumberMountNsTests(unittest.TestCase):
         )
 
 
+class RewriteTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.entries = [
+            MountInfoEntry.parse(
+                "2079 2266 0:3 mnt:[4026532791] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
+            )
+        ]
+        self.rs = RewriteState()
+
+    def test_rewrite_renumber(self):
+        # type: () -> None
+        rewrite_renumber(self.entries, self.rs)
+        self.assertEqual(
+            self.entries[0],
+            MountInfoEntry.parse(
+                "1  0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
+            ),
+        )
+
+
 if __name__ == "__main__":
     main()
