@@ -151,6 +151,13 @@ class MountInfoEntry(object):
             return result.encode()
         return result
 
+    def __repr__(self):
+        # type: () -> str
+        result = "MountInfoEntry.parse({!r})".format(str(self))
+        if PY2:
+            return result.encode()
+        return result
+
     @property
     def dev_maj(self):
         # type: () -> int
@@ -651,6 +658,16 @@ class MountInfoEntryTests(unittest.TestCase):
         self.assertEqual(
             str(e),
             "1 2 3:4 /root-dir /mount-point mount-opts opt:1 fields:2 - fs-type mount-source sb-opts",
+        )
+
+    def test_repr(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        for field, value in self.non_zero_values.items():
+            setattr(e, field, value)
+        self.assertEqual(
+            repr(e),
+            "MountInfoEntry.parse('1 2 3:4 /root-dir /mount-point mount-opts opt:1 fields:2 - fs-type mount-source sb-opts')",
         )
 
     def test_dev_maj_min(self):
