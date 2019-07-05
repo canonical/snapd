@@ -95,6 +95,23 @@ class MountInfoEntry(object):
         self.mount_source = ""
         self.sb_opts = ""
 
+    def __eq__(self, other):
+        # type: (object) -> Union[NotImplemented, bool]
+        if not isinstance(other, MountInfoEntry):
+            return NotImplemented
+        return (
+            self.mount_id == other.mount_id
+            and self.parent_id == other.parent_id
+            and self.dev == other.dev
+            and self.root_dir == other.root_dir
+            and self.mount_point == other.mount_point
+            and self.mount_opts == other.mount_opts
+            and self.opt_fields == other.opt_fields
+            and self.fs_type == other.fs_type
+            and self.mount_source == other.mount_source
+            and self.sb_opts == other.sb_opts
+        )
+
     @classmethod
     def parse(cls, line):
         # type: (Text) -> MountInfoEntry
