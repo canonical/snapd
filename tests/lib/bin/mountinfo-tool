@@ -421,7 +421,7 @@ def rewrite_renumber(entries, rs):
 
 def rewrite_rename(entries, rw):
     # type: (List[MountInfoEntry], RewriteState) -> None
-    """rewrite_renameapplies all re-naming helpers."""
+    """rewrite_rename applies all re-naming helpers."""
     # TODO: allocate devices like everything else above.
     for entry in entries:
         entry.mount_source = re.sub(
