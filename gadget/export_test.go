@@ -44,3 +44,11 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 		evalSymlinks = oldEvalSymlinks
 	}
 }
+
+func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
+	old := mkfsHandlers
+	mkfsHandlers = mock
+	return func() {
+		mkfsHandlers = old
+	}
+}
