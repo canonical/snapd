@@ -600,6 +600,22 @@ class MountInfoEntryTests(unittest.TestCase):
         self.assertEqual(e.mount_source, "")
         self.assertEqual(e.sb_opts, "")
 
+    def test_parse(self):
+        # type: () -> None
+        e = MountInfoEntry.parse(
+            "2079 2266 0:3 mnt:[4026532791] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
+        )
+        self.assertEqual(e.mount_id, 2079)
+        self.assertEqual(e.parent_id, 2266)
+        self.assertEqual(e.dev, Device.pack(0, 3))
+        self.assertEqual(e.root_dir, "mnt:[4026532791]")
+        self.assertEqual(e.mount_point, "/run/snapd/ns/test-snapd-mountinfo.mnt")
+        self.assertEqual(e.mount_opts, "rw")
+        self.assertEqual(e.opt_fields, [])
+        self.assertEqual(e.fs_type, "nsfs")
+        self.assertEqual(e.mount_source, "nsfs")
+        self.assertEqual(e.sb_opts, "rw")
+
 
 class RenumberSnapRevisionTests(unittest.TestCase):
     def setUp(self):
