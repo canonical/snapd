@@ -814,13 +814,13 @@ func (u *updateTestSuite) TestUpdateApplyErrorPosition(c *C) {
 
 	// cannot position the old volume without bare struct data
 	err := gadget.Update(oldData, newData, rollbackDir)
-	c.Assert(err, ErrorMatches, `cannot position old volume: cannot position structure #0 \("foo"\): content "first.img": .* no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot lay out the old volume: cannot position structure #0 \("foo"\): content "first.img": .* no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
 
 	// cannot position the new volume
 	err = gadget.Update(oldData, newData, rollbackDir)
-	c.Assert(err, ErrorMatches, `cannot position new volume: cannot position structure #0 \("foo"\): content "first.img": .* no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot lay out the new volume: cannot position structure #0 \("foo"\): content "first.img": .* no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
 }
@@ -921,7 +921,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
 
 	err := gadget.Update(oldData, newData, rollbackDir)
-	c.Assert(err, ErrorMatches, `cannot update structure #0 \("foo"\): cannot change a bare structure to filesystem one`)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #0 \("foo"\): cannot change a bare structure to filesystem one`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
@@ -1039,7 +1039,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 
 	// go go go
 	err := gadget.Update(oldData, newData, rollbackDir)
-	c.Assert(err, ErrorMatches, "cannot backup structure: failed")
+	c.Assert(err, ErrorMatches, `cannot backup volume structure #1 \("second"\): failed`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
@@ -1083,7 +1083,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 
 	// go go go
 	err := gadget.Update(oldData, newData, rollbackDir)
-	c.Assert(err, ErrorMatches, "cannot update structure: failed")
+	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("second"\): failed`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		// all were backed up
 		"first":  true,
@@ -1155,7 +1155,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	// go go go
 	err := gadget.Update(oldData, newData, rollbackDir)
 	// preserves update error
-	c.Assert(err, ErrorMatches, "cannot update structure: update error")
+	c.Assert(err, ErrorMatches, `cannot update volume structure #2 \("third"\): update error`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		// all were backed up
 		"first":  true,
@@ -1173,8 +1173,8 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 		"third":  true,
 	})
 
-	c.Check(logbuf.String(), testutil.Contains, `cannot update gadget: cannot update structure: update error`)
-	c.Check(logbuf.String(), testutil.Contains, `cannot rollback structure update: rollback failed with different error`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot update gadget: cannot update volume structure #2 ("third"): update error`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot rollback volume structure #1 ("second") update: rollback failed with different error`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
@@ -1191,5 +1191,5 @@ func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
 
 	// go go go
 	err := gadget.Update(oldData, newData, rollbackDir)
-	c.Assert(err, ErrorMatches, `cannot prepare updater: bad updater for structure`)
+	c.Assert(err, ErrorMatches, `cannot prepare update for volume structure #0 \("first"\): bad updater for structure`)
 }

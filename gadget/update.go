@@ -27,7 +27,9 @@ import (
 
 var (
 	ErrNoUpdate = errors.New("nothing to update")
+)
 
+var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = PositioningConstraints{
 		NonMBRStartOffset: 1 * SizeMiB,
@@ -44,12 +46,12 @@ type GadgetData struct {
 }
 
 // Update applies the gadget update given the gadget information and data from
-// old and new revisions. It errors out when update is not possible or illegal,
-// or a failure occurs at any of the steps. When there is no update, a special
-// error ErrNoUpdate is returned.
+// old and new revisions. It errors out when the update is not possible or
+// illegal, or a failure occurs at any of the steps. When there is no update, a
+// special error ErrNoUpdate is returned.
 //
-// Updates are opt-in, and are only applied to structures which have a different
-// value of Edition field between old and new gadget definition.
+// Updates are opt-in, and are only applied to structures with a higher value of
+// Edition field in the new gadget definition.
 //
 // Data that would be modified during the update is first backed up inside the
 // rollback directory. Should the apply step fail, the modified data is
@@ -63,13 +65,13 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 	// layout old
 	pOld, err := PositionVolume(old.RootDir, oldVol, defaultConstraints)
 	if err != nil {
-		return fmt.Errorf("cannot position old volume: %v", err)
+		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
 	// layout new
 	pNew, err := PositionVolume(new.RootDir, newVol, defaultConstraints)
 	if err != nil {
-		return fmt.Errorf("cannot position new volume: %v", err)
+		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
 
 	if err := canUpdateVolume(pOld, pNew); err != nil {
@@ -86,7 +88,7 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 	// can update old layout to new layout
 	for _, update := range updates {
 		if err := canUpdateStructure(update.from, update.to); err != nil {
-			return fmt.Errorf("cannot update structure %v: %v", update.to, err)
+			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
 		}
 	}
 
@@ -249,19 +251,19 @@ func (n *nopUpdater) Rollback() error {
 var updaterForStructure = func(_ *PositionedStructure, rootDir, rollbackDir string) (Updater, error) { return &nopUpdater{}, nil }
 
 func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) error {
-	updaters := make([]Updater, 0, len(updates))
+	updaters := make([]Updater, len(updates))
 
-	for _, one := range updates {
+	for i, one := range updates {
 		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir)
 		if err != nil {
-			return fmt.Errorf("cannot prepare updater: %v", err)
+			return fmt.Errorf("cannot prepare update for volume structure %v: %v", one.to, err)
 		}
-		updaters = append(updaters, up)
+		updaters[i] = up
 	}
 
-	for _, one := range updaters {
+	for i, one := range updaters {
 		if err := one.Backup(); err != nil {
-			return fmt.Errorf("cannot backup structure: %v", err)
+			return fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
 		}
 	}
 
@@ -270,7 +272,7 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) erro
 	for i, one := range updaters {
 		updateLastAttempted = i
 		if err := one.Update(); err != nil {
-			updateErr = fmt.Errorf("cannot update structure: %v", err)
+			updateErr = fmt.Errorf("cannot update volume structure %v: %v", updates[i].to, err)
 			break
 		}
 	}
@@ -286,7 +288,7 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) erro
 		one := updaters[i]
 		if err := one.Rollback(); err != nil {
 			// TODO: log errors to oplog
-			logger.Noticef("cannot rollback structure update: %v", err)
+			logger.Noticef("cannot rollback volume structure %v update: %v", updates[i].to, err)
 		}
 	}
 
