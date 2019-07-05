@@ -585,6 +585,22 @@ Known attributes, applicable for both filtering and display.
         )
 
 
+class MountInfoEntryTests(unittest.TestCase):
+    def test_init(self):
+        # type: () -> None
+        e = MountInfoEntry()
+        self.assertEqual(e.mount_id, 0)
+        self.assertEqual(e.parent_id, 0)
+        self.assertEqual(e.dev, Device.pack(0, 0))
+        self.assertEqual(e.root_dir, "")
+        self.assertEqual(e.mount_point, "")
+        self.assertEqual(e.mount_opts, "")
+        self.assertEqual(e.opt_fields, [])
+        self.assertEqual(e.fs_type, "")
+        self.assertEqual(e.mount_source, "")
+        self.assertEqual(e.sb_opts, "")
+
+
 class RenumberSnapRevisionTests(unittest.TestCase):
     def setUp(self):
         # type: () -> None
