@@ -45,8 +45,35 @@ type FilesystemImageWriter struct {
 }
 
 // PostStageFunc is called after the filesystem contents for the given structure
-// have been staged at a temporary location
+// have been staged at a temporary location, but before the filesystem image is
+// created. The function can be used to manipulate the staged data.
 type PostStageFunc func(rootDir string, ps *PositionedStructure) error
+
+// NewFilesystemImageWriter returns a writer capable of creating filesystem
+// images corresponding to the provided structure, with content from the given
+// content directory. A staging directory will be created in either, the
+// optionally provided work directory, or the default temp location.
+func NewFilesystemImageWriter(contentDir string, ps *PositionedStructure, workDir string) (*FilesystemImageWriter, error) {
+	if ps == nil {
+		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
+	}
+	if ps.IsBare() {
+		return nil, fmt.Errorf("internal error: structure has no filesystem")
+	}
+	if contentDir == "" {
+		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
+	}
+	if _, ok := mkfsHandlers[ps.Filesystem]; !ok {
+		return nil, fmt.Errorf("internal error: filesystem %q has no handler", ps.Filesystem)
+	}
+
+	fiw := &FilesystemImageWriter{
+		contentDir: contentDir,
+		ps:         ps,
+		workDir:    workDir,
+	}
+	return fiw, nil
+}
 
 // Write creates the filesystem inside the provided image file and populates it
 // with data according to content declartion of the structure. Content data is
@@ -83,6 +110,8 @@ func (f *FilesystemImageWriter) Write(fname string, postStage PostStageFunc) err
 		}()
 	}
 
+	// use a mounted filesystem writer to populate the staging directory
+	// with contents of given structure
 	mrw, err := NewMountedFilesystemWriter(f.contentDir, f.ps)
 	if err != nil {
 		return fmt.Errorf("cannot prepare filesystem writer for %v: %v", f.ps, err)
@@ -104,31 +133,4 @@ func (f *FilesystemImageWriter) Write(fname string, postStage PostStageFunc) err
 	}
 
 	return nil
-}
-
-// NewFilesystemImageWriter returns a writer capable of creating filesystem
-// images corresponding to the provided positiioned structure, with content from
-// the given content directory. A staging directory will be created in
-// optionally prided work directory, otherwise the default temporary storage
-// location will be used.
-func NewFilesystemImageWriter(contentDir string, ps *PositionedStructure, workDir string) (*FilesystemImageWriter, error) {
-	if ps == nil {
-		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
-	}
-	if ps.IsBare() {
-		return nil, fmt.Errorf("internal error: structure has no filesystem")
-	}
-	if contentDir == "" {
-		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
-	}
-	if _, ok := mkfsHandlers[ps.Filesystem]; !ok {
-		return nil, fmt.Errorf("internal error: filesystem %q has no handler", ps.Filesystem)
-	}
-
-	fiw := &FilesystemImageWriter{
-		contentDir: contentDir,
-		ps:         ps,
-		workDir:    workDir,
-	}
-	return fiw, nil
 }

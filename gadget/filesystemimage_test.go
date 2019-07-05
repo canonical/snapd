@@ -28,9 +28,12 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type filesystemImageTestSuite struct {
+	testutil.BaseTest
+
 	dir       string
 	work      string
 	content   string
@@ -40,6 +43,8 @@ type filesystemImageTestSuite struct {
 var _ = Suite(&filesystemImageTestSuite{})
 
 func (s *filesystemImageTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.dir = c.MkDir()
 	// work directory
 	s.work = filepath.Join(s.dir, "work")
@@ -59,6 +64,10 @@ func (s *filesystemImageTestSuite) SetUpTest(c *C) {
 	}
 }
 
+func (s *filesystemImageTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
+
 func (s *filesystemImageTestSuite) imgForPs(c *C, ps *gadget.PositionedStructure) string {
 	c.Assert(ps, NotNil)
 	img := filepath.Join(s.dir, "img")
@@ -66,7 +75,28 @@ func (s *filesystemImageTestSuite) imgForPs(c *C, ps *gadget.PositionedStructure
 	return img
 }
 
-func (s *filesystemImageTestSuite) TestSimpleErrors(c *C) {
+type filesystemImageMockedTestSuite struct {
+	filesystemImageTestSuite
+}
+
+var _ = Suite(&filesystemImageMockedTestSuite{})
+
+func (s *filesystemImageMockedTestSuite) SetUpTest(c *C) {
+	s.filesystemImageTestSuite.SetUpTest(c)
+
+	unexpectedMkfs := func(imgFile, label, contentsRootDir string) error {
+		return errors.New("unexpected mkfs call")
+	}
+	s.AddCleanup(gadget.MockMkfsHandlers(map[string]gadget.MkfsFunc{
+		"happyfs": unexpectedMkfs,
+	}))
+}
+
+func (s *filesystemImageMockedTestSuite) TearDownTest(c *C) {
+	s.filesystemImageTestSuite.TearDownTest(c)
+}
+
+func (s *filesystemImageMockedTestSuite) TestSimpleErrors(c *C) {
 	psValid := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
@@ -104,7 +134,7 @@ func (s *filesystemImageTestSuite) TestSimpleErrors(c *C) {
 	c.Assert(fiw, IsNil)
 }
 
-func (s *filesystemImageTestSuite) TestHappyFull(c *C) {
+func (s *filesystemImageMockedTestSuite) TestHappyFull(c *C) {
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "happyfs",
@@ -164,7 +194,7 @@ func (s *filesystemImageTestSuite) TestHappyFull(c *C) {
 	c.Assert(matches, HasLen, 0)
 }
 
-func (s *filesystemImageTestSuite) TestPostStageOptional(c *C) {
+func (s *filesystemImageMockedTestSuite) TestPostStageOptional(c *C) {
 	var mkfsCalled bool
 	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
 		mkfsCalled = true
@@ -186,19 +216,10 @@ func (s *filesystemImageTestSuite) TestPostStageOptional(c *C) {
 	c.Assert(mkfsCalled, Equals, true)
 }
 
-func (s *filesystemImageTestSuite) TestChecksImage(c *C) {
+func (s *filesystemImageMockedTestSuite) TestChecksImage(c *C) {
 	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
 		return errors.New("unexpected call")
 	}
-
-	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
-		return errors.New("unexpected mkfs call")
-	}
-
-	restore := gadget.MockMkfsHandlers(map[string]gadget.MkfsFunc{
-		"happyfs": mkfsHappyFs,
-	})
-	defer restore()
 
 	fiw, err := gadget.NewFilesystemImageWriter(s.content, s.psTrivial, s.work)
 	c.Assert(err, IsNil)
@@ -216,18 +237,10 @@ func (s *filesystemImageTestSuite) TestChecksImage(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("size of image file %v is different from declared structure size %v", s.psTrivial.Size/2, s.psTrivial.Size))
 }
 
-func (s *filesystemImageTestSuite) TestPostStageError(c *C) {
+func (s *filesystemImageMockedTestSuite) TestPostStageError(c *C) {
 	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
 		return errors.New("post stage exploded")
 	}
-
-	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
-		return errors.New("unexpected mkfs call")
-	}
-	restore := gadget.MockMkfsHandlers(map[string]gadget.MkfsFunc{
-		"happyfs": mkfsHappyFs,
-	})
-	defer restore()
 
 	fiw, err := gadget.NewFilesystemImageWriter(s.content, s.psTrivial, s.work)
 	c.Assert(err, IsNil)
@@ -238,7 +251,7 @@ func (s *filesystemImageTestSuite) TestPostStageError(c *C) {
 	c.Assert(err, ErrorMatches, "post stage callback failed: post stage exploded")
 }
 
-func (s *filesystemImageTestSuite) TestMkfsError(c *C) {
+func (s *filesystemImageMockedTestSuite) TestMkfsError(c *C) {
 	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
 		return errors.New("will not mkfs")
 	}
@@ -256,7 +269,7 @@ func (s *filesystemImageTestSuite) TestMkfsError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot create "happyfs" filesystem: will not mkfs`)
 }
 
-func (s *filesystemImageTestSuite) TestFilesystemExtraCheckError(c *C) {
+func (s *filesystemImageMockedTestSuite) TestFilesystemExtraCheckError(c *C) {
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "happyfs",
@@ -264,14 +277,6 @@ func (s *filesystemImageTestSuite) TestFilesystemExtraCheckError(c *C) {
 			Content:    []gadget.VolumeContent{},
 		},
 	}
-
-	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
-		return errors.New("will not mkfs")
-	}
-	restore := gadget.MockMkfsHandlers(map[string]gadget.MkfsFunc{
-		"happyfs": mkfsHappyFs,
-	})
-	defer restore()
 
 	fiw, err := gadget.NewFilesystemImageWriter(s.content, ps, s.work)
 	c.Assert(err, IsNil)
@@ -285,7 +290,7 @@ func (s *filesystemImageTestSuite) TestFilesystemExtraCheckError(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: filesystem "foofs" has no handler`)
 }
 
-func (s *filesystemImageTestSuite) TestMountedWriterError(c *C) {
+func (s *filesystemImageMockedTestSuite) TestMountedWriterError(c *C) {
 	ps := &gadget.PositionedStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "happyfs",
@@ -300,14 +305,6 @@ func (s *filesystemImageTestSuite) TestMountedWriterError(c *C) {
 		return errors.New("unexpected call")
 	}
 
-	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
-		return errors.New("unexpected call")
-	}
-	restore := gadget.MockMkfsHandlers(map[string]gadget.MkfsFunc{
-		"happyfs": mkfsHappyFs,
-	})
-	defer restore()
-
 	fiw, err := gadget.NewFilesystemImageWriter(s.content, ps, s.work)
 	c.Assert(err, IsNil)
 
@@ -318,17 +315,10 @@ func (s *filesystemImageTestSuite) TestMountedWriterError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot prepare filesystem content: cannot write filesystem content of source:/foo: .* no such file or directory`)
 }
 
-func (s *filesystemImageTestSuite) TestBadWorkDirError(c *C) {
+func (s *filesystemImageMockedTestSuite) TestBadWorkDirError(c *C) {
 	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
 		return errors.New("unexpected call")
 	}
-	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
-		return errors.New("unexpected call")
-	}
-	restore := gadget.MockMkfsHandlers(map[string]gadget.MkfsFunc{
-		"happyfs": mkfsHappyFs,
-	})
-	defer restore()
 
 	badWork := filepath.Join(s.dir, "bad-work")
 	fiw, err := gadget.NewFilesystemImageWriter(s.content, s.psTrivial, badWork)
@@ -346,7 +336,7 @@ func (s *filesystemImageTestSuite) TestBadWorkDirError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot prepare staging directory .*/bad-work/snap-stage-content-part-0001: path exists`)
 }
 
-func (s *filesystemImageTestSuite) TestKeepsStagingDir(c *C) {
+func (s *filesystemImageMockedTestSuite) TestKeepsStagingDir(c *C) {
 	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
 		return nil
 	}
@@ -372,4 +362,78 @@ func (s *filesystemImageTestSuite) TestKeepsStagingDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 1)
 	c.Assert(osutil.IsDirectory(filepath.Join(s.work, "snap-stage-content-part-0001")), Equals, true)
+}
+
+type filesystemImageMkfsTestSuite struct {
+	filesystemImageTestSuite
+
+	cmdFakeroot *testutil.MockCmd
+	cmdMkfsVfat *testutil.MockCmd
+	cmdMcopy    *testutil.MockCmd
+}
+
+func (s *filesystemImageMkfsTestSuite) SetUpTest(c *C) {
+	s.filesystemImageTestSuite.SetUpTest(c)
+
+	// mkfs.ext4 is called via fakeroot wrapper
+	s.cmdFakeroot = testutil.MockCommand(c, "fakeroot", "")
+	s.AddCleanup(s.cmdFakeroot.Restore)
+
+	s.cmdMkfsVfat = testutil.MockCommand(c, "mkfs.vfat", "")
+	s.AddCleanup(s.cmdMkfsVfat.Restore)
+
+	s.cmdMcopy = testutil.MockCommand(c, "mcopy", "")
+	s.AddCleanup(s.cmdMcopy.Restore)
+}
+
+func (s *filesystemImageMkfsTestSuite) TearDownTest(c *C) {
+	s.filesystemImageTestSuite.TearDownTest(c)
+}
+
+var _ = Suite(&filesystemImageMkfsTestSuite{})
+
+func (s *filesystemImageMkfsTestSuite) TestExt4(c *C) {
+	psExt4 := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "ext4",
+			Size:       2 * gadget.SizeMiB,
+			Content:    []gadget.VolumeContent{{Source: "/", Target: "/"}},
+		},
+	}
+
+	makeSizedFile(c, filepath.Join(s.content, "foo"), 1024, nil)
+
+	fiw, err := gadget.NewFilesystemImageWriter(s.content, psExt4, s.work)
+	c.Assert(err, IsNil)
+
+	img := s.imgForPs(c, psExt4)
+	err = fiw.Write(img, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(s.cmdFakeroot.Calls(), HasLen, 1)
+	c.Check(s.cmdMkfsVfat.Calls(), HasLen, 0)
+	c.Check(s.cmdMcopy.Calls(), HasLen, 0)
+}
+
+func (s *filesystemImageMkfsTestSuite) TestVfat(c *C) {
+	psVfat := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "vfat",
+			Size:       2 * gadget.SizeMiB,
+			Content:    []gadget.VolumeContent{{Source: "/", Target: "/"}},
+		},
+	}
+
+	makeSizedFile(c, filepath.Join(s.content, "foo"), 1024, nil)
+
+	fiw, err := gadget.NewFilesystemImageWriter(s.content, psVfat, s.work)
+	c.Assert(err, IsNil)
+
+	img := s.imgForPs(c, psVfat)
+	err = fiw.Write(img, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(s.cmdFakeroot.Calls(), HasLen, 0)
+	c.Check(s.cmdMkfsVfat.Calls(), HasLen, 1)
+	c.Check(s.cmdMcopy.Calls(), HasLen, 1)
 }
