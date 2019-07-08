@@ -134,3 +134,12 @@ func (f *FilesystemImageWriter) Write(fname string, postStage PostStageFunc) err
 
 	return nil
 }
+
+// for tests
+func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
+	old := mkfsHandlers
+	mkfsHandlers = mock
+	return func() {
+		mkfsHandlers = old
+	}
+}
