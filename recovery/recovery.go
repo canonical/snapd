@@ -230,46 +230,46 @@ func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (
 
 	// needed as mount-point (and for snapd.core-fixup.services)
 	if err = os.MkdirAll(path.Join(mntWritable, "system-data/boot"), 0755); err != nil {
-		return
+		return "", "", err
 	}
 
 	// remove all previous content of seed and snaps (if any)
 	// this allow us to call this function to update our recovery version
 	if err = os.RemoveAll(dest); err != nil {
-		return
+		return "", "", err
 	}
 	if err = os.RemoveAll(path.Join(mntWritable, snapPath)); err != nil {
-		return
+		return "", "", err
 	}
 
 	dirs := []string{seedPath, snapPath, "user-data"}
 	if err = mkdirs(mntWritable, dirs, 0755); err != nil {
-		return
+		return "", "", err
 	}
 
 	// cp -a $srcSnaps/*, $dest+"/snaps"
 	srcSnapFiles, err := ioutil.ReadDir(srcSnaps)
 	if err != nil {
-		return
+		return "", "", err
 	}
 	err = os.MkdirAll(dest+"/snaps", 0755)
 	if err != nil {
-		return
+		return "", "", err
 	}
 	for _, f := range srcSnapFiles {
 		if err = copyTree(path.Join(srcSnaps, f.Name()), dest+"/snaps"); err != nil {
-			return
+			return "", "", err
 		}
 	}
 
 	// cp -a $srcRecoverySystem $dest
 	seedFiles, err := ioutil.ReadDir(srcRecoverySystem)
 	if err != nil {
-		return
+		return "", "", err
 	}
 	for _, f := range seedFiles {
 		if err = copyTree(path.Join(srcRecoverySystem, f.Name()), dest); err != nil {
-			return
+			return "", "", err
 		}
 	}
 
@@ -284,18 +284,18 @@ func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (
 	coreSnapPath := path.Join(mntWritable, snapPath, core)
 	err = os.Symlink(path.Join("../seed/snaps", core), coreSnapPath)
 	if err != nil {
-		return
+		return "", "", err
 	}
 
 	kernelSnapPath := path.Join(mntWritable, snapPath, kernel)
 	err = os.Symlink(path.Join("../seed/snaps", kernel), kernelSnapPath)
 	if err != nil {
-		return
+		return "", "", err
 	}
 
 	err = extractKernel(kernelSnapPath, mntSystemBoot)
 
-	return
+	return core, kernel, err
 }
 
 func extractKernel(kernelPath, mntSystemBoot string) error {
@@ -377,5 +377,4 @@ func Restart() error {
 
 	// look away
 	select {}
-	return nil
 }
