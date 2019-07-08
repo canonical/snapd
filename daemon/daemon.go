@@ -606,6 +606,7 @@ var (
 	rebootNoticeWait       = 3 * time.Second
 	rebootWaitTimeout      = 10 * time.Minute
 	rebootRetryWaitTimeout = 5 * time.Minute
+	rebootMaxTentatives    = 3
 )
 
 // Stop shuts down the Daemon
@@ -785,16 +786,17 @@ func (d *Daemon) RebootVerified(st *state.State, expectedRebootDidNotHappen bool
 		return err
 	}
 	nTentative++
-	if nTentative == 4 {
+	if nTentative > rebootMaxTentatives {
 		// giving up, proceed normally, some in-progress refresh
 		// might get rolled back!!
 		st.ClearReboot()
 		clearReboot(st)
+		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentatives)
 		return nil
 	}
 	st.Set("daemon-system-restart-tentative", nTentative)
 	d.state = st
-	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again")
+	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentatives)
 	return state.ErrExpectedReboot
 }
 
