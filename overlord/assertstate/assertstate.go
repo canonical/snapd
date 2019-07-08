@@ -164,8 +164,8 @@ func (b *Batch) Commit(st *state.State) error {
 	return b.commitTo(db)
 }
 
-// Preflight pre-checks whether adding the batch of assertions to the system assertion database should fully succeed.
-func (b *Batch) Preflight(st *state.State) error {
+// Precheck pre-checks whether adding the batch of assertions to the system assertion database should fully succeed.
+func (b *Batch) Precheck(st *state.State) error {
 	db := cachedDB(st)
 	db = db.WithStackedBackstore(asserts.NewMemoryBackstore())
 

@@ -362,7 +362,7 @@ func (s *assertMgrSuite) TestBatchCommitPartial(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *assertMgrSuite) TestBatchPreflightPartial(c *C) {
+func (s *assertMgrSuite) TestBatchPrecheckPartial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -395,7 +395,7 @@ func (s *assertMgrSuite) TestBatchPreflightPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.Preflight(s.state)
+	err = batch.Precheck(s.state)
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// nothing was added
@@ -406,7 +406,7 @@ func (s *assertMgrSuite) TestBatchPreflightPartial(c *C) {
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 }
 
-func (s *assertMgrSuite) TestBatchPreflightHappy(c *C) {
+func (s *assertMgrSuite) TestBatchPrecheckHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -439,7 +439,7 @@ func (s *assertMgrSuite) TestBatchPreflightHappy(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.Preflight(s.state)
+	err = batch.Precheck(s.state)
 	c.Assert(err, IsNil)
 
 	// nothing was added yet
