@@ -44,6 +44,11 @@ type ErrAlreadyConnected struct {
 	Connection interfaces.ConnRef
 }
 
+const (
+	ConnectTask       = state.TaskSetEdge("connect-task")
+	AfterConnectHooks = state.TaskSetEdge("after-connect-hooks")
+)
+
 func (e ErrAlreadyConnected) Error() string {
 	return fmt.Sprintf("already connected: %q", e.Connection.ID())
 }
@@ -77,6 +82,8 @@ func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, in
 type connectOpts struct {
 	ByGadget    bool
 	AutoConnect bool
+
+	SkipSetupProfiles bool
 }
 
 // Connect returns a set of tasks for connecting an interface.
@@ -198,6 +205,9 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	if flags.ByGadget {
 		connectInterface.Set("by-gadget", true)
 	}
+	if flags.SkipSetupProfiles {
+		connectInterface.Set("skip-setup-profiles", true)
+	}
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
 	// to modify them but all attributes will be checked against assertions after the hooks are run.
@@ -212,6 +222,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// wait for prepare-plug- anyway, and a simple one-to-one wait dependency makes testing easier.
 	addTask(connectInterface)
 	prev = connectInterface
+	tasks.MarkEdge(connectInterface, ConnectTask)
 
 	connectSlotHookName := fmt.Sprintf("connect-slot-%s", slotName)
 	if slotSnapInfo.Hooks[connectSlotHookName] != nil {
@@ -231,6 +242,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		connectSlotConnection := hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
 		addTask(connectSlotConnection)
 		prev = connectSlotConnection
+		tasks.MarkEdge(connectSlotConnection, AfterConnectHooks)
 	}
 
 	connectPlugHookName := fmt.Sprintf("connect-plug-%s", plugName)
@@ -250,6 +262,10 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
 		connectPlugConnection := hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
 		addTask(connectPlugConnection)
+		// only mark AfterConnectHooks edge if not already set on connect-slot- hook task
+		if edge, _ := tasks.Edge(AfterConnectHooks); edge == nil {
+			tasks.MarkEdge(connectPlugConnection, AfterConnectHooks)
+		}
 		prev = connectPlugConnection
 	}
 	return tasks, nil

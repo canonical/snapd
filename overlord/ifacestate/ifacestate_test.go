@@ -315,6 +315,10 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	i++
 	task = ts.Tasks()[i]
 	c.Assert(task.Kind(), Equals, "connect")
+	var flag bool
+	c.Assert(task.Get("auto", &flag), Equals, state.ErrNoState)
+	c.Assert(task.Get("skip-setup-profiles", &flag), Equals, state.ErrNoState)
+	c.Assert(task.Get("by-gadget", &flag), Equals, state.ErrNoState)
 	var plug interfaces.PlugRef
 	c.Assert(task.Get("plug", &plug), IsNil)
 	c.Assert(plug.Snap, Equals, "consumer")
@@ -323,6 +327,11 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(task.Get("slot", &slot), IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+
+	// "connect" task edge is present
+	connectTaskEdge, err := ts.Edge(ifacestate.ConnectTask)
+	c.Assert(err, IsNil)
+	c.Assert(connectTaskEdge.ID(), Equals, task.ID())
 
 	var autoconnect bool
 	err = task.Get("auto", &autoconnect)
@@ -346,6 +355,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 
 	i++
 	task = ts.Tasks()[i]
+	connectSlotSlotID := task.ID()
 	c.Check(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
@@ -358,6 +368,81 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
 	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
+
+	// task edge for the first hook after "connect" task is present
+	afterConnectTaskEdge, err := ts.Edge(ifacestate.AfterConnectHooks)
+	c.Assert(err, IsNil)
+	c.Assert(afterConnectTaskEdge.ID(), Equals, connectSlotSlotID)
+}
+
+func (s *interfaceManagerSuite) TestConnectTasksSkipProfilesFlag(c *C) {
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithSkipProfilesSet())
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 5)
+	connectTask := ts.Tasks()[2]
+	c.Assert(connectTask.Kind(), Equals, "connect")
+	var skipSetupProfiles bool
+	connectTask.Get("skip-setup-profiles", &skipSetupProfiles)
+	c.Assert(skipSetupProfiles, Equals, true)
+}
+
+func (s *interfaceManagerSuite) TestCreateConnectTasksForSetupProfiles(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, consumer2Yaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no snap setup on setup-profiles task, not needed for this test
+	setupProfiles := s.state.NewTask("setup-profiles", "setup profiles of the producer snap")
+	conns := make(map[string]*interfaces.ConnRef)
+
+	// no connections
+	autoconnect := true
+	ts, err := ifacestate.CreateConnectTasksForSetupProfiles(s.state, setupProfiles, conns, autoconnect)
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), HasLen, 0)
+
+	// two connections
+	cref1 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+	cref2 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+	conns[cref1.ID()] = &cref1
+	conns[cref2.ID()] = &cref2
+
+	ts, err = ifacestate.CreateConnectTasksForSetupProfiles(s.state, setupProfiles, conns, true)
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), HasLen, 9)
+
+	// "setup-profiles" task waits for "connect" tasks of both connections
+	wt := setupProfiles.WaitTasks()
+	c.Assert(wt, HasLen, 2)
+	for i := 0; i < 2; i++ {
+		c.Check(wt[i].Kind(), Equals, "connect")
+
+		// sanity, check flags on "connect" tasks
+		var flag bool
+		c.Assert(wt[i].Get("skip-setup-profiles", &flag), IsNil)
+		c.Check(flag, Equals, true)
+		c.Assert(wt[i].Get("auto", &flag), IsNil)
+		c.Check(flag, Equals, true)
+	}
+
+	// connect-slot-slot hooks wait for "setup-profiles"
+	ht := setupProfiles.HaltTasks()
+	c.Assert(ht, HasLen, 2)
+	for i := 0; i < 2; i++ {
+		c.Check(ht[i].Kind(), Equals, "run-hook")
+		c.Check(ht[i].Summary(), Matches, "Run hook connect-slot-slot .*")
+	}
 }
 
 type interfaceHooksTestData struct {
@@ -456,6 +541,34 @@ func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(ts.Tasks(), HasLen, len(hooks.producer)+len(hooks.consumer)+1)
 		c.Assert(ts.Tasks(), HasLen, len(hooks.waitChain))
+
+		// check task edges
+		edge, err := ts.Edge(ifacestate.ConnectTask)
+		c.Assert(err, IsNil)
+		c.Check(edge.Kind(), Equals, "connect")
+
+		// AfterConnectHooks task edge is set on "connect-slot-" or "connect-plug-" hook task (whichever comes first after "connect")
+		// and is not present if neither of them exists.
+		var expectedAfterConnectEdge string
+		for _, hookName := range hooks.producer {
+			if strings.HasPrefix(hookName, "connect-") {
+				expectedAfterConnectEdge = "hook:" + hookName
+			}
+		}
+		if expectedAfterConnectEdge == "" {
+			for _, hookName := range hooks.consumer {
+				if strings.HasPrefix(hookName, "connect-") {
+					expectedAfterConnectEdge = "hook:" + hookName
+				}
+			}
+		}
+		edge, err = ts.Edge(ifacestate.AfterConnectHooks)
+		if expectedAfterConnectEdge != "" {
+			c.Assert(err, IsNil)
+			c.Check(hookNameOrTaskKind(c, edge), Equals, expectedAfterConnectEdge)
+		} else {
+			c.Assert(err, ErrorMatches, `internal error: missing .* edge in task set`)
+		}
 
 		undoHooks := map[string]string{
 			"prepare-plug-plug": "unprepare-plug-plug",
@@ -1730,6 +1843,23 @@ plugs:
   interface: network
 `
 
+var sampleSnapYamlManyPlugs = `
+name: snap
+version: 1
+apps:
+ app:
+   command: foo
+plugs:
+ network:
+  interface: network
+ home:
+  interface: home
+ x11:
+  interface: x11
+ wayland:
+  interface: wayland
+`
+
 var consumerYaml = `
 name: consumer
 version: 1
@@ -2011,6 +2141,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 			Revision: snapInfo.Revision,
 		},
 	})
+
 	s.settle(c)
 
 	s.state.Lock()
@@ -3007,12 +3138,65 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 	// Ensure that both snaps were setup correctly.
 	c.Assert(s.secBackend.SetupCalls, HasLen, 3)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	// The sample snap was setup, with the correct new revision.
+
+	// The sample snap was setup, with the correct new revision:
+	// 1st call is for initial setup-profiles, 2nd call is for setup-profiles after connect task.
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, snapInfo.Revision)
+
 	// The OS snap was setup (because its connected to sample snap).
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, coreSnapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[2].SnapInfo.InstanceName(), Equals, coreSnapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[2].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
+}
+
+// auto-connect needs to setup security for connected slots after autoconnection
+func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityOnceWithMultiplePlugs(c *C) {
+	s.MockModel(c, nil)
+
+	// Add an OS snap.
+	_ = s.mockSnap(c, ubuntuCoreSnapYaml)
+
+	// Initialize the manager. This registers the OS snap.
+	mgr := s.manager(c)
+
+	// Add a sample snap with a multiple plugs which should be auto-connected.
+	snapInfo := s.mockSnap(c, sampleSnapYamlManyPlugs)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	repo := mgr.Repository()
+
+	for _, ifaceName := range []string{"network", "home", "x11", "wayland"} {
+		cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap", Name: ifaceName}, SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: ifaceName}}
+		conn, _ := repo.Connection(cref)
+		c.Check(conn, NotNil, Commentf("missing connection for %s interface", ifaceName))
+	}
+
+	// Three backend calls: initial setup profiles, 2 setup calls for both core and snap.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 3)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	setupCalls := make(map[string]int)
+	for _, sc := range s.secBackend.SetupCalls {
+		setupCalls[sc.SnapInfo.InstanceName()]++
+	}
+	c.Check(setupCalls["snap"], Equals, 2)
+	c.Check(setupCalls["ubuntu-core"], Equals, 1)
 }
 
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
