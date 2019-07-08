@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type DiskDevice struct {
@@ -59,20 +60,26 @@ func (d *DiskDevice) CreatePartition(size uint64, label string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("cannot create partition: %s", err)
 	}
-	stdin.Write([]byte(fmt.Sprintf(",%d,,,", size/sizeSector)))
-	stdin.Close()
-	cmd.Wait()
+	if _, err := stdin.Write([]byte(fmt.Sprintf(",%d,,,", size/sizeSector))); err != nil {
+		return fmt.Errorf("cannot write to sfdisk pipe: %s", err)
+	}
+	if err := stdin.Close(); err != nil {
+		return fmt.Errorf("cannot close fdisk pipe: %s", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("cannot run sfdisk: %s", err)
+	}
 
 	// Re-read partition table
-	if err := exec.Command("partx", "-u", d.node).Run(); err != nil {
-		return fmt.Errorf("cannot update partition table: %s", err)
+	if output, err := exec.Command("partx", "-u", d.node).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot update partition table: %s", err))
 	}
 
 	// FIXME: determine partition name in a civilized way
 	partdev := d.partDev(4)
 	logger.Noticef("Create filesystem on %s", partdev)
-	if err := exec.Command("mke2fs", "-t", "ext4", "-L", label, partdev).Run(); err != nil {
-		return fmt.Errorf("cannot create filesystem on %s: %s", partdev, err)
+	if output, err := exec.Command("mke2fs", "-t", "ext4", "-L", label, partdev).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot create filesystem on %s: %s", partdev, err))
 	}
 
 	return nil
@@ -88,15 +95,21 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyfile stri
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("cannot create partition: %s", err)
 	}
-	stdin.Write([]byte(fmt.Sprintf(",%d,,,", size/sizeSector)))
-	stdin.Close()
-	cmd.Wait()
+	if _, err := stdin.Write([]byte(fmt.Sprintf(",%d,,,", size/sizeSector))); err != nil {
+		return fmt.Errorf("cannot write to sfdisk pipe: %s", err)
+	}
+	if err := stdin.Close(); err != nil {
+		return fmt.Errorf("cannot close fdisk pipe: %s", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("cannot run sfdisk: %s", err)
+	}
 
 	cryptdev = path.Join("/dev/mapper", cryptdev)
 
 	// Re-read partition table
-	if err := exec.Command("partx", "-u", d.node).Run(); err != nil {
-		return fmt.Errorf("cannot update partition table: %s", err)
+	if output, err := exec.Command("partx", "-u", d.node).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot update partition table: %s", err))
 	}
 
 	// FIXME: determine partition name in a civilized way
@@ -115,18 +128,18 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyfile stri
 	time.Sleep(1 * time.Second)
 
 	logger.Noticef("Create LUKS device on %s", partdev)
-	if err := exec.Command("cryptsetup", "-q", "--type", "luks2", "--key-file", keyfile,
-		"--pbkdf-memory", "100000", "luksFormat", partdev).Run(); err != nil {
-		return fmt.Errorf("cannot format LUKS device on %s: %s", partdev, err)
+	if output, err := exec.Command("cryptsetup", "-q", "--type", "luks2", "--key-file", keyfile,
+		"--pbkdf-memory", "100000", "luksFormat", partdev).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot format LUKS device on %s: %s", partdev, err))
 	}
 
 	time.Sleep(1 * time.Second)
 
 	logger.Noticef("Open LUKS device")
-	if err := exec.Command("sh", "-c", fmt.Sprintf("LD_PRELOAD=/lib/no-udev.so cryptsetup "+
+	if output, err := exec.Command("sh", "-c", fmt.Sprintf("LD_PRELOAD=/lib/no-udev.so cryptsetup "+
 		"--type luks2 --key-file %s --pbkdf-memory 100000 open %s %s", keyfile, partdev,
-		path.Base(cryptdev))).Run(); err != nil {
-		return fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err)
+		path.Base(cryptdev))).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err))
 	}
 
 	// Ok, now this is ugly. We'll have to see how to handle this properly without udev.
@@ -137,8 +150,8 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyfile stri
 
 	// Create filesystem
 	logger.Noticef("Create filesystem on %s", cryptdev)
-	if err := exec.Command("mke2fs", "-t", "ext4", "-L", label, cryptdev).Run(); err != nil {
-		return fmt.Errorf("cannot create filesystem on %s: %s", cryptdev, err)
+	if output, err := exec.Command("mke2fs", "-t", "ext4", "-L", label, cryptdev).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot create filesystem on %s: %s", cryptdev, err))
 	}
 
 	return nil
