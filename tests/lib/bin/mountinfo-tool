@@ -443,6 +443,42 @@ def renumber_ns(entry, seen):
         entry.root_dir = "{}:[{}]".format(ns_type, alloc_n(ns_type, ns_id))
 
 
+def renumber_mount_option(opt, seen):
+    # type: (Text, Dict[Tuple[Text, Text], int]) -> Text
+    """renumber_mount_option re-numbers various numbers in mount options."""
+
+    def alloc_n(mount_opt_key, mount_opt_value):
+        # type: (Text, Text) -> int
+        key = (mount_opt_key, mount_opt_value)
+        try:
+            return seen[key]
+        except KeyError:
+            n = len(seen)
+            seen[key] = n
+            return n
+
+    if "=" in opt:
+        mount_opt_key, mount_opt_value = opt.split("=", 1)
+        # size, nr_inode: used by tmpfs
+        # fd, pipe_ino: used by binfmtmisc
+        if mount_opt_key in {"size", "nr_inodes", "fd", "pipe_ino"}:
+            return "{}={}".format(
+                mount_opt_key, alloc_n(mount_opt_key, mount_opt_value)
+            )
+    return opt
+
+
+def renumber_mount_opts(entry, seen):
+    # type: (MountInfoEntry, Dict[Tuple[Text, Text], int]) -> None
+    """renumber_mount_opts alters numbers in mount options."""
+    entry.mount_opts = ",".join(
+        renumber_mount_option(opt, seen) for opt in entry.mount_opts.split(",")
+    )
+    entry.sb_opts = ",".join(
+        renumber_mount_option(opt, seen) for opt in entry.sb_opts.split(",")
+    )
+
+
 class RewriteState(object):
     """RewriteState holds state used in rewriting mount entries."""
 
@@ -454,6 +490,10 @@ class RewriteState(object):
         self.seen_mount_ids = {}  # type: Dict[int, int]
         self.seen_devices = {}  # type: Dict[Device, Device]
         self.seen_ns = {}  # type: Dict[Tuple[Text, int], int]
+        # NOTE: The type of the dictionary key is Tuple[Text, Text] because
+        # while generally "numeric" the values may include suffixes like
+        # "1024k" and it is just  easier to handle this way.
+        self.seen_mount_opts = {}  # type: Dict[Tuple[Text, Text], int]
 
 
 def rewrite_renumber(entries, rs):
@@ -466,6 +506,7 @@ def rewrite_renumber(entries, rs):
         renumber_opt_fields(entry, rs.seen_opt_fields)
         renumber_loop_devices(entry, rs.seen_loops)
         renumber_ns(entry, rs.seen_ns)
+        renumber_mount_opts(entry, rs.seen_mount_opts)
 
 
 def rewrite_rename(entries, rs):
@@ -799,12 +840,56 @@ class RenumberMountNsTests(unittest.TestCase):
         )
 
 
+class RenumberMountOptionsTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.seen = {}  # type: Dict[Tuple[Text, Text], int]
+
+    def test_renumber_devtmpfs_opts(self):
+        # type: () -> None
+        """
+        certain devtmpfs options are renumbered.
+
+            23 98 0:6 / /dev rw,nosuid shared:21 - devtmpfs devtmpfs rw,size=4057388k,nr_inodes=1014347,mode=755
+
+        Here the size and nr_inodes options are not deterministic and need to be rewritten.
+        """
+        # Options size= and nr_inodes= are renumbered.
+        self.assertEqual(renumber_mount_option("size=4057388k", self.seen), "size=0")
+        self.assertEqual(
+            renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=1"
+        )
+        # Option mode= is not renumbered.
+        self.assertEqual(renumber_mount_option("mode=755", self.seen), "mode=755")
+        self.assertEqual(
+            self.seen, {("size", "4057388k"): 0, ("nr_inodes", "1014347"): 1}
+        )
+
+    def test_renumber_binfmt_misc_opts(self):
+        # type: () -> None
+        """
+        certain binfmt_misc options are renumbered.
+
+            47 22 0:42 / /proc/sys/fs/binfmt_misc rw,relatime shared:28 - autofs systemd-1 rw,fd=40,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=16610
+
+        Here the fd and pipe_ino options are not deterministic and need to be rewritten.
+        """
+        self.assertEqual(renumber_mount_option("fd=40", self.seen), "fd=0")
+        self.assertEqual(
+            renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=1"
+        )
+        self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 1})
+
+
 class RewriteTests(unittest.TestCase):
     def setUp(self):
         # type: () -> None
         self.entries = [
-            MountInfoEntry.parse(
-                "2079 2266 0:3 mnt:[4026532791] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
+            MountInfoEntry.parse(line)
+            for line in (
+                "2079 2266 0:3 mnt:[4026532791] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw",
+                "23 98 0:6 / /dev rw,nosuid shared:21 - devtmpfs devtmpfs rw,size=4057388k,nr_inodes=1014347,mode=755",
+                "47 22 0:42 / /proc/sys/fs/binfmt_misc rw,relatime shared:28 - autofs systemd-1 rw,fd=40,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=16610",
             )
         ]
         self.rs = RewriteState()
@@ -813,10 +898,15 @@ class RewriteTests(unittest.TestCase):
         # type: () -> None
         rewrite_renumber(self.entries, self.rs)
         self.assertEqual(
-            self.entries[0],
-            MountInfoEntry.parse(
-                "1  0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw"
-            ),
+            self.entries,
+            [
+                MountInfoEntry.parse(line)
+                for line in (
+                    "1 0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw",
+                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=0,nr_inodes=1,mode=755",
+                    "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=2,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3",
+                )
+            ],
         )
 
 
