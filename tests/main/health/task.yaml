@@ -1,0 +1,21 @@
+summary: Check that health works
+
+prepare: |
+    snap install jq
+
+execute: |
+    echo "Test that 'try'ing a snap with a set-health hook sets health in state:"
+    test "$(snap run jq '.data.health."test-snapd-health"' < /var/lib/snapd/state.json)" = "null"
+    snap try "$TESTSLIB/snaps/test-snapd-health"
+    test "$(snap run jq '.data.health."test-snapd-health".status' < /var/lib/snapd/state.json)" = "1"
+    # TODO: also check for health in info etc
+    # TODO: also check installing from store
+
+    echo "Test that a snap app can run 'snapctl set-health':"
+    test-snapd-health error "Something went wrong"
+    test "$(snap run jq -r '.data.health."test-snapd-health".message' < /var/lib/snapd/state.json)" = "Something went wrong"
+
+    echo "Test that a snap hook (different from check-health) can run 'snapctl set-health':"
+    snap set test-snapd-health force-health=okay
+    test "$(snap run jq '.data.health."test-snapd-health".status' < /var/lib/snapd/state.json)" = "1"
+

@@ -28,6 +28,14 @@ import (
 // these only cover errors that happen before hitting the network,
 // because we're not (yet!) mocking the tooling store
 
+func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"download", "--basename=/foo", "a-snap",
+	})
+
+	c.Check(err, check.ErrorMatches, "cannot specify a path in basename .use --target-dir for that.")
+}
+
 func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
 		"download", "--beta", "--channel=foo", "a-snap",
