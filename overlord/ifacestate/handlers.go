@@ -904,6 +904,11 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 	return false
 }
 
+// createConnectTasksForSetupProfiles creates connect tasks and interface hooks for conns and sets their wait chain with regard to the setupProfiles task.
+// The tasks are chained so that:
+//  - prepare-plug-, prepare-slot- and connect tasks are all executed before setup-profiles
+//  - connect-plug-, connect-slot- are all executed after setup-profiles.
+// The "skip-setup-profiles" flag is set on the connect tasks to indicate that doConnect handler should not set security backends up.
 func createConnectTasksForSetupProfiles(st *state.State, setupProfiles *state.Task, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
 	ts := state.NewTaskSet()
 	for _, conn := range conns {
@@ -912,12 +917,14 @@ func createConnectTasksForSetupProfiles(st *state.State, setupProfiles *state.Ta
 			return nil, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
 
+		// setup-profiles needs to wait for the main "connect" task
 		connectTask, _ := connectTs.Edge(ConnectTask)
 		if connectTask == nil {
 			return nil, fmt.Errorf("internal error: no 'connect' task found for %q", conn)
 		}
 		setupProfiles.WaitFor(connectTask)
 
+		// connect-plug- and connect-slot- hooks need to wait for setup-profiles task
 		afterConnectTask, _ := connectTs.Edge(AfterConnectHooks)
 		if afterConnectTask != nil {
 			afterConnectTask.WaitFor(setupProfiles)
