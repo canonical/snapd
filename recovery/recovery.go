@@ -144,7 +144,7 @@ func Install(version string) error {
 
 	keyfile := path.Join(mntSystemBoot, "keyfile")
 
-	if err := mountFilesystem("system-boot", mntSystemBoot); err != nil {
+	if err := mountFilesystem("ubuntu-boot", mntSystemBoot); err != nil {
 		return err
 	}
 
@@ -164,7 +164,7 @@ func Install(version string) error {
 		return err
 	}
 
-	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
+	if err := mountFilesystem("ubuntu-seed", mntSysRecover); err != nil {
 		return err
 	}
 
@@ -204,7 +204,7 @@ func createWritable(keyfile string, keyfileSize int, cryptdev string) error {
 	}
 
 	// FIXME: get values from gadget, system
-	err := disk.CreateLUKSPartition(1000*sizeMB, "writable", keyfile, keyfileSize, cryptdev)
+	err := disk.CreateLUKSPartition(1000*sizeMB, "ubuntu-data", keyfile, keyfileSize, cryptdev)
 	if err != nil {
 		return fmt.Errorf("cannot create new ubuntu-data: %s", err)
 	}
