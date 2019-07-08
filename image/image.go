@@ -436,6 +436,10 @@ func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
 // in the image about to be created.
 func hasRecoverySystem(opts *Options) (bool, error) {
 	ginfo, err := gadget.ReadInfo(opts.GadgetUnpackDir, opts.Classic)
+	// HACK: never happens for real but makes testing easier
+	if os.IsNotExist(err) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
