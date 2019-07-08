@@ -148,6 +148,8 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyfile stri
 		return fmt.Errorf("cannot create LUKS device symlink: %s", err)
 	}
 
+	time.Sleep(1 * time.Second)
+
 	// Create filesystem
 	logger.Noticef("Create filesystem on %s", cryptdev)
 	if output, err := exec.Command("mke2fs", "-t", "ext4", "-L", label, cryptdev).CombinedOutput(); err != nil {
