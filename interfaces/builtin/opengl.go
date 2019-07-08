@@ -44,12 +44,16 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}vdpau/libvdpau_nvidia.so{,.*} rm,
 
-# Support reading the Vulkan ICD files
+# Support reading the Vulkan ICD and layer files
+/usr/share/vulkan/icd.d/{,*.json} r,
+/usr/share/vulkan/explicit_layer.d/{,*.json} r,
+/usr/share/vulkan/implicit_layer.d/{,*.json} r,
 /var/lib/snapd/lib/vulkan/ r,
 /var/lib/snapd/lib/vulkan/** r,
 /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
 # Support reading the GLVND EGL vendor files
+/usr/share/glvnd/egl_vendor.d/{,*.json} r,
 /var/lib/snapd/lib/glvnd/ r,
 /var/lib/snapd/lib/glvnd/** r,
 /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
