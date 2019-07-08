@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"time"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/grubenv"
@@ -136,25 +137,34 @@ func RecoverReboot(version string) error {
 }
 
 func Install(version string) error {
-	logger.Noticef("Install recovery %s", version)
-	if err := createWritable(); err != nil {
-		logger.Noticef("cannot create writable: %s", err)
-		return err
-	}
 
 	mntWritable := "/mnt/new-writable"
 	mntSysRecover := "/mnt/sys-recover"
 	mntSystemBoot := "/mnt/system-boot"
 
-	if err := mountFilesystem("ubuntu-data", mntWritable); err != nil {
+	keyfile := path.Join(mntSystemBoot, "keyfile")
+
+	if err := mountFilesystem("system-boot", mntSystemBoot); err != nil {
 		return err
 	}
 
-	if err := mountFilesystem("ubuntu-seed", mntSysRecover); err != nil {
+	time.Sleep(200 * time.Millisecond)
+
+	cryptdev := "ubuntu-data"
+
+	logger.Noticef("Install recovery %s", version)
+	if err := createWritable(keyfile, 4*sizeKB, cryptdev); err != nil {
+		logger.Noticef("cannot create writable: %s", err)
 		return err
 	}
 
-	if err := mountFilesystem("ubuntu-boot", mntSystemBoot); err != nil {
+	time.Sleep(200 * time.Millisecond)
+
+	if err := mountFilesystem(path.Join("/dev/mapper", cryptdev), mntWritable); err != nil {
+		return err
+	}
+
+	if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
 		return err
 	}
 
@@ -186,15 +196,15 @@ func Install(version string) error {
 	return nil
 }
 
-func createWritable() error {
-	logger.Noticef("Creating new ubuntu-data")
+func createWritable(keyfile string, keyfileSize int, cryptdev string) error {
+	logger.Noticef("Creating new writable")
 	disk := &DiskDevice{}
 	if err := disk.FindFromPartLabel("ubuntu-boot"); err != nil {
 		return fmt.Errorf("cannot determine boot device: %s", err)
 	}
 
 	// FIXME: get values from gadget, system
-	err := disk.CreatePartition(1000*sizeMB, "ubuntu-data")
+	err := disk.CreateLUKSPartition(1000*sizeMB, "writable", keyfile, keyfileSize, cryptdev)
 	if err != nil {
 		return fmt.Errorf("cannot create new ubuntu-data: %s", err)
 	}
@@ -315,6 +325,12 @@ func extractKernel(kernelPath, mntSystemBoot string) error {
 			return fmt.Errorf("cannot copy %s: %s", img, err)
 		}
 	}
+
+	// Don't remove this sync, prevents corrupted files on vfat
+	if err := exec.Command("sync").Run(); err != nil {
+		return fmt.Errorf("cannot sync filesystems: %s", err)
+	}
+
 	if err := umount(mntKernelSnap); err != nil {
 		return err
 	}
