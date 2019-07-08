@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -73,4 +74,20 @@ func (s *ctlcmdSuite) TestCommandOutput(c *C) {
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
 	c.Check(mockCommand.Args, DeepEquals, []string{"foo"})
+}
+
+func taskKinds(tasks []*state.Task) []string {
+	kinds := make([]string, len(tasks))
+	for i, task := range tasks {
+		k := task.Kind()
+		if k == "run-hook" {
+			var hooksup hookstate.HookSetup
+			if err := task.Get("hook-setup", &hooksup); err != nil {
+				panic(err)
+			}
+			k = fmt.Sprintf("%s[%s]", k, hooksup.Hook)
+		}
+		kinds[i] = k
+	}
+	return kinds
 }

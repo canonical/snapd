@@ -51,3 +51,11 @@ func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
 		isHomeUsingNFS = old
 	}
 }
+
+func MockReadBuildID(mock func(p string) (string, error)) (restore func()) {
+	old := readBuildID
+	readBuildID = mock
+	return func() {
+		readBuildID = old
+	}
+}

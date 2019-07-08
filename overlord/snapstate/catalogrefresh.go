@@ -74,7 +74,7 @@ func (r *catalogRefresh) Ensure() error {
 		}
 	}
 
-	theStore := Store(r.state)
+	theStore := Store(r.state, nil)
 	needsRefresh := r.nextCatalogRefresh.IsZero() || r.nextCatalogRefresh.Before(now)
 
 	if !needsRefresh {

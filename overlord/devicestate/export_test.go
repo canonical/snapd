@@ -23,9 +23,10 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -89,19 +90,19 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstall(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateInstall
-	snapstateInstall = f
+func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallWithDeviceContext
+	snapstateInstallWithDeviceContext = f
 	return func() {
-		snapstateInstall = old
+		snapstateInstallWithDeviceContext = old
 	}
 }
 
-func MockSnapstateUpdate(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateUpdate
-	snapstateUpdate = f
+func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdateWithDeviceContext
+	snapstateUpdateWithDeviceContext = f
 	return func() {
-		snapstateUpdate = old
+		snapstateUpdateWithDeviceContext = old
 	}
 }
 
@@ -127,6 +128,16 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
+	return m.registrationCtx(t)
+}
+
+func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
+	return remodCtx.(interface {
+		deviceBackend() storecontext.DeviceBackend
+	}).deviceBackend()
+}
+
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
@@ -135,4 +146,21 @@ var (
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RemodelTasks = remodelTasks
+
+	RemodelCtx         = remodelCtx
+	RemodelCtxFromTask = remodelCtxFromTask
+	CleanupRemodelCtx  = cleanupRemodelCtx
+
+	GadgetUpdateBlocked    = gadgetUpdateBlocked
+	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
+
+func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+	old := gadgetUpdate
+	gadgetUpdate = mock
+	return func() {
+		gadgetUpdate = old
+	}
+}

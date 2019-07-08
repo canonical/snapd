@@ -304,7 +304,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
 		Active:      true,
 		Sequence:    []*snap.SideInfo{sideInfo},
 		Current:     sideInfo.Revision,
-		SnapType:    string(snapInfo.Type),
+		SnapType:    string(snapInfo.GetType()),
 		InstanceKey: snapInfo.InstanceKey,
 	})
 	s.st.Unlock()
@@ -334,7 +334,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 		Active:      true,
 		Sequence:    []*snap.SideInfo{sideInfo},
 		Current:     sideInfo.Revision,
-		SnapType:    string(snapInfo.Type),
+		SnapType:    string(snapInfo.GetType()),
 		InstanceKey: snapInfo.InstanceKey,
 	})
 

@@ -809,7 +809,7 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	authRefreshes := 0
 	for {
-		req, err := s.newRequest(reqOptions, user)
+		req, err := s.newRequest(ctx, reqOptions, user)
 		if err != nil {
 			return nil, err
 		}
@@ -887,7 +887,7 @@ func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
 }
 
 // build a new http.Request with headers for the store
-func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
+func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
 	var body io.Reader
 	if reqOptions.Data != nil {
 		body = bytes.NewBuffer(reqOptions.Data)
@@ -923,6 +923,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
+	if cua := ClientUserAgent(ctx); cua != "" {
+		req.Header.Set("Snap-Client-User-Agent", cua)
+	}
 	if reqOptions.APILevel == apiV1Endps {
 		req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 	}
@@ -1089,7 +1092,7 @@ type SnapSpec struct {
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
-func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	query := url.Values{}
 	query.Set("fields", strings.Join(s.infoFields, ","))
 	query.Set("architecture", s.architecture)
@@ -1102,7 +1105,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1148,7 +1151,7 @@ type Search struct {
 
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
-func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
+func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
 	if search.Private && user == nil {
 		return nil, ErrUnauthenticated
 	}
@@ -1202,7 +1205,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1588,6 +1591,51 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	return finalErr
 }
 
+// DownloadStream will copy the snap from the request to the io.Reader
+func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
+		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
+		if err != nil {
+			return nil, err
+		}
+		return file, nil
+	}
+
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return nil, err
+	}
+
+	downloadURL := downloadInfo.AnonDownloadURL
+	if downloadURL == "" || authAvail {
+		downloadURL = downloadInfo.DownloadURL
+	}
+
+	storeURL, err := url.Parse(downloadURL)
+	if err != nil {
+		return nil, err
+	}
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, s, user)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+var doDownloadReq = doDowloadReqImpl
+
+func doDowloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
+	reqOptions := downloadReqOpts(storeURL, cdnHeader, nil)
+	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
+}
+
 // downloadDelta downloads the delta for the preferred format, returning the path.
 func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState) error {
 
@@ -1968,6 +2016,7 @@ type CurrentSnap struct {
 	IgnoreValidation bool
 	Block            []snap.Revision
 	Epoch            snap.Epoch
+	CohortKey        string
 }
 
 type currentSnapV2JSON struct {
@@ -1978,6 +2027,7 @@ type currentSnapV2JSON struct {
 	Epoch            snap.Epoch `json:"epoch"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
+	CohortKey        string     `json:"cohort-key,omitempty"`
 }
 
 type SnapActionFlags int
@@ -2173,6 +2223,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			IgnoreValidation: curSnap.IgnoreValidation,
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
+			CohortKey:        curSnap.CohortKey,
 		}
 	}
 

@@ -147,6 +147,11 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+        echo Checking pull request summary
+        ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
+    fi
+
     echo Checking formatting
     fmt=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
@@ -264,6 +269,10 @@ if [ "$UNIT" = 1 ]; then
             curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
         fi
     fi
+
+    # python unit test for mountinfo-tool
+    command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then

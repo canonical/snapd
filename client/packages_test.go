@@ -204,6 +204,7 @@ const (
 func (cs *clientSuite) TestClientSnap(c *check.C) {
 	// example data obtained via
 	// printf "GET /v2/find?name=test-snapd-tools HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket|grep '{'|python3 -m json.tool
+	// XXX: update / sync with what daemon is actually putting out
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
@@ -242,6 +243,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"type": "screenshot", "url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"type": "screenshot", "url":"http://example.com/shot2.png"}
                         ],
+                        "cohort-key": "some-long-cohort-key",
                         "common-ids": ["org.funky.snap"]
 		}
 	}`
@@ -285,6 +287,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{Type: "screenshot", URL: "http://example.com/shot2.png"},
 		},
 		CommonIDs: []string{"org.funky.snap"},
+		CohortKey: "some-long-cohort-key",
 	})
 }
 

@@ -44,6 +44,13 @@ const (
 	MBR = "mbr"
 	// GPT identifies a GUID Partition Table partitioning schema
 	GPT = "gpt"
+
+	SystemBoot     = "system-boot"
+	SystemData     = "system-data"
+	SystemRecovery = "system-recovery"
+	// ImplicitSystemDataLabel is the implicit filesystem label of structure
+	// of system-data role
+	ImplicitSystemDataLabel = "writable"
 )
 
 var (
@@ -72,6 +79,13 @@ type Volume struct {
 	ID string `yaml:"id"`
 	// Structure describes the structures that are part of the volume
 	Structure []VolumeStructure `yaml:"structure"`
+}
+
+func (v *Volume) EffectiveSchema() string {
+	if v.Schema == "" {
+		return GPT
+	}
+	return v.Schema
 }
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -128,6 +142,15 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	return ""
 }
 
+// EffectiveFilesystemLabel returns the effective filesystem label, either
+// explicitly provided or implied by the structure's role
+func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
+	if vs.EffectiveRole() == SystemData {
+		return ImplicitSystemDataLabel
+	}
+	return vs.Label
+}
+
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
@@ -152,6 +175,13 @@ type VolumeContent struct {
 	Size Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
+}
+
+func (vc VolumeContent) String() string {
+	if vc.Image != "" {
+		return fmt.Sprintf("image:%s", vc.Image)
+	}
+	return fmt.Sprintf("source:%s", vc.Source)
 }
 
 type VolumeUpdate struct {
@@ -385,12 +415,6 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 				return fmt.Errorf("structure %v refers to an unknown structure %q",
 					ps, ps.OffsetWrite.RelativeTo)
 			}
-			// make sure there is enough room left in the structure to write the pointer
-			if other.Size < SizeLBA48Pointer || ps.OffsetWrite.Offset > (other.Size-SizeLBA48Pointer) {
-				return fmt.Errorf("structure %v offset-write crosses structure %v size",
-					ps, other)
-			}
-
 		}
 
 		if ps.StartOffset < previousEnd {
@@ -410,11 +434,6 @@ func validateCrossVolumeStructure(structures []PositionedStructure, knownStructu
 			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
 			if relativeToStructure == nil {
 				return fmt.Errorf("structure %v, content %v refers to an unknown structure %q",
-					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
-			}
-			// make sure there is enough room left in the structure to write the pointer
-			if relativeToStructure.Size < SizeLBA48Pointer || c.OffsetWrite.Offset > (relativeToStructure.Size-SizeLBA48Pointer) {
-				return fmt.Errorf("structure %v, content %v offset-write crosses structure %q size",
 					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}
@@ -536,14 +555,17 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 	vsRole := vs.Role
 	if vs.Type == MBR {
+		if vsRole != "" && vsRole != MBR {
+			return fmt.Errorf(`conflicting legacy type: "mbr"`)
+		}
 		// backward compatibility
 		vsRole = MBR
 	}
 
 	switch vsRole {
-	case "system-data":
-		if vs.Label != "" && vs.Label != "writable" {
-			return fmt.Errorf(`role of this kind must have an implicit label or "writable", not %q`, vs.Label)
+	case SystemData:
+		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel {
+			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
 		}
 	case MBR:
 		if vs.Size > SizeMBR {
@@ -558,7 +580,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case "system-boot", "system-recovery", "":
+	case SystemBoot, SystemRecovery, "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")
@@ -674,6 +696,13 @@ func ParseSize(gs string) (Size, error) {
 	return size, nil
 }
 
+func (s *Size) String() string {
+	if s == nil {
+		return "unspecified"
+	}
+	return fmt.Sprintf("%d", *s)
+}
+
 // RelativeOffset describes an offset where structure data is written at.
 // The position can be specified as byte-offset relative to the start of another
 // named structure.
@@ -683,6 +712,16 @@ type RelativeOffset struct {
 	RelativeTo string
 	// Offset is a 32-bit value
 	Offset Size
+}
+
+func (r *RelativeOffset) String() string {
+	if r == nil {
+		return "unspecified"
+	}
+	if r.RelativeTo != "" {
+		return fmt.Sprintf("%s+%d", r.RelativeTo, r.Offset)
+	}
+	return fmt.Sprintf("%d", r.Offset)
 }
 
 // ParseRelativeOffset parses a string describing an offset that can be

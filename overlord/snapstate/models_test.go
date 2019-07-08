@@ -21,45 +21,36 @@ package snapstate_test
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
 func ModelWithBase(baseName string) *asserts.Model {
-	return MakeModel(map[string]string{"base": baseName})
+	return MakeModel(map[string]interface{}{"base": baseName})
 }
 
 func ModelWithKernelTrack(kernelTrack string) *asserts.Model {
-	return MakeModel(map[string]string{"kernel": "kernel=" + kernelTrack})
+	return MakeModel(map[string]interface{}{"kernel": "kernel=" + kernelTrack})
 }
 
 func ModelWithGadgetTrack(gadgetTrack string) *asserts.Model {
-	return MakeModel(map[string]string{"gadget": "brand-gadget=" + gadgetTrack})
+	return MakeModel(map[string]interface{}{"gadget": "brand-gadget=" + gadgetTrack})
 }
 
 func DefaultModel() *asserts.Model {
 	return MakeModel(nil)
 }
 
-func MakeModel(override map[string]string) *asserts.Model {
+func MakeModel(override map[string]interface{}) *asserts.Model {
 	model := map[string]interface{}{
-		"type":              "model",
-		"authority-id":      "brand",
-		"series":            "16",
-		"brand-id":          "brand",
-		"model":             "baz-3000",
-		"architecture":      "armhf",
-		"gadget":            "brand-gadget",
-		"kernel":            "kernel",
-		"timestamp":         "2018-01-01T08:00:00+00:00",
-		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "armhf",
+		"gadget":       "brand-gadget",
+		"kernel":       "kernel",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
 	}
-	for k, v := range override {
-		model[k] = v
-	}
-
-	a, err := asserts.Assemble(model, nil, nil, []byte("AXNpZw=="))
-	if err != nil {
-		panic(err)
-	}
-
-	return a.(*asserts.Model)
+	return assertstest.FakeAssertion(model, override).(*asserts.Model)
 }

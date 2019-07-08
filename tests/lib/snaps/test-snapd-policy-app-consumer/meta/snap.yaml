@@ -155,6 +155,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  jack1:
+    command: bin/run
+    plugs: [ jack1 ]
   joystick:
     command: bin/run
     plugs: [ joystick ]
@@ -188,6 +191,9 @@ apps:
   log-observe:
     command: bin/run
     plugs: [ log-observe ]
+  login-session-control:
+    command: bin/run
+    plugs: [ login-session-control ]
   lxd:
     command: bin/run
     plugs: [ lxd ]

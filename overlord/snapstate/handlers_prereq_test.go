@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -89,8 +90,54 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base:   "none",
+		Prereq: []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check that the do-prereq task added all needed prereqs
+	expectedLinkedSnaps := []string{"prereq1", "snapd"}
+	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			c.Assert(err, IsNil)
+			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
+		}
+	}
+	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
+}
+
 func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	s.state.Lock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -255,6 +302,16 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 	os.Setenv("SNAPD_PREREQS_CHANNEL", "candidate")
 	defer os.Unsetenv("SNAPD_PREREQS_CHANNEL")
 	s.state.Lock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -398,7 +455,10 @@ func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
+func (s *prereqSuite) testDoPrereqNoCorePullsInSnaps(c *C, base string) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	s.state.Lock()
 
 	t := s.state.NewTask("prerequisites", "test")
@@ -407,7 +467,7 @@ func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
 			RealName: "foo",
 			Revision: snap.R(33),
 		},
-		Base: "core16",
+		Base: base,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
@@ -425,12 +485,63 @@ func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
 			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:       "install",
-				InstanceName: "core16",
+				InstanceName: base,
+				Channel:      "stable",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "snapd",
 				Channel:      "stable",
 			},
 			revno: snap.R(11),
 		},
 	})
 
+	c.Check(t.Change().Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "core16")
+}
+
+func (s *prereqSuite) TestDoPrereqCore18NoCorePullsInSnapd(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "core18")
+}
+
+func (s *prereqSuite) TestDoPrereqOtherBaseNoCorePullsInSnapd(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "some-base")
+}
+
+func (s *prereqSuite) TestDoPrereqBaseIsNotBase(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Base:    "some-epoch-snap",
+		Prereq:  []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(declared snap base "some-epoch-snap" has unexpected type "app", instead of 'base'\)`)
 }

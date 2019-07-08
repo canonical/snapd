@@ -29,6 +29,7 @@ import (
 type TrivialDeviceContext struct {
 	DeviceModel *asserts.Model
 	Remodeling  bool
+	CtxStore    snapstate.StoreService
 }
 
 func (dc *TrivialDeviceContext) Model() *asserts.Model {
@@ -36,7 +37,7 @@ func (dc *TrivialDeviceContext) Model() *asserts.Model {
 }
 
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
-	return nil
+	return dc.CtxStore
 }
 
 func (dc *TrivialDeviceContext) ForRemodeling() bool {
@@ -61,8 +62,16 @@ func MockDeviceContext(deviceCtx snapstate.DeviceContext) (restore func()) {
 		}
 		return deviceCtx, nil
 	}
-	return ReplaceDeviceCtxHook(deviceCtxHook)
-
+	r1 := ReplaceDeviceCtxHook(deviceCtxHook)
+	// for convenience reflect from the context whether there is a
+	// remodeling
+	r2 := ReplaceRemodelingHook(func(*state.State) bool {
+		return deviceCtx != nil && deviceCtx.ForRemodeling()
+	})
+	return func() {
+		r1()
+		r2()
+	}
 }
 
 func ReplaceDeviceCtxHook(deviceCtxHook func(st *state.State, task *state.Task, providedDeviceCtx snapstate.DeviceContext) (snapstate.DeviceContext, error)) (restore func()) {
@@ -75,4 +84,12 @@ func ReplaceDeviceCtxHook(deviceCtxHook func(st *state.State, task *state.Task, 
 
 func UseFallbackDeviceModel() (restore func()) {
 	return MockDeviceModel(sysdb.GenericClassicModel())
+}
+
+func ReplaceRemodelingHook(remodelingHook func(st *state.State) bool) (restore func()) {
+	oldHook := snapstate.Remodeling
+	snapstate.Remodeling = remodelingHook
+	return func() {
+		snapstate.Remodeling = oldHook
+	}
 }

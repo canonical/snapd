@@ -69,5 +69,5 @@ execute: |
     # make sure that an interface that is not connected shows up too
     MATCH 'opengl +- +:opengl +-' < system.out
 
-    ! snap connections not-found > error.out 2>&1
+    not snap connections not-found > error.out 2>&1
     MATCH 'error: snap "not-found" not found' < error.out

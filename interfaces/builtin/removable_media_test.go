@@ -52,7 +52,7 @@ apps:
     plugs: [removable-media]
 `, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "removable-media",
 		Interface: "removable-media",
 	}
@@ -87,7 +87,7 @@ func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.other"})
 	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/{,run/}media/*/ r")
-	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/mnt/** rwk,")
+	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/mnt/** rwkl,")
 }
 
 func (s *RemovableMediaInterfaceSuite) TestInterfaces(c *C) {

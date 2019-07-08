@@ -84,6 +84,26 @@ func (s *deviceCtxSuite) TestDevicePastSeedingProvided(c *C) {
 	deviceCtx, err := snapstate.DevicePastSeeding(s.st, deviceCtx1)
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx, Equals, deviceCtx1)
+
+	// remodeling is also ok
+	deviceCtx2 := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(nil), Remodeling: true}
+	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) bool {
+		return true
+	})()
+	deviceCtx, err = snapstate.DevicePastSeeding(s.st, deviceCtx2)
+	c.Assert(err, IsNil)
+	c.Assert(deviceCtx, Equals, deviceCtx2)
+
+	expectedErr = &snapstate.ChangeConflictError{
+		Message: "remodeling in progress, no other " +
+			"changes allowed until this is done",
+		ChangeKind: "remodel",
+	}
+
+	// should not happen in practice but correct
+	deviceCtx, err = snapstate.DevicePastSeeding(s.st, deviceCtx1)
+	c.Assert(err, DeepEquals, expectedErr)
+	c.Check(deviceCtx, IsNil)
 }
 
 func (s *deviceCtxSuite) TestDevicePastSeedingReady(c *C) {
@@ -99,6 +119,29 @@ func (s *deviceCtxSuite) TestDevicePastSeedingReady(c *C) {
 	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
 	c.Assert(err, IsNil)
 	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
+}
+
+func (s *deviceCtxSuite) TestDevicePastSeedingButRemodeling(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// seeded and model assertion
+	s.st.Set("seeded", true)
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) bool {
+		return true
+	})()
+
+	expectedErr := &snapstate.ChangeConflictError{
+		Message: "remodeling in progress, no other " +
+			"changes allowed until this is done",
+		ChangeKind: "remodel",
+	}
+
+	_, err := snapstate.DevicePastSeeding(s.st, nil)
+	c.Assert(err, DeepEquals, expectedErr)
 }
 
 func (s *deviceCtxSuite) TestDeviceCtxFromStateReady(c *C) {

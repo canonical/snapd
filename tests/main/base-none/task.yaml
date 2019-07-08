@@ -1,0 +1,21 @@
+summary: Check that a snap with base "none" can be installed
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Install a snap with 'base: none'"
+
+    snap pack "$TESTSLIB/snaps/test-snapd-base-none"
+    snap install --dangerous test-snapd-base-none_1.0_all.snap
+    snap info --verbose test-snapd-base-none | MATCH "^base: .*none"
+    snap list | MATCH test-snapd-base-none
+
+    echo "Snap with base: none and apps is rejected"
+    snap pack "$TESTSLIB/snaps/test-snapd-base-none-invalid" 2>&1 | MATCH  "cannot pack .* cannot validate snap \"test-snapd-base-none\".* cannot have apps or hooks with base \"none\".*"
+
+    echo "Creating and installing an invalid snap"
+    # we cannot use snap pack, create snap manually
+    mksquashfs "$TESTSLIB/snaps/test-snapd-base-none-invalid" test-snapd-base-none-invalid_x1.snap -comp xz -no-fragments -no-progress
+    snap install --dangerous test-snapd-base-none-invalid_x1.snap 2>&1 | MATCH "error: cannot read snap file: cannot have apps or hooks with base \"none\""
+    

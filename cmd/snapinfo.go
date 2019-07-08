@@ -61,7 +61,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
 		Name:        snapInfo.InstanceName(),
 		Revision:    snapInfo.Revision,
 		Summary:     snapInfo.Summary(),
-		Type:        string(snapInfo.Type),
+		Type:        string(snapInfo.GetType()),
 		Base:        snapInfo.Base,
 		Version:     snapInfo.Version,
 		Channel:     snapInfo.Channel,
@@ -127,7 +127,7 @@ func (a BySnapApp) Less(i, j int) bool {
 func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) ([]client.AppInfo, error) {
 	// TODO: pass in an actual notifier here instead of null
 	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, progress.Null)
 
 	out := make([]client.AppInfo, 0, len(apps))
 	for _, app := range apps {

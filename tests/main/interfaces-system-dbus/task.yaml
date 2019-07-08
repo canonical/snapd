@@ -42,9 +42,9 @@ execute: |
     snap disconnect test-snapd-dbus-provider:dbus-system-test-plug
 
     echo "And the consumer is not able to access the provided method"
-    ! test-snapd-dbus-consumer.dbus-system-consumer 2> call.error
+    not test-snapd-dbus-consumer.dbus-system-consumer 2> call.error
     MATCH "Permission denied" < call.error
 
     echo "And the consumer is not able to access the provided method (same snap)"
-    ! test-snapd-dbus-provider.system-consumer 2> call.error
+    not test-snapd-dbus-provider.system-consumer 2> call.error
     MATCH "Permission denied" < call.error

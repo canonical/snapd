@@ -25,7 +25,7 @@ execute: |
             systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
         done
     else
-        ! systemctl list-timers | MATCH "test-snapd-timer-service"
+        systemctl list-timers | not MATCH "test-snapd-timer-service"
     fi
 
     echo "When reenabled, the timers are present again"
@@ -45,7 +45,7 @@ execute: |
             systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
         done
     else
-        ! systemctl list-timers | MATCH "test-snapd-timer-service"
+        systemctl list-timers | not MATCH "test-snapd-timer-service"
     fi
 
     echo "No timer files are left behind"
