@@ -937,6 +937,10 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("cannot run update gadget assets task on a classic system")
 	}
 
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
 	snapsup, err := snapstate.TaskSnapSetup(t)
 	if err != nil {
 		return err
