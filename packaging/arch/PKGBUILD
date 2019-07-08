@@ -74,6 +74,7 @@ build() {
   $gobuild -o $srcdir/go/bin/snapd $GOFLAGS "${_gourl}/cmd/snapd"
   $gobuild -o $srcdir/go/bin/snap-seccomp $GOFLAGS "${_gourl}/cmd/snap-seccomp"
   $gobuild -o $srcdir/go/bin/snap-failure $GOFLAGS "${_gourl}/cmd/snap-failure"
+  $gobuild -o $srcdir/go/bin/snap-image $GOFLAGS "${_gourl}/cmd/snap-image"
   # build snap-exec and snap-update-ns completely static for base snaps
   $gobuild_static -o $srcdir/go/bin/snap-update-ns $GOFLAGS "${_gourl}/cmd/snap-update-ns"
   $gobuild_static -o $srcdir/go/bin/snap-exec $GOFLAGS "${_gourl}/cmd/snap-exec"
@@ -148,6 +149,7 @@ package() {
   # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
   install -Dm755 "$srcdir/go/bin/snapctl" "$pkgdir/usr/lib/snapd/snapctl"
   ln -s  ../lib/snapd/snapctl  "$pkgdir/usr/bin/snapctl"
+  install -Dm755 "$srcdir/go/bin/snap-image" "$pkgdir/usr/bin/snap-image"
 
   # pre-create directories
   install -dm755 "$pkgdir/var/lib/snapd/snap"

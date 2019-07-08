@@ -569,6 +569,8 @@ install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
 ln -sf %{_libexecdir}/snapd/snapctl %{buildroot}%{_bindir}/snapctl
 
+install -p -m 0755 bin/snap-image %{buildroot}%{_bindir}
+
 %if 0%{?with_selinux}
 # Install SELinux module
 install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/include/contrib
@@ -700,6 +702,7 @@ popd
 %doc README.md docs/*
 %{_bindir}/snap
 %{_bindir}/snapctl
+%{_bindir}/snap-image
 %{_environmentdir}/990-snapd.conf
 %if 0%{?rhel} == 7
 %{_sysctldir}/99-snap.conf

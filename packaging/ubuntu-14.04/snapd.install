@@ -1,4 +1,5 @@
 usr/bin/snap
+usr/bin/snap-image
 usr/bin/snapctl /usr/lib/snapd/
 usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/

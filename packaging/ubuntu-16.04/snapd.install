@@ -1,4 +1,5 @@
 usr/bin/snap
+usr/bin/snap-image
 usr/bin/snapctl /usr/lib/snapd/
 usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
@@ -7,6 +8,7 @@ usr/bin/snap-failure /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
+usr/bin/snap-image /usr/lib/snapd/
 
 # bash completion
 data/completion/snap /usr/share/bash-completion/completions
