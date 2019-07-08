@@ -103,6 +103,7 @@ var api = []*Command{
 	connectionsCmd,
 	modelCmd,
 	cohortsCmd,
+	recoverCmd,
 }
 
 var (
@@ -223,6 +224,12 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getWarnings,
 		POST:     ackWarnings,
+	}
+
+	recoverCmd = &Command{
+		Path:     "/v2/recover",
+		POST:     postRecover,
+		RootOnly: true,
 	}
 
 	buildID = "unknown"
@@ -2422,4 +2429,46 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	return SyncResponse(ws, nil)
+}
+
+type postRecoverData struct {
+	Version string `json:"version"`
+	Install bool   `json:"install"`
+	Reboot  bool   `json:"reboot"`
+}
+
+func postRecover(c *Command, r *http.Request, user *auth.UserState) Response {
+	var recoverData postRecoverData
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&recoverData); err != nil {
+		return BadRequest("cannot decode recover data from request body: %v", err)
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tasks := []*state.Task{}
+
+	if recoverData.Install {
+		modeTask := st.NewTask("snap-mode-install", "Run system in install mode")
+		modeTask.Set("recovery-version", recoverData.Version)
+		tasks = append(tasks, modeTask)
+	} else if recoverData.Reboot {
+		modeTask := st.NewTask("snap-mode-recover-reboot", "Run system in recover_reboot mode")
+		modeTask.Set("recovery-version", recoverData.Version)
+		tasks = append(tasks, modeTask)
+	} else {
+		modeTask := st.NewTask("snap-mode-recover", "Run system in recovery mode")
+		modeTask.Set("recovery-version", recoverData.Version)
+		tasks = append(tasks, modeTask)
+	}
+
+	chg := st.NewChange("recover-mode", "recovery mode")
+	chg.AddAll(state.NewTaskSet(tasks...))
+
+	st.EnsureBefore(10 * time.Second)
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

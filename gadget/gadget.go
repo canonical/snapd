@@ -45,8 +45,9 @@ const (
 	// GPT identifies a GUID Partition Table partitioning schema
 	GPT = "gpt"
 
-	SystemBoot = "system-boot"
-	SystemData = "system-data"
+	SystemBoot     = "system-boot"
+	SystemData     = "system-data"
+	SystemRecovery = "system-recovery"
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
@@ -579,7 +580,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, "":
+	case SystemBoot, SystemRecovery, "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")

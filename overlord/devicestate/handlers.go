@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/recovery"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -782,6 +783,72 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 		}
 		keyID = a.SignKeyID()
 	}
+}
+
+func (m *DeviceManager) doInstallMode(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var version string
+	if err := t.Get("recovery-version", &version); err != nil {
+		return err
+	}
+
+	logger.Noticef("Installing new system")
+	if err := recovery.Install(version); err != nil {
+		return err
+	}
+
+	logger.Noticef("System installed, restart.")
+	time.Sleep(3 * time.Second)
+
+	// We're on tmpfs, just pull the plug
+	if err := recovery.Restart(); err != nil {
+		logger.Noticef("[sad trombone] cannot reboot: %s", err)
+	}
+
+	//st.Lock()
+	//st.RequestRestart(state.RestartSystem)
+	//st.Unlock()
+
+	return fmt.Errorf("do install mode should have rebooted but did not")
+}
+
+func (m *DeviceManager) doRecoverMode(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var version string
+	if err := t.Get("recovery-version", &version); err != nil {
+		return err
+	}
+
+	logger.Noticef("Running in recover mode")
+	if err := recovery.Recover(version); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) doRecoverRebootMode(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var version string
+	if err := t.Get("recovery-version", &version); err != nil {
+		return err
+	}
+
+	logger.Noticef("Running in recover + reboot mode")
+	if err := recovery.RecoverReboot(version); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
