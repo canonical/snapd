@@ -29,8 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/sessionagent"
 	"github.com/snapcore/snapd/userd"
+	"github.com/snapcore/snapd/usersession/agent"
 )
 
 type cmdUserd struct {
@@ -94,7 +94,7 @@ func (x *cmdUserd) runUserd() error {
 }
 
 func (x *cmdUserd) runAgent() error {
-	var agent sessionagent.SessionAgent
+	var agent agent.SessionAgent
 	agent.Version = cmd.Version
 
 	if err := agent.Init(); err != nil {

@@ -17,7 +17,7 @@
  *
  */
 
-package sessionagent
+package agent
 
 import (
 	"net/http"

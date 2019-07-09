@@ -17,7 +17,7 @@
  *
  */
 
-package sessionagent_test
+package agent_test
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/sessionagent"
+	"github.com/snapcore/snapd/usersession/agent"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -62,7 +62,7 @@ func (s *restSuite) TearDownTest(c *C) {
 }
 
 func (s *restSuite) TestAgentInfo(c *C) {
-	agent, err := sessionagent.NewSessionAgent()
+	agent, err := agent.NewSessionAgent()
 	c.Assert(err, IsNil)
 	agent.Version = "42"
 	agent.Start()
