@@ -220,7 +220,7 @@ func (s *healthSuite) TestSetFromHookContext(c *check.C) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	var hs map[string]healthstate.HealthState
+	var hs map[string]*healthstate.HealthState
 	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
 
 	ctx.Set("health", &healthstate.HealthState{Status: 42})
@@ -228,9 +228,9 @@ func (s *healthSuite) TestSetFromHookContext(c *check.C) {
 	err = healthstate.SetFromHookContext(ctx)
 	c.Assert(err, check.IsNil)
 
-	err = s.state.Get("health", &hs)
+	hs, err = healthstate.All(s.state)
 	c.Check(err, check.IsNil)
-	c.Check(hs, check.DeepEquals, map[string]healthstate.HealthState{
+	c.Check(hs, check.DeepEquals, map[string]*healthstate.HealthState{
 		"foo": {Status: 42},
 	})
 }
