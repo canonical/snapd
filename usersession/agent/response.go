@@ -100,7 +100,7 @@ const (
 type errorValue interface{}
 
 type errorResult struct {
-	Message string     `json:"message"` // note no omitempty
+	Message string     `json:"message"` // mandatory in error responses
 	Kind    errorKind  `json:"kind,omitempty"`
 	Value   errorValue `json:"value,omitempty"`
 }
