@@ -68,7 +68,7 @@ func (s *restSuite) TestAgentInfo(c *C) {
 	agent.Start()
 	defer func() { c.Check(agent.Stop(), IsNil) }()
 
-	response, err := s.client.Get("http://localhost/v1/agent-info")
+	response, err := s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, IsNil)
 	c.Check(response.StatusCode, Equals, 200)
 

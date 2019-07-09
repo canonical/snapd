@@ -40,7 +40,7 @@ execute: |
 
     echo "We can issue queries to the socket as root"
     curl --unix-socket "${USER_RUNTIME_DIR}/snapd.session-agent.socket" \
-        -D- http://localhost/v1/agent-info | MATCH "HTTP/1.1 200 OK"
+        -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"
 
     echo "Now snap session-agent is running"
     systemctl_user is-active snapd.session-agent.service
@@ -52,5 +52,5 @@ execute: |
     fi
 
     curl --unix-socket "${USER_RUNTIME_DIR}/snapd.session-agent.socket" \
-        -D- http://localhost/v1/agent-info | MATCH "HTTP/1.1 200 OK"
+        -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"
     systemctl_user is-active snapd.session-agent.service

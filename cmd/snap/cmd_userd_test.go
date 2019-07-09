@@ -138,7 +138,7 @@ func (s *userdSuite) TestSessionAgentSocket(c *C) {
 
 		// Check that agent functions
 		client := s.makeAgentClient()
-		response, err := client.Get("http://localhost/v1/agent-info")
+		response, err := client.Get("http://localhost/v1/session-info")
 		c.Assert(err, IsNil)
 		c.Check(response.StatusCode, Equals, 200)
 	}()

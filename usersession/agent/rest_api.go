@@ -25,7 +25,7 @@ import (
 
 var restApi = []*Command{
 	rootCmd,
-	agentInfoCmd,
+	sessionInfoCmd,
 }
 
 var (
@@ -34,13 +34,13 @@ var (
 		GET:  nil,
 	}
 
-	agentInfoCmd = &Command{
-		Path: "/v1/agent-info",
-		GET:  agentInfo,
+	sessionInfoCmd = &Command{
+		Path: "/v1/session-info",
+		GET:  sessionInfo,
 	}
 )
 
-func agentInfo(c *Command, r *http.Request) Response {
+func sessionInfo(c *Command, r *http.Request) Response {
 	m := map[string]interface{}{
 		"version": c.s.Version,
 	}
