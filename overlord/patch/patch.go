@@ -106,7 +106,8 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	if err == state.ErrNoState || lastVersion != cmd.Version {
 		*sublevel = 0
 		s.Set("patch-sublevel", *sublevel)
-		// unset old reset key in case of revert into old version
+		// unset old reset key in case of revert into old version.
+		// TODO: this can go away if we go through a snapd epoch.
 		s.Set("patch-sublevel-reset", nil)
 	}
 
