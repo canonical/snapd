@@ -965,6 +965,69 @@ func (infoSuite) TestMaybePrintCohortKey(c *check.C) {
 	}
 }
 
+func (infoSuite) TestMaybePrintHealth(c *check.C) {
+	type T struct {
+		snap     *client.Snap
+		verbose  bool
+		expected string
+	}
+
+	goodHealth := &client.SnapHealth{Status: "okay"}
+	t0 := time.Date(1970, 1, 1, 10, 24, 0, 0, time.UTC)
+	badHealth := &client.SnapHealth{
+		Status:    "waiting",
+		Message:   "godot should be here any moment now",
+		Code:      "godot-is-a-lie",
+		Revision:  snaplib.R("42"),
+		Timestamp: t0,
+	}
+
+	tests := []T{
+		{snap: nil, verbose: false, expected: ""},
+		{snap: nil, verbose: true, expected: ""},
+		{snap: &client.Snap{}, verbose: false, expected: ""},
+		{snap: &client.Snap{}, verbose: true, expected: `health:
+  status:	unknown
+  message:	health
+    has not been set
+`},
+		{snap: &client.Snap{Health: goodHealth}, verbose: false, expected: ``},
+		{snap: &client.Snap{Health: goodHealth}, verbose: true, expected: `health:
+  status:	okay
+`},
+		{snap: &client.Snap{Health: badHealth}, verbose: false, expected: `health:
+  status:	waiting
+  message:	godot
+    should be here
+    any moment now
+  code:	godot-is-a-lie
+  checked:	10:24AM
+  revision:	42
+`},
+		{snap: &client.Snap{Health: badHealth}, verbose: true, expected: `health:
+  status:	waiting
+  message:	godot
+    should be here
+    any moment now
+  code:	godot-is-a-lie
+  checked:	10:24AM
+  revision:	42
+`},
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	defer snap.MockIsStdoutTTY(false)()
+
+	for i, t := range tests {
+		buf.Reset()
+		snap.SetupSnap(iw, t.snap, nil, nil)
+		snap.SetVerbose(iw, t.verbose)
+		snap.MaybePrintHealth(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d", i))
+	}
+}
+
 func (infoSuite) TestWrapCornerCase(c *check.C) {
 	// this particular corner case isn't currently reachable from
 	// printDescr nor printSummary, but best to have it covered

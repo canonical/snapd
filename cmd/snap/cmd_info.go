@@ -88,7 +88,6 @@ func (iw *infoWriter) maybePrintHealth() {
 		health = &client.SnapHealth{
 			Status:  "unknown",
 			Message: "health has not been set",
-			Code:    "snapd-no-health",
 		}
 	}
 	if health.Status == "okay" && !iw.verbose {
@@ -97,7 +96,9 @@ func (iw *infoWriter) maybePrintHealth() {
 
 	fmt.Fprintln(iw, "health:")
 	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
-	wrapGeneric(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
+	if health.Message != "" {
+		wrapGeneric(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
+	}
 	if health.Code != "" {
 		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
 	}
