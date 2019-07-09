@@ -46,7 +46,7 @@ func (s *restSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
-	s.socketPath = fmt.Sprintf("%s/snap-session.socket", xdgRuntimeDir)
+	s.socketPath = fmt.Sprintf("%s/snapd.session-agent.socket", xdgRuntimeDir)
 
 	transport := &http.Transport{
 		Dial: func(_, _ string) (net.Conn, error) {
