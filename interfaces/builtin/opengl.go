@@ -58,6 +58,10 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/glvnd/** r,
 /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
 
+# Support loading Mesa DRI drivers from the base snap
+/usr/lib/{,@{multiarch}/}dri/ r,
+/usr/lib/{,@{multiarch}/}dri/*.so rm,
+
 # Main bi-arch GL libraries
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
