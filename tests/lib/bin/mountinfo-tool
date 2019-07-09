@@ -587,8 +587,11 @@ Known attributes, applicable for both filtering and display.
     )
     parser.add_argument(
         "--ref",
+        dest="refs",
         metavar="MOUNTINFO",
         type=FileType(),
+        action="append",
+        default=[],
         help="refer to another table while rewriting, makes output comparable across namespaces",
     )
     parser.add_argument(
@@ -618,8 +621,9 @@ Known attributes, applicable for both filtering and display.
     entries = [MountInfoEntry.parse(line) for line in opts.file]
     entries = [e for e in entries if matches(e, filters)]
     rs = RewriteState()
-    if opts.ref:
-        ref_entries = [MountInfoEntry.parse(line) for line in opts.ref]
+
+    for ref in opts.refs:
+        ref_entries = [MountInfoEntry.parse(line) for line in ref]
         if opts.renumber:
             rewrite_renumber(ref_entries, rs)
         if opts.rename:
