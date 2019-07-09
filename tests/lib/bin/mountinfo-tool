@@ -614,6 +614,14 @@ Known attributes, applicable for both filtering and display.
         help="rewrite entries in the order determined by given fields",
     )
     parser.add_argument(
+        "--display-order",
+        metavar="FIELD",
+        action="append",
+        default=[],
+        choices=MountInfoEntry.known_attrs.keys(),
+        help="display entries in the order determined by given fields",
+    )
+    parser.add_argument(
         "exprs",
         metavar="EXPRESSION",
         nargs="*",
@@ -667,6 +675,13 @@ Known attributes, applicable for both filtering and display.
         rewrite_renumber(entries, rewrite_order, rs)
     if opts.rename:
         rewrite_rename(entries, rewrite_order, rs)
+    if opts.display_order:
+
+        def display_key_fn(entry):
+            # type: (MountInfoEntry) -> Tuple[Any, ...]
+            return tuple(getattr(entry, field) for field in opts.display_order)
+
+        entries.sort(key=display_key_fn)
     for e in entries:
         if attrs:
             values = []  # type: List[Any]
