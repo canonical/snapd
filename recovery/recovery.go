@@ -21,6 +21,7 @@
 package recovery
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/recovery/fdeutils"
 )
 
 const (
@@ -142,8 +144,6 @@ func Install(version string) error {
 	mntSysRecover := "/mnt/sys-recover"
 	mntSystemBoot := "/mnt/system-boot"
 
-	keyfile := path.Join(mntSystemBoot, "keyfile")
-
 	if err := mountFilesystem("ubuntu-boot", mntSystemBoot); err != nil {
 		return err
 	}
@@ -152,8 +152,16 @@ func Install(version string) error {
 
 	cryptdev := "ubuntu-data"
 
+	logger.Noticef("Create LUKS key")
+	keySize := 4 * sizeKB
+	keyBuffer := make([]byte, keySize)
+	n, err := rand.Read(keyBuffer)
+	if n != keySize || err != nil {
+		return fmt.Errorf("cannot create LUKS key: %s", err)
+	}
+
 	logger.Noticef("Install recovery %s", version)
-	if err := createWritable(keyfile, 4*sizeKB, cryptdev); err != nil {
+	if err := createWritable(keyBuffer, cryptdev); err != nil {
 		logger.Noticef("cannot create writable: %s", err)
 		return err
 	}
@@ -173,6 +181,31 @@ func Install(version string) error {
 	if err != nil {
 		logger.Noticef("cannot populate writable: %s", err)
 		return err
+	}
+
+	logger.Noticef("Create lockout authorization")
+	lockoutAuth := make([]byte, 16)
+	n, err = rand.Read(lockoutAuth)
+	if n != 16 || err != nil {
+		return fmt.Errorf("cannot create lockout authorization: %s", err)
+	}
+
+	logger.Noticef("Provisioning the TPM")
+	if err := fdeutils.ProvisionTPM(lockoutAuth); err != nil {
+		logger.Noticef("error provisioning the TPM: %s", err)
+		return fmt.Errorf("cannot provision TPM: %s", err)
+	}
+
+	if err := storeKeyfile(mntSystemBoot, keyBuffer); err != nil {
+		return fmt.Errorf("cannot store keyfile: %s", err)
+	}
+
+	if err := storeLockoutAuth(mntWritable, lockoutAuth); err != nil {
+		return fmt.Errorf("cannot store lockout authorization: %s", err)
+	}
+
+	if err := exec.Command("sync").Run(); err != nil {
+		return fmt.Errorf("cannot sync: %s", err)
 	}
 
 	if err := umount(mntWritable); err != nil {
@@ -196,15 +229,15 @@ func Install(version string) error {
 	return nil
 }
 
-func createWritable(keyfile string, keyfileSize int, cryptdev string) error {
-	logger.Noticef("Creating new writable")
+func createWritable(keyBuffer []byte, cryptdev string) error {
+	logger.Noticef("Creating new ubuntu-data")
 	disk := &DiskDevice{}
 	if err := disk.FindFromPartLabel("ubuntu-boot"); err != nil {
 		return fmt.Errorf("cannot determine boot device: %s", err)
 	}
 
 	// FIXME: get values from gadget, system
-	err := disk.CreateLUKSPartition(1000*sizeMB, "ubuntu-data", keyfile, keyfileSize, cryptdev)
+	err := disk.CreateLUKSPartition(1000*sizeMB, "ubuntu-data", keyBuffer, cryptdev)
 	if err != nil {
 		return fmt.Errorf("cannot create new ubuntu-data: %s", err)
 	}
@@ -224,6 +257,25 @@ func mountFilesystem(label string, mountpoint string) error {
 	}
 
 	return nil
+}
+
+func storeKeyfile(dir string, buffer []byte) error {
+	// TODO: seal keyfile
+	if err := ioutil.WriteFile(path.Join(dir, "keyfile"), buffer, 0400); err != nil {
+		return err
+	}
+
+	// Don't remove this sync, it prevents file corruption on vfat
+	if err := exec.Command("sync").Run(); err != nil {
+		return fmt.Errorf("cannot sync: %s", err)
+	}
+
+	return nil
+}
+
+// The lockout authorization file is stored in the encrypted partition
+func storeLockoutAuth(dir string, lockoutAuth []byte) error {
+	return ioutil.WriteFile(path.Join(dir, "system-data/lockoutAuth"), lockoutAuth, 0400)
 }
 
 func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (core string, kernel string, err error) {
@@ -326,7 +378,7 @@ func extractKernel(kernelPath, mntSystemBoot string) error {
 		}
 	}
 
-	// Don't remove this sync, prevents corrupted files on vfat
+	// Don't remove this sync, it prevents file corruption on vfat
 	if err := exec.Command("sync").Run(); err != nil {
 		return fmt.Errorf("cannot sync filesystems: %s", err)
 	}

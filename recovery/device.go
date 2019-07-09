@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -85,7 +84,7 @@ func (d *DiskDevice) CreatePartition(size uint64, label string) error {
 	return nil
 }
 
-func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyfile string, keyfileSize int, cryptdev string) error {
+func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []byte, cryptdev string) error {
 	logger.Noticef("Create partition %q", label)
 	cmd := exec.Command("sfdisk", "--no-reread", "-a", d.node)
 	stdin, err := cmd.StdinPipe()
@@ -115,17 +114,15 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyfile stri
 	// FIXME: determine partition name in a civilized way
 	partdev := d.partDev(4)
 
-	// Set up LUKS device
-	logger.Noticef("Create LUKS keyfile")
-	buffer := make([]byte, keyfileSize)
-	rand.Read(buffer)
-	if err := ioutil.WriteFile(keyfile, buffer, 0400); err != nil {
-		return fmt.Errorf("cannot create keyfile %s: %s", keyfile, err)
-	}
-
-	// Don't remove this delay, prevents kernel crash
+	// Don't remove this delay, it prevents a kernel crash
 	// see https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1835279
 	time.Sleep(1 * time.Second)
+
+	// Create a temporary unsealed keyfile on a RAM-backed filesystem
+	keyfile := "/run/tmpkeyfile"
+	if err := ioutil.WriteFile(keyfile, keyBuffer, 0400); err != nil {
+		return fmt.Errorf("cannot create keyfile: %s", err)
+	}
 
 	logger.Noticef("Create LUKS device on %s", partdev)
 	if output, err := exec.Command("cryptsetup", "-q", "--type", "luks2", "--key-file", keyfile,
@@ -142,7 +139,12 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyfile stri
 		return osutil.OutputErr(output, fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err))
 	}
 
-	// Ok, now this is ugly. We'll have to see how to handle this properly without udev.
+	// FIXME: use secure delete
+	if err := os.Remove(keyfile); err != nil {
+		logger.Noticef("can't remove keyfile: %s", err)
+	}
+
+	// FIXME: Ok, now this is ugly. We'll have to see how to handle this properly.
 	logger.Noticef("Hack: create LUKS device symlink")
 	if err := os.Symlink("../dm-0", cryptdev); err != nil {
 		return fmt.Errorf("cannot create LUKS device symlink: %s", err)
