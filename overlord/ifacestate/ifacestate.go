@@ -45,8 +45,8 @@ type ErrAlreadyConnected struct {
 }
 
 const (
-	ConnectTask       = state.TaskSetEdge("connect-task")
-	AfterConnectHooks = state.TaskSetEdge("after-connect-hooks")
+	ConnectTaskEdge       = state.TaskSetEdge("connect-task")
+	AfterConnectHooksEdge = state.TaskSetEdge("after-connect-hooks")
 )
 
 func (e ErrAlreadyConnected) Error() string {
@@ -83,7 +83,7 @@ type connectOpts struct {
 	ByGadget    bool
 	AutoConnect bool
 
-	SkipSetupProfiles bool
+	DelaySetupProfiles bool
 }
 
 // Connect returns a set of tasks for connecting an interface.
@@ -205,8 +205,8 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	if flags.ByGadget {
 		connectInterface.Set("by-gadget", true)
 	}
-	if flags.SkipSetupProfiles {
-		connectInterface.Set("skip-setup-profiles", true)
+	if flags.DelaySetupProfiles {
+		connectInterface.Set("delay-setup-profiles", true)
 	}
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
@@ -222,7 +222,8 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// wait for prepare-plug- anyway, and a simple one-to-one wait dependency makes testing easier.
 	addTask(connectInterface)
 	prev = connectInterface
-	tasks.MarkEdge(connectInterface, ConnectTask)
+	// mark as the last task in connect prepare
+	tasks.MarkEdge(connectInterface, ConnectTaskEdge)
 
 	connectSlotHookName := fmt.Sprintf("connect-slot-%s", slotName)
 	if slotSnapInfo.Hooks[connectSlotHookName] != nil {
@@ -242,7 +243,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		connectSlotConnection := hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
 		addTask(connectSlotConnection)
 		prev = connectSlotConnection
-		tasks.MarkEdge(connectSlotConnection, AfterConnectHooks)
+		tasks.MarkEdge(connectSlotConnection, AfterConnectHooksEdge)
 	}
 
 	connectPlugHookName := fmt.Sprintf("connect-plug-%s", plugName)
@@ -262,9 +263,9 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
 		connectPlugConnection := hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
 		addTask(connectPlugConnection)
-		// only mark AfterConnectHooks edge if not already set on connect-slot- hook task
-		if edge, _ := tasks.Edge(AfterConnectHooks); edge == nil {
-			tasks.MarkEdge(connectPlugConnection, AfterConnectHooks)
+		// only mark AfterConnectHooksEdge if not already set on connect-slot- hook task
+		if edge, _ := tasks.Edge(AfterConnectHooksEdge); edge == nil {
+			tasks.MarkEdge(connectPlugConnection, AfterConnectHooksEdge)
 		}
 		prev = connectPlugConnection
 	}

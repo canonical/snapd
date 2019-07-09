@@ -402,8 +402,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("by-gadget", &byGadget); err != nil && err != state.ErrNoState {
 		return err
 	}
-	var skipSetupProfiles bool
-	if err := task.Get("skip-setup-profiles", &skipSetupProfiles); err != nil && err != state.ErrNoState {
+	var delaySetupProfiles bool
+	if err := task.Get("delay-setup-profiles", &delaySetupProfiles); err != nil && err != state.ErrNoState {
 		return err
 	}
 
@@ -480,7 +480,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if !skipSetupProfiles {
+	if !delaySetupProfiles {
 		slotOpts := confinementOptions(slotSnapst.Flags)
 		if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 			return err
@@ -908,24 +908,25 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 // The tasks are chained so that:
 //  - prepare-plug-, prepare-slot- and connect tasks are all executed before setup-profiles
 //  - connect-plug-, connect-slot- are all executed after setup-profiles.
-// The "skip-setup-profiles" flag is set on the connect tasks to indicate that doConnect handler should not set security backends up.
+// The "delay-setup-profiles" flag is set on the connect tasks to indicate that doConnect handler should not set security backends up because this will be
+// done later by the setup-profiles task.
 func createConnectTasksForSetupProfiles(st *state.State, setupProfiles *state.Task, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
 	ts := state.NewTaskSet()
 	for _, conn := range conns {
-		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, SkipSetupProfiles: true})
+		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, DelaySetupProfiles: true})
 		if err != nil {
 			return nil, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
 
 		// setup-profiles needs to wait for the main "connect" task
-		connectTask, _ := connectTs.Edge(ConnectTask)
+		connectTask, _ := connectTs.Edge(ConnectTaskEdge)
 		if connectTask == nil {
 			return nil, fmt.Errorf("internal error: no 'connect' task found for %q", conn)
 		}
 		setupProfiles.WaitFor(connectTask)
 
-		// connect-plug- and connect-slot- hooks need to wait for setup-profiles task
-		afterConnectTask, _ := connectTs.Edge(AfterConnectHooks)
+		// setup-profiles must be run before the task that marks the end of connect-plug- and connect-slot- hooks
+		afterConnectTask, _ := connectTs.Edge(AfterConnectHooksEdge)
 		if afterConnectTask != nil {
 			afterConnectTask.WaitFor(setupProfiles)
 		}

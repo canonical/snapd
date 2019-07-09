@@ -317,7 +317,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(task.Kind(), Equals, "connect")
 	var flag bool
 	c.Assert(task.Get("auto", &flag), Equals, state.ErrNoState)
-	c.Assert(task.Get("skip-setup-profiles", &flag), Equals, state.ErrNoState)
+	c.Assert(task.Get("delay-setup-profiles", &flag), Equals, state.ErrNoState)
 	c.Assert(task.Get("by-gadget", &flag), Equals, state.ErrNoState)
 	var plug interfaces.PlugRef
 	c.Assert(task.Get("plug", &plug), IsNil)
@@ -329,7 +329,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(slot.Name, Equals, "slot")
 
 	// "connect" task edge is present
-	connectTaskEdge, err := ts.Edge(ifacestate.ConnectTask)
+	connectTaskEdge, err := ts.Edge(ifacestate.ConnectTaskEdge)
 	c.Assert(err, IsNil)
 	c.Assert(connectTaskEdge.ID(), Equals, task.ID())
 
@@ -370,7 +370,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 
 	// task edge for the first hook after "connect" task is present
-	afterConnectTaskEdge, err := ts.Edge(ifacestate.AfterConnectHooks)
+	afterConnectTaskEdge, err := ts.Edge(ifacestate.AfterConnectHooksEdge)
 	c.Assert(err, IsNil)
 	c.Assert(afterConnectTaskEdge.ID(), Equals, connectSlotSlotID)
 }
@@ -382,14 +382,14 @@ func (s *interfaceManagerSuite) TestConnectTasksSkipProfilesFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithSkipProfilesSet())
+	ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithDelayProfilesSet())
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
-	var skipSetupProfiles bool
-	connectTask.Get("skip-setup-profiles", &skipSetupProfiles)
-	c.Assert(skipSetupProfiles, Equals, true)
+	var delaySetupProfiles bool
+	connectTask.Get("delay-setup-profiles", &delaySetupProfiles)
+	c.Assert(delaySetupProfiles, Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestCreateConnectTasksForSetupProfiles(c *C) {
@@ -430,7 +430,7 @@ func (s *interfaceManagerSuite) TestCreateConnectTasksForSetupProfiles(c *C) {
 
 		// sanity, check flags on "connect" tasks
 		var flag bool
-		c.Assert(wt[i].Get("skip-setup-profiles", &flag), IsNil)
+		c.Assert(wt[i].Get("delay-setup-profiles", &flag), IsNil)
 		c.Check(flag, Equals, true)
 		c.Assert(wt[i].Get("auto", &flag), IsNil)
 		c.Check(flag, Equals, true)
@@ -543,7 +543,7 @@ func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
 		c.Assert(ts.Tasks(), HasLen, len(hooks.waitChain))
 
 		// check task edges
-		edge, err := ts.Edge(ifacestate.ConnectTask)
+		edge, err := ts.Edge(ifacestate.ConnectTaskEdge)
 		c.Assert(err, IsNil)
 		c.Check(edge.Kind(), Equals, "connect")
 
@@ -562,7 +562,7 @@ func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
 				}
 			}
 		}
-		edge, err = ts.Edge(ifacestate.AfterConnectHooks)
+		edge, err = ts.Edge(ifacestate.AfterConnectHooksEdge)
 		if expectedAfterConnectEdge != "" {
 			c.Assert(err, IsNil)
 			c.Check(hookNameOrTaskKind(c, edge), Equals, expectedAfterConnectEdge)
