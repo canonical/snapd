@@ -213,19 +213,26 @@ type DownloadOptions struct {
 	TargetDir string
 	Channel   string
 	CohortKey string
+	Basename  string
 }
 
-var errRevisionAndCohort = errors.New("cannot specify both revision and cohort")
+var (
+	errRevisionAndCohort = errors.New("cannot specify both revision and cohort")
+	errPathInBase        = errors.New("cannot specify a path in basename (use target dir for that)")
+)
 
 func (opts *DownloadOptions) validate() error {
-	if opts.Revision.Unset() || opts.CohortKey == "" {
-		return nil
+	if strings.ContainsRune(opts.Basename, filepath.Separator) {
+		return errPathInBase
 	}
-	return errRevisionAndCohort
+	if !(opts.Revision.Unset() || opts.CohortKey == "") {
+		return errRevisionAndCohort
+	}
+	return nil
 }
 
 func (opts *DownloadOptions) String() string {
-	spec := make([]string, 0, 4)
+	spec := make([]string, 0, 5)
 	if !opts.Revision.Unset() {
 		spec = append(spec, fmt.Sprintf("(%s)", opts.Revision))
 	}
@@ -237,8 +244,11 @@ func (opts *DownloadOptions) String() string {
 		// interesting bit, so ellipt the rest
 		spec = append(spec, fmt.Sprintf(`from cohort %q`, strutil.ElliptLeft(opts.CohortKey, 10)))
 	}
+	if opts.Basename != "" {
+		spec = append(spec, fmt.Sprintf("to %q", opts.Basename+".snap"))
+	}
 	if opts.TargetDir != "" {
-		spec = append(spec, fmt.Sprintf("to %q", opts.TargetDir))
+		spec = append(spec, fmt.Sprintf("in %q", opts.TargetDir))
 	}
 	return strings.Join(spec, " ")
 }
@@ -282,7 +292,12 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	snap := snaps[0]
 
-	baseName := filepath.Base(snap.MountFile())
+	baseName := opts.Basename
+	if baseName == "" {
+		baseName = filepath.Base(snap.MountFile())
+	} else {
+		baseName += ".snap"
+	}
 	targetFn = filepath.Join(opts.TargetDir, baseName)
 
 	// check if we already have the right file
