@@ -491,7 +491,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 	} else {
-		logger.Debugf("Connect handler: skipping setupSnapSecurity for snaps %q and %q", plug.Snap, slot.Snap)
+		logger.Debugf("Connect handler: skipping setupSnapSecurity for snaps %q and %q", plug.Snap.InstanceName(), slot.Snap.InstanceName())
 	}
 
 	conns[connRef.ID()] = &connState{
