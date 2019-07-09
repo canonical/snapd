@@ -643,9 +643,10 @@ Known attributes, applicable for both filtering and display.
     except ValueError as exc:
         raise SystemExit(exc)
     entries = [MountInfoEntry.parse(line) for line in opts.file]
-    entries = [e for e in entries if matches(e, filters)]
-    rs = RewriteState()
 
+    # Build rewrite state based on reference tables. This way the entries
+    # we will display can be correlated to other tables.
+    rs = RewriteState()
     for ref in opts.refs:
         ref_entries = [MountInfoEntry.parse(line) for line in ref]
         ref_rewrite_order = list(range(len(ref_entries)))
@@ -663,6 +664,7 @@ Known attributes, applicable for both filtering and display.
         if opts.rename:
             rewrite_rename(ref_entries, ref_rewrite_order, rs)
 
+    # Apply entry renumbering and renaming, perhaps using reordering as well.
     rewrite_order = list(range(len(entries)))
     if opts.rewrite_order:
 
@@ -675,6 +677,11 @@ Known attributes, applicable for both filtering and display.
         rewrite_renumber(entries, rewrite_order, rs)
     if opts.rename:
         rewrite_rename(entries, rewrite_order, rs)
+
+    # Apply entry filtering.
+    entries = [e for e in entries if matches(e, filters)]
+
+    # Apply entry reordering for display.
     if opts.display_order:
 
         def display_key_fn(entry):
