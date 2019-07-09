@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/logger"
 )
@@ -43,9 +44,15 @@ func globFile(dir, pattern string) string {
 }
 
 func mount(label, mountpoint string) error {
-	dev, err := getDevByLabel(label)
-	if err != nil {
-		return err
+	var dev string
+	if strings.HasPrefix(label, "/dev/") {
+		dev = label
+	} else {
+		var err error
+		dev, err = getDevByLabel(label)
+		if err != nil {
+			return err
+		}
 	}
 	logger.Noticef("mount %s on %s", dev, mountpoint)
 	if err := exec.Command("mount", dev, mountpoint).Run(); err != nil {
