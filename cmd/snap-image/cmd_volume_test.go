@@ -617,16 +617,7 @@ func (s *volumeSuite) TestCopyTree(c *C) {
 	c.Assert(filepath.Join(dst, "not-foo/not-bar"), testutil.FileEquals, "not")
 }
 
-func makeSizedFile(c *C, p string, sz int64) {
-	err := os.MkdirAll(filepath.Dir(p), 0755)
-	c.Assert(err, IsNil)
-
-	f, err := snap_image.MakeSizedFile(p, gadget.Size(sz))
-	c.Assert(err, IsNil)
-	defer f.Close()
-}
-
-func (s *volumeSuite) TestMeasureDirSize(c *C) {
+func (s *volumeSuite) TestMeasureDirSizeReal(c *C) {
 	dir := c.MkDir()
 
 	tree := []mockEntry{
@@ -637,11 +628,40 @@ func (s *volumeSuite) TestMeasureDirSize(c *C) {
 
 	sz, err := snap_image.MeasureRootfs(dir)
 	c.Assert(err, IsNil)
-	// because du rounds up the size to disk/fs specific blocks
-	c.Assert(sz, Equals, int64(8192))
+	// because du rounds up the size to disk/fs specific blocks, we can't
+	// just take a known value
+	c.Assert(sz > 3072, Equals, true, Commentf("unexpected size: %v", sz))
 
 	sz, err = snap_image.MeasureRootfs("bogus-dir")
 	c.Assert(err, ErrorMatches, `running du failed: du: cannot access 'bogus-dir': .*`)
+	c.Assert(sz, Equals, int64(0))
+}
+
+func (s *volumeSuite) TestMeasureDirSizeMocked(c *C) {
+	cmdDuOk := testutil.MockCommand(c, "du", "echo '1234      .'")
+	defer cmdDuOk.Restore()
+
+	dir := c.MkDir()
+
+	sz, err := snap_image.MeasureRootfs(dir)
+	c.Assert(err, IsNil)
+	c.Assert(sz, Equals, int64(1234))
+	c.Assert(cmdDuOk.Calls(), DeepEquals, [][]string{
+		{"du", "-s", "-B1", dir},
+	})
+
+	cmdDuBadFormat := testutil.MockCommand(c, "du", "echo 'this is some bad format'")
+	defer cmdDuBadFormat.Restore()
+
+	sz, err = snap_image.MeasureRootfs(dir)
+	c.Assert(err, ErrorMatches, `unexpected output: "this is some bad format\\n"`)
+	c.Assert(sz, Equals, int64(0))
+
+	cmdDuBadErr := testutil.MockCommand(c, "du", "echo 'fail'; exit 1")
+	defer cmdDuBadErr.Restore()
+
+	sz, err = snap_image.MeasureRootfs(dir)
+	c.Assert(err, ErrorMatches, `running du failed: fail`)
 	c.Assert(sz, Equals, int64(0))
 }
 
