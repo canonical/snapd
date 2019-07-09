@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -35,14 +36,14 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type restSuite struct {
+type sessionAgentSuite struct {
 	socketPath string
 	client     *http.Client
 }
 
-var _ = Suite(&restSuite{})
+var _ = Suite(&sessionAgentSuite{})
 
-func (s *restSuite) SetUpTest(c *C) {
+func (s *sessionAgentSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
@@ -57,11 +58,11 @@ func (s *restSuite) SetUpTest(c *C) {
 	s.client = &http.Client{Transport: transport}
 }
 
-func (s *restSuite) TearDownTest(c *C) {
+func (s *sessionAgentSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *restSuite) TestAgentInfo(c *C) {
+func (s *sessionAgentSuite) TestStartStop(c *C) {
 	agent, err := agent.NewSessionAgent()
 	c.Assert(err, IsNil)
 	agent.Version = "42"
@@ -79,4 +80,26 @@ func (s *restSuite) TestAgentInfo(c *C) {
 	}
 	c.Assert(json.NewDecoder(response.Body).Decode(&rst), IsNil)
 	c.Check(rst.Result.Version, Equals, "42")
+
+	c.Check(agent.Stop(), IsNil)
+}
+
+func (s *sessionAgentSuite) TestDying(c *C) {
+	agent, err := agent.NewSessionAgent()
+	c.Assert(err, IsNil)
+	agent.Start()
+	select {
+	case <-agent.Dying():
+		c.Error("agent.Dying() channel closed prematurely")
+	default:
+	}
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		c.Check(agent.Stop(), IsNil)
+	}()
+	select {
+	case <-agent.Dying():
+	case <-time.After(2 * time.Second):
+		c.Error("agent.Dying() channel was not closed when agent stopped")
+	}
 }
