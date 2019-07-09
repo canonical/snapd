@@ -284,6 +284,14 @@ def renumber_snap_revision(entry, seen):
         # type: (List[Text], int) -> List[Text]
         return parts[:10] + ["{}".format(n)] + parts[11:]
 
+    def compose_writable(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:5] + ["{}".format(n)] + parts[6:]
+
+    def compose_hostfs_writable(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:9] + ["{}".format(n)] + parts[10:]
+
     def alloc_n(snap_name, snap_rev):
         # type: (Text, Text) -> int
         key = (snap_name, snap_rev)
@@ -303,6 +311,10 @@ def renumber_snap_revision(entry, seen):
         snap_name = parts[5]
         snap_rev = parts[6]
         compose = compose_alternate
+    elif len(parts) >= 6 and parts[:4] == ["", "writable", "system-data", "snap"]:
+        snap_name = parts[4]
+        snap_rev = parts[5]
+        compose = compose_writable
     elif len(parts) >= 8 and parts[:6] == ["", "var", "lib", "snapd", "hostfs", "snap"]:
         snap_name = parts[6]
         snap_rev = parts[7]
@@ -321,6 +333,19 @@ def renumber_snap_revision(entry, seen):
         snap_name = parts[9]
         snap_rev = parts[10]
         compose = compose_hostfs_alternate
+    elif len(parts) >= 10 and parts[:8] == [
+        "",  # 0
+        "var",  # 1
+        "lib",  # 2
+        "snapd",  # 3
+        "hostfs",  # 4
+        "writable",  # 5
+        "system-data",  # 6
+        "snap",  # 7
+    ]:
+        snap_name = parts[8]
+        snap_rev = parts[9]
+        compose = compose_hostfs_writable
     else:
         return
     n = alloc_n(snap_name, snap_rev)
@@ -821,6 +846,42 @@ class RenumberSnapRevisionTests(unittest.TestCase):
         )
 
         self.assertEqual(self.seen, {("core", "7079"): 1})
+
+    def test_writable(self):
+        # type: () -> None
+        self.entry.mount_point = "/writable/system-data/snap/core18/1055"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/writable/system-data/snap/core18/1")
+
+        self.entry.mount_point = "/writable/system-data/snap/core18/1055/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point, "/writable/system-data/snap/core18/1/subdir"
+        )
+
+        self.assertEqual(self.seen, {("core18", "1055"): 1})
+
+    def test_writable_via_hostfs(self):
+        # type: () -> None
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1055"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1",
+        )
+
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1055/subdir"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1/subdir",
+        )
+
+        self.assertEqual(self.seen, {("core18", "1055"): 1})
 
 
 class RenumberMountNsTests(unittest.TestCase):
