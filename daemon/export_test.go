@@ -41,3 +41,11 @@ func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
 		muxVars = old
 	}
 }
+
+func MockBuildID(mock string) (restore func()) {
+	old := buildID
+	buildID = mock
+	return func() {
+		buildID = old
+	}
+}

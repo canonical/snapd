@@ -59,6 +59,26 @@ sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt, ...)
 	return err;
 }
 
+sc_error *sc_error_init_simple(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_UNSPECIFIED_ERROR, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
+sc_error *sc_error_init_api_misuse(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_API_MISUSE, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
 const char *sc_error_domain(sc_error * err)
 {
 	if (err == NULL) {
