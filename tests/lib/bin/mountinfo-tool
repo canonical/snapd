@@ -922,7 +922,7 @@ class RenumberMountOptionsTests(unittest.TestCase):
         self.assertEqual(renumber_mount_option("fd=45", self.seen), "fd=1")
         self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
 
-    def test_size_not_allocated(self):
+    def test_renumber_size_variable(self):
         # type: () -> None
         """
         size is special-cased and is not allocated because it is prone to fluctuations
