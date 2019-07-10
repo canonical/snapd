@@ -25,11 +25,12 @@
 			"revisionTime": "2017-08-22T15:24:03Z"
 		},
 		{
-			"checksumSHA1": "M1jObMAw/YV+Rc5PccfmJuuxLa0=",
+			"checksumSHA1": "mkW1FNv2atdJblBoNsGkAfvec5w=",
 			"origin": "github.com/chrisccoulson/go-tpm",
 			"path": "github.com/google/go-tpm",
 			"revision": "c6c7cb7465ae50e13263f2f8ff33f57d1f9859bc",
-			"revisionTime": "2019-07-08T13:36:22Z"
+			"revisionTime": "2019-07-08T13:36:22Z",
+			"tree": true
 		},
 		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
