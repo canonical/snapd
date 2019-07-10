@@ -20,6 +20,7 @@ package recovery
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -51,22 +52,9 @@ func (d *DiskDevice) FindFromPartLabel(label string) error {
 
 func (d *DiskDevice) CreatePartition(size uint64, label string) error {
 	logger.Noticef("Create partition %q", label)
-	cmd := exec.Command("sfdisk", "--no-reread", "-a", d.node)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return err
-	}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("cannot create partition: %s", err)
-	}
-	if _, err := stdin.Write([]byte(fmt.Sprintf(",%d,,,", size/sizeSector))); err != nil {
-		return fmt.Errorf("cannot write to sfdisk pipe: %s", err)
-	}
-	if err := stdin.Close(); err != nil {
-		return fmt.Errorf("cannot close fdisk pipe: %s", err)
-	}
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("cannot run sfdisk: %s", err)
+	if output, err := pipeRun([]byte(fmt.Sprintf(",%d,,,", size/sizeSector)),
+		"sfdisk", "--no-reread", "-a", d.node); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot create partition: %s", err))
 	}
 
 	// Re-read partition table
@@ -89,7 +77,7 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 	cmd := exec.Command("sfdisk", "--no-reread", "-a", d.node)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get sfdisk stdin: %s", err)
 	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("cannot create partition: %s", err)
@@ -118,30 +106,20 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 	// see https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1835279
 	time.Sleep(1 * time.Second)
 
-	// Create a temporary unsealed keyfile on a RAM-backed filesystem
-	keyfile := "/run/tmpkeyfile"
-	if err := ioutil.WriteFile(keyfile, keyBuffer, 0400); err != nil {
-		return fmt.Errorf("cannot create keyfile: %s", err)
-	}
-
+	// Write key to stdin to avoid creating a temporary file
 	logger.Noticef("Create LUKS device on %s", partdev)
-	if output, err := exec.Command("cryptsetup", "-q", "--type", "luks2", "--key-file", keyfile,
-		"--pbkdf-memory", "100000", "luksFormat", partdev).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, fmt.Errorf("cannot format LUKS device on %s: %s", partdev, err))
+	if output, err := pipeRun(keyBuffer, "cryptsetup", "-q", "--type", "luks2", "--key-file", "-",
+		"--pbkdf-memory", "100000", "luksFormat", partdev); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot format LUKS device: %s", err))
 	}
 
 	time.Sleep(1 * time.Second)
 
 	logger.Noticef("Open LUKS device")
-	if output, err := exec.Command("sh", "-c", fmt.Sprintf("LD_PRELOAD=/lib/no-udev.so cryptsetup "+
-		"--type luks2 --key-file %s --pbkdf-memory 100000 open %s %s", keyfile, partdev,
-		path.Base(cryptdev))).CombinedOutput(); err != nil {
+	if output, err := pipeRun(keyBuffer, "sh", "-c", fmt.Sprintf("LD_PRELOAD=/lib/no-udev.so cryptsetup "+
+		"--type luks2 --key-file - --pbkdf-memory 100000 open %s %s", partdev,
+		path.Base(cryptdev))); err != nil {
 		return osutil.OutputErr(output, fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err))
-	}
-
-	// FIXME: use secure delete
-	if err := os.Remove(keyfile); err != nil {
-		logger.Noticef("can't remove keyfile: %s", err)
 	}
 
 	// FIXME: Ok, now this is ugly. We'll have to see how to handle this properly.
@@ -159,6 +137,36 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 	}
 
 	return nil
+}
+
+func pipeRun(input []byte, name string, args ...string) (output []byte, err error) {
+	cmd := exec.Command(name, args...)
+	stdin, err := cmd.StdinPipe()
+	var out bytes.Buffer
+	// FIXME: use combined output
+	cmd.Stderr = &out
+	if err != nil {
+		return
+	}
+	if err = cmd.Start(); err != nil {
+		return
+	}
+	n, err := stdin.Write(input)
+	if err != nil {
+		return
+	}
+	if n != len(input) {
+		err = fmt.Errorf("short write (%d)", n)
+		return
+	}
+	if err = stdin.Close(); err != nil {
+		return
+	}
+	if err = cmd.Wait(); err != nil {
+		output = out.Bytes()
+		return
+	}
+	return
 }
 
 func createCrypttab(partdev, keyfile, cryptdev string) error {
