@@ -355,6 +355,14 @@ func targetForSourceDir(source, target string) string {
 	return filepath.Join(target, filepath.Base(source))
 }
 
+func (f *MountedFilesystemUpdater) makePrefix(dstRoot, target string) error {
+	dstPath, _ := f.entryDestPaths(dstRoot, "", target, "")
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+		return fmt.Errorf("cannot write prefix directory: %v", err)
+	}
+	return nil
+}
+
 func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(source)
 	if err != nil {
@@ -363,20 +371,25 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 
 	target = targetForSourceDir(source, target)
 
+	// create current target directory if needed
+	if err := os.MkdirAll(filepath.Join(dstRoot, target), 0755); err != nil {
+		return fmt.Errorf("cannot write directory: %v", err)
+	}
+	// and write the content of source to target
 	for _, fi := range fis {
 		pSrc := filepath.Join(source, fi.Name())
 		pDst := filepath.Join(target, fi.Name())
 
 		update := f.updateOrSkipFile
 		if fi.IsDir() {
-			dstPath, _ := f.entryDestPaths(dstRoot, source, pDst, "")
-			if err := os.MkdirAll(dstPath, 0755); err != nil {
-				return fmt.Errorf("cannot write directory: %v", err)
-			}
 			// continue updating contents of the directory rather
 			// than the directory itself
 			pSrc += "/"
+			pDst += "/"
 			update = f.updateDirectory
+		}
+		if err := f.makePrefix(dstRoot, target); err != nil {
+			return err
 		}
 		if err := update(dstRoot, pSrc, pDst, preserveInDst, backupDir); err != nil {
 			return err
@@ -401,7 +414,7 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 		if !osutil.FileExists(backupPath + ".backup") {
 			// not preserved & different than the update, error out
 			// as there is no backup
-			return fmt.Errorf("missing backup file for %v", dstPath)
+			return fmt.Errorf("missing backup file %v for %v", backupPath+".backup", target)
 		}
 	}
 
@@ -414,6 +427,10 @@ func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 	}
 
 	srcPath := f.entrySourcePath(content.Source)
+
+	if err := f.makePrefix(volumeRoot, content.Target); err != nil {
+		return err
+	}
 
 	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.Source, "/") {
 		return f.updateDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
@@ -490,6 +507,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, 
 			// continue backing up the contents of the directory
 			// rather than the directory itself
 			pSrc += "/"
+			pDst += "/"
 			backup = f.backupOrCheckpointDirectory
 		}
 		if err := f.checkpointPrefix(dstRoot, pDst, backupDir); err != nil {
@@ -690,14 +708,13 @@ func (f *MountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target str
 			// rather than the directory itself
 			rollback = f.rollbackDirectory
 			pSrc += "/"
+			pDst += "/"
 		}
 		if err := rollback(dstRoot, pSrc, pDst, preserveInDst, backupDir); err != nil {
 			return err
 		}
-		if fi.IsDir() {
-			if err := f.rollbackPrefix(dstRoot, pDst+"/", backupDir); err != nil {
-				return err
-			}
+		if err := f.rollbackPrefix(dstRoot, pDst, backupDir); err != nil {
+			return err
 		}
 	}
 
@@ -732,7 +749,7 @@ func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 		return fmt.Errorf("cannot remove written update: %v", err)
 	}
 
-	return f.rollbackPrefix(dstRoot, target, backupDir)
+	return nil
 }
 
 func (f *MountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
@@ -742,11 +759,17 @@ func (f *MountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, cont
 
 	srcPath := f.entrySourcePath(content.Source)
 
+	var err error
 	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.Source, "/") {
 		// rollback directory
-		return f.rollbackDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
+		err = f.rollbackDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
 		// rollback file
-		return f.rollbackFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
+		err = f.rollbackFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	}
+	if err != nil {
+		return err
+	}
+
+	return f.rollbackPrefix(volumeRoot, content.Target, backupDir)
 }

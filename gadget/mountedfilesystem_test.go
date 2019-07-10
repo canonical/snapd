@@ -50,6 +50,12 @@ type gadgetData struct {
 
 func makeGadgetData(c *C, where string, data []gadgetData) {
 	for _, en := range data {
+		if strings.HasSuffix(en.name, "/") {
+			err := os.MkdirAll(filepath.Join(where, en.name), 0755)
+			c.Check(en.content, HasLen, 0)
+			c.Assert(err, IsNil)
+			continue
+		}
 		makeSizedFile(c, filepath.Join(where, en.name), 0, []byte(en.content))
 	}
 }
@@ -704,6 +710,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 	gdWritten := []gadgetData{
 		{name: "bar", content: "data"},
 		{name: "some-dir/foo", content: "data"},
+		{name: "empty-dir/"},
 	}
 	makeGadgetData(c, s.dir, gdWritten)
 
@@ -717,6 +724,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 		{target: "nested/foo", content: "can't touch this"},
 		// written to by bar -> /this/is/some/nested/
 		{target: "this/is/some/"},
+		{target: "lone-dir/"},
 	}
 	makeExistingData(c, outDir, backedUp)
 
@@ -734,6 +742,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 				}, {
 					Source: "some-dir/",
 					Target: "/nested/",
+				}, {
+					Source: "empty-dir/",
+					Target: "/lone-dir/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -762,6 +773,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 		"nested.backup":     typeFile,
 
 		"foo.backup": typeFile,
+
+		"lone-dir.backup": typeFile,
 	})
 }
 
@@ -1161,12 +1174,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 	c.Assert(rw, NotNil)
 
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: missing backup file for .*/out-dir/foo")
+	c.Assert(err, ErrorMatches, "cannot update content: missing backup file .*/struct-0/foo.backup for /foo")
 	// create a mock backup of first file
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/foo.backup"), 0, nil)
 	// try again
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: missing backup file for .*/out-dir/some-dir/foo")
+	c.Assert(err, ErrorMatches, "cannot update content: missing backup file .*/struct-0/some-dir/foo.backup for /some-dir/foo")
 	// create a mock backup of second entry
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/some-dir/foo.backup"), 0, nil)
 	// try again (preserved files need no backup)
@@ -1229,6 +1242,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 		// / -> /foo
 		"foo/empty-dir":           typeDir,
 		"foo/non-empty/empty-dir": typeDir,
+
+		// /non-empty/empty-dir/ -> /contents-of-empty/
+		"contents-of-empty": typeDir,
 	})
 }
 
@@ -1283,6 +1299,51 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 		{target: "foo", content: "same"},
 		{target: "some-dir/foo", content: "same"},
 	})
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
+	// some data for the gadget
+	gd := []gadgetData{
+		{name: "bar", target: "1/nested/bar", content: "data"},
+		{name: "bar", target: "2/nested/foo", content: "data"},
+		{name: "bar", target: "3/nested/bar", content: "data"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{
+					Source: "bar",
+					Target: "/1/nested/",
+				}, {
+					Source: "bar",
+					Target: "/2/nested/foo",
+				}, {
+					Source: "/",
+					Target: "/3/nested/",
+				},
+			},
+			Update: gadget.VolumeUpdate{
+				Edition: 1,
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Update()
+	c.Assert(err, IsNil)
+	verifyWrittenGadgetData(c, outDir, gd)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) {
@@ -1581,6 +1642,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 		{name: "some-dir/bar", content: "data"},
 		{name: "some-dir/foo", content: "data"},
 		{name: "some-dir/nested/nested-foo", content: "data"},
+		{name: "empty-dir/"},
 	})
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
@@ -1597,6 +1659,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 		{target: "other-dir/nested/nested/nested-foo", content: "written"},
 		// bar -> /this/is/some/deep/nesting/
 		{target: "this/is/some/deep/nesting/bar", content: "written"},
+		{target: "lone-dir/"},
 	})
 
 	ps := &gadget.PositionedStructure{
@@ -1616,6 +1679,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 				}, {
 					Source: "bar",
 					Target: "/this/is/some/deep/nesting/",
+				}, {
+					Source: "empty-dir/",
+					Target: "/lone-dir/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1637,12 +1703,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/this/is/some.backup"), 0, nil)
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/this/is.backup"), 0, nil)
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/this.backup"), 0, nil)
+	makeSizedFile(c, filepath.Join(s.backup, "struct-0/lone-dir.backup"), 0, nil)
 
 	// files without a marker are new, will be removed
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, outDir, map[string]contentType{
+		"lone-dir":     typeDir,
 		"this/is/some": typeDir,
 		"foo":          typeFile,
 	})
@@ -1732,6 +1800,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 				}, {
 					Source: "boot-assets",
 					Target: "/boot-assets-copy/",
+				}, {
+					Source: "/boot-assets/empty-dir/",
+					Target: "/lone-dir/nested/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1814,6 +1885,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 
 		// data that was not part of the update
 		"unrelated/data/here": typeFile,
+
+		// boot-assets/empty-dir/ -> /lone-dir/nested/
+		"lone-dir/nested": typeDir,
 	})
 
 	// files that existed were preserved
