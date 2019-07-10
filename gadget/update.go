@@ -79,7 +79,10 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 	}
 
 	// now we know which structure is which, find which ones need an update
-	updates := resolveUpdate(pOld, pNew)
+	updates, err := resolveUpdate(pOld, pNew)
+	if err != nil {
+		return err
+	}
 	if len(updates) == 0 {
 		// nothing to update
 		return ErrNoUpdate
@@ -206,7 +209,10 @@ type updatePair struct {
 	to   *PositionedStructure
 }
 
-func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates []updatePair) {
+func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates []updatePair, err error) {
+	if len(oldVol.PositionedStructure) != len(newVol.PositionedStructure) {
+		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
+	}
 	for j, oldStruct := range oldVol.PositionedStructure {
 		newStruct := newVol.PositionedStructure[j]
 		// update only when new edition is higher than the old one; boot
@@ -220,7 +226,7 @@ func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates 
 			})
 		}
 	}
-	return updates
+	return updates, nil
 }
 
 type Updater interface {

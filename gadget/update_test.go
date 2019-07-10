@@ -629,6 +629,8 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 			{Source: "/third-content", Target: "/"},
 		},
 	}
+	// start with identical data for new and old infos, they get updated by
+	// the caller as needed
 	oldInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"foo": {
@@ -821,8 +823,6 @@ func (u *updateTestSuite) TestUpdateApplyErrorPosition(c *C) {
 	// cannot position the new volume
 	err = gadget.Update(oldData, newData, rollbackDir)
 	c.Assert(err, ErrorMatches, `cannot lay out the new volume: cannot position structure #0 \("foo"\): content "first.img": .* no such file or directory`)
-
-	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
 }
 
 func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
