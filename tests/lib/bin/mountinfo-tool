@@ -284,6 +284,14 @@ def renumber_snap_revision(entry, seen):
         # type: (List[Text], int) -> List[Text]
         return parts[:10] + ["{}".format(n)] + parts[11:]
 
+    def compose_writable(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:5] + ["{}".format(n)] + parts[6:]
+
+    def compose_hostfs_writable(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:9] + ["{}".format(n)] + parts[10:]
+
     def alloc_n(snap_name, snap_rev):
         # type: (Text, Text) -> int
         key = (snap_name, snap_rev)
@@ -303,6 +311,10 @@ def renumber_snap_revision(entry, seen):
         snap_name = parts[5]
         snap_rev = parts[6]
         compose = compose_alternate
+    elif len(parts) >= 6 and parts[:4] == ["", "writable", "system-data", "snap"]:
+        snap_name = parts[4]
+        snap_rev = parts[5]
+        compose = compose_writable
     elif len(parts) >= 8 and parts[:6] == ["", "var", "lib", "snapd", "hostfs", "snap"]:
         snap_name = parts[6]
         snap_rev = parts[7]
@@ -321,6 +333,19 @@ def renumber_snap_revision(entry, seen):
         snap_name = parts[9]
         snap_rev = parts[10]
         compose = compose_hostfs_alternate
+    elif len(parts) >= 10 and parts[:8] == [
+        "",  # 0
+        "var",  # 1
+        "lib",  # 2
+        "snapd",  # 3
+        "hostfs",  # 4
+        "writable",  # 5
+        "system-data",  # 6
+        "snap",  # 7
+    ]:
+        snap_name = parts[8]
+        snap_rev = parts[9]
+        compose = compose_hostfs_writable
     else:
         return
     n = alloc_n(snap_name, snap_rev)
@@ -453,7 +478,13 @@ def renumber_mount_option(opt, seen):
         try:
             return seen[key]
         except KeyError:
-            n = len(seen)
+            n = len(
+                {
+                    opt_value
+                    for opt_key, opt_value in seen.keys()
+                    if opt_key == mount_opt_key
+                }
+            )
             seen[key] = n
             return n
 
@@ -587,8 +618,11 @@ Known attributes, applicable for both filtering and display.
     )
     parser.add_argument(
         "--ref",
+        dest="refs",
         metavar="MOUNTINFO",
         type=FileType(),
+        action="append",
+        default=[],
         help="refer to another table while rewriting, makes output comparable across namespaces",
     )
     parser.add_argument(
@@ -618,8 +652,9 @@ Known attributes, applicable for both filtering and display.
     entries = [MountInfoEntry.parse(line) for line in opts.file]
     entries = [e for e in entries if matches(e, filters)]
     rs = RewriteState()
-    if opts.ref:
-        ref_entries = [MountInfoEntry.parse(line) for line in opts.ref]
+
+    for ref in opts.refs:
+        ref_entries = [MountInfoEntry.parse(line) for line in ref]
         if opts.renumber:
             rewrite_renumber(ref_entries, rs)
         if opts.rename:
@@ -812,6 +847,42 @@ class RenumberSnapRevisionTests(unittest.TestCase):
 
         self.assertEqual(self.seen, {("core", "7079"): 1})
 
+    def test_writable(self):
+        # type: () -> None
+        self.entry.mount_point = "/writable/system-data/snap/core18/1055"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/writable/system-data/snap/core18/1")
+
+        self.entry.mount_point = "/writable/system-data/snap/core18/1055/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point, "/writable/system-data/snap/core18/1/subdir"
+        )
+
+        self.assertEqual(self.seen, {("core18", "1055"): 1})
+
+    def test_writable_via_hostfs(self):
+        # type: () -> None
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1055"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1",
+        )
+
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1055/subdir"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1/subdir",
+        )
+
+        self.assertEqual(self.seen, {("core18", "1055"): 1})
+
 
 class RenumberMountNsTests(unittest.TestCase):
     def setUp(self):
@@ -845,6 +916,20 @@ class RenumberMountOptionsTests(unittest.TestCase):
         # type: () -> None
         self.seen = {}  # type: Dict[Tuple[Text, Text], int]
 
+    def test_renumber_allocation(self):
+        # type: () -> None
+        """
+        numbers are allocated from subsets matching the key, this reduces delta.
+        """
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
+        self.assertEqual(renumber_mount_option("size=200", self.seen), "size=1")
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+        self.assertEqual(renumber_mount_option("fd=45", self.seen), "fd=1")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+
     def test_renumber_devtmpfs_opts(self):
         # type: () -> None
         """
@@ -857,12 +942,12 @@ class RenumberMountOptionsTests(unittest.TestCase):
         # Options size= and nr_inodes= are renumbered.
         self.assertEqual(renumber_mount_option("size=4057388k", self.seen), "size=0")
         self.assertEqual(
-            renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=1"
+            renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=0"
         )
         # Option mode= is not renumbered.
         self.assertEqual(renumber_mount_option("mode=755", self.seen), "mode=755")
         self.assertEqual(
-            self.seen, {("size", "4057388k"): 0, ("nr_inodes", "1014347"): 1}
+            self.seen, {("size", "4057388k"): 0, ("nr_inodes", "1014347"): 0}
         )
 
     def test_renumber_binfmt_misc_opts(self):
@@ -876,9 +961,9 @@ class RenumberMountOptionsTests(unittest.TestCase):
         """
         self.assertEqual(renumber_mount_option("fd=40", self.seen), "fd=0")
         self.assertEqual(
-            renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=1"
+            renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=0"
         )
-        self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 1})
+        self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 0})
 
 
 class RewriteTests(unittest.TestCase):
@@ -903,8 +988,8 @@ class RewriteTests(unittest.TestCase):
                 MountInfoEntry.parse(line)
                 for line in (
                     "1 0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw",
-                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=0,nr_inodes=1,mode=755",
-                    "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=2,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3",
+                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=0,nr_inodes=0,mode=755",
+                    "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=0,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=0",
                 )
             ],
         )
