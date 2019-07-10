@@ -333,13 +333,13 @@ func (f *MountedFilesystemUpdater) Update() error {
 }
 
 func (f *MountedFilesystemUpdater) sourceDirectoryEntries(source string) ([]os.FileInfo, error) {
-	srcName := f.entrySourcePath(source)
+	srcPath := f.entrySourcePath(source)
 
-	if err := checkSourceIsDir(srcName); err != nil {
+	if err := checkSourceIsDir(srcPath); err != nil {
 		return nil, err
 	}
 
-	return ioutil.ReadDir(srcName)
+	return ioutil.ReadDir(srcPath)
 }
 
 // targetInSourceDir resolves the actual target for given source directory name
@@ -369,8 +369,8 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 
 		update := f.updateOrSkipFile
 		if fi.IsDir() {
-			dstName, _ := f.entryDestPaths(dstRoot, source, pDst, "")
-			if err := os.MkdirAll(dstName, 0755); err != nil {
+			dstPath, _ := f.entryDestPaths(dstRoot, source, pDst, "")
+			if err := os.MkdirAll(dstPath, 0755); err != nil {
 				return fmt.Errorf("cannot write directory: %v", err)
 			}
 			// continue updating contents of the directory rather
@@ -387,25 +387,25 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 }
 
 func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcName, dstName, backupName := f.entryPaths(dstRoot, source, target, backupDir)
+	srcPath, dstPath, backupPath := f.entryPaths(dstRoot, source, target, backupDir)
 
-	if osutil.FileExists(dstName) {
-		if strutil.SortedListContains(preserveInDst, dstName) {
+	if osutil.FileExists(dstPath) {
+		if strutil.SortedListContains(preserveInDst, dstPath) {
 			// file is to be preserved
 			return nil
 		}
-		if osutil.FileExists(backupName + ".same") {
+		if osutil.FileExists(backupPath + ".same") {
 			// file is the same as current copy
 			return nil
 		}
-		if !osutil.FileExists(backupName + ".backup") {
+		if !osutil.FileExists(backupPath + ".backup") {
 			// not preserved & different than the update, error out
 			// as there is no backup
-			return fmt.Errorf("missing backup file for %v", dstName)
+			return fmt.Errorf("missing backup file for %v", dstPath)
 		}
 	}
 
-	return writeFile(srcName, dstName, preserveInDst)
+	return writeFile(srcPath, dstPath, preserveInDst)
 }
 
 func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
@@ -413,9 +413,9 @@ func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 		return err
 	}
 
-	srcName := f.entrySourcePath(content.Source)
+	srcPath := f.entrySourcePath(content.Source)
 
-	if osutil.IsDirectory(srcName) || strings.HasSuffix(content.Source, "/") {
+	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.Source, "/") {
 		return f.updateDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
 		return f.updateOrSkipFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
@@ -529,13 +529,13 @@ func (f *MountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 }
 
 func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcName, dstName, backupBase := f.entryPaths(dstRoot, source, target, backupDir)
+	srcPath, dstPath, backupPath := f.entryPaths(dstRoot, source, target, backupDir)
 
-	backupName := backupBase + ".backup"
-	sameStamp := backupBase + ".same"
-	preserveStamp := backupBase + ".preserve"
+	backupName := backupPath + ".backup"
+	sameStamp := backupPath + ".same"
+	preserveStamp := backupPath + ".preserve"
 
-	if !osutil.FileExists(dstName) {
+	if !osutil.FileExists(dstPath) {
 		// destination does not exist and will be created when writing
 		// the udpate, no need for backup
 		return nil
@@ -547,10 +547,10 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		return nil
 	}
 
-	if strutil.SortedListContains(preserveInDst, dstName) {
+	if strutil.SortedListContains(preserveInDst, dstPath) {
 		// file is to be preserved, create a relevant stamp
 
-		if !osutil.FileExists(dstName) {
+		if !osutil.FileExists(dstPath) {
 			// preserve, but does not exist, will be written anyway
 			return nil
 		}
@@ -568,7 +568,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	// try to find out whether the update and the existing file are
 	// identical
 
-	orig, err := os.Open(dstName)
+	orig, err := os.Open(dstPath)
 	if err != nil {
 		return fmt.Errorf("cannot open destination file: %v", err)
 	}
@@ -592,7 +592,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	}
 
 	// digest of the update
-	updateDigest, _, err := osutil.FileDigest(srcName, crypto.SHA1)
+	updateDigest, _, err := osutil.FileDigest(srcPath, crypto.SHA1)
 	if err != nil {
 		backup.Cancel()
 		return fmt.Errorf("cannot checksum update file: %v", err)
@@ -607,7 +607,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 			return fmt.Errorf("cannot create a checkpoint file: %v", err)
 		}
 
-		// makes the previous commit a noop
+		// makes the deferred commit a noop
 		backup.Cancel()
 		return nil
 	}
@@ -622,12 +622,12 @@ func (f *MountedFilesystemUpdater) backupVolumeContent(volumeRoot string, conten
 		return err
 	}
 
-	srcName := f.entrySourcePath(content.Source)
+	srcPath := f.entrySourcePath(content.Source)
 
 	if err := f.checkpointPrefix(volumeRoot, content.Target, backupDir); err != nil {
 		return err
 	}
-	if osutil.IsDirectory(srcName) || strings.HasSuffix(content.Source, "/") {
+	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.Source, "/") {
 		// backup directory contents
 		return f.backupOrCheckpointDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
@@ -661,10 +661,10 @@ func (f *MountedFilesystemUpdater) Rollback() error {
 
 func (f *MountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backupDir string) error {
 	for prefix := filepath.Dir(target); prefix != "/" && prefix != "."; prefix = filepath.Dir(prefix) {
-		prefixDst, prefixBackupBase := f.entryDestPaths(dstRoot, "", prefix, backupDir)
-		if !osutil.FileExists(prefixBackupBase + ".backup") {
+		prefixDstPath, prefixBackupPath := f.entryDestPaths(dstRoot, "", prefix, backupDir)
+		if !osutil.FileExists(prefixBackupPath + ".backup") {
 			// try remove
-			if err := os.Remove(prefixDst); err != nil {
+			if err := os.Remove(prefixDstPath); err != nil {
 				logger.Noticef("cannot remove gadget directory %v: %v", prefix, err)
 			}
 		}
@@ -705,13 +705,13 @@ func (f *MountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target str
 }
 
 func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	dstName, backupBase := f.entryDestPaths(dstRoot, source, target, backupDir)
+	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
-	backupName := backupBase + ".backup"
-	sameStamp := backupBase + ".same"
-	preserveStamp := backupBase + ".preserve"
+	backupName := backupPath + ".backup"
+	sameStamp := backupPath + ".same"
+	preserveStamp := backupPath + ".preserve"
 
-	if strutil.SortedListContains(preserveInDst, dstName) && osutil.FileExists(preserveStamp) {
+	if strutil.SortedListContains(preserveInDst, dstPath) && osutil.FileExists(preserveStamp) {
 		// file was preserved at original location, do nothing
 		return nil
 	}
@@ -722,13 +722,13 @@ func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 
 	if osutil.FileExists(backupName) {
 		// restore backup -> destination
-		return writeFile(backupName, dstName, nil)
+		return writeFile(backupName, dstPath, nil)
 	}
 
 	// none of the markers exists, file is not preserved, meaning, it has
 	// been added by the update
 
-	if err := os.Remove(dstName); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot remove written update: %v", err)
 	}
 
@@ -740,9 +740,9 @@ func (f *MountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, cont
 		return err
 	}
 
-	srcName := f.entrySourcePath(content.Source)
+	srcPath := f.entrySourcePath(content.Source)
 
-	if osutil.IsDirectory(srcName) || strings.HasSuffix(content.Source, "/") {
+	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.Source, "/") {
 		// rollback directory
 		return f.rollbackDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
