@@ -63,7 +63,7 @@ func (s *sessionAgentSuite) TearDownTest(c *C) {
 }
 
 func (s *sessionAgentSuite) TestStartStop(c *C) {
-	agent, err := agent.NewSessionAgent()
+	agent, err := agent.New()
 	c.Assert(err, IsNil)
 	agent.Version = "42"
 	agent.Start()
@@ -85,7 +85,7 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 }
 
 func (s *sessionAgentSuite) TestDying(c *C) {
-	agent, err := agent.NewSessionAgent()
+	agent, err := agent.New()
 	c.Assert(err, IsNil)
 	agent.Start()
 	select {

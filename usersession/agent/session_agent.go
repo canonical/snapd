@@ -132,7 +132,7 @@ func (s *SessionAgent) Dying() <-chan struct{} {
 	return s.tomb.Dying()
 }
 
-func NewSessionAgent() (*SessionAgent, error) {
+func New() (*SessionAgent, error) {
 	agent := &SessionAgent{}
 	if err := agent.Init(); err != nil {
 		return nil, err

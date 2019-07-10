@@ -53,7 +53,7 @@ func (s *restSuite) TestSessionInfo(c *C) {
 
 	c.Check(sessionInfoCmd.Path, Equals, "/v1/session-info")
 
-	agent, err := NewSessionAgent()
+	agent, err := New()
 	c.Assert(err, IsNil)
 	agent.Version = "42b1"
 	rec := httptest.NewRecorder()

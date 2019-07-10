@@ -94,12 +94,11 @@ func (x *cmdUserd) runUserd() error {
 }
 
 func (x *cmdUserd) runAgent() error {
-	var agent agent.SessionAgent
-	agent.Version = cmd.Version
-
-	if err := agent.Init(); err != nil {
+	agent, err := agent.New()
+	if err != nil {
 		return err
 	}
+	agent.Version = cmd.Version
 	agent.Start()
 
 	ch := make(chan os.Signal, 3)
