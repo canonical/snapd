@@ -29,11 +29,12 @@ import (
 	"path"
 	"time"
 
+	"github.com/chrisccoulson/ubuntu-core-fde-utils"
+
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/recovery/fdeutils"
 )
 
 const (
