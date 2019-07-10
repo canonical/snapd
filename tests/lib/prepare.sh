@@ -320,6 +320,10 @@ repack_snapd_snap_with_deb_content() {
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    # workaround for missing "type: snapd", until a new version is available in the store
+    if ! grep -q "type:" "$UNPACK_DIR/meta/snap.yaml"; then
+        echo "type: snapd" >> "$UNPACK_DIR/meta/snap.yaml"
+    fi
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
