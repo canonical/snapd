@@ -439,11 +439,11 @@ func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 	}
 }
 
-// Backup analyzes a mounted filesystem and prepares a rollback state
-// information should the update be applied. The content of the filesystem is
-// processed, files and directories that would be modified by the update are
-// backed up, while identical/preserved files may be stamped to improve the
-// later step of update process.
+// Backup analyzes a mounted filesystem and prepares a rollback state should the
+// update be applied. The content of the filesystem is processed, files and
+// directories that would be modified by the update are backed up, while
+// identical/preserved files may be stamped to improve the later step of update
+// process.
 //
 // The backup directory structure mirrors the the structure of destination
 // location. Given the following destination structure:
