@@ -925,7 +925,7 @@ class RenumberMountOptionsTests(unittest.TestCase):
     def test_renumber_size_variable(self):
         # type: () -> None
         """
-        size is special-cased and is not allocated because it is prone to fluctuations
+        size is special-cased and always rewritten to the same value because it is prone to fluctuations
         """
         self.assertEqual(renumber_mount_option("size=100", self.seen), "size=VARIABLE")
         self.assertEqual(renumber_mount_option("size=200", self.seen), "size=VARIABLE")
