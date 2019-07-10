@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"syscall"
 	"time"
 
 	"github.com/chrisccoulson/ubuntu-core-fde-utils"
@@ -205,9 +206,7 @@ func Install(version string) error {
 		return fmt.Errorf("cannot store lockout authorization: %s", err)
 	}
 
-	if err := exec.Command("sync").Run(); err != nil {
-		return fmt.Errorf("cannot sync: %s", err)
-	}
+	syscall.Sync()
 
 	if err := umount(mntWritable); err != nil {
 		return err
@@ -231,7 +230,7 @@ func Install(version string) error {
 }
 
 func createWritable(keyBuffer []byte, cryptdev string) error {
-	logger.Noticef("Creating new ubuntu-data")
+	logger.Noticef("Creating new ubuntu-data partition")
 	disk := &DiskDevice{}
 	if err := disk.FindFromPartLabel("ubuntu-boot"); err != nil {
 		return fmt.Errorf("cannot determine boot device: %s", err)
@@ -267,9 +266,7 @@ func storeKeyfile(dir string, buffer []byte) error {
 	}
 
 	// Don't remove this sync, it prevents file corruption on vfat
-	if err := exec.Command("sync").Run(); err != nil {
-		return fmt.Errorf("cannot sync: %s", err)
-	}
+	syscall.Sync()
 
 	return nil
 }
@@ -380,9 +377,7 @@ func extractKernel(kernelPath, mntSystemBoot string) error {
 	}
 
 	// Don't remove this sync, it prevents file corruption on vfat
-	if err := exec.Command("sync").Run(); err != nil {
-		return fmt.Errorf("cannot sync filesystems: %s", err)
-	}
+	syscall.Sync()
 
 	if err := umount(mntKernelSnap); err != nil {
 		return err
