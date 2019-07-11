@@ -139,34 +139,33 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 	return nil
 }
 
-func pipeRun(input []byte, name string, args ...string) (output []byte, err error) {
+func pipeRun(input []byte, name string, args ...string) ([]byte, error) {
 	cmd := exec.Command(name, args...)
 	stdin, err := cmd.StdinPipe()
 	var out bytes.Buffer
 	// FIXME: use combined output
 	cmd.Stderr = &out
 	if err != nil {
-		return
+		return nil, err
 	}
 	if err = cmd.Start(); err != nil {
-		return
+		return nil, err
 	}
 	n, err := stdin.Write(input)
 	if err != nil {
-		return
+		return nil, err
 	}
 	if n != len(input) {
 		err = fmt.Errorf("short write (%d)", n)
-		return
+		return nil, err
 	}
 	if err = stdin.Close(); err != nil {
-		return
+		return nil, err
 	}
 	if err = cmd.Wait(); err != nil {
-		output = out.Bytes()
-		return
+		return nil, err
 	}
-	return
+	return out.Bytes(), nil
 }
 
 func createCrypttab(partdev, keyfile, cryptdev string) error {
