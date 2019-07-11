@@ -492,7 +492,9 @@ def renumber_mount_option(opt, seen):
         mount_opt_key, mount_opt_value = opt.split("=", 1)
         # size, nr_inode: used by tmpfs
         # fd, pipe_ino: used by binfmtmisc
-        if mount_opt_key in {"size", "nr_inodes", "fd", "pipe_ino"}:
+        if mount_opt_key == "size":
+            return "size=VARIABLE"
+        if mount_opt_key in {"nr_inodes", "fd", "pipe_ino"}:
             return "{}={}".format(
                 mount_opt_key, alloc_n(mount_opt_key, mount_opt_value)
             )
@@ -972,14 +974,22 @@ class RenumberMountOptionsTests(unittest.TestCase):
         """
         numbers are allocated from subsets matching the key, this reduces delta.
         """
-        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
-        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
-        self.assertEqual(renumber_mount_option("size=200", self.seen), "size=1")
-        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=0")
+        self.assertEqual(renumber_mount_option("pipe_ino=100", self.seen), "pipe_ino=0")
+        self.assertEqual(renumber_mount_option("pipe_ino=100", self.seen), "pipe_ino=0")
+        self.assertEqual(renumber_mount_option("pipe_ino=200", self.seen), "pipe_ino=1")
+        self.assertEqual(renumber_mount_option("pipe_ino=100", self.seen), "pipe_ino=0")
         self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
         self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
         self.assertEqual(renumber_mount_option("fd=45", self.seen), "fd=1")
         self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+
+    def test_renumber_size_variable(self):
+        # type: () -> None
+        """
+        size is special-cased and always rewritten to the same value because it is prone to fluctuations
+        """
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=VARIABLE")
+        self.assertEqual(renumber_mount_option("size=200", self.seen), "size=VARIABLE")
 
     def test_renumber_devtmpfs_opts(self):
         # type: () -> None
@@ -988,18 +998,20 @@ class RenumberMountOptionsTests(unittest.TestCase):
 
             23 98 0:6 / /dev rw,nosuid shared:21 - devtmpfs devtmpfs rw,size=4057388k,nr_inodes=1014347,mode=755
 
-        Here the size and nr_inodes options are not deterministic and need to be rewritten.
+        Here the size and nr_inodes options are not deterministic and need to
+        be rewritten.  The size quantity is very susceptible to free memory
+        fluctuations and is treated specially.
         """
         # Options size= and nr_inodes= are renumbered.
-        self.assertEqual(renumber_mount_option("size=4057388k", self.seen), "size=0")
+        self.assertEqual(
+            renumber_mount_option("size=4057388k", self.seen), "size=VARIABLE"
+        )
         self.assertEqual(
             renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=0"
         )
         # Option mode= is not renumbered.
         self.assertEqual(renumber_mount_option("mode=755", self.seen), "mode=755")
-        self.assertEqual(
-            self.seen, {("size", "4057388k"): 0, ("nr_inodes", "1014347"): 0}
-        )
+        self.assertEqual(self.seen, {("nr_inodes", "1014347"): 0})
 
     def test_renumber_binfmt_misc_opts(self):
         # type: () -> None
@@ -1040,7 +1052,7 @@ class RewriteTests(unittest.TestCase):
                 MountInfoEntry.parse(line)
                 for line in (
                     "1 0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw",
-                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=0,nr_inodes=0,mode=755",
+                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=VARIABLE,nr_inodes=0,mode=755",
                     "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=0,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=0",
                 )
             ],
