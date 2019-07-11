@@ -530,6 +530,43 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 	verifyWrittenGadgetData(c, outDir, gdWritten)
 }
 
+func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C) {
+	// some data for the gadget
+	gd := []gadgetData{
+		{name: "foo", content: "data"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	preserve := []string{
+		// this will be a directory
+		"foo",
+	}
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+	// will conflict with preserve entry
+	err := os.MkdirAll(filepath.Join(outDir, "foo"), 0755)
+	c.Assert(err, IsNil)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{
+					Source: "/",
+					Target: "/",
+				},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Write(outDir, preserve)
+	c.Assert(err, ErrorMatches, `cannot map preserve entries for destination ".*/out-dir": preserved entry "foo" is a directory`)
+}
+
 func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 	gd := []gadgetData{
 		{"boot-assets/nested-dir/nested", "/nested-copy/nested-dir/nested", "nested"},
@@ -1174,12 +1211,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 	c.Assert(rw, NotNil)
 
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: missing backup file .*/struct-0/foo.backup for /foo")
+	c.Assert(err, ErrorMatches, `cannot update content: missing backup file ".*/struct-0/foo.backup" for /foo`)
 	// create a mock backup of first file
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/foo.backup"), 0, nil)
 	// try again
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: missing backup file .*/struct-0/some-dir/foo.backup for /some-dir/foo")
+	c.Assert(err, ErrorMatches, `cannot update content: missing backup file ".*/struct-0/some-dir/foo.backup" for /some-dir/foo`)
 	// create a mock backup of second entry
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/some-dir/foo.backup"), 0, nil)
 	// try again (preserved files need no backup)
@@ -2007,4 +2044,45 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterMountLookupFail(c *C) {
 
 	err = rw.Rollback()
 	c.Assert(err, ErrorMatches, "cannot find mount location of structure #0: fail fail fail")
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C) {
+	// some data for the gadget
+	gd := []gadgetData{
+		{name: "foo", content: "data"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+	// will conflict with preserve entry
+	err := os.MkdirAll(filepath.Join(outDir, "foo"), 0755)
+	c.Assert(err, IsNil)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+			Update: gadget.VolumeUpdate{
+				Preserve: []string{"foo"},
+				Edition:  1,
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Backup()
+	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" is a directory`)
+	err = rw.Update()
+	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" is a directory`)
+	err = rw.Rollback()
+	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" is a directory`)
 }

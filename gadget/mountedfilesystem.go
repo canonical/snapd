@@ -82,14 +82,20 @@ func NewMountedFilesystemWriter(contentDir string, ps *PositionedStructure) (*Mo
 	return fw, nil
 }
 
-func prefixPreserve(dstDir string, preserve []string) []string {
+func mapPreserve(dstDir string, preserve []string) ([]string, error) {
 	preserveInDst := make([]string, len(preserve))
 	for i, p := range preserve {
-		preserveInDst[i] = filepath.Join(dstDir, p)
+		inDst := filepath.Join(dstDir, p)
+
+		if osutil.IsDirectory(inDst) {
+			return nil, fmt.Errorf("preserved entry %q is a directory", p)
+		}
+
+		preserveInDst[i] = inDst
 	}
 	sort.Strings(preserveInDst)
 
-	return preserveInDst
+	return preserveInDst, nil
 }
 
 // Write writes structure data into provided directory. All existing files are
@@ -100,7 +106,12 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 	if whereDir == "" {
 		return fmt.Errorf("internal error: destination directory cannot be unset")
 	}
-	preserveInDst := prefixPreserve(whereDir, preserve)
+
+	preserveInDst, err := mapPreserve(whereDir, preserve)
+	if err != nil {
+		return fmt.Errorf("cannot map preserve entries for destination %q: %v", whereDir, err)
+	}
+
 	for _, c := range m.ps.Content {
 		if err := m.writeVolumeContent(whereDir, &c, preserveInDst); err != nil {
 			return fmt.Errorf("cannot write filesystem content of %s: %v", c, err)
@@ -320,7 +331,11 @@ func (f *MountedFilesystemUpdater) Update() error {
 		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
 	}
 
-	preserveInDst := prefixPreserve(mount, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
+	if err != nil {
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+	}
+
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	for _, c := range f.ps.Content {
@@ -355,14 +370,6 @@ func targetForSourceDir(source, target string) string {
 	return filepath.Join(target, filepath.Base(source))
 }
 
-func (f *MountedFilesystemUpdater) makePrefix(dstRoot, target string) error {
-	dstPath, _ := f.entryDestPaths(dstRoot, "", target, "")
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
-		return fmt.Errorf("cannot write prefix directory: %v", err)
-	}
-	return nil
-}
-
 func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(source)
 	if err != nil {
@@ -388,9 +395,6 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 			pDst += "/"
 			update = f.updateDirectory
 		}
-		if err := f.makePrefix(dstRoot, target); err != nil {
-			return err
-		}
 		if err := update(dstRoot, pSrc, pDst, preserveInDst, backupDir); err != nil {
 			return err
 		}
@@ -414,7 +418,7 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 		if !osutil.FileExists(backupPath + ".backup") {
 			// not preserved & different than the update, error out
 			// as there is no backup
-			return fmt.Errorf("missing backup file %v for %v", backupPath+".backup", target)
+			return fmt.Errorf("missing backup file %q for %v", backupPath+".backup", target)
 		}
 	}
 
@@ -427,10 +431,6 @@ func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 	}
 
 	srcPath := f.entrySourcePath(content.Source)
-
-	if err := f.makePrefix(volumeRoot, content.Target); err != nil {
-		return err
-	}
 
 	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.Source, "/") {
 		return f.updateDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
@@ -481,8 +481,13 @@ func (f *MountedFilesystemUpdater) Backup() error {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
+	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
+	if err != nil {
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+	}
+
 	for _, c := range f.ps.Content {
-		if err := f.backupVolumeContent(mount, &c, prefixPreserve(mount, f.ps.Update.Preserve), backupRoot); err != nil {
+		if err := f.backupVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot backup content: %v", err)
 		}
 	}
@@ -666,7 +671,10 @@ func (f *MountedFilesystemUpdater) Rollback() error {
 
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	preserveInDst := prefixPreserve(mount, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
+	if err != nil {
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+	}
 
 	for _, c := range f.ps.Content {
 		if err := f.rollbackVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
@@ -683,7 +691,7 @@ func (f *MountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backup
 		if !osutil.FileExists(prefixBackupPath + ".backup") {
 			// try remove
 			if err := os.Remove(prefixDstPath); err != nil {
-				logger.Noticef("cannot remove gadget directory %v: %v", prefix, err)
+				logger.Noticef("cannot remove gadget directory %q: %v", prefix, err)
 			}
 		}
 	}
