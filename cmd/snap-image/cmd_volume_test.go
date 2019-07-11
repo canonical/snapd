@@ -518,7 +518,8 @@ volumes:
 
 	// <prepared-dir>/image is missing
 	_, err = snap_image.Parser().ParseArgs([]string{"prepare-volume", "--work-dir", tmpDir, preparedDir, "vol-1"})
-	c.Assert(err, ErrorMatches, "cannot calculate the size of root filesystem: running du failed: .*/image': No such file or directory")
+	// note bogus-dir is quoted with simple ' or fancy quotes depending on locale
+	c.Assert(err, ErrorMatches, "cannot calculate the size of root filesystem: running du failed: .*/image.: No such file or directory")
 
 	// larger than declared system-data size
 	makeDirectoryTree(c, preparedDir, []mockEntry{
@@ -633,7 +634,8 @@ func (s *volumeSuite) TestMeasureDirSizeReal(c *C) {
 	c.Assert(sz > 3072, Equals, true, Commentf("unexpected size: %v", sz))
 
 	sz, err = snap_image.MeasureRootfs("bogus-dir")
-	c.Assert(err, ErrorMatches, `running du failed: du: cannot access 'bogus-dir': .*`)
+	// note bogus-dir is quoted with simple ' or fancy quotes depending on locale
+	c.Assert(err, ErrorMatches, `running du failed: du: cannot access .bogus-dir.: .*`)
 	c.Assert(sz, Equals, int64(0))
 }
 
