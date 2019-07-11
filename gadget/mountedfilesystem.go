@@ -299,18 +299,6 @@ func (f *MountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backu
 	return dstPath, backupPath
 }
 
-// entryPaths resolves the source, destination and backup paths for given
-// source/target combination. The source location is always within the root
-// directory passed during initialization. Backup location is within provided
-// backup directory or empty if directory was not provided.
-func (f *MountedFilesystemUpdater) entryPaths(dstRoot, source, target, backupDir string) (srcPath, dstPath, backupPath string) {
-	srcPath = f.entrySourcePath(source)
-
-	dstPath, backupPath = f.entryDestPaths(dstRoot, source, target, backupDir)
-
-	return srcPath, dstPath, backupPath
-}
-
 // entrySourcePath returns the path of given source entry within the root
 // directory provided during initialization.
 func (f *MountedFilesystemUpdater) entrySourcePath(source string) string {
@@ -404,7 +392,8 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 }
 
 func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcPath, dstPath, backupPath := f.entryPaths(dstRoot, source, target, backupDir)
+	srcPath := f.entrySourcePath(source)
+	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
 	if osutil.FileExists(dstPath) {
 		if strutil.SortedListContains(preserveInDst, dstPath) {
@@ -552,7 +541,8 @@ func (f *MountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 }
 
 func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	srcPath, dstPath, backupPath := f.entryPaths(dstRoot, source, target, backupDir)
+	srcPath := f.entrySourcePath(source)
+	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
