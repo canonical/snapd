@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -103,16 +103,21 @@ int main(int argc, char** argv) {
      * - "snap.$SNAP_INSTANCE_NAME.fstab"
      * - "snap.$SNAP_INSTANCE_NAME.[0-9]+.user-fstab"
      *
+     * Mount namespace information files:
+     * - "snap.$SNAP_INSTANCE_NAME.info"
+     *
      * Use PATH_MAX as the size of each buffer since those can store any file
      * name. */
     char sys_fstab_pattern[PATH_MAX];
     char usr_fstab_pattern[PATH_MAX];
     char sys_mnt_pattern[PATH_MAX];
     char usr_mnt_pattern[PATH_MAX];
+    char sys_info_pattern[PATH_MAX];
     sc_must_snprintf(sys_fstab_pattern, sizeof sys_fstab_pattern, "snap\\.%s\\.fstab", snap_instance_name);
     sc_must_snprintf(usr_fstab_pattern, sizeof usr_fstab_pattern, "snap\\.%s\\.*\\.user-fstab", snap_instance_name);
     sc_must_snprintf(sys_mnt_pattern, sizeof sys_mnt_pattern, "%s\\.mnt", snap_instance_name);
     sc_must_snprintf(usr_mnt_pattern, sizeof usr_mnt_pattern, "%s\\.*\\.mnt", snap_instance_name);
+    sc_must_snprintf(sys_info_pattern, sizeof sys_info_pattern, "%s\\.*\\.info", snap_instance_name);
 
     DIR* ns_dir = fdopendir(ns_dir_fd);
     if (ns_dir == NULL) {
@@ -145,11 +150,12 @@ int main(int argc, char** argv) {
             const char* pattern;
             bool unmount;
         };
-        struct variant variants[4] = {
+        struct variant variants[] = {
             {.pattern = sys_mnt_pattern, .unmount = true},
             {.pattern = usr_mnt_pattern, .unmount = true},
             {.pattern = sys_fstab_pattern},
             {.pattern = usr_fstab_pattern},
+            {.pattern = sys_info_pattern},
         };
         for (size_t i = 0; i < sizeof variants / sizeof *variants; ++i) {
             struct variant* v = &variants[i];
