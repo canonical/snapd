@@ -36,10 +36,10 @@ execute: |
     fi
 
     echo "However its REST API socket exists"
-    test -S "${USER_RUNTIME_DIR}/snapd.session-agent.socket"
+    test -S "${USER_RUNTIME_DIR}/snapd-session-agent.socket"
 
     echo "We can issue queries to the socket as root"
-    curl --unix-socket "${USER_RUNTIME_DIR}/snapd.session-agent.socket" \
+    curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
         -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"
 
     echo "Now snap session-agent is running"
@@ -51,6 +51,6 @@ execute: |
         exit 1
     fi
 
-    curl --unix-socket "${USER_RUNTIME_DIR}/snapd.session-agent.socket" \
+    curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
         -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"
     systemctl_user is-active snapd.session-agent.service

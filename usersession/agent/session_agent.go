@@ -84,7 +84,7 @@ func (s *SessionAgent) Init() error {
 	if err != nil {
 		return err
 	}
-	agentSocket := fmt.Sprintf("%s/%d/snapd.session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
+	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
 	if s.listener, err = netutil.GetListener(agentSocket, listenerMap); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
 	}

@@ -55,7 +55,7 @@ func (s *userdSuite) SetUpTest(c *C) {
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
-	s.agentSocketPath = fmt.Sprintf("%s/snapd.session-agent.socket", xdgRuntimeDir)
+	s.agentSocketPath = fmt.Sprintf("%s/snapd-session-agent.socket", xdgRuntimeDir)
 }
 
 func (s *userdSuite) TearDownTest(c *C) {
