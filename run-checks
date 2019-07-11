@@ -284,13 +284,13 @@ if [ -n "$SPREAD" ]; then
 
     case "$SPREAD" in
         full)
-            spread "google:"
+            spread "google:" "google-nested:...:tests/nested/custom/..."
             ;;
         ubuntu-only)
-            spread "google:[u]...:tests/..."
+            spread "google:[u]...:tests/..." "google-nested:[u]...:tests/nested/custom/..."
             ;;
         no-ubuntu)
-            spread "google:[^u]...:tests/..."
+            spread "google:[^u]...:tests/..." "google-nested:[^u]...:tests/nested/custom/..."
             ;;
         *)
             echo "Spread parameter $SPREAD not supported"
