@@ -99,7 +99,7 @@ func (vi VersionInfo) Features() (string, error) {
 	return strings.Split(string(vi), " ")[3], nil
 }
 
-// HasGoSeccompFeature parses the output of VersionInfo and answers whether or
+// HasFeature parses the output of VersionInfo and answers whether or
 // not golang-seccomp supports the feature
 func (vi VersionInfo) HasFeature(feature string) (bool, error) {
 	features, err := vi.Features()
