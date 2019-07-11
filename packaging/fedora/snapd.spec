@@ -474,6 +474,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
+%gobuild -o bin/snap-image $GOFLAGS %{import_path}/cmd/snap-image
 
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
