@@ -7,7 +7,7 @@ environment:
     P3: /var/snap/test-snapd-daemon-user/common/test.chown32
     # List of expected snap install failures. This should only reduce with time
     # since new systems should have newer libseccomp and golang-seccomp
-    EXFAIL: "amazon-linux-2-64 arch-linux-64 centos-7-64 debian-9-64 debian-sid-64 fedora-29-64 opensuse-15.0-64 opensuse-tumbleweed-64 ubuntu-1[468]\\.* ubuntu-19\\.04-.* ubuntu-core-1[68]\\.*"
+    EXFAIL: "amazon-linux-2-64 arch-linux-64 centos-7-64 debian-9-64 debian-sid-64 fedora-29-64 opensuse-15.0-64 opensuse-tumbleweed-64 ubuntu-14\\.*"
 
 prepare: |
     echo "Install helper snaps with default confinement"
@@ -32,7 +32,7 @@ execute: |
     # check for support in an existing snap's seccomp profile header, then go
     # from there.
     supported="no"
-    header=$(head -2 /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh | grep -A1 'snap-seccomp verson information' | tail -1)
+    header=$(head -2 /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.src | grep -A1 'snap-seccomp verson information' | tail -1)
     if [ -n "$header" ]; then
         features=$(echo "$header" | cut -d ' ' -f 5)
         if echo "$features" | grep -q "bpf-actlog" ; then
