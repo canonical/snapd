@@ -10,8 +10,7 @@ description: |
 version: set-by-version-script-thxbye
 version-script: |
   ./mkversion.sh --output-only
-#FIXME: enable once snapcraft understands this
-#type: snapd
+type: snapd
 grade: stable
 base: core
 
