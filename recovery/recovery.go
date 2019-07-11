@@ -193,7 +193,7 @@ func Install(version string) error {
 	}
 
 	logger.Noticef("Provisioning the TPM")
-	if err := fdeutils.ProvisionTPM(lockoutAuth); err != nil {
+	if err := fdeutil.ProvisionTPM(lockoutAuth); err != nil {
 		logger.Noticef("error provisioning the TPM: %s", err)
 		return fmt.Errorf("cannot provision TPM: %s", err)
 	}
