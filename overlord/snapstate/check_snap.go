@@ -465,11 +465,11 @@ func checkSystemUsers(si *snap.Info) error {
 	if err != nil {
 		return err
 	}
-	versionInfo, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
+	vi, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
 	if err != nil {
 		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
 	}
-	libseccompVersion, err := seccomp_compiler.GetLibseccompVersion(versionInfo)
+	libseccompVersion, err := seccomp_compiler.VersionInfo(vi).LibseccompVersion()
 	if err != nil {
 		return err
 	}
@@ -496,7 +496,7 @@ func checkSystemUsers(si *snap.Info) error {
 	// that ActLog was implemented in the library after this issue was
 	// fixed, so base the decision on that. ActLog is first available in
 	// 0.9.1.
-	res, err := seccomp_compiler.HasGoSeccompFeature(versionInfo, "bpf-actlog")
+	res, err := seccomp_compiler.VersionInfo(vi).HasFeature("bpf-actlog")
 	if err != nil {
 		return err
 	}
