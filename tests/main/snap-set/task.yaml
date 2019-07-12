@@ -52,7 +52,7 @@ execute: |
         echo "Expected snap get to be able to retrieve set value"
         exit 1
     fi
-    [[ "$obtained" == "bar" ]]
+    test "$obtained" = "bar"
 
     echo "Test that the foo value can be unset"
     snap set snapctl-hooks command=test-snapctl-foo-null foo!

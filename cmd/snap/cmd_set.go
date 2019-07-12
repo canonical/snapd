@@ -74,7 +74,7 @@ func (x *cmdSet) Execute(args []string) error {
 	for _, patchValue := range x.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
-			patchValues[patchValue[:len(patchValue)-1]] = nil
+			patchValues[strings.TrimSuffix(patchValue, "!")] = nil
 			continue
 		}
 		if len(parts) != 2 {
