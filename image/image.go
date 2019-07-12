@@ -463,7 +463,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 
 	if err := f.Save(model); err != nil {
 		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
-			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
+			return fmt.Errorf("cannot fetch and check prerequisites ifor the model assertion: %v", err)
 		} else {
 			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
 			f.addedRefs = nil
@@ -786,4 +786,43 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
 	return dst, osutil.CopyFile(snapPath, dst, 0)
+}
+
+func ValidateSeed(seedFile string) error {
+	seed, err := snap.ReadSeedYaml(seedFile)
+	if err != nil {
+		return err
+	}
+
+	// read the snaps info
+	snapInfos := make(map[string]*snap.Info)
+	for _, seedSnap := range seed.Snaps {
+		fn := filepath.Join(filepath.Dir(seedFile), "snaps", seedSnap.File)
+		snapf, err := snap.Open(fn)
+		if err != nil {
+			return err
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+		if err != nil {
+			return err
+		}
+		snapInfos[info.InstanceName()] = info
+	}
+	// check that all bases/default-providers are part of the seed
+	for _, info := range snapInfos {
+		if info.Base != "" && info.Base != "none" {
+			if _, ok := snapInfos[info.Base]; !ok {
+				return fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base)
+			}
+		}
+		for _, dp := range neededDefaultProviders(info) {
+			if _, ok := snapInfos[dp]; !ok {
+				return fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp)
+			}
+		}
+
+	}
+
+	return nil
+
 }
