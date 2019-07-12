@@ -7,6 +7,12 @@
 			"revision": ""
 		},
 		{
+			"checksumSHA1": "X9uJjtPte7hdg0/LSEtnDD4v6Iw=",
+			"path": "github.com/chrisccoulson/ubuntu-core-fde-utils",
+			"revision": "49b2130cfa1a95f940eaf348b3a71b3f7af344ba",
+			"revisionTime": "2019-07-11T08:52:23Z"
+		},
+		{
 			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
 			"path": "github.com/coreos/go-systemd/activation",
 			"revision": "39ca1b05acc7ad1220e09f133283b8859a8b71ab",
@@ -23,6 +29,14 @@
 			"path": "github.com/godbus/dbus/introspect",
 			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
 			"revisionTime": "2017-08-22T15:24:03Z"
+		},
+		{
+			"checksumSHA1": "mkW1FNv2atdJblBoNsGkAfvec5w=",
+			"origin": "github.com/chrisccoulson/go-tpm",
+			"path": "github.com/google/go-tpm",
+			"revision": "c6c7cb7465ae50e13263f2f8ff33f57d1f9859bc",
+			"revisionTime": "2019-07-08T13:36:22Z",
+			"tree": true
 		},
 		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
