@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -233,6 +234,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		AuthCancelled("cancelled").ServeHTTP(w, r)
 		return
 	}
+
+	ctx := store.WithClientUserAgent(r.Context(), r)
+	r = r.WithContext(ctx)
 
 	var rspf ResponseFunc
 	var rsp = MethodNotAllowed("method %q not allowed", r.Method)

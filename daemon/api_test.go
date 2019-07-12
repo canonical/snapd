@@ -3656,12 +3656,14 @@ func (s *apiSuite) TestInstallUserAgentContextCreated(c *check.C) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
 	s.vars = map[string]string{"name": "some-snap"}
-	rsp := postSnap(snapCmd, req, nil).(*resp)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+	rec := httptest.NewRecorder()
+	snapCmd.ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 202)
 	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
 }
 

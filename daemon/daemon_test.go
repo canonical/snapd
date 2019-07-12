@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -122,17 +123,16 @@ func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mck.lastMethod = r.Method
 }
 
-func mkRF(c *check.C, cmd *Command, mck *mockHandler) ResponseFunc {
-	return func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
-		c.Assert(cmd, check.Equals, innerCmd)
-		return mck
-	}
-}
-
 func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
+	fakeUserAgent := "some-agent-talking-to-snapd/1.0"
+
 	cmd := &Command{d: newTestDaemon(c)}
 	mck := &mockHandler{cmd: cmd}
-	rf := mkRF(c, cmd, mck)
+	rf := func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
+		c.Assert(cmd, check.Equals, innerCmd)
+		c.Check(store.ClientUserAgent(req.Context()), check.Equals, fakeUserAgent)
+		return mck
+	}
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
@@ -140,6 +140,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
 		req, err := http.NewRequest(method, "", nil)
+		req.Header.Add("User-Agent", fakeUserAgent)
 		c.Assert(err, check.IsNil)
 
 		rec := httptest.NewRecorder()
