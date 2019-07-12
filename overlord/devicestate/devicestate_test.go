@@ -1466,6 +1466,10 @@ func (s *deviceMgrSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Check(ser.Serial(), Equals, "8989")
 }
 
+var (
+	devKey, _ = assertstest.GenerateKey(testKeyLength)
+)
+
 func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1477,7 +1481,6 @@ func (s *deviceMgrSuite) TestStoreContextBackendDeviceSessionRequestParams(c *C)
 	c.Check(err, ErrorMatches, "internal error: cannot sign a session request without a serial")
 
 	// setup state as done by device initialisation
-	devKey, _ := assertstest.GenerateKey(testKeyLength)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
@@ -1995,8 +1998,7 @@ func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, 
 	assertstatetest.AddMany(s.state, modelAs)
 }
 
-func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) {
-	devKey, _ := assertstest.GenerateKey(752)
+func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Assert(err, IsNil)
 	serial, err := brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
@@ -2010,6 +2012,7 @@ func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *s
 	c.Assert(err, IsNil)
 	err = assertstate.Add(st, serial)
 	c.Assert(err, IsNil)
+	return serial.(*asserts.Serial)
 }
 
 func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {

@@ -39,7 +39,7 @@ static void test_infofile_get_key(void) {
     rc = sc_infofile_get_key(NULL, "key", &value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
     g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
     g_assert_cmpstr(sc_error_msg(err), ==, "stream cannot be NULL");
     sc_error_free(err);
@@ -48,7 +48,7 @@ static void test_infofile_get_key(void) {
     rc = sc_infofile_get_key(stream, NULL, &value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
     g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
     g_assert_cmpstr(sc_error_msg(err), ==, "key cannot be NULL");
     sc_error_free(err);
@@ -57,7 +57,7 @@ static void test_infofile_get_key(void) {
     rc = sc_infofile_get_key(stream, "key", NULL, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
     g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
     g_assert_cmpstr(sc_error_msg(err), ==, "value cannot be NULL");
     sc_error_free(err);
@@ -100,7 +100,7 @@ static void test_infofile_get_key(void) {
     rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
     g_assert_cmpint(sc_error_code(err), ==, 0);
     g_assert_cmpstr(sc_error_msg(err), ==, "line 1 is not a key=value assignment");
     g_assert_null(tricky_value);
@@ -114,7 +114,7 @@ static void test_infofile_get_key(void) {
     rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
     g_assert_cmpint(sc_error_code(err), ==, 0);
     g_assert_cmpstr(sc_error_msg(err), ==, "line 1 contains NUL byte");
     g_assert_null(tricky_value);
@@ -128,7 +128,7 @@ static void test_infofile_get_key(void) {
     rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
     g_assert_cmpint(sc_error_code(err), ==, 0);
     g_assert_cmpstr(sc_error_msg(err), ==, "line 1 does not end with a newline");
     g_assert_null(tricky_value);
@@ -154,7 +154,7 @@ static void test_infofile_get_key(void) {
     rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
     g_assert_cmpint(rc, ==, -1);
     g_assert_nonnull(err);
-    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_ERROR);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
     g_assert_cmpint(sc_error_code(err), ==, 0);
     g_assert_cmpstr(sc_error_msg(err), ==, "line 1 contains empty key");
     g_assert_null(tricky_value);

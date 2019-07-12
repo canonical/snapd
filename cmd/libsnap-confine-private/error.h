@@ -63,7 +63,7 @@ typedef struct sc_error {
 /**
  * Error domain for errors in the libsnap-confine-private library.
  **/
-#define SC_LIBSNAP_ERROR "libsnap-confine-private"
+#define SC_LIBSNAP_DOMAIN "libsnap-confine-private"
 
 /** sc_libsnap_error represents distinct error codes used by libsnap-confine-private library. */
 typedef enum sc_libsnap_error {
@@ -88,6 +88,26 @@ typedef enum sc_libsnap_error {
 __attribute__((warn_unused_result,
 	       format(printf, 3, 4) SC_APPEND_RETURNS_NONNULL))
 sc_error *sc_error_init(const char *domain, int code, const char *msgfmt, ...);
+
+/**
+ * Initialize an unspecified error with formatted message.
+ *
+ * This is just syntactic sugar for sc_error_init(SC_LIBSNAP_ERROR,
+ * SC_UNSPECIFIED_ERROR, msgfmt, ...) which is repeated often.
+ **/
+__attribute__((warn_unused_result,
+	       format(printf, 1, 2) SC_APPEND_RETURNS_NONNULL))
+sc_error *sc_error_init_simple(const char *msgfmt, ...);
+
+/**
+ * Initialize an API misuse error with formatted message.
+ *
+ * This is just syntactic sugar for sc_error_init(SC_LIBSNAP_DOMAIN,
+ * SC_API_MISUSE, msgfmt, ...) which is repeated often.
+ **/
+__attribute__((warn_unused_result,
+	       format(printf, 1, 2) SC_APPEND_RETURNS_NONNULL))
+sc_error *sc_error_init_api_misuse(const char *msgfmt, ...);
 
 /**
  * Initialize an errno-based error.

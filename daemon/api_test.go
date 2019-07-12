@@ -1031,8 +1031,9 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
-	buildID, err := osutil.MyBuildID()
-	c.Assert(err, check.IsNil)
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
 
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -1101,8 +1102,9 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	buildID, err := osutil.MyBuildID()
-	c.Assert(err, check.IsNil)
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
 
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)

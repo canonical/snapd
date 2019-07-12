@@ -33,15 +33,15 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
     char *line_buf SC_CLEANUP(sc_cleanup_string) = NULL;
 
     if (stream == NULL) {
-        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "stream cannot be NULL");
+        err = sc_error_init_api_misuse("stream cannot be NULL");
         goto out;
     }
     if (key == NULL) {
-        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "key cannot be NULL");
+        err = sc_error_init_api_misuse("key cannot be NULL");
         goto out;
     }
     if (value == NULL) {
-        err = sc_error_init(SC_LIBSNAP_ERROR, SC_API_MISUSE, "value cannot be NULL");
+        err = sc_error_init_api_misuse("value cannot be NULL");
         goto out;
     }
 
@@ -65,13 +65,13 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
         /* Guard against malformed input that may contain NUL bytes that
          * would confuse the code below. */
         if (memchr(line_buf, '\0', nread) != NULL) {
-            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains NUL byte", lineno);
+            err = sc_error_init_simple("line %d contains NUL byte", lineno);
             goto out;
         }
         /* Guard against non-strictly formatted input that doesn't contain
          * trailing newline. */
         if (line_buf[nread - 1] != '\n') {
-            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d does not end with a newline", lineno);
+            err = sc_error_init(SC_LIBSNAP_DOMAIN, 0, "line %d does not end with a newline", lineno);
             goto out;
         }
         /* Replace the trailing newline character with the NUL byte. */
@@ -79,12 +79,12 @@ int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **
         /* Guard against malformed input that does not contain '=' byte */
         char *eq_ptr = memchr(line_buf, '=', nread);
         if (eq_ptr == NULL) {
-            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d is not a key=value assignment", lineno);
+            err = sc_error_init_simple("line %d is not a key=value assignment", lineno);
             goto out;
         }
         /* Guard against malformed input with empty key. */
         if (eq_ptr == line_buf) {
-            err = sc_error_init(SC_LIBSNAP_ERROR, 0, "line %d contains empty key", lineno);
+            err = sc_error_init_simple("line %d contains empty key", lineno);
             goto out;
         }
         /* Replace the first '=' with string terminator byte. */

@@ -17,14 +17,18 @@
  *
  */
 
-package config
+package healthstate
 
 import (
-	"encoding/json"
+	"time"
 )
 
-var PurgeNulls = purgeNulls
-
-func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
-	return t.pristine
+func MockCheckTimeout(t time.Duration) (restore func()) {
+	old := checkTimeout
+	checkTimeout = t
+	return func() {
+		checkTimeout = old
+	}
 }
+
+var KnownStatuses = knownStatuses
