@@ -98,6 +98,34 @@ func (s *SnapSuite) TestSnapSetIntegrationJson(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *SnapSuite) TestSnapSetIntegrationUnsetWithExclamationMark(c *check.C) {
+	// mock installed snap
+	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
+		Revision: snap.R(1),
+	})
+
+	// and mock the server
+	s.mockSetConfigServer(c, nil)
+
+	// Unset config value via exclamation mark
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key!"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestSnapSetIntegrationStringWithExclamationMark(c *check.C) {
+	// mock installed snap
+	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockSetConfigServer(c, "value!")
+
+	// Set a config value ending with exclamation mark
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=value!"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapSuite) mockSetConfigServer(c *check.C, expectedValue interface{}) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
