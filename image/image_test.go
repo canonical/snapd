@@ -2198,6 +2198,84 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 	c.Assert(s.stdout.String(), Matches, `(?m)Copying ".*/snapd_3.14_all.snap" \(snapd\)`)
 }
 
+func (s *imageSuite) TestValidateSnapHappy(c *C) {
+	err := os.MkdirAll(filepath.Join(s.root, "snaps"), 0755)
+	c.Assert(err, IsNil)
+
+	fn := snaptest.MakeTestSnapWithFiles(c, "name: core\nversion: 1.0\n", nil)
+	err = os.Rename(fn, filepath.Join(s.root, "snaps/core_6673.snap"))
+	c.Assert(err, IsNil)
+
+	fn = snaptest.MakeTestSnapWithFiles(c, "name: gtk-common-themes\nversion: 19.04\n", nil)
+	err = os.Rename(fn, filepath.Join(s.root, "snaps/gtk-common-themes_1198.snap"))
+	c.Assert(err, IsNil)
+
+	tmpf := filepath.Join(s.root, "seed.yaml")
+	err = ioutil.WriteFile(tmpf, []byte(`
+snaps:
+ -
+   name: core
+   channel: stable
+   file: core_6673.snap
+ -
+   name: gtk-common-themes
+   channel: stable/ubuntu-19.04
+   file: gtk-common-themes_1198.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.ValidateSeed(tmpf)
+	c.Assert(err, IsNil)
+}
+
+func (s *imageSuite) TestValidateSnapMissingBase(c *C) {
+	err := os.MkdirAll(filepath.Join(s.root, "snaps"), 0755)
+	c.Assert(err, IsNil)
+
+	fn := snaptest.MakeTestSnapWithFiles(c, "name: need-base\nbase: some-base\nversion: 1.0\n", nil)
+	err = os.Rename(fn, filepath.Join(s.root, "snaps/need-base_1.snap"))
+	c.Assert(err, IsNil)
+
+	tmpf := filepath.Join(s.root, "seed.yaml")
+	err = ioutil.WriteFile(tmpf, []byte(`
+snaps:
+ -
+   name: need-base
+   file: need-base_1.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.ValidateSeed(tmpf)
+	c.Assert(err, ErrorMatches, `cannot use snap "need-base": base "some-base" is missing`)
+}
+
+func (s *imageSuite) TestValidateSnapMissingDefaultProvider(c *C) {
+	err := os.MkdirAll(filepath.Join(s.root, "snaps"), 0755)
+	c.Assert(err, IsNil)
+
+	fn := snaptest.MakeTestSnapWithFiles(c, `name: need-df
+version: 1.0
+plugs:
+ gtk-3-themes:
+  interface: content
+  default-provider: gtk-common-themes
+`, nil)
+	err = os.Rename(fn, filepath.Join(s.root, "snaps/need-df_1.snap"))
+	c.Assert(err, IsNil)
+
+	tmpf := filepath.Join(s.root, "seed.yaml")
+	err = ioutil.WriteFile(tmpf, []byte(`
+snaps:
+ -
+   name: need-df
+   file: need-df_1.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.ValidateSeed(tmpf)
+	c.Assert(err, ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+}
+
 type toolingStoreContextSuite struct {
 	sc store.DeviceAndAuthContext
 }
