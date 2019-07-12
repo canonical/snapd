@@ -50,7 +50,7 @@ func Recover(version string) error {
 	// reset env variables if we come from a recover reboot
 	if GetKernelParameter("snap_mode") == "recover_reboot" {
 
-		mntSysRecover := "/mnt/sys-recover"
+		mntSysRecover := "/run/ubuntu-seed"
 		if err := mountFilesystem("ubuntu-seed", mntSysRecover); err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func Recover(version string) error {
 		}
 	}
 
-	mntRecovery := "/mnt/recovery"
+	mntRecovery := "/run/recovery"
 
 	if err := mountFilesystem("ubuntu-data", mntRecovery); err != nil {
 		return err
@@ -104,11 +104,7 @@ func RecoverReboot(version string) error {
 	// different version, we need to reboot
 	logger.Noticef("Recover: must reboot to use %s", version)
 
-	mntSysRecover := "/mnt/sys-recover"
-	// -- already mounted
-	//if err := mountFilesystem("sys-recover", mntSysRecover); err != nil {
-	//	return err
-	//}
+	mntSysRecover := "/run/ubuntu-seed"
 
 	// update recovery mode
 	logger.Noticef("update bootloader env")
@@ -142,9 +138,9 @@ func RecoverReboot(version string) error {
 
 func Install(version string) error {
 
-	mntWritable := "/mnt/new-writable"
-	mntSysRecover := "/mnt/sys-recover"
-	mntSystemBoot := "/mnt/system-boot"
+	mntWritable := "/run/ubuntu-data"
+	mntSysRecover := "/run/ubuntu-seed"
+	mntSystemBoot := "/run/ubuntu-boot"
 
 	if err := mountFilesystem("ubuntu-boot", mntSystemBoot); err != nil {
 		return err
@@ -359,7 +355,7 @@ func updateRecovery(mntWritable, mntSysRecover, mntSystemBoot, version string) (
 }
 
 func extractKernel(kernelPath, mntSystemBoot string) error {
-	mntKernelSnap := "/mnt/kernel-snap"
+	mntKernelSnap := "/run/kernel-snap"
 	if err := os.MkdirAll(mntKernelSnap, 0755); err != nil {
 		return fmt.Errorf("cannot create kernel mountpoint: %s", err)
 	}
