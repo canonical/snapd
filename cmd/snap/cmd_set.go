@@ -64,7 +64,7 @@ func init() {
 			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<conf value>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			desc: i18n.G("Configuration value (key=value) or key!"),
+			desc: i18n.G("Set (key=value) or unset (key!) configuration value"),
 		},
 	})
 }
