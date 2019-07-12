@@ -833,24 +833,6 @@ func (m *DeviceManager) doRecoverMode(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func (m *DeviceManager) doRecoverRebootMode(t *state.Task, tomb *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	var version string
-	if err := t.Get("recovery-version", &version); err != nil {
-		return err
-	}
-
-	logger.Noticef("Running in recover + reboot mode")
-	if err := recovery.RecoverReboot(version); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, name, &snapst)
