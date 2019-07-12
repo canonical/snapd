@@ -2719,7 +2719,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return &snap.Info{SuggestedName: mockedName}, nil
 	}
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
 		c.Check(flags, check.Equals, snapstate.Flags{})
 		installQueue = append(installQueue, name)
@@ -3105,7 +3105,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 			return state.NewTaskSet(t), nil
 		}
 
-		snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 			if name != "core" {
 				c.Check(flags, check.DeepEquals, t.flags, check.Commentf(t.desc))
 			}
@@ -3591,7 +3591,7 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 	restore := release.MockForcedDevmode(forcedDevmode)
 	defer restore()
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		installQueue = append(installQueue, name)
 		c.Check(revision, check.Equals, opts.Revision)
@@ -4089,7 +4089,7 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
@@ -4123,7 +4123,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	c.Skip("temporarily dropped half-baked support while sorting out flag mess")
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -4149,7 +4149,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 func (s *apiSuite) TestInstall(c *check.C) {
 	var calledName string
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledName = name
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -4176,7 +4176,7 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 	var calledName string
 	var calledCohort string
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledName = name
 		calledCohort = opts.CohortKey
 
@@ -4204,7 +4204,7 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -4231,7 +4231,7 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 func (s *apiSuite) TestInstallJailMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -4273,7 +4273,7 @@ func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallEmptyName(c *check.C) {
-	snapstateInstall = func(_ *state.State, _ string, _ *snapstate.RevisionOptions, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, _ *state.State, _ string, _ *snapstate.RevisionOptions, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
 		return nil, errors.New("should not be called")
 	}
 	d := s.daemon(c)
@@ -6367,7 +6367,7 @@ func (s *apiSuite) TestAliases(c *check.C) {
 func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")

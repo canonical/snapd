@@ -952,7 +952,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
-	tset, err := snapstateInstall(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+	tset, err := snapstateInstall(context.TODO(), st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
