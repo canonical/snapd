@@ -476,9 +476,9 @@ type witnessAcceptListener struct {
 	accept  chan struct{}
 	accept1 bool
 
-	closed    chan struct{}
-	closed1   bool
-	closedLck sync.Mutex
+	idempotClose sync.Once
+	closeErr     error
+	closed       chan struct{}
 }
 
 func (l *witnessAcceptListener) Accept() (net.Conn, error) {
@@ -490,16 +490,13 @@ func (l *witnessAcceptListener) Accept() (net.Conn, error) {
 }
 
 func (l *witnessAcceptListener) Close() error {
-	err := l.Listener.Close()
-	if l.closed != nil {
-		l.closedLck.Lock()
-		defer l.closedLck.Unlock()
-		if !l.closed1 {
-			l.closed1 = true
+	l.idempotClose.Do(func() {
+		l.closeErr = l.Listener.Close()
+		if l.closed != nil {
 			close(l.closed)
 		}
-	}
-	return err
+	})
+	return l.closeErr
 }
 
 func (s *daemonSuite) markSeeded(d *Daemon) {

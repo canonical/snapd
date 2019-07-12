@@ -321,7 +321,7 @@ func (d *Daemon) Init() error {
 
 	// The SnapdSocket is required-- without it, die.
 	if listener, err := netutil.GetListener(dirs.SnapdSocket, listenerMap); err == nil {
-		d.snapdListener = &ucrednetListener{listener}
+		d.snapdListener = &ucrednetListener{Listener: listener}
 	} else {
 		return fmt.Errorf("when trying to listen on %s: %v", dirs.SnapdSocket, err)
 	}
@@ -329,7 +329,7 @@ func (d *Daemon) Init() error {
 	if listener, err := netutil.GetListener(dirs.SnapSocket, listenerMap); err == nil {
 		// This listener may also be nil if that socket wasn't among
 		// the listeners, so check it before using it.
-		d.snapListener = &ucrednetListener{listener}
+		d.snapListener = &ucrednetListener{Listener: listener}
 	} else {
 		logger.Debugf("cannot get listener for %q: %v", dirs.SnapSocket, err)
 	}
