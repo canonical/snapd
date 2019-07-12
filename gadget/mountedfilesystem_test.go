@@ -145,11 +145,11 @@ func (s *mountedfilesystemTestSuite) TestWriteFile(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestWriteDirectoryContents(c *C) {
 	gd := []gadgetData{
-		{"boot-assets/splash", "splash", "splash"},
-		{"boot-assets/some-dir/data", "some-dir/data", "data"},
-		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", ""},
-		{"boot-assets/nested-dir/nested", "/nested-dir/nested", "nested"},
-		{"boot-assets/nested-dir/more-nested/more", "/nested-dir/more-nested/more", "more"},
+		{name: "boot-assets/splash", target: "splash", content: "splash"},
+		{name: "boot-assets/some-dir/data", target: "some-dir/data", content: "data"},
+		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file"},
+		{name: "boot-assets/nested-dir/nested", target: "/nested-dir/nested", content: "nested"},
+		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-dir/more-nested/more", content: "more"},
 	}
 	makeGadgetData(c, s.dir, gd)
 
@@ -163,11 +163,11 @@ func (s *mountedfilesystemTestSuite) TestWriteDirectoryContents(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestWriteDirectoryWhole(c *C) {
 	gd := []gadgetData{
-		{"boot-assets/splash", "boot-assets/splash", "splash"},
-		{"boot-assets/some-dir/data", "boot-assets/some-dir/data", "data"},
-		{"boot-assets/some-dir/empty-file", "boot-assets/some-dir/empty-file", ""},
-		{"boot-assets/nested-dir/nested", "boot-assets/nested-dir/nested", "nested"},
-		{"boot-assets/nested-dir/more-nested/more", "boot-assets//nested-dir/more-nested/more", "more"},
+		{name: "boot-assets/splash", target: "boot-assets/splash", content: "splash"},
+		{name: "boot-assets/some-dir/data", target: "boot-assets/some-dir/data", content: "data"},
+		{name: "boot-assets/some-dir/empty-file", target: "boot-assets/some-dir/empty-file"},
+		{name: "boot-assets/nested-dir/nested", target: "boot-assets/nested-dir/nested", content: "nested"},
+		{name: "boot-assets/nested-dir/more-nested/more", target: "boot-assets//nested-dir/more-nested/more", content: "more"},
 	}
 	makeGadgetData(c, s.dir, gd)
 
@@ -196,14 +196,14 @@ func (s *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 	gd := []gadgetData{
-		{"foo", "foo-dir/foo", "foo foo foo"},
-		{"bar", "bar-name", "bar bar bar"},
-		{"boot-assets/splash", "splash", "splash"},
-		{"boot-assets/some-dir/data", "some-dir/data", "data"},
-		{"boot-assets/some-dir/data", "data-copy", "data"},
-		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", ""},
-		{"boot-assets/nested-dir/nested", "/nested-copy/nested", "nested"},
-		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/more-nested/more", "more"},
+		{name: "foo", target: "foo-dir/foo", content: "foo foo foo"},
+		{name: "bar", target: "bar-name", content: "bar bar bar"},
+		{name: "boot-assets/splash", target: "splash", content: "splash"},
+		{name: "boot-assets/some-dir/data", target: "some-dir/data", content: "data"},
+		{name: "boot-assets/some-dir/data", target: "data-copy", content: "data"},
+		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file"},
+		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested", content: "nested"},
+		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/more-nested/more", content: "more"},
 	}
 	makeGadgetData(c, s.dir, gd)
 	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0755)
@@ -444,17 +444,17 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
-		{"foo", "foo-dir/foo", "data"},
-		{"bar", "bar-name", "data"},
-		{"boot-assets/splash", "splash", "data"},
-		{"boot-assets/some-dir/data", "some-dir/data", "data"},
-		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", "data"},
-		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/more-nested/more", "data"},
+		{name: "foo", target: "foo-dir/foo", content: "data"},
+		{name: "bar", target: "bar-name", content: "data"},
+		{name: "boot-assets/splash", target: "splash", content: "data"},
+		{name: "boot-assets/some-dir/data", target: "some-dir/data", content: "data"},
+		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file", content: "data"},
+		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/more-nested/more", content: "data"},
 	}
 	gdNotWritten := []gadgetData{
-		{"foo", "/foo", "data"},
-		{"boot-assets/some-dir/data", "data-copy", "data"},
-		{"boot-assets/nested-dir/nested", "/nested-copy/nested", "data"},
+		{name: "foo", target: "/foo", content: "data"},
+		{name: "boot-assets/some-dir/data", target: "data-copy", content: "data"},
+		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested", content: "data"},
 	}
 	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
 
@@ -569,8 +569,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C)
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 	gd := []gadgetData{
-		{"boot-assets/nested-dir/nested", "/nested-copy/nested-dir/nested", "nested"},
-		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/nested-dir/more-nested/more", "more"},
+		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested-dir/nested", content: "nested"},
+		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/nested-dir/more-nested/more", content: "more"},
 	}
 	makeGadgetData(c, s.dir, gd)
 
@@ -661,12 +661,12 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
-		{"bar", "bar-name", "data"},
-		{"foo", "foo", "data"},
-		{"zed", "zed", "data"},
-		{"same-data", "same", "same"},
+		{name: "bar", target: "bar-name", content: "data"},
+		{name: "foo", target: "foo", content: "data"},
+		{name: "zed", target: "zed", content: "data"},
+		{name: "same-data", target: "same", content: "same"},
 		// not included in volume contents
-		{"not-written", "not-written", "data"},
+		{name: "not-written", target: "not-written", content: "data"},
 	}
 	makeGadgetData(c, s.dir, gdWritten)
 
@@ -818,8 +818,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 	// some data for the gadget
 	gd := []gadgetData{
-		{"bar", "foo", "data"},
-		{"bar", "some-dir/foo", "data"},
+		{name: "bar", target: "foo", content: "data"},
+		{name: "bar", target: "some-dir/foo", content: "data"},
 	}
 	makeGadgetData(c, s.dir, gd)
 
@@ -1104,17 +1104,17 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
-		{"foo", "foo-dir/foo", "data"},
-		{"bar", "bar-name", "data"},
-		{"boot-assets/splash", "splash", "data"},
-		{"boot-assets/some-dir/data", "some-dir/data", "data"},
-		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", ""},
-		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/more-nested/more", "data"},
+		{name: "foo", target: "foo-dir/foo", content: "data"},
+		{name: "bar", target: "bar-name", content: "data"},
+		{name: "boot-assets/splash", target: "splash", content: "data"},
+		{name: "boot-assets/some-dir/data", target: "some-dir/data", content: "data"},
+		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file", content: ""},
+		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/more-nested/more", content: "data"},
 	}
 	gdNotWritten := []gadgetData{
-		{"foo", "/foo", "data"},
-		{"boot-assets/some-dir/data", "data-copy", "data"},
-		{"boot-assets/nested-dir/nested", "/nested-copy/nested", "data"},
+		{name: "foo", target: "/foo", content: "data"},
+		{name: "boot-assets/some-dir/data", target: "data-copy", content: "data"},
+		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested", content: "data"},
 	}
 	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
 
@@ -1205,7 +1205,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateLookupFails(c *C) {
 	makeGadgetData(c, s.dir, []gadgetData{
-		{"canary", "canary", "data"},
+		{name: "canary", target: "canary", content: "data"},
 	})
 
 	ps := &gadget.PositionedStructure{
@@ -1237,11 +1237,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateLookupFails(c *C) {
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
-		{"bar/foo", "/bar-name/foo", "data"},
-		{"bar/nested/foo", "/bar-name/nested/foo", "data"},
-		{"bar/foo", "/bar-copy/bar/foo", "data"},
-		{"bar/nested/foo", "/bar-copy/bar/nested/foo", "data"},
-		{"deep-nested", "/this/is/some/deep/nesting/deep-nested", "data"},
+		{name: "bar/foo", target: "/bar-name/foo", content: "data"},
+		{name: "bar/nested/foo", target: "/bar-name/nested/foo", content: "data"},
+		{name: "bar/foo", target: "/bar-copy/bar/foo", content: "data"},
+		{name: "bar/nested/foo", target: "/bar-copy/bar/nested/foo", content: "data"},
+		{name: "deep-nested", target: "/this/is/some/deep/nesting/deep-nested", content: "data"},
 	}
 	makeGadgetData(c, s.dir, gdWritten)
 
@@ -1291,8 +1291,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 	// some data for the gadget
 	gd := []gadgetData{
-		{"bar", "foo", "update"},
-		{"bar", "some-dir/foo", "update"},
+		{name: "bar", target: "foo", content: "update"},
+		{name: "bar", target: "some-dir/foo", content: "update"},
 	}
 	makeGadgetData(c, s.dir, gd)
 
@@ -1412,8 +1412,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 	// some data for the gadget
 	gd := []gadgetData{
-		{"bar", "foo", "data"},
-		{"bar", "some-dir/foo", "data"},
+		{name: "bar", target: "foo", content: "data"},
+		{name: "bar", target: "some-dir/foo", content: "data"},
 	}
 	makeGadgetData(c, s.dir, gd)
 
@@ -1510,8 +1510,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) {
 	// some data for the gadget
 	gd := []gadgetData{
-		{"bar", "foo", "data"},
-		{"bar", "some-dir/foo", "data"},
+		{name: "bar", target: "foo", content: "data"},
+		{name: "bar", target: "some-dir/foo", content: "data"},
 	}
 	makeGadgetData(c, s.dir, gd)
 
@@ -1883,17 +1883,17 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
-		{"foo", "foo-dir/foo", "data"},
-		{"bar", "bar-name", "data"},
-		{"boot-assets/splash", "splash", "data"},
-		{"boot-assets/some-dir/data", "some-dir/data", "data"},
-		{"boot-assets/some-dir/empty-file", "some-dir/empty-file", ""},
-		{"boot-assets/nested-dir/more-nested/more", "/nested-copy/more-nested/more", "data"},
+		{name: "foo", target: "foo-dir/foo", content: "data"},
+		{name: "bar", target: "bar-name", content: "data"},
+		{name: "boot-assets/splash", target: "splash", content: "data"},
+		{name: "boot-assets/some-dir/data", target: "some-dir/data", content: "data"},
+		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file", content: ""},
+		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/more-nested/more", content: "data"},
 	}
 	gdNotWritten := []gadgetData{
-		{"foo", "/foo", "data"},
-		{"boot-assets/some-dir/data", "data-copy", "data"},
-		{"boot-assets/nested-dir/nested", "/nested-copy/nested", "data"},
+		{name: "foo", target: "/foo", content: "data"},
+		{name: "boot-assets/some-dir/data", target: "data-copy", content: "data"},
+		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested", content: "data"},
 	}
 	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
 	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0755)
