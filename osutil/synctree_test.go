@@ -127,3 +127,61 @@ func (s *EnsureTreeStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 	// The file is still there
 	c.Check(name, testutil.FilePresent)
 }
+
+func (s *EnsureTreeStateSuite) TestErrorsOnBadGlob(c *C) {
+	_, _, err := osutil.EnsureTreeState(s.dir, []string{"["}, nil)
+	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got invalid pattern "\[": syntax error in pattern`)
+}
+
+func (s *EnsureTreeStateSuite) TestErrorsOnDirectoryPathsMatchingGlobs(c *C) {
+	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]*osutil.FileState{
+		"foo/bar.snap/baz": nil,
+	})
+	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got path "foo/bar.snap/baz" that matches glob pattern "\*.snap"`)
+}
+
+func (s *EnsureTreeStateSuite) TestErrorsOnFilenamesWithSlashes(c *C) {
+	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]*osutil.FileState{
+		"foo": {
+			"dir/file1.snap": {Content: []byte(`content-1`), Mode: 0600},
+		},
+	})
+	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got filename "dir/file1.snap" in "foo", which has a path component`)
+}
+
+func (s *EnsureTreeStateSuite) TestErrorsOnFilenamesNotMatchingGlobs(c *C) {
+	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]*osutil.FileState{
+		"foo": {
+			"file1.not-snap": {Content: []byte(`content-1`), Mode: 0600},
+		},
+	})
+	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got filename "file1.not-snap" in "foo", which doesn't match any glob patterns \["\*.snap"\]`)
+}
+
+func (s *EnsureTreeStateSuite) TestRemovesFilesOnError(c *C) {
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "bar", "dir.snap"), 0755), IsNil)
+	name1 := filepath.Join(s.dir, "foo", "file1.snap")
+	name2 := filepath.Join(s.dir, "bar", "file2.snap")
+	name3 := filepath.Join(s.dir, "bar", "dir.snap", "sentinel")
+	c.Assert(ioutil.WriteFile(name1, []byte(`text`), 0600), IsNil)
+	c.Assert(ioutil.WriteFile(name2, []byte(`text`), 0600), IsNil)
+	c.Assert(ioutil.WriteFile(name3, []byte(`text`), 0600), IsNil)
+
+	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]*osutil.FileState{
+		"foo": {
+			"file1.snap": {Content: []byte(`content-1`), Mode: 0600},
+		},
+	})
+	c.Check(err, ErrorMatches, `remove .*/bar/dir.snap: directory not empty`)
+	c.Check(changed, HasLen, 0)
+	c.Check(removed, DeepEquals, []string{"bar/file2.snap", "foo/file1.snap"})
+
+	// Matching files have been removed, along with the empty directory
+	c.Check(name1, testutil.FileAbsent)
+	c.Check(filepath.Dir(name1), testutil.FileAbsent)
+	c.Check(name2, testutil.FileAbsent)
+
+	// But the unmatched file in the bad directory remains
+	c.Check(name3, testutil.FilePresent)
+}

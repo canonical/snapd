@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -51,6 +52,17 @@ func removeEmptyDirs(baseDir, relPath string) error {
 	return nil
 }
 
+func matchAnyComponent(globs []string, path string) (ok bool, index int) {
+	for path != "." {
+		component := filepath.Base(path)
+		if ok, index, _ = matchAny(globs, component); ok {
+			return ok, index
+		}
+		path = filepath.Dir(path)
+	}
+	return false, 0
+}
+
 // EnsureTreeState ensures that a directory tree content matches expectations.
 //
 // EnsureTreeState walks subdirectories of the base directory, and
@@ -62,17 +74,41 @@ func removeEmptyDirs(baseDir, relPath string) error {
 // files were removed that are now empty will itself be removed, plus
 // its parent directories up to but not including the base directory.
 //
-// No checks are performed to see whether subdirectories match the
-// passed globs, so it is the caller's responsibility to not create
-// directories that may match any globs passed in.
+// While there is a sanity check to prevent creation of directories
+// that match the file glob pattern, it is the caller's responsibility
+// to not create directories that may match globs passed to other
+// invocations.
 //
 // For example, if the glob "snap.$SNAP_NAME.*" is used then the
 // caller should avoid trying to populate any directories matching
 // "snap.*".
 //
+// If an error occurs, all matching files are removed from the tree.
+//
 // A list of changed and removed files is returned, as relative paths
 // to the base directory.
 func EnsureTreeState(baseDir string, globs []string, content map[string]map[string]*FileState) (changed, removed []string, err error) {
+	// Sanity check globs before doing anything
+	if _, index, err := matchAny(globs, "foo"); err != nil {
+		return nil, nil, fmt.Errorf("internal error: EnsureTreeState got invalid pattern %q: %s", globs[index], err)
+	}
+	// Sanity check directory paths and file names in content dict
+	for relPath, dirContent := range content {
+		if filepath.IsAbs(relPath) {
+			return nil, nil, fmt.Errorf("internal error: EnsureTreeState got absolute directory %q", relPath)
+		}
+		if ok, index := matchAnyComponent(globs, relPath); ok {
+			return nil, nil, fmt.Errorf("internal error: EnsureTreeState got path %q that matches glob pattern %q", relPath, globs[index])
+		}
+		for baseName := range dirContent {
+			if filepath.Base(baseName) != baseName {
+				return nil, nil, fmt.Errorf("internal error: EnsureTreeState got filename %q in %q, which has a path component", baseName, relPath)
+			}
+			if ok, _, _ := matchAny(globs, baseName); !ok {
+				return nil, nil, fmt.Errorf("internal error: EnsureTreeState got filename %q in %q, which doesn't match any glob patterns %q", baseName, relPath, globs)
+			}
+		}
+	}
 	// Find all existing subdirectories under the base dir.  Don't
 	// perform any modifications here because, as it may confuse
 	// Walk().
@@ -92,7 +128,7 @@ func EnsureTreeState(baseDir string, globs []string, content map[string]map[stri
 		return nil
 	})
 	if err != nil {
-		return changed, removed, err
+		return nil, nil, err
 	}
 	// Ensure we process directories listed in content
 	for relPath := range content {
@@ -101,38 +137,54 @@ func EnsureTreeState(baseDir string, globs []string, content map[string]map[stri
 
 	maybeEmpty := []string{}
 
-	// TODO: ensure that no directories in the tree match a
-	// directory glob (one that would match any globs that would
-	// be passed in a particular context).
+	var firstErr error
 	for relPath := range subdirs {
 		dirContent := content[relPath]
 		path := filepath.Join(baseDir, relPath)
-		if err = os.MkdirAll(path, 0755); err != nil {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			firstErr = err
 			break
 		}
-		var dirChanged, dirRemoved []string
-		dirChanged, dirRemoved, err = EnsureDirStateGlobs(path, globs, dirContent)
+		dirChanged, dirRemoved, err := EnsureDirStateGlobs(path, globs, dirContent)
 		changed = appendWithPrefix(changed, relPath, dirChanged)
 		removed = appendWithPrefix(removed, relPath, dirRemoved)
 		if err != nil {
+			firstErr = err
 			break
 		}
 		if len(removed) != 0 {
 			maybeEmpty = append(maybeEmpty, relPath)
 		}
 	}
+	// As with EnsureDirState, if an error occurred we want to
+	// delete all matching files.  This means reprocessing
+	// subdirectories that were successfully synchronised.
+	if firstErr != nil {
+		// changed paths will be deleted by this next step
+		changed = nil
+		for relPath := range subdirs {
+			path := filepath.Join(baseDir, relPath)
+			if !IsDirectory(path) {
+				continue
+			}
+			_, dirRemoved, _ := EnsureDirStateGlobs(path, globs, nil)
+			removed = appendWithPrefix(removed, relPath, dirRemoved)
+			if len(removed) != 0 {
+				maybeEmpty = append(maybeEmpty, relPath)
+			}
+		}
+	}
 	sort.Strings(changed)
 	sort.Strings(removed)
-	if err != nil {
-		return changed, removed, err
-	}
 
 	// For directories where files were removed, attempt to remove
 	// empty directories.
 	for _, relPath := range maybeEmpty {
-		if err = removeEmptyDirs(baseDir, relPath); err != nil {
-			break
+		if err := removeEmptyDirs(baseDir, relPath); err != nil {
+			if firstErr != nil {
+				firstErr = err
+			}
 		}
 	}
-	return changed, removed, err
+	return changed, removed, firstErr
 }
