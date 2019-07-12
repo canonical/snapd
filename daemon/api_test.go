@@ -311,6 +311,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.trustedRestorer()
 	s.d = nil
+	s.ctx = nil
 	s.restoreBackends()
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
@@ -3638,6 +3639,30 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(chg.Kind(), check.Equals, "install-snap")
 	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap`)
+}
+
+func (s *apiSuite) TestInstallUserAgentContextCreated(c *check.C) {
+	snapstateInstall = func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		s.ctx = ctx
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	defer func() {
+		snapstateInstall = nil
+	}()
+
+	s.daemonWithFakeSnapManager(c)
+
+	var buf bytes.Buffer
+	buf.WriteString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Add("User-Agent", "some-agent/1.0")
+
+	s.vars = map[string]string{"name": "some-snap"}
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
 }
 
 func (s *apiSuite) TestRefresh(c *check.C) {

@@ -666,8 +666,8 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func Install(context context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return InstallWithDeviceContext(st, name, opts, userID, flags, nil)
+func Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
+	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil)
 }
 
 // InstallWithDeviceContext returns a set of tasks for installing a snap.
@@ -675,7 +675,7 @@ func Install(context context.Context, st *state.State, name string, opts *Revisi
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -695,7 +695,6 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	if snapst.IsInstalled() {
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
-
 	// need to have a model set before trying to talk the store
 	deviceCtx, err = DevicePastSeeding(st, deviceCtx)
 	if err != nil {
@@ -706,7 +705,7 @@ func InstallWithDeviceContext(st *state.State, name string, opts *RevisionOption
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, err := installInfo(st, name, opts, userID, deviceCtx)
+	info, err := installInfo(ctx, st, name, opts, userID, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2089,7 +2088,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(st, newName, &RevisionOptions{Channel: oldSnapst.Channel}, userID, nil)
+		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.Channel}, userID, nil)
 		if err != nil {
 			return nil, err
 		}

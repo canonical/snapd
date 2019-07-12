@@ -753,6 +753,7 @@ type snapInstruction struct {
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
+	ctx    context.Context
 }
 
 func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
@@ -952,7 +953,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
-	tset, err := snapstateInstall(context.TODO(), st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+	tset, err := snapstateInstall(inst.ctx, st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1173,6 +1174,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		inst.userID = user.ID
 	}
+	inst.ctx = store.WithClientUserAgent(r.Context(), r)
 
 	vars := muxVars(r)
 	inst.Snaps = []string{vars["name"]}
