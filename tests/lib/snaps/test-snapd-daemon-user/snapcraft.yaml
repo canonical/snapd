@@ -1,11 +1,14 @@
 name: test-snapd-daemon-user
-version: "0"
+version: "1"
 summary: test-snapd-daemon-user summary
 description: |
  Test the daemon user functionality
 confinement: strict
 grade: devel
-base: core
+base: core18
+
+environment:
+  LD_LIBRARY_PATH: /usr/lib32
 
 apps:
   drop:
