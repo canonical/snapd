@@ -564,7 +564,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C)
 	c.Assert(rw, NotNil)
 
 	err = rw.Write(outDir, preserve)
-	c.Assert(err, ErrorMatches, `cannot map preserve entries for destination ".*/out-dir": preserved entry "foo" is a directory`)
+	c.Assert(err, ErrorMatches, `cannot map preserve entries for destination ".*/out-dir": preserved entry "foo" cannot be a directory`)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
@@ -2080,9 +2080,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 	c.Assert(rw, NotNil)
 
 	err = rw.Backup()
-	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" is a directory`)
+	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" cannot be a directory`)
 	err = rw.Update()
-	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" is a directory`)
+	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" cannot be a directory`)
 	err = rw.Rollback()
-	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" is a directory`)
+	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" cannot be a directory`)
 }

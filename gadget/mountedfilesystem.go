@@ -88,7 +88,7 @@ func mapPreserve(dstDir string, preserve []string) ([]string, error) {
 		inDst := filepath.Join(dstDir, p)
 
 		if osutil.IsDirectory(inDst) {
-			return nil, fmt.Errorf("preserved entry %q is a directory", p)
+			return nil, fmt.Errorf("preserved entry %q cannot be a directory", p)
 		}
 
 		preserveInDst[i] = inDst
@@ -613,6 +613,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	// digest of the currently present data
 	origDigest := origHash.Sum(nil)
 
+	// TODO: look into comparing the streams directly
 	if bytes.Equal(origDigest, updateDigest) {
 		// mark that files are identical and update can be skipped, no
 		// backup is needed
