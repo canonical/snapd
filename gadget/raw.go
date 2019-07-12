@@ -98,16 +98,16 @@ func (r *RawStructureWriter) Write(out io.WriteSeeker) error {
 type RawStructureUpdater struct {
 	*RawStructureWriter
 	backupDir    string
-	deviceLookup locationLookupFunc
+	deviceLookup deviceLookupFunc
 }
 
-type locationLookupFunc func(ps *PositionedStructure) (string, error)
+type deviceLookupFunc func(ps *PositionedStructure) (device string, offs Size, err error)
 
 // NewRawStructureUpdater returns an updater for the given raw (bare) structure.
 // Update data will be loaded from the provided gadget content directory.
 // Backups of replaced structures are temporarily kept in the rollback
 // directory.
-func NewRawStructureUpdater(contentDir string, ps *PositionedStructure, backupDir string, deviceLookup locationLookupFunc) (*RawStructureUpdater, error) {
+func NewRawStructureUpdater(contentDir string, ps *PositionedStructure, backupDir string, deviceLookup deviceLookupFunc) (*RawStructureUpdater, error) {
 	if deviceLookup == nil {
 		return nil, fmt.Errorf("internal error: device lookup helper must be provided")
 	}
@@ -189,6 +189,23 @@ func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 	return nil
 }
 
+// matchDevice identifies the device matching the configured structure, returns
+// device path and a shifted structure should any offset adjustments be needed
+func (r *RawStructureUpdater) matchDevice() (device string, shifted *PositionedStructure, err error) {
+	device, offs, err := r.deviceLookup(r.ps)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
+	}
+
+	if offs == r.ps.StartOffset {
+		return device, r.ps, nil
+	}
+
+	// Structure starts at different offset, make the necessary adjustment.
+	structForDevice := ShiftStructureTo(*r.ps, offs)
+	return device, &structForDevice, nil
+}
+
 // Backup attempts to analyze and prepare a backup copy of data that will be
 // replaced during subsequent update. Backups are kept in the backup directory
 // passed to NewRawStructureUpdater(). Each region replaced by new content is
@@ -196,17 +213,18 @@ func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 // and backup of each region is checkpointed. Regions that have been backed up
 // or determined to be identical will not be analyzed on subsequent calls.
 func (r *RawStructureUpdater) Backup() error {
-	device, err := r.deviceLookup(r.ps)
+	device, structForDevice, err := r.matchDevice()
 	if err != nil {
-		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
+		return err
 	}
+
 	disk, err := os.OpenFile(device, os.O_RDONLY, 0)
 	if err != nil {
 		return fmt.Errorf("cannot open device for reading: %v", err)
 	}
 	defer disk.Close()
 
-	for _, pc := range r.ps.PositionedContent {
+	for _, pc := range structForDevice.PositionedContent {
 		if err := r.backupOrCheckpointContent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot backup image %v: %v", pc, err)
 		}
@@ -237,9 +255,9 @@ func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *Position
 
 // Rollback attempts to restore original content from the backup copies prepared during Backup().
 func (r *RawStructureUpdater) Rollback() error {
-	device, err := r.deviceLookup(r.ps)
+	device, structForDevice, err := r.matchDevice()
 	if err != nil {
-		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
+		return err
 	}
 
 	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
@@ -248,7 +266,7 @@ func (r *RawStructureUpdater) Rollback() error {
 	}
 	defer disk.Close()
 
-	for _, pc := range r.ps.PositionedContent {
+	for _, pc := range structForDevice.PositionedContent {
 		if err := r.rollbackDifferent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot rollback image %v: %v", pc, err)
 		}
@@ -281,9 +299,9 @@ func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *Positione
 // Update attempts to update the structure. The structure must have been
 // analyzed and backed up by a prior Backup() call.
 func (r *RawStructureUpdater) Update() error {
-	device, err := r.deviceLookup(r.ps)
+	device, structForDevice, err := r.matchDevice()
 	if err != nil {
-		return fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
+		return err
 	}
 
 	disk, err := os.OpenFile(device, os.O_WRONLY, 0)
@@ -292,7 +310,7 @@ func (r *RawStructureUpdater) Update() error {
 	}
 	defer disk.Close()
 
-	for _, pc := range r.ps.PositionedContent {
+	for _, pc := range structForDevice.PositionedContent {
 		if err := r.updateDifferent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot update image %v: %v", pc, err)
 		}
