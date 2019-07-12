@@ -875,7 +875,6 @@ suites:
         summary: Tests for nested images that do not fit under classic or core
         backends: [google-nested]
         systems: [ubuntu-18.04-64]
-        manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
