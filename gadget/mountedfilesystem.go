@@ -38,7 +38,6 @@ import (
 func checkSourceIsDir(src string) error {
 	if !osutil.IsDirectory(src) {
 		if strings.HasSuffix(src, "/") {
-			// make the error sufficiently descriptive
 			return fmt.Errorf("cannot specify trailing / for a source which is not a directory")
 		}
 		return fmt.Errorf("source is not a directory")
