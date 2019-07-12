@@ -977,6 +977,130 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 	c.Assert(err, ErrorMatches, "cannot backup content: cannot checksum update file: open .*/bar: permission denied")
 }
 
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesConflictBackup(c *C) {
+	gdWritten := []gadgetData{
+		{name: "bar.backup/foo", content: "data"},
+		{name: "bar", content: "data"},
+		{name: "foo.same/foo", content: "same-as-current"},
+		{name: "foo", content: "same-as-current"},
+	}
+	makeGadgetData(c, s.dir, gdWritten)
+
+	// backup stamps conflicts with bar.backup
+	existingUpBar := []gadgetData{
+		// will be listed first
+		{target: "bar", content: "can't touch this"},
+		{target: "bar.backup/foo", content: "can't touch this"},
+	}
+	// backup stamps conflicts with foo.same
+	existingUpFoo := []gadgetData{
+		// will be listed first
+		{target: "foo", content: "same-as-current"},
+		{target: "foo.same/foo", content: "can't touch this"},
+	}
+
+	outDirConflictsBar := filepath.Join(c.MkDir(), "out-dir-bar")
+	makeExistingData(c, outDirConflictsBar, existingUpBar)
+
+	outDirConflictsFoo := filepath.Join(c.MkDir(), "out-dir-foo")
+	makeExistingData(c, outDirConflictsFoo, existingUpFoo)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+			Update: gadget.VolumeUpdate{
+				Edition: 1,
+			},
+		},
+	}
+
+	backupBar := filepath.Join(s.backup, "backup-bar")
+	backupFoo := filepath.Join(s.backup, "backup-foo")
+
+	prefix := `cannot backup content: cannot create backup file: cannot create stamp file prefix: `
+	for _, tc := range []struct {
+		backupDir string
+		outDir    string
+		err       string
+	}{
+		{backupBar, outDirConflictsBar, prefix + `mkdir .*/bar.backup: not a directory`},
+		{backupFoo, outDirConflictsFoo, prefix + `mkdir .*/foo.same: not a directory`},
+	} {
+		err := os.MkdirAll(tc.backupDir, 0755)
+		c.Assert(err, IsNil)
+		rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, tc.backupDir, func(to *gadget.PositionedStructure) (string, error) {
+			c.Check(to, DeepEquals, ps)
+			return tc.outDir, nil
+		})
+		c.Assert(err, IsNil)
+		c.Assert(rw, NotNil)
+
+		err = rw.Backup()
+		c.Assert(err, ErrorMatches, tc.err)
+	}
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) {
+	gdWritten := []gadgetData{
+		{name: "bar.backup/foo", target: "bar.backup/foo", content: "data"},
+		{name: "foo.same/foo.same", target: "foo.same/foo.same", content: "same-as-current"},
+		{name: "zed.preserve", target: "zed.preserve", content: "this-is-preserved"},
+		{name: "new-file.same", target: "new-file.same", content: "this-is-new"},
+	}
+	makeGadgetData(c, s.dir, gdWritten)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	// these exist in the destination directory and will be backed up
+	backedUp := []gadgetData{
+		// will be listed first
+		{target: "bar.backup/foo", content: "not-data"},
+		{target: "foo.same/foo.same", content: "same-as-current"},
+		{target: "zed.preserve", content: "to-be-preserved"},
+	}
+	makeExistingData(c, outDir, backedUp)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+			Update: gadget.VolumeUpdate{
+				Edition: 1,
+				Preserve: []string{
+					"zed.preserve",
+				},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Backup()
+	c.Assert(err, IsNil)
+
+	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), map[string]contentType{
+		"bar.backup.backup":     typeFile,
+		"bar.backup/foo.backup": typeFile,
+
+		"foo.same.backup":        typeFile,
+		"foo.same/foo.same.same": typeFile,
+
+		"zed.preserve.preserve": typeFile,
+	})
+}
+
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
