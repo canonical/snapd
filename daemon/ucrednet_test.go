@@ -143,7 +143,7 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 	c.Assert(err, check.Equals, s.err)
 }
 
-func (s *ucrednetSuite) TestIdempPotentClose(c *check.C) {
+func (s *ucrednetSuite) TestIdempotentClose(c *check.C) {
 	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
