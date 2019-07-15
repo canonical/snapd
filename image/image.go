@@ -795,22 +795,24 @@ func ValidateSeed(seedFile string) error {
 		return err
 	}
 
+	var errs []error
 	// read the snaps info
 	snapInfos := make(map[string]*snap.Info)
 	for _, seedSnap := range seed.Snaps {
 		fn := filepath.Join(filepath.Dir(seedFile), "snaps", seedSnap.File)
 		snapf, err := snap.Open(fn)
 		if err != nil {
-			return err
+			errs = append(errs, err)
+		} else {
+			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
+			} else {
+				snapInfos[info.InstanceName()] = info
+			}
 		}
-		info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-		if err != nil {
-			return err
-		}
-		snapInfos[info.InstanceName()] = info
 	}
 
-	var errs []error
 	// ensure we have either "core" or "snapd"
 	_, haveCore := snapInfos["core"]
 	_, haveSnapd := snapInfos["snapd"]
