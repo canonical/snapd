@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 type validateSuite struct {
@@ -57,7 +58,7 @@ func (s *validateSuite) makeSnapInSeed(c *C, snapYaml string) {
 	info := infoFromSnapYaml(c, snapYaml, snap.R(1))
 
 	src := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
-	dst := filepath.Join(s.root, fmt.Sprintf("snaps/%s_%s.snap", info.InstanceName(), info.Revision.String()))
+	dst := filepath.Join(s.root, "snaps", fmt.Sprintf("%s_%s.snap", info.InstanceName(), info.Revision.String()))
 
 	err := os.Rename(src, dst)
 	c.Assert(err, IsNil)
@@ -197,4 +198,55 @@ snaps:
 	c.Assert(err, ErrorMatches, `cannot validate seed:
 - the core or snapd snap must be part of the seed
 - cannot use snap "some-snap": required snap "core" missing`)
+}
+
+func (s *validateSuite) TestValidateSnapSnapMissing(c *C) {
+	s.makeSnapInSeed(c, coreYaml)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: core
+   file: core_1.snap
+ - name: some-snap
+   file: some-snap_1.snap
+`)
+
+	err := image.ValidateSeed(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+- cannot open snap: open /.*/snaps/some-snap_1.snap: no such file or directory`)
+}
+
+func (s *validateSuite) TestValidateSnapSnapInvalid(c *C) {
+	s.makeSnapInSeed(c, coreYaml)
+
+	// "version" is missing in this yaml
+	snapBuildDir := c.MkDir()
+	snapYaml := `name: some-snap-invalid-yaml`
+	metaSnapYaml := filepath.Join(snapBuildDir, "meta", "snap.yaml")
+	err := os.MkdirAll(filepath.Dir(metaSnapYaml), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
+	c.Assert(err, IsNil)
+
+	// need to build the snap "manually" pack.Snap() will do validation
+	snapFilePath := filepath.Join(c.MkDir(), "some-snap-invalid-yaml_1.snap")
+	d := squashfs.New(snapFilePath)
+	err = d.Build(snapBuildDir, "app")
+	c.Assert(err, IsNil)
+
+	// put the broken snap in place
+	dst := filepath.Join(s.root, "snaps", "some-snap-invalid-yaml_1.snap")
+	err = os.Rename(snapFilePath, dst)
+	c.Assert(err, IsNil)
+
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: core
+   file: core_1.snap
+ - name: some-snap-invalid-yaml
+   file: some-snap-invalid-yaml_1.snap
+`)
+
+	err = image.ValidateSeed(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+- cannot use snap /.*/snaps/some-snap-invalid-yaml_1.snap: invalid snap version: cannot be empty`)
 }
