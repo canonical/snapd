@@ -845,7 +845,7 @@ func ValidateSeed(seedFile string) error {
 		for _, err := range errs {
 			fmt.Fprintf(&buf, "\n- %s", err)
 		}
-		return fmt.Errorf("error validating seed:%s", buf.Bytes())
+		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
 	}
 
 	return nil

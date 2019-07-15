@@ -102,7 +102,7 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `error validating seed:
+	c.Assert(err, ErrorMatches, `cannot validate seed:
 - cannot use snap "need-base": base "some-base" is missing`)
 }
 
@@ -124,7 +124,7 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `error validating seed:
+	c.Assert(err, ErrorMatches, `cannot validate seed:
 - cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
 }
 
@@ -162,7 +162,7 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `error validating seed:
+	c.Assert(err, ErrorMatches, `cannot validate seed:
 - cannot use snap "some-snap": required snap "core" missing`)
 }
 
@@ -180,7 +180,7 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `error validating seed:
+	c.Assert(err, ErrorMatches, `cannot validate seed:
 - the core or snapd snap must be part of the seed`)
 }
 
@@ -194,7 +194,7 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `error validating seed:
+	c.Assert(err, ErrorMatches, `cannot validate seed:
 - the core or snapd snap must be part of the seed
 - cannot use snap "some-snap": required snap "core" missing`)
 }
