@@ -20,6 +20,7 @@
 package image
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -808,31 +809,41 @@ func ValidateSeed(seedFile string) error {
 		}
 		snapInfos[info.InstanceName()] = info
 	}
+
+	var errs []error
 	// ensure we have either "core" or "snapd"
 	_, haveCore := snapInfos["core"]
 	_, haveSnapd := snapInfos["snapd"]
 	if !(haveCore || haveSnapd) {
-		return fmt.Errorf("the core or snapd snap must be part of the seed")
+		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
 	}
 
 	// check that all bases/default-providers are part of the seed
 	for _, info := range snapInfos {
 		if info.Base != "" && info.Base != "none" {
 			if _, ok := snapInfos[info.Base]; !ok {
-				return fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base)
+				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
 			}
 		}
 		for _, dp := range neededDefaultProviders(info) {
 			if _, ok := snapInfos[dp]; !ok {
-				return fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp)
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
 			}
 		}
 		// ensure core is pulled in if needed
 		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
 			if _, ok := snapInfos["core"]; !ok {
-				return fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName())
+				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
 			}
 		}
+	}
+
+	if errs != nil {
+		var buf bytes.Buffer
+		for _, err := range errs {
+			fmt.Fprintf(&buf, "\n- %s", err)
+		}
+		return fmt.Errorf("error validating seed:%s", buf.Bytes())
 	}
 
 	return nil
