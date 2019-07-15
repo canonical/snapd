@@ -808,6 +808,13 @@ func ValidateSeed(seedFile string) error {
 		}
 		snapInfos[info.InstanceName()] = info
 	}
+	// ensure we have either "core" or "snapd"
+	_, haveCore := snapInfos["core"]
+	_, haveSnapd := snapInfos["snapd"]
+	if !(haveCore || haveSnapd) {
+		return fmt.Errorf("the core or snapd snap must be part of the seed")
+	}
+
 	// check that all bases/default-providers are part of the seed
 	for _, info := range snapInfos {
 		if info.Base != "" && info.Base != "none" {
@@ -824,5 +831,4 @@ func ValidateSeed(seedFile string) error {
 	}
 
 	return nil
-
 }
