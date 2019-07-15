@@ -827,7 +827,12 @@ func ValidateSeed(seedFile string) error {
 				return fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp)
 			}
 		}
-
+		// ensure core is pulled in if needed
+		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
+			if _, ok := snapInfos["core"]; !ok {
+				return fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName())
+			}
+		}
 	}
 
 	return nil

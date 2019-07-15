@@ -2294,6 +2294,27 @@ snaps:
 
 func (s *validateSuite) TestValidateSnapSnapdHappy(c *C) {
 	s.makeSnapInSeed(c, snapdYaml)
+	s.makeSnapInSeed(c, packageCore18)
+	s.makeSnapInSeed(c, `name: some-snap
+version: 1.0
+base: core18
+`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: snapd
+   file: snapd_1.snap
+ - name: some-snap
+   file: some-snap_1.snap
+ - name: core18
+   file: core18_1.snap
+`)
+
+	err := image.ValidateSeed(seedFn)
+	c.Assert(err, IsNil)
+}
+
+func (s *validateSuite) TestValidateSnapMissingCore(c *C) {
+	s.makeSnapInSeed(c, snapdYaml)
 	s.makeSnapInSeed(c, `name: some-snap
 version: 1.0`)
 	seedFn := s.makeSeedYaml(c, `
@@ -2305,7 +2326,7 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
 }
 
 func (s *validateSuite) TestValidateSnapMissingSnapdAndCore(c *C) {
