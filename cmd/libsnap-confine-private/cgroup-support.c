@@ -25,6 +25,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <unistd.h>
 
 #include "cleanup-funcs.h"
@@ -65,4 +66,19 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
         die("cannot move process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);
     }
     debug("moved process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);
+}
+
+static const char *cgroup_dir = "/sys/fs/cgroup";
+// from statfs(2)
+static const int CGROUP2_SUPER_MAGIC =  0x63677270;
+
+bool sc_cgroup_is_v2() {
+    struct statfs buf;
+
+    int err = statfs(cgroup_dir, &buf);
+    if (err == 0 && buf.f_type == CGROUP2_SUPER_MAGIC) {
+       fprintf(stderr, "WARNING: cgroup v2 is not fully supported yet\n");
+       return true;
+    }
+    return false;
 }
