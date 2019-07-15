@@ -272,7 +272,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, d
 		// already one of these installed
 		return nil
 	}
-	core, err := CoreInfo(st)
+	core, err := coreInfo(st)
 	if err == state.ErrNoState {
 		return nil
 	}

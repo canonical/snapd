@@ -2300,7 +2300,7 @@ func HasSnapOfType(st *state.State, snapType snap.Type) (bool, error) {
 	return false, nil
 }
 
-func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
+func infosForType(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
@@ -2333,7 +2333,7 @@ func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 }
 
 func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
-	res, err := infosForTypes(st, snapType)
+	res, err := infosForType(st, snapType)
 	if err != nil {
 		return nil, err
 	}
@@ -2352,16 +2352,12 @@ func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
 }
 
-// CoreInfo finds the current OS snap's info. If both
+// coreInfo finds the current OS snap's info. If both
 // "core" and "ubuntu-core" is installed then "core"
 // is preferred. Different core names are not supported
 // currently and will result in an error.
-//
-// Once enough time has passed and everyone transitioned
-// from ubuntu-core to core we can simplify this again
-// and make it the same as the above "KernelInfo".
-func CoreInfo(st *state.State) (*snap.Info, error) {
-	res, err := infosForTypes(st, snap.TypeOS)
+func coreInfo(st *state.State) (*snap.Info, error) {
+	res, err := infosForType(st, snap.TypeOS)
 	if err != nil {
 		return nil, err
 	}
@@ -2400,11 +2396,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 		return nil, err
 	}
 
-	core, err := CoreInfo(st)
-	if err != nil {
-		return nil, err
-	}
-	isCoreDefaults := core.InstanceName() == snapName
+	isCoreDefaults := snapName == defaultCoreSnapName
 
 	si := snapst.CurrentSideInfo()
 	// core snaps can be addressed even without a snap-id via the special
