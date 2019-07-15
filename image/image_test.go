@@ -2268,7 +2268,8 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `cannot use snap "need-base": base "some-base" is missing`)
+	c.Assert(err, ErrorMatches, `error validating seed:
+- cannot use snap "need-base": base "some-base" is missing`)
 }
 
 func (s *validateSuite) TestValidateSnapMissingDefaultProvider(c *C) {
@@ -2289,7 +2290,8 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+	c.Assert(err, ErrorMatches, `error validating seed:
+- cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
 }
 
 func (s *validateSuite) TestValidateSnapSnapdHappy(c *C) {
@@ -2326,10 +2328,29 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
+	c.Assert(err, ErrorMatches, `error validating seed:
+- cannot use snap "some-snap": required snap "core" missing`)
 }
 
 func (s *validateSuite) TestValidateSnapMissingSnapdAndCore(c *C) {
+	s.makeSnapInSeed(c, packageCore18)
+	s.makeSnapInSeed(c, `name: some-snap
+version: 1.0
+base: core18`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: some-snap
+   file: some-snap_1.snap
+ - name: core18
+   file: core18_1.snap
+`)
+
+	err := image.ValidateSeed(seedFn)
+	c.Assert(err, ErrorMatches, `error validating seed:
+- the core or snapd snap must be part of the seed`)
+}
+
+func (s *validateSuite) TestValidateSnapMultipleErrors(c *C) {
 	s.makeSnapInSeed(c, `name: some-snap
 version: 1.0`)
 	seedFn := s.makeSeedYaml(c, `
@@ -2339,7 +2360,9 @@ snaps:
 `)
 
 	err := image.ValidateSeed(seedFn)
-	c.Assert(err, ErrorMatches, "the core or snapd snap must be part of the seed")
+	c.Assert(err, ErrorMatches, `error validating seed:
+- the core or snapd snap must be part of the seed
+- cannot use snap "some-snap": required snap "core" missing`)
 }
 
 type toolingStoreContextSuite struct {
