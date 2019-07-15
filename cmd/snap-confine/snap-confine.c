@@ -576,7 +576,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	/** Populate and join the device control group. */
 	struct snappy_udev udev_s;
 	if (snappy_udev_init(inv->security_tag, &udev_s) == 0) {
-		if (sc_cgroup_is_v2()) {
+		if (!sc_cgroup_is_v2()) {
 			setup_devices_cgroup(inv->security_tag, &udev_s);
 		}
 	}
