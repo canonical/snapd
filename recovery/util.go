@@ -92,3 +92,9 @@ func copyTree(src, dst string) error {
 	}
 	return nil
 }
+
+func wipe(name string) error {
+	// FIXME: overwrite file before unlinking
+	// better solution: have a custom cryptsetup util that reads master key from stdin
+	return os.Remove(name)
+}

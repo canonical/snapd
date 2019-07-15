@@ -149,7 +149,7 @@ func Install(version string) error {
 	cryptdev := "ubuntu-data"
 
 	logger.Noticef("Create LUKS key")
-	keySize := 4 * sizeKB
+	keySize := 32
 	keyBuffer := make([]byte, keySize)
 	n, err := rand.Read(keyBuffer)
 	if n != keySize || err != nil {
@@ -158,7 +158,7 @@ func Install(version string) error {
 
 	logger.Noticef("Install recovery %s", version)
 	if err := createWritable(keyBuffer, cryptdev); err != nil {
-		logger.Noticef("cannot create writable: %s", err)
+		logger.Noticef("cannot create data partition: %s", err)
 		return err
 	}
 
@@ -227,13 +227,13 @@ func createWritable(keyBuffer []byte, cryptdev string) error {
 	logger.Noticef("Creating new ubuntu-data partition")
 	disk := &DiskDevice{}
 	if err := disk.FindFromPartLabel("ubuntu-boot"); err != nil {
-		return fmt.Errorf("cannot determine boot device: %s", err)
+		return err
 	}
 
 	// FIXME: get values from gadget, system
 	err := disk.CreateLUKSPartition(1000*sizeMB, "ubuntu-data", keyBuffer, cryptdev)
 	if err != nil {
-		return fmt.Errorf("cannot create new ubuntu-data: %s", err)
+		return err
 	}
 
 	return nil
