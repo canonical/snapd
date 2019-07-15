@@ -464,7 +464,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 
 	if err := f.Save(model); err != nil {
 		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
-			return fmt.Errorf("cannot fetch and check prerequisites ifor the model assertion: %v", err)
+			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 		} else {
 			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
 			f.addedRefs = nil
@@ -820,20 +820,22 @@ func ValidateSeed(seedFile string) error {
 
 	// check that all bases/default-providers are part of the seed
 	for _, info := range snapInfos {
+		// ensure base is available
 		if info.Base != "" && info.Base != "none" {
 			if _, ok := snapInfos[info.Base]; !ok {
 				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
 			}
 		}
-		for _, dp := range neededDefaultProviders(info) {
-			if _, ok := snapInfos[dp]; !ok {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
-			}
-		}
-		// ensure core is pulled in if needed
+		// ensure core is available
 		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
 			if _, ok := snapInfos["core"]; !ok {
 				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
+			}
+		}
+		// ensure default-providers are available
+		for _, dp := range neededDefaultProviders(info) {
+			if _, ok := snapInfos[dp]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
 			}
 		}
 	}
