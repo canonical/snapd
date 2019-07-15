@@ -33,13 +33,14 @@ func GetKernelParameter(name string) string {
 
 func globFile(dir, pattern string) string {
 	files, err := filepath.Glob(path.Join(dir, pattern))
-	fmt.Printf("glob %s %s found: %s (err %s)\n", dir, pattern, files, err)
 	if err != nil {
+		fmt.Printf("glob error: %s", err)
 		return ""
 	}
 	if len(files) == 0 {
 		return ""
 	}
+	fmt.Printf("glob %s %s found: %v\n", dir, pattern, files)
 	return files[0]
 }
 
