@@ -439,7 +439,7 @@ func (rc *reregRemodelContext) SerialRequestExtraHeaders() map[string]interface{
 }
 
 func (rc *reregRemodelContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
-	return []asserts.Assertion{rc.origModel, rc.origSerial}
+	return []asserts.Assertion{rc.newModel, rc.origSerial}
 }
 
 func (rc *reregRemodelContext) FinishRegistration(serial *asserts.Serial) error {
