@@ -93,8 +93,8 @@ test_snapctl_foo_null() {
 test_snapctl_unset() {
 	  echo "Unsetting an option"
 	  if ! snapctl set root.key2! ; then
-	  echo "snapctl set unexpectedly failed when un-setting root.key2"
-			exit 1
+	            echo "snapctl set unexpectedly failed when un-setting root.key2"
+		    exit 1
 	  fi
 }
 
