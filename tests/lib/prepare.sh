@@ -10,8 +10,6 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 # shellcheck source=tests/lib/systems.sh
@@ -263,7 +261,16 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
-        ! snap list | grep core || exit 1
+        echo "Cache the snaps profiler snap"
+        if [ "$PROFILE_SNAPS" = 1 ]; then
+            if is_core18_system; then
+                cache_snaps test-snapd-profiler-core18
+            else
+                cache_snaps test-snapd-profiler
+            fi
+        fi
+
+        snap list | not grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
@@ -306,6 +313,11 @@ repack_snapd_snap_with_deb_content() {
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+    # clean snap apparmor.d to ensure the put the right snap-confine apparmor
+    # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
+    # usr.lib.snapd.snap-confine.real everywhere else
+    rm -f "$UNPACK_DIR"/etc/apparmor.d/*
+
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
     snap pack "$UNPACK_DIR" "$TARGET"
@@ -485,7 +497,7 @@ EOF
     # - make sure the group matches
     # - bind mount /root/test-etc/* to /etc/* via custom systemd job
     # We also create /var/lib/extrausers/* and append ubuntu,test there
-    ! test -e /mnt/system-data/root
+    test ! -e /mnt/system-data/root
     mkdir -m 700 /mnt/system-data/root
     test -d /mnt/system-data/root
     mkdir -p /mnt/system-data/root/test-etc
@@ -646,6 +658,10 @@ prepare_ubuntu_core() {
             exit 1
         fi
         cache_snaps core
+    fi
+    echo "Cache the snaps profiler snap"
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        cache_snaps test-snapd-profiler
     fi
 
     disable_refreshes

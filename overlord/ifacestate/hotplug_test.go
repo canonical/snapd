@@ -57,6 +57,8 @@ type hotplugSuite struct {
 	udevMon               *udevMonitorMock
 	mgr                   *ifacestate.InterfaceManager
 	handledByGadgetCalled int
+
+	ifaceTestAAutoConnect bool
 }
 
 type hotplugTasksWitness struct {
@@ -141,7 +143,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
-	s.SetupAsserts(c, s.state)
+	s.SetupAsserts(c, s.state, &s.BaseTest)
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	s.BaseTest.AddCleanup(restoreTimeout)
@@ -179,8 +181,19 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
+	autoConnectNo := func(*snap.PlugInfo, *snap.SlotInfo) bool {
+		return false
+	}
+	s.ifaceTestAAutoConnect = false
+	testAAutoConnect := func(*snap.PlugInfo, *snap.SlotInfo) bool {
+		return s.ifaceTestAAutoConnect
+	}
+
 	testIface1 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-a"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-a",
+			AutoConnectCallback: testAAutoConnect,
+		},
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-1", nil
 		},
@@ -194,7 +207,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		},
 	}
 	testIface2 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-b"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-b",
+			AutoConnectCallback: autoConnectNo,
+		},
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-2", nil
 		},
@@ -210,7 +226,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	}
 	// 3rd hotplug interface doesn't create hotplug slot (to simulate a case where doesn't device is not supported)
 	testIface3 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-c"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-c",
+			AutoConnectCallback: autoConnectNo,
+		},
 		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-3", nil
 		},
@@ -220,7 +239,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	}
 	// 3rd hotplug interface will only create a slot if default hotplug key can be computed
 	testIface4 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-d"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-d",
+			AutoConnectCallback: autoConnectNo,
+		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
 			return &hotplug.ProposedSlot{Name: "hotplugslot-d"}, nil
 		},
@@ -267,6 +289,8 @@ func testByHotplugTaskFlag(c *C, t *state.Task) {
 }
 
 func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
+	s.MockModel(c, nil)
+
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"})
 	c.Assert(err, IsNil)
 	s.udevMon.AddDevice(di)
@@ -310,6 +334,8 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugConnectWithGadgetSlot(c *C) {
+	s.MockModel(c, nil)
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -358,6 +384,8 @@ slots:
 }
 
 func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
+	s.MockModel(c, nil)
+
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":         "a/path",
 		"ACTION":          "add",
@@ -400,6 +428,9 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 
 func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	s.MockModel(c, nil)
+
+	s.ifaceTestAAutoConnect = true
+
 	repo := s.mgr.Repository()
 	st := s.state
 
@@ -547,6 +578,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
+	s.MockModel(c, nil)
+
 	st := s.state
 	st.Lock()
 

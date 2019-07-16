@@ -6,3 +6,5 @@ apps:
   command: bin/echo
  echoecho:
   command: bin/echo echo
+description: |
+  A basic snap with desktop apps

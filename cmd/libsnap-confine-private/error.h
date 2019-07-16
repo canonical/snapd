@@ -61,6 +61,21 @@ typedef struct sc_error {
 #define SC_ERRNO_DOMAIN "errno"
 
 /**
+ * Error domain for errors in the libsnap-confine-private library.
+ **/
+#define SC_LIBSNAP_DOMAIN "libsnap-confine-private"
+
+/** sc_libsnap_error represents distinct error codes used by libsnap-confine-private library. */
+typedef enum sc_libsnap_error {
+	/** SC_UNSPECIFIED_ERROR indicates an error not worthy of a distinct code. */
+	SC_UNSPECIFIED_ERROR = 0,
+	/** SC_API_MISUSE indicates that public API was called incorrectly. */
+	SC_API_MISUSE,
+	/** SC_BUG indicates that private API was called incorrectly. */
+	SC_BUG,
+} sc_libsnap_error;
+
+/**
  * Initialize a new error object.
  *
  * The domain is a cookie-like string that allows the caller to distinguish
@@ -75,6 +90,26 @@ __attribute__((warn_unused_result,
 sc_error *sc_error_init(const char *domain, int code, const char *msgfmt, ...);
 
 /**
+ * Initialize an unspecified error with formatted message.
+ *
+ * This is just syntactic sugar for sc_error_init(SC_LIBSNAP_ERROR,
+ * SC_UNSPECIFIED_ERROR, msgfmt, ...) which is repeated often.
+ **/
+__attribute__((warn_unused_result,
+	       format(printf, 1, 2) SC_APPEND_RETURNS_NONNULL))
+sc_error *sc_error_init_simple(const char *msgfmt, ...);
+
+/**
+ * Initialize an API misuse error with formatted message.
+ *
+ * This is just syntactic sugar for sc_error_init(SC_LIBSNAP_DOMAIN,
+ * SC_API_MISUSE, msgfmt, ...) which is repeated often.
+ **/
+__attribute__((warn_unused_result,
+	       format(printf, 1, 2) SC_APPEND_RETURNS_NONNULL))
+sc_error *sc_error_init_api_misuse(const char *msgfmt, ...);
+
+/**
  * Initialize an errno-based error.
  *
  * The error carries a copy of errno and a custom error message as designed by
@@ -85,7 +120,6 @@ sc_error *sc_error_init(const char *domain, int code, const char *msgfmt, ...);
 __attribute__((warn_unused_result,
 	       format(printf, 2, 3) SC_APPEND_RETURNS_NONNULL))
 sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt, ...);
-
 
 /**
  * Get the error domain out of an error object.
@@ -153,10 +187,14 @@ void sc_die_on_error(sc_error * error);
  * sc_die_on_error() is called as a safety measure.
  *
  * Change of ownership takes place and the error is now stored in the recipient.
+ *
+ * The return value -1 if error is non-NULL and 0 otherwise. The return value
+ * makes it convenient to `return sc_error_forward(err_out, err);` as the last
+ * line of a function.
  **/
 // NOTE: There's no nonnull(1) attribute as the recipient *can* be NULL. With
 // the attribute in place GCC optimizes some things out and tests fail.
-void sc_error_forward(sc_error ** recipient, sc_error * error);
+int sc_error_forward(sc_error ** recipient, sc_error * error);
 
 /**
  * Check if a given error matches the specified domain and code.

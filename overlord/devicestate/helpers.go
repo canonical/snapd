@@ -22,11 +22,12 @@ package devicestate
 import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, model *asserts.Model) error {
 	device.Brand = model.BrandID()
 	device.Model = model.Model()
-	return auth.SetDevice(st, device)
+	return internal.SetDevice(st, device)
 }

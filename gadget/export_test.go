@@ -24,4 +24,39 @@ var (
 	ValidateVolumeStructure = validateVolumeStructure
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
+
+	ResolveVolume      = resolveVolume
+	CanUpdateStructure = canUpdateStructure
+	CanUpdateVolume    = canUpdateVolume
+
+	EncodeLabel = encodeLabel
+
+	WriteFile      = writeFile
+	WriteDirectory = writeDirectory
+
+	RawContentBackupPath = rawContentBackupPath
 )
+
+func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
+	old := updaterForStructure
+	updaterForStructure = mock
+	return func() {
+		updaterForStructure = old
+	}
+}
+
+func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
+	oldEvalSymlinks := evalSymlinks
+	evalSymlinks = mock
+	return func() {
+		evalSymlinks = oldEvalSymlinks
+	}
+}
+
+func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
+	old := mkfsHandlers
+	mkfsHandlers = mock
+	return func() {
+		mkfsHandlers = old
+	}
+}

@@ -25,4 +25,4 @@ execute: |
             SNAPPY_TESTING=0 LANG="$b" snap 2>&1 >/dev/null | sed -e "s/[^ ]* [^ ]* /${b^^}: /" >> bad
         fi
     done
-    ! cat bad
+    not cat bad

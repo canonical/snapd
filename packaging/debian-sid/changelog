@@ -1,3 +1,9 @@
+snapd (2.40-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 12 Jul 2019 10:40:08 +0200
+
 snapd (2.39.3-1) unstable; urgency=medium
 
   * New upstream release, LP: #1827495

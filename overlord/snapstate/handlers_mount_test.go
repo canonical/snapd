@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -37,6 +38,11 @@ type mountSnapSuite struct {
 }
 
 var _ = Suite(&mountSnapSuite{})
+
+func (s *mountSnapSuite) SetUpTest(c *C) {
+	s.setup(c, nil)
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+}
 
 func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"

@@ -32,9 +32,11 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -107,13 +109,26 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(refreshPrivacyKey, HasLen, 16)
 
 	// store is setup
-	sto := snapstate.Store(s)
+	sto := snapstate.Store(s, nil)
+	c.Check(sto, FitsTypeOf, &store.Store{})
+	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
+}
+
+func (ovs *overlordSuite) TestNewStore(c *C) {
+	// this is a shallow test, the deep testing happens in the
+	// remodeling tests in managers_test.go
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	devBE := o.DeviceManager().StoreContextBackend()
+
+	sto := o.NewStore(devBE)
 	c.Check(sto, FitsTypeOf, &store.Store{})
 	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel))
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"patch-sublevel-last-version":%q,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, cmd.Version))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -231,7 +246,7 @@ func markSeeded(o *overlord.Overlord) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
-	auth.SetDevice(st, &auth.DeviceState{
+	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
 		Serial: "serialserial",

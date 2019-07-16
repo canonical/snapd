@@ -51,7 +51,6 @@ func formatPrice(val float64, currency string) string {
 // Notes encapsulate everything that might be interesting about a
 // snap, in order to present a brief summary of it.
 type Notes struct {
-	Price            string
 	SnapType         snap.Type
 	Private          bool
 	DevMode          bool
@@ -61,6 +60,9 @@ type Notes struct {
 	Disabled         bool
 	Broken           bool
 	IgnoreValidation bool
+	InCohort         bool
+	Health           string
+	Price            string
 }
 
 func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
@@ -85,6 +87,10 @@ func NotesFromRemote(snp *client.Snap, resInfo *client.ResultInfo) *Notes {
 }
 
 func NotesFromLocal(snp *client.Snap) *Notes {
+	var health string
+	if snp.Health != nil {
+		health = snp.Health.Status
+	}
 	return &Notes{
 		SnapType:         snap.Type(snp.Type),
 		Private:          snp.Private,
@@ -95,16 +101,8 @@ func NotesFromLocal(snp *client.Snap) *Notes {
 		Disabled:         snp.Status != client.StatusActive,
 		Broken:           snp.Broken != "",
 		IgnoreValidation: snp.IgnoreValidation,
-	}
-}
-
-func NotesFromInfo(info *snap.Info) *Notes {
-	return &Notes{
-		SnapType: info.Type,
-		Private:  info.Private,
-		DevMode:  info.Confinement == client.DevModeConfinement,
-		Classic:  info.Confinement == client.ClassicConfinement,
-		Broken:   info.Broken != "",
+		InCohort:         snp.CohortKey != "",
+		Health:           health,
 	}
 }
 
@@ -159,6 +157,13 @@ func (n *Notes) String() string {
 
 	if n.IgnoreValidation {
 		ns = append(ns, i18n.G("ignore-validation"))
+	}
+
+	if n.InCohort {
+		ns = append(ns, i18n.G("in-cohort"))
+	}
+	if n.Health != "" && n.Health != "okay" {
+		ns = append(ns, n.Health)
 	}
 
 	if len(ns) == 0 {

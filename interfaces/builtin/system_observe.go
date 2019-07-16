@@ -38,7 +38,15 @@ const systemObserveConnectedPlugAppArmor = `
 @{PROC}/tty/drivers r,
 
 # This ptrace is an information leak. Intentionlly omit 'ptrace (trace)' here
-# since since ps doesn't actually need to trace other processes.
+# since since ps doesn't actually need to trace other processes. Note this
+# allows a number of accesses (assuming the associated /proc file is allowed),
+# such as various memory address locations and esp/eip via /proc/*/stat,
+# /proc/*/mem, /proc/*/personality, /proc/*/stack, /proc/*/syscall,
+# /proc/*/timerslack_ns and /proc/*/wchan (see man proc).
+#
+# Some files like /proc/kallsyms (but anything using %pK format specifier) need
+# 'capability syslog' when /proc/sys/kernel/kptr_restrict=1, but we
+# intentionally do not allow since it could be used to defeat KASLR.
 ptrace (read),
 
 # Other miscellaneous accesses for observing the system
@@ -56,12 +64,15 @@ ptrace (read),
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
 @{PROC}/*/{,task/*/}auxv r,
+@{PROC}/*/{,task/*/}cgroup r,
 @{PROC}/*/{,task/*/}cmdline r,
+@{PROC}/*/{,task/*/}comm r,
 @{PROC}/*/{,task/*/}exe r,
 @{PROC}/*/{,task/*/}fdinfo/* r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
+@{PROC}/*/{,task/*/}wchan r,
 
 # Allow discovering the os-release of the host
 /var/lib/snapd/hostfs/etc/os-release rk,

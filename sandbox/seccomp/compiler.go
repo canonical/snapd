@@ -23,16 +23,20 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
 var (
-	// The format of version-info: <build-id> <libseccomp-version> <hash>
+	// version-info format: <build-id> <libseccomp-version> <hash> <features>
 	// Where, the hash is calculated over all syscall names supported by the
-	// libseccomp library.
-	// Ex: 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c
-	validVersionInfo = regexp.MustCompile(`^[0-9a-f]+ [0-9]+\.[0-9]+\.[0-9]+ [0-9a-f]+$`)
+	// libseccomp library. The build-id is a 160-bit SHA-1 (40 char) string
+	// and the hash is a 256-bit SHA-256 (64 char) string. Allow libseccomp
+	// version to be 1-5 chars per field (eg, 1.2.3 or 12345.23456.34567)
+	// and 1-30 chars of colon-separated features.
+	// Ex: 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog
+	validVersionInfo = regexp.MustCompile(`^[0-9a-f]{1,40} [0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5} [0-9a-f]{1,64} [-a-z0-9:]{1,30}$`)
 )
 
 type Compiler struct {
@@ -55,9 +59,9 @@ func New(lookupTool func(name string) (string, error)) (*Compiler, error) {
 }
 
 // VersionInfo returns the version information of the compiler. The format of
-// version information is: <build-id> <libseccomp-version> <hash>. Where, the
-// hash is calculated over all syscall names supported by the libseccomp
-// library.
+// version information is: <build-id> <libseccomp-version> <hash> <features>.
+// Where, the hash is calculated over all syscall names supported by the
+// libseccomp library.
 func (c *Compiler) VersionInfo() (string, error) {
 	cmd := exec.Command(c.snapSeccomp, "version-info")
 	output, err := cmd.CombinedOutput()
@@ -66,16 +70,48 @@ func (c *Compiler) VersionInfo() (string, error) {
 	}
 	raw := bytes.TrimSpace(output)
 	// Example valid output:
-	// 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c
-	// 111 chars + wiggle room
-	if len(raw) > 120 {
-		return "", fmt.Errorf("invalid version-info length: %q", raw)
-	}
+	// 7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog
 	if match := validVersionInfo.Match(raw); !match {
 		return "", fmt.Errorf("invalid format of version-info: %q", raw)
 	}
 
 	return string(raw), nil
+}
+
+// VersionInfo represents information about the seccomp compilter
+type VersionInfo string
+
+// LibseccompVersion parses VersionInfo and provides the
+// libseccomp version
+func (vi VersionInfo) LibseccompVersion() (string, error) {
+	if match := validVersionInfo.Match([]byte(vi)); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", vi)
+	}
+	return strings.Split(string(vi), " ")[1], nil
+}
+
+// Features parses the output of VersionInfo and provides the
+// golang seccomp features
+func (vi VersionInfo) Features() (string, error) {
+	if match := validVersionInfo.Match([]byte(vi)); !match {
+		return "", fmt.Errorf("invalid format of version-info: %q", vi)
+	}
+	return strings.Split(string(vi), " ")[3], nil
+}
+
+// HasFeature parses the output of VersionInfo and answers whether or
+// not golang-seccomp supports the feature
+func (vi VersionInfo) HasFeature(feature string) (bool, error) {
+	features, err := vi.Features()
+	if err != nil {
+		return false, err
+	}
+	for _, f := range strings.Split(features, ":") {
+		if f == feature {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Compile compiles given source profile and saves the result to the out
