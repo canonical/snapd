@@ -83,6 +83,7 @@ func (s *PackageKitControlInterfaceSuite) TestStaticInfo(c *C) {
 	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows control of the PackageKit service")
+	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "packagekit-control")
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "packagekit-control")
 }
 
