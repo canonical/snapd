@@ -1162,12 +1162,11 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	inst := snapInstruction{
-		ctx: r.Context(),
-	}
+	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
+	inst.ctx = r.Context()
 
 	state := c.d.overlord.State()
 	state.Lock()
@@ -1176,6 +1175,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		inst.userID = user.ID
 	}
+
 	vars := muxVars(r)
 	inst.Snaps = []string{vars["name"]}
 
