@@ -113,4 +113,5 @@ func (notesSuite) TestNotesFromLocal(c *check.C) {
 	// check that a cohort key in a snap sets the InCohort note flag
 	c.Check(snap.NotesFromLocal(&client.Snap{CohortKey: ""}).InCohort, check.Equals, false)
 	c.Check(snap.NotesFromLocal(&client.Snap{CohortKey: "123"}).InCohort, check.Equals, true)
+	c.Check(snap.NotesFromLocal(&client.Snap{Health: &client.SnapHealth{Status: "blocked"}}).Health, check.Equals, "blocked")
 }
