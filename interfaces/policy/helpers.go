@@ -31,24 +31,13 @@ import (
 
 // check helpers
 
-func snapIDSnapd(snapID string) bool {
-	var snapIDsSnapd = []string{
-		// production
-		"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
-		// TODO: when snapd snap is uploaded to staging, replace this with
-		// the real snap-id.
-		"todo-staging-snapd-id",
-	}
-	return strutil.ListContains(snapIDsSnapd, snapID)
-}
-
-func checkSnapType(snap *snap.Info, types []string) error {
+func checkSnapType(snapInfo *snap.Info, types []string) error {
 	if len(types) == 0 {
 		return nil
 	}
-	snapID := snap.SnapID
-	s := string(snap.GetType())
-	if s == "os" || snapIDSnapd(snapID) {
+	snapType := snapInfo.GetType()
+	s := string(snapType)
+	if snapType == snap.TypeOS || snapType == snap.TypeSnapd {
 		// we use "core" in the assertions and we need also to
 		// allow for the "snapd" snap
 		s = "core"

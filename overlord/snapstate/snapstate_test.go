@@ -358,6 +358,7 @@ const (
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	noConfigure
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -417,8 +418,12 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
+	if opts&noConfigure == 0 {
+		expected = append(expected,
+			"run-hook[configure]",
+		)
+	}
 	expected = append(expected,
-		"run-hook[configure]",
 		"run-hook[check-health]",
 	)
 
@@ -627,6 +632,24 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
+	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(s.state, "snapd", opts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
 }
 
 func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {

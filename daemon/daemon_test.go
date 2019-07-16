@@ -477,9 +477,9 @@ type witnessAcceptListener struct {
 	accept  chan struct{}
 	accept1 bool
 
-	closed    chan struct{}
-	closed1   bool
-	closedLck sync.Mutex
+	idempotClose sync.Once
+	closeErr     error
+	closed       chan struct{}
 }
 
 func (l *witnessAcceptListener) Accept() (net.Conn, error) {
@@ -491,16 +491,13 @@ func (l *witnessAcceptListener) Accept() (net.Conn, error) {
 }
 
 func (l *witnessAcceptListener) Close() error {
-	err := l.Listener.Close()
-	if l.closed != nil {
-		l.closedLck.Lock()
-		defer l.closedLck.Unlock()
-		if !l.closed1 {
-			l.closed1 = true
+	l.idempotClose.Do(func() {
+		l.closeErr = l.Listener.Close()
+		if l.closed != nil {
 			close(l.closed)
 		}
-	}
-	return err
+	})
+	return l.closeErr
 }
 
 func (s *daemonSuite) markSeeded(d *Daemon) {
@@ -531,14 +528,16 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	})
 	st.Unlock()
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l1, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	l2, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+	d.snapdListener = &witnessAcceptListener{Listener: l1, accept: snapdAccept}
 
 	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
+	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
 
 	d.Start()
 
@@ -981,16 +980,16 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	c.Check(d.restartSocket, check.Equals, false)
 }
 
-func (s *daemonSuite) TestShutdownServerCanShutdown(c *check.C) {
-	shush := newShutdownServer(nil, nil)
-	c.Check(shush.CanStandby(), check.Equals, true)
+func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
+	ct := &connTracker{conns: make(map[net.Conn]struct{})}
+	c.Check(ct.CanStandby(), check.Equals, true)
 
 	con := &net.IPConn{}
-	shush.conns[con] = http.StateActive
-	c.Check(shush.CanStandby(), check.Equals, false)
+	ct.trackConn(con, http.StateActive)
+	c.Check(ct.CanStandby(), check.Equals, false)
 
-	shush.conns[con] = http.StateIdle
-	c.Check(shush.CanStandby(), check.Equals, true)
+	ct.trackConn(con, http.StateIdle)
+	c.Check(ct.CanStandby(), check.Equals, true)
 }
 
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
