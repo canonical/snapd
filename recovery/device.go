@@ -121,18 +121,12 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 	time.Sleep(1 * time.Second)
 
 	logger.Noticef("Open LUKS device")
-	if output, err := exec.Command("sh", "-c", fmt.Sprintf("LD_PRELOAD=/lib/no-udev.so cryptsetup open --type luks2 "+
-		"--master-key-file %s %s %s", keyFile, partdev, path.Base(cryptdev))).CombinedOutput(); err != nil {
+	if output, err := exec.Command("cryptsetup", "open", "--master-key-file", keyFile, partdev,
+		path.Base(cryptdev)).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err))
 	}
 	if err := wipe(keyFile); err != nil {
 		return fmt.Errorf("can't wipe key file: %s", err)
-	}
-
-	// FIXME: Ok, now this is ugly. We'll have to see how to handle this properly.
-	logger.Noticef("Hack: create LUKS device symlink")
-	if err := os.Symlink("../dm-0", cryptdev); err != nil {
-		return fmt.Errorf("cannot create LUKS device symlink: %s", err)
 	}
 
 	time.Sleep(1 * time.Second)
