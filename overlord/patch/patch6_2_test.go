@@ -350,32 +350,6 @@ func (s *patch62Suite) TestPatch62(c *C) {
 	c.Check(snapsup.Type, Equals, snap.TypeApp)
 }
 
-func (s *patch62Suite) TestPatch62StopsIfSnapdAlreadyPresent(c *C) {
-	restore1 := patch.MockLevel(6, 2)
-	defer restore1()
-
-	restore2 := snap.MockSnapdSnapID("snapd-snap-id")
-	defer restore2()
-
-	r := bytes.NewReader(statePatch6_2JSONWithSnapd)
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
-
-	c.Assert(patch.Apply(st), IsNil)
-	st.Lock()
-	defer st.Unlock()
-
-	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(st, "snapd", &snapst), IsNil)
-	c.Check(snapst.SnapType, Equals, "snapd")
-
-	// "other" is untouched and has "app" type despite of having snapd-snap-id.
-	// note, it is not a normal scenario, this is to test that patch logic doesn't
-	// process all apps if it finds snapd snap.
-	c.Assert(snapstate.Get(st, "other", &snapst), IsNil)
-	c.Check(snapst.SnapType, Equals, "app")
-}
-
 func (s *patch62Suite) TestPatch62StopsAfterFirstSnapd(c *C) {
 	restore1 := patch.MockLevel(6, 2)
 	defer restore1()

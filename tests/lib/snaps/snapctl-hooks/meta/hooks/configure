@@ -75,10 +75,11 @@ test_get_nested() {
   fi
 }
 
-test_snapctl_get_foo_null() {
+test_snapctl_foo_null() {
 	  echo "Getting foo"
+	  # note, snapctl doesn't fail on non-existing keys, this check is for other unexpected errors
 	  if ! output="$(snapctl get foo)"; then
-		    echo "Expected snapctl get to be able to retrieve value just set"
+		    echo "Did not expect snapctl get to fail"
 		    exit 1
 	  fi
 
@@ -110,8 +111,8 @@ case $command in
 	"test-snapctl-get-foo")
 		test_snapctl_get_foo
 		;;
-	"test-snapctl-get-foo-null")
-    test_snapctl_get_foo_null
+	"test-snapctl-foo-null")
+    test_snapctl_foo_null
     ;;
 	"test-exit-one")
 		test_exit_one

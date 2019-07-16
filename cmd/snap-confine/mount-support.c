@@ -585,6 +585,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/var/tmp"},	// to get access to the other temporary directory
 			{"/run"},	// to get /run with sockets and what not
 			{"/lib/modules",.is_optional = true},	// access to the modules of the running kernel
+			{"/lib/firmware",.is_optional = true},	// access to the firmware of the running kernel
 			{"/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
 			{"/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR
