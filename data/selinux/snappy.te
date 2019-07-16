@@ -458,6 +458,7 @@ gen_require(`
   type modules_object_t;
   type ifconfig_var_run_t;
   type var_log_t;
+  type lib_t;
 ')
 allow snappy_confine_t admin_home_t:dir mounton;
 allow snappy_confine_t bin_t:dir mounton;
@@ -468,6 +469,7 @@ allow snappy_confine_t etc_t:file mounton;
 allow snappy_confine_t home_root_t:dir mounton;
 allow snappy_confine_t ifconfig_var_run_t:dir mounton;
 allow snappy_confine_t modules_object_t:dir mounton;
+allow snappy_confine_t lib_t:dir mounton;
 allow snappy_confine_t ptmx_t:chr_file { getattr mounton };
 allow snappy_confine_t snappy_snap_t:dir { mounton read };
 allow snappy_confine_t snappy_snap_t:file mounton;

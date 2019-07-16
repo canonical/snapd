@@ -37,6 +37,14 @@ var (
 	RawContentBackupPath = rawContentBackupPath
 )
 
+func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
+	old := updaterForStructure
+	updaterForStructure = mock
+	return func() {
+		updaterForStructure = old
+	}
+}
+
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	oldEvalSymlinks := evalSymlinks
 	evalSymlinks = mock
