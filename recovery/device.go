@@ -102,6 +102,12 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 	// FIXME: determine partition name in a civilized way
 	partdev := d.partDev(4)
 
+	// This shouldn't be necessary, but don't remove it.
+	time.Sleep(1 * time.Second)
+	if output, err := exec.Command("modprobe", "dm-crypt").CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err))
+	}
+
 	// Don't remove this delay, it prevents a kernel crash
 	// see https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1835279
 	time.Sleep(1 * time.Second)
