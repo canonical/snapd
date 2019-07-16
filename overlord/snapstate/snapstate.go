@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -2340,6 +2341,23 @@ func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
 	return res[0], nil
 }
 
+func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, whichName func(*asserts.Model) string) (*snap.Info, error) {
+	if deviceCtx == nil {
+		return nil, fmt.Errorf("internal error: unset deviceCtx")
+	}
+	model := deviceCtx.Model()
+	snapName := whichName(model)
+	if snapName == "" {
+		return nil, fmt.Errorf("internal error: cannot get %s snap that is unspecified in the model", which)
+	}
+	var snapst SnapState
+	err := Get(st, snapName, &snapst)
+	if err != nil {
+		return nil, err
+	}
+	return snapst.CurrentInfo()
+}
+
 // XXX: remodeling: decide what to do with Gadget/KernelInfo and their derived functions
 
 // GadgetInfo finds the current gadget snap's info.
@@ -2347,10 +2365,8 @@ func GadgetInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeGadget)
 }
 
+// TODO: reintroduce a KernelInfo(state.State, DeviceContext) if needed
 // KernelInfo finds the current kernel snap's info.
-func KernelInfo(st *state.State) (*snap.Info, error) {
-	return infoForType(st, snap.TypeKernel)
-}
 
 // coreInfo finds the current OS snap's info. If both
 // "core" and "ubuntu-core" is installed then "core"

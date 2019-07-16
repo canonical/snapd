@@ -61,12 +61,12 @@ func UpdateBootRevisions(st *state.State) error {
 	}
 
 	// nothing to check if there's no kernel
-	_, err := KernelInfo(st)
-	if err == state.ErrNoState {
-		return nil
-	}
+	ok, err := HasSnapOfType(st, snap.TypeKernel)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
+	}
+	if !ok {
+		return nil
 	}
 
 	loader, err := bootloader.Find()

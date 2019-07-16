@@ -10429,11 +10429,6 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 			snapType: snap.TypeGadget,
 			getInfo:  snapstate.GadgetInfo,
 		},
-		{
-			snapName: "kernel",
-			snapType: snap.TypeKernel,
-			getInfo:  snapstate.KernelInfo,
-		},
 	} {
 		_, err := x.getInfo(st)
 		c.Assert(err, Equals, state.ErrNoState)

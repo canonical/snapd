@@ -39,11 +39,13 @@ import (
 	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 )
 
 type checkSnapSuite struct {
 	testutil.BaseTest
-	st *state.State
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
 }
 
 var _ = Suite(&checkSnapSuite{})
@@ -53,6 +55,10 @@ func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(map[string]interface{}{
+		"kernel": "kernel",
+		"gadget": "gadget",
+	})}
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
@@ -272,7 +278,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -314,7 +320,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -355,7 +361,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
 }
@@ -396,7 +402,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
@@ -438,7 +444,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
@@ -598,7 +604,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -640,7 +646,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace kernel snap with a different one")
 }
