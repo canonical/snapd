@@ -10419,9 +10419,13 @@ func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	deviceCtxNoGadget := deviceWithoutGadgetContext()
 	deviceCtx := deviceWithGadgetContext("gadget")
 
-	_, err := snapstate.GadgetInfo(st, deviceCtx)
+	_, err := snapstate.GadgetInfo(st, deviceCtxNoGadget)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	_, err = snapstate.GadgetInfo(st, deviceCtx)
 	c.Assert(err, Equals, state.ErrNoState)
 
 	sideInfo := &snap.SideInfo{
@@ -11793,6 +11797,12 @@ func deviceWithGadgetContext(gadgetName string) snapstate.DeviceContext {
 	}
 }
 
+func deviceWithoutGadgetContext() snapstate.DeviceContext {
+	return &snapstatetest.TrivialDeviceContext{
+		DeviceModel: ClassicModel(),
+	}
+}
+
 func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
@@ -11830,6 +11840,32 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 		SnapType: "app",
 	})
 	_, err = snapstate.ConfigDefaults(s.state, deviceCtx, "local-snap")
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	deviceCtxNoGadget := deviceWithoutGadgetContext()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+	makeInstalledMockCoreSnap(c)
+
+	_, err := snapstate.ConfigDefaults(s.state, deviceCtxNoGadget, "some-snap")
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -14400,12 +14436,16 @@ func (s *snapmgrTestSuite) TestGadgetConnections(c *C) {
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
+	deviceCtxNoGadget := deviceWithoutGadgetContext()
 	deviceCtx := deviceWithGadgetContext("the-gadget")
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.GadgetConnections(s.state, deviceCtx)
+	_, err := snapstate.GadgetConnections(s.state, deviceCtxNoGadget)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	_, err = snapstate.GadgetConnections(s.state, deviceCtx)
 	c.Assert(err, Equals, state.ErrNoState)
 
 	s.prepareGadget(c, `

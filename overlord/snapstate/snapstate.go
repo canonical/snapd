@@ -2333,14 +2333,6 @@ func infosForType(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	return res, nil
 }
 
-func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
-	res, err := infosForType(st, snapType)
-	if err != nil {
-		return nil, err
-	}
-	return res[0], nil
-}
-
 func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, whichName func(*asserts.Model) string) (*snap.Info, error) {
 	if deviceCtx == nil {
 		return nil, fmt.Errorf("internal error: unset deviceCtx")
@@ -2348,7 +2340,7 @@ func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, w
 	model := deviceCtx.Model()
 	snapName := whichName(model)
 	if snapName == "" {
-		return nil, fmt.Errorf("internal error: cannot get %s snap that is unspecified in the model", which)
+		return nil, state.ErrNoState
 	}
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
