@@ -47,7 +47,7 @@ func MockSnapCurrent(c *C, st *state.State, snapYaml string) *snap.Info {
 			},
 		},
 		Current:  info.Revision,
-		SnapType: string(info.Type),
+		SnapType: string(info.GetType()),
 	})
 	return info
 }

@@ -22,8 +22,6 @@ package ctlcmd_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/cmdstate"
@@ -168,9 +166,7 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 
 	s.st.Set("seeded", true)
 	s.st.Set("refresh-privacy-key", "privacy-key")
-	snapstate.Model = func(*state.State) (*asserts.Model, error) {
-		return sysdb.GenericClassicModel(), nil
-	}
+	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 
 	core1 := snapstatetest.MockSnapCurrent(c, s.st, coreYaml)
 	c.Assert(core1.Slots, HasLen, 1)
