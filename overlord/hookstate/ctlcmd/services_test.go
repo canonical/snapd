@@ -149,6 +149,8 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
+	// FIXME: use snapstatetest.MockSnapCurrent() here
+
 	// mock installed snaps
 	info1 := snaptest.MockSnapCurrent(c, string(testSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),

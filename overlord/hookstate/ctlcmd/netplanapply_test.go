@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -112,15 +114,21 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
-	s.BaseTest.AddCleanup(func() {
+	s.AddCleanup(func() {
 		dirs.SetRootDir(oldRoot)
 	})
 
 	testutil.MockCommand(c, "netplan", "")
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.mockHandler = hooktest.NewMockHandler()
 
-	s.st = state.New(nil)
+	ovld := overlord.Mock()
+	s.st = ovld.State()
+	cmdmgr := cmdstate.Manager(s.st, ovld.TaskRunner())
+	ovld.AddManager(cmdmgr)
+	ovld.AddManager(ovld.TaskRunner())
+	ovld.Loop()
+
 	s.st.Lock()
 	defer s.st.Unlock()
 

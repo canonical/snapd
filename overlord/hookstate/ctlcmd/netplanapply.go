@@ -161,7 +161,7 @@ func netplanApplyTaskSet(st *state.State, ctx *hookstate.Context) ([]*state.Task
 	st.Lock()
 	defer st.Unlock()
 
-	argv := []string{"/usr/sbin/netplan", "apply"}
+	argv := []string{"netplan", "apply"}
 	// give netplan 15 seconds to execute
 	// TODO: time netplan apply on slow devices
 	ts := cmdstate.ExecWithTimeout(st, "netplan apply", argv, 15*time.Second)
