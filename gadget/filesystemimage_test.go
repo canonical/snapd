@@ -162,7 +162,7 @@ func (s *filesystemImageMockedTestSuite) TestHappyFull(c *C) {
 	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
 		c.Assert(cbPs, DeepEquals, ps)
 		c.Assert(rootDir, Equals, filepath.Join(s.work, "snap-stage-content-part-0002"))
-		verifyDeployedGadgetData(c, rootDir, gd)
+		verifyWrittenGadgetData(c, rootDir, gd)
 
 		cbCalled = true
 		return nil
