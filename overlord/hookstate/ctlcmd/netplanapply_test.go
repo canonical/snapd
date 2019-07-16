@@ -59,7 +59,7 @@ plugs:
 apps:
  netplan-apply:
   command: bin/dummy
-  plugs: [net-setup]
+  plugs: [network-setup-control]
 `
 
 const missingCannotUseSnapYaml = `name: test-snap-no-missing
@@ -109,16 +109,15 @@ slots:
 
 func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
-
-	testutil.MockCommand(c, "netplan", "")
-
 	s.BaseTest.AddCleanup(func() {
 		dirs.SetRootDir(oldRoot)
 	})
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
+	testutil.MockCommand(c, "netplan", "")
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.mockHandler = hooktest.NewMockHandler()
 
 	s.st = state.New(nil)
@@ -177,18 +176,15 @@ func (s *netplanApplyCtlSuite) TestYesNetplanApply(c *C) {
 
 func (s *netplanApplyCtlSuite) TestMissingNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.missingMockContext, []string{"netplan-apply"}, 0)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot use netplan apply - must have network-setup-control interface connected with netplan-apply attribute specified as true`)
 }
 
 func (s *netplanApplyCtlSuite) TestNoNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.noMockContext, []string{"netplan-apply"}, 0)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot use netplan apply - must have network-setup-control interface connected with netplan-apply attribute specified as true`)
 }
 
 func (s *netplanApplyCtlSuite) TestInvalidNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.invalidMockContext, []string{"netplan-apply"}, 0)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `invalid setting for netplan-apply, must be true/false`)
 }

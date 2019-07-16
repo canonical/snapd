@@ -107,51 +107,48 @@ func canUseNetplanApply(ctx *hookstate.Context) (bool, error) {
 	// lock the state and get all snap states
 	st.Lock()
 	defer st.Unlock()
-	snapStates, err := snapstate.All(ctx.State())
-	if err != nil {
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, ctx.InstanceName(), &snapst); err != nil {
 		return false, err
 	}
 
-	// check each snap state for plugs to see if the network-setup-control
-	// interface is connected with netplan-apply as true
-	for _, snapst := range snapStates {
-		// Always get the current info even if the snap is currently
-		// being operated on or if its disabled.
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			continue
-		}
-		if info.Broken != "" {
-			continue
-		}
+	// Always get the current info even if the snap is currently
+	// being operated on or if its disabled.
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return false, err
+	}
+	if info.Broken != "" {
+		return false, err
+	}
 
-		// TODO: should a check for a snap snap declaration from the store be
-		// here too?
+	// TODO: should a check for a snap snap declaration from the store be
+	// here too?
 
-		for _, plugInfo := range info.Plugs {
-			if plugInfo.Interface == "network-setup-control" {
-				attrVal, ok := plugInfo.Attrs["netplan-apply"]
-				if !ok {
-					return false, nil
+	for _, plugInfo := range info.Plugs {
+		if plugInfo.Interface == "network-setup-control" {
+			attrVal, ok := plugInfo.Attrs["netplan-apply"]
+			if !ok {
+				return false, nil
+			}
+			switch attrVal {
+			case "true":
+				conns, err := ifacerepo.Get(st).Connected(info.InstanceName(), plugInfo.Name)
+				if err != nil {
+					continue
 				}
-				switch attrVal {
-				case "true":
-					conns, err := ifacerepo.Get(st).Connected(info.InstanceName(), plugInfo.Name)
-					if err != nil {
-						continue
-					}
-					if len(conns) > 0 {
-						// it's connected
-						return true, nil
-					}
-				case "false", "":
-					// TODO: is it valid to have multiple versions of the
-					// interface connected, one with false and another with
-					// true? probably not so fail fast here...
-					return false, nil
-				default:
-					return false, errors.New("invalid setting for netplan-apply, must be true/false")
+				if len(conns) > 0 {
+					// it's connected
+					return true, nil
 				}
+			case "false", "":
+				// TODO: is it valid to have multiple versions of the
+				// interface connected, one with false and another with
+				// true? probably not so fail fast here...
+				return false, nil
+			default:
+				return false, errors.New("invalid setting for netplan-apply, must be true/false")
 			}
 		}
 	}
@@ -161,23 +158,13 @@ func canUseNetplanApply(ctx *hookstate.Context) (bool, error) {
 }
 
 func netplanApplyTaskSet(st *state.State, ctx *hookstate.Context) ([]*state.TaskSet, error) {
-	var tts []*state.TaskSet
-
 	st.Lock()
 	defer st.Unlock()
-
-	// TODO: should we check for conflicts?
 
 	argv := []string{"/usr/sbin/netplan", "apply"}
 	// give netplan 15 seconds to execute
 	// TODO: time netplan apply on slow devices
 	ts := cmdstate.ExecWithTimeout(st, "netplan apply", argv, 15*time.Second)
-	tts = append(tts, ts)
 
-	// make a taskset wait for its predecessor
-	for i := 1; i < len(tts); i++ {
-		tts[i].WaitAll(tts[i-1])
-	}
-
-	return tts, nil
+	return []*state.TaskSet{ts}, nil
 }
