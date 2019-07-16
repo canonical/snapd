@@ -47,32 +47,30 @@ const (
 func Recover(version string) error {
 	logger.Noticef("Run recovery %s", version)
 
-	// reset env variables if we come from a recover reboot
-	if GetKernelParameter("snap_mode") == "recover_reboot" {
+	// Reset snap mode
+	mntSysRecover := "/run/ubuntu-seed"
+	if err := mountFilesystem("ubuntu-seed", mntSysRecover); err != nil {
+		return err
+	}
 
-		mntSysRecover := "/run/ubuntu-seed"
-		if err := mountFilesystem("ubuntu-seed", mntSysRecover); err != nil {
-			return err
-		}
-		// update recovery mode
-		logger.Noticef("after recover reboot: update bootloader env")
+	env := grubenv.NewEnv(path.Join(mntSysRecover, "EFI/ubuntu/grubenv"))
+	if err := env.Load(); err != nil {
+		return fmt.Errorf("cannot load recovery boot vars: %s", err)
+	}
 
-		env := grubenv.NewEnv(path.Join(mntSysRecover, "EFI/ubuntu/grubenv"))
-		if err := env.Load(); err != nil {
-			return fmt.Errorf("cannot load recovery boot vars: %s", err)
-		}
-
-		// set mode to normal run
+	if env.Get("snap_mode") != "" {
 		env.Set("snap_mode", "")
 
 		if err := env.Save(); err != nil {
 			return fmt.Errorf("cannot save recovery boot vars: %s", err)
 		}
-
-		if err := umount(mntSysRecover); err != nil {
-			return fmt.Errorf("cannot unmount recovery: %s", err)
-		}
 	}
+
+	if err := umount(mntSysRecover); err != nil {
+		return fmt.Errorf("cannot unmount recovery: %s", err)
+	}
+
+	// Mount existing ubuntu-data
 
 	mntRecovery := "/run/recovery"
 
