@@ -47,6 +47,7 @@ type netplanApplyCtlSuite struct {
 	noMockContext      *hookstate.Context
 	invalidMockContext *hookstate.Context
 	mockHandler        *hooktest.MockHandler
+	mockNetplan        *testutil.MockCmd
 }
 
 var _ = Suite(&netplanApplyCtlSuite{})
@@ -118,7 +119,7 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 		dirs.SetRootDir(oldRoot)
 	})
 
-	testutil.MockCommand(c, "netplan", "")
+	s.mockNetplan = testutil.MockCommand(c, "netplan", "")
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.mockHandler = hooktest.NewMockHandler()
 
@@ -180,19 +181,25 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 func (s *netplanApplyCtlSuite) TestYesNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.yesMockContext, []string{"netplan-apply"}, 0)
 	c.Assert(err, IsNil)
+	c.Check(s.mockNetplan.Calls(), DeepEquals, [][]string{
+		{"netplan", "apply"},
+	})
 }
 
 func (s *netplanApplyCtlSuite) TestMissingNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.missingMockContext, []string{"netplan-apply"}, 0)
 	c.Assert(err, ErrorMatches, `cannot use netplan apply - must have network-setup-control interface connected with netplan-apply attribute specified as true`)
+	c.Check(s.mockNetplan.Calls(), HasLen, 0)
 }
 
 func (s *netplanApplyCtlSuite) TestNoNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.noMockContext, []string{"netplan-apply"}, 0)
 	c.Assert(err, ErrorMatches, `cannot use netplan apply - must have network-setup-control interface connected with netplan-apply attribute specified as true`)
+	c.Check(s.mockNetplan.Calls(), HasLen, 0)
 }
 
 func (s *netplanApplyCtlSuite) TestInvalidNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.invalidMockContext, []string{"netplan-apply"}, 0)
 	c.Assert(err, ErrorMatches, `invalid setting for netplan-apply, must be true/false`)
+	c.Check(s.mockNetplan.Calls(), HasLen, 0)
 }
