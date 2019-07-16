@@ -25,19 +25,23 @@ import (
 	snapunset "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestInvalidUnsetParameters(c *check.C) {
+func (s *snapSetSuite) TestInvalidUnsetParameters(c *check.C) {
 	invalidParameters := []string{"unset"}
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, "the required arguments `<snap>` and `<conf key> \\(at least 1 argument\\)` were not provided")
+	c.Check(s.setConfApiCalls, check.Equals, 0)
 
 	invalidParameters = []string{"unset", "snap-name"}
 	_, err = snapunset.Parser(snapunset.Client()).ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, "the required argument `<conf key> \\(at least 1 argument\\)` was not provided")
+	c.Check(s.setConfApiCalls, check.Equals, 0)
 }
 
-func (s *SnapSuite) TestSnapUnset(c *check.C) {
+func (s *snapSetSuite) TestSnapUnset(c *check.C) {
+	// expected value is "nil" as the key is unset
 	s.mockSetConfigServer(c, nil)
 
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "snapname", "key"})
 	c.Assert(err, check.IsNil)
+	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
