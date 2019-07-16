@@ -642,7 +642,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
 	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.Install(s.state, "snapd", opts, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), s.state, "snapd", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
@@ -665,7 +665,6 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-
 }
 
 func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
