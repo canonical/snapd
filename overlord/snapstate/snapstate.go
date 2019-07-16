@@ -2358,11 +2358,9 @@ func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, w
 	return snapst.CurrentInfo()
 }
 
-// XXX: remodeling: decide what to do with Gadget/KernelInfo and their derived functions
-
-// GadgetInfo finds the current gadget snap's info.
-func GadgetInfo(st *state.State) (*snap.Info, error) {
-	return infoForType(st, snap.TypeGadget)
+// GadgetInfo finds the gadget snap's info for the given device context.
+func GadgetInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
+	return infoForDeviceSnap(st, deviceCtx, "gadget", (*asserts.Model).Gadget)
 }
 
 // TODO: reintroduce a KernelInfo(state.State, DeviceContext) if needed
@@ -2398,11 +2396,12 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
 
-// ConfigDefaults returns the configuration defaults for the snap specified in
-// the gadget. If gadget is absent or the snap has no snap-id it returns
+// ConfigDefaults returns the configuration defaults for the snap as
+// specified in the gadget for the given device context.
+// If gadget is absent or the snap has no snap-id it returns
 // ErrNoState.
-func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, error) {
-	gadget, err := GadgetInfo(st)
+func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
+	gadget, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2447,9 +2446,10 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 }
 
 // GadgetConnections returns the interface connection instructions
-// specified in the gadget. If gadget is absent it returns ErrNoState.
-func GadgetConnections(st *state.State) ([]gadget.Connection, error) {
-	gadget, err := GadgetInfo(st)
+// specified in the gadget for the given device context.
+// If gadget is absent it returns ErrNoState.
+func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Connection, error) {
+	gadget, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}

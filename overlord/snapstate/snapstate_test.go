@@ -10414,48 +10414,42 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	c.Check(infos[1].Description(), Equals, "Lots of text")
 }
 
-func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
+func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
 
-	for _, x := range []struct {
-		snapName string
-		snapType snap.Type
-		getInfo  func(*state.State) (*snap.Info, error)
-	}{
-		{
-			snapName: "gadget",
-			snapType: snap.TypeGadget,
-			getInfo:  snapstate.GadgetInfo,
-		},
-	} {
-		_, err := x.getInfo(st)
-		c.Assert(err, Equals, state.ErrNoState)
+	deviceCtx := deviceWithGadgetContext("gadget")
 
-		sideInfo := &snap.SideInfo{
-			RealName: x.snapName,
-			Revision: snap.R(2),
-		}
-		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), sideInfo)
-		snapstate.Set(st, x.snapName, &snapstate.SnapState{
-			SnapType: string(x.snapType),
-			Active:   true,
-			Sequence: []*snap.SideInfo{sideInfo},
-			Current:  sideInfo.Revision,
-		})
+	_, err := snapstate.GadgetInfo(st, deviceCtx)
+	c.Assert(err, Equals, state.ErrNoState)
 
-		info, err := x.getInfo(st)
-		c.Assert(err, IsNil)
-
-		c.Check(info.InstanceName(), Equals, x.snapName)
-		c.Check(info.Revision, Equals, snap.R(2))
-		c.Check(info.Version, Equals, x.snapName)
-		c.Check(info.GetType(), Equals, x.snapType)
+	sideInfo := &snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(2),
 	}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: v1
+`, sideInfo)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	info, err := snapstate.GadgetInfo(st, deviceCtx)
+	c.Assert(err, IsNil)
+
+	c.Check(info.InstanceName(), Equals, "gadget")
+	c.Check(info.Revision, Equals, snap.R(2))
+	c.Check(info.Version, Equals, "v1")
+	c.Check(info.GetType(), Equals, snap.TypeGadget)
 }
 
-func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
+func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
@@ -11791,6 +11785,14 @@ version: 1.0
 	})
 }
 
+func deviceWithGadgetContext(gadgetName string) snapstate.DeviceContext {
+	return &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel(map[string]interface{}{
+			"gadget": gadgetName,
+		}),
+	}
+}
+
 func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
@@ -11803,6 +11805,8 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 
 	s.prepareGadget(c)
 
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -11813,7 +11817,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	})
 	makeInstalledMockCoreSnap(c)
 
-	defls, err := snapstate.ConfigDefaults(s.state, "some-snap")
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
 
@@ -11825,7 +11829,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 		Current:  snap.R(5),
 		SnapType: "app",
 	})
-	_, err = snapstate.ConfigDefaults(s.state, "local-snap")
+	_, err = snapstate.ConfigDefaults(s.state, deviceCtx, "local-snap")
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -11845,9 +11849,11 @@ defaults:
         foo: bar
 `)
 
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	makeInstalledMockCoreSnap(c)
 
-	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
@@ -11871,6 +11877,8 @@ defaults:
         other-key: other-key-default
 `)
 
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -11883,7 +11891,7 @@ defaults:
 	makeInstalledMockCoreSnap(c)
 
 	// 'system' key defaults take precedence over snap-id ones
-	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
@@ -14392,10 +14400,12 @@ func (s *snapmgrTestSuite) TestGadgetConnections(c *C) {
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.GadgetConnections(s.state)
+	_, err := snapstate.GadgetConnections(s.state, deviceCtx)
 	c.Assert(err, Equals, state.ErrNoState)
 
 	s.prepareGadget(c, `
@@ -14404,7 +14414,7 @@ connections:
     slot: snap2idididididididididididididi:slot
 `)
 
-	conns, err := snapstate.GadgetConnections(s.state)
+	conns, err := snapstate.GadgetConnections(s.state, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []gadget.Connection{
 		{Plug: gadget.ConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: gadget.ConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})

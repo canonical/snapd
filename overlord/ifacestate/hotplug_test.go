@@ -334,7 +334,9 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugConnectWithGadgetSlot(c *C) {
-	s.MockModel(c, nil)
+	s.MockModel(c, map[string]interface{}{
+		"gadget": "the-gadget",
+	})
 
 	st := s.state
 	st.Lock()
