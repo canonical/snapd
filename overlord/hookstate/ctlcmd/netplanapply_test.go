@@ -25,12 +25,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
-	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -55,7 +53,7 @@ const canUseSnapYaml = `name: test-snap-yes-true
 version: 1.0
 summary: test-snap
 plugs:
- net-setup:
+ network-setup-control:
   interface: network-setup-control
   netplan-apply: "true"
 apps:
@@ -169,25 +167,7 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	core1 := snapstatetest.MockSnapCurrent(c, s.st, coreYaml)
 	c.Assert(core1.Slots, HasLen, 1)
 
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		err := repo.AddInterface(iface)
-		c.Assert(err, IsNil)
-	}
-	err = repo.AddSnap(info1)
-	c.Assert(err, IsNil)
-	err = repo.AddSnap(core1)
-	c.Assert(err, IsNil)
-	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info1.InstanceName(), Name: "net-setup"},
-		SlotRef: interfaces.SlotRef{Snap: core1.InstanceName(), Name: "network-setup-control"},
-	}, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
-	conns, err := repo.Connected("test-snap-yes-true", "net-setup")
-	c.Assert(err, IsNil)
-	c.Assert(conns, HasLen, 1)
-	ifacerepo.Replace(s.st, repo)
-
+	ifacestatetest.MakeMockRepoWithConnectedSnaps(c, s.st, info1, core1, "network-setup-control")
 }
 
 func (s *netplanApplyCtlSuite) TestYesNetplanApply(c *C) {

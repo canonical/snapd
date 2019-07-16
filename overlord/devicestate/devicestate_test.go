@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -2155,27 +2156,6 @@ func makeInstalledMockSnap(c *C, st *state.State, yml string) *snap.Info {
 	return info11
 }
 
-func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.Info, ifname string) {
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		err := repo.AddInterface(iface)
-		c.Assert(err, IsNil)
-	}
-	err := repo.AddSnap(info11)
-	c.Assert(err, IsNil)
-	err = repo.AddSnap(core11)
-	c.Assert(err, IsNil)
-	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
-	}, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
-	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
-	c.Assert(err, IsNil)
-	c.Assert(conns, HasLen, 1)
-	ifacerepo.Replace(st, repo)
-}
-
 func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
@@ -2207,7 +2187,7 @@ func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 
 	// not possible even with connected interfaces
-	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
+	ifacestatetest.MakeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 
 	// if all of the above plus a snap declaration are in place we can
@@ -2234,7 +2214,7 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	// for setting refresh.schedule=managed
 	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlOnlyYAML)
 	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
-	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
+	ifacestatetest.MakeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
 	s.makeSnapDeclaration(c, st, info11)
 
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
