@@ -32,9 +32,9 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -102,6 +102,13 @@ apps:
   plugs: [net-setup]
 `
 
+const coreYaml = `name: core
+version: 1.0
+type: os
+slots:
+ network-setup-control:
+`
+
 func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	oldRoot := dirs.GlobalRootDir
@@ -123,63 +130,10 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
 	// mock installed snaps
-	info1 := snaptest.MockSnapCurrent(c, string(canUseSnapYaml), &snap.SideInfo{
-		Revision: snap.R(1),
-	})
-	info2 := snaptest.MockSnapCurrent(c, string(missingCannotUseSnapYaml), &snap.SideInfo{
-		Revision: snap.R(1),
-	})
-	info3 := snaptest.MockSnapCurrent(c, string(presentCannotUseSnapYaml), &snap.SideInfo{
-		Revision: snap.R(1),
-	})
-	info4 := snaptest.MockSnapCurrent(c, string(invalidCannotUseSnapYaml), &snap.SideInfo{
-		Revision: snap.R(1),
-	})
-
-	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{
-				RealName: info1.SnapName(),
-				Revision: info1.Revision,
-				SnapID:   "can-use-snap-id",
-			},
-		},
-		Current: info1.Revision,
-	})
-	snapstate.Set(s.st, info2.InstanceName(), &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{
-				RealName: info2.SnapName(),
-				Revision: info2.Revision,
-				SnapID:   "cannot-use-missing-snap-id",
-			},
-		},
-		Current: info2.Revision,
-	})
-	snapstate.Set(s.st, info3.InstanceName(), &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{
-				RealName: info3.SnapName(),
-				Revision: info3.Revision,
-				SnapID:   "cannot-use-false-snap-id",
-			},
-		},
-		Current: info3.Revision,
-	})
-	snapstate.Set(s.st, info4.InstanceName(), &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{
-				RealName: info4.SnapName(),
-				Revision: info4.Revision,
-				SnapID:   "cannot-use-invalid-snap-id",
-			},
-		},
-		Current: info4.Revision,
-	})
+	info1 := snapstatetest.MockSnapCurrent(c, s.st, canUseSnapYaml)
+	snapstatetest.MockSnapCurrent(c, s.st, missingCannotUseSnapYaml)
+	snapstatetest.MockSnapCurrent(c, s.st, presentCannotUseSnapYaml)
+	snapstatetest.MockSnapCurrent(c, s.st, invalidCannotUseSnapYaml)
 
 	yesTask := s.st.NewTask("test-snap-yes-true-task", "my test task")
 	yesSetup := &hookstate.HookSetup{Snap: "test-snap-yes-true", Revision: snap.R(1), Hook: "test-snap-yes-true-hook"}
@@ -212,7 +166,8 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 		return sysdb.GenericClassicModel(), nil
 	}
 
-	core11 := makeInstalledMockCoreSnapWithNetworkSetupControlControl(c, s.st)
+	core1 := snapstatetest.MockSnapCurrent(c, s.st, coreYaml)
+	c.Assert(core1.Slots, HasLen, 1)
 
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
@@ -221,11 +176,11 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	}
 	err = repo.AddSnap(info1)
 	c.Assert(err, IsNil)
-	err = repo.AddSnap(core11)
+	err = repo.AddSnap(core1)
 	c.Assert(err, IsNil)
 	_, err = repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: info1.InstanceName(), Name: "net-setup"},
-		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: "network-setup-control"},
+		SlotRef: interfaces.SlotRef{Snap: core1.InstanceName(), Name: "network-setup-control"},
 	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("test-snap-yes-true", "net-setup")
@@ -233,25 +188,6 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	c.Assert(conns, HasLen, 1)
 	ifacerepo.Replace(s.st, repo)
 
-}
-
-func makeInstalledMockCoreSnapWithNetworkSetupControlControl(c *C, st *state.State) *snap.Info {
-	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11), SnapID: "core-id"}
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoCore11},
-		Current:  sideInfoCore11.Revision,
-		SnapType: "os",
-	})
-	core11 := snaptest.MockSnap(c, `
-name: core
-version: 1.0
-slots:
- network-setup-control:
-`, sideInfoCore11)
-	c.Assert(core11.Slots, HasLen, 1)
-
-	return core11
 }
 
 func (s *netplanApplyCtlSuite) TestYesNetplanApply(c *C) {
