@@ -71,6 +71,9 @@ execute: |
     echo "Cleanup container"
     lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher
 
+    echo "Ensure apt is up-to-date"
+    lxd.lxc exec my-ubuntu -- apt update
+
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
     lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
