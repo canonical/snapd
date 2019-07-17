@@ -66,25 +66,25 @@ const missingCannotUseSnapYaml = `name: test-snap-no-missing
 version: 1.0
 summary: test-snap
 plugs:
- net-setup:
+network-setup-control:
   interface: network-setup-control
 apps:
  netplan-apply:
   command: bin/dummy
-  plugs: [net-setup]
+  plugs: [network-setup-control]
 `
 
 const presentCannotUseSnapYaml = `name: test-snap-no-false
 version: 1.0
 summary: test-snap
 plugs:
- net-setup:
+network-setup-control:
   interface: network-setup-control
   netplan-apply: false
 apps:
  netplan-apply:
   command: bin/dummy
-  plugs: [net-setup]
+  plugs: [network-setup-control]
 `
 
 const coreYaml = `name: core
