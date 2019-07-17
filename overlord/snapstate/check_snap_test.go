@@ -883,3 +883,36 @@ base: core16
 	st.Lock()
 	c.Check(err, IsNil)
 }
+
+func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	for _, t := range []struct {
+		yaml   string
+		errStr string
+	}{
+		{"name: snapd\nversion: 1\ntype: snapd", ""},
+		{"name: some-snap\nversion: 1\ntype: snapd", `cannot install snap "some-snap" of type "snapd" with a name other than "snapd"`},
+		{"name: snapd_instance\nversion: 1\ntype: snapd", `cannot install snap "snapd_instance" of type "snapd" with a name other than "snapd"`},
+	} {
+		info, err := snap.InfoFromSnapYaml([]byte(t.yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+
+		st.Unlock()
+		err = snapstate.CheckSnap(st, "snap-path", "snapd", nil, nil, snapstate.Flags{}, nil)
+		st.Lock()
+		if t.errStr == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.errStr)
+		}
+	}
+}
