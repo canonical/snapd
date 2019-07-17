@@ -1,0 +1,25 @@
+summary: Check that snapctl netplan-apply works with network-setup-control
+
+execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    echo "When the service snap is installed"
+    install_local test-snapd-snapctl-netplan-apply
+
+    # check that the app fails without the interface connected
+    echo "running without connection of network-setup-control fails"
+    if sudo test-snapd-snapctl-netplan-apply.netplan-apply; then
+      exit 1
+    fi
+
+    echo "Connecting network-setup-control"
+    snap connect test-snapd-snapctl-netplan-apply:network-setup-control
+
+    echo "Now it runs as root"
+    sudo test-snapd-snapctl-netplan-apply.netplan-apply
+
+    echo "but it doesn't run as non-root"
+    if sudo su ubuntu -c "test-snapd-snapctl-netplan-apply.netplan-apply"; then
+      exit 1
+    fi

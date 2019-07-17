@@ -1,0 +1,13 @@
+name: test-snapd-snapctl-netplan-apply
+version: 1.0
+summary: Test snapctl netplan-apply
+
+plugs:
+ network-setup-control:
+  interface: network-setup-control
+  netplan-apply: "true"  
+
+apps:
+  netplan-apply:
+    command: bin/netplan-apply.sh
+    plugs: [network-setup-control]
