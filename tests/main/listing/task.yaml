@@ -39,7 +39,6 @@ execute: |
         REV=$SIDELOAD_REV
         PUBLISHER=-
 
-    #shellcheck disable=SC2166
     elif [ "$SPREAD_BACKEND" = "google" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-18-64" ]; then
         echo "With customized images the snapd snap is sideloaded"
         NAME=snapd
