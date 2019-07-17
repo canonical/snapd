@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -2300,7 +2301,7 @@ func HasSnapOfType(st *state.State, snapType snap.Type) (bool, error) {
 	return false, nil
 }
 
-func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
+func infosForType(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
@@ -2332,36 +2333,37 @@ func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	return res, nil
 }
 
-func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
-	res, err := infosForTypes(st, snapType)
+func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, whichName func(*asserts.Model) string) (*snap.Info, error) {
+	if deviceCtx == nil {
+		return nil, fmt.Errorf("internal error: unset deviceCtx")
+	}
+	model := deviceCtx.Model()
+	snapName := whichName(model)
+	if snapName == "" {
+		return nil, state.ErrNoState
+	}
+	var snapst SnapState
+	err := Get(st, snapName, &snapst)
 	if err != nil {
 		return nil, err
 	}
-	return res[0], nil
+	return snapst.CurrentInfo()
 }
 
-// XXX: remodeling: decide what to do with Gadget/KernelInfo and their derived functions
-
-// GadgetInfo finds the current gadget snap's info.
-func GadgetInfo(st *state.State) (*snap.Info, error) {
-	return infoForType(st, snap.TypeGadget)
+// GadgetInfo finds the gadget snap's info for the given device context.
+func GadgetInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
+	return infoForDeviceSnap(st, deviceCtx, "gadget", (*asserts.Model).Gadget)
 }
 
+// TODO: reintroduce a KernelInfo(state.State, DeviceContext) if needed
 // KernelInfo finds the current kernel snap's info.
-func KernelInfo(st *state.State) (*snap.Info, error) {
-	return infoForType(st, snap.TypeKernel)
-}
 
-// CoreInfo finds the current OS snap's info. If both
+// coreInfo finds the current OS snap's info. If both
 // "core" and "ubuntu-core" is installed then "core"
 // is preferred. Different core names are not supported
 // currently and will result in an error.
-//
-// Once enough time has passed and everyone transitioned
-// from ubuntu-core to core we can simplify this again
-// and make it the same as the above "KernelInfo".
-func CoreInfo(st *state.State) (*snap.Info, error) {
-	res, err := infosForTypes(st, snap.TypeOS)
+func coreInfo(st *state.State) (*snap.Info, error) {
+	res, err := infosForType(st, snap.TypeOS)
 	if err != nil {
 		return nil, err
 	}
@@ -2386,11 +2388,12 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
 
-// ConfigDefaults returns the configuration defaults for the snap specified in
-// the gadget. If gadget is absent or the snap has no snap-id it returns
+// ConfigDefaults returns the configuration defaults for the snap as
+// specified in the gadget for the given device context.
+// If gadget is absent or the snap has no snap-id it returns
 // ErrNoState.
-func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, error) {
-	gadget, err := GadgetInfo(st)
+func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
+	gadget, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2400,11 +2403,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 		return nil, err
 	}
 
-	core, err := CoreInfo(st)
-	if err != nil {
-		return nil, err
-	}
-	isCoreDefaults := core.InstanceName() == snapName
+	isCoreDefaults := snapName == defaultCoreSnapName
 
 	si := snapst.CurrentSideInfo()
 	// core snaps can be addressed even without a snap-id via the special
@@ -2439,9 +2438,10 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 }
 
 // GadgetConnections returns the interface connection instructions
-// specified in the gadget. If gadget is absent it returns ErrNoState.
-func GadgetConnections(st *state.State) ([]gadget.Connection, error) {
-	gadget, err := GadgetInfo(st)
+// specified in the gadget for the given device context.
+// If gadget is absent it returns ErrNoState.
+func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Connection, error) {
+	gadget, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
