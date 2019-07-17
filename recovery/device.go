@@ -102,30 +102,37 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 	// FIXME: determine partition name in a civilized way
 	partdev := d.partDev(4)
 
+	// This shouldn't be necessary, but don't remove it.
+	time.Sleep(1 * time.Second)
+	if output, err := exec.Command("modprobe", "dm-crypt").CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err))
+	}
+
 	// Don't remove this delay, it prevents a kernel crash
 	// see https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1835279
 	time.Sleep(1 * time.Second)
 
-	// Write key to stdin to avoid creating a temporary file
+	// Ideally we shouldn't write this key, but cryptsetup only reads the
+	// master key from a file.
+	keyFile := "/run/unlock.tmp"
+	if err := ioutil.WriteFile(keyFile, keyBuffer, 0400); err != nil {
+		return fmt.Errorf("can't create key file: %s", err)
+	}
 	logger.Noticef("Create LUKS device on %s", partdev)
-	if output, err := pipeRun(keyBuffer, "cryptsetup", "-q", "--type", "luks2", "--key-file", "-",
-		"--pbkdf-memory", "100000", "luksFormat", partdev); err != nil {
+	if output, err := pipeRun([]byte("\n"), "cryptsetup", "-q", "luksFormat", "--type", "luks2",
+		"--pbkdf-memory", "10000", "--master-key-file", keyFile, partdev); err != nil {
 		return osutil.OutputErr(output, fmt.Errorf("cannot format LUKS device: %s", err))
 	}
 
 	time.Sleep(1 * time.Second)
 
 	logger.Noticef("Open LUKS device")
-	if output, err := pipeRun(keyBuffer, "sh", "-c", fmt.Sprintf("LD_PRELOAD=/lib/no-udev.so cryptsetup "+
-		"--type luks2 --key-file - --pbkdf-memory 100000 open %s %s", partdev,
-		path.Base(cryptdev))); err != nil {
+	if output, err := exec.Command("cryptsetup", "open", "--master-key-file", keyFile, partdev,
+		path.Base(cryptdev)).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, fmt.Errorf("cannot open LUKS device on %s: %s", partdev, err))
 	}
-
-	// FIXME: Ok, now this is ugly. We'll have to see how to handle this properly.
-	logger.Noticef("Hack: create LUKS device symlink")
-	if err := os.Symlink("../dm-0", cryptdev); err != nil {
-		return fmt.Errorf("cannot create LUKS device symlink: %s", err)
+	if err := wipe(keyFile); err != nil {
+		return fmt.Errorf("can't wipe key file: %s", err)
 	}
 
 	time.Sleep(1 * time.Second)
@@ -142,8 +149,8 @@ func (d *DiskDevice) CreateLUKSPartition(size uint64, label string, keyBuffer []
 func pipeRun(input []byte, name string, args ...string) ([]byte, error) {
 	cmd := exec.Command(name, args...)
 	stdin, err := cmd.StdinPipe()
+	time.Sleep(10 * time.Second)
 	var out bytes.Buffer
-	// FIXME: use combined output
 	cmd.Stderr = &out
 	if err != nil {
 		return nil, err
