@@ -43,7 +43,6 @@ type netplanApplyCtlSuite struct {
 	yesMockContext     *hookstate.Context
 	missingMockContext *hookstate.Context
 	noMockContext      *hookstate.Context
-	invalidMockContext *hookstate.Context
 	mockHandler        *hooktest.MockHandler
 	mockNetplan        *testutil.MockCmd
 }
@@ -56,7 +55,7 @@ summary: test-snap
 plugs:
  network-setup-control:
   interface: network-setup-control
-  netplan-apply: "true"
+  netplan-apply: true
 apps:
  netplan-apply:
   command: bin/dummy
@@ -81,20 +80,7 @@ summary: test-snap
 plugs:
  net-setup:
   interface: network-setup-control
-  netplan-apply: "false"
-apps:
- netplan-apply:
-  command: bin/dummy
-  plugs: [net-setup]
-`
-
-const invalidCannotUseSnapYaml = `name: test-snap-no-invalid
-version: 1.0
-summary: test-snap
-plugs:
- net-setup:
-  interface: network-setup-control
-  netplan-apply: invalid
+  netplan-apply: false
 apps:
  netplan-apply:
   command: bin/dummy
@@ -137,7 +123,6 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	info1 := snapstatetest.MockSnapCurrent(c, s.st, canUseSnapYaml)
 	snapstatetest.MockSnapCurrent(c, s.st, missingCannotUseSnapYaml)
 	snapstatetest.MockSnapCurrent(c, s.st, presentCannotUseSnapYaml)
-	snapstatetest.MockSnapCurrent(c, s.st, invalidCannotUseSnapYaml)
 
 	yesTask := s.st.NewTask("test-snap-yes-true-task", "my test task")
 	yesSetup := &hookstate.HookSetup{Snap: "test-snap-yes-true", Revision: snap.R(1), Hook: "test-snap-yes-true-hook"}
@@ -156,12 +141,6 @@ func (s *netplanApplyCtlSuite) SetUpTest(c *C) {
 	noSetup := &hookstate.HookSetup{Snap: "test-snap-no-false", Revision: snap.R(1), Hook: "test-snap-no-false-hook"}
 
 	s.noMockContext, err = hookstate.NewContext(noTask, noTask.State(), noSetup, s.mockHandler, "")
-	c.Assert(err, IsNil)
-
-	invalidTask := s.st.NewTask("test-snap-no-invalid-task", "my test task")
-	invalidSetup := &hookstate.HookSetup{Snap: "test-snap-no-invalid", Revision: snap.R(1), Hook: "test-snap-no-invalid-hook"}
-
-	s.invalidMockContext, err = hookstate.NewContext(invalidTask, invalidTask.State(), invalidSetup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
 	s.st.Set("seeded", true)
@@ -191,11 +170,5 @@ func (s *netplanApplyCtlSuite) TestMissingNetplanApply(c *C) {
 func (s *netplanApplyCtlSuite) TestNoNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.noMockContext, []string{"netplan-apply"}, 0)
 	c.Assert(err, ErrorMatches, `cannot use netplan apply - must have network-setup-control interface connected with netplan-apply attribute specified as true`)
-	c.Check(s.mockNetplan.Calls(), HasLen, 0)
-}
-
-func (s *netplanApplyCtlSuite) TestInvalidNetplanApply(c *C) {
-	_, _, err := ctlcmd.Run(s.invalidMockContext, []string{"netplan-apply"}, 0)
-	c.Assert(err, ErrorMatches, `invalid setting for netplan-apply, must be true/false`)
 	c.Check(s.mockNetplan.Calls(), HasLen, 0)
 }

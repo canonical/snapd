@@ -123,33 +123,32 @@ func canUseNetplanApply(ctx *hookstate.Context) (bool, error) {
 		return false, err
 	}
 
-	// TODO: should a check for a snap snap declaration from the store be
-	// here too?
+	// TODO: should a check for a snap declaration from the store be here too?
 
 	for _, plugInfo := range info.Plugs {
 		if plugInfo.Interface == "network-setup-control" {
-			attrVal, ok := plugInfo.Attrs["netplan-apply"]
-			if !ok {
-				return false, nil
-			}
-			switch attrVal {
-			case "true":
-				conns, err := ifacerepo.Get(st).Connected(info.InstanceName(), plugInfo.Name)
-				if err != nil {
-					continue
+			if v, ok := plugInfo.Attrs["netplan-apply"]; ok {
+				var netplanApply bool
+				if netplanApply, ok = v.(bool); !ok {
+					return false, errors.New("network-setup-control plug requires bool with 'netplan-apply'")
 				}
-				if len(conns) > 0 {
-					// it's connected
-					return true, nil
+				if netplanApply {
+					conns, err := ifacerepo.Get(st).Connected(info.InstanceName(), plugInfo.Name)
+					if err != nil {
+						// TODO: how could we handle or notify about this error?
+						continue
+					}
+					if len(conns) > 0 {
+						// it's connected
+						return true, nil
+					}
 				}
-			case "false", "":
-				// TODO: is it valid to have multiple versions of the
-				// interface connected, one with false and another with
-				// true? probably not so fail fast here...
-				return false, nil
-			default:
-				return false, errors.New("invalid setting for netplan-apply, must be true/false")
 			}
+
+			// TODO: is it valid to have multiple versions of the
+			// interface connected, one with false and another with
+			// true? probably not so fail fast here...
+			return false, nil
 		}
 	}
 

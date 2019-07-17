@@ -5,7 +5,7 @@ summary: Test snapctl netplan-apply
 plugs:
  network-setup-control:
   interface: network-setup-control
-  netplan-apply: "true"  
+  netplan-apply: true  
 
 apps:
   netplan-apply:
