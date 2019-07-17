@@ -19,6 +19,12 @@
 
 package builtin
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/snap"
+)
+
 const networkSetupControlSummary = `allows access to netplan configuration`
 
 const networkSetupControlBaseDeclarationSlots = `
@@ -27,6 +33,9 @@ const networkSetupControlBaseDeclarationSlots = `
       slot-snap-type:
         - core
     deny-auto-connection: true
+    deny-connection:
+      plug-attributes:
+        netplan-apply: true
 `
 
 const networkSetupControlConnectedPlugAppArmor = `
@@ -47,14 +56,32 @@ const networkSetupControlConnectedPlugAppArmor = `
 /run/udev/rules.d/[0-9]*-netplan-* rw,
 `
 
+type networkSetupControlInterface struct {
+	commonInterface
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "network-setup-control",
-		summary:               networkSetupControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  networkSetupControlBaseDeclarationSlots,
-		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
-		reservedForOS:         true,
+	registerIface(&networkSetupControlInterface{
+		commonInterface{
+			name:                  "network-setup-control",
+			summary:               networkSetupControlSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			baseDeclarationSlots:  networkSetupControlBaseDeclarationSlots,
+			connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
+			reservedForOS:         true,
+		},
 	})
+}
+
+func (iface *networkSetupControlInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// It's fine if netplan-apply isn't specified, but if it is,
+	// it needs to be bool
+	if v, ok := plug.Attrs["netplan-apply"]; ok {
+		if _, ok = v.(bool); !ok {
+			return fmt.Errorf("network-setup-control plug requires bool with 'netplan-apply'")
+		}
+	}
+
+	return nil
 }
