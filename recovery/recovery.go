@@ -21,6 +21,7 @@
 package recovery
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"io/ioutil"
@@ -148,8 +149,8 @@ func Install(version string) error {
 
 	cryptdev := "ubuntu-data"
 
-	logger.Noticef("Create LUKS key")
-	keySize := 32
+	logger.Noticef("Create LUKS master key")
+	keySize := 64
 	keyBuffer := make([]byte, keySize)
 	n, err := rand.Read(keyBuffer)
 	if n != keySize || err != nil {
@@ -192,6 +193,7 @@ func Install(version string) error {
 		return fmt.Errorf("cannot provision TPM: %s", err)
 	}
 
+	logger.Noticef("Seal and store keyfile")
 	if err := storeKeyfile(mntSystemBoot, keyBuffer); err != nil {
 		return fmt.Errorf("cannot store keyfile: %s", err)
 	}
@@ -254,8 +256,14 @@ func mountFilesystem(label string, mountpoint string) error {
 }
 
 func storeKeyfile(dir string, buffer []byte) error {
-	// TODO: seal keyfile
-	if err := ioutil.WriteFile(path.Join(dir, "keyfile"), buffer, 0400); err != nil {
+	// Seal keyfile
+	var k bytes.Buffer
+	if err := fdeutil.SealKeyToTPM(&k, buffer); err != nil {
+		logger.Noticef("sealing failed: %s", err)
+		return err
+	}
+
+	if err := ioutil.WriteFile(path.Join(dir, "keyfile"), k.Bytes(), 0400); err != nil {
 		return err
 	}
 
