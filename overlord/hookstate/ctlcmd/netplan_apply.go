@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var shortNetplanApplyHelp = i18n.G("The netplan-apply command applies network configuration from netplan.")
+var shortNetplanApplyHelp = i18n.G("The netplan-apply command applies network configuration via netplan.")
 var longNetplanApplyHelp = i18n.G("TODO")
 
 func init() {
@@ -55,20 +55,21 @@ func (c *netplanApplyCommand) Execute(args []string) error {
 		return errors.New("missing snapctl context")
 	}
 
+	// note: don't lock state here, we lock/unlock it inside netplanApplyTaskSet
+	// and inside canUseNetplanApply
+	st := ctx.State()
+	if st == nil {
+		return errors.New("context state is nil")
+	}
+
 	// check if netplan apply can be used with this context
-	canUse, err := canUseNetplanApply(ctx)
+	canUse, err := canUseNetplanApply(st, ctx.InstanceName())
 	if err != nil {
 		return err
 	}
 	if !canUse {
 		// TODO: is there a better error type to return here?
 		return fmt.Errorf("cannot use netplan apply - must have network-setup-control interface connected with netplan-apply attribute specified as true")
-	}
-
-	// note: don't lock state here, we lock/unlock it inside netplanApplyTaskSet
-	st := ctx.State()
-	if st == nil {
-		return errors.New("context state is nil")
 	}
 
 	// create new netplan apply task set
@@ -97,9 +98,8 @@ func (c *netplanApplyCommand) Execute(args []string) error {
 	}
 }
 
-func canUseNetplanApply(ctx *hookstate.Context) (bool, error) {
+func canUseNetplanApply(st *state.State, instanceName string) (bool, error) {
 	// note: the following is adapted from devicestate.CanManageRefreshes
-	st := ctx.State()
 	if st == nil {
 		return false, errors.New("context state is nil")
 	}
@@ -109,7 +109,7 @@ func canUseNetplanApply(ctx *hookstate.Context) (bool, error) {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, ctx.InstanceName(), &snapst); err != nil {
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
 		return false, err
 	}
 
