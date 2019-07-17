@@ -1,5 +1,8 @@
 summary: Check that snapctl netplan-apply works with network-setup-control
 
+# only ubuntu 18.04+ and ubuntu-core use netplan by default
+systems: [ubuntu-core-*, ubuntu-18*, ubuntu-19*, ubuntu-2*]
+
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
