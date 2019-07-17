@@ -12,7 +12,7 @@ execute: |
 
     # check that the app fails without the interface connected
     echo "running without connection of network-setup-control fails"
-    if sudo test-snapd-snapctl-netplan-apply.netplan-apply; then
+    if test-snapd-snapctl-netplan-apply.netplan-apply; then
       exit 1
     fi
 
@@ -20,9 +20,9 @@ execute: |
     snap connect test-snapd-snapctl-netplan-apply:network-setup-control
 
     echo "Now it runs as root"
-    sudo test-snapd-snapctl-netplan-apply.netplan-apply
+    test-snapd-snapctl-netplan-apply.netplan-apply
 
     echo "but it doesn't run as non-root"
-    if sudo su ubuntu -c "test-snapd-snapctl-netplan-apply.netplan-apply"; then
+    if su ubuntu -c "test-snapd-snapctl-netplan-apply.netplan-apply"; then
       exit 1
     fi
