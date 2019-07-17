@@ -1,6 +1,10 @@
 summary: The packagekit-control interface grants access to PackageKit
 
-systems: [-ubuntu-core-*]
+systems:
+    # Ubuntu Core does not provide a packagekitd implementation
+    - -ubuntu-core-*
+    # Ubuntu 14.04 PackageKit seems to be too old
+    - -ubuntu-14.04-*
 
 execute: |
     echo "Installing test-snapd-packagekit"
