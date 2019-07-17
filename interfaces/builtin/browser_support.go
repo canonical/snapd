@@ -308,7 +308,7 @@ func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *browserSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	// It's fine if allow-sandbox isn't specified, but it it is,
+	// It's fine if allow-sandbox isn't specified, but if it is,
 	// it needs to be bool
 	if v, ok := plug.Attrs["allow-sandbox"]; ok {
 		if _, ok = v.(bool); !ok {
