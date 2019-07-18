@@ -18,7 +18,7 @@ while i < len(snaps):
     i += 1
 
 snaps.append({
-    "name": "test-snapd-with-configure",
+    "name": sys.argv[3],
     "channel": "edge",
     "file": sys.argv[2],
 })

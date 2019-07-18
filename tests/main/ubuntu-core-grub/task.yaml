@@ -1,6 +1,6 @@
 summary: Ensure we have no unpacked kernel.img/initrd.img on grub systems
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-1*-64]
 
 environment:
     NAME/initrdimg: initrd.img*
