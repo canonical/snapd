@@ -33,7 +33,8 @@ const cpuControlConnectedPlugAppArmor = `
 # Description: This interface allows for setting CPU tunables
 /sys/devices/system/cpu/**/ r,
 /sys/devices/system/cpu/cpu*/online rw,
-/sys/devices/system/cpu/smt/control rw,
+/sys/devices/system/cpu/smt/*       r,
+/sys/devices/system/cpu/smt/control w,
 `
 
 func init() {

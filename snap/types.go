@@ -24,7 +24,7 @@ import (
 	"fmt"
 )
 
-// Type represents the kind of snap (app, core, gadget, os, kernel)
+// Type represents the kind of snap (app, core, gadget, os, kernel, snapd)
 type Type string
 
 // The various types of snap parts we support

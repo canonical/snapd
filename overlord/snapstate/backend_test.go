@@ -192,15 +192,17 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
 	switch spec.Name {
-	case "core", "ubuntu-core", "some-core":
+	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base":
+	case "some-base", "core18":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
 	case "some-gadget", "brand-gadget":
 		typ = snap.TypeGadget
 	case "some-snapd":
+		typ = snap.TypeSnapd
+	case "snapd":
 		typ = snap.TypeSnapd
 	case "some-snap-now-classic":
 		confinement = "classic"

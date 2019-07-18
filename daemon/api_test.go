@@ -63,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -662,6 +663,9 @@ UnitFileState=enabled
 	var snapst snapstate.SnapState
 	st := s.d.overlord.State()
 	st.Lock()
+	st.Set("health", map[string]healthstate.HealthState{
+		"foo": {Status: healthstate.OkayStatus},
+	})
 	err := snapstate.Get(st, "foo", &snapst)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -713,6 +717,7 @@ UnitFileState=enabled
 				Validation:  "unproven",
 			},
 			Status:      "active",
+			Health:      &client.SnapHealth{Status: "okay"},
 			Icon:        "/v2/icons/foo/icon",
 			Type:        string(snap.TypeApp),
 			Base:        "base18",
@@ -1031,8 +1036,9 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
-	buildID, err := osutil.MyBuildID()
-	c.Assert(err, check.IsNil)
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
 
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -1101,8 +1107,9 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	buildID, err := osutil.MyBuildID()
-	c.Assert(err, check.IsNil)
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
 
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -1630,6 +1637,12 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Set("health", map[string]healthstate.HealthState{
+		"local": {Status: healthstate.OkayStatus},
+	})
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local", nil)
 	c.Assert(err, check.IsNil)
@@ -1641,6 +1654,11 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "local")
+	c.Check(snaps[0]["health"], check.DeepEquals, map[string]interface{}{
+		"status":    "okay",
+		"revision":  "unset",
+		"timestamp": "0001-01-01T00:00:00Z",
+	})
 }
 
 func (s *apiSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
@@ -3869,9 +3887,9 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 		summary string
 	}
 	table := []T{
-		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "some-coho…"`},
+		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "…me-cohort"`},
 		{"some-channel", "", false, `Switch "some-snap" snap to channel "some-channel"`},
-		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "some-coho…"`},
+		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "…me-cohort"`},
 		{"", "", true, `Switch "some-snap" snap away from cohort`},
 		{"some-channel", "", true, `Switch "some-snap" snap to channel "some-channel" and away from cohort`},
 	}
@@ -4196,7 +4214,7 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(calledName, check.Equals, "fake")
 	c.Check(calledCohort, check.Equals, "To the legion of the lost ones, to the cohort of the damned.")
-	c.Check(msg, check.Equals, `Install "fake" snap from "To the le…" cohort`)
+	c.Check(msg, check.Equals, `Install "fake" snap from "…e damned." cohort`)
 }
 
 func (s *apiSuite) TestInstallDevMode(c *check.C) {

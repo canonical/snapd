@@ -20,11 +20,13 @@
 package config_test
 
 import (
+	"bytes"
 	"encoding/json"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -210,4 +212,57 @@ func (s *configHelpersSuite) TestPatchInvalidConfig(c *C) {
 	value := json.RawMessage([]byte("[]"))
 	_, err := config.PatchConfig("snap1", []string{"foo"}, 0, invalid, &value)
 	c.Assert(err, ErrorMatches, `internal error: unexpected configuration type \[\]string`)
+}
+
+func (s *configHelpersSuite) TestPurgeNulls(c *C) {
+	cfg1 := map[string]interface{}{
+		"foo": nil,
+		"bar": map[string]interface{}{
+			"one": 1,
+			"two": nil,
+		},
+		"baz": map[string]interface{}{
+			"three": nil,
+		},
+	}
+	config.PurgeNulls(cfg1)
+	c.Check(cfg1, DeepEquals, map[string]interface{}{
+		"bar": map[string]interface{}{
+			"one": 1,
+		},
+		"baz": map[string]interface{}{},
+	})
+
+	cfg2 := map[string]interface{}{"foo": nil}
+	c.Check(config.PurgeNulls(cfg2), DeepEquals, map[string]interface{}{})
+	c.Check(cfg2, DeepEquals, map[string]interface{}{})
+
+	jsonData, err := json.Marshal(map[string]interface{}{
+		"foo": nil,
+		"bar": map[string]interface{}{
+			"one": 2,
+			"two": nil,
+		},
+		"baz": map[string]interface{}{
+			"three": nil,
+		},
+	})
+	c.Assert(err, IsNil)
+	raw := json.RawMessage(jsonData)
+	cfg4 := map[string]*json.RawMessage{
+		"root": &raw,
+	}
+	config.PurgeNulls(cfg4)
+
+	val, ok := cfg4["root"]
+	c.Assert(ok, Equals, true)
+
+	var out interface{}
+	jsonutil.DecodeWithNumber(bytes.NewReader(*val), &out)
+	c.Check(out, DeepEquals, map[string]interface{}{
+		"bar": map[string]interface{}{
+			"one": json.Number("2"),
+		},
+		"baz": map[string]interface{}{},
+	})
 }

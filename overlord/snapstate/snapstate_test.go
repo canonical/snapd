@@ -358,6 +358,7 @@ const (
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	noConfigure
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -417,8 +418,13 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
+	if opts&noConfigure == 0 {
+		expected = append(expected,
+			"run-hook[configure]",
+		)
+	}
 	expected = append(expected,
-		"run-hook[configure]",
+		"run-hook[check-health]",
 	)
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -477,6 +483,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	}
 	expected = append(expected,
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	)
 	if opts&doesReRefresh != 0 {
 		expected = append(expected, "check-rerefresh")
@@ -627,6 +634,24 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
+	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(s.state, "snapd", opts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
+}
+
 func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -681,11 +706,13 @@ epoch: 1*
 	c.Assert(err, IsNil)
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	// hook tasks for refresh and for configure hook only; no install hook
-	c.Assert(runHooks, HasLen, 3)
-	c.Assert(runHooks[0].Summary(), Equals, `Run pre-refresh hook of "some-snap" snap if present`)
-	c.Assert(runHooks[1].Summary(), Equals, `Run post-refresh hook of "some-snap" snap if present`)
-	c.Assert(runHooks[2].Summary(), Equals, `Run configure hook of "some-snap" snap if present`)
+	// no install hook task
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{
+		"run-hook[pre-refresh]",
+		"run-hook[post-refresh]",
+		"run-hook[configure]",
+		"run-hook[check-health]",
+	})
 }
 
 type fullFlags struct{ before, change, after, setup snapstate.Flags }
@@ -723,6 +750,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"setup-aliases",
 		"start-snap-services",
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	})
 	// a revert is a special refresh
 	verifyStopReason(c, ts, "refresh")
@@ -1534,6 +1562,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"setup-aliases",
 		"start-snap-services",
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	})
 }
 
@@ -2747,9 +2776,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2917,9 +2946,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
 
 	// verify snap-setup in the task state
@@ -2964,8 +2993,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	c.Assert(snapst.InstanceKey, Equals, "instance")
 
 	runHooks := tasksWithKind(ts, "run-hook")
-	// install and configure hooks
-	c.Assert(runHooks, HasLen, 2)
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{"run-hook[install]", "run-hook[configure]", "run-hook[check-health]"})
 	for _, hookTask := range runHooks {
 		c.Assert(hookTask.Kind(), Equals, "run-hook")
 		var hooksup hookstate.HookSetup
@@ -3243,9 +3271,9 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (666) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (666) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (666) services`)
 
 	// verify snap-setup in the task state
@@ -3406,9 +3434,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-7]
+	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
 
 	// verify snap-setup in the task state
@@ -6465,7 +6493,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 18
+			j += 19
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -9071,70 +9099,70 @@ var switchScenarios = map[string]switchScenario{
 		chanTo:   "stable",
 		cohFrom:  "some-cohort",
 		cohTo:    "",
-		summary:  `Switch snap "some-snap" away from cohort "some-coho…"`,
+		summary:  `Switch snap "some-snap" away from cohort "…me-cohort"`,
 	},
 	"leave cohort, change channel": {
 		chanFrom: "stable",
 		chanTo:   "edge",
 		cohFrom:  "some-cohort",
 		cohTo:    "",
-		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and away from cohort "some-coho…"`,
+		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and away from cohort "…me-cohort"`,
 	},
 	"leave cohort, change from empty channel": {
 		chanFrom: "",
 		chanTo:   "stable",
 		cohFrom:  "some-cohort",
 		cohTo:    "",
-		summary:  `Switch snap "some-snap" to channel "stable" and away from cohort "some-coho…"`,
+		summary:  `Switch snap "some-snap" to channel "stable" and away from cohort "…me-cohort"`,
 	},
 	"no channel at all": {
 		chanFrom: "",
 		chanTo:   "",
 		cohFrom:  "some-cohort",
 		cohTo:    "some-other-cohort",
-		summary:  `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`,
+		summary:  `Switch snap "some-snap" from cohort "…me-cohort" to "…er-cohort"`,
 	},
 	"no channel change requested": {
 		chanFrom: "stable",
 		chanTo:   "stable",
 		cohFrom:  "some-cohort",
 		cohTo:    "some-other-cohort",
-		summary:  `Switch snap "some-snap" from cohort "some-coho…" to "some-othe…"`,
+		summary:  `Switch snap "some-snap" from cohort "…me-cohort" to "…er-cohort"`,
 	},
 	"no channel change requested, from empty cohort": {
 		chanFrom: "stable",
 		chanTo:   "stable",
 		cohFrom:  "",
 		cohTo:    "some-cohort",
-		summary:  `Switch snap "some-snap" from no cohort to "some-coho…"`,
+		summary:  `Switch snap "some-snap" from no cohort to "…me-cohort"`,
 	},
 	"all change": {
 		chanFrom: "stable",
 		chanTo:   "edge",
 		cohFrom:  "some-cohort",
 		cohTo:    "some-other-cohort",
-		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and from cohort "some-coho…" to "some-othe…"`,
+		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and from cohort "…me-cohort" to "…er-cohort"`,
 	},
 	"all change, from empty channel": {
 		chanFrom: "",
 		chanTo:   "stable",
 		cohFrom:  "some-cohort",
 		cohTo:    "some-other-cohort",
-		summary:  `Switch snap "some-snap" to channel "stable" and from cohort "some-coho…" to "some-othe…"`,
+		summary:  `Switch snap "some-snap" to channel "stable" and from cohort "…me-cohort" to "…er-cohort"`,
 	},
 	"all change, from empty cohort": {
 		chanFrom: "stable",
 		chanTo:   "edge",
 		cohFrom:  "",
 		cohTo:    "some-cohort",
-		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and from no cohort to "some-coho…"`,
+		summary:  `Switch snap "some-snap" from channel "stable" to "edge" and from no cohort to "…me-cohort"`,
 	},
 	"all change, from empty channel and cohort": {
 		chanFrom: "",
 		chanTo:   "stable",
 		cohFrom:  "",
 		cohTo:    "some-cohort",
-		summary:  `Switch snap "some-snap" to channel "stable" and from no cohort to "some-coho…"`,
+		summary:  `Switch snap "some-snap" to channel "stable" and from no cohort to "…me-cohort"`,
 	},
 	"no change": {
 		chanFrom: "stable",
@@ -10409,58 +10437,46 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	c.Check(infos[1].Description(), Equals, "Lots of text")
 }
 
-func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
+func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
 
-	for _, x := range []struct {
-		snapName string
-		snapType snap.Type
-		getInfo  func(*state.State) (*snap.Info, error)
-	}{
-		{
-			snapName: "gadget",
-			snapType: snap.TypeGadget,
-			getInfo:  snapstate.GadgetInfo,
-		},
-		{
-			snapName: "core",
-			snapType: snap.TypeOS,
-			getInfo:  snapstate.CoreInfo,
-		},
-		{
-			snapName: "kernel",
-			snapType: snap.TypeKernel,
-			getInfo:  snapstate.KernelInfo,
-		},
-	} {
-		_, err := x.getInfo(st)
-		c.Assert(err, Equals, state.ErrNoState)
+	deviceCtxNoGadget := deviceWithoutGadgetContext()
+	deviceCtx := deviceWithGadgetContext("gadget")
 
-		sideInfo := &snap.SideInfo{
-			RealName: x.snapName,
-			Revision: snap.R(2),
-		}
-		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), sideInfo)
-		snapstate.Set(st, x.snapName, &snapstate.SnapState{
-			SnapType: string(x.snapType),
-			Active:   true,
-			Sequence: []*snap.SideInfo{sideInfo},
-			Current:  sideInfo.Revision,
-		})
+	_, err := snapstate.GadgetInfo(st, deviceCtxNoGadget)
+	c.Assert(err, Equals, state.ErrNoState)
 
-		info, err := x.getInfo(st)
-		c.Assert(err, IsNil)
+	_, err = snapstate.GadgetInfo(st, deviceCtx)
+	c.Assert(err, Equals, state.ErrNoState)
 
-		c.Check(info.InstanceName(), Equals, x.snapName)
-		c.Check(info.Revision, Equals, snap.R(2))
-		c.Check(info.Version, Equals, x.snapName)
-		c.Check(info.GetType(), Equals, x.snapType)
+	sideInfo := &snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(2),
 	}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: v1
+`, sideInfo)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	info, err := snapstate.GadgetInfo(st, deviceCtx)
+	c.Assert(err, IsNil)
+
+	c.Check(info.InstanceName(), Equals, "gadget")
+	c.Check(info.Revision, Equals, snap.R(2))
+	c.Check(info.Version, Equals, "v1")
+	c.Check(info.GetType(), Equals, snap.TypeGadget)
 }
 
-func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
+func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
@@ -10508,7 +10524,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 			})
 		}
 
-		info, err := snapstate.CoreInfo(st)
+		info, err := snapstate.CoreInfoInternal(st)
 		if t.errMatcher != "" {
 			c.Assert(err, ErrorMatches, t.errMatcher)
 		} else {
@@ -10756,6 +10772,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 		"run-hook[install]",
 		"start-snap-services",
 		"run-hook[configure]",
+		"run-hook[check-health]",
 	})
 
 }
@@ -11533,13 +11550,13 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	var snapsup snapstate.SnapSetup
 	tasks := ts.Tasks()
 
-	i := len(tasks) - 7
+	i := len(tasks) - 8
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Revision(), Equals, si3.Revision)
 
-	i = len(tasks) - 5
+	i = len(tasks) - 6
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
@@ -11795,6 +11812,20 @@ version: 1.0
 	})
 }
 
+func deviceWithGadgetContext(gadgetName string) snapstate.DeviceContext {
+	return &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel(map[string]interface{}{
+			"gadget": gadgetName,
+		}),
+	}
+}
+
+func deviceWithoutGadgetContext() snapstate.DeviceContext {
+	return &snapstatetest.TrivialDeviceContext{
+		DeviceModel: ClassicModel(),
+	}
+}
+
 func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
@@ -11807,6 +11838,8 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 
 	s.prepareGadget(c)
 
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -11817,7 +11850,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	})
 	makeInstalledMockCoreSnap(c)
 
-	defls, err := snapstate.ConfigDefaults(s.state, "some-snap")
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
 
@@ -11829,7 +11862,33 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 		Current:  snap.R(5),
 		SnapType: "app",
 	})
-	_, err = snapstate.ConfigDefaults(s.state, "local-snap")
+	_, err = snapstate.ConfigDefaults(s.state, deviceCtx, "local-snap")
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	deviceCtxNoGadget := deviceWithoutGadgetContext()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+	makeInstalledMockCoreSnap(c)
+
+	_, err := snapstate.ConfigDefaults(s.state, deviceCtxNoGadget, "some-snap")
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -11849,9 +11908,11 @@ defaults:
         foo: bar
 `)
 
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	makeInstalledMockCoreSnap(c)
 
-	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
@@ -11875,6 +11936,8 @@ defaults:
         other-key: other-key-default
 `)
 
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -11887,7 +11950,7 @@ defaults:
 	makeInstalledMockCoreSnap(c)
 
 	// 'system' key defaults take precedence over snap-id ones
-	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
@@ -11967,9 +12030,11 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	var m map[string]interface{}
 	runHooks := tasksWithKind(ts, "run-hook")
 
-	// two hooks expected - install and configure
-	c.Assert(runHooks, HasLen, 2)
-	c.Assert(runHooks[1].Kind(), Equals, "run-hook")
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{
+		"run-hook[install]",
+		"run-hook[configure]",
+		"run-hook[check-health]",
+	})
 	err = runHooks[1].Get("hook-context", &m)
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
@@ -13103,15 +13168,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	c.Assert(chg2.IsReady(), Equals, true)
 
 	// order in which the changes run is random
-	len1 := len(chg1.Tasks())
-	len2 := len(chg2.Tasks())
-	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 26)
-		c.Assert(chg2.Tasks(), HasLen, 13)
-	} else {
-		c.Assert(chg1.Tasks(), HasLen, 13)
-		c.Assert(chg2.Tasks(), HasLen, 26)
+	if len(chg1.Tasks()) < len(chg2.Tasks()) {
+		chg1, chg2 = chg2, chg1
 	}
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 28)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 14)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
@@ -14398,10 +14459,16 @@ func (s *snapmgrTestSuite) TestGadgetConnections(c *C) {
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
+	deviceCtxNoGadget := deviceWithoutGadgetContext()
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.GadgetConnections(s.state)
+	_, err := snapstate.GadgetConnections(s.state, deviceCtxNoGadget)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	_, err = snapstate.GadgetConnections(s.state, deviceCtx)
 	c.Assert(err, Equals, state.ErrNoState)
 
 	s.prepareGadget(c, `
@@ -14410,7 +14477,7 @@ connections:
     slot: snap2idididididididididididididi:slot
 `)
 
-	conns, err := snapstate.GadgetConnections(s.state)
+	conns, err := snapstate.GadgetConnections(s.state, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []gadget.Connection{
 		{Plug: gadget.ConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: gadget.ConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
@@ -14570,4 +14637,42 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
 
+}
+
+func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
+	flags := snapstate.Flags{
+		DevMode:          true,
+		JailMode:         true,
+		Classic:          true,
+		TryMode:          true,
+		Revert:           true,
+		RemoveSnapPath:   true,
+		IgnoreValidation: true,
+		Required:         true,
+		SkipConfigure:    true,
+		Unaliased:        true,
+		Amend:            true,
+		IsAutoRefresh:    true,
+		NoReRefresh:      true,
+		RequireTypeBase:  true,
+	}
+	flags = flags.ForSnapSetup()
+
+	// certain flags get reset, others are not touched
+	c.Check(flags, DeepEquals, snapstate.Flags{
+		DevMode:          true,
+		JailMode:         true,
+		Classic:          true,
+		TryMode:          true,
+		Revert:           true,
+		RemoveSnapPath:   true,
+		IgnoreValidation: true,
+		Required:         true,
+		SkipConfigure:    false,
+		Unaliased:        true,
+		Amend:            true,
+		IsAutoRefresh:    true,
+		NoReRefresh:      false,
+		RequireTypeBase:  false,
+	})
 }
