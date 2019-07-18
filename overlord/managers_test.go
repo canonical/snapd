@@ -3495,6 +3495,7 @@ func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
 	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", "foo"), "1")
 	s.serveSnap(snapPath, "1")
 
+	// track the creation of new DeviceAndAutContext (for new Store)
 	newDAC := false
 
 	mockServer := s.mockStore(c)
@@ -3703,6 +3704,7 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", "foo"), "1")
 	s.serveSnap(snapPath, "1")
 
+	// track the creation of new DeviceAndAutContext (for new Store)
 	newDAC := false
 
 	mockServer := s.mockStore(c)

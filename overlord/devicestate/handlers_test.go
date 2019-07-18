@@ -343,6 +343,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 
 	c.Check(freshStore.ensureDeviceSession, Equals, 1)
 
+	// check that the expected tasks were injected
 	tl := chg.Tasks()
 	// 1 prepare-remodeling
 	// 2 snaps * 3 tasks (from the mock install above) +
