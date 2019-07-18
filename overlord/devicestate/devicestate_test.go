@@ -2187,19 +2187,6 @@ func makeInstalledMockSnap(c *C, st *state.State, yml string) *snap.Info {
 	return info11
 }
 
-func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
-	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
-		"series":       "16",
-		"snap-name":    info.SnapName(),
-		"snap-id":      info.SideInfo.SnapID,
-		"publisher-id": "canonical",
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, decl)
-	c.Assert(err, IsNil)
-}
-
 func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.Info, ifname string) {
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
@@ -2268,7 +2255,6 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
 
 	ifacestatetest.MakeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
-	s.makeSnapDeclaration(c, st, info11)
 	s.setupSnapDecl(c, info11, "canonical")
 
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
