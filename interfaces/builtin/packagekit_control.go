@@ -77,24 +77,24 @@ dbus (send)
 # packagekitd) changes this, then these rules will need to change too.
 dbus (receive, send)
         bus=system
-        path=/[0-9][0-9]*_[0-9a-f][0-9a-f]*
+        path=/[0-9]*_[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
         interface=org.freedesktop.PackageKit.Transaction
         peer=(label=unconfined),
 dbus (send)
         bus=system
-        path=/[0-9][0-9]*_[0-9a-f][0-9a-f]*
+        path=/[0-9]*_[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
         interface=org.freedesktop.DBus.Properties
         member=Get{,All}
         peer=(label=unconfined),
 dbus (receive)
         bus=system
-        path=/[0-9][0-9]*_[0-9a-f][0-9a-f]*
+        path=/[0-9]*_[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
         interface=org.freedesktop.DBus.Properties
         member=PropertiesChanged
         peer=(label=unconfined),
 dbus (send)
 	bus=system
-        path=/[0-9][0-9]*_[0-9a-f][0-9a-f]*
+        path=/[0-9]*_[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
 	interface=org.freedesktop.DBus.Introspectable
 	member=Introspect
 	peer=(label=unconfined),
