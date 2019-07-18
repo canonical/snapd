@@ -55,6 +55,69 @@ type AddUserOptions struct {
 // allows as valid usernames
 var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 
+// UserGroupAdd uses the standard shadow utilities' 'useradd' and 'groupadd'
+// commands for creating non-login system users and groups that is portable
+// cross-distro. It will create the group with groupname 'name' and gid 'id' as
+// well as the user with username 'name' and uid 'id'. Importantly, 'useradd'
+// and 'groupadd' will use NSS to determine if a uid/gid is already assigned
+// (so LDAP, etc are consulted), but will themselves only add to local files,
+// which is exactly what we want since we don't want snaps to be blocked on
+// LDAP, etc lookups.
+func UserGroupAdd(name string, id uint32, extraUsers bool) error {
+	if !IsValidUsername(name) {
+		return fmt.Errorf("cannot add user/group %q: name contains invalid characters", name)
+	}
+
+	// useradd --user-group will choose a gid from the range defined in
+	// login.defs, so first call groupadd and use --gid with useradd.
+	groupCmdStr := []string{
+		"groupadd",
+		"--system",
+		"--gid", strconv.FormatUint(uint64(id), 10),
+	}
+
+	if extraUsers {
+		groupCmdStr = append(groupCmdStr, "--extrausers")
+	}
+	groupCmdStr = append(groupCmdStr, name)
+
+	cmd := exec.Command(groupCmdStr[0], groupCmdStr[1:]...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("groupadd failed with: %s", OutputErr(output, err))
+	}
+
+	// Now call useradd with the group we just created. As a non-login
+	// system user, we choose:
+	// - no password or aging (use --system without --password)
+	// - a non-existent home directory (--home-dir /nonexistent and
+	//   --no-create-home)
+	// - a non-functional shell (--shell .../nologin)
+	// - use the above group (--gid with --no-user-group)
+	userCmdStr := []string{
+		"useradd",
+		"--system",
+		"--home-dir", "/nonexistent", "--no-create-home",
+		"--shell", LookPathDefault("false", "/bin/false"),
+		"--gid", strconv.FormatUint(uint64(id), 10), "--no-user-group",
+		"--uid", strconv.FormatUint(uint64(id), 10),
+	}
+
+	if extraUsers {
+		userCmdStr = append(userCmdStr, "--extrausers")
+	}
+	userCmdStr = append(userCmdStr, name)
+
+	cmd = exec.Command(userCmdStr[0], userCmdStr[1:]...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("useradd failed with: %s", OutputErr(output, err))
+	}
+
+	return nil
+}
+
+// AddUser uses the Debian/Ubuntu/derivative 'adduser' command for creating
+// regular login users on Ubuntu Core. 'adduser' is not portable cross-distro
+// but is convenient for creating regular login users.
 func AddUser(name string, opts *AddUserOptions) error {
 	if opts == nil {
 		opts = &AddUserOptions{}

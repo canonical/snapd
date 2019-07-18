@@ -38,9 +38,11 @@ type createUserSuite struct {
 	mockHome string
 	restorer func()
 
-	mockAddUser *testutil.MockCmd
-	mockUserMod *testutil.MockCmd
-	mockPasswd  *testutil.MockCmd
+	mockAddUser  *testutil.MockCmd
+	mockUserMod  *testutil.MockCmd
+	mockPasswd   *testutil.MockCmd
+	mockUserAdd  *testutil.MockCmd
+	mockGroupAdd *testutil.MockCmd
 }
 
 var _ = check.Suite(&createUserSuite{})
@@ -61,6 +63,8 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 	s.mockAddUser = testutil.MockCommand(c, "adduser", "")
 	s.mockUserMod = testutil.MockCommand(c, "usermod", "")
 	s.mockPasswd = testutil.MockCommand(c, "passwd", "")
+	s.mockUserAdd = testutil.MockCommand(c, "useradd", "")
+	s.mockGroupAdd = testutil.MockCommand(c, "groupadd", "")
 }
 
 func (s *createUserSuite) TearDownTest(c *check.C) {
@@ -68,6 +72,8 @@ func (s *createUserSuite) TearDownTest(c *check.C) {
 	s.mockAddUser.Restore()
 	s.mockUserMod.Restore()
 	s.mockPasswd.Restore()
+	s.mockUserAdd.Restore()
+	s.mockGroupAdd.Restore()
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
@@ -276,4 +282,49 @@ func (s *createUserSuite) TestIsValidUsername(c *check.C) {
 	} {
 		c.Check(osutil.IsValidUsername(k), check.Equals, v)
 	}
+}
+
+func (s *createUserSuite) TestUserGroupAddExtraUsersFalse(c *check.C) {
+	err := osutil.UserGroupAdd("lakatos", 123456, false)
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
+		{"groupadd", "--system", "--gid", "123456", "lakatos"},
+	})
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
+		{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "123456", "--no-user-group", "--uid", "123456", "lakatos"},
+	})
+}
+
+func (s *createUserSuite) TestUserGroupAddExtraUsersTrue(c *check.C) {
+	err := osutil.UserGroupAdd("lakatos", 123456, true)
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
+		{"groupadd", "--system", "--gid", "123456", "--extrausers", "lakatos"},
+	})
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
+		{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "123456", "--no-user-group", "--uid", "123456", "--extrausers", "lakatos"},
+	})
+}
+
+func (s *createUserSuite) TestUserGroupAddBadUser(c *check.C) {
+	err := osutil.UserGroupAdd("k!", 123456, false)
+	c.Assert(err, check.ErrorMatches, `cannot add user/group "k!": name contains invalid characters`)
+}
+
+func (s *createUserSuite) TestUserGroupAddFailedGroupadd(c *check.C) {
+	mockGroupAdd := testutil.MockCommand(c, "groupadd", "echo some error; exit 1")
+	defer mockGroupAdd.Restore()
+
+	err := osutil.UserGroupAdd("lakatos", 123456, false)
+	c.Assert(err, check.ErrorMatches, "groupadd failed with: some error")
+}
+
+func (s *createUserSuite) TestUserGroupAddFailedUseradd(c *check.C) {
+	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
+	defer mockUserAdd.Restore()
+
+	err := osutil.UserGroupAdd("lakatos", 123456, false)
+	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 }
