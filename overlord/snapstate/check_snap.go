@@ -264,6 +264,18 @@ func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
 	}
 }
 
+func checkSnapdName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
+	if snapInfo.GetType() != snap.TypeSnapd {
+		// not a relevant check
+		return nil
+	}
+	if snapInfo.InstanceName() != "snapd" {
+		return fmt.Errorf(`cannot install snap %q of type "snapd" with a name other than "snapd"`, snapInfo.InstanceName())
+	}
+
+	return nil
+}
+
 func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	if snapInfo.GetType() != snap.TypeOS {
 		// not a relevant check
@@ -423,6 +435,7 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 
 func init() {
 	AddCheckSnapCallback(checkCoreName)
+	AddCheckSnapCallback(checkSnapdName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
 	AddCheckSnapCallback(checkEpochs)

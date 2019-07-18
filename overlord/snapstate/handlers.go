@@ -207,7 +207,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 	// snapd is special and has no prereqs
-	if snapsup.InstanceName() == "snapd" {
+	if snapsup.Type == snap.TypeSnapd {
 		return nil
 	}
 
@@ -1151,7 +1151,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		// ignore error here as we have no way to return to caller
 		snapdSnapInstalled, _ := isInstalled(st, "snapd")
 		if (info.GetType() == snap.TypeOS && !snapdSnapInstalled) ||
-			info.InstanceName() == "snapd" {
+			info.GetType() == snap.TypeSnapd {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
 		}
@@ -1173,7 +1173,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		logger.Noticef("cannot get model assertion: %v", model)
 		return
 	}
-	if model.Base() != "" && info.InstanceName() == "snapd" {
+	if model.Base() != "" && info.GetType() == snap.TypeSnapd {
 		t.Logf("Requested daemon restart (snapd snap).")
 		st.RequestRestart(state.RestartDaemon)
 	}

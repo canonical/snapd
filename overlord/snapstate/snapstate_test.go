@@ -1315,6 +1315,9 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer r()
 
+	restore := snap.MockSnapdSnapID("snapd-id")
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -14264,6 +14267,9 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {
 func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	restore := snap.MockSnapdSnapID("snapd-id")
+	defer restore()
 
 	// snapd cannot be installed unless the model uses a base snap
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))

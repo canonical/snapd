@@ -340,7 +340,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// we do not support configuration for bases or the "snapd" snap yet
-	if snapsup.Type != snap.TypeBase && snapsup.InstanceName() != "snapd" {
+	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
 		configSet.WaitAll(ts)
 		ts.AddAll(configSet)
@@ -404,7 +404,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return err
 	}
 
-	if snapsup.InstanceName() == "snapd" && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
 		return fmt.Errorf("there was a snapd rollback across the restart")
 	}
 
@@ -537,7 +537,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) error {
 	// Check if the snapd can be installed on Ubuntu Core systems, it is
 	// always ok to install on classic
-	if info.InstanceName() == "snapd" && !release.OnClassic {
+	if info.GetType() == snap.TypeSnapd && !release.OnClassic {
 		tr := config.NewTransaction(st)
 		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
 		if err != nil && !config.IsNoOption(err) {
@@ -1015,7 +1015,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if update.GetType() == snap.TypeOS || update.GetType() == snap.TypeBase || update.InstanceName() == "snapd" {
+		if t := update.GetType(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
@@ -1707,7 +1707,7 @@ func coreInUse(st *state.State) bool {
 	for name, snapst := range snapStates {
 		for _, si := range snapst.Sequence {
 			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.GetType() != snap.TypeApp || snapInfo.SnapName() == "snapd" {
+				if snapInfo.GetType() != snap.TypeApp || snapInfo.GetType() == snap.TypeSnapd {
 					continue
 				}
 				if snapInfo.Base == "" {
