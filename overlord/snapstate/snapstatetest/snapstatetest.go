@@ -32,8 +32,10 @@ import (
 
 // MockSnapCurrent will make the given snapYaml a snap on disk and in the
 // state. It will also make the snap "current". The snap revision is
-// always snap.R(1). Write MockSnapCurrentWithSideInfo() if different
-// side-infos are needed.
+// always snap.R(1).
+//
+// TODO: create MockSnapCurrentWithSideInfo() if different side-infos
+// are needed.
 func MockSnapCurrent(c *C, st *state.State, snapYaml string) *snap.Info {
 	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnapCurrent(c, snapYaml, sideInfo)
