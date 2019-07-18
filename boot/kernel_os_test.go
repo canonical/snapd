@@ -289,8 +289,7 @@ func (s *ubootKernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := loader.Dir()
-	kernelAssetsDir := filepath.Join(bootdir, "ubuntu-kernel_42.snap")
+	kernelAssetsDir := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/ubuntu-kernel_42.snap")
 	for _, def := range files {
 		if def[0] == "meta/kernel.yaml" {
 			break
@@ -345,7 +344,7 @@ func (s *grubKernelOSSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 }
 
 func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
-	loader := s.forceGrubBootloader(c)
+	s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -367,7 +366,7 @@ func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) 
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(dirs.GlobalRootDir, "boot", "grub", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 
 	// it's idempotent
@@ -376,7 +375,7 @@ func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) 
 }
 
 func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
-	loader := s.forceGrubBootloader(c)
+	s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -399,10 +398,10 @@ func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is extracted
-	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(dirs.GlobalRootDir, "/boot/grub/ubuntu-kernel_42.snap/kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, true)
 	// initrd
-	initrdimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	initrdimg := filepath.Join(dirs.GlobalRootDir, "/boot/grub/ubuntu-kernel_42.snap/initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
 	// it's idempotent
