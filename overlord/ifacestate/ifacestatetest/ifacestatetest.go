@@ -29,22 +29,25 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func MakeMockRepoWithConnectedSnaps(c *C, st *state.State, info, core *snap.Info, ifname string) {
+// MakeMockRepoWithConnectedSnaps takes the given plugSnap, slotSnap
+// and then creates a inteface repository and connect the two snaps
+// with the given interface name.
+func MakeMockRepoWithConnectedSnaps(c *C, st *state.State, plugSnap, slotSnap *snap.Info, ifname string) {
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
 		err := repo.AddInterface(iface)
 		c.Assert(err, IsNil)
 	}
-	err := repo.AddSnap(info)
+	err := repo.AddSnap(plugSnap)
 	c.Assert(err, IsNil)
-	err = repo.AddSnap(core)
+	err = repo.AddSnap(slotSnap)
 	c.Assert(err, IsNil)
 	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info.InstanceName(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core.InstanceName(), Name: ifname},
+		PlugRef: interfaces.PlugRef{Snap: plugSnap.InstanceName(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: slotSnap.InstanceName(), Name: ifname},
 	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	conns, err := repo.Connected(info.InstanceName(), ifname)
+	conns, err := repo.Connected(plugSnap.InstanceName(), ifname)
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 	ifacerepo.Replace(st, repo)
