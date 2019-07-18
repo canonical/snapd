@@ -825,17 +825,22 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 }
 
 type testRestartBehavior struct {
-	restartRequested           state.RestartType
-	expectedRebootDidNotHappen string
-	rebootVerifiedErr          error
+	restartRequested  state.RestartType
+	rebootState       string
+	rebootVerifiedErr error
 }
 
 func (rb *testRestartBehavior) HandleRestart(t state.RestartType) {
 	rb.restartRequested = t
 }
 
-func (rb *testRestartBehavior) RebootVerified(_ *state.State, expectedRebootDidNotHappen bool) error {
-	rb.expectedRebootDidNotHappen = fmt.Sprintf("%v", expectedRebootDidNotHappen)
+func (rb *testRestartBehavior) RebootAsExpected(_ *state.State) error {
+	rb.rebootState = "as-expected"
+	return rb.rebootVerifiedErr
+}
+
+func (rb *testRestartBehavior) RebootDidNotHappen(_ *state.State) error {
+	rb.rebootState = "did-not-happen"
 	return rb.rebootVerifiedErr
 }
 
@@ -860,7 +865,7 @@ func (ovs *overlordSuite) TestVerifyRebootNoPendingReboot(c *C) {
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
 
-	c.Check(rb.expectedRebootDidNotHappen, Equals, "false")
+	c.Check(rb.rebootState, Equals, "as-expected")
 }
 
 func (ovs *overlordSuite) TestVerifyRebootOK(c *C) {
@@ -873,7 +878,21 @@ func (ovs *overlordSuite) TestVerifyRebootOK(c *C) {
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
 
-	c.Check(rb.expectedRebootDidNotHappen, Equals, "false")
+	c.Check(rb.rebootState, Equals, "as-expected")
+}
+
+func (ovs *overlordSuite) TestVerifyRebootOKButError(c *C) {
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, "boot-id-prev"))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	e := errors.New("boom")
+	rb := &testRestartBehavior{rebootVerifiedErr: e}
+
+	_, err = overlord.New(rb)
+	c.Assert(err, Equals, e)
+
+	c.Check(rb.rebootState, Equals, "as-expected")
 }
 
 func (ovs *overlordSuite) TestVerifyRebootDidNotHappen(c *C) {
@@ -889,7 +908,7 @@ func (ovs *overlordSuite) TestVerifyRebootDidNotHappen(c *C) {
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
 
-	c.Check(rb.expectedRebootDidNotHappen, Equals, "true")
+	c.Check(rb.rebootState, Equals, "did-not-happen")
 }
 
 func (ovs *overlordSuite) TestVerifyRebootDidNotHappenError(c *C) {
@@ -906,7 +925,7 @@ func (ovs *overlordSuite) TestVerifyRebootDidNotHappenError(c *C) {
 	_, err = overlord.New(rb)
 	c.Assert(err, Equals, e)
 
-	c.Check(rb.expectedRebootDidNotHappen, Equals, "true")
+	c.Check(rb.rebootState, Equals, "did-not-happen")
 }
 
 func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {

@@ -97,10 +97,12 @@ type Overlord struct {
 // via the state.
 type RestartBehavior interface {
 	HandleRestart(t state.RestartType)
-	// RebootVerified is called early with information whether a reboot
-	// was requested but snapd restarted without it happening.
-	// It is always called with the state lock held.
-	RebootVerified(st *state.State, expectedRebootDidNotHappen bool) error
+	// RebootAsExpected is called early when either a reboot was
+	// requested by snapd and happened or no reboot was expected at all.
+	RebootAsExpected(st *state.State) error
+	// RebootDidNotHappen is called early instead when a reboot was
+	// requested by snad but did not happen.
+	RebootDidNotHappen(st *state.State) error
 }
 
 var storeNew = store.New
@@ -270,7 +272,10 @@ func verifyReboot(s *state.State, curBootID string, restartBehavior RestartBehav
 	}
 	expectedRebootDidNotHappen := err == state.ErrExpectedReboot
 	if restartBehavior != nil {
-		return restartBehavior.RebootVerified(s, err == state.ErrExpectedReboot)
+		if expectedRebootDidNotHappen {
+			return restartBehavior.RebootDidNotHappen(s)
+		}
+		return restartBehavior.RebootAsExpected(s)
 	}
 	if expectedRebootDidNotHappen {
 		logger.Noticef("expected system restart but it did not happen")
@@ -571,8 +576,12 @@ func (rb mockRestartBehavior) HandleRestart(t state.RestartType) {
 	rb(t)
 }
 
-func (rb mockRestartBehavior) RebootVerified(*state.State, bool) error {
-	panic("internal error: overlord.Mock should not invoke RebootVerified")
+func (rb mockRestartBehavior) RebootAsExpected(*state.State) error {
+	panic("internal error: overlord.Mock should not invoke RebootAsExpected")
+}
+
+func (rb mockRestartBehavior) RebootDidNotHappen(*state.State) error {
+	panic("internal error: overlord.Mock should not invoke RebootDidNotHappen")
 }
 
 type mockBackend struct {
