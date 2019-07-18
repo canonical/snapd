@@ -27,17 +27,17 @@ import (
 
 var shortUnsetHelp = i18n.G("Remove configuration options")
 var longUnsetHelp = i18n.G(`
- The unset command removes the provided configuration options as requested.
- 
-	 $ snap unset snap-name name address
- 
- All configuration changes are persisted at once, and only after the
- snap's configuration hook returns successfully.
- 
- Nested values may be removed via a dotted path:
- 
-	 $ snap unset user.name
- `)
+The unset command removes the provided configuration options as requested.
+
+	$ snap unset snap-name name address
+
+All configuration changes are persisted at once, and only after the
+snap's configuration hook returns successfully.
+
+Nested values may be removed via a dotted path:
+
+	$ snap unset user.name
+`)
 
 type cmdUnset struct {
 	waitMixin
