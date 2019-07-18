@@ -808,7 +808,7 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 	return nil, nil
 }
 
-func (m *DeviceManager) doPrepareRemodeling(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -836,7 +836,7 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, _ *tomb.Tomb) error {
 
 	chgID := t.Change().ID()
 
-	tss, err := remodelTasks(st, current, remodCtx.Model(), remodCtx, chgID)
+	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID)
 	if err != nil {
 		return err
 	}

@@ -17,14 +17,28 @@
  *
  */
 
-package config
+package snap
 
 import (
-	"encoding/json"
+	"github.com/snapcore/snapd/strutil"
 )
 
-var PurgeNulls = purgeNulls
+var snapIDsSnapd = []string{
+	// production
+	"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+	// TODO: when snapd snap is uploaded to staging, replace this with
+	// the real snap-id.
+	"todo-staging-snapd-id",
+}
 
-func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
-	return t.pristine
+func IsSnapd(snapID string) bool {
+	return strutil.ListContains(snapIDsSnapd, snapID)
+}
+
+func MockSnapdSnapID(snapID string) (restore func()) {
+	old := snapIDsSnapd
+	snapIDsSnapd = append(snapIDsSnapd, snapID)
+	return func() {
+		snapIDsSnapd = old
+	}
 }

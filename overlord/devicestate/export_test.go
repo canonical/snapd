@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"context"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -90,7 +91,7 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstallWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallWithDeviceContext
 	snapstateInstallWithDeviceContext = f
 	return func() {

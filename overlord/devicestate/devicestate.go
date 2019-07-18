@@ -22,6 +22,7 @@
 package devicestate
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -333,7 +334,7 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
-func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
+func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
 
 	// adjust kernel track
@@ -351,7 +352,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapst
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstallWithDeviceContext(st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
+			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
 			}
@@ -521,7 +522,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		fallthrough
 	case UpdateRemodel:
 		var err error
-		tss, err = remodelTasks(st, current, new, remodCtx, "")
+		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "")
 		if err != nil {
 			return nil, err
 		}

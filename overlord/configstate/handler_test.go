@@ -26,11 +26,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -108,6 +111,21 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 	c.Check(value, Equals, "bar")
 }
 
+func makeModel(override map[string]interface{}) *asserts.Model {
+	model := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "armhf",
+		"gadget":       "brand-gadget",
+		"kernel":       "kernel",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(model, override).(*asserts.Model)
+}
+
 func (s *configureHandlerSuite) TestBeforeInitializesTransactionUseDefaults(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
@@ -140,6 +158,11 @@ volumes:
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
+
+	r = snapstatetest.MockDeviceModel(makeModel(map[string]interface{}{
+		"gadget": "canonical-pc",
+	}))
+	defer r()
 
 	const mockTestSnapYaml = `
 name: test-snap
@@ -209,6 +232,11 @@ volumes:
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
+
+	r = snapstatetest.MockDeviceModel(makeModel(map[string]interface{}{
+		"gadget": "canonical-pc",
+	}))
+	defer r()
 
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,

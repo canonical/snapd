@@ -202,6 +202,8 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		typ = snap.TypeGadget
 	case "some-snapd":
 		typ = snap.TypeSnapd
+	case "snapd":
+		typ = snap.TypeSnapd
 	case "some-snap-now-classic":
 		confinement = "classic"
 	case "some-epoch-snap":

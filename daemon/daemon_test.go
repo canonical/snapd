@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -122,17 +123,16 @@ func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mck.lastMethod = r.Method
 }
 
-func mkRF(c *check.C, cmd *Command, mck *mockHandler) ResponseFunc {
-	return func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
-		c.Assert(cmd, check.Equals, innerCmd)
-		return mck
-	}
-}
-
 func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
+	fakeUserAgent := "some-agent-talking-to-snapd/1.0"
+
 	cmd := &Command{d: newTestDaemon(c)}
 	mck := &mockHandler{cmd: cmd}
-	rf := mkRF(c, cmd, mck)
+	rf := func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
+		c.Assert(cmd, check.Equals, innerCmd)
+		c.Check(store.ClientUserAgent(req.Context()), check.Equals, fakeUserAgent)
+		return mck
+	}
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
@@ -140,6 +140,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
 		req, err := http.NewRequest(method, "", nil)
+		req.Header.Add("User-Agent", fakeUserAgent)
 		c.Assert(err, check.IsNil)
 
 		rec := httptest.NewRecorder()
@@ -476,9 +477,9 @@ type witnessAcceptListener struct {
 	accept  chan struct{}
 	accept1 bool
 
-	closed    chan struct{}
-	closed1   bool
-	closedLck sync.Mutex
+	idempotClose sync.Once
+	closeErr     error
+	closed       chan struct{}
 }
 
 func (l *witnessAcceptListener) Accept() (net.Conn, error) {
@@ -490,16 +491,13 @@ func (l *witnessAcceptListener) Accept() (net.Conn, error) {
 }
 
 func (l *witnessAcceptListener) Close() error {
-	err := l.Listener.Close()
-	if l.closed != nil {
-		l.closedLck.Lock()
-		defer l.closedLck.Unlock()
-		if !l.closed1 {
-			l.closed1 = true
+	l.idempotClose.Do(func() {
+		l.closeErr = l.Listener.Close()
+		if l.closed != nil {
 			close(l.closed)
 		}
-	}
-	return err
+	})
+	return l.closeErr
 }
 
 func (s *daemonSuite) markSeeded(d *Daemon) {
@@ -530,14 +528,16 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	})
 	st.Unlock()
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l1, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	l2, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
 	snapdAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+	d.snapdListener = &witnessAcceptListener{Listener: l1, accept: snapdAccept}
 
 	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
+	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
 
 	d.Start()
 
@@ -980,16 +980,16 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	c.Check(d.restartSocket, check.Equals, false)
 }
 
-func (s *daemonSuite) TestShutdownServerCanShutdown(c *check.C) {
-	shush := newShutdownServer(nil, nil)
-	c.Check(shush.CanStandby(), check.Equals, true)
+func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
+	ct := &connTracker{conns: make(map[net.Conn]struct{})}
+	c.Check(ct.CanStandby(), check.Equals, true)
 
 	con := &net.IPConn{}
-	shush.conns[con] = http.StateActive
-	c.Check(shush.CanStandby(), check.Equals, false)
+	ct.trackConn(con, http.StateActive)
+	c.Check(ct.CanStandby(), check.Equals, false)
 
-	shush.conns[con] = http.StateIdle
-	c.Check(shush.CanStandby(), check.Equals, true)
+	ct.trackConn(con, http.StateIdle)
+	c.Check(ct.CanStandby(), check.Equals, true)
 }
 
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
