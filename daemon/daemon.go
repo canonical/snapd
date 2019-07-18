@@ -414,12 +414,15 @@ func (d *Daemon) initStandbyHandling() {
 
 // Start the Daemon
 func (d *Daemon) Start() {
-	if d.overlord == nil {
+	if d.expectedRebootDidNotHappen {
 		// we need to schedule and wait for a system restart
 		d.tomb.Kill(nil)
 		// avoid systemd killing us again while we wait
 		systemdSdNotify("READY=1")
 		return
+	}
+	if d.overlord == nil {
+		panic("internal error: no Overlord")
 	}
 
 	d.connTracker = &connTracker{conns: make(map[net.Conn]struct{})}
@@ -461,7 +464,6 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
 	case state.RestartDaemon:
-		d.tomb.Kill(nil)
 	case state.RestartSystem:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
@@ -473,16 +475,14 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		defer d.mu.Unlock()
 		// remember we need to restart the system
 		d.restartSystem = true
-		d.tomb.Kill(nil)
 	case state.RestartSocket:
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		d.restartSocket = true
-		d.tomb.Kill(nil)
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
-		d.tomb.Kill(nil)
 	}
+	d.tomb.Kill(nil)
 }
 
 var (
@@ -586,7 +586,7 @@ func (d *Daemon) rebootDelay() (time.Duration, error) {
 	d.state.Lock()
 	defer d.state.Unlock()
 	now := time.Now()
-	// see if had already scheduled one
+	// see whether a reboot had already been scheduled
 	var rebootAt time.Time
 	err := d.state.Get("daemon-system-restart-at", &rebootAt)
 	if err != nil && err != state.ErrNoState {
