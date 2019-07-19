@@ -138,13 +138,21 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 
 	baseSnap := "core"
+	classicWithSnapd := false
 	if model.Base() != "" {
 		baseSnap = model.Base()
+	}
+	if _, ok := seeding["snapd"]; release.OnClassic && ok {
+		classicWithSnapd = true
+		// there is no system-wide base as such
+		// if there is a gadget we will install its base first though
+		baseSnap = ""
 	}
 
 	var installSeedEssential func(snapName string) error
 	var installGadgetBase func(gadget *snap.Info) error
 	installSeedEssential = func(snapName string) error {
+		// be idempotent for installGadgetBase use
 		if alreadySeeded[snapName] {
 			return nil
 		}
@@ -168,14 +176,14 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 	installGadgetBase = func(gadget *snap.Info) error {
 		gadgetBase := gadget.Base
+		if gadgetBase == "" {
+			gadgetBase = "core"
+		}
 		// Sanity check
 		// TODO: do we want to relax this? the new logic would allow
 		// but it might just be confusing for now
-		if gadgetBase != model.Base() {
+		if baseSnap != "" && gadgetBase != baseSnap {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
-		}
-		if gadgetBase == "" {
-			gadgetBase = "core"
 		}
 		return installSeedEssential(gadgetBase)
 	}
@@ -183,13 +191,15 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	// if there are snaps to seed, core/base needs to be seeded too
 	if len(seed.Snaps) != 0 {
 		// ensure "snapd" snap is installed first
-		if model.Base() != "" {
+		if model.Base() != "" || classicWithSnapd {
 			if err := installSeedEssential("snapd"); err != nil {
 				return nil, err
 			}
 		}
-		if err := installSeedEssential(baseSnap); err != nil {
-			return nil, err
+		if !classicWithSnapd {
+			if err := installSeedEssential(baseSnap); err != nil {
+				return nil, err
+			}
 		}
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" if where the system config lives.
