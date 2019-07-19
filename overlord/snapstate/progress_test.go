@@ -56,3 +56,35 @@ func (s *progressAdapterTestSuite) TestProgressAdapterWriteLocked(c *C) {
 	m.Write([]byte("some-bytes"))
 	c.Check(p.current, Equals, float64(len("some-bytes")))
 }
+
+func (s *progressAdapterTestSuite) TestProgressAdapterSetTaskProgress(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	t := st.NewTask("op", "msg")
+	m := NewTaskProgressAdapterUnlocked(t)
+	st.Unlock()
+
+	// we expect 1000 bytes
+	m.Start("msg", 1000)
+
+	// write a single byte (0.1% of the toal)
+	m.Write([]byte("1"))
+
+	// check that the progress is not updated yet
+	st.Lock()
+	msg, done, total := t.Progress()
+	st.Unlock()
+	c.Check(msg, Equals, "msg")
+	c.Check(done, Equals, 0)
+	c.Check(total, Equals, 1000)
+
+	// write another byte (0.2% now)
+	m.Write([]byte("2"))
+	// now the progress in the task gets updated (we update every 0.2%)
+	st.Lock()
+	_, done, total = t.Progress()
+	st.Unlock()
+	c.Check(done, Equals, 2)
+	c.Check(total, Equals, 1000)
+}
