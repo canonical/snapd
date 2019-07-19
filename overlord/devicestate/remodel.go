@@ -137,13 +137,11 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 		// simple context for the simple case
 		remodCtx = &updateRemodelContext{baseRemodelContext{newModel}}
 	case StoreSwitchRemodel:
-		storeSwitchCtx := &newStoreRemodelContext{}
-		storeSwitchCtx.setup(st, devMgr, newModel)
-		remodCtx = storeSwitchCtx
+		remodCtx = newNewStoreRemodelContext(st, devMgr, newModel)
 	case ReregRemodel:
-		reregCtx := &reregRemodelContext{}
-		reregCtx.setup(st, devMgr, newModel)
-		remodCtx = reregCtx
+		remodCtx = &reregRemodelContext{
+			newStoreRemodelContext: newNewStoreRemodelContext(st, devMgr, newModel),
+		}
 	default:
 		return nil, fmt.Errorf("unsupported remodel: %s", kind)
 	}
@@ -273,11 +271,13 @@ type newStoreRemodelContext struct {
 	deviceMgr *DeviceManager
 }
 
-func (rc *newStoreRemodelContext) setup(st *state.State, devMgr *DeviceManager, newModel *asserts.Model) {
+func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel *asserts.Model) *newStoreRemodelContext {
+	rc := &newStoreRemodelContext{}
 	rc.baseRemodelContext = baseRemodelContext{newModel}
 	rc.st = st
 	rc.deviceMgr = devMgr
 	rc.store = devMgr.newStore(rc.deviceBackend())
+	return rc
 }
 
 func (rc *newStoreRemodelContext) Kind() RemodelKind {
@@ -378,7 +378,7 @@ func (b remodelDeviceBackend) Serial() (*asserts.Serial, error) {
 
 // reregRemodelContext: remodel for a change of brand/model
 type reregRemodelContext struct {
-	newStoreRemodelContext
+	*newStoreRemodelContext
 
 	origModel  *asserts.Model
 	origSerial *asserts.Serial
@@ -439,7 +439,7 @@ func (rc *reregRemodelContext) SerialRequestExtraHeaders() map[string]interface{
 }
 
 func (rc *reregRemodelContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
-	return []asserts.Assertion{rc.origModel, rc.origSerial}
+	return []asserts.Assertion{rc.newModel, rc.origSerial}
 }
 
 func (rc *reregRemodelContext) FinishRegistration(serial *asserts.Serial) error {
