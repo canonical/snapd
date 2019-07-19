@@ -42,9 +42,11 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
@@ -736,6 +738,8 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	d.Start()
 	defer d.Stop(nil)
 
+	st := d.overlord.State()
+
 	snapdDone := make(chan struct{})
 	go func() {
 		select {
@@ -775,7 +779,9 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 		return nil
 	}
 
-	d.overlord.State().RequestRestart(state.RestartSystem)
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
 
 	defer func() {
 		d.mu.Lock()
@@ -798,14 +804,25 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	c.Check(delays, check.HasLen, 1)
 	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
 
+	now := time.Now()
+
 	err = d.Stop(nil)
 
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
+
 	c.Check(delays, check.HasLen, 2)
 	c.Check(delays[1], check.DeepEquals, 1*time.Minute)
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
+
+	st.Lock()
+	defer st.Unlock()
+	var rebootAt time.Time
+	err = st.Get("daemon-system-restart-at", &rebootAt)
+	c.Assert(err, check.IsNil)
+	approxAt := now.Add(time.Minute)
+	c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
 }
 
 func (s *daemonSuite) TestRebootHelper(c *check.C) {
@@ -820,7 +837,7 @@ func (s *daemonSuite) TestRebootHelper(c *check.C) {
 		{0, "+0"},
 		{time.Minute, "+1"},
 		{10 * time.Minute, "+10"},
-		{30 * time.Second, "+1"},
+		{30 * time.Second, "+0"},
 	}
 
 	for _, t := range tests {
@@ -867,7 +884,11 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	s.markSeeded(d)
 
 	d.Start()
-	d.overlord.State().RequestRestart(state.RestartSystem)
+	st := d.overlord.State()
+
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
 
 	ch := make(chan os.Signal, 2)
 	ch <- syscall.SIGTERM
@@ -882,7 +903,6 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	oldRebootNoticeWait := rebootNoticeWait
 	oldRebootWaitTimeout := rebootWaitTimeout
 	defer func() {
-		reboot = rebootImpl
 		rebootNoticeWait = oldRebootNoticeWait
 		rebootWaitTimeout = oldRebootWaitTimeout
 	}()
@@ -897,7 +917,11 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	s.markSeeded(d)
 
 	d.Start()
-	d.overlord.State().RequestRestart(state.RestartSystem)
+	st := d.overlord.State()
+
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)
 	// stop (this will timeout but thats not relevant for this test)
@@ -906,6 +930,102 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	// ensure that the sigCh got closed as part of the stop
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
+}
+
+func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
+	curBootID, err := osutil.BootID()
+	c.Assert(err, check.IsNil)
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
+	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, check.IsNil)
+
+	oldRebootNoticeWait := rebootNoticeWait
+	oldRebootRetryWaitTimeout := rebootRetryWaitTimeout
+	defer func() {
+		rebootNoticeWait = oldRebootNoticeWait
+		rebootRetryWaitTimeout = oldRebootRetryWaitTimeout
+	}()
+	rebootRetryWaitTimeout = 100 * time.Millisecond
+	rebootNoticeWait = 150 * time.Millisecond
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	d := newTestDaemon(c)
+	c.Check(d.overlord, check.IsNil)
+	c.Check(d.expectedRebootDidNotHappen, check.Equals, true)
+
+	var n int
+	d.state.Lock()
+	err = d.state.Get("daemon-system-restart-tentative", &n)
+	d.state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(n, check.Equals, 1)
+
+	d.Start()
+
+	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
+
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("expected reboot not happening should proceed to try to shutdown again")
+	}
+
+	sigCh := make(chan os.Signal, 2)
+	// stop (this will timeout but thats not relevant for this test)
+	d.Stop(sigCh)
+
+	// an immediate shutdown was scheduled again
+	c.Check(cmd.Calls(), check.DeepEquals, [][]string{
+		{"shutdown", "-r", "+0", "reboot scheduled to update the system"},
+	})
+}
+
+func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, "boot-id-0", time.Now().UTC().Format(time.RFC3339)))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, check.IsNil)
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	d := newTestDaemon(c)
+	c.Assert(d.overlord, check.NotNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	var v interface{}
+	// these were cleared
+	c.Check(st.Get("daemon-system-restart-at", &v), check.Equals, state.ErrNoState)
+	c.Check(st.Get("system-restart-from-boot-id", &v), check.Equals, state.ErrNoState)
+}
+
+func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
+	// we give up trying to restart the system after 3 retry tentatives
+	curBootID, err := osutil.BootID()
+	c.Assert(err, check.IsNil)
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s","daemon-system-restart-tentative":3},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
+	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, check.IsNil)
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	d := newTestDaemon(c)
+	c.Assert(d.overlord, check.NotNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	var v interface{}
+	// these were cleared
+	c.Check(st.Get("daemon-system-restart-at", &v), check.Equals, state.ErrNoState)
+	c.Check(st.Get("system-restart-from-boot-id", &v), check.Equals, state.ErrNoState)
+	c.Check(st.Get("daemon-system-restart-tentative", &v), check.Equals, state.ErrNoState)
 }
 
 func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {

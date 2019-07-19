@@ -138,11 +138,13 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.restoreOnClassic = release.MockOnClassic(false)
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
-	s.o = overlord.Mock()
-	s.o.SetRestartHandler(func(req state.RestartType) {
+	s.o = overlord.MockWithRestartHandler(func(req state.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 	})
 	s.state = s.o.State()
+	s.state.Lock()
+	s.state.VerifyReboot("boot-id-0")
+	s.state.Unlock()
 	s.se = s.o.StateEngine()
 
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)

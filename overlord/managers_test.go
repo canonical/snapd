@@ -200,7 +200,7 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
@@ -2434,7 +2434,7 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
