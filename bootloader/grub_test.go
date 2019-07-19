@@ -36,6 +36,8 @@ import (
 
 type grubTestSuite struct {
 	baseBootenvTestSuite
+
+	bootdir string
 }
 
 var _ = Suite(&grubTestSuite{})
@@ -43,6 +45,8 @@ var _ = Suite(&grubTestSuite{})
 func (s *grubTestSuite) SetUpTest(c *C) {
 	s.baseBootenvTestSuite.SetUpTest(c)
 	bootloader.MockGrubFiles(c)
+
+	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
 }
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
@@ -161,7 +165,7 @@ func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(g.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 }
 
@@ -192,10 +196,10 @@ func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is extracted
-	kernimg := filepath.Join(g.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, true)
 	// initrd
-	initrdimg := filepath.Join(g.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	initrdimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
 	// ensure that removal of assets also works

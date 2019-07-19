@@ -5613,6 +5613,45 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 	c.Assert(results[0].Channel, Equals, "candidate")
 }
 
+func (s *storeTestSuite) TestSnapActionWithClientUserAgent(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	serverCalls := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverCalls++
+		assertRequest(c, r, "POST", snapActionPath)
+
+		c.Check(r.Header.Get("Snap-Client-User-Agent"), Equals, "some-snap-agent/1.0")
+
+		io.WriteString(w, `{
+  "results": []
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	// to construct the client-user-agent context we need to
+	// create a req that simulates what the req that the daemon got
+	r, err := http.NewRequest("POST", "/snapd/api", nil)
+	r.Header.Set("User-Agent", "some-snap-agent/1.0")
+	c.Assert(err, IsNil)
+	ctx := store.WithClientUserAgent(s.ctx, r)
+
+	results, err := sto.SnapAction(ctx, nil, []*store.SnapAction{{Action: "install", InstanceName: "some-snap"}}, nil, nil)
+	c.Check(serverCalls, Equals, 1)
+	c.Check(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
+}
+
 func (s *storeTestSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)

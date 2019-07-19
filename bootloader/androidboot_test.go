@@ -91,6 +91,6 @@ func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(a.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(dirs.GlobalRootDir, "boot", "androidboot", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 }

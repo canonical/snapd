@@ -42,7 +42,24 @@ func MockLevel(lv, sublvl int) (restorer func()) {
 	Level = lv
 	oldSublvl := Sublevel
 	Sublevel = sublvl
+	oldPatches := make(map[int][]PatchFunc)
+	for k, v := range patches {
+		oldPatches[k] = v
+	}
+
+	for level, sublevels := range patches {
+		if level > lv {
+			delete(patches, level)
+			continue
+		}
+		if level == lv && len(sublevels)-1 > sublvl {
+			sublevels = sublevels[:sublvl+1]
+			patches[level] = sublevels
+		}
+	}
+
 	return func() {
+		patches = oldPatches
 		Level = old
 		Sublevel = oldSublvl
 	}

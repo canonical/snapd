@@ -5003,6 +5003,7 @@ volumes:
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
+	s.MockModel(c, nil)
 }
 
 func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
@@ -5137,6 +5138,8 @@ func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.MockSnapDecl(c, "producer", "publisher2", nil)
 	s.mockSnap(c, producerYaml)
+
+	s.MockModel(c, nil)
 
 	s.manager(c)
 

@@ -317,7 +317,7 @@ func (s *backendSuite) testSetupWritesUsedFilesForCoreOrSnapd(c *C, coreOrSnapdY
 
 var (
 	coreYaml  string = "name: core\nversion: 1\ntype: os"
-	snapdYaml string = "name: snapd\nversion: 1\n"
+	snapdYaml string = "name: snapd\nversion: 1\ntype: snapd"
 )
 
 func (s *backendSuite) TestSetupWritesUsedFilesForCore(c *C) {
