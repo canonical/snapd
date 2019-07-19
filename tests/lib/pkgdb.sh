@@ -617,16 +617,13 @@ pkg_dependencies_ubuntu_classic(){
                 "
                 pkg_linux_image_extra
             ;;
-        ubuntu-17.10-64)
-                pkg_linux_image_extra
-            ;;
         ubuntu-18.04-64)
             echo "
                 gccgo-8
                 evolution-data-server
                 "
             ;;
-        ubuntu-18.10-64|ubuntu-19.04-64)
+        ubuntu-19.04-64)
             echo "
                 evolution-data-server
                 "
