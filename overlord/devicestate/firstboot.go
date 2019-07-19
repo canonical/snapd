@@ -142,29 +142,53 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		baseSnap = model.Base()
 	}
 
-	installSeedEssential := func(snapName string) (*snap.Info, error) {
+	var installSeedEssential func(snapName string) error
+	var installGadgetBase func(gadget *snap.Info) error
+	installSeedEssential = func(snapName string) error {
+		if alreadySeeded[snapName] {
+			return nil
+		}
 		seedSnap := seeding[snapName]
 		if seedSnap == nil {
-			return nil, fmt.Errorf("cannot proceed without seeding %q", snapName)
+			return fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
 		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true}, tm)
 		if err != nil {
-			return nil, err
+			return err
+		}
+		if info.GetType() == snap.TypeGadget {
+			// always make sure the base of gadget is installed first
+			if err := installGadgetBase(info); err != nil {
+				return err
+			}
 		}
 		tsAll = chainTs(tsAll, ts)
 		alreadySeeded[snapName] = true
-		return info, nil
+		return nil
+	}
+	installGadgetBase = func(gadget *snap.Info) error {
+		gadgetBase := gadget.Base
+		// Sanity check
+		// TODO: do we want to relax this? the new logic would allow
+		// but it might just be confusing for now
+		if gadgetBase != model.Base() {
+			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
+		}
+		if gadgetBase == "" {
+			gadgetBase = "core"
+		}
+		return installSeedEssential(gadgetBase)
 	}
 
 	// if there are snaps to seed, core/base needs to be seeded too
 	if len(seed.Snaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" {
-			if _, err := installSeedEssential("snapd"); err != nil {
+			if err := installSeedEssential("snapd"); err != nil {
 				return nil, err
 			}
 		}
-		if _, err := installSeedEssential(baseSnap); err != nil {
+		if err := installSeedEssential(baseSnap); err != nil {
 			return nil, err
 		}
 		// we *always* configure "core" here even if bases are used
@@ -173,7 +197,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 
 	if kernelName := model.Kernel(); kernelName != "" {
-		if _, err := installSeedEssential(kernelName); err != nil {
+		if err := installSeedEssential(kernelName); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
@@ -181,21 +205,11 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		configTss = chainTs(configTss, configTs)
 	}
 
-	// FIXME: ensure that any base is ordered before the gadget so that
-	//        the gadget can use bases that are not the model base
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		info, err := installSeedEssential(gadgetName)
+		err := installSeedEssential(gadgetName)
 		if err != nil {
 			return nil, err
 		}
-		// Sanity check, note that we could support this if we have
-		// a use-case. However this requires that we do the sorting
-		// different, i.e. other bases will have to be sorted before
-		// the gadget.
-		if info.Base != model.Base() {
-			return nil, fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
-		}
-
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
 		// wait for the previous configTss
 		configTss = chainTs(configTss, configTs)
