@@ -2638,8 +2638,11 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	// 2 snaps,
 	c.Assert(tl, HasLen, 2*3+1)
 
-	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
 	c.Check(remodCtx.Model(), DeepEquals, new)
@@ -2923,8 +2926,11 @@ func (s *deviceMgrSuite) TestRemodelStoreSwitch(c *C) {
 	// 1 "set-model" task at the end
 	c.Assert(tl, HasLen, 2*3+1)
 
-	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
 	c.Check(remodCtx.Model(), DeepEquals, new)

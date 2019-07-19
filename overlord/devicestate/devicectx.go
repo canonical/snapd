@@ -25,10 +25,22 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// DeviceCtx picks a device context from state, optional task or an optionally pre-provided one. Returns ErrNoState if a model assertion is not yet known.
+// DeviceCtx picks a device context from state, optional task or an
+// optionally pre-provided one. Returns ErrNoState if a model
+// assertion is not yet known.
+// In particular if task belongs to a remodeling change this will find
+// the appropriate remodel context.
 func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.DeviceContext) (snapstate.DeviceContext, error) {
 	if providedDeviceCtx != nil {
 		return providedDeviceCtx, nil
+	}
+	// use the remodelContext if the task is part of a remodel change
+	remodCtx, err := remodelCtxFromTask(task)
+	if err == nil {
+		return remodCtx, nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return nil, err
 	}
 	modelAs, err := findModel(st)
 	if err != nil {
