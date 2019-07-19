@@ -55,9 +55,6 @@ type Bootloader interface {
 	// Set the value of the specified bootloader variable
 	SetBootVars(values map[string]string) error
 
-	// Dir returns the bootloader directory
-	Dir() string
-
 	// Name returns the bootloader name
 	Name() string
 
