@@ -63,9 +63,9 @@ const settingsIntrospectionXML = `
 	</method>
 </interface>`
 
-// TODO: allow setting default-url-scheme-handler ?
 var settingsWhitelist = []string{
 	"default-web-browser",
+	"default-url-scheme-handler",
 }
 
 func allowedSetting(setting string) bool {
