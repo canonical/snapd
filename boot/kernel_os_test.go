@@ -49,6 +49,8 @@ vendor: Someone
 // baseKernelOSSuite is used to setup the common test environment
 type baseKernelOSSuite struct {
 	testutil.BaseTest
+
+	bootdir string
 }
 
 func (s *baseKernelOSSuite) SetUpTest(c *C) {
@@ -60,6 +62,8 @@ func (s *baseKernelOSSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 	restore = release.MockOnClassic(false)
 	s.AddCleanup(restore)
+
+	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
 }
 
 // kernelOSSuite tests the abstract bootloader behaviour including
@@ -256,7 +260,7 @@ func (s *ubootKernelOSSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
 	bootloader.Force(loader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	fn := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/uboot.env")
+	fn := filepath.Join(s.bootdir, "/uboot/uboot.env")
 	c.Assert(osutil.FileExists(fn), Equals, true)
 	return loader
 }
@@ -289,7 +293,7 @@ func (s *ubootKernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	kernelAssetsDir := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/ubuntu-kernel_42.snap")
+	kernelAssetsDir := filepath.Join(s.bootdir, "/uboot/ubuntu-kernel_42.snap")
 	for _, def := range files {
 		if def[0] == "meta/kernel.yaml" {
 			break
@@ -338,7 +342,7 @@ func (s *grubKernelOSSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 	bootloader.Force(loader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	fn := filepath.Join(dirs.GlobalRootDir, "/boot/grub/grub.cfg")
+	fn := filepath.Join(s.bootdir, "/grub/grub.cfg")
 	c.Assert(osutil.FileExists(fn), Equals, true)
 	return loader
 }
@@ -366,7 +370,7 @@ func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) 
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(dirs.GlobalRootDir, "boot", "grub", "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 
 	// it's idempotent
@@ -398,10 +402,10 @@ func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is extracted
-	kernimg := filepath.Join(dirs.GlobalRootDir, "/boot/grub/ubuntu-kernel_42.snap/kernel.img")
+	kernimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, true)
 	// initrd
-	initrdimg := filepath.Join(dirs.GlobalRootDir, "/boot/grub/ubuntu-kernel_42.snap/initrd.img")
+	initrdimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
 	// it's idempotent
