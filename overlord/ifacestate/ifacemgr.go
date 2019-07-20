@@ -55,14 +55,16 @@ type InterfaceManager struct {
 	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
+
+	// extras
+	extraInterfaces []interfaces.Interface
+	extraBackends   []interfaces.SecurityBackend
 }
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	delayedCrossMgrInit()
-
-	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
 
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
@@ -76,15 +78,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// note: enumeratedDeviceKeys is reset to nil when enumeration is done
 		enumeratedDeviceKeys: make(map[string]map[snap.HotplugKey]bool),
 		hotplugDevicePaths:   make(map[string][]deviceData),
+		// extras
+		extraInterfaces: extraInterfaces,
+		extraBackends:   extraBackends,
 	}
-
-	if err := m.initialize(extraInterfaces, extraBackends, perfTimings); err != nil {
-		return nil, err
-	}
-
-	s.Lock()
-	ifacerepo.Replace(s, m.repo)
-	s.Unlock()
 
 	taskKinds := map[string]bool{}
 	addHandler := func(kind string, do, undo state.HandlerFunc) {
@@ -127,11 +124,26 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return false
 	})
 
-	s.Lock()
-	perfTimings.Save(s)
-	s.Unlock()
-
 	return m, nil
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *InterfaceManager) StartUp() error {
+	s := m.state
+	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
+
+	if err := m.initialize(m.extraInterfaces, m.extraBackends, perfTimings); err != nil {
+		return err
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	ifacerepo.Replace(s, m.repo)
+
+	perfTimings.Save(s)
+
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.

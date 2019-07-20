@@ -184,10 +184,6 @@ func New(restartBehavior RestartBehavior) (*Overlord, error) {
 
 	snapstate.ReplaceStore(s, sto)
 
-	if err := o.snapMgr.SyncCookies(s); err != nil {
-		return nil, fmt.Errorf("failed to generate cookies: %q", err)
-	}
-
 	return o, nil
 }
 
@@ -356,10 +352,20 @@ func (o *Overlord) StartUp() error {
 		return nil
 	}
 	o.startedUp = true
-	// XXX
-	o.State().Lock()
-	o.State().Unlock()
-	return o.stateEng.StartUp()
+
+	if err := o.stateEng.StartUp(); err != nil {
+		return err
+	}
+
+	s := o.State()
+	s.Lock()
+	defer s.Unlock()
+
+	if err := o.snapMgr.SyncCookies(s); err != nil {
+		return fmt.Errorf("failed to generate cookies: %q", err)
+	}
+
+	return nil
 }
 
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
