@@ -491,19 +491,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs core and waits for noone
-	i := 0
-	tCore := tsAll[i].Tasks()[0]
-	c.Check(tCore.WaitTasks(), HasLen, 0)
-	// the next installs the kernel and that will wait for core
-	i++
-	tKernel := tsAll[i].Tasks()[0]
-	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore)
-	// the next installs the gadget and will wait for the kernel
-	i++
-	tGadget := tsAll[i].Tasks()[0]
-	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
-
+	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
 	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result
@@ -519,6 +507,29 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	return chg
+}
+
+func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
+	matched := 0
+	var prevTask *state.Task
+	for i, ts := range tsAll {
+		task0 := ts.Tasks()[0]
+		waitTasks := task0.WaitTasks()
+		if i == 0 {
+			c.Check(waitTasks, HasLen, 0)
+		} else {
+			c.Check(waitTasks, testutil.Contains, prevTask)
+		}
+		prevTask = task0
+		if task0.Kind() != "prerequisites" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(task0)
+		c.Assert(err, IsNil, Commentf("%#v", task0))
+		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		matched++
+	}
+	c.Check(matched, Equals, len(snaps))
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
@@ -1370,22 +1381,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs snapd and waits for noone
-	i := 0
-	tSnapd := tsAll[i].Tasks()[0]
-	c.Check(tSnapd.WaitTasks(), HasLen, 0)
-	// the next installs the core18 and that will wait for snapd
-	i++
-	tCore18 := tsAll[i].Tasks()[0]
-	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
-	// the next installs the kernel and will wait for the core18
-	i++
-	tKernel := tsAll[i].Tasks()[0]
-	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
-	// the next installs the gadget and will wait for the kernel
-	i++
-	tGadget := tsAll[i].Tasks()[0]
-	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
+	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1517,30 +1513,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs snapd and waits for noone
-	i := 0
-	tSnapd := tsAll[i].Tasks()[0]
-	c.Check(tSnapd.WaitTasks(), HasLen, 0)
-	// the next installs the core18 and that will wait for snapd
-	i++
-	tCore18 := tsAll[i].Tasks()[0]
-	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
-	// the next installs the kernel and will wait for the core18
-	i++
-	tKernel := tsAll[i].Tasks()[0]
-	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
-	// the next installs the gadget and will wait for the kernel
-	i++
-	tGadget := tsAll[i].Tasks()[0]
-	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
-	// the next installs the base and waits for the gadget
-	i++
-	tOtherBase := tsAll[i].Tasks()[0]
-	c.Check(tOtherBase.WaitTasks(), testutil.Contains, tGadget)
-	// and finally the app
-	i++
-	tSnap := tsAll[i].Tasks()[0]
-	c.Check(tSnap.WaitTasks(), testutil.Contains, tOtherBase)
+	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc", "other-base", "snap-req-other-base")
 }
 
 func (s *FirstBootTestSuite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
@@ -1743,18 +1716,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs snapd and waits for noone
-	i := 0
-	tSnapd := tsAll[i].Tasks()[0]
-	c.Check(tSnapd.WaitTasks(), HasLen, 0)
-	// the next installs the core18 and that will wait for snapd
-	i++
-	tCore18 := tsAll[i].Tasks()[0]
-	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
-	// the next installs snap foo and will wait for the core18
-	i++
-	tFoo := tsAll[i].Tasks()[0]
-	c.Check(tFoo.WaitTasks(), testutil.Contains, tCore18)
+	checkOrder(c, tsAll, "snapd", "core18", "foo")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1874,22 +1836,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs snapd and waits for noone
-	i := 0
-	tSnapd := tsAll[i].Tasks()[0]
-	c.Check(tSnapd.WaitTasks(), HasLen, 0)
-	// the next installs the core18 and that will wait for snapd
-	i++
-	tCore18 := tsAll[i].Tasks()[0]
-	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
-	// the next installs the gadget and will wait for core18
-	i++
-	tGadget := tsAll[i].Tasks()[0]
-	c.Check(tGadget.WaitTasks(), testutil.Contains, tCore18)
-	// the next installs snap foo and will wait for the gadget
-	i++
-	tFoo := tsAll[i].Tasks()[0]
-	c.Check(tFoo.WaitTasks(), testutil.Contains, tGadget)
+	checkOrder(c, tsAll, "snapd", "core18", "pc", "foo")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
