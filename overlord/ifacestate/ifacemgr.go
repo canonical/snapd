@@ -132,7 +132,7 @@ func (m *InterfaceManager) StartUp() error {
 	s := m.state
 	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
 
-	if err := m.initialize(m.extraInterfaces, m.extraBackends, perfTimings); err != nil {
+	if err := m.initialize(perfTimings); err != nil {
 		return err
 	}
 

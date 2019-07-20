@@ -352,20 +352,7 @@ func (o *Overlord) StartUp() error {
 		return nil
 	}
 	o.startedUp = true
-
-	if err := o.stateEng.StartUp(); err != nil {
-		return err
-	}
-
-	s := o.State()
-	s.Lock()
-	defer s.Unlock()
-
-	if err := o.snapMgr.SyncCookies(s); err != nil {
-		return fmt.Errorf("failed to generate cookies: %q", err)
-	}
-
-	return nil
+	return o.stateEng.StartUp()
 }
 
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.

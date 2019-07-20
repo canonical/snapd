@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, tm timings.Measurer) error {
+func (m *InterfaceManager) initialize(tm timings.Measurer) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -58,10 +58,10 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	// on state, in memory and in API responses, respectively.
 	m.selectInterfaceMapper(snaps)
 
-	if err := m.addInterfaces(extraInterfaces); err != nil {
+	if err := m.addInterfaces(m.extraInterfaces); err != nil {
 		return err
 	}
-	if err := m.addBackends(extraBackends); err != nil {
+	if err := m.addBackends(m.extraBackends); err != nil {
 		return err
 	}
 	if err := m.addSnaps(snaps); err != nil {
