@@ -296,6 +296,15 @@ func (o *Overlord) newStore(devBE storecontext.DeviceBackend) snapstate.StoreSer
 	return o.newStoreWithContext(stoCtx)
 }
 
+// StartUp proceeds to run any expensive Overlord or managers initialization. After this is done once it is a noop.
+func (o *Overlord) StartUp() error {
+	if o.startedUp {
+		return nil
+	}
+	o.startedUp = true
+	return o.stateEng.StartUp()
+}
+
 func (o *Overlord) ensureTimerSetup() {
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
@@ -344,15 +353,6 @@ func (o *Overlord) requestRestart(t state.RestartType) {
 	} else {
 		o.restartBehavior.HandleRestart(t)
 	}
-}
-
-// StartUp proceeds to run any expensive Overlord or managers initialization. After this is done once it is a noop.
-func (o *Overlord) StartUp() error {
-	if o.startedUp {
-		return nil
-	}
-	o.startedUp = true
-	return o.stateEng.StartUp()
 }
 
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
