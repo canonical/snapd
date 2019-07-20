@@ -426,7 +426,7 @@ type: gadget`
 	return coreFname, kernelFname, gadgetFname
 }
 
-func (s *FirstBootTestSuite) makeBecomeOperationalChange(c *C, st *state.State) *state.Change {
+func (s *FirstBootTestSuite) makeSeedChange(c *C, st *state.State) *state.Change {
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
@@ -531,7 +531,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	})
 
 	st := s.overlord.State()
-	chg := s.makeBecomeOperationalChange(c, st)
+	chg := s.makeSeedChange(c, st)
 	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
@@ -631,7 +631,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 
 	o.AddManager(o.TaskRunner())
 
-	chg := s.makeBecomeOperationalChange(c, st)
+	chg := s.makeSeedChange(c, st)
 
 	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
