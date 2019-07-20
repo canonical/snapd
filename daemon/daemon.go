@@ -429,6 +429,16 @@ func (d *Daemon) Start() error {
 		panic("internal error: no Overlord")
 	}
 
+	to, reasoning, err := d.overlord.StartupTimeout()
+	if err != nil {
+		return err
+	}
+	if to > 0 {
+		to = to.Round(time.Microsecond)
+		us := to.Nanoseconds() / 1000
+		logger.Noticef("adjusting startup timeout by %v (%s)", to, reasoning)
+		systemdSdNotify(fmt.Sprintf("EXTEND_TIMEOUT_USEC=%d", us))
+	}
 	// now perform expensive overlord/manages initiliazation
 	if err := d.overlord.StartUp(); err != nil {
 		return err

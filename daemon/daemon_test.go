@@ -529,6 +529,8 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 		Current: snap.R(1),
 	})
 	st.Unlock()
+	// 1 snap => extended timeout 30s + 5s
+	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
 
 	l1, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -543,7 +545,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 
 	c.Assert(d.Start(), check.IsNil)
 
-	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
+	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1"})
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -571,7 +573,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	err = d.Stop(nil)
 	c.Check(err, check.IsNil)
 
-	c.Check(s.notified, check.DeepEquals, []string{"READY=1", "STOPPING=1"})
+	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
@@ -814,7 +816,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	c.Check(delays[1], check.DeepEquals, 1*time.Minute)
 
 	// we are not stopping, we wait for the reboot instead
-	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
+	c.Check(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1"})
 
 	st.Lock()
 	defer st.Unlock()
