@@ -541,7 +541,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
 
@@ -588,7 +588,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	defer d.Stop(nil)
 
 	snapdDone := make(chan struct{})
@@ -666,7 +666,7 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 
 	snapdAccepting := make(chan struct{})
 	go func() {
@@ -735,7 +735,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	defer d.Stop(nil)
 
 	st := d.overlord.State()
@@ -883,7 +883,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	st := d.overlord.State()
 
 	st.Lock()
@@ -916,7 +916,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	st := d.overlord.State()
 
 	st.Lock()
@@ -963,7 +963,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(n, check.Equals, 1)
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
 
@@ -1039,10 +1039,10 @@ func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
 	// go into socket activation mode
 	s.markSeeded(d)
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
-		d.overlord.StateEngine().Ensure()
+		c.Check(d.overlord.StateEngine().Ensure(), check.IsNil)
 		time.Sleep(5 * time.Millisecond)
 	}
 
@@ -1069,10 +1069,10 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	s.markSeeded(d)
 	st := d.overlord.State()
 
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	// pretend some ensure happened
 	for i := 0; i < 5; i++ {
-		d.overlord.StateEngine().Ensure()
+		c.Check(d.overlord.StateEngine().Ensure(), check.IsNil)
 		time.Sleep(5 * time.Millisecond)
 	}
 

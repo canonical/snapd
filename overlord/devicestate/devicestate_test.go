@@ -185,6 +185,8 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	}
 	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
 
+	c.Assert(s.o.StartUp(), IsNil)
+
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
