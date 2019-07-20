@@ -1,0 +1,23 @@
+type: model
+authority-id: developer1
+series: 16
+brand-id: developer1
+model: my-classic-w-gadget-18
+architecture: amd64
+classic: true
+gadget: classic-gadget-18
+required-snaps:
+  - core18
+timestamp: 2019-07-20T14:50:00+00:00
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCXTMsNgAArlIQAHwAIo/Q5mF8mdzP3C1jFSgRrplOpu1Yn9f9tsMatTj7z7pw
+PlYp6m6Hd5wvflGrg6jvIn06O7P32yOyMzWP5SJi/VSt1pamwX/q8CvlgUG9FFg8Y6CbKFVMIPev
+gHfwCeuYeNtypngCGeM25YsW74TaiqiQfWtbNAlpRVDaJU3Q21cwTUggXJWGez07cwoCmskWpOkY
+MQub7fYwZp5ScLTRCp/I802FYk/CbEWXJsxBETpKfz9Og4zkf5JfMLFOEHIYWBxSivCa9/2JinVl
+LxLJdThh2xp6AnpKCyw5uSI2h+d1xKpy8dSC/feWUgWHOZ8Q8Du5dJGwwEHfgK7Ob3ZrlYhwU/7S
+pKi2Zgusnev8HLqYikmAyPvBXNV11YovnWpb39VW6nsB+1Ac8WssDZynzDVD1Uo6UqNR1sWaTilO
+PJtzKgIELOyna6TOPWZykaYqmrTRYKI/ma/2lmz4wGxcPt+OQY6lILS9OOP9B1R+zFmizyNjGtAC
+DMfGbp8foMm4KaGbCtpbf8GdGO+48Tix51qbHnTW/pLX5ujJkhR4qhbx7RFAQQWbzfuDUYzKNeNb
+7p5g0Z2z8FWitehhk32PZfuxaiXSTrUSGnCQGR02toFyTSNOKEu2AaVB3usLogf7ivYRzAMXeOdz
+1nB67WSHM/Q1uQLa9BA3FkfuK+WO
