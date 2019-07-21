@@ -2212,6 +2212,34 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 	c.Check(osutil.FileExists(blobdir), Equals, false)
 }
 
+func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// classic model with gadget etc
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic":        "true",
+		"architecture":   "amd64",
+		"gadget":         "classic-gadget18",
+		"required-snaps": []interface{}{"core18", "snap-req-core16-base"},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	s.setupSnaps(c, "", map[string]string{
+		"classic-gadget18": "my-brand",
+	})
+
+	opts := &image.Options{
+		Classic: true,
+		RootDir: rootdir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.SetupSeed(s.tsto, model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot use "snap-req-core16-base" requiring base "core16" without adding "core16" explicitly or otherwise "core"`)
+}
+
 func (s *imageSuite) TestSnapChannel(c *C) {
 	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",

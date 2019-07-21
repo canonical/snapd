@@ -459,8 +459,11 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	baseName := defaultCore
+	basesAndApps := []string{}
 	if model.Base() != "" {
 		baseName = model.Base()
+		basesAndApps = append(basesAndApps, baseName)
+
 	}
 
 	if !opts.Classic {
@@ -469,8 +472,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	basesAndApps := []string{}
-	basesAndApps = append(basesAndApps, baseName)
 	basesAndApps = append(basesAndApps, model.RequiredSnaps()...)
 	basesAndApps = append(basesAndApps, opts.Snaps...)
 	// TODO: required snaps should get their base from required
@@ -531,6 +532,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		if err := seed.add("snapd"); err != nil {
 			return err
 		}
+	}
+
+	if len(seed.needsCore16) != 0 && !seed.seen["core"] {
+		return fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" explicitly or otherwise "core"`, strutil.Quoted(seed.needsCore16))
 	}
 
 	if len(seed.locals) > 0 {
@@ -637,7 +642,8 @@ type seed struct {
 	locals                           []string
 	downloadedSnapsInfoForBootConfig map[string]*snap.Info
 
-	needsCore bool
+	needsCore   bool
+	needsCore16 []string
 }
 
 func (s *seed) add(snapName string) error {
@@ -778,8 +784,10 @@ func (s *seed) checkBase(info *snap.Info) error {
 	if s.local.hasName(s.basesAndApps, info.Base) {
 		return nil
 	}
-	// core provides everything that core16 needs
-	if info.Base == "core16" && s.local.hasName(s.basesAndApps, "core") {
+
+	if info.Base == "core16" {
+		// check at the end
+		s.needsCore16 = append(s.needsCore16, info.SnapName())
 		return nil
 	}
 
