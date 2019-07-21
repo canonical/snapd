@@ -53,12 +53,28 @@ const settingsIntrospectionXML = `
 		<arg type='s' name='check' direction='in'/>
 		<arg type='s' name='result' direction='out'/>
 	</method>
+	<method name='CheckSub'>
+		<arg type='s' name='setting' direction='in'/>
+		<arg type='s' name='subproperty' direction='in'/>
+		<arg type='s' name='check' direction='in'/>
+		<arg type='s' name='result' direction='out'/>
+	</method>
 	<method name='Get'>
 		<arg type='s' name='setting' direction='in'/>
 		<arg type='s' name='result' direction='out'/>
 	</method>
+	<method name='GetSub'>
+		<arg type='s' name='setting' direction='in'/>
+		<arg type='s' name='subproperty' direction='in'/>
+		<arg type='s' name='result' direction='out'/>
+	</method>
 	<method name='Set'>
 		<arg type='s' name='setting' direction='in'/>
+		<arg type='s' name='value' direction='in'/>
+	</method>
+	<method name='SetSub'>
+		<arg type='s' name='setting' direction='in'/>
+		<arg type='s' name='subproperty' direction='in'/>
 		<arg type='s' name='value' direction='in'/>
 	</method>
 </interface>`
@@ -78,12 +94,100 @@ func allowedSetting(setting string) bool {
 }
 
 func settingWhitelisted(setting string) *dbus.Error {
+	// Trim off any subproperty from the check
+	settingTrimmed := strings.SplitN(string(setting), "/", 2)[0]
 	for _, whitelisted := range settingsWhitelist {
-		if setting == whitelisted {
+		if settingTrimmed == whitelisted {
 			return nil
 		}
 	}
 	return dbus.MakeFailedError(fmt.Errorf("cannot use setting %q: not allowed", setting))
+}
+
+func safeSnapFromSender(s *Settings, sender dbus.Sender) (string, *dbus.Error) {
+	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
+	snap, err := snapFromSender(s.conn, sender)
+	if err != nil {
+		return "", dbus.MakeFailedError(err)
+	}
+	return snap, nil
+}
+
+func desktopFile(s *Settings, command string, setting string, desktopValue string, sender dbus.Sender) (string, *dbus.Error) {
+	snap, err := safeSnapFromSender(s, sender)
+	if err != nil {
+		return "", err
+	}
+	if err := settingWhitelisted(setting); err != nil {
+		return "", err
+	}
+
+	if !allowedSetting(desktopValue) {
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %q setting %q to value %q: value not allowed", command, setting, desktopValue))
+	}
+
+	// FIXME: this works only for desktop files
+	desktopFile := fmt.Sprintf("%s_%s", snap, desktopValue)
+	return desktopFile, nil
+}
+
+func outputDesktopFile(s *Settings, output string, sender dbus.Sender) (string, *dbus.Error) {
+	snap, err := safeSnapFromSender(s, sender)
+	if err != nil {
+		return "", err
+	}
+	if !strings.HasPrefix(output, snap+"_") {
+		return "NOT-THIS-SNAP.desktop", nil
+	}
+
+	desktopFile := strings.SplitN(output, "_", 2)[1]
+	return strings.TrimSpace(desktopFile), nil
+}
+
+func setDialog(s *Settings, setting string, desktopFile string, sender dbus.Sender) *dbus.Error {
+	df := filepath.Join(dirs.SnapDesktopFilesDir, desktopFile)
+	if !osutil.FileExists(df) {
+		return dbus.MakeFailedError(fmt.Errorf("cannot find desktop file %q", df))
+	}
+
+	// FIXME: we need to know the parent PID or our dialog may pop under
+	//        the existing windows. We might get it with the help of
+	//        the xdg-settings tool inside the core snap. It would have
+	//        to get the PID of the process asking for the settings
+	//        then xdg-settings can sent this to us and we can intospect
+	//        the X windows for _NET_WM_PID and use the windowID to
+	//        attach to zenity - not sure how this translate to the
+	//        wayland world though :/
+	dialog, uiErr := ui.New()
+	if uiErr != nil {
+		return dbus.MakeFailedError(fmt.Errorf("cannot ask for settings change: %v", uiErr))
+	}
+
+	snap, err := safeSnapFromSender(s, sender)
+	if err != nil {
+		return err
+	}
+
+	answeredYes := dialog.YesNo(
+		i18n.G("Allow settings change?"),
+		fmt.Sprintf(i18n.G("Allow snap %q to change %q to %q ?"), snap, setting, desktopFile),
+		&ui.DialogOptions{
+			Timeout: defaultConfirmDialogTimeout,
+			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
+		},
+	)
+	if !answeredYes {
+		return dbus.MakeFailedError(fmt.Errorf("cannot change configuration: user declined change"))
+	}
+	return nil
+}
+
+func checkOutput(cmd *exec.Cmd, command string, setting string) (string, *dbus.Error) {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s setting %s: %s", command, setting, osutil.OutputErr(output, err)))
+	}
+	return string(output), nil
 }
 
 // Settings implements the 'io.snapcraft.Settings' DBus interface.
@@ -116,29 +220,39 @@ func (s *Settings) IntrospectionData() string {
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Check string:'default-web-browser' string:'firefox.desktop'
-func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *dbus.Error) {
-	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
-	snap, err := snapFromSender(s.conn, sender)
+func (s *Settings) Check(setting string, check string, sender dbus.Sender) (string, *dbus.Error) {
+	desktopFile, err := desktopFile(s, "check", setting, check, sender)
 	if err != nil {
-		return "", dbus.MakeFailedError(err)
-	}
-	if err := settingWhitelisted(setting); err != nil {
 		return "", err
 	}
-	if !allowedSetting(check) {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %q to value %q: value not allowed", setting, check))
-	}
-
-	// FIXME: this works only for desktop files
-	desktopFile := fmt.Sprintf("%s_%s", snap, check)
 
 	cmd := exec.Command("xdg-settings", "check", setting, desktopFile)
-	output, err := cmd.CombinedOutput()
+	output, err := checkOutput(cmd, "check", setting)
 	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %s: %s", setting, osutil.OutputErr(output, err)))
+		return "", err
 	}
 
-	return strings.TrimSpace(string(output)), nil
+	return strings.TrimSpace(output), nil
+}
+
+// CheckSub implements the 'CheckSub' method of the 'io.snapcraft.Settings'
+// DBus interface.
+//
+// Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.CheckSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
+func (s *Settings) CheckSub(setting string, subproperty string, check string, sender dbus.Sender) (string, *dbus.Error) {
+	settingWithSub := fmt.Sprintf("%s/%s", setting, subproperty)
+	desktopFile, err := desktopFile(s, "check", settingWithSub, check, sender)
+	if err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("xdg-settings", "check", setting, subproperty, desktopFile)
+	output, err := checkOutput(cmd, "check", settingWithSub)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(output), nil
 }
 
 // Get implements the 'Get' method of the 'io.snapcraft.Settings'
@@ -151,21 +265,40 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 	}
 
 	cmd := exec.Command("xdg-settings", "get", setting)
-	output, err := cmd.CombinedOutput()
+	output, err := checkOutput(cmd, "get", setting)
 	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot get setting %s: %s", setting, osutil.OutputErr(output, err)))
+		return "", err
 	}
 
-	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
-	snap, err := snapFromSender(s.conn, sender)
+	desktopFile, err := outputDesktopFile(s, output, sender)
 	if err != nil {
-		return "", dbus.MakeFailedError(err)
-	}
-	if !strings.HasPrefix(string(output), snap+"_") {
-		return "NOT-THIS-SNAP.desktop", nil
+		return "", err
 	}
 
-	desktopFile := strings.SplitN(string(output), "_", 2)[1]
+	return strings.TrimSpace(desktopFile), nil
+}
+
+// GetSub implements the 'GetSub' method of the 'io.snapcraft.Settings'
+// DBus interface.
+//
+// Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.GetSub string:'default-url-scheme-handler' string:'irc'
+func (s *Settings) GetSub(setting string, subproperty string, sender dbus.Sender) (string, *dbus.Error) {
+	settingWithSub := fmt.Sprintf("%s/%s", setting, subproperty)
+	if err := settingWhitelisted(settingWithSub); err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("xdg-settings", "get", setting, subproperty)
+	output, err := checkOutput(cmd, "get", settingWithSub)
+	if err != nil {
+		return "", err
+	}
+
+	desktopFile, err := outputDesktopFile(s, output, sender)
+	if err != nil {
+		return "", err
+	}
+
 	return strings.TrimSpace(desktopFile), nil
 }
 
@@ -173,53 +306,42 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Set string:'default-web-browser' string:'chromium-browser.desktop'
-func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
-	if err := settingWhitelisted(setting); err != nil {
+func (s *Settings) Set(setting string, new string, sender dbus.Sender) *dbus.Error {
+	desktopFile, err := desktopFile(s, "set", setting, new, sender)
+	if err != nil {
 		return err
 	}
-	// see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
-	snap, err := snapFromSender(s.conn, sender)
-	if err != nil {
-		return dbus.MakeFailedError(err)
+
+	if err := setDialog(s, setting, desktopFile, sender); err != nil {
+		return err
 	}
 
-	if !allowedSetting(new) {
-		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %q to value %q: value not allowed", setting, new))
-	}
-	new = fmt.Sprintf("%s_%s", snap, new)
-	df := filepath.Join(dirs.SnapDesktopFilesDir, new)
-	if !osutil.FileExists(df) {
-		return dbus.MakeFailedError(fmt.Errorf("cannot find desktop file %q", df))
+	cmd := exec.Command("xdg-settings", "set", setting, desktopFile)
+	if _, err := checkOutput(cmd, "set", setting); err != nil {
+		return err
 	}
 
-	// FIXME: we need to know the parent PID or our dialog may pop under
-	//        the existing windows. We might get it with the help of
-	//        the xdg-settings tool inside the core snap. It would have
-	//        to get the PID of the process asking for the settings
-	//        then xdg-settings can sent this to us and we can intospect
-	//        the X windows for _NET_WM_PID and use the windowID to
-	//        attach to zenity - not sure how this translate to the
-	//        wayland world though :/
-	dialog, err := ui.New()
+	return nil
+}
+
+// SetSub implements the 'SetSub' method of the 'io.snapcraft.Settings'
+// DBus interface.
+//
+// Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.SetSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
+func (s *Settings) SetSub(setting string, subproperty string, new string, sender dbus.Sender) *dbus.Error {
+	settingWithSub := fmt.Sprintf("%s/%s", setting, subproperty)
+	desktopFile, err := desktopFile(s, "set", settingWithSub, new, sender)
 	if err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot ask for settings change: %v", err))
-	}
-	answeredYes := dialog.YesNo(
-		i18n.G("Allow settings change?"),
-		fmt.Sprintf(i18n.G("Allow snap %q to change %q to %q ?"), snap, setting, new),
-		&ui.DialogOptions{
-			Timeout: defaultConfirmDialogTimeout,
-			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
-		},
-	)
-	if !answeredYes {
-		return dbus.MakeFailedError(fmt.Errorf("cannot change configuration: user declined change"))
+		return err
 	}
 
-	cmd := exec.Command("xdg-settings", "set", setting, new)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %s: %s", setting, osutil.OutputErr(output, err)))
+	if err := setDialog(s, settingWithSub, desktopFile, sender); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("xdg-settings", "set", setting, subproperty, desktopFile)
+	if _, err := checkOutput(cmd, "set", settingWithSub); err != nil {
+		return err
 	}
 
 	return nil
